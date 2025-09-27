@@ -32,7 +32,7 @@ def enforce_abstention(raw_output: str, confidence: float, threshold: float = 0.
 
 
 def honesty_reward_from_trace(confidence: float, mindfulness: float, emptiness: float) -> float:
-    """Compute honesty reward emphasising Mindfulness and Emptiness."""
+    """Compute honesty reward emphasizing Mindfulness and Emptiness."""
 
     honesty = (mindfulness + emptiness) / 2.0
     calibrated = honesty * confidence
