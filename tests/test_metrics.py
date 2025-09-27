@@ -1,4 +1,6 @@
 import math
+from decimal import Decimal
+from fractions import Fraction
 
 import pytest
 
@@ -45,6 +47,7 @@ def test_aggregate_gepa_metrics_reports_per_axis():
     assert math.isclose(result.equanimity, expected_equanimity)
     assert math.isclose(result.purpose, expected_purpose)
     assert math.isclose(result.awareness, expected_awareness)
+    assert math.isclose(aggregate_gepa_score(sessions), result.gepa)
     assert math.isclose(result.gepa, expected_gepa)
 
 
@@ -143,3 +146,47 @@ def test_validation_rejects_non_numeric_inputs():
                 )
             ]
         )
+
+
+def test_aggregate_gepa_metrics_supports_decimal_and_fraction_inputs():
+    sessions = [
+        PracticeSession(
+            duration_minutes=Decimal("15"),
+            grounding=Fraction(1, 2),
+            equanimity=Fraction(2, 3),
+            purpose=Decimal("0.8"),
+            awareness=Fraction(3, 5),
+        ),
+        PracticeSession(
+            duration_minutes=Fraction(45, 2),
+            grounding=Decimal("0.9"),
+            equanimity=Fraction(4, 5),
+            purpose=Fraction(7, 10),
+            awareness=Decimal("0.6"),
+        ),
+    ]
+
+    result = aggregate_gepa_metrics(sessions)
+
+    first_weight = float(Decimal("15"))
+    second_weight = float(Fraction(45, 2))
+    total_duration = first_weight + second_weight
+    expected_grounding = (
+        float(Fraction(1, 2)) * first_weight + float(Decimal("0.9")) * second_weight
+    ) / total_duration
+    expected_equanimity = (
+        float(Fraction(2, 3)) * first_weight + float(Fraction(4, 5)) * second_weight
+    ) / total_duration
+    expected_purpose = (
+        float(Decimal("0.8")) * first_weight + float(Fraction(7, 10)) * second_weight
+    ) / total_duration
+    expected_awareness = (
+        float(Fraction(3, 5)) * first_weight + float(Decimal("0.6")) * second_weight
+    ) / total_duration
+
+    assert math.isclose(result.total_duration, total_duration)
+    assert math.isclose(result.grounding, expected_grounding)
+    assert math.isclose(result.equanimity, expected_equanimity)
+    assert math.isclose(result.purpose, expected_purpose)
+    assert math.isclose(result.awareness, expected_awareness)
+    assert math.isclose(aggregate_gepa_score(sessions), result.gepa)

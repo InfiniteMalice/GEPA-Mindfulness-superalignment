@@ -15,6 +15,7 @@ there is no time information to average over.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 from math import isfinite
 from numbers import Real
 from typing import Iterable
@@ -23,7 +24,7 @@ from typing import Iterable
 def _ensure_real_number(label: str, value: float) -> None:
     """Raise ``TypeError`` when *value* is not a real number."""
 
-    if isinstance(value, bool) or not isinstance(value, Real):
+    if isinstance(value, bool) or not isinstance(value, (Real, Decimal)):
         raise TypeError(f"{label} must be a real number")
 
 
@@ -122,17 +123,18 @@ def aggregate_gepa_metrics(sessions: Iterable[PracticeSession]) -> AggregateResu
     for session in sessions:
         session.validate()
 
-        if session.duration_minutes == 0:
+        weight = float(session.duration_minutes)
+
+        if weight == 0.0:
             # Zero-duration sessions provide qualitative signal without affecting
             # the quantitative average.  They are ignored but still validated.
             continue
 
-        weight = session.duration_minutes
         total_duration += weight
-        grounding_total += session.grounding * weight
-        equanimity_total += session.equanimity * weight
-        purpose_total += session.purpose * weight
-        awareness_total += session.awareness * weight
+        grounding_total += float(session.grounding) * weight
+        equanimity_total += float(session.equanimity) * weight
+        purpose_total += float(session.purpose) * weight
+        awareness_total += float(session.awareness) * weight
 
     if total_duration == 0:
         return AggregateResult(
