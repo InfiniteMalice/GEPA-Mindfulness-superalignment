@@ -3,7 +3,6 @@ from decimal import Decimal
 from fractions import Fraction
 
 import pytest
-
 from gepa_mindfulness import (
     AggregateResult,
     PracticeSession,
@@ -50,7 +49,6 @@ def test_aggregate_gepa_metrics_reports_per_axis():
     assert math.isclose(aggregate_gepa_score(sessions), result.gepa)
     assert math.isclose(result.gepa, expected_gepa)
 
-
 def test_zero_duration_sessions_are_ignored():
     sessions = [
         PracticeSession(duration_minutes=0, grounding=0.4, equanimity=0.5, purpose=0.6, awareness=0.7),
@@ -81,7 +79,6 @@ def test_validation_rejects_negative_duration():
 
     with pytest.raises(ValueError):
         aggregate_gepa_score([session])
-
 
 def test_validation_rejects_non_finite_duration():
     session = PracticeSession(
@@ -116,6 +113,7 @@ def test_validation_rejects_non_finite_duration():
 
     with pytest.raises(ValueError, match="duration_minutes must be finite"):
         aggregate_gepa_score([session])
+
 
     session = PracticeSession(
         duration_minutes=Decimal("1e10000"),
@@ -162,6 +160,7 @@ def test_validation_rejects_non_finite_axis_scores():
 
     with pytest.raises(ValueError, match="awareness must be finite"):
         aggregate_gepa_score([session])
+
 
     session = PracticeSession(
         duration_minutes=10,
