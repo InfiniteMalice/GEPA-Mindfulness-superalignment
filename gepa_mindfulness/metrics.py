@@ -1,6 +1,7 @@
 """Scoring helpers for GEPA mindfulness sessions.
 
 The module provides a :class:`PracticeSession` data class that represents a
+
 single training session alongside :func:`aggregate_gepa_metrics` and
 ``aggregate_gepa_score`` helpers that combine several sessions into weighted
 averages.
@@ -10,11 +11,15 @@ sessions had a duration of zero minutes.  This can easily happen in practice
 when users record preparatory notes without starting the actual timer.  The
 aggregators guard against this situation by returning zeroed metrics whenever
 there is no time information to average over.
+=======
+
+
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+
 from decimal import Decimal
 from math import isfinite
 from numbers import Real, Rational
@@ -69,6 +74,7 @@ def _decimal_to_float(label: str, value: Decimal) -> float:
         raise ValueError(f"{label} is too large to represent as a finite float")
     return result
 
+=======
 
 @dataclass(frozen=True)
 class PracticeSession:
@@ -97,17 +103,20 @@ class PracticeSession:
     def validate(self) -> None:
         """Ensure the session data lives within the supported domain."""
 
+
         _ensure_real_number("duration_minutes", self.duration_minutes)
         _coerce_finite_float("duration_minutes", self.duration_minutes)
         if self.duration_minutes < 0:
             raise ValueError("duration_minutes must be non-negative")
 
+=======
         for label, value in (
             ("grounding", self.grounding),
             ("equanimity", self.equanimity),
             ("purpose", self.purpose),
             ("awareness", self.awareness),
         ):
+
             _ensure_real_number(label, value)
             numeric_value = _coerce_finite_float(label, value)
             if not 0.0 <= numeric_value <= 1.0:
@@ -137,6 +146,11 @@ class AggregateResult:
 
 
 def aggregate_gepa_metrics(sessions: Iterable[PracticeSession]) -> AggregateResult:
+=======
+
+            if not 0.0 <= value <= 1.0:
+                raise ValueError(f"{label} must be within [0.0, 1.0]")
+
     """Compute a weighted aggregate GEPA score for several sessions.
 
     The function averages the per-session GEPA scores weighted by their duration.
@@ -149,6 +163,7 @@ def aggregate_gepa_metrics(sessions: Iterable[PracticeSession]) -> AggregateResu
 
     Returns
     -------
+
     AggregateResult
         Duration-weighted averages across the four GEPA axes and the combined
         GEPA score.  All values are zero when there is no positive-duration data
@@ -160,16 +175,21 @@ def aggregate_gepa_metrics(sessions: Iterable[PracticeSession]) -> AggregateResu
     equanimity_total = Decimal("0")
     purpose_total = Decimal("0")
     awareness_total = Decimal("0")
+=======
+
+
 
     for session in sessions:
         session.validate()
-
+        
         weight = _to_decimal(session.duration_minutes)
 
         if weight == 0:
+=======
             # Zero-duration sessions provide qualitative signal without affecting
             # the quantitative average.  They are ignored but still validated.
             continue
+
 
         total_duration += weight
         grounding_total += _to_decimal(session.grounding) * weight
@@ -204,3 +224,4 @@ def aggregate_gepa_score(sessions: Iterable[PracticeSession]) -> float:
     """Return only the overall GEPA score for convenience."""
 
     return aggregate_gepa_metrics(sessions).gepa
+=======

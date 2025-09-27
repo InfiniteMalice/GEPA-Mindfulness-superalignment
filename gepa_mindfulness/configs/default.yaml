@@ -1,0 +1,18 @@
+seed: 7
+max_steps: 2
+device: cpu
+reward_weights:
+  alpha: 0.8
+  beta: 1.1
+  gamma: 1.2
+  delta: 0.5
+ppo:
+  learning_rate: 1.0e-5
+  batch_size: 2
+  mini_batch_size: 1
+  ppo_epochs: 2
+model:
+  policy_model: distilgpt2
+  reward_model: distilbert-base-uncased
+adversarial_batch: 2
+confidence_threshold: 0.75

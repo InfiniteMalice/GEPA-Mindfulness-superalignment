@@ -1,4 +1,5 @@
 import math
+
 from decimal import Decimal
 from fractions import Fraction
 
@@ -10,7 +11,6 @@ from gepa_mindfulness import (
     aggregate_gepa_metrics,
     aggregate_gepa_score,
 )
-
 
 def test_aggregate_gepa_score_basic_weighting():
     sessions = [
@@ -25,6 +25,7 @@ def test_aggregate_gepa_score_basic_weighting():
     ) / 45
 
     assert math.isclose(aggregate_gepa_score(sessions), expected)
+
 
 
 def test_aggregate_gepa_metrics_reports_per_axis():
@@ -51,12 +52,12 @@ def test_aggregate_gepa_metrics_reports_per_axis():
     assert math.isclose(result.gepa, expected_gepa)
 
 
+=======
 def test_zero_duration_sessions_are_ignored():
     sessions = [
         PracticeSession(duration_minutes=0, grounding=0.4, equanimity=0.5, purpose=0.6, awareness=0.7),
         PracticeSession(duration_minutes=0, grounding=0.9, equanimity=0.9, purpose=0.9, awareness=0.9),
     ]
-
     result = aggregate_gepa_metrics(sessions)
 
     assert result == AggregateResult(
@@ -66,6 +67,7 @@ def test_zero_duration_sessions_are_ignored():
         purpose=0.0,
         awareness=0.0,
     )
+=======
     assert aggregate_gepa_score(sessions) == 0.0
 
 
@@ -81,7 +83,6 @@ def test_validation_rejects_negative_duration():
 
     with pytest.raises(ValueError):
         aggregate_gepa_score([session])
-
 
 def test_validation_rejects_non_finite_duration():
     session = PracticeSession(
@@ -330,3 +331,4 @@ def test_aggregate_gepa_metrics_raises_when_duration_underflows_float():
 
     with pytest.raises(ValueError, match="total duration is too small"):
         aggregate_gepa_score(sessions)
+=======
