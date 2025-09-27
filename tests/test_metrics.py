@@ -1,10 +1,4 @@
 import math
-
-import pytest
-
-from gepa_mindfulness import PracticeSession, aggregate_gepa_score
-
-
 def test_aggregate_gepa_score_basic_weighting():
     sessions = [
         PracticeSession(duration_minutes=30, grounding=0.6, equanimity=0.5, purpose=0.8, awareness=0.7),
@@ -18,7 +12,6 @@ def test_aggregate_gepa_score_basic_weighting():
     ) / 45
 
     assert math.isclose(aggregate_gepa_score(sessions), expected)
-
 
 def test_zero_duration_sessions_are_ignored():
     sessions = [
@@ -41,3 +34,4 @@ def test_validation_rejects_negative_duration():
 
     with pytest.raises(ValueError):
         aggregate_gepa_score([session])
+
