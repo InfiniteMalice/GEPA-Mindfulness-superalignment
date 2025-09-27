@@ -102,3 +102,44 @@ def test_validation_rejects_non_finite_duration():
 
     with pytest.raises(ValueError):
         aggregate_gepa_score([session])
+
+
+def test_validation_rejects_non_numeric_inputs():
+    with pytest.raises(TypeError, match="duration_minutes must be a real number"):
+        aggregate_gepa_score(
+            [
+                PracticeSession(
+                    duration_minutes="ten",
+                    grounding=0.5,
+                    equanimity=0.5,
+                    purpose=0.5,
+                    awareness=0.5,
+                )
+            ]
+        )
+
+    with pytest.raises(TypeError, match="grounding must be a real number"):
+        aggregate_gepa_score(
+            [
+                PracticeSession(
+                    duration_minutes=10,
+                    grounding=None,
+                    equanimity=0.5,
+                    purpose=0.5,
+                    awareness=0.5,
+                )
+            ]
+        )
+
+    with pytest.raises(TypeError, match="awareness must be a real number"):
+        aggregate_gepa_score(
+            [
+                PracticeSession(
+                    duration_minutes=10,
+                    grounding=0.5,
+                    equanimity=0.5,
+                    purpose=0.5,
+                    awareness=True,
+                )
+            ]
+        )

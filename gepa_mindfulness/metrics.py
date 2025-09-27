@@ -16,7 +16,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import isfinite
+from numbers import Real
 from typing import Iterable
+
+
+def _ensure_real_number(label: str, value: float) -> None:
+    """Raise ``TypeError`` when *value* is not a real number."""
+
+    if isinstance(value, bool) or not isinstance(value, Real):
+        raise TypeError(f"{label} must be a real number")
 
 
 @dataclass(frozen=True)
@@ -46,6 +54,7 @@ class PracticeSession:
     def validate(self) -> None:
         """Ensure the session data lives within the supported domain."""
 
+        _ensure_real_number("duration_minutes", self.duration_minutes)
         if self.duration_minutes < 0:
             raise ValueError("duration_minutes must be non-negative")
 
@@ -58,6 +67,7 @@ class PracticeSession:
             ("purpose", self.purpose),
             ("awareness", self.awareness),
         ):
+            _ensure_real_number(label, value)
             if not 0.0 <= value <= 1.0:
                 raise ValueError(f"{label} must be within [0.0, 1.0]")
 
