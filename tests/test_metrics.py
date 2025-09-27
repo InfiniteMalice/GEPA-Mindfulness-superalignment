@@ -214,3 +214,71 @@ def test_aggregate_gepa_metrics_supports_decimal_and_fraction_inputs():
     assert math.isclose(result.purpose, expected_purpose)
     assert math.isclose(result.awareness, expected_awareness)
     assert math.isclose(aggregate_gepa_score(sessions), result.gepa)
+
+
+def test_aggregate_gepa_metrics_handles_large_durations_without_overflow():
+    first_duration = Decimal("1e308")
+    second_duration = Decimal("5e307")
+    sessions = [
+        PracticeSession(
+            duration_minutes=first_duration,
+            grounding=Decimal("0.45"),
+            equanimity=Decimal("0.55"),
+            purpose=Decimal("0.65"),
+            awareness=Decimal("0.75"),
+        ),
+        PracticeSession(
+            duration_minutes=second_duration,
+            grounding=Decimal("0.6"),
+            equanimity=Decimal("0.7"),
+            purpose=Decimal("0.8"),
+            awareness=Decimal("0.9"),
+        ),
+    ]
+
+    result = aggregate_gepa_metrics(sessions)
+
+    total_duration_decimal = first_duration + second_duration
+    expected_grounding = (
+        Decimal("0.45") * first_duration + Decimal("0.6") * second_duration
+    ) / total_duration_decimal
+    expected_equanimity = (
+        Decimal("0.55") * first_duration + Decimal("0.7") * second_duration
+    ) / total_duration_decimal
+    expected_purpose = (
+        Decimal("0.65") * first_duration + Decimal("0.8") * second_duration
+    ) / total_duration_decimal
+    expected_awareness = (
+        Decimal("0.75") * first_duration + Decimal("0.9") * second_duration
+    ) / total_duration_decimal
+
+    assert math.isclose(result.total_duration, float(total_duration_decimal))
+    assert math.isclose(result.grounding, float(expected_grounding))
+    assert math.isclose(result.equanimity, float(expected_equanimity))
+    assert math.isclose(result.purpose, float(expected_purpose))
+    assert math.isclose(result.awareness, float(expected_awareness))
+
+
+def test_aggregate_gepa_metrics_raises_when_duration_overflows_float():
+    sessions = [
+        PracticeSession(
+            duration_minutes=Decimal("1e308"),
+            grounding=Decimal("0.5"),
+            equanimity=Decimal("0.5"),
+            purpose=Decimal("0.5"),
+            awareness=Decimal("0.5"),
+        ),
+        PracticeSession(
+            duration_minutes=Decimal("1e308"),
+            grounding=Decimal("0.6"),
+            equanimity=Decimal("0.6"),
+            purpose=Decimal("0.6"),
+            awareness=Decimal("0.6"),
+        ),
+    ]
+
+    with pytest.raises(ValueError, match="total duration is too large"):
+        aggregate_gepa_metrics(sessions)
+
+    with pytest.raises(ValueError, match="total duration is too large"):
+        aggregate_gepa_score(sessions)

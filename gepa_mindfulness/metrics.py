@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 from math import isfinite
-from numbers import Real
+from numbers import Real, Rational
 from typing import Iterable
 
 
@@ -26,6 +26,27 @@ def _ensure_real_number(label: str, value: float) -> None:
 
     if isinstance(value, bool) or not isinstance(value, (Real, Decimal)):
         raise TypeError(f"{label} must be a real number")
+
+
+def _to_decimal(value: Real | Decimal) -> Decimal:
+    """Convert ``value`` to :class:`~decimal.Decimal` without precision loss."""
+
+    if isinstance(value, Decimal):
+        return value
+
+    if isinstance(value, Rational):
+        return Decimal(value.numerator) / Decimal(value.denominator)
+
+    return Decimal(str(value))
+
+
+def _decimal_to_float(label: str, value: Decimal) -> float:
+    """Convert *value* to ``float`` and ensure it remains finite."""
+
+    result = float(value)
+    if not isfinite(result):
+        raise ValueError(f"{label} is too large to represent as a finite float")
+    return result
 
 
 @dataclass(frozen=True)
@@ -116,27 +137,27 @@ def aggregate_gepa_metrics(sessions: Iterable[PracticeSession]) -> AggregateResu
         which avoids the previously existing division-by-zero bug.
     """
 
-    total_duration = 0.0
-    grounding_total = 0.0
-    equanimity_total = 0.0
-    purpose_total = 0.0
-    awareness_total = 0.0
+    total_duration = Decimal("0")
+    grounding_total = Decimal("0")
+    equanimity_total = Decimal("0")
+    purpose_total = Decimal("0")
+    awareness_total = Decimal("0")
 
     for session in sessions:
         session.validate()
 
-        weight = float(session.duration_minutes)
+        weight = _to_decimal(session.duration_minutes)
 
-        if weight == 0.0:
+        if weight == 0:
             # Zero-duration sessions provide qualitative signal without affecting
             # the quantitative average.  They are ignored but still validated.
             continue
 
         total_duration += weight
-        grounding_total += float(session.grounding) * weight
-        equanimity_total += float(session.equanimity) * weight
-        purpose_total += float(session.purpose) * weight
-        awareness_total += float(session.awareness) * weight
+        grounding_total += _to_decimal(session.grounding) * weight
+        equanimity_total += _to_decimal(session.equanimity) * weight
+        purpose_total += _to_decimal(session.purpose) * weight
+        awareness_total += _to_decimal(session.awareness) * weight
 
     if total_duration == 0:
         return AggregateResult(
@@ -147,12 +168,17 @@ def aggregate_gepa_metrics(sessions: Iterable[PracticeSession]) -> AggregateResu
             awareness=0.0,
         )
 
+    grounding_avg = grounding_total / total_duration
+    equanimity_avg = equanimity_total / total_duration
+    purpose_avg = purpose_total / total_duration
+    awareness_avg = awareness_total / total_duration
+
     return AggregateResult(
-        total_duration=total_duration,
-        grounding=grounding_total / total_duration,
-        equanimity=equanimity_total / total_duration,
-        purpose=purpose_total / total_duration,
-        awareness=awareness_total / total_duration,
+        total_duration=_decimal_to_float("total duration", total_duration),
+        grounding=_decimal_to_float("grounding", grounding_avg),
+        equanimity=_decimal_to_float("equanimity", equanimity_avg),
+        purpose=_decimal_to_float("purpose", purpose_avg),
+        awareness=_decimal_to_float("awareness", awareness_avg),
     )
 
 
