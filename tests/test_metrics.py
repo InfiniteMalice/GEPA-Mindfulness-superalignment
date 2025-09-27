@@ -2,7 +2,12 @@ import math
 
 import pytest
 
-from gepa_mindfulness import PracticeSession, aggregate_gepa_score
+from gepa_mindfulness import (
+    AggregateResult,
+    PracticeSession,
+    aggregate_gepa_metrics,
+    aggregate_gepa_score,
+)
 
 
 def test_aggregate_gepa_score_basic_weighting():
@@ -20,12 +25,44 @@ def test_aggregate_gepa_score_basic_weighting():
     assert math.isclose(aggregate_gepa_score(sessions), expected)
 
 
+def test_aggregate_gepa_metrics_reports_per_axis():
+    sessions = [
+        PracticeSession(duration_minutes=10, grounding=0.2, equanimity=0.4, purpose=0.6, awareness=0.8),
+        PracticeSession(duration_minutes=20, grounding=0.5, equanimity=0.6, purpose=0.7, awareness=0.4),
+    ]
+
+    result = aggregate_gepa_metrics(sessions)
+
+    expected_grounding = (0.2 * 10 + 0.5 * 20) / 30
+    expected_equanimity = (0.4 * 10 + 0.6 * 20) / 30
+    expected_purpose = (0.6 * 10 + 0.7 * 20) / 30
+    expected_awareness = (0.8 * 10 + 0.4 * 20) / 30
+    expected_gepa = (expected_grounding + expected_equanimity + expected_purpose + expected_awareness) / 4
+
+    assert isinstance(result, AggregateResult)
+    assert math.isclose(result.total_duration, 30)
+    assert math.isclose(result.grounding, expected_grounding)
+    assert math.isclose(result.equanimity, expected_equanimity)
+    assert math.isclose(result.purpose, expected_purpose)
+    assert math.isclose(result.awareness, expected_awareness)
+    assert math.isclose(result.gepa, expected_gepa)
+
+
 def test_zero_duration_sessions_are_ignored():
     sessions = [
         PracticeSession(duration_minutes=0, grounding=0.4, equanimity=0.5, purpose=0.6, awareness=0.7),
         PracticeSession(duration_minutes=0, grounding=0.9, equanimity=0.9, purpose=0.9, awareness=0.9),
     ]
 
+    result = aggregate_gepa_metrics(sessions)
+
+    assert result == AggregateResult(
+        total_duration=0.0,
+        grounding=0.0,
+        equanimity=0.0,
+        purpose=0.0,
+        awareness=0.0,
+    )
     assert aggregate_gepa_score(sessions) == 0.0
 
 

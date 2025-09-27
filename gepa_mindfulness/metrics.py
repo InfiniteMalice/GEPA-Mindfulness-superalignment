@@ -1,14 +1,15 @@
 """Scoring helpers for GEPA mindfulness sessions.
 
 The module provides a :class:`PracticeSession` data class that represents a
-single training session alongside :func:`aggregate_gepa_score` that aggregates
-several sessions into a single scalar reward.
+single training session alongside :func:`aggregate_gepa_metrics` and
+``aggregate_gepa_score`` helpers that combine several sessions into weighted
+averages.
 
-A bug previously caused :func:`aggregate_gepa_score` to raise ``ZeroDivisionError``
-when all sessions had a duration of zero minutes.  This can easily happen in
-practice when users record preparatory notes without starting the actual timer.
-The fix guards against this situation by returning ``0.0`` for the aggregate
-score whenever there is no time information to average over.
+A previous bug caused aggregation to raise ``ZeroDivisionError`` when all
+sessions had a duration of zero minutes.  This can easily happen in practice
+when users record preparatory notes without starting the actual timer.  The
+aggregators guard against this situation by returning zeroed metrics whenever
+there is no time information to average over.
 """
 
 from __future__ import annotations
@@ -61,7 +62,29 @@ class PracticeSession:
                 raise ValueError(f"{label} must be within [0.0, 1.0]")
 
 
-def aggregate_gepa_score(sessions: Iterable[PracticeSession]) -> float:
+@dataclass(frozen=True)
+class AggregateResult:
+    """Weighted aggregate of GEPA metrics.
+
+    The per-axis values represent duration-weighted averages.  ``gepa`` is the
+    overall mean of those axes and ``total_duration`` is the sum of the
+    contributing durations.
+    """
+
+    total_duration: float
+    grounding: float
+    equanimity: float
+    purpose: float
+    awareness: float
+
+    @property
+    def gepa(self) -> float:
+        """Return the grand mean across the four GEPA axes."""
+
+        return (self.grounding + self.equanimity + self.purpose + self.awareness) / 4.0
+
+
+def aggregate_gepa_metrics(sessions: Iterable[PracticeSession]) -> AggregateResult:
     """Compute a weighted aggregate GEPA score for several sessions.
 
     The function averages the per-session GEPA scores weighted by their duration.
@@ -74,13 +97,17 @@ def aggregate_gepa_score(sessions: Iterable[PracticeSession]) -> float:
 
     Returns
     -------
-    float
-        Weighted average GEPA score.  Returns ``0.0`` if all sessions are zero
-        length which avoids the previously existing division-by-zero bug.
+    AggregateResult
+        Duration-weighted averages across the four GEPA axes and the combined
+        GEPA score.  All values are zero when there is no positive-duration data
+        which avoids the previously existing division-by-zero bug.
     """
 
     total_duration = 0.0
-    weighted_sum = 0.0
+    grounding_total = 0.0
+    equanimity_total = 0.0
+    purpose_total = 0.0
+    awareness_total = 0.0
 
     for session in sessions:
         session.validate()
@@ -90,17 +117,32 @@ def aggregate_gepa_score(sessions: Iterable[PracticeSession]) -> float:
             # the quantitative average.  They are ignored but still validated.
             continue
 
-        gepa_value = (
-            session.grounding
-            + session.equanimity
-            + session.purpose
-            + session.awareness
-        ) / 4.0
-
-        total_duration += session.duration_minutes
-        weighted_sum += gepa_value * session.duration_minutes
+        weight = session.duration_minutes
+        total_duration += weight
+        grounding_total += session.grounding * weight
+        equanimity_total += session.equanimity * weight
+        purpose_total += session.purpose * weight
+        awareness_total += session.awareness * weight
 
     if total_duration == 0:
-        return 0.0
+        return AggregateResult(
+            total_duration=0.0,
+            grounding=0.0,
+            equanimity=0.0,
+            purpose=0.0,
+            awareness=0.0,
+        )
 
-    return weighted_sum / total_duration
+    return AggregateResult(
+        total_duration=total_duration,
+        grounding=grounding_total / total_duration,
+        equanimity=equanimity_total / total_duration,
+        purpose=purpose_total / total_duration,
+        awareness=awareness_total / total_duration,
+    )
+
+
+def aggregate_gepa_score(sessions: Iterable[PracticeSession]) -> float:
+    """Return only the overall GEPA score for convenience."""
+
+    return aggregate_gepa_metrics(sessions).gepa
