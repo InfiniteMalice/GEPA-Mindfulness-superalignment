@@ -1,16 +1,15 @@
 import math
-
 from decimal import Decimal
 from fractions import Fraction
 
 import pytest
-
 from gepa_mindfulness import (
     AggregateResult,
     PracticeSession,
     aggregate_gepa_metrics,
     aggregate_gepa_score,
 )
+
 
 def test_aggregate_gepa_score_basic_weighting():
     sessions = [
@@ -25,7 +24,6 @@ def test_aggregate_gepa_score_basic_weighting():
     ) / 45
 
     assert math.isclose(aggregate_gepa_score(sessions), expected)
-
 
 
 def test_aggregate_gepa_metrics_reports_per_axis():
@@ -51,13 +49,12 @@ def test_aggregate_gepa_metrics_reports_per_axis():
     assert math.isclose(aggregate_gepa_score(sessions), result.gepa)
     assert math.isclose(result.gepa, expected_gepa)
 
-
-=======
 def test_zero_duration_sessions_are_ignored():
     sessions = [
         PracticeSession(duration_minutes=0, grounding=0.4, equanimity=0.5, purpose=0.6, awareness=0.7),
         PracticeSession(duration_minutes=0, grounding=0.9, equanimity=0.9, purpose=0.9, awareness=0.9),
     ]
+
     result = aggregate_gepa_metrics(sessions)
 
     assert result == AggregateResult(
@@ -67,7 +64,6 @@ def test_zero_duration_sessions_are_ignored():
         purpose=0.0,
         awareness=0.0,
     )
-=======
     assert aggregate_gepa_score(sessions) == 0.0
 
 
@@ -119,6 +115,18 @@ def test_validation_rejects_non_finite_duration():
         aggregate_gepa_score([session])
 
 
+    session = PracticeSession(
+        duration_minutes=Decimal("1e10000"),
+        grounding=0.5,
+        equanimity=0.5,
+        purpose=0.5,
+        awareness=0.5,
+    )
+
+    with pytest.raises(ValueError, match="duration_minutes must be finite"):
+        aggregate_gepa_score([session])
+
+
 def test_validation_rejects_non_finite_axis_scores():
     session = PracticeSession(
         duration_minutes=10,
@@ -151,6 +159,18 @@ def test_validation_rejects_non_finite_axis_scores():
     )
 
     with pytest.raises(ValueError, match="awareness must be finite"):
+        aggregate_gepa_score([session])
+
+
+    session = PracticeSession(
+        duration_minutes=10,
+        grounding=Decimal("1e10000"),
+        equanimity=Decimal("0.5"),
+        purpose=Decimal("0.5"),
+        awareness=Decimal("0.5"),
+    )
+
+    with pytest.raises(ValueError, match="grounding must be finite"):
         aggregate_gepa_score([session])
 
 
@@ -331,4 +351,3 @@ def test_aggregate_gepa_metrics_raises_when_duration_underflows_float():
 
     with pytest.raises(ValueError, match="total duration is too small"):
         aggregate_gepa_score(sessions)
-=======
