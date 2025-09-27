@@ -69,6 +69,8 @@ class PracticeSession:
             ("awareness", self.awareness),
         ):
             _ensure_real_number(label, value)
+            if not isfinite(float(value)):
+                raise ValueError(f"{label} must be finite")
             if not 0.0 <= value <= 1.0:
                 raise ValueError(f"{label} must be within [0.0, 1.0]")
 

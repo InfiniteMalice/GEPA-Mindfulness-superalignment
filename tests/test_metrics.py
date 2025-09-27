@@ -107,6 +107,30 @@ def test_validation_rejects_non_finite_duration():
         aggregate_gepa_score([session])
 
 
+def test_validation_rejects_non_finite_axis_scores():
+    session = PracticeSession(
+        duration_minutes=10,
+        grounding=Decimal("NaN"),
+        equanimity=0.5,
+        purpose=0.5,
+        awareness=0.5,
+    )
+
+    with pytest.raises(ValueError, match="grounding must be finite"):
+        aggregate_gepa_score([session])
+
+    session = PracticeSession(
+        duration_minutes=10,
+        grounding=0.5,
+        equanimity=float("inf"),
+        purpose=0.5,
+        awareness=0.5,
+    )
+
+    with pytest.raises(ValueError, match="equanimity must be finite"):
+        aggregate_gepa_score([session])
+
+
 def test_validation_rejects_non_numeric_inputs():
     with pytest.raises(TypeError, match="duration_minutes must be a real number"):
         aggregate_gepa_score(
