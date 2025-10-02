@@ -1,6 +1,7 @@
 """Scoring helpers for GEPA mindfulness sessions.
 
 The module provides a :class:`PracticeSession` data class that represents a
+
 single training session alongside :func:`aggregate_gepa_metrics` and
 ``aggregate_gepa_score`` helpers that combine several sessions into weighted
 averages.
@@ -10,6 +11,13 @@ sessions had a duration of zero minutes.  This can easily happen in practice
 when users record preparatory notes without starting the actual timer.  The
 aggregators guard against this situation by returning zeroed metrics whenever
 there is no time information to average over.
+
+"""
+
+from __future__ import annotations
+
+=======
+
 """
 
 from __future__ import annotations
@@ -31,16 +39,29 @@ def _ensure_real_number(label: str, value: float) -> None:
 def _coerce_finite_float(label: str, value: Real | Decimal) -> float:
     """Return ``value`` as ``float`` while ensuring it is finite."""
 
+
     if isinstance(value, Decimal) and not value.is_finite():
         raise ValueError(f"{label} must be finite")
 
     try:
         numeric = float(value)
     except (OverflowError, ValueError, TypeError) as exc:
+
+    if isinstance(value, Decimal):
+        if not value.is_finite():
+            raise ValueError(f"{label} must be finite")
+        return float(value)
+
+    try:
+        numeric = float(value)
+    except (OverflowError, ValueError) as exc:
+
+
         raise ValueError(f"{label} must be finite") from exc
 
     if not isfinite(numeric):
         raise ValueError(f"{label} must be finite")
+
 
     if numeric == 0.0 and value != 0:
         raise ValueError(f"{label} is too small to represent as a finite float")
@@ -69,7 +90,6 @@ def _decimal_to_float(label: str, value: Decimal) -> float:
     if not isfinite(result):
         raise ValueError(f"{label} is too large to represent as a finite float")
     return result
-
 
 @dataclass(frozen=True)
 class PracticeSession:
@@ -138,6 +158,10 @@ class AggregateResult:
 
 
 def aggregate_gepa_metrics(sessions: Iterable[PracticeSession]) -> AggregateResult:
+
+            if not 0.0 <= value <= 1.0:
+                raise ValueError(f"{label} must be within [0.0, 1.0]")
+
     """Compute a weighted aggregate GEPA score for several sessions.
 
     The function averages the per-session GEPA scores weighted by their duration.
@@ -168,6 +192,17 @@ def aggregate_gepa_metrics(sessions: Iterable[PracticeSession]) -> AggregateResu
         weight = _to_decimal(session.duration_minutes)
 
         if weight == 0:
+
+
+
+
+    for session in sessions:
+        session.validate()
+        
+        weight = _to_decimal(session.duration_minutes)
+
+        if weight == 0:
+
             # Zero-duration sessions provide qualitative signal without affecting
             # the quantitative average.  They are ignored but still validated.
             continue
@@ -205,3 +240,4 @@ def aggregate_gepa_score(sessions: Iterable[PracticeSession]) -> float:
     """Return only the overall GEPA score for convenience."""
 
     return aggregate_gepa_metrics(sessions).gepa
+
