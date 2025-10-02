@@ -10,6 +10,7 @@ This guide summarizes the current codebase so you can orient yourself quickly an
 | [`gepa_mindfulness/training/`](../gepa_mindfulness/training) | Configuration models, PPO orchestration, CLI entry points, and reporting helpers for running alignment-focused training loops. |
 | [`gepa_mindfulness/adapters/`](../gepa_mindfulness/adapters) | Interfaces that let the training pipeline talk to Hugging Face models, vLLM endpoints, and self-tracing artifacts. |
 | [`gepa_mindfulness/examples/`](../gepa_mindfulness/examples) | Runnable CPU and vLLM demos that show the pipeline end-to-end. |
+| [`gepa_datasets/`](../gepa_datasets) | JSONL datasets for ethical QA, OOD stress testing, anti-scheming probes, abstention calibration, and thought-trace templates. |
 | [`gepa_mindfulness/configs/`](../gepa_mindfulness/configs) | YAML presets exposing reward weights (α, β, γ, δ), model choices, and runtime parameters. |
 | [`gepa_mindfulness/metrics.py`](../gepa_mindfulness/metrics.py) | Data structures and aggregation utilities for GEPA practice session analytics. |
 | [`scripts/`](../scripts) | Shell helpers that validate configs, run demos, and trigger adversarial sweeps. |
