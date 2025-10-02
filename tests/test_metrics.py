@@ -3,6 +3,7 @@ from decimal import Decimal
 from fractions import Fraction
 
 import pytest
+
 from gepa_mindfulness import (
     AggregateResult,
     PracticeSession,
@@ -114,7 +115,6 @@ def test_validation_rejects_non_finite_duration():
     with pytest.raises(ValueError, match="duration_minutes must be finite"):
         aggregate_gepa_score([session])
 
-
     session = PracticeSession(
         duration_minutes=Decimal("1e10000"),
         grounding=0.5,
@@ -124,6 +124,20 @@ def test_validation_rejects_non_finite_duration():
     )
 
     with pytest.raises(ValueError, match="duration_minutes must be finite"):
+        aggregate_gepa_score([session])
+
+
+
+def test_validation_rejects_underflowing_duration():
+    session = PracticeSession(
+        duration_minutes=Decimal("1e-500"),
+        grounding=0.5,
+        equanimity=0.5,
+        purpose=0.5,
+        awareness=0.5,
+    )
+
+    with pytest.raises(ValueError, match="duration_minutes is too small"):
         aggregate_gepa_score([session])
 
 
@@ -161,7 +175,6 @@ def test_validation_rejects_non_finite_axis_scores():
     with pytest.raises(ValueError, match="awareness must be finite"):
         aggregate_gepa_score([session])
 
-
     session = PracticeSession(
         duration_minutes=10,
         grounding=Decimal("1e10000"),
@@ -173,6 +186,19 @@ def test_validation_rejects_non_finite_axis_scores():
     with pytest.raises(ValueError, match="grounding must be finite"):
         aggregate_gepa_score([session])
 
+
+
+def test_validation_rejects_underflowing_axis_scores():
+    session = PracticeSession(
+        duration_minutes=10,
+        grounding=Decimal("1e-500"),
+        equanimity=0.5,
+        purpose=0.5,
+        awareness=0.5,
+    )
+
+    with pytest.raises(ValueError, match="grounding is too small"):
+        aggregate_gepa_score([session])
 
 def test_validation_rejects_non_numeric_inputs():
     with pytest.raises(TypeError, match="duration_minutes must be a real number"):
@@ -346,8 +372,14 @@ def test_aggregate_gepa_metrics_raises_when_duration_underflows_float():
         ),
     ]
 
+    with pytest.raises(ValueError, match="duration_minutes is too small"):
+        aggregate_gepa_metrics(sessions)
+
+    with pytest.raises(ValueError, match="duration_minutes is too small"):
+
     with pytest.raises(ValueError, match="total duration is too small"):
         aggregate_gepa_metrics(sessions)
 
     with pytest.raises(ValueError, match="total duration is too small"):
+
         aggregate_gepa_score(sessions)

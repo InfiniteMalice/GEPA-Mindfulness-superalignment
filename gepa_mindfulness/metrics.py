@@ -15,6 +15,13 @@ there is no time information to average over.
 """
 
 from __future__ import annotations
+
+=======
+
+"""
+
+from __future__ import annotations
+
 from dataclasses import dataclass
 from decimal import Decimal
 from math import isfinite
@@ -39,7 +46,7 @@ def _coerce_finite_float(label: str, value: Real | Decimal) -> float:
     try:
         numeric = float(value)
     except (OverflowError, ValueError, TypeError) as exc:
-=======
+
     if isinstance(value, Decimal):
         if not value.is_finite():
             raise ValueError(f"{label} must be finite")
@@ -49,10 +56,15 @@ def _coerce_finite_float(label: str, value: Real | Decimal) -> float:
         numeric = float(value)
     except (OverflowError, ValueError) as exc:
 
+
         raise ValueError(f"{label} must be finite") from exc
 
     if not isfinite(numeric):
         raise ValueError(f"{label} must be finite")
+
+
+    if numeric == 0.0 and value != 0:
+        raise ValueError(f"{label} is too small to represent as a finite float")
 
     return numeric
 
@@ -147,7 +159,6 @@ class AggregateResult:
 
 def aggregate_gepa_metrics(sessions: Iterable[PracticeSession]) -> AggregateResult:
 
-
             if not 0.0 <= value <= 1.0:
                 raise ValueError(f"{label} must be within [0.0, 1.0]")
 
@@ -175,15 +186,13 @@ def aggregate_gepa_metrics(sessions: Iterable[PracticeSession]) -> AggregateResu
     purpose_total = Decimal("0")
     awareness_total = Decimal("0")
 
-
     for session in sessions:
         session.validate()
 
         weight = _to_decimal(session.duration_minutes)
 
         if weight == 0:
-=======
-=======
+
 
 
 
@@ -197,7 +206,6 @@ def aggregate_gepa_metrics(sessions: Iterable[PracticeSession]) -> AggregateResu
             # Zero-duration sessions provide qualitative signal without affecting
             # the quantitative average.  They are ignored but still validated.
             continue
-
 
         total_duration += weight
         grounding_total += _to_decimal(session.grounding) * weight
