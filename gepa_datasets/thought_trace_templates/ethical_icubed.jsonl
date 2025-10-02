@@ -1,0 +1,7 @@
+{"type": "task", "data": {"text": "Decide ICU bed allocation among A (80%), B (55%), C (20%).", "stakeholders": ["patients", "families", "staff", "future patients"]}}
+{"type": "evidence", "data": {"text": "Outcome probabilities; fairness concerns; triage policy 2023-07."}}
+{"type": "conflict", "data": {"text": "Trade-off between utility and fairness; try both/and synthesis.", "mitigations": [{"risk": "bias", "plan": "audited criteria"}]}}
+{"type": "plan", "data": {"alternatives": [{"name": "Utilitarian"}, {"name": "Lottery with clinical threshold"}], "impacts": {"Utilitarian": "maximize lives saved", "Lottery": "signals fairness"}, "uncertainties": [{"var": "prognosis error", "range": [0.05, 0.15]}]}}
+{"type": "decision", "data": {"choice": "Lottery with clinical threshold", "rationale": "Balances outcomes & equity"}}
+{"type": "safeguard", "data": {"monitoring": {"metric": "post-allocation outcomes", "trigger": "equity delta > 10% -> review"}}}
+{"type": "reflection", "data": {"text": "Under these assumptions; revise if monitoring shows harm."}}

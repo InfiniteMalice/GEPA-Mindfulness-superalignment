@@ -19,8 +19,14 @@ Anthropic-style thought tracing. The project targets Python 3.10+ and depends on
   parameters (α, β, γ, δ) and model selections.
 - `gepa_mindfulness/examples` – Runnable CPU and vLLM demonstrations.
 - `scripts` – Shell helpers for running the complete pipeline end-to-end.
+- `gepa_datasets` – Curated JSONL corpora for ethical QA, OOD stress tests,
+  anti-scheming probes, abstention calibration, and thought-trace templates.
 
 Each folder ships with its own README for quick orientation.
+
+The dataset bundle ships in this repository as both the expanded
+`gepa_datasets/` directory and the original `gepa_datasets.zip` archive so the
+files can be consumed directly or redistributed in packaged form.
 
 ## Key Features
 
