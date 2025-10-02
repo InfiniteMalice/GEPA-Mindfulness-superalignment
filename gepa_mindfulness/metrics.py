@@ -12,10 +12,8 @@ when users record preparatory notes without starting the actual timer.  The
 aggregators guard against this situation by returning zeroed metrics whenever
 there is no time information to average over.
 
-
-"""
-
 from __future__ import annotations
+
 
 
 """
@@ -27,8 +25,6 @@ from decimal import Decimal
 from math import isfinite
 from numbers import Real, Rational
 from typing import Iterable
-
-
 
 DECIMAL_ZERO = Decimal("0")
 DECIMAL_ONE = Decimal("1")
@@ -133,6 +129,21 @@ class PracticeSession:
         ):
             _ensure_real_number(label, value)
 
+            numeric = _coerce_finite_float(label, value)
+
+            if isinstance(value, Decimal):
+                decimal_value = value
+                if decimal_value < DECIMAL_ZERO or decimal_value > DECIMAL_ONE:
+                    raise ValueError(f"{label} must be within [0.0, 1.0]")
+                continue
+
+            if isinstance(value, Rational):
+                if value < 0 or value > 1:
+                    raise ValueError(f"{label} must be within [0.0, 1.0]")
+                continue
+
+            if numeric < 0.0 or numeric > 1.0:
+
             _coerce_finite_float(label, value)
 
             decimal_value = _to_decimal(value)
@@ -168,7 +179,6 @@ class AggregateResult:
 
 def aggregate_gepa_metrics(sessions: Iterable[PracticeSession]) -> AggregateResult:
 
-
             if not 0.0 <= value <= 1.0:
                 raise ValueError(f"{label} must be within [0.0, 1.0]")
 
@@ -202,14 +212,13 @@ def aggregate_gepa_metrics(sessions: Iterable[PracticeSession]) -> AggregateResu
         weight = _to_decimal(session.duration_minutes)
 
         if weight == 0:
-
+          
     for session in sessions:
         session.validate()
         
         weight = _to_decimal(session.duration_minutes)
 
         if weight == 0:
-
 
             # Zero-duration sessions provide qualitative signal without affecting
             # the quantitative average.  They are ignored but still validated.
@@ -246,5 +255,6 @@ def aggregate_gepa_metrics(sessions: Iterable[PracticeSession]) -> AggregateResu
 
 def aggregate_gepa_score(sessions: Iterable[PracticeSession]) -> float:
     """Return only the overall GEPA score for convenience."""
+
 
     return aggregate_gepa_metrics(sessions).gepa
