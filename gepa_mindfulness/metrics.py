@@ -98,6 +98,9 @@ def _decimal_to_float(label: str, value: Decimal) -> float:
 @dataclass(frozen=True)
 class PracticeSession:
 
+@dataclass(frozen=True)
+class PracticeSession:
+
 """Scoring helpers for GEPA mindfulness sessions."""
 from __future__ import annotations
 
@@ -387,7 +390,6 @@ def aggregate_gepa_score(sessions: Iterable[PracticeSession]) -> float:
     """Return only the overall GEPA score for convenience."""
 
     return aggregate_gepa_metrics(sessions).gepa
-
 
     """Return only the overall GEPA score for convenience."""
 

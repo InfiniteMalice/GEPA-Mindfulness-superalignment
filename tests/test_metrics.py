@@ -425,16 +425,10 @@ def test_aggregate_gepa_metrics_raises_when_duration_underflows_float():
         aggregate_gepa_metrics(sessions)
 
     with pytest.raises(ValueError, match="duration_minutes is too small"):
-
-        aggregate_gepa_score(sessions)
-      
-        aggregate_gepa_score(sessions)
-
-        aggregate_gepa_score(sessions)
+      aggregate_gepa_score(sessions)
 
     with pytest.raises(ValueError, match="total duration is too small"):
         aggregate_gepa_metrics(sessions)
 
     with pytest.raises(ValueError, match="total duration is too small"):
-
-        aggregate_gepa_score(sessions)
+      aggregate_gepa_score(sessions)
