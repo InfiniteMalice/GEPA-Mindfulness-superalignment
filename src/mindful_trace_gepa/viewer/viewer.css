@@ -142,3 +142,86 @@ main {
   border-radius: 0.5rem;
   overflow-x: auto;
 }
+
+#scoring-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.score-chip {
+  background: #eef2ff;
+  color: #3730a3;
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.score-chip .confidence {
+  font-size: 0.75rem;
+  color: #6366f1;
+  margin-left: 0.35rem;
+}
+
+.score-chip.escalate {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+#scoring-tiers table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0.75rem;
+  font-size: 0.85rem;
+}
+
+#scoring-tiers th,
+#scoring-tiers td {
+  border: 1px solid #e2e8f0;
+  padding: 0.4rem;
+  text-align: center;
+}
+
+#scoring-tiers th {
+  background: #f1f5f9;
+}
+
+.toggle {
+  margin-bottom: 0.5rem;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.hidden {
+  display: none;
+}
+
+#scoring-rationales dl {
+  margin: 0;
+}
+
+#scoring-rationales dt {
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
+
+#scoring-rationales dd {
+  margin-left: 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.span-snippet {
+  display: inline-block;
+  background: #fef3c7;
+  color: #92400e;
+  padding: 0.2rem 0.3rem;
+  border-radius: 0.3rem;
+  margin-top: 0.2rem;
+}

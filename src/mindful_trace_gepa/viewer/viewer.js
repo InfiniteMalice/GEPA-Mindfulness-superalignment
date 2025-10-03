@@ -9,6 +9,7 @@
   const tokens = data.tokens || [];
   const deception = data.deception || {};
   const paired = data.paired || {};
+  const scoringData = data.scoring || {};
 
   const timelineList = document.getElementById("timeline-list");
   const controls = document.getElementById("timeline-controls");
@@ -18,9 +19,17 @@
   const tokenStrip = document.getElementById("token-strip");
   const tokenCanvas = document.getElementById("token-chart");
   const deceptionContainer = document.getElementById("deception-content");
+  const scoringPanel = document.getElementById("scoring");
+  const scoringSummary = document.getElementById("scoring-summary");
+  const scoringTiers = document.getElementById("scoring-tiers");
+  const scoringToggle = document.getElementById("scoring-toggle");
+  const scoringRationales = document.getElementById("scoring-rationales");
 
   let pageEvents = data.trace || [];
   const baseEvents = data.trace || [];
+  const fullTraceText = (baseEvents || [])
+    .map((evt) => evt.content || evt.text || evt.final_answer || "")
+    .join("\n");
   const pageCache = new Map();
   const shardCache = new Map();
   let currentPage = 0;
@@ -278,6 +287,116 @@
     deceptionContainer.innerHTML = pieces.join("\n");
   }
 
+  function spanSnippet(span) {
+    if (!span) return "";
+    if (!fullTraceText) return "";
+    const start = Math.max(0, span.start || 0);
+    const end = Math.min(fullTraceText.length, span.end || start + 1);
+    const snippet = fullTraceText.slice(start, end).trim();
+    if (!snippet) return "";
+    return snippet.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function renderScoring() {
+    if (!scoringPanel) return;
+    if (!scoringData || Object.keys(scoringData).length === 0) {
+      scoringPanel.style.display = "none";
+      return;
+    }
+    scoringPanel.style.display = "block";
+    const final = scoringData.final || {};
+    const confidence = scoringData.confidence || {};
+    const reasons = scoringData.reasons || [];
+    const escalate = !!scoringData.escalate;
+
+    scoringSummary.innerHTML = "";
+    Object.entries(final).forEach(([dim, score]) => {
+      const span = document.createElement("span");
+      span.className = "score-chip" + (escalate ? " escalate" : "");
+      const conf = confidence[dim] !== undefined ? ` <span class="confidence">(${(confidence[dim] * 100).toFixed(0)}%)</span>` : "";
+      span.innerHTML = `${dim}: ${score}${conf}`;
+      scoringSummary.appendChild(span);
+    });
+    if (reasons.length) {
+      const list = document.createElement("ul");
+      list.style.margin = "0.5rem 0 0";
+      reasons.forEach((reason) => {
+        const li = document.createElement("li");
+        li.textContent = reason;
+        list.appendChild(li);
+      });
+      scoringSummary.appendChild(list);
+    }
+
+    const tiers = scoringData.per_tier || [];
+    if (tiers.length) {
+      const table = document.createElement("table");
+      const header = document.createElement("tr");
+      header.innerHTML = `<th>Tier</th>${Object.keys(final)
+        .map((dim) => `<th>${dim}</th>`)
+        .join("")}`;
+      table.appendChild(header);
+      tiers.forEach((tier) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `<td>${tier.tier}</td>${Object.keys(final)
+          .map((dim) => {
+            const score = tier.scores ? tier.scores[dim] : "-";
+            const conf = tier.confidence ? tier.confidence[dim] : 0;
+            return `<td>${score} <span class="confidence">${(conf * 100).toFixed(0)}%</span></td>`;
+          })
+          .join("")}`;
+        table.appendChild(row);
+      });
+      scoringTiers.innerHTML = "";
+      scoringTiers.appendChild(table);
+    }
+
+    const judgeTier = tiers.find((tier) => tier.tier === "judge");
+    if (!judgeTier || !scoringToggle || !scoringRationales) {
+      if (scoringToggle) {
+        scoringToggle.style.display = "none";
+      }
+      return;
+    }
+    const rationals = (judgeTier.meta && judgeTier.meta.rationales) || {};
+    const spans = (judgeTier.meta && judgeTier.meta.spans) || {};
+    const dl = document.createElement("dl");
+    Object.entries(rationals).forEach(([dim, rationale]) => {
+      const dt = document.createElement("dt");
+      dt.textContent = `${dim}: ${rationale}`;
+      const dd = document.createElement("dd");
+      const spanList = spans[dim] || [];
+      spanList.forEach((span) => {
+        const snippet = spanSnippet(span);
+        if (!snippet) {
+          return;
+        }
+        const mark = document.createElement("span");
+        mark.className = "span-snippet";
+        mark.textContent = snippet;
+        dd.appendChild(mark);
+      });
+      dl.appendChild(dt);
+      if (dd.childNodes.length) {
+        dl.appendChild(dd);
+      }
+    });
+    scoringRationales.innerHTML = "";
+    scoringRationales.appendChild(dl);
+
+    let shown = false;
+    scoringToggle.addEventListener("click", () => {
+      shown = !shown;
+      if (shown) {
+        scoringRationales.classList.remove("hidden");
+        scoringToggle.textContent = "Hide rationales";
+      } else {
+        scoringRationales.classList.add("hidden");
+        scoringToggle.textContent = "Show rationales";
+      }
+    });
+  }
+
   async function gotoPage(page) {
     const maxPage = Math.max(0, Math.ceil(Math.max(totalEvents, baseEvents.length) / pageSize) - 1);
     currentPage = Math.min(Math.max(page, 0), maxPage);
@@ -292,6 +411,7 @@
     initControls();
     renderTokens();
     renderDeception();
+    renderScoring();
     if (totalEvents === 0 && !baseEvents.length) {
       pushInfo("No trace events available. Did the run complete?");
     }

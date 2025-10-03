@@ -1,0 +1,7 @@
+features:
+  include_heuristic: true
+  include_length: true
+calibration:
+  strategy: temperature
+training:
+  notes: "Lightweight linear regression head calibrated by MAE"
