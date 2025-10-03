@@ -84,7 +84,7 @@ jobs:
           pytest -q --maxfail=1 --disable-warnings \
             --cov=mindful_trace_gepa --cov-report=xml --cov-report=term
 
-      - name: Smoke run: score and view (CPU-only)
+      - name: Smoke run - score and view (CPU-only)
         run: |
           mkdir -p runs
           cat <<'JSON' > runs/trace.jsonl
