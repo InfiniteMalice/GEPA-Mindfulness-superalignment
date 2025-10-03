@@ -1,0 +1,8 @@
+distributed:
+  backend: "accelerate"
+  mixed_precision: "bf16"
+  gradient_accumulation_steps: 16
+  gradient_checkpointing: true
+  deepspeed_config: "configs/deepspeed/ds_zero2.yaml"
+  zero3_offload: false
+  find_unused_parameters: false

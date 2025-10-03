@@ -105,7 +105,8 @@ The offline viewer bundles traces, tokens, and deception metadata into a single
 HTML file that can be opened locally without external dependencies:
 
 ```bash
-gepa view --trace runs/trace.jsonl --tokens runs/tokens.jsonl --out report_view.html
+gepa view --trace runs/trace.jsonl --tokens runs/tokens.jsonl \
+         --out report_view.html --page-size 200 --max-points 5000
 ```
 
 The viewer assets are located in `src/mindful_trace_gepa/viewer/` and are served
@@ -137,6 +138,14 @@ minutes. Launch either notebook to reproduce the LoRA workflow:
 ```bash
 jupyter notebook notebooks/ft_phi3_mini_unsloth_gepa.ipynb
 jupyter notebook notebooks/ft_llama3_8b_unsloth_gepa.ipynb
+```
+
+To launch the notebooks or PPO trainer across multiple GPUs:
+
+```bash
+accelerate launch notebooks/ft_phi3_mini_unsloth_gepa.ipynb
+accelerate launch notebooks/ft_llama3_8b_unsloth_gepa.ipynb
+deepspeed --num_gpus=8 trainer/ppo_gepa.py --config configs/ppo/ppo_default.yaml
 ```
 
 Each run writes `runs/tokens.jsonl`, `runs/trace.jsonl`, `runs/summary.json`,

@@ -3,8 +3,9 @@ from __future__ import annotations
 
 import argparse
 import json
+from argparse import BooleanOptionalAction
 from pathlib import Path
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Optional
 
 try:  # pragma: no cover - optional dependency
     import yaml  # type: ignore
@@ -18,17 +19,11 @@ from .tokens import TokenRecorder
 from .viewer.builder import build_viewer_html
 from .emitters.paired_chains import emit_paired
 from .deception.score import score_deception
+from .storage import TraceArchiveWriter, iter_jsonl, load_jsonl, read_jsonl
 
 
 def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
-    data: List[Dict[str, Any]] = []
-    with path.open("r", encoding="utf-8") as handle:
-        for line in handle:
-            line = line.strip()
-            if not line:
-                continue
-            data.append(json.loads(line))
-    return data
+    return read_jsonl(path)
 
 
 def _write_jsonl(path: Path, rows: Iterable[Dict[str, Any]]) -> None:
@@ -52,41 +47,57 @@ def handle_dspy_run(args: argparse.Namespace) -> None:
     summary_path = trace_path.with_name("summary.json")
     deception_path = trace_path.with_name("deception.json")
 
-    trace_rows: List[Dict[str, Any]] = []
-    tokens = TokenRecorder()
+    with_logprobs = getattr(args, "with_logprobs", True)
+    log_topk = getattr(args, "log_topk", 3)
+    log_every = getattr(args, "log_every", 16)
+    long_context = getattr(args, "long_context", False)
+    shard_threshold = max(getattr(args, "shard_threshold", 10_000) or 10_000, 1)
+
+    tokens = TokenRecorder(
+        log_topk=log_topk if with_logprobs else 0,
+        sample_every=log_every if with_logprobs else max(log_every, 1),
+    )
     deception_rows: List[Dict[str, Any]] = []
 
-    for record in input_records:
-        inquiry = record.get("inquiry") or record.get("prompt")
-        if not inquiry:
-            raise ValueError("Each input row must contain an 'inquiry' or 'prompt' field.")
-        context = record.get("context") or args.context or ""
-        result = chain.run(inquiry=inquiry, context=context)
-        abstained = False
-        before_len = len(tokens.records)
-        tokens.record_text(result.final_answer, abstained=abstained)
-        after_records = tokens.records[before_len:]
-        for checkpoint in result.checkpoints:
-            payload = dict(checkpoint)
-            payload.update(
-                {
-                    "gepa_hits": result.gepa_hits,
-                    "principle_scores": result.principle_scores,
-                    "imperative_scores": result.imperative_scores,
-                    "context": context,
-                    "flags": ["dspy-enabled" if config.enabled else "dspy-disabled"],
-                }
-            )
-            trace_rows.append(payload)
-        deception_payload = {
-            "honest_chain": result.checkpoints,
-            "deceptive_chain": [],
-            "final_public_answer": result.final_answer,
-            "confidence_trace": [rec.conf for rec in after_records],
-        }
-        deception_rows.append(score_deception(deception_payload))
+    manifest_path: Optional[Path] = None
 
-    _write_jsonl(trace_path, trace_rows)
+    writer = TraceArchiveWriter(trace_path, shard_threshold=shard_threshold)
+    try:
+        for record in input_records:
+            inquiry = record.get("inquiry") or record.get("prompt")
+            if not inquiry:
+                raise ValueError("Each input row must contain an 'inquiry' or 'prompt' field.")
+            context = record.get("context") or getattr(args, "context", None) or ""
+            result = chain.run(inquiry=inquiry, context=context)
+            abstained = False
+            before_len = len(tokens.records)
+            tokens.record_text(result.final_answer, abstained=abstained)
+            after_records = tokens.records[before_len:]
+            for checkpoint in result.checkpoints:
+                payload = dict(checkpoint)
+                payload.update(
+                    {
+                        "gepa_hits": result.gepa_hits,
+                        "principle_scores": result.principle_scores,
+                        "imperative_scores": result.imperative_scores,
+                        "context": context,
+                        "flags": [
+                            "dspy-enabled" if config.enabled else "dspy-disabled",
+                            "long-context" if long_context else "short-context",
+                        ],
+                    }
+                )
+                writer.append(payload)
+            deception_payload = {
+                "honest_chain": result.checkpoints,
+                "deceptive_chain": [],
+                "final_public_answer": result.final_answer,
+                "confidence_trace": [rec.conf for rec in after_records],
+            }
+            deception_rows.append(score_deception(deception_payload))
+    finally:
+        manifest_path = writer.close()
+
     tokens.dump_jsonl(tokens_path)
     dump_json(
         summary_path,
@@ -95,6 +106,7 @@ def handle_dspy_run(args: argparse.Namespace) -> None:
             "policy_version": "dspy-chain-v1",
             "thresholds": {"abstention": 0.75},
             "hashes": {"dspy_config": str(load_dspy_config())},
+            "shards": str(manifest_path) if manifest_path else None,
         },
     )
     dump_json(deception_path, {"runs": deception_rows})
@@ -118,9 +130,31 @@ def handle_dspy_compile(args: argparse.Namespace) -> None:
 # ---------------------------------------------------------------------------
 
 def handle_view(args: argparse.Namespace) -> None:
-    trace_rows = _read_jsonl(Path(args.trace))
+    trace_path = Path(args.trace)
     token_path = Path(args.tokens)
-    token_rows = _read_jsonl(token_path) if token_path.exists() else []
+    out_path = Path(args.out)
+    page_size = getattr(args, "page_size", 200)
+    max_points = getattr(args, "max_points", 5000)
+
+    trace_rows: List[Dict[str, Any]] = []
+    if trace_path.exists():
+        trace_rows = load_jsonl(trace_path, limit=page_size)
+
+    token_rows: List[Dict[str, Any]] = []
+    if token_path.exists():
+        token_rows = load_jsonl(token_path, limit=max_points)
+
+    manifest_data: Dict[str, Any] = {}
+    manifest_override = getattr(args, "manifest", None)
+    manifest_path = Path(manifest_override) if manifest_override else trace_path.with_name("manifest.json")
+    manifest_rel: Optional[str] = None
+    if manifest_path.exists():
+        manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+        try:
+            manifest_rel = str(manifest_path.relative_to(out_path.parent))
+        except ValueError:
+            manifest_rel = str(manifest_path.resolve())
+
     deception_data = {}
     if args.deception and Path(args.deception).exists():
         with Path(args.deception).open("r", encoding="utf-8") as handle:
@@ -133,8 +167,14 @@ def handle_view(args: argparse.Namespace) -> None:
         trace_events=trace_rows,
         token_events=token_rows,
         deception=deception_data,
-        output_path=Path(args.out),
+        output_path=out_path,
         paired=paired_data,
+        manifest=manifest_data,
+        settings={
+            "pageSize": page_size,
+            "maxPoints": max_points,
+            "manifestPath": manifest_rel,
+        },
     )
 
 
@@ -191,7 +231,20 @@ def handle_paired_view(args: argparse.Namespace) -> None:
 
 
 def handle_score(args: argparse.Namespace) -> None:
-    trace_rows = _read_jsonl(Path(args.trace))
+    trace_path = Path(args.trace)
+    zstd_flag = getattr(args, "zstd", False)
+    stream_flag = getattr(args, "stream", True)
+    sharded_flag = getattr(args, "sharded", False)
+    manifest_override = getattr(args, "manifest", None)
+
+    if zstd_flag and not trace_path.exists():
+        candidate = (
+            trace_path.with_suffix(trace_path.suffix + ".zst")
+            if trace_path.suffix
+            else trace_path.with_name(f"{trace_path.name}.zst")
+        )
+        if candidate.exists():
+            trace_path = candidate
     policy = {}
     if args.policy and Path(args.policy).exists():
         policy_path = Path(args.policy)
@@ -201,22 +254,53 @@ def handle_score(args: argparse.Namespace) -> None:
         else:
             policy = {"raw": raw}
 
-    principle_totals: Dict[str, List[float]] = {}
-    imperative_totals: Dict[str, List[float]] = {}
-    for event in trace_rows:
-        for key, value in (event.get("principle_scores") or {}).items():
-            principle_totals.setdefault(key, []).append(float(value))
-        for key, value in (event.get("imperative_scores") or {}).items():
-            imperative_totals.setdefault(key, []).append(float(value))
+    def _iter_events() -> Iterable[Dict[str, Any]]:
+        if sharded_flag:
+            manifest_path = Path(manifest_override) if manifest_override else (
+                trace_path if trace_path.name == "manifest.json" else trace_path.with_name("manifest.json")
+            )
+            if not manifest_path.exists():
+                raise FileNotFoundError(f"Manifest not found at {manifest_path}")
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            base = manifest_path.parent
+            for shard in manifest.get("shards", []):
+                shard_path = base / shard["path"]
+                yield from iter_jsonl(shard_path)
+        else:
+            yield from iter_jsonl(trace_path)
 
-    def _mean(values: List[float]) -> float:
-        return sum(values) / len(values) if values else 0.0
+    event_iter: Iterable[Dict[str, Any]]
+    if stream_flag:
+        event_iter = _iter_events()
+    else:
+        event_iter = list(_iter_events())
+
+    principle_sums: Dict[str, float] = {}
+    principle_counts: Dict[str, int] = {}
+    imperative_sums: Dict[str, float] = {}
+    imperative_counts: Dict[str, int] = {}
+    flags_seen: set[str] = set()
+    total_events = 0
+    for event in event_iter:
+        total_events += 1
+        for key, value in (event.get("principle_scores") or {}).items():
+            principle_sums[key] = principle_sums.get(key, 0.0) + float(value)
+            principle_counts[key] = principle_counts.get(key, 0) + 1
+        for key, value in (event.get("imperative_scores") or {}).items():
+            imperative_sums[key] = imperative_sums.get(key, 0.0) + float(value)
+            imperative_counts[key] = imperative_counts.get(key, 0) + 1
+        for flag in event.get("flags", []) or []:
+            flags_seen.add(flag)
+
+    def _mean(sums: Dict[str, float], counts: Dict[str, int]) -> Dict[str, float]:
+        return {name: (sums[name] / counts[name]) for name in sums}
 
     summary = {
-        "principles": {name: _mean(values) for name, values in principle_totals.items()},
-        "imperatives": {name: _mean(values) for name, values in imperative_totals.items()},
-        "events": len(trace_rows),
+        "principles": _mean(principle_sums, principle_counts),
+        "imperatives": _mean(imperative_sums, imperative_counts),
+        "events": total_events,
         "policy": policy,
+        "flags": sorted(flags_seen),
     }
 
     html_parts = [
@@ -253,6 +337,11 @@ def build_parser() -> argparse.ArgumentParser:
     dspy_run.add_argument("--context", help="Optional profile context")
     dspy_run.add_argument("--model", help="Model identifier")
     dspy_run.add_argument("--enable-optim", action="store_true", help="Opt-in to optimisation features")
+    dspy_run.add_argument("--with-logprobs", action=BooleanOptionalAction, default=True, help="Record log probabilities")
+    dspy_run.add_argument("--log-topk", type=int, default=3, help="Number of top-k alternatives to store")
+    dspy_run.add_argument("--log-every", type=int, default=16, help="Sample frequency for token logging")
+    dspy_run.add_argument("--long-context", action="store_true", help="Enable long-context formatting hints")
+    dspy_run.add_argument("--shard-threshold", type=int, default=10_000, help="Events per shard before splitting")
     dspy_run.set_defaults(func=handle_dspy_run)
 
     dspy_compile = dspy_sub.add_parser("compile", help="Compile guarded DSPy prompts")
@@ -267,6 +356,9 @@ def build_parser() -> argparse.ArgumentParser:
     view_parser.add_argument("--out", required=True, help="Output HTML file")
     view_parser.add_argument("--deception", help="Optional deception score JSON")
     view_parser.add_argument("--paired", help="Optional paired metadata JSON")
+    view_parser.add_argument("--page-size", type=int, default=200, help="Events per page in the viewer")
+    view_parser.add_argument("--max-points", type=int, default=5000, help="Maximum token events to embed inline")
+    view_parser.add_argument("--manifest", help="Optional manifest path (auto-detected if omitted)")
     view_parser.set_defaults(func=handle_view)
 
     paired_parser = subparsers.add_parser("paired", help="Paired honest/deceptive baseline")
@@ -288,6 +380,10 @@ def build_parser() -> argparse.ArgumentParser:
     score_parser.add_argument("--trace", required=True, help="Trace JSONL path")
     score_parser.add_argument("--policy", required=False, help="Policy YAML path")
     score_parser.add_argument("--out", required=True, help="Output HTML report")
+    score_parser.add_argument("--stream", action=BooleanOptionalAction, default=True, help="Stream events during scoring")
+    score_parser.add_argument("--sharded", action="store_true", help="Read trace shards via manifest")
+    score_parser.add_argument("--manifest", help="Optional manifest path for sharded runs")
+    score_parser.add_argument("--zstd", action="store_true", help="Hint: trace files are zstd compressed")
     score_parser.set_defaults(func=handle_score)
 
     return parser
