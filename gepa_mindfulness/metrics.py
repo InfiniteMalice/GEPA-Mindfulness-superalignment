@@ -1,4 +1,3 @@
-
 """Scoring helpers for GEPA mindfulness sessions.
 
 The module provides a :class:`PracticeSession` data class that represents a
@@ -95,6 +94,9 @@ def _decimal_to_float(label: str, value: Decimal) -> float:
     if not isfinite(result):
         raise ValueError(f"{label} is too large to represent as a finite float")
     return result
+
+@dataclass(frozen=True)
+class PracticeSession:
 
 """Scoring helpers for GEPA mindfulness sessions."""
 from __future__ import annotations
@@ -235,6 +237,10 @@ class PracticeSession:
             if numeric < 0.0 or numeric > 1.0:
                 raise ValueError(f"{label} must be within [0.0, 1.0]")
 
+
+@dataclass(frozen=True)
+class AggregateResult:
+
             score = _coerce_score(label, value)
             if score != 0 and score != _DECIMAL_ONE:
                 try:
@@ -329,7 +335,7 @@ def aggregate_gepa_metrics(sessions: Iterable[PracticeSession]) -> AggregateResu
         equanimity=_decimal_to_float("equanimity", equanimity_avg),
         purpose=_decimal_to_float("purpose", purpose_avg),
         awareness=_decimal_to_float("awareness", awareness_avg),
-=======
+
     sessions = list(sessions)
     for session in sessions:
         session.validate()
@@ -378,6 +384,10 @@ def aggregate_gepa_metrics(sessions: Iterable[PracticeSession]) -> AggregateResu
 
 
 def aggregate_gepa_score(sessions: Iterable[PracticeSession]) -> float:
+    """Return only the overall GEPA score for convenience."""
+
+    return aggregate_gepa_metrics(sessions).gepa
+
 
     """Return only the overall GEPA score for convenience."""
 

@@ -11,6 +11,7 @@ from gepa_mindfulness import (
     aggregate_gepa_score,
 )
 
+
 class FloatLike:
     def __init__(self, value: float) -> None:
         self._value = value
@@ -332,6 +333,7 @@ def test_aggregate_gepa_metrics_accepts_float_like_inputs():
     assert math.isclose(result.purpose, 0.75)
     assert math.isclose(result.awareness, 0.5)
 
+
 def test_aggregate_gepa_metrics_handles_large_durations_without_overflow():
     first_duration = Decimal("1e308")
     second_duration = Decimal("5e307")
@@ -423,6 +425,8 @@ def test_aggregate_gepa_metrics_raises_when_duration_underflows_float():
         aggregate_gepa_metrics(sessions)
 
     with pytest.raises(ValueError, match="duration_minutes is too small"):
+
+        aggregate_gepa_score(sessions)
       
         aggregate_gepa_score(sessions)
 
