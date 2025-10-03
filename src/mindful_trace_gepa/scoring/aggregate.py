@@ -49,8 +49,6 @@ def aggregate_tiers(tiers: Sequence[TierScores], config: Mapping[str, object] | 
             else:
                 cfg[key] = value
 
-        cfg.update(config)
-
     weight_cfg = cfg.get("weights", DEFAULT_CONFIG["weights"])
     thresholds = cfg.get("abstention_thresholds", DEFAULT_CONFIG["abstention_thresholds"])
     penalty = float(cfg.get("disagreement_penalty", DEFAULT_CONFIG["disagreement_penalty"]))
