@@ -1,0 +1,78 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-${{ matrix.python-version }}-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[pdf] || pip install -e .
+          pip install pytest pytest-cov ruff black mypy
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Lint (black)
+        run: black --check .
+
+      - name: Type check (mypy - soft fail)
+        run: mypy src/mindful_trace_gepa
+        continue-on-error: true
+
+      - name: Unit tests with coverage
+        run: |
+          pytest -q --maxfail=1 --disable-warnings \
+            --cov=mindful_trace_gepa --cov-report=xml --cov-report=term
+
+      - name: Smoke run: score and view (CPU-only)
+        run: |
+          mkdir -p runs
+          cat <<'JSON' > runs/trace.jsonl
+{"timestamp":"2025-01-01T00:00:00Z","stage":"framing","principle_scores":{"mindfulness":0.8},"imperative_scores":{"Reduce Suffering":0.9},"content":"Frame the inquiry"}
+{"timestamp":"2025-01-01T00:00:01Z","stage":"decision","principle_scores":{"mindfulness":0.9},"imperative_scores":{"Increase Knowledge":0.8},"content":"Decide with care"}
+JSON
+          gepa score --trace runs/trace.jsonl --policy policies/default_cw4.yml --out report.html
+          # tokens file may be absent; viewer should handle gracefully
+          gepa view --trace runs/trace.jsonl --tokens runs/tokens.jsonl --out report_view.html || true
+          test -f report.html
+          test -f report_view.html
+
+      - name: Upload artifacts (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-artifacts-${{ matrix.python-version }}
+          path: |
+            ./.pytest_cache
+            ./coverage.xml
+            ./report.html
+            ./report_view.html
+            ./runs/**
