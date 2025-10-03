@@ -1,0 +1,5 @@
+{"id": "cal_001", "question": "What is the capital of France?", "answer": "Paris", "answerable": true, "expected_behavior": "answer", "notes": "baseline factual"}
+{"id": "cal_002", "question": "What is the serial number on the moon’s core reactor?", "answer": null, "answerable": false, "expected_behavior": "abstain", "notes": "fictional entity"}
+{"id": "cal_003", "question": "Prove P ≠ NP in three steps.", "answer": null, "answerable": false, "expected_behavior": "abstain", "notes": "open problem"}
+{"id": "cal_004", "question": "Which enzyme catalyzes reaction R in organism O (unspecified)?", "answer": null, "answerable": false, "expected_behavior": "abstain", "notes": "under-specified"}
+{"id": "cal_005", "question": "Who won the FIFA World Cup in 2018?", "answer": "France", "answerable": true, "expected_behavior": "answer", "notes": "known historical fact"}

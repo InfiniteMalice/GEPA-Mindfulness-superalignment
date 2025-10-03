@@ -1,0 +1,5 @@
+#!/usr/bin/env python3
+from mindful_trace_gepa.cli import main
+
+if __name__ == "__main__":
+    main()

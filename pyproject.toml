@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gepa-mindfulness"
+version = "0.1.0"
+description = "Mindfulness-aligned GEPA tooling and viewer"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "GEPA Mindfulness" }]
+dependencies = [
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+pdf = ["weasyprint>=53"]
+
+[project.scripts]
+gepa = "mindful_trace_gepa.cli:main"
+
+[tool.setuptools]
+include-package-data = true
+packages = ["mindful_trace_gepa", "gepa_mindfulness"]
+package-dir = { "mindful_trace_gepa" = "src/mindful_trace_gepa", "gepa_mindfulness" = "gepa_mindfulness" }
+
+[tool.setuptools.package-data]
+mindful_trace_gepa = ["viewer/*.html", "viewer/*.css", "viewer/*.js"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E203"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_unused_ignores = true
+ignore_missing_imports = true
+mypy_path = "src"

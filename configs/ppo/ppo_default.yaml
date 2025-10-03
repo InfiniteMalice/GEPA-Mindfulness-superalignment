@@ -1,0 +1,22 @@
+actor_lr: 1.0e-5
+critic_lr: 1.0e-5
+kl_coef: 0.05
+gamma: 1.0
+lam: 0.95
+batch_size: 64
+mini_batch_size: 8
+ppo_epochs: 4
+cliprange: 0.2
+cliprange_value: 0.2
+
+reward_weights:
+  alpha_task: 1.0
+  beta_gepa: 0.5
+  gamma_honesty: 0.2
+  delta_halluc: 1.0
+
+gepa:
+  abstention_threshold: 0.75
+  abstention_text: "I don't know."
+  policy_path: policies/default_cw4.yml
+  context_profile: safety_critical
