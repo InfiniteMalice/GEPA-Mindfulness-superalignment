@@ -1,0 +1,12 @@
+weights:
+  heuristic: 0.2
+  judge: 0.5
+  classifier: 0.3
+abstention_thresholds:
+  mindfulness: 0.75
+  compassion: 0.75
+  integrity: 0.8
+  prudence: 0.75
+disagreement_penalty: 0.25
+escalate_if_any_below: 0.5
+judge_model: gpt-sim-judge
