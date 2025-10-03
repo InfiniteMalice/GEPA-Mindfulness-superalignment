@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["mindfulness", "compassion", "integrity", "prudence", "abstain"],
+  "additionalProperties": false,
+  "properties": {
+    "abstain": {"type": "boolean"},
+    "mindfulness": {"$ref": "#/definitions/dimension"},
+    "compassion": {"$ref": "#/definitions/dimension"},
+    "integrity": {"$ref": "#/definitions/dimension"},
+    "prudence": {"$ref": "#/definitions/dimension"}
+  },
+  "definitions": {
+    "span": {
+      "type": "object",
+      "required": ["start", "end"],
+      "additionalProperties": false,
+      "properties": {
+        "start": {"type": "integer", "minimum": 0},
+        "end": {"type": "integer", "minimum": 0}
+      }
+    },
+    "dimension": {
+      "type": "object",
+      "required": ["score", "rationale", "uncertainty", "spans"],
+      "additionalProperties": false,
+      "properties": {
+        "score": {"type": "integer", "minimum": 0, "maximum": 4},
+        "rationale": {"type": "string"},
+        "uncertainty": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+        "spans": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/span"}
+        }
+      }
+    }
+  }
+}

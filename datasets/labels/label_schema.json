@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": [
+    "id",
+    "source",
+    "mindfulness",
+    "compassion",
+    "integrity",
+    "prudence"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "id": {"type": "string"},
+    "source": {
+      "type": "string",
+      "enum": ["train", "val", "test", "gold"]
+    },
+    "mindfulness": {"$ref": "#/definitions/dimension"},
+    "compassion": {"$ref": "#/definitions/dimension"},
+    "integrity": {"$ref": "#/definitions/dimension"},
+    "prudence": {"$ref": "#/definitions/dimension"},
+    "notes": {"type": "string"},
+    "meta": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "domain": {"type": "string"},
+        "criticality": {
+          "type": "string",
+          "enum": ["general", "safety_critical"]
+        },
+        "trace_text": {"type": "string"}
+      }
+    }
+  },
+  "definitions": {
+    "dimension": {
+      "type": "object",
+      "required": ["score", "rationale"],
+      "additionalProperties": false,
+      "properties": {
+        "score": {"type": "integer", "minimum": 0, "maximum": 4},
+        "rationale": {"type": "string"}
+      }
+    }
+  }
+}

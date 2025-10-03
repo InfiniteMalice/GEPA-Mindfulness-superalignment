@@ -13,13 +13,20 @@ except ModuleNotFoundError:  # pragma: no cover
     yaml = None  # type: ignore
 
 from .configuration import DSPyConfig, dump_json, load_dspy_config
-from .dspy_modules.compile import DSPyCompiler, OptimizationMetric
-from .dspy_modules.pipeline import GEPAChain
 from .tokens import TokenRecorder
 from .viewer.builder import build_viewer_html
 from .emitters.paired_chains import emit_paired
 from .deception.score import score_deception
 from .storage import TraceArchiveWriter, iter_jsonl, load_jsonl, read_jsonl
+from .cli_scoring import register_cli as register_scoring_cli
+
+try:  # pragma: no cover - optional DSPy components
+    from .dspy_modules.compile import DSPyCompiler, OptimizationMetric
+    from .dspy_modules.pipeline import GEPAChain
+except Exception:  # pragma: no cover
+    DSPyCompiler = None
+    OptimizationMetric = None
+    GEPAChain = None
 
 
 def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
@@ -39,6 +46,8 @@ def _write_jsonl(path: Path, rows: Iterable[Dict[str, Any]]) -> None:
 # ---------------------------------------------------------------------------
 
 def handle_dspy_run(args: argparse.Namespace) -> None:
+    if GEPAChain is None:
+        raise RuntimeError("DSPy pipeline unavailable; optional dependencies missing")
     config = load_dspy_config()
     chain = GEPAChain(config=config, allow_optimizations=args.enable_optim)
     input_records = _read_jsonl(Path(args.input))
@@ -113,6 +122,8 @@ def handle_dspy_run(args: argparse.Namespace) -> None:
 
 
 def handle_dspy_compile(args: argparse.Namespace) -> None:
+    if DSPyCompiler is None or OptimizationMetric is None:
+        raise RuntimeError("DSPy compiler unavailable; optional dependencies missing")
     config = load_dspy_config()
     compiler = DSPyCompiler(config=config)
     dataset = _read_jsonl(Path(args.dataset)) if args.dataset else []
@@ -163,6 +174,12 @@ def handle_view(args: argparse.Namespace) -> None:
     if args.paired and Path(args.paired).exists():
         with Path(args.paired).open("r", encoding="utf-8") as handle:
             paired_data = json.load(handle)
+    scoring_data: Dict[str, Any] = {}
+    scoring_path = trace_path.with_name("scores.json")
+    if scoring_path.exists():
+        with scoring_path.open("r", encoding="utf-8") as handle:
+            scoring_data = json.load(handle)
+
     build_viewer_html(
         trace_events=trace_rows,
         token_events=token_rows,
@@ -175,6 +192,7 @@ def handle_view(args: argparse.Namespace) -> None:
             "maxPoints": max_points,
             "manifestPath": manifest_rel,
         },
+        scoring=scoring_data,
     )
 
 
@@ -385,6 +403,8 @@ def build_parser() -> argparse.ArgumentParser:
     score_parser.add_argument("--manifest", help="Optional manifest path for sharded runs")
     score_parser.add_argument("--zstd", action="store_true", help="Hint: trace files are zstd compressed")
     score_parser.set_defaults(func=handle_score)
+
+    register_scoring_cli(subparsers)
 
     return parser
 

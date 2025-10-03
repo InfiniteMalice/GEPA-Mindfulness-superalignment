@@ -3,7 +3,11 @@ from __future__ import annotations
 
 from typing import Any, Dict, Mapping
 
-from ..dspy_modules.pipeline import GEPAChain, GEPAChainResult
+try:  # pragma: no cover - optional DSPy pipeline
+    from ..dspy_modules.pipeline import GEPAChain, GEPAChainResult
+except Exception:  # pragma: no cover
+    GEPAChain = None  # type: ignore
+    GEPAChainResult = Any  # type: ignore
 
 CHAIN_ORDER = [
     "framing",
@@ -26,6 +30,8 @@ def _result_to_events(result: GEPAChainResult, chain_label: str) -> list[Dict[st
 
 
 def emit_paired(prompt: str, context: Mapping[str, Any]) -> Dict[str, Any]:
+    if GEPAChain is None:
+        raise RuntimeError("DSPy pipeline unavailable; paired chains cannot be generated")
     chain = GEPAChain()
     honest_context = context.get("instructions_honest", "")
     deceptive_context = context.get("instructions_deceptive", "")

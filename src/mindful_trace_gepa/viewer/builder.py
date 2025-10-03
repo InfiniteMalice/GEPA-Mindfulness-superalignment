@@ -23,6 +23,7 @@ def build_viewer_html(
     paired: Dict[str, Any] | None = None,
     manifest: Dict[str, Any] | None = None,
     settings: Dict[str, Any] | None = None,
+    scoring: Dict[str, Any] | None = None,
 ) -> Path:
     html = load_static_asset("viewer.html")
     script = load_static_asset("viewer.js")
@@ -35,6 +36,7 @@ def build_viewer_html(
         "paired": paired or {},
         "manifest": manifest or {},
         "settings": settings or {},
+        "scoring": scoring or {},
     }
     data_blob = json.dumps(payload)
 
