@@ -33,3 +33,13 @@ gepa:
 hardware:
   compile_model: false
   bf16: true
+
+context:
+  max_input_tokens: 16384
+  sliding_window: 4096
+  rope_scaling:
+    type: "dynamic"
+    factor: 2.0
+
+attention:
+  flash: true

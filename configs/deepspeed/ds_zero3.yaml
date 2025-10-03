@@ -1,0 +1,10 @@
+zero_optimization:
+  stage: 3
+  offload_param:
+    device: none
+  offload_optimizer:
+    device: none
+bf16:
+  enabled: true
+gradient_accumulation_steps: 32
+train_micro_batch_size_per_gpu: 1

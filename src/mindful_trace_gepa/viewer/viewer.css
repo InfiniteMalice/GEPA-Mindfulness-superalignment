@@ -29,6 +29,16 @@ main {
   padding: 1.5rem;
 }
 
+.banner {
+  margin: 0.5rem 1.5rem 0;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 0.9rem;
+  display: none;
+}
+
 .panel {
   background: #fff;
   border-radius: 0.75rem;
@@ -45,6 +55,34 @@ main {
   list-style: none;
   padding: 0;
   margin: 0;
+}
+
+#timeline-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+#timeline-controls button {
+  background: #1f3c88;
+  color: #fff;
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.3rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+#timeline-controls button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+#timeline-controls .page-info {
+  font-size: 0.85rem;
+  color: #475569;
 }
 
 #timeline-list li {
