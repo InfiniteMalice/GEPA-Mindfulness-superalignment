@@ -1,0 +1,8 @@
+enabled: false
+allow_optimizations: false
+forbidden_phrases:
+  - "ignore previous"
+  - "always output SAFE"
+  - "override safeguards"
+  - "disable alignment"
+max_variants_per_module: 3
