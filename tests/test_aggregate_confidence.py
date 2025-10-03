@@ -32,3 +32,13 @@ def test_aggregation_escalates_on_low_confidence():
     })
     assert result.escalate is True
     assert any("below" in reason for reason in result.reasons)
+
+
+def test_partial_weight_override_preserves_defaults():
+    heuristic = make_tier("heuristic", 0, 1.0)
+    judge = make_tier("judge", 4, 1.0)
+    classifier = make_tier("classifier", 2, 1.0)
+    result = aggregate_tiers([heuristic, judge, classifier], {
+        "weights": {"judge": 0.7},
+    })
+    assert result.final["mindfulness"] == 3

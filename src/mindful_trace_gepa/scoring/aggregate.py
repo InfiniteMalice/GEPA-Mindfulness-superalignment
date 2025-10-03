@@ -40,7 +40,17 @@ def aggregate_tiers(tiers: Sequence[TierScores], config: Mapping[str, object] | 
 
     cfg = dict(DEFAULT_CONFIG)
     if config:
+
+        for key, value in config.items():
+            if key in {"weights", "abstention_thresholds"} and isinstance(value, Mapping):
+                merged = dict(DEFAULT_CONFIG[key])
+                merged.update(value)
+                cfg[key] = merged
+            else:
+                cfg[key] = value
+
         cfg.update(config)
+
     weight_cfg = cfg.get("weights", DEFAULT_CONFIG["weights"])
     thresholds = cfg.get("abstention_thresholds", DEFAULT_CONFIG["abstention_thresholds"])
     penalty = float(cfg.get("disagreement_penalty", DEFAULT_CONFIG["disagreement_penalty"]))
