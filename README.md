@@ -49,6 +49,12 @@ files can be consumed directly or redistributed in packaged form.
    covert misalignment during rollout.
 6. **Runnable Examples** – Includes a CPU-only demo (<10 minutes) and a vLLM
    integration example, plus a shell script for orchestrating the full pipeline.
+7. **DSPy Declarative Modules** – Optional, policy-guarded DSPy-style pipelines
+   that emit GEPA checkpoints and integrate with the trace viewer.
+8. **Offline Trace Viewer** – Token- and checkpoint-level visualisation with
+   deception overlays for honest vs deceptive chain inspection.
+9. **Paired Chains Baseline** – Controlled honest/deceptive emitters and
+   detectors to seed early deception analysis prior to reward tuning.
 
 ## Getting Started
 
@@ -73,6 +79,49 @@ files can be consumed directly or redistributed in packaged form.
 4. For vLLM integration, ensure a vLLM server is running and adjust
    `gepa_mindfulness/configs/vllm.yaml` as needed before executing
    `python gepa_mindfulness/examples/vllm_demo/run_vllm_demo.py`.
+
+## DSPy Declarative Pipelines
+
+DSPy-style modules live under `src/mindful_trace_gepa/dspy_modules`. They are
+disabled by policy until explicitly enabled in `policies/dspy.yml`. To execute
+the pipeline with GEPA checkpoint logging:
+
+```bash
+gepa dspy run --input examples/self_tracing_sample.jsonl --trace runs/trace.jsonl
+```
+
+To export the guarded prompt manifest:
+
+```bash
+gepa dspy compile --out dspy_artifacts/ --enable-optim
+```
+
+## Trace Viewer
+
+The offline viewer bundles traces, tokens, and deception metadata into a single
+HTML file that can be opened locally without external dependencies:
+
+```bash
+gepa view --trace runs/trace.jsonl --tokens runs/tokens.jsonl --out report_view.html
+```
+
+The viewer assets are located in `src/mindful_trace_gepa/viewer/` and are served
+without external CDNs.
+
+## Paired Chains Baseline
+
+Baseline datasets for honest/deceptive paired chains live under
+`datasets/paired_chains/`. Generate chains and detector outputs via:
+
+```bash
+gepa paired run --data datasets/paired_chains/data.jsonl --out runs/paired/ --context research
+```
+
+Inspect a specific scenario with the split-view trace viewer:
+
+```bash
+gepa paired view safety_lab_001 --base runs/paired/ --out runs/paired/safety_lab_001_view.html
+```
 
 ## License
 
