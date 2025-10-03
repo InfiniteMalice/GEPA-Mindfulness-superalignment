@@ -55,6 +55,9 @@ files can be consumed directly or redistributed in packaged form.
    deception overlays for honest vs deceptive chain inspection.
 9. **Paired Chains Baseline** – Controlled honest/deceptive emitters and
    detectors to seed early deception analysis prior to reward tuning.
+10. **Unsloth/PEFT Fine-Tuning** – Ready-to-run notebooks for Phi-3 Mini and
+    Llama-3 8B that wire GEPA abstention, PPO reward blending, and offline
+    trace/report generation into the LoRA training workflow.
 
 ## Getting Started
 
@@ -121,6 +124,27 @@ Inspect a specific scenario with the split-view trace viewer:
 
 ```bash
 gepa paired view safety_lab_001 --base runs/paired/ --out runs/paired/safety_lab_001_view.html
+```
+
+## Fine-Tuning with Unsloth/PEFT
+
+Model presets live under `configs/models/`, the PPO reward weights under
+`configs/ppo/`, and a standalone policy reference under
+`configs/policies/policy.yml`. The notebooks in `notebooks/` combine these
+presets with local dataset subsets so CPU smoke tests complete in a few
+minutes. Launch either notebook to reproduce the LoRA workflow:
+
+```bash
+jupyter notebook notebooks/ft_phi3_mini_unsloth_gepa.ipynb
+jupyter notebook notebooks/ft_llama3_8b_unsloth_gepa.ipynb
+```
+
+Each run writes `runs/tokens.jsonl`, `runs/trace.jsonl`, `runs/summary.json`,
+and renders `report.html` plus `report_view.html` via the final cell:
+
+```bash
+!gepa score --trace runs/trace.jsonl --policy policies/default_cw4.yml --out report.html
+!gepa view --trace runs/trace.jsonl --tokens runs/tokens.jsonl --out report_view.html
 ```
 
 ## License
