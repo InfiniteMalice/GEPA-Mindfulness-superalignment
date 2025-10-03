@@ -1,0 +1,35 @@
+model_name: meta-llama/Meta-Llama-3-8B-Instruct
+load_dtype: bfloat16
+use_4bit: true
+bnb_4bit_compute_dtype: bfloat16
+gradient_checkpointing: true
+max_seq_len: 4096
+
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+  bias: none
+  task_type: CAUSAL_LM
+
+train:
+  epochs: 1
+  lr: 1.2e-4
+  weight_decay: 0.0
+  warmup_ratio: 0.03
+  batch_size_per_device: 1
+  grad_accum_steps: 16
+  max_steps: 1000
+  logging_steps: 10
+  save_steps: 200
+
+gepa:
+  abstention_threshold: 0.75
+  abstention_text: "I don't know."
+  policy_path: policies/default_cw4.yml
+  context_profile: research
+
+hardware:
+  compile_model: false
+  bf16: true
