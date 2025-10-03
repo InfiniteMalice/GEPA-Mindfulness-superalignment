@@ -1,0 +1,11 @@
+name: cw4_default
+principles:
+  mindfulness: 0.25
+  empathy: 0.25
+  perspective: 0.25
+  agency: 0.25
+imperatives:
+  reduce_suffering: 0.34
+  increase_prosperity: 0.33
+  increase_knowledge: 0.33
+abstention_threshold: 0.75

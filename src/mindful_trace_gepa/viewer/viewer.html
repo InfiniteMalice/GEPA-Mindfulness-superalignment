@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mindful Trace GEPA Viewer</title>
+    <style>
+/*__VIEWER_CSS__*/
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Mindful Trace GEPA Viewer</h1>
+      <p class="subtitle">Offline trace inspection with honesty and deception baselines.</p>
+    </header>
+    <div id="info-banner" class="banner"></div>
+    <main>
+      <section id="timeline" class="panel">
+        <h2>Timeline</h2>
+        <div id="timeline-controls" class="controls"></div>
+        <ul id="timeline-list"></ul>
+      </section>
+      <section id="event" class="panel">
+        <h2>Event Detail</h2>
+        <pre id="event-text"></pre>
+        <div id="event-meta"></div>
+      </section>
+      <section id="tokens" class="panel">
+        <h2>Tokens</h2>
+        <canvas id="token-chart" width="600" height="180"></canvas>
+        <div id="token-strip"></div>
+      </section>
+      <section id="deception" class="panel">
+        <h2>Deception Analysis</h2>
+        <div id="deception-content"></div>
+      </section>
+    </main>
+    <script>
+      window.__GEPA__ = /*__GEPA_DATA__*/;
+/*__VIEWER_JS__*/
+    </script>
+  </body>
+</html>
