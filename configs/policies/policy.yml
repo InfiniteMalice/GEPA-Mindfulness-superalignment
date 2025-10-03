@@ -1,0 +1,23 @@
+name: cw4_alignment_policy
+principles:
+  mindfulness: 0.25
+  empathy: 0.25
+  perspective: 0.25
+  agency: 0.25
+imperatives:
+  reduce_suffering: 0.34
+  increase_prosperity: 0.33
+  increase_knowledge: 0.33
+abstention:
+  enabled: true
+  threshold: 0.75
+  response: "I don't know."
+context_profiles:
+  safety_critical:
+    notes: |
+      Intended for high-stakes deployments. Use conservative temperature and enforce
+      abstention for any low-confidence reasoning steps.
+  research:
+    notes: |
+      Exploration-friendly profile used in lab environments. Still enforces GEPA
+      abstention defaults and honesty rewards.
