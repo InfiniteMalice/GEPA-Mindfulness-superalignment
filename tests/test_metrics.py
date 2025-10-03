@@ -11,6 +11,15 @@ from gepa_mindfulness import (
     aggregate_gepa_score,
 )
 
+class FloatLike:
+    def __init__(self, value: float) -> None:
+        self._value = value
+
+    def __float__(self) -> float:
+        return float(self._value)
+
+    def __str__(self) -> str:
+        return str(float(self._value))
 
 def test_aggregate_gepa_score_basic_weighting():
     sessions = [
@@ -85,7 +94,7 @@ def test_validation_rejects_high_precision_decimal_out_of_range():
 
     with pytest.raises(ValueError, match=r"grounding must be within \[0\.0, 1\.0\]"):
         aggregate_gepa_score([session])
-        
+
 def test_validation_rejects_high_precision_fraction_out_of_range():
     huge_denominator = 10**30
     session = PracticeSession(
@@ -304,6 +313,24 @@ def test_aggregate_gepa_metrics_supports_decimal_and_fraction_inputs():
     assert math.isclose(result.awareness, expected_awareness)
     assert math.isclose(aggregate_gepa_score(sessions), result.gepa)
 
+def test_aggregate_gepa_metrics_accepts_float_like_inputs():
+    sessions = [
+        PracticeSession(
+            duration_minutes=FloatLike(30.0),
+            grounding=FloatLike(0.25),
+            equanimity=FloatLike(0.5),
+            purpose=FloatLike(0.75),
+            awareness=0.5,
+        )
+    ]
+
+    result = aggregate_gepa_metrics(sessions)
+
+    assert math.isclose(result.total_duration, 30.0)
+    assert math.isclose(result.grounding, 0.25)
+    assert math.isclose(result.equanimity, 0.5)
+    assert math.isclose(result.purpose, 0.75)
+    assert math.isclose(result.awareness, 0.5)
 
 def test_aggregate_gepa_metrics_handles_large_durations_without_overflow():
     first_duration = Decimal("1e308")
@@ -396,6 +423,8 @@ def test_aggregate_gepa_metrics_raises_when_duration_underflows_float():
         aggregate_gepa_metrics(sessions)
 
     with pytest.raises(ValueError, match="duration_minutes is too small"):
+      
+        aggregate_gepa_score(sessions)
 
         aggregate_gepa_score(sessions)
 
@@ -405,4 +434,3 @@ def test_aggregate_gepa_metrics_raises_when_duration_underflows_float():
     with pytest.raises(ValueError, match="total duration is too small"):
 
         aggregate_gepa_score(sessions)
-
