@@ -8,7 +8,7 @@ from copy import deepcopy
 from typing import Any, Dict, Iterable, List, Mapping, Sequence
 
 
-from .schema import AggregateScores, DIMENSIONS, TierScores
+from .schema import DIMENSIONS, AggregateScores, TierScores
 
 from .schema import DIMENSIONS, AggregateScores, TierScores
 
