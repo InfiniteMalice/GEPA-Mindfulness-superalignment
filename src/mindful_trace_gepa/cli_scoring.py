@@ -37,13 +37,29 @@ def _load_yaml(path: Path) -> Dict[str, Any]:
     return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
 
 
+def _clone_default_config() -> Dict[str, Any]:
+    cloned: Dict[str, Any] = {}
+    for key, value in DEFAULT_CONFIG.items():
+        if isinstance(value, Mapping):
+            cloned[key] = dict(value)
+        else:
+            cloned[key] = value
+    return cloned
+
+
 def _load_scoring_config(path: Path | None) -> Dict[str, Any]:
+    base = _clone_default_config()
     if path is None:
-        return dict(DEFAULT_CONFIG)
+        return base
     data = _load_yaml(path)
-    merged = dict(DEFAULT_CONFIG)
-    merged.update(data)
-    return merged
+    for key, value in data.items():
+        if isinstance(value, Mapping) and isinstance(base.get(key), Mapping):
+            merged = dict(base[key])
+            merged.update(value)
+            base[key] = merged
+        else:
+            base[key] = value
+    return base
 
 
 def _load_trace_events(path: Path) -> List[Dict[str, Any]]:
