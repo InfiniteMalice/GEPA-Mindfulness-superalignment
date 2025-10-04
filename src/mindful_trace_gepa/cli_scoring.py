@@ -3,9 +3,8 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional
 
 try:  # pragma: no cover - optional dependency
     import yaml
@@ -15,6 +14,7 @@ except ModuleNotFoundError:  # pragma: no cover
 from .scoring import (
     LLMJudge,
     aggregate_tiers,
+    build_config,
     load_classifier_from_config,
     run_heuristics,
     write_scoring_artifacts,
@@ -76,7 +76,11 @@ def handle_score_auto(args: argparse.Namespace) -> None:
 
     classifier_scores: Optional[TierScores] = None
     if getattr(args, "classifier", False):
-        classifier_config_path = getattr(args, "classifier_config", "configs/classifier/default.yml")
+        classifier_config_path = getattr(
+            args,
+            "classifier_config",
+            "configs/classifier/default.yml",
+        )
         classifier = load_classifier_from_config(classifier_config_path)
         artifacts_path = getattr(args, "classifier_artifacts", "artifacts/classifier")
         try:
@@ -115,7 +119,11 @@ def handle_classifier_train(args: argparse.Namespace) -> None:
     config_path = Path(args.config)
     out_path = Path(args.out)
 
-    rows = [json.loads(line) for line in labels_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    rows = [
+        json.loads(line)
+        for line in labels_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     classifier = load_classifier_from_config(config_path)
     classifier.fit(rows)
     out_path.mkdir(parents=True, exist_ok=True)
@@ -158,7 +166,12 @@ def register_cli(subparsers: argparse._SubParsersAction) -> None:
     scoring.add_argument("--classifier", action="store_true", help="Include classifier tier")
     scoring.add_argument("--classifier-config", help="Classifier config YAML")
     scoring.add_argument("--classifier-artifacts", help="Directory with trained classifier")
-    scoring.add_argument("--no-print", action="store_false", dest="print", help="Suppress stdout summary")
+    scoring.add_argument(
+        "--no-print",
+        action="store_false",
+        dest="print",
+        help="Suppress stdout summary",
+    )
     scoring.set_defaults(func=handle_score_auto)
 
     judge = subparsers.add_parser("judge", help="Interact with the tiered judge")
