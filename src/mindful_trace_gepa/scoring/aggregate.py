@@ -10,6 +10,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Sequence
 
 from .schema import AggregateScores, DIMENSIONS, TierScores
 
+from .schema import DIMENSIONS, AggregateScores, TierScores
 
 DEFAULT_CONFIG = {
     "weights": {
@@ -110,7 +111,10 @@ def _pairwise_disagreement(scores: Sequence[TierScores]) -> Dict[str, int]:
     return gaps
 
 
-def aggregate_tiers(tiers: Sequence[TierScores], config: Mapping[str, object] | None = None) -> AggregateScores:
+def aggregate_tiers(
+    tiers: Sequence[TierScores],
+    config: Mapping[str, object] | None = None,
+) -> AggregateScores:
     """Combine tier scores with disagreement-aware confidences."""
 
     if not tiers:

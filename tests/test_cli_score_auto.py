@@ -9,7 +9,10 @@ def test_score_auto_generates_output(tmp_path, monkeypatch):
     trace_path = tmp_path / "trace.jsonl"
     events = [
         {
-            "content": "We assume 30% uptake with monitoring; stakeholders include users and regulators.",
+            "content": (
+                "We assume 30% uptake with monitoring; stakeholders include users "
+                "and regulators."
+            ),
             "gepa_hits": ["monitor"],
         },
         {
