@@ -1,5 +1,5 @@
-import argparse
 import json
+import argparse
 
 from mindful_trace_gepa.cli_scoring import handle_score_auto
 from mindful_trace_gepa.scoring.schema import DIMENSIONS, TierScores
@@ -119,13 +119,7 @@ def test_score_auto_none_classifier_weight_uses_default(tmp_path, monkeypatch):
 
     monkeypatch.setattr("mindful_trace_gepa.cli_scoring.run_heuristics", fake_run_heuristics)
     monkeypatch.setattr("mindful_trace_gepa.cli_scoring.LLMJudge", DummyJudge)
-    def load_dummy_classifier(path):
-        return DummyClassifier(path)
-
-    monkeypatch.setattr(
-        "mindful_trace_gepa.cli_scoring.load_classifier_from_config",
-        load_dummy_classifier,
-    )
+    monkeypatch.setattr("mindful_trace_gepa.cli_scoring.load_classifier_from_config", lambda path: DummyClassifier(path))
 
     out_path = tmp_path / "scores.json"
 
