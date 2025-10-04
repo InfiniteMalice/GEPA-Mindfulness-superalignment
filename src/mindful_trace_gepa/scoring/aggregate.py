@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import itertools
+
 from copy import deepcopy
-from typing import Any, Dict, List, Mapping, Sequence
+from typing import Any, Dict, Iterable, List, Mapping, Sequence
+
 
 from .schema import AggregateScores, DIMENSIONS, TierScores
 
@@ -19,7 +21,6 @@ DEFAULT_CONFIG = {
     "disagreement_penalty": 0.25,
     "escalate_if_any_below": 0.5,
 }
-
 
 def build_config(overrides: Mapping[str, Any] | None = None) -> Dict[str, Any]:
     """Return a scoring config merged with :data:`DEFAULT_CONFIG`."""
@@ -54,6 +55,38 @@ def build_config(overrides: Mapping[str, Any] | None = None) -> Dict[str, Any]:
         cfg[key] = value
 
     return cfg
+
+def _clone_mapping(mapping: Mapping[str, Any]) -> Dict[str, Any]:
+    cloned: Dict[str, Any] = {}
+    for key, value in mapping.items():
+        if isinstance(value, Mapping):
+            cloned[key] = _clone_mapping(value)
+        else:
+            cloned[key] = value
+    return cloned
+
+
+def _merge_mappings(base: Mapping[str, Any], overrides: Mapping[str, Any]) -> Dict[str, Any]:
+    merged = _clone_mapping(base)
+    for key, value in overrides.items():
+        if value is None:
+            continue
+        base_value = merged.get(key)
+        if isinstance(base_value, Mapping) and isinstance(value, Mapping):
+            merged[key] = _merge_mappings(base_value, value)
+        elif isinstance(value, Mapping):
+            merged[key] = _merge_mappings({}, value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def build_config(overrides: Mapping[str, Any] | None = None) -> Dict[str, Any]:
+    """Return a scoring config merged with :data:`DEFAULT_CONFIG`."""
+
+    if not isinstance(overrides, Mapping):
+        return _clone_mapping(DEFAULT_CONFIG)
+    return _merge_mappings(DEFAULT_CONFIG, overrides)
 
 
 def _safe_float(value: Any, default: float) -> float:
