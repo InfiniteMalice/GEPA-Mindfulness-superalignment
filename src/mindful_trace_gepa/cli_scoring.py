@@ -19,7 +19,7 @@ from .scoring import (
     run_heuristics,
     write_scoring_artifacts,
 )
-from .scoring.aggregate import DEFAULT_CONFIG
+from .scoring.aggregate import build_config
 from .scoring.llm_judge import JudgeConfig
 from .scoring.schema import AggregateScores, TierScores
 from .storage import iter_jsonl
@@ -37,29 +37,13 @@ def _load_yaml(path: Path) -> Dict[str, Any]:
     return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
 
 
-def _clone_default_config() -> Dict[str, Any]:
-    cloned: Dict[str, Any] = {}
-    for key, value in DEFAULT_CONFIG.items():
-        if isinstance(value, Mapping):
-            cloned[key] = dict(value)
-        else:
-            cloned[key] = value
-    return cloned
-
-
 def _load_scoring_config(path: Path | None) -> Dict[str, Any]:
-    base = _clone_default_config()
     if path is None:
-        return base
+        return build_config()
     data = _load_yaml(path)
-    for key, value in data.items():
-        if isinstance(value, Mapping) and isinstance(base.get(key), Mapping):
-            merged = dict(base[key])
-            merged.update(value)
-            base[key] = merged
-        else:
-            base[key] = value
-    return base
+    if not isinstance(data, Mapping):
+        return build_config()
+    return build_config(data)
 
 
 def _load_trace_events(path: Path) -> List[Dict[str, Any]]:
