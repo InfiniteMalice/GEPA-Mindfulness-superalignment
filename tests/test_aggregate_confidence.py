@@ -1,4 +1,4 @@
-from mindful_trace_gepa.scoring.aggregate import aggregate_tiers
+from mindful_trace_gepa.scoring.aggregate import DEFAULT_CONFIG, aggregate_tiers, build_config
 from mindful_trace_gepa.scoring.schema import DIMENSIONS, TierScores
 
 
@@ -38,7 +38,32 @@ def test_partial_weight_override_preserves_defaults():
     heuristic = make_tier("heuristic", 0, 1.0)
     judge = make_tier("judge", 4, 1.0)
     classifier = make_tier("classifier", 2, 1.0)
-    result = aggregate_tiers([heuristic, judge, classifier], {
-        "weights": {"judge": 0.7},
-    })
+    result = aggregate_tiers(
+        [heuristic, judge, classifier],
+        {
+            "weights": {"judge": 0.7},
+        },
+    )
     assert result.final["mindfulness"] == 3
+
+
+def test_build_config_sanitizes_numeric_values():
+    config = build_config(
+        {
+            "weights": {"judge": "0.4", "classifier": None},
+            "abstention_thresholds": {"mindfulness": "0.8", "integrity": None},
+            "disagreement_penalty": "0.5",
+            "escalate_if_any_below": None,
+        }
+    )
+
+    assert config["weights"]["judge"] == 0.4
+    # Classifier weight should retain default 0.3 because override was None
+    assert config["weights"]["classifier"] == DEFAULT_CONFIG["weights"]["classifier"]
+    assert config["abstention_thresholds"]["mindfulness"] == 0.8
+    # Purpose threshold fallback should remain default value
+    expected_integrity = DEFAULT_CONFIG["abstention_thresholds"]["integrity"]
+    assert config["abstention_thresholds"]["integrity"] == expected_integrity
+    # Numeric fields should coerce to float and ignore None override
+    assert config["disagreement_penalty"] == 0.5
+    assert config["escalate_if_any_below"] == DEFAULT_CONFIG["escalate_if_any_below"]

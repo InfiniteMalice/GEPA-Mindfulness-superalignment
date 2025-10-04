@@ -3,7 +3,7 @@ from .schema import AggregateScores, JudgeOutput, TierScores
 from .tier0_heuristics import run_heuristics
 from .llm_judge import LLMJudge
 from .classifier import Tier2Classifier, load_classifier_from_config
-from .aggregate import aggregate_tiers
+from .aggregate import DEFAULT_CONFIG, aggregate_tiers, build_config
 from .export import write_scoring_artifacts
 
 __all__ = [
@@ -15,5 +15,7 @@ __all__ = [
     "Tier2Classifier",
     "load_classifier_from_config",
     "aggregate_tiers",
+    "build_config",
+    "DEFAULT_CONFIG",
     "write_scoring_artifacts",
 ]
