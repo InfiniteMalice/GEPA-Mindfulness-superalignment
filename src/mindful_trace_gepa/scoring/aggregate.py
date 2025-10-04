@@ -1,8 +1,12 @@
 """Aggregation logic for the wisdom scoring tiers."""
+
 from __future__ import annotations
 
 import itertools
+
+from copy import deepcopy
 from typing import Any, Dict, Iterable, List, Mapping, Sequence
+
 
 from .schema import AggregateScores, DIMENSIONS, TierScores
 
@@ -18,6 +22,39 @@ DEFAULT_CONFIG = {
     "escalate_if_any_below": 0.5,
 }
 
+def build_config(overrides: Mapping[str, Any] | None = None) -> Dict[str, Any]:
+    """Return a scoring config merged with :data:`DEFAULT_CONFIG`."""
+
+    cfg = deepcopy(DEFAULT_CONFIG)
+    if not isinstance(overrides, Mapping):
+        return cfg
+
+    weights_override = overrides.get("weights")
+    if isinstance(weights_override, Mapping):
+        dest = dict(cfg.get("weights", {}))
+        for tier, weight in weights_override.items():
+            if weight is None:
+                continue
+            dest[tier] = weight
+        cfg["weights"] = dest
+
+    thresholds_override = overrides.get("abstention_thresholds")
+    if isinstance(thresholds_override, Mapping):
+        dest = dict(cfg.get("abstention_thresholds", {}))
+        for dim, threshold in thresholds_override.items():
+            if threshold is None:
+                continue
+            dest[dim] = threshold
+        cfg["abstention_thresholds"] = dest
+
+    for key, value in overrides.items():
+        if key in {"weights", "abstention_thresholds"}:
+            continue
+        if value is None:
+            continue
+        cfg[key] = value
+
+    return cfg
 
 def _clone_mapping(mapping: Mapping[str, Any]) -> Dict[str, Any]:
     cloned: Dict[str, Any] = {}
