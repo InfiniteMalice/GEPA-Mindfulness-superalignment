@@ -1,8 +1,10 @@
 """Aggregation logic for the wisdom scoring tiers."""
+
 from __future__ import annotations
 
 import itertools
-from typing import Dict, Iterable, List, Mapping, Sequence
+from copy import deepcopy
+from typing import Any, Dict, List, Mapping, Sequence
 
 from .schema import AggregateScores, DIMENSIONS, TierScores
 
@@ -19,8 +21,51 @@ DEFAULT_CONFIG = {
 }
 
 
-def _weight_for(tier: TierScores, config: Mapping[str, float]) -> float:
-    return float(config.get(tier.tier, 0.0))
+def build_config(overrides: Mapping[str, Any] | None = None) -> Dict[str, Any]:
+    """Return a scoring config merged with :data:`DEFAULT_CONFIG`."""
+
+    cfg = deepcopy(DEFAULT_CONFIG)
+    if not isinstance(overrides, Mapping):
+        return cfg
+
+    weights_override = overrides.get("weights")
+    if isinstance(weights_override, Mapping):
+        dest = dict(cfg.get("weights", {}))
+        for tier, weight in weights_override.items():
+            if weight is None:
+                continue
+            dest[tier] = weight
+        cfg["weights"] = dest
+
+    thresholds_override = overrides.get("abstention_thresholds")
+    if isinstance(thresholds_override, Mapping):
+        dest = dict(cfg.get("abstention_thresholds", {}))
+        for dim, threshold in thresholds_override.items():
+            if threshold is None:
+                continue
+            dest[dim] = threshold
+        cfg["abstention_thresholds"] = dest
+
+    for key, value in overrides.items():
+        if key in {"weights", "abstention_thresholds"}:
+            continue
+        if value is None:
+            continue
+        cfg[key] = value
+
+    return cfg
+
+
+def _safe_float(value: Any, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _weight_for(tier: TierScores, config: Mapping[str, Any]) -> float:
+    raw = config.get(tier.tier, 0.0) if isinstance(config, Mapping) else 0.0
+    return _safe_float(raw, 0.0)
 
 
 def _pairwise_disagreement(scores: Sequence[TierScores]) -> Dict[str, int]:
@@ -38,21 +83,32 @@ def aggregate_tiers(tiers: Sequence[TierScores], config: Mapping[str, object] | 
     if not tiers:
         raise ValueError("At least one tier score is required for aggregation")
 
-    cfg = dict(DEFAULT_CONFIG)
-    if config:
+    cfg = build_config(config)
 
-        for key, value in config.items():
-            if key in {"weights", "abstention_thresholds"} and isinstance(value, Mapping):
-                merged = dict(DEFAULT_CONFIG[key])
-                merged.update(value)
-                cfg[key] = merged
-            else:
-                cfg[key] = value
+    weight_cfg_obj = cfg.get("weights", DEFAULT_CONFIG["weights"])
+    if not isinstance(weight_cfg_obj, Mapping):
+        weight_cfg_obj = DEFAULT_CONFIG["weights"]
+    weight_cfg = dict(weight_cfg_obj)
 
-    weight_cfg = cfg.get("weights", DEFAULT_CONFIG["weights"])
-    thresholds = cfg.get("abstention_thresholds", DEFAULT_CONFIG["abstention_thresholds"])
-    penalty = float(cfg.get("disagreement_penalty", DEFAULT_CONFIG["disagreement_penalty"]))
-    escalate_floor = float(cfg.get("escalate_if_any_below", DEFAULT_CONFIG["escalate_if_any_below"]))
+    thresholds_obj = cfg.get("abstention_thresholds", DEFAULT_CONFIG["abstention_thresholds"])
+    if not isinstance(thresholds_obj, Mapping):
+        thresholds_obj = DEFAULT_CONFIG["abstention_thresholds"]
+    thresholds = dict(thresholds_obj)
+
+    default_thresholds = DEFAULT_CONFIG["abstention_thresholds"]
+    penalty = _safe_float(
+        cfg.get("disagreement_penalty", DEFAULT_CONFIG["disagreement_penalty"]),
+        DEFAULT_CONFIG["disagreement_penalty"],
+    )
+    escalate_floor = _safe_float(
+        cfg.get("escalate_if_any_below", DEFAULT_CONFIG["escalate_if_any_below"]),
+        DEFAULT_CONFIG["escalate_if_any_below"],
+    )
+
+    threshold_values = {
+        dim: _safe_float(thresholds.get(dim, default_thresholds.get(dim, 0.75)), default_thresholds.get(dim, 0.75))
+        for dim in DIMENSIONS
+    }
 
     final_scores: Dict[str, int] = {}
     final_confidence: Dict[str, float] = {}
@@ -83,11 +139,11 @@ def aggregate_tiers(tiers: Sequence[TierScores], config: Mapping[str, object] | 
         final_confidence[dim] = adjusted_conf
         if disagreement_gap >= 2:
             reasons.append(f"{dim}: high tier disagreement (gap={disagreement_gap})")
-        threshold = float(thresholds.get(dim, 0.75))
+        threshold = threshold_values[dim]
         if adjusted_conf < threshold:
             reasons.append(f"{dim}: confidence {adjusted_conf:.2f} below threshold {threshold:.2f}")
 
-    escalate = any(final_confidence[dim] < float(thresholds.get(dim, 0.75)) for dim in DIMENSIONS)
+    escalate = any(final_confidence[dim] < threshold_values[dim] for dim in DIMENSIONS)
     if any(gaps[dim] >= 2 for dim in DIMENSIONS):
         escalate = True
     if any(final_confidence[dim] < escalate_floor for dim in DIMENSIONS):
@@ -103,4 +159,4 @@ def aggregate_tiers(tiers: Sequence[TierScores], config: Mapping[str, object] | 
     )
 
 
-__all__ = ["aggregate_tiers"]
+__all__ = ["aggregate_tiers", "DEFAULT_CONFIG", "build_config"]
