@@ -2,6 +2,7 @@ import json
 import argparse
 
 from mindful_trace_gepa.cli_scoring import handle_score_auto
+from mindful_trace_gepa.scoring import build_config, DEFAULT_CONFIG
 from mindful_trace_gepa.scoring.schema import DIMENSIONS, TierScores
 
 
