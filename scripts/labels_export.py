@@ -12,7 +12,7 @@ from mindful_trace_gepa.scoring.schema import AggregateScores
 
 def export_low_confidence(scores_path: Path, threshold: float) -> List[Dict[str, Any]]:
     payload = json.loads(scores_path.read_text(encoding="utf-8"))
-    aggregate = AggregateScores.parse_obj(payload)
+    aggregate = AggregateScores.from_dict(payload)
     rows: List[Dict[str, Any]] = []
     for dim, conf in aggregate.confidence.items():
         if conf < threshold:
