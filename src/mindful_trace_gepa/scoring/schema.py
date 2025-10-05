@@ -99,6 +99,48 @@ class TierScores:
     confidence: Dict[str, float]
     meta: Dict[str, Any] = field(default_factory=dict)
 
+    @classmethod
+    def from_mapping(cls, data: Mapping[str, Any]) -> "TierScores":
+        tier_value = data.get("tier", "heuristic")
+        scores_value = data.get("scores") or {}
+        confidence_value = data.get("confidence") or {}
+        meta_value = data.get("meta") or {}
+
+        if not isinstance(scores_value, Mapping):
+            try:
+                scores_value = dict(scores_value)
+            except (TypeError, ValueError):
+                scores_value = {}
+        else:
+            scores_value = dict(scores_value)
+
+        if not isinstance(confidence_value, Mapping):
+            try:
+                confidence_value = dict(confidence_value)
+            except (TypeError, ValueError):
+                confidence_value = {}
+        else:
+            confidence_value = dict(confidence_value)
+
+        if not isinstance(meta_value, Mapping):
+            try:
+                meta_value = dict(meta_value)
+            except (TypeError, ValueError):
+                meta_value = {}
+        else:
+            meta_value = dict(meta_value)
+
+        tier_clean = str(tier_value)
+        if tier_clean not in ALLOWED_TIERS:
+            tier_clean = "heuristic"
+
+        return cls(
+            tier=cast(Literal["heuristic", "judge", "classifier"], tier_clean),
+            scores=scores_value,
+            confidence=confidence_value,
+            meta=meta_value,
+        )
+
     def __post_init__(self) -> None:
         if self.tier not in ALLOWED_TIERS:
             raise ValueError(f"Unknown tier '{self.tier}'")
