@@ -168,14 +168,9 @@ def wrap_model_optimizer(
         _enable_gradient_checkpointing(model)
 
     if hasattr(accelerator, "prepare"):
-        prepared_obj = accelerator.prepare(*(obj for obj in (model, optimizer) if obj is not None))
-        if isinstance(prepared_obj, list):
-            prepared_tuple = tuple(prepared_obj)
-        elif isinstance(prepared_obj, tuple):
-            prepared_tuple = prepared_obj
-        else:
-            prepared_tuple = (prepared_obj,)
-
+        prepared = accelerator.prepare(
+            *(tuple(obj for obj in (model, optimizer) if obj is not None))
+        )
         if optimizer is None:
             return prepared_tuple[0], None
 
