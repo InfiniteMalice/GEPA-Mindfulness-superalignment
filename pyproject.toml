@@ -25,7 +25,7 @@ packages = ["mindful_trace_gepa", "gepa_mindfulness"]
 package-dir = { "mindful_trace_gepa" = "src/mindful_trace_gepa", "gepa_mindfulness" = "gepa_mindfulness" }
 
 [tool.setuptools.package-data]
-mindful_trace_gepa = ["viewer/*.html", "viewer/*.css", "viewer/*.js"]
+mindful_trace_gepa = ["viewer/*.html", "viewer/*.css", "viewer/*.js", "viewer/*.html.new", "viewer/*.css.new", "viewer/*.js.new"]
 
 [tool.black]
 line-length = 100

@@ -112,6 +112,26 @@ gepa view --trace runs/trace.jsonl --tokens runs/tokens.jsonl \
 The viewer assets are located in `src/mindful_trace_gepa/viewer/` and are served
 without external CDNs.
 
+## Deception Research Integration
+
+Mindful Trace GEPA now ships white-box and dataset-level deception tooling:
+
+- [Deception research guide](docs/deception_research.md) summarising probes, datasets, and safety notes.
+- [Linear probe configuration](configs/deception/probes_linear.yaml) for CLI runs.
+- [ACL 2025 evaluation notebook](notebooks/eval_deception_acl2025.ipynb) covering text-only baselines.
+
+Execute the probe pipeline via:
+
+```bash
+gepa deception probes --trace runs/trace.jsonl --model dummy --probe artifacts/dummy.pt   --config configs/deception/probes_linear.yaml --out runs/deception_probe.json
+```
+
+Combine probe, paired chains, and multimodal evaluation into a single report:
+
+```bash
+gepa deception summary --out runs/deception_summary.json
+```
+
 ## Paired Chains Baseline
 
 Baseline datasets for honest/deceptive paired chains live under
