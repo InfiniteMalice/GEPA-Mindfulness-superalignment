@@ -1,20 +1,33 @@
 """Distributed training helpers integrating Accelerate and DeepSpeed."""
+
 from __future__ import annotations
 
 import contextlib
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Any, Callable, Optional, Tuple
 
 import torch
 
-try:  # pragma: no cover - optional dependency
-    from accelerate import Accelerator
-    from accelerate.utils import DeepSpeedPlugin
-except Exception:  # pragma: no cover
-    Accelerator = None  # type: ignore
-    DeepSpeedPlugin = None  # type: ignore
+from ..utils.imports import optional_import
+
+Accelerator: Callable[..., Any] | None
+DeepSpeedPlugin: Callable[..., Any] | None
+
+_accelerate_mod = optional_import("accelerate")
+if _accelerate_mod is not None:
+    accel_candidate = getattr(_accelerate_mod, "Accelerator", None)
+    Accelerator = accel_candidate if callable(accel_candidate) else None
+else:  # pragma: no cover - optional dependency missing
+    Accelerator = None
+
+_accelerate_utils = optional_import("accelerate.utils")
+if _accelerate_utils is not None:
+    deepspeed_candidate = getattr(_accelerate_utils, "DeepSpeedPlugin", None)
+    DeepSpeedPlugin = deepspeed_candidate if callable(deepspeed_candidate) else None
+else:  # pragma: no cover - optional dependency missing
+    DeepSpeedPlugin = None
 
 LOGGER = logging.getLogger(__name__)
 
@@ -77,12 +90,14 @@ class NoOpAccelerator:
         torch.save(obj, path)
 
 
-def _build_deepspeed_plugin(cfg: DistributedConfig) -> Optional[DeepSpeedPlugin]:
+def _build_deepspeed_plugin(cfg: DistributedConfig) -> Any | None:
     if DeepSpeedPlugin is None:
         LOGGER.warning("DeepSpeed support requested but accelerate is unavailable.")
         return None
     if not cfg.deepspeed_config:
-        LOGGER.warning("DeepSpeed backend requested without config file; falling back to accelerate mode.")
+        LOGGER.warning(
+            "DeepSpeed backend requested without config file; falling back to accelerate mode."
+        )
         return None
     stage3_offload = cfg.zero3_offload
     return DeepSpeedPlugin(
@@ -98,7 +113,11 @@ def _build_deepspeed_plugin(cfg: DistributedConfig) -> Optional[DeepSpeedPlugin]
 def get_accelerator(config: Optional[dict[str, Any]] = None) -> Any:
     """Return an appropriate accelerator instance for the given configuration."""
 
-    cfg = DistributedConfig.from_mapping((config or {}).get("distributed")) if config else DistributedConfig()
+    cfg = (
+        DistributedConfig.from_mapping((config or {}).get("distributed"))
+        if config
+        else DistributedConfig()
+    )
 
     if Accelerator is None:
         LOGGER.info("accelerate is not installed; using NoOpAccelerator.")
@@ -141,20 +160,29 @@ def wrap_model_optimizer(
 
     cfg_checkpoint = gradient_checkpointing
     if cfg_checkpoint is None and hasattr(accelerator, "state"):
-        cfg_checkpoint = getattr(getattr(accelerator, "state", object()), "gradient_checkpointing", None)
+        cfg_checkpoint = getattr(
+            getattr(accelerator, "state", object()), "gradient_checkpointing", None
+        )
 
     if cfg_checkpoint:
         _enable_gradient_checkpointing(model)
 
     if hasattr(accelerator, "prepare"):
-        prepared = accelerator.prepare(*(tuple(obj for obj in (model, optimizer) if obj is not None)))
+        prepared_obj = accelerator.prepare(*(obj for obj in (model, optimizer) if obj is not None))
+        if isinstance(prepared_obj, list):
+            prepared_tuple = tuple(prepared_obj)
+        elif isinstance(prepared_obj, tuple):
+            prepared_tuple = prepared_obj
+        else:
+            prepared_tuple = (prepared_obj,)
+
         if optimizer is None:
-            return prepared[0] if isinstance(prepared, (list, tuple)) else prepared, None
-        if isinstance(prepared, (list, tuple)) and len(prepared) == 2:
-            return prepared[0], prepared[1]
-        if isinstance(prepared, tuple) and len(prepared) == 1:
-            return prepared[0], optimizer
-        return prepared  # type: ignore[return-value]
+            return prepared_tuple[0], None
+
+        if len(prepared_tuple) >= 2:
+            return prepared_tuple[0], prepared_tuple[1]
+
+        return prepared_tuple[0], optimizer
     return model, optimizer
 
 
@@ -175,4 +203,10 @@ def save_sharded(adapter: Any, out_dir: Path | str, accelerator: Any) -> Path:
     return out_path
 
 
-__all__ = ["get_accelerator", "wrap_model_optimizer", "save_sharded", "DistributedConfig", "NoOpAccelerator"]
+__all__ = [
+    "get_accelerator",
+    "wrap_model_optimizer",
+    "save_sharded",
+    "DistributedConfig",
+    "NoOpAccelerator",
+]

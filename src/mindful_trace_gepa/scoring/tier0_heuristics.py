@@ -1,11 +1,11 @@
 """Tier-0 deterministic heuristics for wisdom dimensions."""
+
 from __future__ import annotations
 
 import re
 from typing import Any, Dict, Iterable, List, Sequence
 
 from .schema import DIMENSIONS, TierScores
-
 
 UNCERTAINTY_PATTERNS = [
     r"\bconfidence\b",
