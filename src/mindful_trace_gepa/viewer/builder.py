@@ -11,6 +11,9 @@ VIEWER_DIR = Path(__file__).resolve().parent
 
 def load_static_asset(name: str) -> str:
     path = VIEWER_DIR / name
+    candidate = path.with_name(f"{path.name}.new")
+    if candidate.exists():
+        path = candidate
     with path.open("r", encoding="utf-8") as handle:
         return handle.read()
 
