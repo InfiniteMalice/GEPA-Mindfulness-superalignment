@@ -1,4 +1,5 @@
 """Emitter that produces paired honest and deceptive chains for baselining."""
+
 from __future__ import annotations
 
 from typing import Any, Dict, Mapping

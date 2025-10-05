@@ -1,4 +1,4 @@
-from mindful_trace_gepa.scoring.llm_judge import LLMJudge, JudgeConfig
+from mindful_trace_gepa.scoring.llm_judge import JudgeConfig, LLMJudge
 from mindful_trace_gepa.scoring.schema import DIMENSIONS
 
 
@@ -14,5 +14,3 @@ def test_mock_judge_matches_schema(monkeypatch):
         spans = tier.meta["spans"][dim]
         assert isinstance(spans, list)
         assert spans[0]["start"] == 0
-
-
