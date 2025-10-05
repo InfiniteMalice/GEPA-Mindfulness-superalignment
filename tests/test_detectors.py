@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from mindful_trace_gepa.deception.signals import (
-    REWARD_HACKING_LEXICON,
     SITUATIONAL_AWARENESS_MARKERS,
     confidence_inversion,
     lexicon_hits,
