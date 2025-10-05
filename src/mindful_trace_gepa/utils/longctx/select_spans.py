@@ -1,11 +1,11 @@
 """Utilities for selecting long-context spans via lightweight retrieval."""
+
 from __future__ import annotations
 
 import math
 import re
 from dataclasses import dataclass
 from typing import Iterable, List, Sequence
-
 
 _TOKEN_RE = re.compile(r"\w+")
 
@@ -21,7 +21,9 @@ class Span:
     embedding: Sequence[float] | None = None
 
 
-def _bm25_score(query_tokens: Sequence[str], doc_tokens: Sequence[str], idf: dict[str, float], avg_len: float) -> float:
+def _bm25_score(
+    query_tokens: Sequence[str], doc_tokens: Sequence[str], idf: dict[str, float], avg_len: float
+) -> float:
     k1 = 1.5
     b = 0.75
     score = 0.0
@@ -83,7 +85,8 @@ def select_top_spans(
     k:
         Number of spans to return.
     method:
-        Retrieval scoring method. ``"bm25"`` (default) or ``"cosine"`` for embedding cosine similarity.
+        Retrieval scoring method. ``"bm25"`` (default) or ``"cosine"``
+        for embedding cosine similarity.
     query_embedding:
         Optional embedding vector for the query when using cosine similarity.
     """

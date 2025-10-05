@@ -1,4 +1,5 @@
 """Abstraction for policy model generation supporting vLLM or HF backends."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -6,8 +7,7 @@ from typing import Iterable, Protocol
 
 
 class TextGenerator(Protocol):
-    def __call__(self, prompts: Iterable[str]) -> Iterable[str]:
-        ...
+    def __call__(self, prompts: Iterable[str]) -> Iterable[str]: ...
 
 
 @dataclass

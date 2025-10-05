@@ -1,4 +1,5 @@
 """Command line interface for Mindful Trace GEPA utilities."""
+
 from __future__ import annotations
 
 import argparse
@@ -12,13 +13,13 @@ try:  # pragma: no cover - optional dependency
 except ModuleNotFoundError:  # pragma: no cover
     yaml = None  # type: ignore
 
-from .configuration import DSPyConfig, dump_json, load_dspy_config
+from .cli_scoring import register_cli as register_scoring_cli
+from .configuration import dump_json, load_dspy_config
+from .deception.score import score_deception
+from .emitters.paired_chains import emit_paired
+from .storage import TraceArchiveWriter, iter_jsonl, load_jsonl, read_jsonl
 from .tokens import TokenRecorder
 from .viewer.builder import build_viewer_html
-from .emitters.paired_chains import emit_paired
-from .deception.score import score_deception
-from .storage import TraceArchiveWriter, iter_jsonl, load_jsonl, read_jsonl
-from .cli_scoring import register_cli as register_scoring_cli
 
 try:  # pragma: no cover - optional DSPy components
     from .dspy_modules.compile import DSPyCompiler, OptimizationMetric
@@ -44,6 +45,7 @@ def _write_jsonl(path: Path, rows: Iterable[Dict[str, Any]]) -> None:
 # ---------------------------------------------------------------------------
 # DSPy commands
 # ---------------------------------------------------------------------------
+
 
 def handle_dspy_run(args: argparse.Namespace) -> None:
     if GEPAChain is None:
@@ -140,6 +142,7 @@ def handle_dspy_compile(args: argparse.Namespace) -> None:
 # Viewer
 # ---------------------------------------------------------------------------
 
+
 def handle_view(args: argparse.Namespace) -> None:
     trace_path = Path(args.trace)
     token_path = Path(args.tokens)
@@ -157,7 +160,9 @@ def handle_view(args: argparse.Namespace) -> None:
 
     manifest_data: Dict[str, Any] = {}
     manifest_override = getattr(args, "manifest", None)
-    manifest_path = Path(manifest_override) if manifest_override else trace_path.with_name("manifest.json")
+    manifest_path = (
+        Path(manifest_override) if manifest_override else trace_path.with_name("manifest.json")
+    )
     manifest_rel: Optional[str] = None
     if manifest_path.exists():
         manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -199,6 +204,7 @@ def handle_view(args: argparse.Namespace) -> None:
 # ---------------------------------------------------------------------------
 # Paired baseline
 # ---------------------------------------------------------------------------
+
 
 def handle_paired_run(args: argparse.Namespace) -> None:
     dataset = _read_jsonl(Path(args.data))
@@ -274,8 +280,14 @@ def handle_score(args: argparse.Namespace) -> None:
 
     def _iter_events() -> Iterable[Dict[str, Any]]:
         if sharded_flag:
-            manifest_path = Path(manifest_override) if manifest_override else (
-                trace_path if trace_path.name == "manifest.json" else trace_path.with_name("manifest.json")
+            manifest_path = (
+                Path(manifest_override)
+                if manifest_override
+                else (
+                    trace_path
+                    if trace_path.name == "manifest.json"
+                    else trace_path.with_name("manifest.json")
+                )
             )
             if not manifest_path.exists():
                 raise FileNotFoundError(f"Manifest not found at {manifest_path}")
@@ -342,6 +354,7 @@ def handle_score(args: argparse.Namespace) -> None:
 # Parser
 # ---------------------------------------------------------------------------
 
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="gepa", description="Mindful Trace GEPA CLI")
     subparsers = parser.add_subparsers(dest="command")
@@ -354,18 +367,37 @@ def build_parser() -> argparse.ArgumentParser:
     dspy_run.add_argument("--trace", required=True, help="Where to write trace JSONL")
     dspy_run.add_argument("--context", help="Optional profile context")
     dspy_run.add_argument("--model", help="Model identifier")
-    dspy_run.add_argument("--enable-optim", action="store_true", help="Opt-in to optimisation features")
-    dspy_run.add_argument("--with-logprobs", action=BooleanOptionalAction, default=True, help="Record log probabilities")
-    dspy_run.add_argument("--log-topk", type=int, default=3, help="Number of top-k alternatives to store")
-    dspy_run.add_argument("--log-every", type=int, default=16, help="Sample frequency for token logging")
-    dspy_run.add_argument("--long-context", action="store_true", help="Enable long-context formatting hints")
-    dspy_run.add_argument("--shard-threshold", type=int, default=10_000, help="Events per shard before splitting")
+    dspy_run.add_argument(
+        "--enable-optim", action="store_true", help="Opt-in to optimisation features"
+    )
+    dspy_run.add_argument(
+        "--with-logprobs",
+        action=BooleanOptionalAction,
+        default=True,
+        help="Record log probabilities",
+    )
+    dspy_run.add_argument(
+        "--log-topk", type=int, default=3, help="Number of top-k alternatives to store"
+    )
+    dspy_run.add_argument(
+        "--log-every", type=int, default=16, help="Sample frequency for token logging"
+    )
+    dspy_run.add_argument(
+        "--long-context", action="store_true", help="Enable long-context formatting hints"
+    )
+    dspy_run.add_argument(
+        "--shard-threshold", type=int, default=10_000, help="Events per shard before splitting"
+    )
     dspy_run.set_defaults(func=handle_dspy_run)
 
     dspy_compile = dspy_sub.add_parser("compile", help="Compile guarded DSPy prompts")
-    dspy_compile.add_argument("--out", required=True, help="Output directory for compiler artifacts")
+    dspy_compile.add_argument(
+        "--out", required=True, help="Output directory for compiler artifacts"
+    )
     dspy_compile.add_argument("--dataset", help="Optional JSONL dataset for optimisation")
-    dspy_compile.add_argument("--enable-optim", action="store_true", help="Allow safe prompt augmentation")
+    dspy_compile.add_argument(
+        "--enable-optim", action="store_true", help="Allow safe prompt augmentation"
+    )
     dspy_compile.set_defaults(func=handle_dspy_compile)
 
     view_parser = subparsers.add_parser("view", help="Build offline trace viewer")
@@ -374,8 +406,12 @@ def build_parser() -> argparse.ArgumentParser:
     view_parser.add_argument("--out", required=True, help="Output HTML file")
     view_parser.add_argument("--deception", help="Optional deception score JSON")
     view_parser.add_argument("--paired", help="Optional paired metadata JSON")
-    view_parser.add_argument("--page-size", type=int, default=200, help="Events per page in the viewer")
-    view_parser.add_argument("--max-points", type=int, default=5000, help="Maximum token events to embed inline")
+    view_parser.add_argument(
+        "--page-size", type=int, default=200, help="Events per page in the viewer"
+    )
+    view_parser.add_argument(
+        "--max-points", type=int, default=5000, help="Maximum token events to embed inline"
+    )
     view_parser.add_argument("--manifest", help="Optional manifest path (auto-detected if omitted)")
     view_parser.set_defaults(func=handle_view)
 
@@ -398,10 +434,16 @@ def build_parser() -> argparse.ArgumentParser:
     score_parser.add_argument("--trace", required=True, help="Trace JSONL path")
     score_parser.add_argument("--policy", required=False, help="Policy YAML path")
     score_parser.add_argument("--out", required=True, help="Output HTML report")
-    score_parser.add_argument("--stream", action=BooleanOptionalAction, default=True, help="Stream events during scoring")
-    score_parser.add_argument("--sharded", action="store_true", help="Read trace shards via manifest")
+    score_parser.add_argument(
+        "--stream", action=BooleanOptionalAction, default=True, help="Stream events during scoring"
+    )
+    score_parser.add_argument(
+        "--sharded", action="store_true", help="Read trace shards via manifest"
+    )
     score_parser.add_argument("--manifest", help="Optional manifest path for sharded runs")
-    score_parser.add_argument("--zstd", action="store_true", help="Hint: trace files are zstd compressed")
+    score_parser.add_argument(
+        "--zstd", action="store_true", help="Hint: trace files are zstd compressed"
+    )
     score_parser.set_defaults(func=handle_score)
 
     register_scoring_cli(subparsers)
