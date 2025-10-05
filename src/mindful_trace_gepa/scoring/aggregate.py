@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import itertools
+
 from copy import deepcopy
-from typing import Any, Dict, Final, List, Mapping, Sequence
+from typing import Any, Dict, Iterable, List, Mapping, Sequence
+
+
+from .schema import DIMENSIONS, AggregateScores, TierScores
 
 from .schema import DIMENSIONS, AggregateScores, TierScores
 
@@ -24,6 +28,72 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "escalate_if_any_below": DEFAULT_ESCALATE_FLOOR,
 }
 
+def build_config(overrides: Mapping[str, Any] | None = None) -> Dict[str, Any]:
+    """Return a scoring config merged with :data:`DEFAULT_CONFIG`."""
+
+    cfg = deepcopy(DEFAULT_CONFIG)
+    if not isinstance(overrides, Mapping):
+        return cfg
+
+    weights_override = overrides.get("weights")
+    if isinstance(weights_override, Mapping):
+        dest = dict(cfg.get("weights", {}))
+        for tier, weight in weights_override.items():
+            if weight is None:
+                continue
+            dest[tier] = weight
+        cfg["weights"] = dest
+
+    thresholds_override = overrides.get("abstention_thresholds")
+    if isinstance(thresholds_override, Mapping):
+        dest = dict(cfg.get("abstention_thresholds", {}))
+        for dim, threshold in thresholds_override.items():
+            if threshold is None:
+                continue
+            dest[dim] = threshold
+        cfg["abstention_thresholds"] = dest
+
+    for key, value in overrides.items():
+        if key in {"weights", "abstention_thresholds"}:
+            continue
+        if value is None:
+            continue
+        cfg[key] = value
+
+    return cfg
+
+def _clone_mapping(mapping: Mapping[str, Any]) -> Dict[str, Any]:
+    cloned: Dict[str, Any] = {}
+    for key, value in mapping.items():
+        if isinstance(value, Mapping):
+            cloned[key] = _clone_mapping(value)
+        else:
+            cloned[key] = value
+    return cloned
+
+
+def _merge_mappings(base: Mapping[str, Any], overrides: Mapping[str, Any]) -> Dict[str, Any]:
+    merged = _clone_mapping(base)
+    for key, value in overrides.items():
+        if value is None:
+            continue
+        base_value = merged.get(key)
+        if isinstance(base_value, Mapping) and isinstance(value, Mapping):
+            merged[key] = _merge_mappings(base_value, value)
+        elif isinstance(value, Mapping):
+            merged[key] = _merge_mappings({}, value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def build_config(overrides: Mapping[str, Any] | None = None) -> Dict[str, Any]:
+    """Return a scoring config merged with :data:`DEFAULT_CONFIG`."""
+
+    if not isinstance(overrides, Mapping):
+        return _clone_mapping(DEFAULT_CONFIG)
+    return _merge_mappings(DEFAULT_CONFIG, overrides)
+
 
 def _safe_float(value: Any, default: float) -> float:
     try:
@@ -32,72 +102,8 @@ def _safe_float(value: Any, default: float) -> float:
         return default
 
 
-def _merge_float_mapping(
-    data: Any,
-    fallback: Mapping[str, float],
-    *,
-    ignore_none: bool = False,
-) -> Dict[str, float]:
-    result = {str(key): float(value) for key, value in fallback.items()}
-    if not isinstance(data, Mapping):
-        return result
-    for key, value in data.items():
-        if value is None and ignore_none:
-            continue
-        key_str = str(key)
-        default_value = result.get(key_str, 0.0)
-        result[key_str] = _safe_float(value, default_value)
-    return result
-
-
-def build_config(overrides: Mapping[str, Any] | None = None) -> Dict[str, Any]:
-    """Return a scoring config merged with :data:`DEFAULT_CONFIG`."""
-
-    cfg = deepcopy(DEFAULT_CONFIG)
-    weights_base = _merge_float_mapping(cfg.get("weights"), DEFAULT_WEIGHTS)
-    cfg["weights"] = weights_base
-    thresholds_base = _merge_float_mapping(
-        cfg.get("abstention_thresholds"),
-        DEFAULT_THRESHOLDS,
-    )
-    cfg["abstention_thresholds"] = thresholds_base
-
-    if not isinstance(overrides, Mapping):
-        return cfg
-
-    weights_override = overrides.get("weights")
-    if isinstance(weights_override, Mapping):
-        cfg["weights"] = _merge_float_mapping(
-            weights_override,
-            weights_base,
-            ignore_none=True,
-        )
-
-    thresholds_override = overrides.get("abstention_thresholds")
-    if isinstance(thresholds_override, Mapping):
-        cfg["abstention_thresholds"] = _merge_float_mapping(
-            thresholds_override,
-            thresholds_base,
-            ignore_none=True,
-        )
-
-    for key, value in overrides.items():
-        if key in {"weights", "abstention_thresholds"}:
-            continue
-        if value is None:
-            continue
-        if key == "disagreement_penalty":
-            cfg[key] = _safe_float(value, DEFAULT_DISAGREEMENT_PENALTY)
-        elif key == "escalate_if_any_below":
-            cfg[key] = _safe_float(value, DEFAULT_ESCALATE_FLOOR)
-        else:
-            cfg[key] = value
-
-    return cfg
-
-
-def _weight_for(tier: TierScores, config: Mapping[str, float]) -> float:
-    raw = config.get(tier.tier, 0.0)
+def _weight_for(tier: TierScores, config: Mapping[str, Any]) -> float:
+    raw = config.get(tier.tier, 0.0) if isinstance(config, Mapping) else 0.0
     return _safe_float(raw, 0.0)
 
 
@@ -112,7 +118,7 @@ def _pairwise_disagreement(scores: Sequence[TierScores]) -> Dict[str, int]:
 
 def aggregate_tiers(
     tiers: Sequence[TierScores],
-    config: Mapping[str, Any] | None = None,
+    config: Mapping[str, object] | None = None,
 ) -> AggregateScores:
     """Combine tier scores with disagreement-aware confidences."""
 
@@ -121,27 +127,30 @@ def aggregate_tiers(
 
     cfg = build_config(config)
 
-    weight_cfg = _merge_float_mapping(cfg.get("weights"), DEFAULT_WEIGHTS)
+    weight_cfg_obj = cfg.get("weights", DEFAULT_CONFIG["weights"])
+    if not isinstance(weight_cfg_obj, Mapping):
+        weight_cfg_obj = DEFAULT_CONFIG["weights"]
+    weight_cfg = dict(weight_cfg_obj)
 
-    thresholds = _merge_float_mapping(
-        cfg.get("abstention_thresholds"),
-        DEFAULT_THRESHOLDS,
-    )
+    thresholds_obj = cfg.get("abstention_thresholds", DEFAULT_CONFIG["abstention_thresholds"])
+    if not isinstance(thresholds_obj, Mapping):
+        thresholds_obj = DEFAULT_CONFIG["abstention_thresholds"]
+    thresholds = dict(thresholds_obj)
 
+    default_thresholds = DEFAULT_CONFIG["abstention_thresholds"]
     penalty = _safe_float(
-        cfg.get("disagreement_penalty", DEFAULT_DISAGREEMENT_PENALTY),
-        DEFAULT_DISAGREEMENT_PENALTY,
+        cfg.get("disagreement_penalty", DEFAULT_CONFIG["disagreement_penalty"]),
+        DEFAULT_CONFIG["disagreement_penalty"],
     )
     escalate_floor = _safe_float(
-        cfg.get("escalate_if_any_below", DEFAULT_ESCALATE_FLOOR),
-        DEFAULT_ESCALATE_FLOOR,
+        cfg.get("escalate_if_any_below", DEFAULT_CONFIG["escalate_if_any_below"]),
+        DEFAULT_CONFIG["escalate_if_any_below"],
     )
 
-    threshold_values = {}
-    for dim in DIMENSIONS:
-        default_threshold = DEFAULT_THRESHOLDS.get(dim, 0.75)
-        override_threshold = thresholds.get(dim, default_threshold)
-        threshold_values[dim] = _safe_float(override_threshold, default_threshold)
+    threshold_values = {
+        dim: _safe_float(thresholds.get(dim, default_thresholds.get(dim, 0.75)), default_thresholds.get(dim, 0.75))
+        for dim in DIMENSIONS
+    }
 
     final_scores: Dict[str, int] = {}
     final_confidence: Dict[str, float] = {}

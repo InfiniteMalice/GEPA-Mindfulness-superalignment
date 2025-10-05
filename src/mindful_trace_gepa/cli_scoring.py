@@ -20,6 +20,7 @@ from .scoring import (
     run_heuristics,
     write_scoring_artifacts,
 )
+from .scoring.aggregate import build_config
 from .scoring.llm_judge import JudgeConfig
 from .scoring.schema import AggregateScores, TierScores
 from .storage import iter_jsonl
