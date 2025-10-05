@@ -1,4 +1,5 @@
 """Mindful Trace GEPA extensions."""
+
 from __future__ import annotations
 
 try:  # pragma: no cover - defensive import for optional deps

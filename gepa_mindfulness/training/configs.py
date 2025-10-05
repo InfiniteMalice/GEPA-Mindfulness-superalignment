@@ -1,11 +1,12 @@
 """Configuration models for the training pipeline."""
+
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict
 
-from pydantic import BaseModel, Field, validator
 import yaml
+from pydantic import BaseModel, Field, validator
 
 
 class RewardWeightsConfig(BaseModel):

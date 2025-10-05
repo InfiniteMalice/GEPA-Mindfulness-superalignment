@@ -1,4 +1,5 @@
 """Distributed training helpers integrating Accelerate and DeepSpeed."""
+
 from __future__ import annotations
 
 import contextlib
@@ -82,7 +83,9 @@ def _build_deepspeed_plugin(cfg: DistributedConfig) -> Optional[DeepSpeedPlugin]
         LOGGER.warning("DeepSpeed support requested but accelerate is unavailable.")
         return None
     if not cfg.deepspeed_config:
-        LOGGER.warning("DeepSpeed backend requested without config file; falling back to accelerate mode.")
+        LOGGER.warning(
+            "DeepSpeed backend requested without config file; falling back to accelerate mode."
+        )
         return None
     stage3_offload = cfg.zero3_offload
     return DeepSpeedPlugin(
@@ -98,7 +101,11 @@ def _build_deepspeed_plugin(cfg: DistributedConfig) -> Optional[DeepSpeedPlugin]
 def get_accelerator(config: Optional[dict[str, Any]] = None) -> Any:
     """Return an appropriate accelerator instance for the given configuration."""
 
-    cfg = DistributedConfig.from_mapping((config or {}).get("distributed")) if config else DistributedConfig()
+    cfg = (
+        DistributedConfig.from_mapping((config or {}).get("distributed"))
+        if config
+        else DistributedConfig()
+    )
 
     if Accelerator is None:
         LOGGER.info("accelerate is not installed; using NoOpAccelerator.")
@@ -141,13 +148,17 @@ def wrap_model_optimizer(
 
     cfg_checkpoint = gradient_checkpointing
     if cfg_checkpoint is None and hasattr(accelerator, "state"):
-        cfg_checkpoint = getattr(getattr(accelerator, "state", object()), "gradient_checkpointing", None)
+        cfg_checkpoint = getattr(
+            getattr(accelerator, "state", object()), "gradient_checkpointing", None
+        )
 
     if cfg_checkpoint:
         _enable_gradient_checkpointing(model)
 
     if hasattr(accelerator, "prepare"):
-        prepared = accelerator.prepare(*(tuple(obj for obj in (model, optimizer) if obj is not None)))
+        prepared = accelerator.prepare(
+            *(tuple(obj for obj in (model, optimizer) if obj is not None))
+        )
         if optimizer is None:
             return prepared[0] if isinstance(prepared, (list, tuple)) else prepared, None
         if isinstance(prepared, (list, tuple)) and len(prepared) == 2:
@@ -175,4 +186,10 @@ def save_sharded(adapter: Any, out_dir: Path | str, accelerator: Any) -> Path:
     return out_path
 
 
-__all__ = ["get_accelerator", "wrap_model_optimizer", "save_sharded", "DistributedConfig", "NoOpAccelerator"]
+__all__ = [
+    "get_accelerator",
+    "wrap_model_optimizer",
+    "save_sharded",
+    "DistributedConfig",
+    "NoOpAccelerator",
+]

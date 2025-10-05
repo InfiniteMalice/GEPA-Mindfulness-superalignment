@@ -1,9 +1,9 @@
 """Data models for the tiered wisdom scoring pipeline without external deps."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Literal, Mapping
-
+from typing import Any, Dict, List, Literal, Mapping
 
 DIMENSIONS = ["mindfulness", "compassion", "integrity", "prudence"]
 ALLOWED_TIERS = {"heuristic", "judge", "classifier"}
@@ -80,12 +80,13 @@ class JudgeOutput:
     def to_tier_scores(self, confidence_floor: float = 0.1) -> "TierScores":
         scores = {dim: getattr(self, dim).score for dim in DIMENSIONS}
         confidence = {
-            dim: max(confidence_floor, 1.0 - getattr(self, dim).uncertainty)
-            for dim in DIMENSIONS
+            dim: max(confidence_floor, 1.0 - getattr(self, dim).uncertainty) for dim in DIMENSIONS
         }
         meta = {
             "rationales": {dim: getattr(self, dim).rationale for dim in DIMENSIONS},
-            "spans": {dim: [span.to_dict() for span in getattr(self, dim).spans] for dim in DIMENSIONS},
+            "spans": {
+                dim: [span.to_dict() for span in getattr(self, dim).spans] for dim in DIMENSIONS
+            },
             "abstain": self.abstain,
         }
         return TierScores(tier="judge", scores=scores, confidence=confidence, meta=meta)

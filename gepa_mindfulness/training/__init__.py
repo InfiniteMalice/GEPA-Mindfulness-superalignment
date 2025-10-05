@@ -1,7 +1,8 @@
 """Training utilities for GEPA mindfulness."""
+
+from .cli import main as cli_main
 from .configs import TrainingConfig, load_training_config
 from .pipeline import TrainingOrchestrator
-from .cli import main as cli_main
 from .reporting import SummaryReport, describe_reward, render_summary
 
 __all__ = [
