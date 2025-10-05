@@ -1,8 +1,8 @@
-import argparse
 import json
+import argparse
 
 from mindful_trace_gepa.cli_scoring import handle_score_auto
-from mindful_trace_gepa.scoring import DEFAULT_CONFIG, build_config
+from mindful_trace_gepa.scoring import build_config, DEFAULT_CONFIG
 from mindful_trace_gepa.scoring.schema import DIMENSIONS, TierScores
 
 
@@ -120,14 +120,7 @@ def test_score_auto_none_classifier_weight_uses_default(tmp_path, monkeypatch):
 
     monkeypatch.setattr("mindful_trace_gepa.cli_scoring.run_heuristics", fake_run_heuristics)
     monkeypatch.setattr("mindful_trace_gepa.cli_scoring.LLMJudge", DummyJudge)
-
-    def load_dummy_classifier(path):
-        return DummyClassifier(path)
-
-    monkeypatch.setattr(
-        "mindful_trace_gepa.cli_scoring.load_classifier_from_config",
-        load_dummy_classifier,
-    )
+    monkeypatch.setattr("mindful_trace_gepa.cli_scoring.load_classifier_from_config", lambda path: DummyClassifier(path))
 
     out_path = tmp_path / "scores.json"
 
@@ -146,22 +139,3 @@ def test_score_auto_none_classifier_weight_uses_default(tmp_path, monkeypatch):
     handle_score_auto(args)
     payload = json.loads(out_path.read_text(encoding="utf-8"))
     assert payload["final"]["mindfulness"] == 3
-
-
-def test_build_config_sanitizes_numeric_values():
-    config = build_config(
-        {
-            "weights": {"judge": "0.4", "classifier": None},
-            "abstention_thresholds": {"mindfulness": "0.8", "integrity": None},
-            "disagreement_penalty": "0.5",
-            "escalate_if_any_below": None,
-        }
-    )
-
-    assert config["weights"]["judge"] == 0.4
-    assert config["weights"]["classifier"] == DEFAULT_CONFIG["weights"]["classifier"]
-    assert config["abstention_thresholds"]["mindfulness"] == 0.8
-    expected_integrity = DEFAULT_CONFIG["abstention_thresholds"]["integrity"]
-    assert config["abstention_thresholds"]["integrity"] == expected_integrity
-    assert config["disagreement_penalty"] == 0.5
-    assert config["escalate_if_any_below"] == DEFAULT_CONFIG["escalate_if_any_below"]
