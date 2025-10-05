@@ -1,9 +1,10 @@
 """Utilities for capturing token-level metadata."""
+
 from __future__ import annotations
 
 import json
 import math
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable, List, Sequence

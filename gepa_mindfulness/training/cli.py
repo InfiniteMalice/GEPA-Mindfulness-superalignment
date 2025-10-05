@@ -1,4 +1,5 @@
 """Command line entry points for the training pipeline."""
+
 from __future__ import annotations
 
 import argparse
@@ -56,7 +57,10 @@ def main() -> None:
     LOGGER.info("Completed %s rollouts", len(results))
     for idx, result in enumerate(results):
         LOGGER.info(
-            "Rollout %s reward %.3f contradictions %s", idx, result.reward, result.contradiction_report
+            "Rollout %s reward %.3f contradictions %s",
+            idx,
+            result.reward,
+            result.contradiction_report,
         )
 
     LOGGER.info("Adversarial scenarios available: %s", list(iterate_adversarial_pool()))

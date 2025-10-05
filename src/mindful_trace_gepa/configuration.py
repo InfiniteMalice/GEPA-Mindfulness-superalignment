@@ -1,4 +1,5 @@
 """Configuration helpers for Mindful Trace GEPA."""
+
 from __future__ import annotations
 
 import json

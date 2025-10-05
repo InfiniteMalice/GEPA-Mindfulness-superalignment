@@ -12,15 +12,20 @@ from .schema import DIMENSIONS, AggregateScores, TierScores
 
 from .schema import DIMENSIONS, AggregateScores, TierScores
 
-DEFAULT_CONFIG = {
-    "weights": {
-        "heuristic": 0.2,
-        "judge": 0.5,
-        "classifier": 0.3,
-    },
-    "abstention_thresholds": {dim: 0.75 for dim in DIMENSIONS},
-    "disagreement_penalty": 0.25,
-    "escalate_if_any_below": 0.5,
+DEFAULT_WEIGHTS: Final[Dict[str, float]] = {
+    "heuristic": 0.2,
+    "judge": 0.5,
+    "classifier": 0.3,
+}
+DEFAULT_THRESHOLDS: Final[Dict[str, float]] = {dim: 0.75 for dim in DIMENSIONS}
+DEFAULT_DISAGREEMENT_PENALTY: Final[float] = 0.25
+DEFAULT_ESCALATE_FLOOR: Final[float] = 0.5
+
+DEFAULT_CONFIG: Dict[str, Any] = {
+    "weights": dict(DEFAULT_WEIGHTS),
+    "abstention_thresholds": dict(DEFAULT_THRESHOLDS),
+    "disagreement_penalty": DEFAULT_DISAGREEMENT_PENALTY,
+    "escalate_if_any_below": DEFAULT_ESCALATE_FLOOR,
 }
 
 def build_config(overrides: Mapping[str, Any] | None = None) -> Dict[str, Any]:

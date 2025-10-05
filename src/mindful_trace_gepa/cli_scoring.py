@@ -1,4 +1,5 @@
 """CLI helpers for the automated wisdom scoring pipeline."""
+
 from __future__ import annotations
 
 import argparse
@@ -147,11 +148,13 @@ def handle_lowconf_triage(args: argparse.Namespace) -> None:
     rows: List[Dict[str, Any]] = []
     for dim, conf in aggregate.confidence.items():
         if conf < args.threshold:
-            rows.append({
-                "dimension": dim,
-                "confidence": conf,
-                "score": aggregate.final.get(dim),
-            })
+            rows.append(
+                {
+                    "dimension": dim,
+                    "confidence": conf,
+                    "score": aggregate.final.get(dim),
+                }
+            )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text("\n".join(json.dumps(row) for row in rows), encoding="utf-8")
 
