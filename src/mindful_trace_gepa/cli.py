@@ -14,18 +14,7 @@ from .deception.score import score_deception
 from .emitters.paired_chains import emit_paired
 from .storage import TraceArchiveWriter, iter_jsonl, load_jsonl, read_jsonl
 from .tokens import TokenRecorder
-from .utils.imports import optional_import
 from .viewer.builder import build_viewer_html
-
-yaml = optional_import("yaml")
-
-_dspy_compile = optional_import("mindful_trace_gepa.dspy_modules.compile")
-if _dspy_compile is not None:
-    DSPY_COMPILER_CLS = getattr(_dspy_compile, "DSPyCompiler", None)
-    OPTIMIZATION_METRIC_CLS = getattr(_dspy_compile, "OptimizationMetric", None)
-else:  # pragma: no cover - optional dependency missing
-    DSPY_COMPILER_CLS = None
-    OPTIMIZATION_METRIC_CLS = None
 
 _dspy_pipeline = optional_import("mindful_trace_gepa.dspy_modules.pipeline")
 if _dspy_pipeline is not None:
