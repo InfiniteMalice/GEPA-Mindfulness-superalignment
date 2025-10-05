@@ -1,4 +1,5 @@
 """vLLM targeted demonstration using preconfigured engine endpoint."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -17,13 +18,15 @@ def main() -> None:
     orchestrator = TrainingOrchestrator(config=config)
     results = orchestrator.run(SAMPLE_PROMPTS)
     for result in results:
-        print({
-            "prompt": result.prompt,
-            "response": result.response,
-            "reward": result.reward,
-            "trace": result.trace_summary,
-            "contradictions": result.contradiction_report,
-        })
+        print(
+            {
+                "prompt": result.prompt,
+                "response": result.response,
+                "reward": result.reward,
+                "trace": result.trace_summary,
+                "contradictions": result.contradiction_report,
+            }
+        )
 
 
 if __name__ == "__main__":

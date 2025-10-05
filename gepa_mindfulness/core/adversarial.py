@@ -1,4 +1,5 @@
 """Adversarial and out-of-distribution challenge utilities."""
+
 from __future__ import annotations
 
 import random
