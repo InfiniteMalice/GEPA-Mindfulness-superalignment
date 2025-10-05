@@ -9,8 +9,8 @@ from math import isfinite
 from numbers import Real
 from typing import Any, Iterable, Iterator, Tuple, Union
 
-_DECIMAL_ZERO = Decimal("0")
-_DECIMAL_ONE = Decimal("1")
+_DECIMAL_ZERO = Decimal(0)
+_DECIMAL_ONE = Decimal(1)
 
 NumberLike = Union[Real, Decimal, Fraction]
 
@@ -162,11 +162,11 @@ class AggregateResult:
 def aggregate_gepa_metrics(sessions: Iterable[PracticeSession]) -> AggregateResult:
     """Compute a duration-weighted aggregate GEPA score."""
 
-    total_duration = Decimal("0")
-    grounding_total = Decimal("0")
-    equanimity_total = Decimal("0")
-    purpose_total = Decimal("0")
-    awareness_total = Decimal("0")
+    total_duration = Decimal(0)
+    grounding_total = Decimal(0)
+    equanimity_total = Decimal(0)
+    purpose_total = Decimal(0)
+    awareness_total = Decimal(0)
 
     for session in sessions:
         session.validate()

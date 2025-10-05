@@ -298,7 +298,7 @@ def test_validation_rejects_non_numeric_inputs():
 def test_aggregate_gepa_metrics_supports_decimal_and_fraction_inputs():
     sessions = [
         PracticeSession(
-            duration_minutes=Decimal("15"),
+            duration_minutes=Decimal(15),
             grounding=Fraction(1, 2),
             equanimity=Fraction(2, 3),
             purpose=Decimal("0.8"),
@@ -315,7 +315,7 @@ def test_aggregate_gepa_metrics_supports_decimal_and_fraction_inputs():
 
     result = aggregate_gepa_metrics(sessions)
 
-    first_weight = float(Decimal("15"))
+    first_weight = float(Decimal(15))
     second_weight = float(Fraction(45, 2))
     total_duration = first_weight + second_weight
     expected_grounding = (
