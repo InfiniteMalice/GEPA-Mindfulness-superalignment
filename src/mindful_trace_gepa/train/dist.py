@@ -6,16 +6,28 @@ import contextlib
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Any, Callable, Optional, Tuple
 
 import torch
 
-try:  # pragma: no cover - optional dependency
-    from accelerate import Accelerator
-    from accelerate.utils import DeepSpeedPlugin
-except Exception:  # pragma: no cover
-    Accelerator = None  # type: ignore
-    DeepSpeedPlugin = None  # type: ignore
+from ..utils.imports import optional_import
+
+Accelerator: Callable[..., Any] | None
+DeepSpeedPlugin: Callable[..., Any] | None
+
+_accelerate_mod = optional_import("accelerate")
+if _accelerate_mod is not None:
+    accel_candidate = getattr(_accelerate_mod, "Accelerator", None)
+    Accelerator = accel_candidate if callable(accel_candidate) else None
+else:  # pragma: no cover - optional dependency missing
+    Accelerator = None
+
+_accelerate_utils = optional_import("accelerate.utils")
+if _accelerate_utils is not None:
+    deepspeed_candidate = getattr(_accelerate_utils, "DeepSpeedPlugin", None)
+    DeepSpeedPlugin = deepspeed_candidate if callable(deepspeed_candidate) else None
+else:  # pragma: no cover - optional dependency missing
+    DeepSpeedPlugin = None
 
 LOGGER = logging.getLogger(__name__)
 
@@ -78,7 +90,7 @@ class NoOpAccelerator:
         torch.save(obj, path)
 
 
-def _build_deepspeed_plugin(cfg: DistributedConfig) -> Optional[DeepSpeedPlugin]:
+def _build_deepspeed_plugin(cfg: DistributedConfig) -> Any | None:
     if DeepSpeedPlugin is None:
         LOGGER.warning("DeepSpeed support requested but accelerate is unavailable.")
         return None
@@ -160,12 +172,12 @@ def wrap_model_optimizer(
             *(tuple(obj for obj in (model, optimizer) if obj is not None))
         )
         if optimizer is None:
-            return prepared[0] if isinstance(prepared, (list, tuple)) else prepared, None
-        if isinstance(prepared, (list, tuple)) and len(prepared) == 2:
-            return prepared[0], prepared[1]
-        if isinstance(prepared, tuple) and len(prepared) == 1:
-            return prepared[0], optimizer
-        return prepared  # type: ignore[return-value]
+            return prepared_tuple[0], None
+
+        if len(prepared_tuple) >= 2:
+            return prepared_tuple[0], prepared_tuple[1]
+
+        return prepared_tuple[0], optimizer
     return model, optimizer
 
 

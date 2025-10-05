@@ -10,13 +10,11 @@ from pathlib import Path
 from statistics import mean
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
-try:  # pragma: no cover - optional dependency
-    import yaml
-except ModuleNotFoundError:  # pragma: no cover
-    yaml = None
-
+from ..utils.imports import optional_import
 from .schema import DIMENSIONS, TierScores
 from .tier0_heuristics import _normalise_events, run_heuristics
+
+yaml = optional_import("yaml")
 
 
 @dataclass

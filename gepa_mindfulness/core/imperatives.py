@@ -49,10 +49,11 @@ class ImperativeEvaluator:
     def aggregate(self) -> ParaconsistentTruthValue:
         if not self.signals:
             raise ValueError("At least one imperative signal required.")
-        truth = None
-        for signal in self.signals.values():
-            value = signal.to_paraconsistent()
-            truth = value if truth is None else dialetheic_and(truth, value)
+        iterator = iter(self.signals.values())
+        first_signal = next(iterator)
+        truth = first_signal.to_paraconsistent()
+        for signal in iterator:
+            truth = dialetheic_and(truth, signal.to_paraconsistent())
         return truth
 
     def contradiction_report(self) -> Dict[str, float]:

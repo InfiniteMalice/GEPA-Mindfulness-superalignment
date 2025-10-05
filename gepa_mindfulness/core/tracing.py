@@ -5,12 +5,43 @@ from __future__ import annotations
 import contextlib
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, Iterable, List, Optional
+from typing import (
+    Any,
+    Callable,
+    ContextManager,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    Protocol,
+    cast,
+)
 
-try:  # pragma: no cover - optional dependency
-    from self_tracing import Tracer  # type: ignore
-except Exception:  # pragma: no cover - fallback when package missing
-    Tracer = None  # type: ignore
+from mindful_trace_gepa.utils.imports import optional_import
+
+
+class TracerProtocol(Protocol):
+    """Minimal protocol implemented by ``self_tracing.Tracer``."""
+
+    def span(self, **context: Any) -> ContextManager[Any]: ...
+
+    def log(self, *, stage: str, content: str, **metadata: Any) -> None: ...
+
+
+_TRACER_MODULE = optional_import("self_tracing")
+TracerFactory: Callable[[], TracerProtocol] | None
+if _TRACER_MODULE is not None:
+    candidate = getattr(_TRACER_MODULE, "Tracer", None)
+    TracerFactory = candidate if callable(candidate) else None
+else:  # pragma: no cover - optional dependency missing
+    TracerFactory = None
+
+
+def _create_tracer() -> TracerProtocol | None:
+    if TracerFactory is None:
+        return None
+    tracer = TracerFactory()
+    return cast(TracerProtocol, tracer)
 
 
 TRACE_STAGES = ["framing", "evidence", "tensions", "decision", "reflection"]
@@ -54,19 +85,21 @@ class SelfTracingLogger:
     """Wrapper that gracefully falls back if the optional dependency is missing."""
 
     def __init__(self) -> None:
-        self._tracer = Tracer() if Tracer is not None else None
+        self._tracer = _create_tracer()
         self._active_traces: List[ThoughtTrace] = []
 
     @contextlib.contextmanager
-    def trace(self, **context: Any) -> Iterable[ThoughtTrace]:
+    def trace(self, **context: Any) -> Iterator[ThoughtTrace]:
         trace = ThoughtTrace()
         self._active_traces.append(trace)
-        if self._tracer is not None:
-            with self._tracer.span(**context):  # type: ignore[attr-defined]
+        try:
+            if self._tracer is not None:
+                with self._tracer.span(**context):
+                    yield trace
+            else:
                 yield trace
-        else:
-            yield trace
-        self._active_traces.pop()
+        finally:
+            self._active_traces.pop()
 
     def log_event(self, stage: str, content: str, **metadata: Any) -> None:
         if not self._active_traces:
@@ -74,7 +107,7 @@ class SelfTracingLogger:
         trace = self._active_traces[-1]
         trace.add_event(stage, content, **metadata)
         if self._tracer is not None:
-            self._tracer.log(stage=stage, content=content, **metadata)  # type: ignore[attr-defined]
+            self._tracer.log(stage=stage, content=content, **metadata)
 
     @property
     def latest_trace(self) -> Optional[ThoughtTrace]:

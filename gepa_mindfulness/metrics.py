@@ -7,7 +7,7 @@ from decimal import Decimal, InvalidOperation
 from fractions import Fraction
 from math import isfinite
 from numbers import Real
-from typing import Iterable, Iterator, Tuple, Union
+from typing import Any, Iterable, Iterator, Tuple, Union
 
 _DECIMAL_ZERO = Decimal("0")
 _DECIMAL_ONE = Decimal("1")
@@ -15,7 +15,7 @@ _DECIMAL_ONE = Decimal("1")
 NumberLike = Union[Real, Decimal, Fraction]
 
 
-def _ensure_numeric(label: str, value: object) -> None:
+def _ensure_numeric(label: str, value: Any) -> None:
     """Ensure *value* behaves like a real number.
 
     ``bool`` instances and ``str``/``bytes`` values are rejected explicitly so
@@ -37,7 +37,7 @@ def _ensure_numeric(label: str, value: object) -> None:
         raise TypeError(f"{label} must be a real number") from exc
 
 
-def _to_decimal(label: str, value: NumberLike | object) -> Decimal:
+def _to_decimal(label: str, value: Any) -> Decimal:
     """Coerce *value* into :class:`~decimal.Decimal` with sanity checks."""
 
     if isinstance(value, Decimal):
@@ -63,7 +63,7 @@ def _to_decimal(label: str, value: NumberLike | object) -> Decimal:
     # Fallback for float-like objects that are not ``Real`` (e.g. numpy
     # scalar-like wrappers used in the tests).
     try:
-        numeric = float(value)  # type: ignore[arg-type]
+        numeric = float(value)
     except (TypeError, ValueError) as exc:  # pragma: no cover - defensive
         raise TypeError(f"{label} must be a real number") from exc
 
@@ -92,7 +92,7 @@ def _decimal_to_float(label: str, value: Decimal) -> float:
     return result
 
 
-def _coerce_duration(value: object) -> Decimal:
+def _coerce_duration(value: Any) -> Decimal:
     _ensure_numeric("duration_minutes", value)
     duration = _to_decimal("duration_minutes", value)
     if duration < _DECIMAL_ZERO:
@@ -100,7 +100,7 @@ def _coerce_duration(value: object) -> Decimal:
     return duration
 
 
-def _coerce_score(label: str, value: object) -> Decimal:
+def _coerce_score(label: str, value: Any) -> Decimal:
     _ensure_numeric(label, value)
 
     if isinstance(value, Fraction):
@@ -119,11 +119,11 @@ def _coerce_score(label: str, value: object) -> Decimal:
 class PracticeSession:
     """Container describing a mindfulness practice session."""
 
-    duration_minutes: NumberLike | object
-    grounding: NumberLike | object
-    equanimity: NumberLike | object
-    purpose: NumberLike | object
-    awareness: NumberLike | object
+    duration_minutes: Any
+    grounding: Any
+    equanimity: Any
+    purpose: Any
+    awareness: Any
 
     def validate(self) -> None:
         """Ensure the session contains sane numeric values."""
@@ -137,7 +137,7 @@ class PracticeSession:
             score = _coerce_score(label, value)
             _decimal_to_float(label, score)
 
-    def _iter_scores(self) -> Iterator[Tuple[str, object]]:
+    def _iter_scores(self) -> Iterator[Tuple[str, Any]]:
         yield "grounding", self.grounding
         yield "equanimity", self.equanimity
         yield "purpose", self.purpose

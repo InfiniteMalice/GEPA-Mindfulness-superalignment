@@ -24,6 +24,9 @@ from .scoring.aggregate import build_config
 from .scoring.llm_judge import JudgeConfig
 from .scoring.schema import AggregateScores, TierScores
 from .storage import iter_jsonl
+from .utils.imports import optional_import
+
+yaml = optional_import("yaml")
 
 
 def _load_yaml(path: Path) -> Dict[str, Any]:
@@ -111,7 +114,7 @@ def handle_judge_run(args: argparse.Namespace) -> None:
     events = _load_trace_events(trace_path)
     judge = LLMJudge(JudgeConfig(model=args.model or "gpt-sim-judge", mock=args.mock))
     tier = judge.score_trace(events)
-    payload = tier.dict()
+    payload = tier.to_dict()
     Path(args.out).write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 

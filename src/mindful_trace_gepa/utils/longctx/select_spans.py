@@ -28,7 +28,7 @@ def _bm25_score(
     b = 0.75
     score = 0.0
     doc_len = len(doc_tokens) or 1
-    tf = {}
+    tf: dict[str, int] = {}
     for token in doc_tokens:
         tf[token] = tf.get(token, 0) + 1
     for token in query_tokens:

@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Mapping, MutableMapping
 
-from gepa_mindfulness.core.tracing import SelfTracingLogger
+from gepa_mindfulness.core.tracing import SelfTracingLogger, ThoughtTrace
 
 from ..configuration import DSPyConfig, load_dspy_config
 from .signatures import (
@@ -123,6 +123,7 @@ class GEPAChain:
         principle_scores: Dict[str, float] = {}
         imperative_scores: Dict[str, float] = {}
 
+        trace: ThoughtTrace
         with self.tracer.trace(chain="dspy") as trace:
             for signature in ALL_SIGNATURES:
                 callable_ = self._callable_for(signature)
@@ -153,7 +154,7 @@ class GEPAChain:
                     }
                 )
 
-        summary = trace.summary() if trace else {}
+        summary = trace.summary()
         final_answer = inputs.get(Decision.output_field, summary.get("decision", ""))
         principle_scores = self._mock_principle_scores(summary)
         imperative_scores = self._mock_imperative_scores(summary)

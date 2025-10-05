@@ -6,12 +6,7 @@ import argparse
 import json
 from argparse import BooleanOptionalAction
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
-
-try:  # pragma: no cover - optional dependency
-    import yaml  # type: ignore
-except ModuleNotFoundError:  # pragma: no cover
-    yaml = None  # type: ignore
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional
 
 from .cli_scoring import register_cli as register_scoring_cli
 from .configuration import dump_json, load_dspy_config
@@ -21,13 +16,11 @@ from .storage import TraceArchiveWriter, iter_jsonl, load_jsonl, read_jsonl
 from .tokens import TokenRecorder
 from .viewer.builder import build_viewer_html
 
-try:  # pragma: no cover - optional DSPy components
-    from .dspy_modules.compile import DSPyCompiler, OptimizationMetric
-    from .dspy_modules.pipeline import GEPAChain
-except Exception:  # pragma: no cover
-    DSPyCompiler = None
-    OptimizationMetric = None
-    GEPAChain = None
+_dspy_pipeline = optional_import("mindful_trace_gepa.dspy_modules.pipeline")
+if _dspy_pipeline is not None:
+    GEPA_CHAIN_CLS = getattr(_dspy_pipeline, "GEPAChain", None)
+else:  # pragma: no cover - optional dependency missing
+    GEPA_CHAIN_CLS = None
 
 
 def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
@@ -48,10 +41,11 @@ def _write_jsonl(path: Path, rows: Iterable[Dict[str, Any]]) -> None:
 
 
 def handle_dspy_run(args: argparse.Namespace) -> None:
-    if GEPAChain is None:
+    if GEPA_CHAIN_CLS is None:
         raise RuntimeError("DSPy pipeline unavailable; optional dependencies missing")
     config = load_dspy_config()
-    chain = GEPAChain(config=config, allow_optimizations=args.enable_optim)
+    chain_factory = GEPA_CHAIN_CLS
+    chain = chain_factory(config=config, allow_optimizations=args.enable_optim)
     input_records = _read_jsonl(Path(args.input))
     trace_path = Path(args.trace)
     tokens_path = trace_path.with_name("tokens.jsonl")
@@ -124,15 +118,15 @@ def handle_dspy_run(args: argparse.Namespace) -> None:
 
 
 def handle_dspy_compile(args: argparse.Namespace) -> None:
-    if DSPyCompiler is None or OptimizationMetric is None:
+    if DSPY_COMPILER_CLS is None or OPTIMIZATION_METRIC_CLS is None:
         raise RuntimeError("DSPy compiler unavailable; optional dependencies missing")
     config = load_dspy_config()
-    compiler = DSPyCompiler(config=config)
+    compiler = DSPY_COMPILER_CLS(config=config)
     dataset = _read_jsonl(Path(args.dataset)) if args.dataset else []
     manifest = compiler.compile(
         out_dir=Path(args.out),
         dataset=dataset,
-        metric=OptimizationMetric(),
+        metric=OPTIMIZATION_METRIC_CLS(),
         enable_optimizations=args.enable_optim,
     )
     print(json.dumps(manifest, indent=2))
@@ -171,11 +165,11 @@ def handle_view(args: argparse.Namespace) -> None:
         except ValueError:
             manifest_rel = str(manifest_path.resolve())
 
-    deception_data = {}
+    deception_data: Dict[str, Any] = {}
     if args.deception and Path(args.deception).exists():
         with Path(args.deception).open("r", encoding="utf-8") as handle:
             deception_data = json.load(handle)
-    paired_data = {}
+    paired_data: Dict[str, Any] = {}
     if args.paired and Path(args.paired).exists():
         with Path(args.paired).open("r", encoding="utf-8") as handle:
             paired_data = json.load(handle)
@@ -235,7 +229,7 @@ def handle_paired_view(args: argparse.Namespace) -> None:
     base = Path(args.base)
     honest = _read_jsonl(base / f"{args.identifier}_honest_trace.jsonl")
     deceptive = _read_jsonl(base / f"{args.identifier}_deceptive_trace.jsonl")
-    deception_data = {}
+    deception_data: Dict[str, Any] = {}
     detection_path = base / f"{args.identifier}_deception.json"
     if detection_path.exists():
         with detection_path.open("r", encoding="utf-8") as handle:
@@ -269,7 +263,7 @@ def handle_score(args: argparse.Namespace) -> None:
         )
         if candidate.exists():
             trace_path = candidate
-    policy = {}
+    policy: Dict[str, Any] = {}
     if args.policy and Path(args.policy).exists():
         policy_path = Path(args.policy)
         raw = policy_path.read_text(encoding="utf-8")
@@ -291,19 +285,21 @@ def handle_score(args: argparse.Namespace) -> None:
             )
             if not manifest_path.exists():
                 raise FileNotFoundError(f"Manifest not found at {manifest_path}")
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest_blob = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest_map = manifest_blob if isinstance(manifest_blob, dict) else {}
             base = manifest_path.parent
-            for shard in manifest.get("shards", []):
-                shard_path = base / shard["path"]
+            for shard in manifest_map.get("shards", []):
+                if not isinstance(shard, Mapping):
+                    continue
+                shard_path_str = str(shard.get("path", ""))
+                if not shard_path_str:
+                    continue
+                shard_path = base / shard_path_str
                 yield from iter_jsonl(shard_path)
         else:
             yield from iter_jsonl(trace_path)
 
-    event_iter: Iterable[Dict[str, Any]]
-    if stream_flag:
-        event_iter = _iter_events()
-    else:
-        event_iter = list(_iter_events())
+    event_iter: Iterable[Dict[str, Any]] = _iter_events() if stream_flag else list(_iter_events())
 
     principle_sums: Dict[str, float] = {}
     principle_counts: Dict[str, int] = {}
@@ -325,9 +321,11 @@ def handle_score(args: argparse.Namespace) -> None:
     def _mean(sums: Dict[str, float], counts: Dict[str, int]) -> Dict[str, float]:
         return {name: (sums[name] / counts[name]) for name in sums}
 
+    principles_mean = _mean(principle_sums, principle_counts)
+    imperatives_mean = _mean(imperative_sums, imperative_counts)
     summary = {
-        "principles": _mean(principle_sums, principle_counts),
-        "imperatives": _mean(imperative_sums, imperative_counts),
+        "principles": principles_mean,
+        "imperatives": imperatives_mean,
         "events": total_events,
         "policy": policy,
         "flags": sorted(flags_seen),
@@ -339,10 +337,10 @@ def handle_score(args: argparse.Namespace) -> None:
         f"<p>Total events: {summary['events']}</p>",
         "<h2>Principles</h2><ul>",
     ]
-    for name, value in summary["principles"].items():
+    for name, value in principles_mean.items():
         html_parts.append(f"<li>{name}: {value:.3f}</li>")
     html_parts.append("</ul><h2>Imperatives</h2><ul>")
-    for name, value in summary["imperatives"].items():
+    for name, value in imperatives_mean.items():
         html_parts.append(f"<li>{name}: {value:.3f}</li>")
     html_parts.append("</ul><h2>Policy</h2><pre>")
     html_parts.append(json.dumps(summary["policy"], indent=2))
@@ -454,10 +452,11 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: List[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
-    if not hasattr(args, "func"):
+    handler: Callable[[argparse.Namespace], None] | None = getattr(args, "func", None)
+    if handler is None:
         parser.print_help()
         return
-    args.func(args)
+    handler(args)
 
 
 __all__ = ["main", "build_parser"]
