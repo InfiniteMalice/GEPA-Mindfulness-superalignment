@@ -22,25 +22,31 @@ class FloatLike:
     def __str__(self) -> str:
         return str(float(self._value))
 
+
 def test_aggregate_gepa_score_basic_weighting():
     sessions = [
-        PracticeSession(duration_minutes=30, grounding=0.6, equanimity=0.5, purpose=0.8, awareness=0.7),
-        PracticeSession(duration_minutes=15, grounding=0.9, equanimity=0.8, purpose=0.9, awareness=0.85),
+        PracticeSession(
+            duration_minutes=30, grounding=0.6, equanimity=0.5, purpose=0.8, awareness=0.7
+        ),
+        PracticeSession(
+            duration_minutes=15, grounding=0.9, equanimity=0.8, purpose=0.9, awareness=0.85
+        ),
     ]
 
     # expected value computed manually
-    expected = (
-        ((0.6 + 0.5 + 0.8 + 0.7) / 4.0) * 30
-        + ((0.9 + 0.8 + 0.9 + 0.85) / 4.0) * 15
-    ) / 45
+    expected = (((0.6 + 0.5 + 0.8 + 0.7) / 4.0) * 30 + ((0.9 + 0.8 + 0.9 + 0.85) / 4.0) * 15) / 45
 
     assert math.isclose(aggregate_gepa_score(sessions), expected)
 
 
 def test_aggregate_gepa_metrics_reports_per_axis():
     sessions = [
-        PracticeSession(duration_minutes=10, grounding=0.2, equanimity=0.4, purpose=0.6, awareness=0.8),
-        PracticeSession(duration_minutes=20, grounding=0.5, equanimity=0.6, purpose=0.7, awareness=0.4),
+        PracticeSession(
+            duration_minutes=10, grounding=0.2, equanimity=0.4, purpose=0.6, awareness=0.8
+        ),
+        PracticeSession(
+            duration_minutes=20, grounding=0.5, equanimity=0.6, purpose=0.7, awareness=0.4
+        ),
     ]
 
     result = aggregate_gepa_metrics(sessions)
@@ -49,7 +55,9 @@ def test_aggregate_gepa_metrics_reports_per_axis():
     expected_equanimity = (0.4 * 10 + 0.6 * 20) / 30
     expected_purpose = (0.6 * 10 + 0.7 * 20) / 30
     expected_awareness = (0.8 * 10 + 0.4 * 20) / 30
-    expected_gepa = (expected_grounding + expected_equanimity + expected_purpose + expected_awareness) / 4
+    expected_gepa = (
+        expected_grounding + expected_equanimity + expected_purpose + expected_awareness
+    ) / 4
 
     assert isinstance(result, AggregateResult)
     assert math.isclose(result.total_duration, 30)
@@ -60,10 +68,15 @@ def test_aggregate_gepa_metrics_reports_per_axis():
     assert math.isclose(aggregate_gepa_score(sessions), result.gepa)
     assert math.isclose(result.gepa, expected_gepa)
 
+
 def test_zero_duration_sessions_are_ignored():
     sessions = [
-        PracticeSession(duration_minutes=0, grounding=0.4, equanimity=0.5, purpose=0.6, awareness=0.7),
-        PracticeSession(duration_minutes=0, grounding=0.9, equanimity=0.9, purpose=0.9, awareness=0.9),
+        PracticeSession(
+            duration_minutes=0, grounding=0.4, equanimity=0.5, purpose=0.6, awareness=0.7
+        ),
+        PracticeSession(
+            duration_minutes=0, grounding=0.9, equanimity=0.9, purpose=0.9, awareness=0.9
+        ),
     ]
 
     result = aggregate_gepa_metrics(sessions)
@@ -79,10 +92,13 @@ def test_zero_duration_sessions_are_ignored():
 
 
 def test_validation_rejects_out_of_range_scores():
-    session = PracticeSession(duration_minutes=10, grounding=1.5, equanimity=0.5, purpose=0.5, awareness=0.5)
+    session = PracticeSession(
+        duration_minutes=10, grounding=1.5, equanimity=0.5, purpose=0.5, awareness=0.5
+    )
 
     with pytest.raises(ValueError):
         aggregate_gepa_score([session])
+
 
 def test_validation_rejects_high_precision_decimal_out_of_range():
     session = PracticeSession(
@@ -95,6 +111,7 @@ def test_validation_rejects_high_precision_decimal_out_of_range():
 
     with pytest.raises(ValueError, match=r"grounding must be within \[0\.0, 1\.0\]"):
         aggregate_gepa_score([session])
+
 
 def test_validation_rejects_high_precision_fraction_out_of_range():
     huge_denominator = 10**30
@@ -109,11 +126,15 @@ def test_validation_rejects_high_precision_fraction_out_of_range():
     with pytest.raises(ValueError, match=r"grounding must be within \[0\.0, 1\.0\]"):
         aggregate_gepa_score([session])
 
+
 def test_validation_rejects_negative_duration():
-    session = PracticeSession(duration_minutes=-1, grounding=0.5, equanimity=0.5, purpose=0.5, awareness=0.5)
+    session = PracticeSession(
+        duration_minutes=-1, grounding=0.5, equanimity=0.5, purpose=0.5, awareness=0.5
+    )
 
     with pytest.raises(ValueError):
         aggregate_gepa_score([session])
+
 
 def test_validation_rejects_non_finite_duration():
     session = PracticeSession(
@@ -159,6 +180,7 @@ def test_validation_rejects_non_finite_duration():
 
     with pytest.raises(ValueError, match="duration_minutes must be finite"):
         aggregate_gepa_score([session])
+
 
 def test_validation_rejects_underflowing_duration():
     session = PracticeSession(
@@ -218,6 +240,7 @@ def test_validation_rejects_non_finite_axis_scores():
     with pytest.raises(ValueError, match="grounding must be finite"):
         aggregate_gepa_score([session])
 
+
 def test_validation_rejects_underflowing_axis_scores():
     session = PracticeSession(
         duration_minutes=10,
@@ -229,6 +252,7 @@ def test_validation_rejects_underflowing_axis_scores():
 
     with pytest.raises(ValueError, match="grounding is too small"):
         aggregate_gepa_score([session])
+
 
 def test_validation_rejects_non_numeric_inputs():
     with pytest.raises(TypeError, match="duration_minutes must be a real number"):
@@ -274,7 +298,7 @@ def test_validation_rejects_non_numeric_inputs():
 def test_aggregate_gepa_metrics_supports_decimal_and_fraction_inputs():
     sessions = [
         PracticeSession(
-            duration_minutes=Decimal("15"),
+            duration_minutes=Decimal(15),
             grounding=Fraction(1, 2),
             equanimity=Fraction(2, 3),
             purpose=Decimal("0.8"),
@@ -291,7 +315,7 @@ def test_aggregate_gepa_metrics_supports_decimal_and_fraction_inputs():
 
     result = aggregate_gepa_metrics(sessions)
 
-    first_weight = float(Decimal("15"))
+    first_weight = float(Decimal(15))
     second_weight = float(Fraction(45, 2))
     total_duration = first_weight + second_weight
     expected_grounding = (
@@ -313,6 +337,7 @@ def test_aggregate_gepa_metrics_supports_decimal_and_fraction_inputs():
     assert math.isclose(result.purpose, expected_purpose)
     assert math.isclose(result.awareness, expected_awareness)
     assert math.isclose(aggregate_gepa_score(sessions), result.gepa)
+
 
 def test_aggregate_gepa_metrics_accepts_float_like_inputs():
     sessions = [
@@ -425,10 +450,10 @@ def test_aggregate_gepa_metrics_raises_when_duration_underflows_float():
         aggregate_gepa_metrics(sessions)
 
     with pytest.raises(ValueError, match="duration_minutes is too small"):
-      aggregate_gepa_score(sessions)
+        aggregate_gepa_score(sessions)
 
     with pytest.raises(ValueError, match="total duration is too small"):
         aggregate_gepa_metrics(sessions)
 
     with pytest.raises(ValueError, match="total duration is too small"):
-      aggregate_gepa_score(sessions)
+        aggregate_gepa_score(sessions)
