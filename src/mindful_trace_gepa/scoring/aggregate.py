@@ -146,13 +146,16 @@ def aggregate_tiers(
             total_weight += weight
         final_scores[dim] = int(round(weighted / max(total_weight, 1e-9)))
         confidence = sum(tier.confidence[dim] for tier in tiers) / max(len(tiers), 1)
-        confidence -= penalty * gaps[dim]
+        gap = gaps[dim]
+        if gap >= 2:
+            confidence -= penalty * max(gap - 1, 1)
         final_confidence[dim] = max(0.0, min(1.0, confidence))
         if final_confidence[dim] < threshold_values[dim]:
             reasons.append(f"Confidence below threshold for {dim}")
 
-    escalate = any(value < escalate_floor for value in final_confidence.values()) or any(gaps.values())
-    if any(gaps.values()):
+    large_gaps = {dim: gap for dim, gap in gaps.items() if gap >= 2}
+    escalate = any(value < escalate_floor for value in final_confidence.values()) or bool(large_gaps)
+    if large_gaps:
         reasons.append("disagreement across tiers detected")
 
     return AggregateScores(
