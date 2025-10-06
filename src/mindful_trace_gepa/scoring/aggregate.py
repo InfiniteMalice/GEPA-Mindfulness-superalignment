@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import itertools
-from copy import deepcopy
 from typing import Any, Dict, Final, Mapping, Sequence
 
 from .schema import DIMENSIONS, AggregateScores, TierScores
@@ -67,7 +66,10 @@ def build_config(overrides: Mapping[str, Any] | None = None) -> Dict[str, Any]:
     weights_obj = cfg.get("weights", weight_defaults)
     if isinstance(weights_obj, Mapping):
         cfg["weights"] = {
-            tier: _safe_float(weights_obj.get(tier, weight_defaults.get(tier, 0.0)), weight_defaults.get(tier, 0.0))
+            tier: _safe_float(
+                weights_obj.get(tier, weight_defaults.get(tier, 0.0)),
+                weight_defaults.get(tier, 0.0),
+            )
             for tier in weight_defaults
         }
 
@@ -75,7 +77,10 @@ def build_config(overrides: Mapping[str, Any] | None = None) -> Dict[str, Any]:
     thresholds_obj = cfg.get("abstention_thresholds", threshold_defaults)
     if isinstance(thresholds_obj, Mapping):
         cfg["abstention_thresholds"] = {
-            dim: _safe_float(thresholds_obj.get(dim, threshold_defaults.get(dim, 0.75)), threshold_defaults.get(dim, 0.75))
+            dim: _safe_float(
+                thresholds_obj.get(dim, threshold_defaults.get(dim, 0.75)),
+                threshold_defaults.get(dim, 0.75),
+            )
             for dim in threshold_defaults
         }
 
@@ -123,8 +128,14 @@ def aggregate_tiers(
     if not isinstance(thresholds_cfg, Mapping):
         thresholds_cfg = DEFAULT_CONFIG["abstention_thresholds"]
 
-    penalty = _safe_float(cfg.get("disagreement_penalty"), DEFAULT_CONFIG["disagreement_penalty"])
-    escalate_floor = _safe_float(cfg.get("escalate_if_any_below"), DEFAULT_CONFIG["escalate_if_any_below"])
+    penalty = _safe_float(
+        cfg.get("disagreement_penalty"),
+        DEFAULT_CONFIG["disagreement_penalty"],
+    )
+    escalate_floor = _safe_float(
+        cfg.get("escalate_if_any_below"),
+        DEFAULT_CONFIG["escalate_if_any_below"],
+    )
 
     threshold_values = {
         dim: _safe_float(thresholds_cfg.get(dim), DEFAULT_CONFIG["abstention_thresholds"][dim])
@@ -154,7 +165,10 @@ def aggregate_tiers(
             reasons.append(f"Confidence below threshold for {dim}")
 
     large_gaps = {dim: gap for dim, gap in gaps.items() if gap >= 2}
-    escalate = any(value < escalate_floor for value in final_confidence.values()) or bool(large_gaps)
+    escalate = (
+        any(value < escalate_floor for value in final_confidence.values())
+        or bool(large_gaps)
+    )
     if large_gaps:
         reasons.append("disagreement across tiers detected")
 
