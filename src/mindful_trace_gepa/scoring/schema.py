@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Literal, Mapping
+from typing import Any, Dict, List, Literal, Mapping, cast
 
 DIMENSIONS = ["mindfulness", "compassion", "integrity", "prudence"]
 ALLOWED_TIERS = {"heuristic", "judge", "classifier"}
@@ -89,7 +89,8 @@ class JudgeOutput:
             },
             "abstain": self.abstain,
         }
-        return TierScores(tier="judge", scores=scores, confidence=confidence, meta=meta)
+        tier = cast(Literal["heuristic", "judge", "classifier"], "judge")
+        return TierScores(tier=tier, scores=scores, confidence=confidence, meta=meta)
 
 
 @dataclass
