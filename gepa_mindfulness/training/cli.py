@@ -173,6 +173,10 @@ def main() -> None:
     _serialize_rollouts(rollout_path, results)
     LOGGER.info("Serialized %s rollouts to %s", len(results), rollout_path)
 
+    rollout_path = log_dir / "rollouts.jsonl"
+    _serialize_rollouts(rollout_path, results)
+    LOGGER.info("Serialized %s rollouts to %s", len(results), rollout_path)
+
     LOGGER.info("Completed %s rollouts", len(results))
     for idx, result in enumerate(results):
         LOGGER.info(
