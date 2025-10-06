@@ -56,9 +56,12 @@ def parse_args() -> argparse.Namespace:
                 destination = input("Enter log output directory path: ").strip()
             args.log_dir = Path(destination).expanduser()
         else:
-            parser.error("--log-dir is required when standard input is not interactive")
+            default_log_dir = Path.cwd() / "training_logs"
+            args.log_dir = default_log_dir
     else:
         args.log_dir = args.log_dir.expanduser()
+
+    args.log_dir = args.log_dir.expanduser()
 
     return args
 
@@ -165,26 +168,26 @@ def main() -> None:
                 result.contradiction_report,
             )
 
-    rollout_path = log_dir / "rollouts.jsonl"
-    _serialize_rollouts(rollout_path, results)
-    LOGGER.info("Serialized %s rollouts to %s", len(results), rollout_path)
+        rollout_path = log_dir / "rollouts.jsonl"
+        _serialize_rollouts(rollout_path, results)
+        LOGGER.info("Serialized %s rollouts to %s", len(results), rollout_path)
 
-    rollout_path = log_dir / "rollouts.jsonl"
-    _serialize_rollouts(rollout_path, results)
-    LOGGER.info("Serialized %s rollouts to %s", len(results), rollout_path)
+        rollout_path = log_dir / "rollouts.jsonl"
+        _serialize_rollouts(rollout_path, results)
+        LOGGER.info("Serialized %s rollouts to %s", len(results), rollout_path)
 
-    rollout_path = log_dir / "rollouts.jsonl"
-    _serialize_rollouts(rollout_path, results)
-    LOGGER.info("Serialized %s rollouts to %s", len(results), rollout_path)
+        rollout_path = log_dir / "rollouts.jsonl"
+        _serialize_rollouts(rollout_path, results)
+        LOGGER.info("Serialized %s rollouts to %s", len(results), rollout_path)
 
-    LOGGER.info("Completed %s rollouts", len(results))
-    for idx, result in enumerate(results):
-        LOGGER.info(
-            "Rollout %s reward %.3f contradictions %s",
-            idx,
-            result.reward,
-            result.contradiction_report,
-        )
+        LOGGER.info("Completed %s rollouts", len(results))
+        for idx, result in enumerate(results):
+            LOGGER.info(
+                "Rollout %s reward %.3f contradictions %s",
+                idx,
+                result.reward,
+                result.contradiction_report,
+            )
 
         LOGGER.info("Adversarial scenarios available: %s", list(iterate_adversarial_pool()))
     finally:
