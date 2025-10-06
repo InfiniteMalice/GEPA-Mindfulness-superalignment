@@ -99,6 +99,12 @@ def test_infer_probe_basic():
         },
         "pool": "mean",
     }
-    result = infer_probe(activations, probe, pooling="mean", threshold_config={"type": "fixed_fpr", "fpr": 0.5}, labels=[0, 1])
+    result = infer_probe(
+        activations,
+        probe,
+        pooling="mean",
+        threshold_config={"type": "fixed_fpr", "fpr": 0.5},
+        labels=[0, 1],
+    )
     assert result["status"] == "ok"
     assert result["scores"]["per_step"], "expected per-step aggregation"
