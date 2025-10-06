@@ -188,8 +188,14 @@ def _load_json_weights(path: Path) -> Optional[ProbeWeights]:
         logger.error("Malformed probe weights in %s", path)
         return None
     bias = float(payload.get("bias", 0.0))
-    metadata = payload.get("metadata") if isinstance(payload.get("metadata"), Mapping) else None
-    return ProbeWeights(weights=_ensure_float_list(weights), bias=bias, metadata=dict(metadata or {}))
+    metadata = None
+    if isinstance(payload.get("metadata"), Mapping):
+        metadata = dict(payload.get("metadata") or {})
+    return ProbeWeights(
+        weights=_ensure_float_list(weights),
+        bias=bias,
+        metadata=metadata or {},
+    )
 
 
 def load_probe(weights_path: str | Path) -> Optional[ProbeWeights]:
@@ -212,11 +218,13 @@ def load_probe(weights_path: str | Path) -> Optional[ProbeWeights]:
             arr = blob.item() if hasattr(blob, "item") else blob
             if isinstance(arr, Mapping) and "weights" in arr:
                 bias_val = float(arr.get("bias", 0.0))
-                metadata_val = (
-                    dict(arr.get("metadata", {})) if isinstance(arr.get("metadata"), Mapping) else {}
-                )
+                metadata_val = {}
+                if isinstance(arr.get("metadata"), Mapping):
+                    metadata_val = dict(arr.get("metadata", {}))
                 return ProbeWeights(
-                    weights=_ensure_float_list(arr["weights"]), bias=bias_val, metadata=metadata_val
+                    weights=_ensure_float_list(arr["weights"]),
+                    bias=bias_val,
+                    metadata=metadata_val,
                 )
             if np is not None and hasattr(arr, "tolist"):
                 weights_list = arr.tolist()
@@ -233,9 +241,9 @@ def load_probe(weights_path: str | Path) -> Optional[ProbeWeights]:
                 logger.debug("Unable to load torch weights from %s", p, exc_info=True)
                 return None
             if isinstance(blob, Mapping) and "weights" in blob:
-                metadata_val = (
-                    dict(blob.get("metadata", {})) if isinstance(blob.get("metadata"), Mapping) else {}
-                )
+                metadata_val = {}
+                if isinstance(blob.get("metadata"), Mapping):
+                    metadata_val = dict(blob.get("metadata", {}))
                 return ProbeWeights(
                     weights=_ensure_float_list(blob["weights"]),
                     bias=float(blob.get("bias", 0.0)),
@@ -498,7 +506,9 @@ def infer_probe(
 
     per_step_payload = _assign_steps(token_scores, token_map)
 
-    score_values = [item[1] for item in token_scores] or [entry["score"] for entry in per_step_payload]
+    score_values = [item[1] for item in token_scores] or [
+        entry["score"] for entry in per_step_payload
+    ]
     metric_scores = [entry["score"] for entry in per_step_payload]
     metric_labels = labels_vec if labels_vec is not None else None
 
@@ -508,9 +518,15 @@ def infer_probe(
     if metric_labels is not None and metric_scores:
         computed_metrics["auroc"] = auroc(metric_scores, metric_labels)
         computed_metrics["auprc"] = auprc(metric_scores, metric_labels)
-        computed_metrics["fpr_at_tpr80"] = fpr_at_tpr(metric_scores, metric_labels, target_tpr=0.8)
+        computed_metrics["fpr_at_tpr80"] = fpr_at_tpr(
+            metric_scores, metric_labels, target_tpr=0.8
+        )
         if threshold_config and threshold_config.get("type") == "fixed_fpr":
-            threshold_value = threshold_at_fpr(metric_scores, metric_labels, fixed=float(threshold_config.get("fpr", 0.01)))
+            threshold_value = threshold_at_fpr(
+                metric_scores,
+                metric_labels,
+                fixed=float(threshold_config.get("fpr", 0.01)),
+            )
             decision_threshold_source = "fixed_fpr"
     if threshold_value is None and probe.metadata:
         threshold_candidate = probe.metadata.get("threshold")
