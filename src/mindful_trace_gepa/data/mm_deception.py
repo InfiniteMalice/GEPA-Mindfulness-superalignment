@@ -72,9 +72,16 @@ def _load_split(
     examples: List[Dict[str, Any]] = []
     for index, row in enumerate(rows):
         text = _select_text(row, *text_keys, "text", "content", "transcript")
-        label = _normalise_label(row.get(label_key)) if label_key in row else _normalise_label(row.get("label"))
+        if label_key in row:
+            label = _normalise_label(row.get(label_key))
+        else:
+            label = _normalise_label(row.get("label"))
         identifier = str(row.get("id") or f"{split}-{index}")
-        meta = {key: value for key, value in row.items() if key not in {"id", label_key, "label"}}
+        meta = {
+            key: value
+            for key, value in row.items()
+            if key not in {"id", label_key, "label"}
+        }
         if with_mm:
             meta.setdefault(
                 "multimodal_assets",
@@ -98,9 +105,30 @@ def load_rltd_text_only(
 ) -> Dict[str, List[Dict[str, Any]]]:
     base = Path(path)
     return {
-        "train": _load_split(base, "train", text_keys=("transcript", "text"), label_key="label", max_samples=max_samples, with_mm=with_mm),
-        "validation": _load_split(base, "validation", text_keys=("transcript", "text"), label_key="label", max_samples=max_samples, with_mm=with_mm),
-        "test": _load_split(base, "test", text_keys=("transcript", "text"), label_key="label", max_samples=max_samples, with_mm=with_mm),
+        "train": _load_split(
+            base,
+            "train",
+            text_keys=("transcript", "text"),
+            label_key="label",
+            max_samples=max_samples,
+            with_mm=with_mm,
+        ),
+        "validation": _load_split(
+            base,
+            "validation",
+            text_keys=("transcript", "text"),
+            label_key="label",
+            max_samples=max_samples,
+            with_mm=with_mm,
+        ),
+        "test": _load_split(
+            base,
+            "test",
+            text_keys=("transcript", "text"),
+            label_key="label",
+            max_samples=max_samples,
+            with_mm=with_mm,
+        ),
     }
 
 
@@ -112,9 +140,30 @@ def load_opspam_text_only(
 ) -> Dict[str, List[Dict[str, Any]]]:
     base = Path(path)
     return {
-        "train": _load_split(base, "train", text_keys=("review", "text"), label_key="deceptive", max_samples=max_samples, with_mm=with_mm),
-        "validation": _load_split(base, "validation", text_keys=("review", "text"), label_key="deceptive", max_samples=max_samples, with_mm=with_mm),
-        "test": _load_split(base, "test", text_keys=("review", "text"), label_key="deceptive", max_samples=max_samples, with_mm=with_mm),
+        "train": _load_split(
+            base,
+            "train",
+            text_keys=("review", "text"),
+            label_key="deceptive",
+            max_samples=max_samples,
+            with_mm=with_mm,
+        ),
+        "validation": _load_split(
+            base,
+            "validation",
+            text_keys=("review", "text"),
+            label_key="deceptive",
+            max_samples=max_samples,
+            with_mm=with_mm,
+        ),
+        "test": _load_split(
+            base,
+            "test",
+            text_keys=("review", "text"),
+            label_key="deceptive",
+            max_samples=max_samples,
+            with_mm=with_mm,
+        ),
     }
 
 
@@ -126,9 +175,30 @@ def load_mu3d_text_only(
 ) -> Dict[str, List[Dict[str, Any]]]:
     base = Path(path)
     return {
-        "train": _load_split(base, "train", text_keys=("dialogue", "text"), label_key="label", max_samples=max_samples, with_mm=with_mm),
-        "validation": _load_split(base, "validation", text_keys=("dialogue", "text"), label_key="label", max_samples=max_samples, with_mm=with_mm),
-        "test": _load_split(base, "test", text_keys=("dialogue", "text"), label_key="label", max_samples=max_samples, with_mm=with_mm),
+        "train": _load_split(
+            base,
+            "train",
+            text_keys=("dialogue", "text"),
+            label_key="label",
+            max_samples=max_samples,
+            with_mm=with_mm,
+        ),
+        "validation": _load_split(
+            base,
+            "validation",
+            text_keys=("dialogue", "text"),
+            label_key="label",
+            max_samples=max_samples,
+            with_mm=with_mm,
+        ),
+        "test": _load_split(
+            base,
+            "test",
+            text_keys=("dialogue", "text"),
+            label_key="label",
+            max_samples=max_samples,
+            with_mm=with_mm,
+        ),
     }
 
 
