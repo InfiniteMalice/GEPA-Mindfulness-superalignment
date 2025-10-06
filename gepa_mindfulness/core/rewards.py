@@ -1,4 +1,5 @@
 """Reward shaping utilities for PPO training."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
