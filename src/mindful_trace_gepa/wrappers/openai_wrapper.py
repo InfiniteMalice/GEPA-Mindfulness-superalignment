@@ -1,8 +1,8 @@
 """Simplified OpenAI wrapper with optional log-prob capture."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict
 
 from ..tokens import TokenRecord, TokenRecorder
 
