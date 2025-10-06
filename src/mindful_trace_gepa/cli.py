@@ -8,8 +8,8 @@ from argparse import BooleanOptionalAction
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional
 
-from .cli_scoring import register_cli as register_scoring_cli
 from .cli_deception import register_cli as register_deception_cli
+from .cli_scoring import register_cli as register_scoring_cli
 from .configuration import dump_json, load_dspy_config
 from .deception.score import score_deception
 from .emitters.paired_chains import emit_paired
@@ -25,6 +25,14 @@ if _dspy_pipeline is not None:
     GEPA_CHAIN_CLS = getattr(_dspy_pipeline, "GEPAChain", None)
 else:  # pragma: no cover - optional dependency missing
     GEPA_CHAIN_CLS = None
+
+_dspy_compile = optional_import("mindful_trace_gepa.dspy_modules.compile")
+if _dspy_compile is not None:
+    DSPY_COMPILER_CLS = getattr(_dspy_compile, "DSPyCompiler", None)
+    OPTIMIZATION_METRIC_CLS = getattr(_dspy_compile, "OptimizationMetric", None)
+else:  # pragma: no cover - optional dependency missing
+    DSPY_COMPILER_CLS = None
+    OPTIMIZATION_METRIC_CLS = None
 
 
 def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
@@ -182,7 +190,12 @@ def handle_view(args: argparse.Namespace) -> None:
     if args.deception and Path(args.deception).exists():
         deception_data = _safe_load_json(Path(args.deception))
 
-    if deception_data and "scores" in deception_data and "probe" not in deception_data and "summary" not in deception_data:
+    if (
+        deception_data
+        and "scores" in deception_data
+        and "probe" not in deception_data
+        and "summary" not in deception_data
+    ):
         deception_data = {"probe": deception_data}
 
     trace_dir = trace_path.parent

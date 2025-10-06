@@ -51,7 +51,12 @@ def _summarise_paired(paired: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
     if "score" in paired:
         score = float(paired.get("score", 0.0))
         reasons = paired.get("reasons") or []
-        return {"status": "ok", "flagged": score >= 0.5, "detail": f"score {score:.3f}", "reasons": reasons}
+        return {
+            "status": "ok",
+            "flagged": score >= 0.5,
+            "detail": f"score {score:.3f}",
+            "reasons": reasons,
+        }
     runs = paired.get("runs") if isinstance(paired, Mapping) else None
     if isinstance(runs, list):
         scores: List[float] = []
@@ -63,8 +68,17 @@ def _summarise_paired(paired: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
         if scores:
             flagged_count = sum(1 for score in scores if score >= 0.5)
             detail = f"{flagged_count}/{len(scores)} scenarios flagged"
-            return {"status": "ok", "flagged": flagged_count > 0, "detail": detail, "reasons": reasons}
-    return {"status": "unknown", "flagged": False, "detail": "paired format not recognised"}
+            return {
+                "status": "ok",
+                "flagged": flagged_count > 0,
+                "detail": detail,
+                "reasons": reasons,
+            }
+    return {
+        "status": "unknown",
+        "flagged": False,
+        "detail": "paired format not recognised",
+    }
 
 
 def _summarise_probe(probe: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
@@ -72,11 +86,17 @@ def _summarise_probe(probe: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
         return {"status": "missing", "flagged": False, "detail": "probe not available"}
     status = probe.get("status", "ok")
     if status != "ok":
-        return {"status": status, "flagged": False, "detail": probe.get("reason", status)}
+        return {
+            "status": status,
+            "flagged": False,
+            "detail": probe.get("reason", status),
+        }
     summary = probe.get("summary") or {}
     flagged_steps = summary.get("flagged_steps") or []
     threshold = (probe.get("scores") or {}).get("threshold")
-    detail_parts = [f"{len(flagged_steps)}/{summary.get('total_steps', len(flagged_steps))} flagged"]
+    detail_parts = [
+        f"{len(flagged_steps)}/{summary.get('total_steps', len(flagged_steps))} flagged"
+    ]
     if isinstance(threshold, (int, float)):
         detail_parts.append(f"thr {threshold:.3f}")
     reasons: List[str] = []
@@ -86,7 +106,12 @@ def _summarise_probe(probe: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
             reasons.append(f"{metric}={value:.3f}")
         else:
             reasons.append(f"{metric}={value}")
-    return {"status": "ok", "flagged": bool(flagged_steps), "detail": " | ".join(detail_parts), "reasons": reasons}
+    return {
+        "status": "ok",
+        "flagged": bool(flagged_steps),
+        "detail": " | ".join(detail_parts),
+        "reasons": reasons,
+    }
 
 
 def _summarise_mm(mm: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
@@ -110,7 +135,12 @@ def _summarise_mm(mm: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
     reason_blob = mm.get("reasons") or []
     if isinstance(reason_blob, list):
         reasons.extend(str(item) for item in reason_blob)
-    return {"status": "ok", "flagged": flagged, "detail": "; ".join(details) if details else "metrics unavailable", "reasons": reasons}
+    return {
+        "status": "ok",
+        "flagged": flagged,
+        "detail": "; ".join(details) if details else "metrics unavailable",
+        "reasons": reasons,
+    }
 
 
 def summarize_deception_sources(
