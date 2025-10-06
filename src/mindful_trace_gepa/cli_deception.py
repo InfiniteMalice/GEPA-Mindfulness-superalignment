@@ -8,7 +8,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
 
 from .configuration import dump_json
 from .deception.probes_linear import ProbeWeights, infer_probe, load_probe
@@ -139,7 +139,11 @@ def _prepare_activations(
     layer_indices: Sequence[int],
     probe: Optional[ProbeWeights],
 ) -> ActivationBundle:
-    bundle = _collect_activations_from_trace(trace_events, layer_indices, probe.dimension if probe else None)
+    bundle = _collect_activations_from_trace(
+        trace_events,
+        layer_indices,
+        probe.dimension if probe else None,
+    )
     if bundle is not None:
         return bundle
     LOGGER.info("Falling back to synthetic activations for probe evaluation")
@@ -244,9 +248,18 @@ def handle_deception_summary(args: argparse.Namespace) -> None:
     paired_candidates.extend([base_dir / "deception.json", base_dir / "paired_deception.json"])
     mm_candidates.append(base_dir / "mm_eval.json")
 
-    probe_data = next((data for data in (_load_json(path) for path in probe_candidates) if data), None)
-    paired_data = next((data for data in (_load_json(path) for path in paired_candidates) if data), None)
-    mm_data = next((data for data in (_load_json(path) for path in mm_candidates) if data), None)
+    probe_data = next(
+        (data for data in (_load_json(path) for path in probe_candidates) if data),
+        None,
+    )
+    paired_data = next(
+        (data for data in (_load_json(path) for path in paired_candidates) if data),
+        None,
+    )
+    mm_data = next(
+        (data for data in (_load_json(path) for path in mm_candidates) if data),
+        None,
+    )
 
     context = {
         "probe_path": str(probe_candidates[0]) if probe_candidates else None,
@@ -291,7 +304,10 @@ def register_cli(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="gepa-deception", description="Mindful Trace GEPA deception utilities")
+    parser = argparse.ArgumentParser(
+        prog="gepa-deception",
+        description="Mindful Trace GEPA deception utilities",
+    )
     subparsers = parser.add_subparsers(dest="command")
     register_cli(subparsers)
     return parser
