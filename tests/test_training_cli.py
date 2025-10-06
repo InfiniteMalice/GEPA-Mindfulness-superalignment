@@ -174,7 +174,8 @@ def test_training_cli_writes_logs(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     orchestrator = _StubOrchestrator(results)
 
     monkeypatch.setattr(cli, "load_training_config", lambda _: object())
-    monkeypatch.setattr(cli, "TrainingOrchestrator", lambda config: orchestrator)
+    monkeypatch.setattr(cli, "TrainingOrchestrator", lambda config: orchestrator, raising=False)
+    monkeypatch.setattr(cli, "_resolve_orchestrator_factory", lambda: lambda config: orchestrator)
     monkeypatch.setattr(cli, "iterate_adversarial_pool", lambda: [])
     monkeypatch.setattr(
         sys,
@@ -218,7 +219,8 @@ def test_training_cli_prompts_for_log_dir(tmp_path: Path, monkeypatch: pytest.Mo
     orchestrator = _StubOrchestrator(results)
 
     monkeypatch.setattr(cli, "load_training_config", lambda _: object())
-    monkeypatch.setattr(cli, "TrainingOrchestrator", lambda config: orchestrator)
+    monkeypatch.setattr(cli, "TrainingOrchestrator", lambda config: orchestrator, raising=False)
+    monkeypatch.setattr(cli, "_resolve_orchestrator_factory", lambda: lambda config: orchestrator)
     monkeypatch.setattr(cli, "iterate_adversarial_pool", lambda: [])
     monkeypatch.setattr(
         sys,
@@ -238,3 +240,35 @@ def test_training_cli_prompts_for_log_dir(tmp_path: Path, monkeypatch: pytest.Mo
 
     assert (chosen_dir / "rollouts.jsonl").exists()
     assert (chosen_dir / "training.log").exists()
+
+
+def test_training_cli_uses_default_log_dir_when_non_interactive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    config_path, dataset_path = _write_stub_files(tmp_path)
+
+    results = [
+        RolloutResult(
+            prompt="prompt one",
+            response="response",
+            reward=0.25,
+            trace_summary={},
+            contradiction_report={},
+        )
+    ]
+    orchestrator = _StubOrchestrator(results)
+
+    monkeypatch.setattr(cli, "load_training_config", lambda _: object())
+    monkeypatch.setattr(cli, "TrainingOrchestrator", lambda config: orchestrator, raising=False)
+    monkeypatch.setattr(cli, "_resolve_orchestrator_factory", lambda: lambda config: orchestrator)
+    monkeypatch.setattr(cli, "iterate_adversarial_pool", lambda: [])
+    monkeypatch.setattr(sys, "argv", ["gepa-train", "--config", str(config_path), "--dataset", str(dataset_path)])
+    monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: False)
+    monkeypatch.delenv("GEPA_MINDFULNESS_TRAINING_ASSUME_TTY", raising=False)
+
+    cli.main()
+
+    default_dir = tmp_path / "training_logs"
+    assert (default_dir / "rollouts.jsonl").exists()
+    assert (default_dir / "training.log").exists()
