@@ -48,8 +48,9 @@ def parse_args() -> argparse.Namespace:
     )
     args = parser.parse_args()
 
+    assume_tty = os.environ.get("GEPA_MINDFULNESS_TRAINING_ASSUME_TTY") == "1"
     if args.log_dir is None:
-        if sys.stdin.isatty():
+        if sys.stdin.isatty() or assume_tty:
             destination: str = ""
             while not destination:
                 destination = input("Enter log output directory path: ").strip()
@@ -106,6 +107,26 @@ def read_dataset(path: Path) -> list[str]:
         return [line.strip() for line in handle if line.strip()]
 
 
+def _resolve_log_dir(cli_arg: Path | None) -> Path:
+    if cli_arg is not None:
+        return cli_arg.expanduser().resolve()
+
+    if sys.stdin.isatty():
+        destination = input("Enter a directory to store training logs: ").strip()
+        if not destination:
+            raise SystemExit("A log directory is required when running interactively.")
+        return Path(destination).expanduser().resolve()
+
+    raise SystemExit("--log-dir must be provided when stdin is not interactive.")
+
+
+def _write_rollout_log(log_dir: Path, results: list[RolloutResult]) -> None:
+    rollout_path = log_dir / "rollouts.jsonl"
+    with rollout_path.open("w", encoding="utf-8") as handle:
+        for result in results:
+            handle.write(json.dumps(asdict(result), ensure_ascii=False) + "\n")
+
+
 def main() -> None:
     args = parse_args()
     log_dir: Path = args.log_dir
@@ -127,12 +148,26 @@ def main() -> None:
     orchestrator = orchestrator_factory(config=config)
     prompts = read_dataset(args.dataset)
 
-    if args.adversarial_only:
-        LOGGER.info("Running adversarial evaluation only")
-        results = orchestrator.run_adversarial_eval()
-    else:
-        LOGGER.info("Running PPO training")
-        results = orchestrator.run(prompts)
+    try:
+        if args.adversarial_only:
+            LOGGER.info("Running adversarial evaluation only")
+            results = orchestrator.run_adversarial_eval()
+        else:
+            LOGGER.info("Running PPO training")
+            results = orchestrator.run(prompts)
+
+        LOGGER.info("Completed %s rollouts", len(results))
+        for idx, result in enumerate(results):
+            LOGGER.info(
+                "Rollout %s reward %.3f contradictions %s",
+                idx,
+                result.reward,
+                result.contradiction_report,
+            )
+
+    rollout_path = log_dir / "rollouts.jsonl"
+    _serialize_rollouts(rollout_path, results)
+    LOGGER.info("Serialized %s rollouts to %s", len(results), rollout_path)
 
     rollout_path = log_dir / "rollouts.jsonl"
     _serialize_rollouts(rollout_path, results)
@@ -147,7 +182,10 @@ def main() -> None:
             result.contradiction_report,
         )
 
-    LOGGER.info("Adversarial scenarios available: %s", list(iterate_adversarial_pool()))
+        LOGGER.info("Adversarial scenarios available: %s", list(iterate_adversarial_pool()))
+    finally:
+        root_logger.removeHandler(file_handler)
+        file_handler.close()
 
 
 if __name__ == "__main__":
