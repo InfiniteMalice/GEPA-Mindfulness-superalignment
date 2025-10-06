@@ -171,13 +171,19 @@ def wrap_model_optimizer(
         prepared = accelerator.prepare(
             *(tuple(obj for obj in (model, optimizer) if obj is not None))
         )
+        if not isinstance(prepared, tuple):
+            prepared_tuple: Tuple[Any, ...] = (prepared,)
+        else:
+            prepared_tuple = prepared
+
+        model_prepared = prepared_tuple[0]
         if optimizer is None:
-            return prepared_tuple[0], None
+            return model_prepared, None
 
         if len(prepared_tuple) >= 2:
-            return prepared_tuple[0], prepared_tuple[1]
+            return model_prepared, prepared_tuple[1]
 
-        return prepared_tuple[0], optimizer
+        return model_prepared, optimizer
     return model, optimizer
 
 
