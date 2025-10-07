@@ -83,7 +83,7 @@ files can be consumed directly or redistributed in packaged form.
    >
    > ```bash
    > sudo apt update
-   > sudo apt install python3-venv  # once per machine; installs the matching venv module for your Python 3.x release
+   > sudo apt install python3.12-venv  # once per machine; installs the matching venv module for your Python 3.x release
    > python3 -m venv .venv
    > source .venv/bin/activate
    > pip install --upgrade pip
@@ -94,16 +94,6 @@ files can be consumed directly or redistributed in packaged form.
    > When you are done working, run `deactivate` to exit the environment. Any
    > project commands (tests, demos, training scripts) should be executed while the
    > virtual environment is active so they use the isolated interpreter.
-
-   To run the fine-tuning notebooks or any other Jupyter-based workflow, install
-   the notebook tooling inside the same environment (add `--upgrade` if needed):
-
-   ```bash
-   pip install notebook
-   ```
-
-   After installation the `jupyter notebook ...` commands below will be available
-   from the activated virtual environment.
 
 2. Run the CPU example:
 
