@@ -8,6 +8,7 @@ from argparse import BooleanOptionalAction
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional
 
+from .cli_deception import register_cli as register_deception_cli
 from .cli_scoring import register_cli as register_scoring_cli
 from .configuration import dump_json, load_dspy_config
 from .deception.score import score_deception
@@ -19,6 +20,12 @@ from .viewer.builder import build_viewer_html
 
 yaml = optional_import("yaml")
 
+_dspy_pipeline = optional_import("mindful_trace_gepa.dspy_modules.pipeline")
+if _dspy_pipeline is not None:
+    GEPA_CHAIN_CLS = getattr(_dspy_pipeline, "GEPAChain", None)
+else:  # pragma: no cover - optional dependency missing
+    GEPA_CHAIN_CLS = None
+
 _dspy_compile = optional_import("mindful_trace_gepa.dspy_modules.compile")
 if _dspy_compile is not None:
     DSPY_COMPILER_CLS = getattr(_dspy_compile, "DSPyCompiler", None)
@@ -26,12 +33,6 @@ if _dspy_compile is not None:
 else:  # pragma: no cover - optional dependency missing
     DSPY_COMPILER_CLS = None
     OPTIMIZATION_METRIC_CLS = None
-
-_dspy_pipeline = optional_import("mindful_trace_gepa.dspy_modules.pipeline")
-if _dspy_pipeline is not None:
-    GEPA_CHAIN_CLS = getattr(_dspy_pipeline, "GEPAChain", None)
-else:  # pragma: no cover - optional dependency missing
-    GEPA_CHAIN_CLS = None
 
 
 def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
@@ -176,19 +177,65 @@ def handle_view(args: argparse.Namespace) -> None:
         except ValueError:
             manifest_rel = str(manifest_path.resolve())
 
+    def _safe_load_json(path: Path) -> Dict[str, Any]:
+        if not path.exists():
+            return {}
+        try:
+            with path.open("r", encoding="utf-8") as handle:
+                return json.load(handle)
+        except json.JSONDecodeError:
+            return {}
+
     deception_data: Dict[str, Any] = {}
     if args.deception and Path(args.deception).exists():
-        with Path(args.deception).open("r", encoding="utf-8") as handle:
-            deception_data = json.load(handle)
+        deception_data = _safe_load_json(Path(args.deception))
+
+    if (
+        deception_data
+        and "scores" in deception_data
+        and "probe" not in deception_data
+        and "summary" not in deception_data
+    ):
+        deception_data = {"probe": deception_data}
+
+    trace_dir = trace_path.parent
+    probe_candidates = [trace_dir / "deception_probe.json", Path("runs/deception_probe.json")]
+    for candidate in probe_candidates:
+        payload = _safe_load_json(candidate)
+        if payload and "probe" not in deception_data:
+            deception_data["probe"] = payload
+            break
+
+    summary_candidates = [trace_dir / "deception_summary.json", Path("runs/deception_summary.json")]
+    for candidate in summary_candidates:
+        payload = _safe_load_json(candidate)
+        if payload and "summary" not in deception_data:
+            deception_data["summary"] = payload
+            break
+
+    mm_candidates = [trace_dir / "mm_eval.json", Path("runs/mm_eval.json")]
+    for candidate in mm_candidates:
+        payload = _safe_load_json(candidate)
+        if payload and "mm" not in deception_data:
+            deception_data["mm"] = payload
+            break
+
     paired_data: Dict[str, Any] = {}
     if args.paired and Path(args.paired).exists():
-        with Path(args.paired).open("r", encoding="utf-8") as handle:
-            paired_data = json.load(handle)
+        paired_data = _safe_load_json(Path(args.paired))
+    if not paired_data:
+        for candidate in [trace_dir / "deception.json", Path("runs/deception.json")]:
+            paired_data = _safe_load_json(candidate)
+            if paired_data:
+                break
+
+    if "paired" in deception_data and not paired_data:
+        paired_data = deception_data.get("paired") or {}
+
     scoring_data: Dict[str, Any] = {}
     scoring_path = trace_path.with_name("scores.json")
     if scoring_path.exists():
-        with scoring_path.open("r", encoding="utf-8") as handle:
-            scoring_data = json.load(handle)
+        scoring_data = _safe_load_json(scoring_path)
 
     build_viewer_html(
         trace_events=trace_rows,
@@ -455,6 +502,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     score_parser.set_defaults(func=handle_score)
 
+    register_deception_cli(subparsers)
     register_scoring_cli(subparsers)
 
     return parser
