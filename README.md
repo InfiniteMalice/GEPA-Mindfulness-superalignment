@@ -4,7 +4,9 @@ This repository implements a full training pipeline that integrates GEPA-based
 interpretability, paraconsistent imperative logic, and traceable honesty via
 Anthropic-style thought tracing. The project targets Python 3.10+ and depends on
 `torch`, `transformers`, `trl`, `pydantic`, `jinja2`, `pyyaml`, and
-`self-tracing` (optional).
+`requests`. Optional self-tracing support is provided by the
+[`Self-Tracing`](https://github.com/recursivelabsai/Self-Tracing) project, which
+is currently distributed via Git rather than PyPI.
 
 ## Repository Structure
 
@@ -61,10 +63,10 @@ files can be consumed directly or redistributed in packaged form.
 
 ## Getting Started
 
-1. Install dependencies:
+1. Install dependencies (core packages):
 
    ```bash
-   pip install torch transformers trl pydantic jinja2 pyyaml self-tracing requests
+   pip install torch transformers trl pydantic jinja2 pyyaml requests
    ```
 
    > **WSL / Debian note:** Recent Debian-based Python builds ship with
