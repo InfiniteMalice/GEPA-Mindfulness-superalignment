@@ -5,8 +5,10 @@ interpretability, paraconsistent imperative logic, and traceable honesty via
 Anthropic-style thought tracing. The project targets Python 3.10+ and depends on
 `torch`, `transformers`, `trl`, `pydantic`, `jinja2`, `pyyaml`, and
 `requests`. Optional self-tracing support is provided by the
-[`Self-Tracing`](https://github.com/recursivelabsai/Self-Tracing) project, which
-is currently distributed via Git rather than PyPI.
+[`Self-Tracing`](https://github.com/recursivelabsai/Self-Tracing) project.
+Public packages for that integration are not currently available, so the
+feature remains disabled unless you have been granted access to the upstream
+distribution.
 
 ## Repository Structure
 
@@ -108,6 +110,27 @@ files can be consumed directly or redistributed in packaged form.
 4. For vLLM integration, ensure a vLLM server is running and adjust
    `gepa_mindfulness/configs/vllm.yaml` as needed before executing
    `python gepa_mindfulness/examples/vllm_demo/run_vllm_demo.py`.
+
+   ### Working from a ZIP download
+
+Some users obtain the project as a plain folder (for example, by downloading a
+ZIP file from a teammate or a file share). You can still track local changes
+with Git even if the original `.git/` metadata is missing:
+
+```bash
+cd /path/to/GEPA-Mindfulness-superalignment
+git init
+git add .
+git commit -m "Initial snapshot"
+# Optional: connect to the public upstream
+git remote add origin https://github.com/<owner>/GEPA-Mindfulness-superalignment.git
+git fetch origin
+```
+
+From there you can create branches, commit changes, and (if you configured a
+remote) push your work upstream. If you later clone the official repository
+with `git clone`, the Git metadata will already be included and these steps are
+not necessary.
 
 ## DSPy Declarative Pipelines
 
