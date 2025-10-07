@@ -67,6 +67,23 @@ files can be consumed directly or redistributed in packaged form.
    pip install torch transformers trl pydantic jinja2 pyyaml self-tracing requests
    ```
 
+   > **WSL / Debian note:** Recent Debian-based Python builds ship with
+   > `EXTERNALLY-MANAGED` protection, which blocks `pip` from installing packages
+   > into the system interpreter. Create an isolated virtual environment before
+   > installing the requirements:
+   >
+   > ```bash
+   > sudo apt install python3.10-venv  # once per machine
+   > python3 -m venv .venv
+   > source .venv/bin/activate
+   > pip install --upgrade pip
+   > pip install torch transformers trl pydantic jinja2 pyyaml self-tracing requests
+   > ```
+   >
+   > When you are done working, run `deactivate` to exit the environment. Any
+   > project commands (tests, demos, training scripts) should be executed while the
+   > virtual environment is active so they use the isolated interpreter.
+
 2. Run the CPU example:
 
    ```bash
