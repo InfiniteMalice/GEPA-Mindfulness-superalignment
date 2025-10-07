@@ -4,7 +4,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 STUB_MODULE = """
 from dataclasses import dataclass
 from typing import Iterable, List
@@ -133,7 +132,11 @@ def _prepare_environment(tmp_path: Path) -> dict[str, str]:
     return env
 
 
-def _run_cli(args: list[str], env: dict[str, str], input_text: str | None = None) -> subprocess.CompletedProcess[str]:
+def _run_cli(
+    args: list[str],
+    env: dict[str, str],
+    input_text: str | None = None,
+) -> subprocess.CompletedProcess[str]:
     proc = subprocess.Popen(
         [sys.executable, "-m", "gepa_mindfulness.training.cli", *args],
         stdin=subprocess.PIPE,

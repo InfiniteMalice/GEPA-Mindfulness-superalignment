@@ -10,7 +10,7 @@ import os
 import sys
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
-from typing import Callable, Iterable, Sequence, TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, Iterable, Sequence
 
 from ..core.adversarial import iterate_adversarial_pool
 from .configs import TrainingConfig, load_training_config
