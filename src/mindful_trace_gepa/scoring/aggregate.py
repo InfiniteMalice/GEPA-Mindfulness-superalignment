@@ -165,11 +165,9 @@ def aggregate_tiers(
             reasons.append(f"Confidence below threshold for {dim}")
 
     large_gaps = {dim: gap for dim, gap in gaps.items() if gap >= 2}
-    escalate = (
-        any(value < escalate_floor for value in final_confidence.values())
-        or bool(large_gaps)
-    )
+    escalate = any(value < escalate_floor for value in final_confidence.values())
     if large_gaps:
+        escalate = True
         reasons.append("disagreement across tiers detected")
 
     return AggregateScores(

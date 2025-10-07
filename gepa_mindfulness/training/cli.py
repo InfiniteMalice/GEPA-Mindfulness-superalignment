@@ -10,7 +10,7 @@ import os
 import sys
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
-from typing import Callable, Iterable, Sequence, TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, Iterable, Sequence
 
 from ..core.adversarial import iterate_adversarial_pool
 from .configs import TrainingConfig, load_training_config
@@ -65,9 +65,7 @@ def _resolve_orchestrator_factory() -> Callable[[TrainingConfig], object]:
     module = importlib.import_module(module_name)
     factory = getattr(module, attribute)
     if not callable(factory):
-        raise TypeError(
-            "GEPA_MINDFULNESS_TRAINING_ORCHESTRATOR must reference a callable"
-        )
+        raise TypeError("GEPA_MINDFULNESS_TRAINING_ORCHESTRATOR must reference a callable")
     return factory
 
 
@@ -84,9 +82,7 @@ def _serialize_rollouts(path: Path, results: Iterable[object]) -> None:
                     "response": getattr(item, "response", None),
                     "reward": getattr(item, "reward", None),
                     "trace_summary": getattr(item, "trace_summary", None),
-                    "contradiction_report": getattr(
-                        item, "contradiction_report", None
-                    ),
+                    "contradiction_report": getattr(item, "contradiction_report", None),
                 }
             json.dump(payload, handle)
             handle.write("\n")

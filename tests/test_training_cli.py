@@ -263,7 +263,11 @@ def test_training_cli_uses_default_log_dir_when_non_interactive(
     monkeypatch.setattr(cli, "TrainingOrchestrator", lambda config: orchestrator, raising=False)
     monkeypatch.setattr(cli, "_resolve_orchestrator_factory", lambda: lambda config: orchestrator)
     monkeypatch.setattr(cli, "iterate_adversarial_pool", lambda: [])
-    monkeypatch.setattr(sys, "argv", ["gepa-train", "--config", str(config_path), "--dataset", str(dataset_path)])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["gepa-train", "--config", str(config_path), "--dataset", str(dataset_path)],
+    )
     monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: False)
     monkeypatch.delenv("GEPA_MINDFULNESS_TRAINING_ASSUME_TTY", raising=False)
 

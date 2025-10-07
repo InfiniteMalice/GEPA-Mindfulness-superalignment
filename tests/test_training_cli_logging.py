@@ -4,7 +4,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 STUB_MODULE = """
 from dataclasses import dataclass
 from typing import Iterable, List
@@ -133,7 +132,11 @@ def _prepare_environment(tmp_path: Path) -> dict[str, str]:
     return env
 
 
-def _run_cli(args: list[str], env: dict[str, str], input_text: str | None = None) -> subprocess.CompletedProcess[str]:
+def _run_cli(
+    args: list[str],
+    env: dict[str, str],
+    input_text: str | None = None,
+) -> subprocess.CompletedProcess[str]:
     proc = subprocess.Popen(
         [sys.executable, "-m", "gepa_mindfulness.training.cli", *args],
         stdin=subprocess.PIPE,
@@ -161,7 +164,7 @@ def test_training_cli_prompts_and_logs(tmp_path: Path) -> None:
         input_text=f"{interactive_log_dir}\n",
     )
     assert result.returncode == 0, result.stderr
-    assert "Enter log output directory path" in result.stdout
+    assert "Enter a directory to store training logs: " in result.stdout
     training_log = interactive_log_dir / "training.log"
     rollouts_log = interactive_log_dir / "rollouts.jsonl"
     assert training_log.exists()
@@ -185,7 +188,7 @@ def test_training_cli_prompts_and_logs(tmp_path: Path) -> None:
         env=env,
     )
     assert result_with_flag.returncode == 0, result_with_flag.stderr
-    assert "Enter log output directory path" not in result_with_flag.stdout
+    assert "Enter a directory to store training logs: " not in result_with_flag.stdout
     file_log = provided_log_dir / "training.log"
     jsonl_log = provided_log_dir / "rollouts.jsonl"
     assert file_log.exists()

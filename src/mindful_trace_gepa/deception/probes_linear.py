@@ -70,8 +70,7 @@ def extract_hidden_states(
                 "layers": {
                     str(layer): {
                         "tokens": [
-                            _ensure_float_list(token)
-                            for token in cached_layer.get("tokens", [])
+                            _ensure_float_list(token) for token in cached_layer.get("tokens", [])
                         ],
                         "token_to_step": list(cached_layer.get("token_to_step", [])),
                     }
@@ -156,10 +155,7 @@ def extract_hidden_states(
             return {
                 "layers": {
                     str(key): {
-                        "tokens": [
-                            _ensure_float_list(vec)
-                            for vec in value.get("tokens", [])
-                        ],
+                        "tokens": [_ensure_float_list(vec) for vec in value.get("tokens", [])],
                         "token_to_step": list(value.get("token_to_step", [])),
                     }
                     for key, value in extracted.get("layers", {}).items()
@@ -209,6 +205,7 @@ def load_probe(weights_path: str | Path) -> Optional[ProbeWeights]:
     loader_attempts = [_load_json_weights]
 
     if np is not None:
+
         def _load_numpy(p: Path) -> Optional[ProbeWeights]:
             try:
                 blob = np.load(p, allow_pickle=True)
@@ -234,6 +231,7 @@ def load_probe(weights_path: str | Path) -> Optional[ProbeWeights]:
         loader_attempts.append(_load_numpy)
 
     if torch is not None:
+
         def _load_torch(p: Path) -> Optional[ProbeWeights]:
             try:
                 blob = torch.load(p, map_location="cpu")  # type: ignore[call-arg]
@@ -518,9 +516,7 @@ def infer_probe(
     if metric_labels is not None and metric_scores:
         computed_metrics["auroc"] = auroc(metric_scores, metric_labels)
         computed_metrics["auprc"] = auprc(metric_scores, metric_labels)
-        computed_metrics["fpr_at_tpr80"] = fpr_at_tpr(
-            metric_scores, metric_labels, target_tpr=0.8
-        )
+        computed_metrics["fpr_at_tpr80"] = fpr_at_tpr(metric_scores, metric_labels, target_tpr=0.8)
         if threshold_config and threshold_config.get("type") == "fixed_fpr":
             threshold_value = threshold_at_fpr(
                 metric_scores,

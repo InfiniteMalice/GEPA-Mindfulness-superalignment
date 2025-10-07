@@ -77,11 +77,7 @@ def _load_split(
         else:
             label = _normalise_label(row.get("label"))
         identifier = str(row.get("id") or f"{split}-{index}")
-        meta = {
-            key: value
-            for key, value in row.items()
-            if key not in {"id", label_key, "label"}
-        }
+        meta = {key: value for key, value in row.items() if key not in {"id", label_key, "label"}}
         if with_mm:
             meta.setdefault(
                 "multimodal_assets",
