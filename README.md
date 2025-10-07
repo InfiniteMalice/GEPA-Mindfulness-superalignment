@@ -69,17 +69,24 @@ files can be consumed directly or redistributed in packaged form.
    pip install torch transformers trl pydantic jinja2 pyyaml requests
    ```
 
+   If you have private access to the optional self-tracing package, install it
+   after the core dependencies using the URL provided by the maintainer. If you
+   do not have access, skip the step—the remainder of the project functions
+   without it.
+
    > **WSL / Debian note:** Recent Debian-based Python builds ship with
    > `EXTERNALLY-MANAGED` protection, which blocks `pip` from installing packages
    > into the system interpreter. Create an isolated virtual environment before
    > installing the requirements:
    >
    > ```bash
-   > sudo apt install python3.12-venv  # once per machine
+   > sudo apt update
+   > sudo apt install python3-venv  # once per machine; installs the matching venv module for your Python 3.x release
    > python3 -m venv .venv
    > source .venv/bin/activate
    > pip install --upgrade pip
-   > pip install torch transformers trl pydantic jinja2 pyyaml self-tracing requests
+   > pip install torch transformers trl pydantic jinja2 pyyaml requests
+   > # Optional: install the self-tracing package only if you have access to it
    > ```
    >
    > When you are done working, run `deactivate` to exit the environment. Any
@@ -178,6 +185,12 @@ minutes. Launch either notebook to reproduce the LoRA workflow:
 jupyter notebook notebooks/ft_phi3_mini_unsloth_gepa.ipynb
 jupyter notebook notebooks/ft_llama3_8b_unsloth_gepa.ipynb
 ```
+
+Run these commands from the repository root (the directory that contains this
+`README.md` file); Jupyter resolves notebook paths relative to the current
+working directory. If you launch the server from another folder (for example,
+`/mnt/c/Users/<name>` on WSL) the notebook path will not be found. Use `pwd` to
+confirm you are inside the cloned repository before invoking `jupyter`.
 
 To launch the notebooks or PPO trainer across multiple GPUs:
 
