@@ -1,4 +1,5 @@
 """Typed signatures used by the declarative DSPy-like pipeline."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
