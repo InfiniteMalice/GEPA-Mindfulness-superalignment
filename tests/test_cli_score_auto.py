@@ -119,6 +119,7 @@ def test_score_auto_none_classifier_weight_uses_default(tmp_path, monkeypatch):
 
     monkeypatch.setattr("mindful_trace_gepa.cli_scoring.run_heuristics", fake_run_heuristics)
     monkeypatch.setattr("mindful_trace_gepa.cli_scoring.LLMJudge", DummyJudge)
+
     def load_classifier(path):
         return DummyClassifier(path)
 

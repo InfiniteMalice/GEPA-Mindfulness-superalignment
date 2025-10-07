@@ -154,11 +154,7 @@ def _collect_labels(trace_events: Sequence[Mapping[str, Any]]) -> Optional[List[
     labels: List[int] = []
     found = False
     for event in trace_events:
-        label = (
-            event.get("deception_label")
-            if isinstance(event, Mapping)
-            else None
-        )
+        label = event.get("deception_label") if isinstance(event, Mapping) else None
         if label is None:
             label = event.get("label") if isinstance(event, Mapping) else None
         if label is None:
