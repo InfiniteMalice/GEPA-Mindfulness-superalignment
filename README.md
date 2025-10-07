@@ -5,10 +5,8 @@ interpretability, paraconsistent imperative logic, and traceable honesty via
 Anthropic-style thought tracing. The project targets Python 3.10+ and depends on
 `torch`, `transformers`, `trl`, `pydantic`, `jinja2`, `pyyaml`, and
 `requests`. Optional self-tracing support is provided by the
-[`Self-Tracing`](https://github.com/recursivelabsai/Self-Tracing) project.
-Public packages for that integration are not currently available, so the
-feature remains disabled unless you have been granted access to the upstream
-distribution.
+[`Self-Tracing`](https://github.com/recursivelabsai/Self-Tracing) project, which
+is currently distributed via Git rather than PyPI.
 
 ## Repository Structure
 
@@ -94,16 +92,6 @@ files can be consumed directly or redistributed in packaged form.
    > When you are done working, run `deactivate` to exit the environment. Any
    > project commands (tests, demos, training scripts) should be executed while the
    > virtual environment is active so they use the isolated interpreter.
-
-   To run the fine-tuning notebooks or any other Jupyter-based workflow, install
-   the notebook tooling inside the same environment (add `--upgrade` if needed):
-
-   ```bash
-   pip install notebook
-   ```
-
-   After installation the `jupyter notebook ...` commands below will be available
-   from the activated virtual environment.
 
 2. Run the CPU example:
 
