@@ -83,7 +83,7 @@ files can be consumed directly or redistributed in packaged form.
    >
    > ```bash
    > sudo apt update
-   > sudo apt install python3-venv  # once per machine; installs the matching venv module for your Python 3.x release
+   > sudo apt install python3.12-venv  # once per machine; installs the matching venv module for your Python 3.x release
    > python3 -m venv .venv
    > source .venv/bin/activate
    > pip install --upgrade pip
@@ -111,7 +111,7 @@ files can be consumed directly or redistributed in packaged form.
    `gepa_mindfulness/configs/vllm.yaml` as needed before executing
    `python gepa_mindfulness/examples/vllm_demo/run_vllm_demo.py`.
 
-   ### Working from a ZIP download
+### Working from a ZIP download
 
 Some users obtain the project as a plain folder (for example, by downloading a
 ZIP file from a teammate or a file share). You can still track local changes
