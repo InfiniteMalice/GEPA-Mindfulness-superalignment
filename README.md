@@ -4,7 +4,9 @@ This repository implements a full training pipeline that integrates GEPA-based
 interpretability, paraconsistent imperative logic, and traceable honesty via
 Anthropic-style thought tracing. The project targets Python 3.10+ and depends on
 `torch`, `transformers`, `trl`, `pydantic`, `jinja2`, `pyyaml`, and
-`self-tracing` (optional).
+`requests`. Optional self-tracing support is provided by the
+[`Self-Tracing`](https://github.com/recursivelabsai/Self-Tracing) project, which
+is currently distributed via Git rather than PyPI.
 
 ## Repository Structure
 
@@ -61,11 +63,37 @@ files can be consumed directly or redistributed in packaged form.
 
 ## Getting Started
 
-1. Install dependencies:
+1. Install dependencies (core packages):
 
    ```bash
-   pip install torch transformers trl pydantic jinja2 pyyaml self-tracing requests
+   pip install torch transformers trl pydantic jinja2 pyyaml requests
    ```
+
+   If you would like to enable the optional self-tracing integrations, install
+   the upstream Git package after the core dependencies:
+
+   ```bash
+   pip install git+https://github.com/recursivelabsai/Self-Tracing.git
+   ```
+
+   > **WSL / Debian note:** Recent Debian-based Python builds ship with
+   > `EXTERNALLY-MANAGED` protection, which blocks `pip` from installing packages
+   > into the system interpreter. Create an isolated virtual environment before
+   > installing the requirements:
+   >
+   > ```bash
+   > sudo apt update
+   > sudo apt install python3-venv  # once per machine; installs the matching venv module for your Python 3.x release
+   > python3 -m venv .venv
+   > source .venv/bin/activate
+   > pip install --upgrade pip
+   > pip install torch transformers trl pydantic jinja2 pyyaml requests
+   > pip install git+https://github.com/recursivelabsai/Self-Tracing.git  # optional
+   > ```
+   >
+   > When you are done working, run `deactivate` to exit the environment. Any
+   > project commands (tests, demos, training scripts) should be executed while the
+   > virtual environment is active so they use the isolated interpreter.
 
 2. Run the CPU example:
 
