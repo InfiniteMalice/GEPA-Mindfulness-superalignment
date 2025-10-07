@@ -164,7 +164,7 @@ def test_training_cli_prompts_and_logs(tmp_path: Path) -> None:
         input_text=f"{interactive_log_dir}\n",
     )
     assert result.returncode == 0, result.stderr
-    assert "Enter log output directory path" in result.stdout
+    assert "Enter a directory to store training logs: " in result.stdout
     training_log = interactive_log_dir / "training.log"
     rollouts_log = interactive_log_dir / "rollouts.jsonl"
     assert training_log.exists()
@@ -188,7 +188,7 @@ def test_training_cli_prompts_and_logs(tmp_path: Path) -> None:
         env=env,
     )
     assert result_with_flag.returncode == 0, result_with_flag.stderr
-    assert "Enter log output directory path" not in result_with_flag.stdout
+    assert "Enter a directory to store training logs: " not in result_with_flag.stdout
     file_log = provided_log_dir / "training.log"
     jsonl_log = provided_log_dir / "rollouts.jsonl"
     assert file_log.exists()
