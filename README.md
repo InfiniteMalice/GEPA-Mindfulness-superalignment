@@ -73,7 +73,7 @@ files can be consumed directly or redistributed in packaged form.
    > installing the requirements:
    >
    > ```bash
-   > sudo apt install python3.10-venv  # once per machine
+   > sudo apt install python3.12-venv  # once per machine
    > python3 -m venv .venv
    > source .venv/bin/activate
    > pip install --upgrade pip
