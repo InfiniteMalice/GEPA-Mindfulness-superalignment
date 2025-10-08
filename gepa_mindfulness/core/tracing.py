@@ -63,21 +63,21 @@ class TraceEvent:
     stage: str
     content: str
     timestamp: datetime = field(default_factory=datetime.utcnow)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class ThoughtTrace:
     """Container storing self-tracing events for a single rollout."""
 
-    events: List[TraceEvent] = field(default_factory=list)
+    events: list[TraceEvent] = field(default_factory=list)
 
     def add_event(self, stage: str, content: str, **metadata: Any) -> None:
         if stage not in TRACE_STAGES:
             raise ValueError(f"Unknown trace stage: {stage}")
         self.events.append(TraceEvent(stage=stage, content=content, metadata=metadata))
 
-    def to_payload(self) -> List[Dict[str, Any]]:
+    def to_payload(self) -> list[dict[str, Any]]:
         return [
             {
                 "stage": event.stage,
@@ -88,7 +88,7 @@ class ThoughtTrace:
             for event in self.events
         ]
 
-    def summary(self) -> Dict[str, str]:
+    def summary(self) -> dict[str, str]:
         return {event.stage: event.content for event in self.events}
 
 
@@ -121,5 +121,5 @@ class SelfTracingLogger:
             self._tracer.log(stage=stage, content=content, **metadata)
 
     @property
-    def latest_trace(self) -> Optional[ThoughtTrace]:
+    def latest_trace(self) -> ThoughtTrace | None:
         return self._active_traces[-1] if self._active_traces else None
