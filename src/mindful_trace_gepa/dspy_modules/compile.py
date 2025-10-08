@@ -1,4 +1,5 @@
 """Guarded prompt compilation utilities for the pseudo-DSPy pipeline."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -6,9 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping
 
 from ..configuration import DSPyConfig, dump_json, load_dspy_config
-from .pipeline import GEPAChain
 from .signatures import ALL_SIGNATURES
-
 
 DEFAULT_PROMPTS: Dict[str, str] = {
     signature.name: (
@@ -50,9 +49,15 @@ class DSPyCompiler:
         auto-tuning.
         """
 
-        allow_opt = self.config.allow_optimizations if enable_optimizations is None else enable_optimizations
+        allow_opt = (
+            self.config.allow_optimizations
+            if enable_optimizations is None
+            else enable_optimizations
+        )
         if allow_opt and not self.config.enabled:
-            raise RuntimeError("Cannot optimise DSPy modules while the feature is disabled by policy.")
+            raise RuntimeError(
+                "Cannot optimise DSPy modules while the feature is disabled by policy."
+            )
 
         prompts = dict(DEFAULT_PROMPTS)
         if allow_opt:
@@ -95,7 +100,8 @@ class DSPyCompiler:
                     raise ValueError(f"Prompt for {name} contains forbidden phrase: {phrase}")
             if not REQUIRED_INVARIANTS.issubset(set(prompt.split())):
                 raise ValueError(
-                    f"Prompt for {name} removed a required invariant token. Present words: {sorted(set(prompt.split()))}"
+                    "Prompt for {name} removed a required invariant token. Present words: "
+                    f"{sorted(set(prompt.split()))}"
                 )
 
 

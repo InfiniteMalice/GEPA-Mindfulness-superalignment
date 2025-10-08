@@ -1,4 +1,5 @@
 """Aggregate deception scoring based on detector signals."""
+
 from __future__ import annotations
 
 from typing import Any, Dict, Iterable

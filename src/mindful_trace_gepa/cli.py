@@ -1,32 +1,37 @@
 """Command line interface for Mindful Trace GEPA utilities."""
+
 from __future__ import annotations
 
 import argparse
 import json
 from argparse import BooleanOptionalAction
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional
 
-try:  # pragma: no cover - optional dependency
-    import yaml  # type: ignore
-except ModuleNotFoundError:  # pragma: no cover
-    yaml = None  # type: ignore
-
-from .configuration import DSPyConfig, dump_json, load_dspy_config
-from .tokens import TokenRecorder
-from .viewer.builder import build_viewer_html
-from .emitters.paired_chains import emit_paired
-from .deception.score import score_deception
-from .storage import TraceArchiveWriter, iter_jsonl, load_jsonl, read_jsonl
 from .cli_scoring import register_cli as register_scoring_cli
+from .configuration import dump_json, load_dspy_config
+from .deception.score import score_deception
+from .emitters.paired_chains import emit_paired
+from .storage import TraceArchiveWriter, iter_jsonl, load_jsonl, read_jsonl
+from .tokens import TokenRecorder
+from .utils.imports import optional_import
+from .viewer.builder import build_viewer_html
 
-try:  # pragma: no cover - optional DSPy components
-    from .dspy_modules.compile import DSPyCompiler, OptimizationMetric
-    from .dspy_modules.pipeline import GEPAChain
-except Exception:  # pragma: no cover
-    DSPyCompiler = None
-    OptimizationMetric = None
-    GEPAChain = None
+yaml = optional_import("yaml")
+
+_dspy_compile = optional_import("mindful_trace_gepa.dspy_modules.compile")
+if _dspy_compile is not None:
+    DSPY_COMPILER_CLS = getattr(_dspy_compile, "DSPyCompiler", None)
+    OPTIMIZATION_METRIC_CLS = getattr(_dspy_compile, "OptimizationMetric", None)
+else:  # pragma: no cover - optional dependency missing
+    DSPY_COMPILER_CLS = None
+    OPTIMIZATION_METRIC_CLS = None
+
+_dspy_pipeline = optional_import("mindful_trace_gepa.dspy_modules.pipeline")
+if _dspy_pipeline is not None:
+    GEPA_CHAIN_CLS = getattr(_dspy_pipeline, "GEPAChain", None)
+else:  # pragma: no cover - optional dependency missing
+    GEPA_CHAIN_CLS = None
 
 
 def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
@@ -45,11 +50,13 @@ def _write_jsonl(path: Path, rows: Iterable[Dict[str, Any]]) -> None:
 # DSPy commands
 # ---------------------------------------------------------------------------
 
+
 def handle_dspy_run(args: argparse.Namespace) -> None:
-    if GEPAChain is None:
+    if GEPA_CHAIN_CLS is None:
         raise RuntimeError("DSPy pipeline unavailable; optional dependencies missing")
     config = load_dspy_config()
-    chain = GEPAChain(config=config, allow_optimizations=args.enable_optim)
+    chain_factory = GEPA_CHAIN_CLS
+    chain = chain_factory(config=config, allow_optimizations=args.enable_optim)
     input_records = _read_jsonl(Path(args.input))
     trace_path = Path(args.trace)
     tokens_path = trace_path.with_name("tokens.jsonl")
@@ -122,15 +129,15 @@ def handle_dspy_run(args: argparse.Namespace) -> None:
 
 
 def handle_dspy_compile(args: argparse.Namespace) -> None:
-    if DSPyCompiler is None or OptimizationMetric is None:
+    if DSPY_COMPILER_CLS is None or OPTIMIZATION_METRIC_CLS is None:
         raise RuntimeError("DSPy compiler unavailable; optional dependencies missing")
     config = load_dspy_config()
-    compiler = DSPyCompiler(config=config)
+    compiler = DSPY_COMPILER_CLS(config=config)
     dataset = _read_jsonl(Path(args.dataset)) if args.dataset else []
     manifest = compiler.compile(
         out_dir=Path(args.out),
         dataset=dataset,
-        metric=OptimizationMetric(),
+        metric=OPTIMIZATION_METRIC_CLS(),
         enable_optimizations=args.enable_optim,
     )
     print(json.dumps(manifest, indent=2))
@@ -139,6 +146,7 @@ def handle_dspy_compile(args: argparse.Namespace) -> None:
 # ---------------------------------------------------------------------------
 # Viewer
 # ---------------------------------------------------------------------------
+
 
 def handle_view(args: argparse.Namespace) -> None:
     trace_path = Path(args.trace)
@@ -157,7 +165,9 @@ def handle_view(args: argparse.Namespace) -> None:
 
     manifest_data: Dict[str, Any] = {}
     manifest_override = getattr(args, "manifest", None)
-    manifest_path = Path(manifest_override) if manifest_override else trace_path.with_name("manifest.json")
+    manifest_path = (
+        Path(manifest_override) if manifest_override else trace_path.with_name("manifest.json")
+    )
     manifest_rel: Optional[str] = None
     if manifest_path.exists():
         manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -166,11 +176,11 @@ def handle_view(args: argparse.Namespace) -> None:
         except ValueError:
             manifest_rel = str(manifest_path.resolve())
 
-    deception_data = {}
+    deception_data: Dict[str, Any] = {}
     if args.deception and Path(args.deception).exists():
         with Path(args.deception).open("r", encoding="utf-8") as handle:
             deception_data = json.load(handle)
-    paired_data = {}
+    paired_data: Dict[str, Any] = {}
     if args.paired and Path(args.paired).exists():
         with Path(args.paired).open("r", encoding="utf-8") as handle:
             paired_data = json.load(handle)
@@ -199,6 +209,7 @@ def handle_view(args: argparse.Namespace) -> None:
 # ---------------------------------------------------------------------------
 # Paired baseline
 # ---------------------------------------------------------------------------
+
 
 def handle_paired_run(args: argparse.Namespace) -> None:
     dataset = _read_jsonl(Path(args.data))
@@ -229,7 +240,7 @@ def handle_paired_view(args: argparse.Namespace) -> None:
     base = Path(args.base)
     honest = _read_jsonl(base / f"{args.identifier}_honest_trace.jsonl")
     deceptive = _read_jsonl(base / f"{args.identifier}_deceptive_trace.jsonl")
-    deception_data = {}
+    deception_data: Dict[str, Any] = {}
     detection_path = base / f"{args.identifier}_deception.json"
     if detection_path.exists():
         with detection_path.open("r", encoding="utf-8") as handle:
@@ -263,7 +274,7 @@ def handle_score(args: argparse.Namespace) -> None:
         )
         if candidate.exists():
             trace_path = candidate
-    policy = {}
+    policy: Dict[str, Any] = {}
     if args.policy and Path(args.policy).exists():
         policy_path = Path(args.policy)
         raw = policy_path.read_text(encoding="utf-8")
@@ -274,24 +285,32 @@ def handle_score(args: argparse.Namespace) -> None:
 
     def _iter_events() -> Iterable[Dict[str, Any]]:
         if sharded_flag:
-            manifest_path = Path(manifest_override) if manifest_override else (
-                trace_path if trace_path.name == "manifest.json" else trace_path.with_name("manifest.json")
+            manifest_path = (
+                Path(manifest_override)
+                if manifest_override
+                else (
+                    trace_path
+                    if trace_path.name == "manifest.json"
+                    else trace_path.with_name("manifest.json")
+                )
             )
             if not manifest_path.exists():
                 raise FileNotFoundError(f"Manifest not found at {manifest_path}")
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest_blob = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest_map = manifest_blob if isinstance(manifest_blob, dict) else {}
             base = manifest_path.parent
-            for shard in manifest.get("shards", []):
-                shard_path = base / shard["path"]
+            for shard in manifest_map.get("shards", []):
+                if not isinstance(shard, Mapping):
+                    continue
+                shard_path_str = str(shard.get("path", ""))
+                if not shard_path_str:
+                    continue
+                shard_path = base / shard_path_str
                 yield from iter_jsonl(shard_path)
         else:
             yield from iter_jsonl(trace_path)
 
-    event_iter: Iterable[Dict[str, Any]]
-    if stream_flag:
-        event_iter = _iter_events()
-    else:
-        event_iter = list(_iter_events())
+    event_iter: Iterable[Dict[str, Any]] = _iter_events() if stream_flag else list(_iter_events())
 
     principle_sums: Dict[str, float] = {}
     principle_counts: Dict[str, int] = {}
@@ -313,9 +332,11 @@ def handle_score(args: argparse.Namespace) -> None:
     def _mean(sums: Dict[str, float], counts: Dict[str, int]) -> Dict[str, float]:
         return {name: (sums[name] / counts[name]) for name in sums}
 
+    principles_mean = _mean(principle_sums, principle_counts)
+    imperatives_mean = _mean(imperative_sums, imperative_counts)
     summary = {
-        "principles": _mean(principle_sums, principle_counts),
-        "imperatives": _mean(imperative_sums, imperative_counts),
+        "principles": principles_mean,
+        "imperatives": imperatives_mean,
         "events": total_events,
         "policy": policy,
         "flags": sorted(flags_seen),
@@ -327,10 +348,10 @@ def handle_score(args: argparse.Namespace) -> None:
         f"<p>Total events: {summary['events']}</p>",
         "<h2>Principles</h2><ul>",
     ]
-    for name, value in summary["principles"].items():
+    for name, value in principles_mean.items():
         html_parts.append(f"<li>{name}: {value:.3f}</li>")
     html_parts.append("</ul><h2>Imperatives</h2><ul>")
-    for name, value in summary["imperatives"].items():
+    for name, value in imperatives_mean.items():
         html_parts.append(f"<li>{name}: {value:.3f}</li>")
     html_parts.append("</ul><h2>Policy</h2><pre>")
     html_parts.append(json.dumps(summary["policy"], indent=2))
@@ -341,6 +362,7 @@ def handle_score(args: argparse.Namespace) -> None:
 # ---------------------------------------------------------------------------
 # Parser
 # ---------------------------------------------------------------------------
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="gepa", description="Mindful Trace GEPA CLI")
@@ -354,18 +376,37 @@ def build_parser() -> argparse.ArgumentParser:
     dspy_run.add_argument("--trace", required=True, help="Where to write trace JSONL")
     dspy_run.add_argument("--context", help="Optional profile context")
     dspy_run.add_argument("--model", help="Model identifier")
-    dspy_run.add_argument("--enable-optim", action="store_true", help="Opt-in to optimisation features")
-    dspy_run.add_argument("--with-logprobs", action=BooleanOptionalAction, default=True, help="Record log probabilities")
-    dspy_run.add_argument("--log-topk", type=int, default=3, help="Number of top-k alternatives to store")
-    dspy_run.add_argument("--log-every", type=int, default=16, help="Sample frequency for token logging")
-    dspy_run.add_argument("--long-context", action="store_true", help="Enable long-context formatting hints")
-    dspy_run.add_argument("--shard-threshold", type=int, default=10_000, help="Events per shard before splitting")
+    dspy_run.add_argument(
+        "--enable-optim", action="store_true", help="Opt-in to optimisation features"
+    )
+    dspy_run.add_argument(
+        "--with-logprobs",
+        action=BooleanOptionalAction,
+        default=True,
+        help="Record log probabilities",
+    )
+    dspy_run.add_argument(
+        "--log-topk", type=int, default=3, help="Number of top-k alternatives to store"
+    )
+    dspy_run.add_argument(
+        "--log-every", type=int, default=16, help="Sample frequency for token logging"
+    )
+    dspy_run.add_argument(
+        "--long-context", action="store_true", help="Enable long-context formatting hints"
+    )
+    dspy_run.add_argument(
+        "--shard-threshold", type=int, default=10_000, help="Events per shard before splitting"
+    )
     dspy_run.set_defaults(func=handle_dspy_run)
 
     dspy_compile = dspy_sub.add_parser("compile", help="Compile guarded DSPy prompts")
-    dspy_compile.add_argument("--out", required=True, help="Output directory for compiler artifacts")
+    dspy_compile.add_argument(
+        "--out", required=True, help="Output directory for compiler artifacts"
+    )
     dspy_compile.add_argument("--dataset", help="Optional JSONL dataset for optimisation")
-    dspy_compile.add_argument("--enable-optim", action="store_true", help="Allow safe prompt augmentation")
+    dspy_compile.add_argument(
+        "--enable-optim", action="store_true", help="Allow safe prompt augmentation"
+    )
     dspy_compile.set_defaults(func=handle_dspy_compile)
 
     view_parser = subparsers.add_parser("view", help="Build offline trace viewer")
@@ -374,8 +415,12 @@ def build_parser() -> argparse.ArgumentParser:
     view_parser.add_argument("--out", required=True, help="Output HTML file")
     view_parser.add_argument("--deception", help="Optional deception score JSON")
     view_parser.add_argument("--paired", help="Optional paired metadata JSON")
-    view_parser.add_argument("--page-size", type=int, default=200, help="Events per page in the viewer")
-    view_parser.add_argument("--max-points", type=int, default=5000, help="Maximum token events to embed inline")
+    view_parser.add_argument(
+        "--page-size", type=int, default=200, help="Events per page in the viewer"
+    )
+    view_parser.add_argument(
+        "--max-points", type=int, default=5000, help="Maximum token events to embed inline"
+    )
     view_parser.add_argument("--manifest", help="Optional manifest path (auto-detected if omitted)")
     view_parser.set_defaults(func=handle_view)
 
@@ -398,10 +443,16 @@ def build_parser() -> argparse.ArgumentParser:
     score_parser.add_argument("--trace", required=True, help="Trace JSONL path")
     score_parser.add_argument("--policy", required=False, help="Policy YAML path")
     score_parser.add_argument("--out", required=True, help="Output HTML report")
-    score_parser.add_argument("--stream", action=BooleanOptionalAction, default=True, help="Stream events during scoring")
-    score_parser.add_argument("--sharded", action="store_true", help="Read trace shards via manifest")
+    score_parser.add_argument(
+        "--stream", action=BooleanOptionalAction, default=True, help="Stream events during scoring"
+    )
+    score_parser.add_argument(
+        "--sharded", action="store_true", help="Read trace shards via manifest"
+    )
     score_parser.add_argument("--manifest", help="Optional manifest path for sharded runs")
-    score_parser.add_argument("--zstd", action="store_true", help="Hint: trace files are zstd compressed")
+    score_parser.add_argument(
+        "--zstd", action="store_true", help="Hint: trace files are zstd compressed"
+    )
     score_parser.set_defaults(func=handle_score)
 
     register_scoring_cli(subparsers)
@@ -412,10 +463,11 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: List[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
-    if not hasattr(args, "func"):
+    handler: Callable[[argparse.Namespace], None] | None = getattr(args, "func", None)
+    if handler is None:
         parser.print_help()
         return
-    args.func(args)
+    handler(args)
 
 
 __all__ = ["main", "build_parser"]
