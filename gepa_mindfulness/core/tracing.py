@@ -17,18 +17,23 @@ from typing import (
     cast,
 )
 
+def _local_optional_import(module_name: str):
+    """Gracefully return ``None`` when optional tracing deps are unavailable."""
+
+    import importlib
+
+    try:
+        return importlib.import_module(module_name)
+    except ModuleNotFoundError:
+        return None
+
+
 try:  # pragma: no cover - optional dependency missing in most environments
-    from mindful_trace_gepa.utils.imports import optional_import
+    from mindful_trace_gepa.utils.imports import optional_import as _optional_import
 except ModuleNotFoundError:  # pragma: no cover - fallback when package absent
-    def optional_import(module_name: str):
-        """Gracefully return ``None`` when optional tracing deps are unavailable."""
-
-        import importlib
-
-        try:
-            return importlib.import_module(module_name)
-        except ModuleNotFoundError:
-            return None
+    optional_import = _local_optional_import
+else:
+    optional_import = _optional_import
 
 
 class TracerProtocol(Protocol):
