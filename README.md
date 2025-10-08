@@ -100,7 +100,7 @@ Git metadata locally.
    >
    > ```bash
    > sudo apt update
-   > sudo apt install python3-venv  # once per machine; installs the matching venv module for your Python 3.x release
+   > sudo apt install python3.12-venv  # once per machine; installs the matching venv module for your Python 3.x release
    > python3 -m venv .venv
    > source .venv/bin/activate
    > pip install --upgrade pip
@@ -112,8 +112,7 @@ Git metadata locally.
    > project commands (tests, demos, training scripts) should be executed while the
    > virtual environment is active so they use the isolated interpreter.
 
-   To run the fine-tuning notebooks or any other Jupyter-based workflow, install
-   the notebook tooling inside the same environment (add `--upgrade` if needed):
+2. Install Notebook:
 
    ```bash
    pip install notebook
@@ -122,7 +121,7 @@ Git metadata locally.
    After installation the `jupyter notebook ...` commands below will be available
    from the activated virtual environment.
 
-2. Run the CPU example (from the repository root):
+3. Run the CPU example (from the repository root):
 
    ```bash
    python -m gepa_mindfulness.examples.cpu_demo.run_cpu_demo
@@ -132,13 +131,13 @@ Git metadata locally.
    directory (e.g. `pwd` prints `.../GEPA-Mindfulness-superalignment`) and that
    the `gepa_mindfulness/examples/cpu_demo/` folder exists.
 
-3. Execute the full pipeline script:
+4. Execute the full pipeline script:
 
    ```bash
    ./scripts/run_full_pipeline.sh
    ```
 
-4. For vLLM integration, ensure a vLLM server is running and adjust
+5. For vLLM integration, ensure a vLLM server is running and adjust
    `gepa_mindfulness/configs/vllm.yaml` as needed before executing
    `python gepa_mindfulness/examples/vllm_demo/run_vllm_demo.py`.
 
