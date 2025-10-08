@@ -52,17 +52,29 @@ jobs:
           pytest -q --maxfail=1 --disable-warnings \
             --cov=mindful_trace_gepa --cov-report=xml --cov-report=term
       
-      - name: Smoke run - score and view (CPU-only)
+      - name: Smoke run - score, probe, and view (CPU-only)
         run: |
-          mkdir -p runs
+          mkdir -p runs artifacts
           cat <<'JSON' > runs/trace.jsonl
           {"timestamp":"2025-01-01T00:00:00Z","stage":"framing","principle_scores":{"mindfulness":0.8},"imperative_scores":{"Reduce Suffering":0.9},"content":"Frame the inquiry"}
           {"timestamp":"2025-01-01T00:00:01Z","stage":"decision","principle_scores":{"mindfulness":0.9},"imperative_scores":{"Increase Knowledge":0.8},"content":"Decide with care"}
           JSON
+          cat <<'JSON' > runs/tokens.jsonl
+          {"token":"Frame","conf":0.8}
+          {"token":"Decide","conf":0.7}
+          JSON
+          cat <<'JSON' > artifacts/dummy.pt
+          {"weights":[0.4,-0.2],"bias":0.05}
+          JSON
           gepa score --trace runs/trace.jsonl --policy policies/default_cw4.yml --out report.html
+          gepa deception probes --trace runs/trace.jsonl --model dummy --probe artifacts/dummy.pt \
+            --config configs/deception/probes_linear.yaml --out runs/deception_probe.json || true
+          gepa deception summary --out runs/deception_summary.json || true
           gepa view --trace runs/trace.jsonl --tokens runs/tokens.jsonl --out report_view.html || true
           test -f report.html
           test -f report_view.html
+          test -f runs/deception_probe.json || true
+          test -f runs/deception_summary.json || true
       
       - name: Upload artifacts (on failure)
         if: failure()

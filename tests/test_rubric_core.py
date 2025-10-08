@@ -10,7 +10,7 @@ from gepa_mindfulness.core.paraconsistent import (
     dialetheic_and,
 )
 from gepa_mindfulness.core.rewards import RewardSignal, RewardWeights
-from gepa_mindfulness.core.tracing import SelfTracingLogger
+from gepa_mindfulness.core.tracing import CircuitTracerLogger
 
 
 def test_principle_aggregation_and_reward_signal() -> None:
@@ -60,8 +60,8 @@ def test_dialetheic_and_limits() -> None:
     assert 0.0 <= combined.truthiness <= 1.0
 
 
-def test_self_tracing_logger_records_and_validates_stages() -> None:
-    logger = SelfTracingLogger()
+def test_circuit_tracer_logger_records_and_validates_stages() -> None:
+    logger = CircuitTracerLogger()
     with logger.trace(run="unit-test") as trace:
         logger.log_event("framing", "Assess situation", principle_scores={"mindfulness": 0.9})
         logger.log_event(
