@@ -6,7 +6,7 @@ from .contemplative_principles import ContemplativePrinciple, GEPAPrinciples, GE
 from .imperatives import AlignmentImperative, ImperativeEvaluator, ImperativeSignal
 from .paraconsistent import ParaconsistentTruthValue, dialetheic_and
 from .rewards import RewardSignal, RewardWeights
-from .tracing import SelfTracingLogger, ThoughtTrace, TraceEvent
+from .tracing import CircuitTracerLogger, ThoughtTrace, TraceEvent
 
 __all__ = [
     "ABSTAIN_OUTPUT",
@@ -25,7 +25,7 @@ __all__ = [
     "dialetheic_and",
     "RewardSignal",
     "RewardWeights",
-    "SelfTracingLogger",
+    "CircuitTracerLogger",
     "ThoughtTrace",
     "TraceEvent",
 ]

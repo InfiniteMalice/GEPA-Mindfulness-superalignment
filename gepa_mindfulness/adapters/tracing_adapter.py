@@ -1,4 +1,4 @@
-"""Adapters bridging policy rollouts with self-tracing artifacts."""
+"""Adapters bridging policy rollouts with Circuit Tracer artifacts."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from ..core.tracing import ThoughtTrace
 
 @dataclass
 class TraceToCheckpoint:
-    """Convert traces into GEPA checkpoint dictionaries."""
+    """Convert Circuit Tracer logs into GEPA checkpoint dictionaries."""
 
     def __call__(self, trace: ThoughtTrace) -> Dict[str, str]:
         payload: Dict[str, str] = {}
