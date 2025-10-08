@@ -21,7 +21,7 @@ from ..core.contemplative_principles import (
 )
 from ..core.imperatives import AlignmentImperative, ImperativeEvaluator, ImperativeSignal
 from ..core.rewards import RewardSignal, RewardWeights
-from ..core.tracing import SelfTracingLogger
+from ..core.tracing import CircuitTracerLogger
 from .configs import TrainingConfig
 
 LOGGER = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ class TrainingOrchestrator:
 
     def __init__(self, config: TrainingConfig) -> None:
         self.config = config
-        self.tracing = SelfTracingLogger()
+        self.tracing = CircuitTracerLogger()
         self.device = torch.device(config.device)
         self.tokenizer = AutoTokenizer.from_pretrained(config.model.policy_model)
         self.policy_model = AutoModelForCausalLM.from_pretrained(config.model.policy_model).to(
