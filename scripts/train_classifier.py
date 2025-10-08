@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List
 
-from mindful_trace_gepa.scoring.classifier import Tier2Classifier, load_classifier_from_config
+from mindful_trace_gepa.scoring.classifier import load_classifier_from_config
 
 
 def load_labels(path: Path) -> List[Dict[str, Any]]:
