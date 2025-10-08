@@ -63,6 +63,23 @@ files can be consumed directly or redistributed in packaged form.
     Llama-3 8B that wire GEPA abstention, PPO reward blending, and offline
     trace/report generation into the LoRA training workflow.
 
+## Cloning the repository
+
+If you have Git access, the easiest way to obtain the project with the complete
+file structure is to clone it directly from the public remote. Replace the
+placeholder owner with the actual namespace if it differs:
+
+```bash
+git clone https://github.com/<owner>/GEPA-Mindfulness-superalignment.git
+cd GEPA-Mindfulness-superalignment
+```
+
+After cloning you should see folders such as `gepa_mindfulness/`,
+`examples/`, `notebooks/`, and `scripts/` when running `ls`. If you receive the
+project as a ZIP archive instead, unzip it and then optionally follow the
+[Working from a ZIP download](#working-from-a-zip-download) steps below to add
+Git metadata locally.
+
 ## Getting Started
 
 1. Install dependencies (core packages):
@@ -95,19 +112,32 @@ files can be consumed directly or redistributed in packaged form.
    > project commands (tests, demos, training scripts) should be executed while the
    > virtual environment is active so they use the isolated interpreter.
 
-2. Run the CPU example:
+2. Install Notebook:
 
    ```bash
-   python gepa_mindfulness/examples/cpu_demo/run_cpu_demo.py
+   pip install notebook
    ```
 
-3. Execute the full pipeline script:
+   After installation the `jupyter notebook ...` commands below will be available
+   from the activated virtual environment.
+
+3. Run the CPU example (from the repository root):
+
+   ```bash
+   python -m gepa_mindfulness.examples.cpu_demo.run_cpu_demo
+   ```
+
+   If you see a “file not found” error, confirm that you are inside the project
+   directory (e.g. `pwd` prints `.../GEPA-Mindfulness-superalignment`) and that
+   the `gepa_mindfulness/examples/cpu_demo/` folder exists.
+
+4. Execute the full pipeline script:
 
    ```bash
    ./scripts/run_full_pipeline.sh
    ```
 
-4. For vLLM integration, ensure a vLLM server is running and adjust
+5. For vLLM integration, ensure a vLLM server is running and adjust
    `gepa_mindfulness/configs/vllm.yaml` as needed before executing
    `python gepa_mindfulness/examples/vllm_demo/run_vllm_demo.py`.
 
