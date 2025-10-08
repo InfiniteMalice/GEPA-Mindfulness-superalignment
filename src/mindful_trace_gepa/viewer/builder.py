@@ -1,10 +1,10 @@
 """Offline trace viewer builder."""
+
 from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, Iterable, List
-
+from typing import Any, Dict, List
 
 VIEWER_DIR = Path(__file__).resolve().parent
 
