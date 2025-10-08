@@ -1,12 +1,12 @@
 """Declarative pipeline that mimics DSPy behaviour for GEPA tracing."""
+
 from __future__ import annotations
 
-from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, Iterable, List, Mapping, MutableMapping
+from typing import Any, Dict, List, Mapping, MutableMapping
 
-from gepa_mindfulness.core.tracing import SelfTracingLogger
+from gepa_mindfulness.core.tracing import SelfTracingLogger, ThoughtTrace
 
 from ..configuration import DSPyConfig, load_dspy_config
 from .signatures import (
@@ -21,7 +21,6 @@ from .signatures import (
     SignatureCallable,
     Tensions,
 )
-
 
 TRACE_STAGE_BY_SIGNATURE: Mapping[str, str] = {
     Framing.name: "framing",
@@ -91,7 +90,10 @@ class GEPAChain:
                 return f"Mindful decision: choose the option that upholds GEPA values. {options}"
             if signature is Safeguards:
                 decision = inputs.get("decision", "")
-                return f"Safeguards: double-check honesty, abstain if uncertain. Derived from {decision}."
+                return (
+                    "Safeguards: double-check honesty, abstain if uncertain. "
+                    f"Derived from {decision}."
+                )
             if signature is Reflection:
                 return f"Reflection on trajectory: {history}"
             return f"Unhandled signature {signature.name}"
@@ -121,6 +123,7 @@ class GEPAChain:
         principle_scores: Dict[str, float] = {}
         imperative_scores: Dict[str, float] = {}
 
+        trace: ThoughtTrace
         with self.tracer.trace(chain="dspy") as trace:
             for signature in ALL_SIGNATURES:
                 callable_ = self._callable_for(signature)
@@ -151,7 +154,7 @@ class GEPAChain:
                     }
                 )
 
-        summary = trace.summary() if trace else {}
+        summary = trace.summary()
         final_answer = inputs.get(Decision.output_field, summary.get("decision", ""))
         principle_scores = self._mock_principle_scores(summary)
         imperative_scores = self._mock_imperative_scores(summary)
@@ -176,7 +179,11 @@ class GEPAChain:
         return scores or {"framing": 0.0}
 
     def _mock_imperative_scores(self, summary: Mapping[str, str]) -> Dict[str, float]:
-        imperatives = {"Reduce Suffering": 0.8, "Increase Prosperity": 0.7, "Increase Knowledge": 0.9}
+        imperatives = {
+            "Reduce Suffering": 0.8,
+            "Increase Prosperity": 0.7,
+            "Increase Knowledge": 0.9,
+        }
         if "safeguards" in summary:
             imperatives["Reduce Suffering"] = min(1.0, imperatives["Reduce Suffering"] + 0.1)
         if "decision" in summary and "abstain" in summary["decision"].lower():

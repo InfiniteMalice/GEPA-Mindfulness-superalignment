@@ -1,9 +1,9 @@
 """Data models for the tiered wisdom scoring pipeline without external deps."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Literal, Mapping
-
+from typing import Any, Dict, List, Literal, Mapping, cast
 
 DIMENSIONS = ["mindfulness", "compassion", "integrity", "prudence"]
 ALLOWED_TIERS = {"heuristic", "judge", "classifier"}
@@ -80,12 +80,13 @@ class JudgeOutput:
     def to_tier_scores(self, confidence_floor: float = 0.1) -> "TierScores":
         scores = {dim: getattr(self, dim).score for dim in DIMENSIONS}
         confidence = {
-            dim: max(confidence_floor, 1.0 - getattr(self, dim).uncertainty)
-            for dim in DIMENSIONS
+            dim: max(confidence_floor, 1.0 - getattr(self, dim).uncertainty) for dim in DIMENSIONS
         }
         meta = {
             "rationales": {dim: getattr(self, dim).rationale for dim in DIMENSIONS},
-            "spans": {dim: [span.to_dict() for span in getattr(self, dim).spans] for dim in DIMENSIONS},
+            "spans": {
+                dim: [span.to_dict() for span in getattr(self, dim).spans] for dim in DIMENSIONS
+            },
             "abstain": self.abstain,
         }
         return TierScores(tier="judge", scores=scores, confidence=confidence, meta=meta)
@@ -98,20 +99,90 @@ class TierScores:
     confidence: Dict[str, float]
     meta: Dict[str, Any] = field(default_factory=dict)
 
+    @classmethod
+    def from_mapping(cls, data: Mapping[str, Any]) -> "TierScores":
+        tier_value = data.get("tier", "heuristic")
+        scores_value = data.get("scores") or {}
+        confidence_value = data.get("confidence") or {}
+        meta_value = data.get("meta") or {}
+
+        if not isinstance(scores_value, Mapping):
+            try:
+                scores_value = dict(scores_value)
+            except (TypeError, ValueError):
+                scores_value = {}
+        else:
+            scores_value = dict(scores_value)
+
+        if not isinstance(confidence_value, Mapping):
+            try:
+                confidence_value = dict(confidence_value)
+            except (TypeError, ValueError):
+                confidence_value = {}
+        else:
+            confidence_value = dict(confidence_value)
+
+        if not isinstance(meta_value, Mapping):
+            try:
+                meta_value = dict(meta_value)
+            except (TypeError, ValueError):
+                meta_value = {}
+        else:
+            meta_value = dict(meta_value)
+
+        tier_clean = str(tier_value)
+        if tier_clean not in ALLOWED_TIERS:
+            tier_clean = "heuristic"
+
+        return cls(
+            tier=cast(Literal["heuristic", "judge", "classifier"], tier_clean),
+            scores=scores_value,
+            confidence=confidence_value,
+            meta=meta_value,
+        )
+
     def __post_init__(self) -> None:
         if self.tier not in ALLOWED_TIERS:
             raise ValueError(f"Unknown tier '{self.tier}'")
+        if isinstance(self.scores, Mapping):
+            self.scores = dict(self.scores)
+        else:
+            try:
+                self.scores = dict(self.scores or {})
+            except (TypeError, ValueError):
+                self.scores = {}
+        if isinstance(self.confidence, Mapping):
+            self.confidence = dict(self.confidence)
+        else:
+            try:
+                self.confidence = dict(self.confidence or {})
+            except (TypeError, ValueError):
+                self.confidence = {}
+        if isinstance(self.meta, Mapping):
+            self.meta = dict(self.meta)
+        else:
+            try:
+                self.meta = dict(self.meta or {})
+            except (TypeError, ValueError):
+                self.meta = {}
         for dim in DIMENSIONS:
-            if dim not in self.scores:
-                raise ValueError(f"Missing score for dimension '{dim}'")
-            value = int(self.scores[dim])
-            if not 0 <= value <= 4:
-                raise ValueError(f"Score for {dim} must be between 0 and 4")
-            self.scores[dim] = value
+            value: Any = self.scores.get(dim)
+            try:
+                numeric = int(value)
+            except (TypeError, ValueError):
+                numeric = 0
+            numeric = max(0, min(4, numeric))
+            self.scores[dim] = numeric
         for dim in DIMENSIONS:
-            conf = float(self.confidence.get(dim, 0.0))
-            if not 0.0 <= conf <= 1.0:
-                raise ValueError(f"Confidence for {dim} must be within [0,1]")
+            raw_conf: Any = self.confidence.get(dim, 0.0)
+            try:
+                conf = float(raw_conf)
+            except (TypeError, ValueError):
+                conf = 0.0
+            if conf < 0.0:
+                conf = 0.0
+            elif conf > 1.0:
+                conf = 1.0
             self.confidence[dim] = conf
 
     def to_dict(self) -> Dict[str, Any]:
@@ -142,13 +213,48 @@ class AggregateScores:
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> "AggregateScores":
-        per_tier = [TierScores(**tier) for tier in data.get("per_tier", [])]
+        per_tier: List[TierScores] = []
+        for tier_blob in data.get("per_tier", []) or []:
+            if not isinstance(tier_blob, Mapping):
+                continue
+            try:
+                per_tier.append(TierScores.from_mapping(tier_blob))
+            except ValueError:
+                continue
+        final: Dict[str, int] = {}
+        for dim, value in (data.get("final") or {}).items():
+            try:
+                numeric = int(value)
+            except (TypeError, ValueError):
+                continue
+            final[dim] = max(0, min(4, numeric))
+
+        confidence: Dict[str, float] = {}
+        for dim, value in (data.get("confidence") or {}).items():
+            try:
+                conf = float(value)
+            except (TypeError, ValueError):
+                conf = 0.0
+            if conf < 0.0:
+                conf = 0.0
+            elif conf > 1.0:
+                conf = 1.0
+            confidence[dim] = conf
+
+        reasons_value = data.get("reasons")
+        if isinstance(reasons_value, list):
+            reasons = list(reasons_value)
+        elif reasons_value is None:
+            reasons = []
+        else:
+            reasons = [str(reasons_value)]
+
         return cls(
-            final={dim: int(value) for dim, value in (data.get("final") or {}).items()},
-            confidence={dim: float(value) for dim, value in (data.get("confidence") or {}).items()},
+            final=final,
+            confidence=confidence,
             per_tier=per_tier,
             escalate=bool(data.get("escalate", False)),
-            reasons=list(data.get("reasons", [])),
+            reasons=reasons,
         )
 
 
