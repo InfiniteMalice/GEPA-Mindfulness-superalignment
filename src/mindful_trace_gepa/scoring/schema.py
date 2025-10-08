@@ -89,7 +89,8 @@ class JudgeOutput:
             },
             "abstain": self.abstain,
         }
-        return TierScores(tier="judge", scores=scores, confidence=confidence, meta=meta)
+        tier = cast(Literal["heuristic", "judge", "classifier"], "judge")
+        return TierScores(tier=tier, scores=scores, confidence=confidence, meta=meta)
 
 
 @dataclass
@@ -144,20 +145,6 @@ class TierScores:
     def __post_init__(self) -> None:
         if self.tier not in ALLOWED_TIERS:
             raise ValueError(f"Unknown tier '{self.tier}'")
-        if isinstance(self.scores, Mapping):
-            self.scores = dict(self.scores)
-        else:
-            try:
-                self.scores = dict(self.scores or {})
-            except (TypeError, ValueError):
-                self.scores = {}
-        if isinstance(self.confidence, Mapping):
-            self.confidence = dict(self.confidence)
-        else:
-            try:
-                self.confidence = dict(self.confidence or {})
-            except (TypeError, ValueError):
-                self.confidence = {}
         if isinstance(self.meta, Mapping):
             self.meta = dict(self.meta)
         else:
@@ -213,14 +200,7 @@ class AggregateScores:
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> "AggregateScores":
-        per_tier: List[TierScores] = []
-        for tier_blob in data.get("per_tier", []) or []:
-            if not isinstance(tier_blob, Mapping):
-                continue
-            try:
-                per_tier.append(TierScores.from_mapping(tier_blob))
-            except ValueError:
-                continue
+        per_tier = [TierScores(**tier) for tier in data.get("per_tier", [])]
         final: Dict[str, int] = {}
         for dim, value in (data.get("final") or {}).items():
             try:
