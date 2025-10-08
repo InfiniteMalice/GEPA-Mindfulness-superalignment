@@ -4,7 +4,11 @@ This repository implements a full training pipeline that integrates GEPA-based
 interpretability, paraconsistent imperative logic, and traceable honesty via
 Anthropic-style thought tracing. The project targets Python 3.10+ and depends on
 `torch`, `transformers`, `trl`, `pydantic`, `jinja2`, `pyyaml`, and
-`self-tracing` (optional).
+`requests`. Optional self-tracing support is provided by the
+[`Self-Tracing`](https://github.com/recursivelabsai/Self-Tracing) project.
+Public packages for that integration are not currently available, so the
+feature remains disabled unless you have been granted access to the upstream
+distribution.
 
 ## Repository Structure
 
@@ -59,29 +63,104 @@ files can be consumed directly or redistributed in packaged form.
     Llama-3 8B that wire GEPA abstention, PPO reward blending, and offline
     trace/report generation into the LoRA training workflow.
 
+## Cloning the repository
+
+If you have Git access, the easiest way to obtain the project with the complete
+file structure is to clone it directly from the public remote. Replace the
+placeholder owner with the actual namespace if it differs:
+
+```bash
+git clone https://github.com/<owner>/GEPA-Mindfulness-superalignment.git
+cd GEPA-Mindfulness-superalignment
+```
+
+After cloning you should see folders such as `gepa_mindfulness/`,
+`examples/`, `notebooks/`, and `scripts/` when running `ls`. If you receive the
+project as a ZIP archive instead, unzip it and then optionally follow the
+[Working from a ZIP download](#working-from-a-zip-download) steps below to add
+Git metadata locally.
+
 ## Getting Started
 
-1. Install dependencies:
+1. Install dependencies (core packages):
 
    ```bash
-   pip install torch transformers trl pydantic jinja2 pyyaml self-tracing requests
+   pip install torch transformers trl pydantic jinja2 pyyaml requests
    ```
 
-2. Run the CPU example:
+   If you have private access to the optional self-tracing package, install it
+   after the core dependencies using the URL provided by the maintainer. If you
+   do not have access, skip the step—the remainder of the project functions
+   without it.
+
+   > **WSL / Debian note:** Recent Debian-based Python builds ship with
+   > `EXTERNALLY-MANAGED` protection, which blocks `pip` from installing packages
+   > into the system interpreter. Create an isolated virtual environment before
+   > installing the requirements:
+   >
+   > ```bash
+   > sudo apt update
+   > sudo apt install python3.12-venv  # once per machine; installs the matching venv module for your Python 3.x release
+   > python3 -m venv .venv
+   > source .venv/bin/activate
+   > pip install --upgrade pip
+   > pip install torch transformers trl pydantic jinja2 pyyaml requests
+   > # Optional: install the self-tracing package only if you have access to it
+   > ```
+   >
+   > When you are done working, run `deactivate` to exit the environment. Any
+   > project commands (tests, demos, training scripts) should be executed while the
+   > virtual environment is active so they use the isolated interpreter.
+
+2. Install Notebook:
 
    ```bash
-   python gepa_mindfulness/examples/cpu_demo/run_cpu_demo.py
+   pip install notebook
    ```
 
-3. Execute the full pipeline script:
+   After installation the `jupyter notebook ...` commands below will be available
+   from the activated virtual environment.
+
+3. Run the CPU example (from the repository root):
+
+   ```bash
+   python -m gepa_mindfulness.examples.cpu_demo.run_cpu_demo
+   ```
+
+   If you see a “file not found” error, confirm that you are inside the project
+   directory (e.g. `pwd` prints `.../GEPA-Mindfulness-superalignment`) and that
+   the `gepa_mindfulness/examples/cpu_demo/` folder exists.
+
+4. Execute the full pipeline script:
 
    ```bash
    ./scripts/run_full_pipeline.sh
    ```
 
-4. For vLLM integration, ensure a vLLM server is running and adjust
+5. For vLLM integration, ensure a vLLM server is running and adjust
    `gepa_mindfulness/configs/vllm.yaml` as needed before executing
    `python gepa_mindfulness/examples/vllm_demo/run_vllm_demo.py`.
+
+### Working from a ZIP download
+
+Some users obtain the project as a plain folder (for example, by downloading a
+ZIP file from a teammate or a file share). You can still track local changes
+with Git even if the original `.git/` metadata is missing:
+
+```bash
+cd /path/to/GEPA-Mindfulness-superalignment
+git init
+git add .
+git commit -m "Initial snapshot"
+# Optional: connect to the public upstream
+git remote add origin https://github.com/<owner>/GEPA-Mindfulness-superalignment.git
+git fetch origin
+```
+
+From there you can create branches, commit changes, and (if you configured a
+remote) push your work upstream. If you later clone the official repository
+with `git clone`, the Git metadata will already be included and these steps are
+not necessary.
 
 ## DSPy Declarative Pipelines
 
@@ -112,6 +191,26 @@ gepa view --trace runs/trace.jsonl --tokens runs/tokens.jsonl \
 The viewer assets are located in `src/mindful_trace_gepa/viewer/` and are served
 without external CDNs.
 
+## Deception Research Integration
+
+Mindful Trace GEPA now ships white-box and dataset-level deception tooling:
+
+- [Deception research guide](docs/deception_research.md) summarising probes, datasets, and safety notes.
+- [Linear probe configuration](configs/deception/probes_linear.yaml) for CLI runs.
+- [ACL 2025 evaluation notebook](notebooks/eval_deception_acl2025.ipynb) covering text-only baselines.
+
+Execute the probe pipeline via:
+
+```bash
+gepa deception probes --trace runs/trace.jsonl --model dummy --probe artifacts/dummy.pt   --config configs/deception/probes_linear.yaml --out runs/deception_probe.json
+```
+
+Combine probe, paired chains, and multimodal evaluation into a single report:
+
+```bash
+gepa deception summary --out runs/deception_summary.json
+```
+
 ## Paired Chains Baseline
 
 Baseline datasets for honest/deceptive paired chains live under
@@ -139,6 +238,12 @@ minutes. Launch either notebook to reproduce the LoRA workflow:
 jupyter notebook notebooks/ft_phi3_mini_unsloth_gepa.ipynb
 jupyter notebook notebooks/ft_llama3_8b_unsloth_gepa.ipynb
 ```
+
+Run these commands from the repository root (the directory that contains this
+`README.md` file); Jupyter resolves notebook paths relative to the current
+working directory. If you launch the server from another folder (for example,
+`/mnt/c/Users/<name>` on WSL) the notebook path will not be found. Use `pwd` to
+confirm you are inside the cloned repository before invoking `jupyter`.
 
 To launch the notebooks or PPO trainer across multiple GPUs:
 

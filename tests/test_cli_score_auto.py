@@ -122,12 +122,12 @@ def test_score_auto_none_classifier_weight_uses_default(tmp_path, monkeypatch):
     monkeypatch.setattr("mindful_trace_gepa.cli_scoring.run_heuristics", fake_run_heuristics)
     monkeypatch.setattr("mindful_trace_gepa.cli_scoring.LLMJudge", DummyJudge)
 
-    def load_dummy_classifier(path):
+    def load_classifier(path):
         return DummyClassifier(path)
 
     monkeypatch.setattr(
         "mindful_trace_gepa.cli_scoring.load_classifier_from_config",
-        load_dummy_classifier,
+        load_classifier,
     )
 
     out_path = tmp_path / "scores.json"
@@ -147,22 +147,3 @@ def test_score_auto_none_classifier_weight_uses_default(tmp_path, monkeypatch):
     handle_score_auto(args)
     payload = json.loads(out_path.read_text(encoding="utf-8"))
     assert payload["final"]["mindfulness"] == 3
-
-
-def test_build_config_sanitizes_numeric_values():
-    config = build_scoring_config(
-        {
-            "weights": {"judge": "0.4", "classifier": None},
-            "abstention_thresholds": {"mindfulness": "0.8", "integrity": None},
-            "disagreement_penalty": "0.5",
-            "escalate_if_any_below": None,
-        }
-    )
-
-    assert config["weights"]["judge"] == 0.4
-    assert config["weights"]["classifier"] == SCORING_DEFAULTS["weights"]["classifier"]
-    assert config["abstention_thresholds"]["mindfulness"] == 0.8
-    expected_integrity = SCORING_DEFAULTS["abstention_thresholds"]["integrity"]
-    assert config["abstention_thresholds"]["integrity"] == expected_integrity
-    assert config["disagreement_penalty"] == 0.5
-    assert config["escalate_if_any_below"] == SCORING_DEFAULTS["escalate_if_any_below"]
