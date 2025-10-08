@@ -5,9 +5,30 @@ from __future__ import annotations
 import contextlib
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable, ContextManager, Iterator, Protocol, cast
+from typing import (
+    Any,
+    Callable,
+    ContextManager,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    Protocol,
+    cast,
+)
 
-from mindful_trace_gepa.utils.imports import optional_import
+try:  # pragma: no cover - optional dependency missing in most environments
+    from mindful_trace_gepa.utils.imports import optional_import
+except ModuleNotFoundError:  # pragma: no cover - fallback when package absent
+    def optional_import(module_name: str):
+        """Gracefully return ``None`` when optional tracing deps are unavailable."""
+
+        import importlib
+
+        try:
+            return importlib.import_module(module_name)
+        except ModuleNotFoundError:
+            return None
 
 
 class TracerProtocol(Protocol):
@@ -76,7 +97,7 @@ class SelfTracingLogger:
 
     def __init__(self) -> None:
         self._tracer = _create_tracer()
-        self._active_traces: list[ThoughtTrace] = []
+        self._active_traces: List[ThoughtTrace] = []
 
     @contextlib.contextmanager
     def trace(self, **context: Any) -> Iterator[ThoughtTrace]:
