@@ -1,21 +1,11 @@
-"""Integration layer for Anthropic-style self-tracing."""
+"""Integration layer for the optional Circuit Tracer thought logging system."""
 
 from __future__ import annotations
 
 import contextlib
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import (
-    Any,
-    Callable,
-    ContextManager,
-    Dict,
-    Iterator,
-    List,
-    Optional,
-    Protocol,
-    cast,
-)
+from typing import Any, Callable, ContextManager, Iterator, List, Protocol, cast
 
 def _local_optional_import(module_name: str):
     """Gracefully return ``None`` when optional tracing deps are unavailable."""
@@ -37,26 +27,46 @@ else:
 
 
 class TracerProtocol(Protocol):
-    """Minimal protocol implemented by ``self_tracing.Tracer``."""
+    """Minimal protocol implemented by ``circuit_tracer.CircuitTracer``."""
 
     def span(self, **context: Any) -> ContextManager[Any]: ...
 
     def log(self, *, stage: str, content: str, **metadata: Any) -> None: ...
 
 
-_TRACER_MODULE = optional_import("self_tracing")
-TracerFactory: Callable[[], TracerProtocol] | None
+_TRACER_MODULE = optional_import("circuit_tracer")
+
+
+def _resolve_tracer_factory(module: Any) -> Callable[..., TracerProtocol] | None:
+    """Best-effort discovery of a Circuit Tracer constructor."""
+
+    candidate_names = [
+        "CircuitTracer",
+        "Tracer",
+        "CircuitThoughtTracer",
+        "create_tracer",
+    ]
+    for name in candidate_names:
+        candidate = getattr(module, name, None)
+        if callable(candidate):
+            return candidate
+    return None
+
+
+TracerFactory: Callable[..., TracerProtocol] | None
 if _TRACER_MODULE is not None:
-    candidate = getattr(_TRACER_MODULE, "Tracer", None)
-    TracerFactory = candidate if callable(candidate) else None
+    TracerFactory = _resolve_tracer_factory(_TRACER_MODULE)
 else:  # pragma: no cover - optional dependency missing
     TracerFactory = None
 
 
-def _create_tracer() -> TracerProtocol | None:
+def _create_tracer(**factory_kwargs: Any) -> TracerProtocol | None:
     if TracerFactory is None:
         return None
-    tracer = TracerFactory()
+    try:
+        tracer = TracerFactory(**factory_kwargs)
+    except TypeError:
+        tracer = TracerFactory()  # type: ignore[misc]
     return cast(TracerProtocol, tracer)
 
 
@@ -73,7 +83,7 @@ class TraceEvent:
 
 @dataclass
 class ThoughtTrace:
-    """Container storing self-tracing events for a single rollout."""
+    """Container storing Circuit Tracer events for a single rollout."""
 
     events: list[TraceEvent] = field(default_factory=list)
 
@@ -97,11 +107,12 @@ class ThoughtTrace:
         return {event.stage: event.content for event in self.events}
 
 
-class SelfTracingLogger:
-    """Wrapper that gracefully falls back if the optional dependency is missing."""
+class CircuitTracerLogger:
+    """Wrapper that gracefully falls back when Circuit Tracer is absent."""
 
-    def __init__(self) -> None:
-        self._tracer = _create_tracer()
+    def __init__(self, **factory_kwargs: Any) -> None:
+        self._factory_kwargs = dict(factory_kwargs)
+        self._tracer = _create_tracer(**self._factory_kwargs)
         self._active_traces: List[ThoughtTrace] = []
 
     @contextlib.contextmanager
@@ -128,3 +139,8 @@ class SelfTracingLogger:
     @property
     def latest_trace(self) -> ThoughtTrace | None:
         return self._active_traces[-1] if self._active_traces else None
+
+    def refresh_backend(self) -> None:
+        """Recreate the underlying tracer instance with stored kwargs."""
+
+        self._tracer = _create_tracer(**self._factory_kwargs)

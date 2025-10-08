@@ -2,10 +2,10 @@
 
 This repository implements a full training pipeline that integrates GEPA-based
 interpretability, paraconsistent imperative logic, and traceable honesty via
-Anthropic-style thought tracing. The project targets Python 3.10+ and depends on
-`torch`, `transformers`, `trl`, `pydantic`, `jinja2`, `pyyaml`, and
-`requests`. Optional self-tracing support is provided by the
-[`Self-Tracing`](https://github.com/recursivelabsai/Self-Tracing) project.
+the Circuit Tracer thought logging system. The project targets Python 3.10+ and
+depends on `torch`, `transformers`, `trl`, `pydantic`, `jinja2`, `pyyaml`, and
+`requests`. Optional Circuit Tracer support is provided by the
+[`circuit-tracer`](https://github.com/safety-research/circuit-tracer) project.
 Public packages for that integration are not currently available, so the
 feature remains disabled unless you have been granted access to the upstream
 distribution.
@@ -14,11 +14,11 @@ distribution.
 
 - `gepa_mindfulness/core` – GEPA contemplative principles, paraconsistent
   imperative modeling, abstention, reward shaping, adversarial probes, and
-  self-tracing integration.
+  Circuit Tracer integration.
 - `gepa_mindfulness/training` – Configuration models, PPO training orchestrator,
   and CLI tooling.
-- `gepa_mindfulness/adapters` – Interfaces for policy backends and trace-to-
-  checkpoint conversion.
+- `gepa_mindfulness/adapters` – Interfaces for policy backends and Circuit
+  Tracer-to-checkpoint conversion.
 - `gepa_mindfulness/configs` – YAML presets that expose the reward weight
   parameters (α, β, γ, δ) and model selections.
 - `gepa_mindfulness/examples` – Runnable CPU and vLLM demonstrations.
@@ -38,7 +38,8 @@ files can be consumed directly or redistributed in packaged form.
    Empathy, Perspective, Agency) and aggregates them alongside three alignment
    imperatives (Reduce Suffering, Increase Prosperity, Increase Knowledge) using
    paraconsistent logic to tolerate conflicting objectives.
-2. **Self-Tracing** – Wraps the [Self-Tracing](https://github.com/recursivelabsai/Self-Tracing)
+2. **Circuit Tracing** – Wraps the
+   [Circuit Tracer](https://github.com/safety-research/circuit-tracer)
    library to capture framing, evidence, tensions, decisions, and reflections
    for every rollout. These traces produce GEPA checkpoints and honesty reward
    signals.
@@ -88,7 +89,7 @@ Git metadata locally.
    pip install torch transformers trl pydantic jinja2 pyyaml requests
    ```
 
-   If you have private access to the optional self-tracing package, install it
+   If you have private access to the optional Circuit Tracer package, install it
    after the core dependencies using the URL provided by the maintainer. If you
    do not have access, skip the step—the remainder of the project functions
    without it.
@@ -105,7 +106,7 @@ Git metadata locally.
    > source .venv/bin/activate
    > pip install --upgrade pip
    > pip install torch transformers trl pydantic jinja2 pyyaml requests
-   > # Optional: install the self-tracing package only if you have access to it
+   > # Optional: install the Circuit Tracer package only if you have access to it
    > ```
    >
    > When you are done working, run `deactivate` to exit the environment. Any
