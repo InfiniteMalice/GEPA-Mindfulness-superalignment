@@ -1,4 +1,5 @@
 """Utilities for rendering training summaries with Jinja2 templates."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -35,6 +36,8 @@ def render_summary(results: Iterable[RolloutResult]) -> SummaryReport:
 
 def describe_reward(signal: RewardSignal) -> str:
     return (
-        f"Task={signal.task_success:.3f}, GEPA={signal.gepa_score:.3f}, Honesty={signal.honesty_reward:.3f}, "
-        f"Hallucination={signal.hallucination_score:.3f}, Imperative={signal.imperatives_truth.resolve():.3f}"
+        f"Task={signal.task_success:.3f}, GEPA={signal.gepa_score:.3f}, "
+        f"Honesty={signal.honesty_reward:.3f}, "
+        f"Hallucination={signal.hallucination_score:.3f}, "
+        f"Imperative={signal.imperatives_truth.resolve():.3f}"
     )

@@ -1,20 +1,20 @@
 """Abstraction for policy model generation supporting vLLM or HF backends."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, Protocol
+from typing import Any, Iterable, Protocol
 
 
 class TextGenerator(Protocol):
-    def __call__(self, prompts: Iterable[str]) -> Iterable[str]:
-        ...
+    def __call__(self, prompts: Iterable[str]) -> Iterable[str]: ...
 
 
 @dataclass
 class HuggingFaceGenerator:
-    tokenizer: any
-    model: any
-    device: any
+    tokenizer: Any
+    model: Any
+    device: Any
 
     def __call__(self, prompts: Iterable[str]) -> Iterable[str]:
         from torch import no_grad
