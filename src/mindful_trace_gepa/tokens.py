@@ -1,9 +1,10 @@
 """Utilities for capturing token-level metadata."""
+
 from __future__ import annotations
 
 import json
 import math
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable, List, Sequence
@@ -79,9 +80,9 @@ class TokenRecorder:
 
     def extend(self, other: Iterable[TokenRecord]) -> None:
         for record in other:
-            record.idx = len(self.records)  # type: ignore[attr-defined]
-            self.records.append(record)
-            inferred_global = record.chunk * self.sample_every + record.offset + 1
+            normalized = replace(record, idx=len(self.records))
+            self.records.append(normalized)
+            inferred_global = normalized.chunk * self.sample_every + normalized.offset + 1
             self._global_idx = max(self._global_idx, inferred_global)
 
     def dump_jsonl(self, path: Path) -> None:

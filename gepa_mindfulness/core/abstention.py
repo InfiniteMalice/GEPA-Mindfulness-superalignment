@@ -1,9 +1,9 @@
 """Confidence-aware abstention utilities."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Dict, Tuple
-
 
 ABSTAIN_OUTPUT = "I don't know"
 
@@ -15,7 +15,9 @@ class ConfidenceDecision:
     metadata: Dict[str, float]
 
 
-def enforce_abstention(raw_output: str, confidence: float, threshold: float = 0.75) -> ConfidenceDecision:
+def enforce_abstention(
+    raw_output: str, confidence: float, threshold: float = 0.75
+) -> ConfidenceDecision:
     """Return abstain output whenever confidence falls below the threshold."""
 
     decision = ConfidenceDecision(
