@@ -7,6 +7,11 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional
 
+try:  # pragma: no cover - optional dependency
+    import yaml
+except ModuleNotFoundError:  # pragma: no cover
+    yaml = None
+
 from .scoring import (
     LLMJudge,
     aggregate_tiers,
