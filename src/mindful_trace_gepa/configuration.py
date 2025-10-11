@@ -1,4 +1,5 @@
 """Configuration helpers for Mindful Trace GEPA."""
+
 from __future__ import annotations
 
 import json
@@ -6,10 +7,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict
 
-try:  # pragma: no cover - optional dependency
-    import yaml  # type: ignore
-except ModuleNotFoundError:  # pragma: no cover - fallback parser
-    yaml = None  # type: ignore
+from .utils.imports import optional_import
+
+yaml = optional_import("yaml")
 
 DEFAULT_DSPY_CONFIG_PATH = Path("policies/dspy.yml")
 
