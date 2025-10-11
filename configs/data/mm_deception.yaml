@@ -1,0 +1,6 @@
+# Text-first settings for multimodal deception corpora.
+rltd_path: "datasets/mm/RLTD/"
+mu3d_path: "datasets/mm/MU3D/"
+opspam_path: "datasets/mm/OpSpam/"
+text_only: true
+max_samples: 256
