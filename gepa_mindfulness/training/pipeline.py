@@ -1,4 +1,5 @@
 """End-to-end orchestration for the GEPA mindfulness alignment pipeline."""
+
 from __future__ import annotations
 
 import logging
@@ -8,11 +9,16 @@ from typing import Iterable, List, Optional
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from trl import PPOConfig as TRLPPOConfig, PPOTrainer
+from trl import PPOConfig as TRLPPOConfig
+from trl import PPOTrainer
 
 from ..core.abstention import enforce_abstention, honesty_reward_from_trace
 from ..core.adversarial import sample_adversarial_batch
-from ..core.contemplative_principles import ContemplativePrinciple, GEPAPrincipleScore, GEPAPrinciples
+from ..core.contemplative_principles import (
+    ContemplativePrinciple,
+    GEPAPrinciples,
+    GEPAPrincipleScore,
+)
 from ..core.imperatives import AlignmentImperative, ImperativeEvaluator, ImperativeSignal
 from ..core.rewards import RewardSignal, RewardWeights
 from ..core.tracing import SelfTracingLogger
@@ -94,15 +100,21 @@ class TrainingOrchestrator:
             [
                 (
                     AlignmentImperative.REDUCE_SUFFERING,
-                    ImperativeSignal(support=0.8, opposition=0.1, rationale=trace_payload.get("framing", "")),
+                    ImperativeSignal(
+                        support=0.8, opposition=0.1, rationale=trace_payload.get("framing", "")
+                    ),
                 ),
                 (
                     AlignmentImperative.INCREASE_PROSPERITY,
-                    ImperativeSignal(support=0.6, opposition=0.2, rationale=trace_payload.get("decision", "")),
+                    ImperativeSignal(
+                        support=0.6, opposition=0.2, rationale=trace_payload.get("decision", "")
+                    ),
                 ),
                 (
                     AlignmentImperative.INCREASE_KNOWLEDGE,
-                    ImperativeSignal(support=0.7, opposition=0.15, rationale=trace_payload.get("reflection", "")),
+                    ImperativeSignal(
+                        support=0.7, opposition=0.15, rationale=trace_payload.get("reflection", "")
+                    ),
                 ),
             ]
         )
@@ -113,17 +125,23 @@ class TrainingOrchestrator:
         assert self.ppo_trainer is not None
         with self.tracing.trace(prompt=prompt) as trace:
             self.tracing.log_event("framing", f"Evaluating prompt: {prompt}")
-            self.tracing.log_event("evidence", "No external evidence available, relying on model priors.")
+            self.tracing.log_event(
+                "evidence", "No external evidence available, relying on model priors."
+            )
             self.tracing.log_event("tensions", "Balance honesty with usefulness.")
             inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
-            outputs = self.policy_model.generate(**inputs, max_length=inputs["input_ids"].shape[-1] + 64)
+            outputs = self.policy_model.generate(
+                **inputs, max_length=inputs["input_ids"].shape[-1] + 64
+            )
             decoded = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
             self.tracing.log_event("decision", decoded)
             self.tracing.log_event("reflection", "Assessed alignment outcomes for this rollout.")
 
         trace_payload = trace.summary()
         confidence = min(0.99, 0.5 + random.random() * 0.5)
-        decision = enforce_abstention(decoded, confidence, threshold=self.config.confidence_threshold)
+        decision = enforce_abstention(
+            decoded, confidence, threshold=self.config.confidence_threshold
+        )
 
         gepa = self._gepa_scores(trace_payload)
         imperatives = self._imperative_scores(trace_payload)

@@ -1,4 +1,5 @@
 """Tier-2 calibrated classifier built on lightweight, dependency-free heads."""
+
 from __future__ import annotations
 
 import json
@@ -9,13 +10,11 @@ from pathlib import Path
 from statistics import mean
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
-try:  # pragma: no cover - optional dependency
-    import yaml
-except ModuleNotFoundError:  # pragma: no cover
-    yaml = None
-
+from ..utils.imports import optional_import
 from .schema import DIMENSIONS, TierScores
 from .tier0_heuristics import _normalise_events, run_heuristics
+
+yaml = optional_import("yaml")
 
 
 @dataclass
@@ -60,7 +59,9 @@ class Tier2Classifier:
     # ------------------------------------------------------------------
     # Feature extraction
     # ------------------------------------------------------------------
-    def _extract_feature_vector(self, trace_text: str, heuristic_meta: Optional[TierScores] = None) -> List[float]:
+    def _extract_feature_vector(
+        self, trace_text: str, heuristic_meta: Optional[TierScores] = None
+    ) -> List[float]:
         trace_lower = trace_text.lower()
         keyword_pairs = {
             "uncertainty": trace_lower.count("uncertainty") + trace_lower.count("confidence"),
@@ -133,7 +134,9 @@ class Tier2Classifier:
             "baseline": self.baseline,
         }
         (path / "model.json").write_text(json.dumps(model_blob, indent=2), encoding="utf-8")
-        (path / "calibration.json").write_text(json.dumps(self.temperature, indent=2), encoding="utf-8")
+        (path / "calibration.json").write_text(
+            json.dumps(self.temperature, indent=2), encoding="utf-8"
+        )
 
     def load(self, directory: str | os.PathLike[str]) -> None:
         path = Path(directory)
@@ -143,9 +146,15 @@ class Tier2Classifier:
             raise FileNotFoundError(f"Classifier weights not found at {model_path}")
         blob = json.loads(model_path.read_text(encoding="utf-8"))
         self.settings = ClassifierSettings(
-            include_heuristic_features=bool(blob.get("settings", {}).get("include_heuristic_features", True)),
-            include_length_feature=bool(blob.get("settings", {}).get("include_length_feature", True)),
-            calibration_strategy=str(blob.get("settings", {}).get("calibration_strategy", "temperature")),
+            include_heuristic_features=bool(
+                blob.get("settings", {}).get("include_heuristic_features", True)
+            ),
+            include_length_feature=bool(
+                blob.get("settings", {}).get("include_length_feature", True)
+            ),
+            calibration_strategy=str(
+                blob.get("settings", {}).get("calibration_strategy", "temperature")
+            ),
         )
         self.feature_names = list(blob.get("settings", {}).get("feature_names", []))
         self.bias = {dim: float(value) for dim, value in blob.get("bias", {}).items()}
@@ -167,7 +176,9 @@ class Tier2Classifier:
             return TierScores(
                 tier="classifier",
                 scores=dict(heuristic_meta.scores),
-                confidence={dim: max(0.05, min(1.0, heuristic_meta.confidence[dim])) for dim in DIMENSIONS},
+                confidence={
+                    dim: max(0.05, min(1.0, heuristic_meta.confidence[dim])) for dim in DIMENSIONS
+                },
                 meta={"fallback": "heuristic"},
             )
         scores: Dict[str, int] = {}
