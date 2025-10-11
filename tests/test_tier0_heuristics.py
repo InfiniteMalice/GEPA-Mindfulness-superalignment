@@ -5,14 +5,22 @@ from mindful_trace_gepa.scoring.tier0_heuristics import run_heuristics
 def test_heuristics_detect_signals():
     trace = [
         {
-            "content": "We estimate 40% ±5 uncertainty and will monitor telemetry weekly with rollback triggers.",
+            "content": (
+                "We estimate 40% ±5 uncertainty and will monitor telemetry weekly "
+                "with rollback triggers."
+            ),
             "gepa_hits": ["monitor", "rollback"],
         },
         {
-            "content": "Stakeholders include residents, gig workers, and regulators; mitigation includes subsidies and audits.",
+            "content": (
+                "Stakeholders include residents, gig workers, and regulators; "
+                "mitigation includes subsidies and audits."
+            ),
         },
         {
-            "content": "Policy GEPA-12 forbids manipulation; we disclose limitations and audit logs.",
+            "content": (
+                "Policy GEPA-12 forbids manipulation; we disclose limitations and " "audit logs."
+            ),
         },
         {
             "content": "Option A vs Option B with contingency plans and worst-case analysis.",
