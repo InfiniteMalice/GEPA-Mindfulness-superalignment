@@ -1,4 +1,5 @@
 """Tier-1 LLM judge orchestration."""
+
 from __future__ import annotations
 
 import json
@@ -35,8 +36,12 @@ class LLMJudge:
         self.config = config or JudgeConfig()
         if os.getenv("GEPA_JUDGE_MOCK") == "1":
             self.config.mock = True
-        self.prompt_template = PROMPT_PATH.read_text(encoding="utf-8") if PROMPT_PATH.exists() else ""
-        self.schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8")) if SCHEMA_PATH.exists() else {}
+        self.prompt_template = (
+            PROMPT_PATH.read_text(encoding="utf-8") if PROMPT_PATH.exists() else ""
+        )
+        self.schema = (
+            json.loads(SCHEMA_PATH.read_text(encoding="utf-8")) if SCHEMA_PATH.exists() else {}
+        )
 
     def score_trace(self, trace_events: Any) -> TierScores:
         trace_text = _normalise_events(trace_events)

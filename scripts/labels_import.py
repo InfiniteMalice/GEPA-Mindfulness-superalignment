@@ -25,7 +25,11 @@ def main() -> None:
 
     labels_path = Path(args.labels)
     out_dir = Path(args.out_dir)
-    rows = [json.loads(line) for line in labels_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    rows = [
+        json.loads(line)
+        for line in labels_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     buckets = partition_labels(rows)
 
     out_dir.mkdir(parents=True, exist_ok=True)
