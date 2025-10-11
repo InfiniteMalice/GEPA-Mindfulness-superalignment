@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Mapping, MutableMapping
 
-from gepa_mindfulness.core.tracing import SelfTracingLogger, ThoughtTrace
+from gepa_mindfulness.core.tracing import CircuitTracerLogger, ThoughtTrace
 
 from ..configuration import DSPyConfig, load_dspy_config
 from .signatures import (
@@ -65,7 +65,7 @@ class GEPAChain:
         self.allow_optimizations = (
             self.config.allow_optimizations if allow_optimizations is None else allow_optimizations
         )
-        self.tracer = SelfTracingLogger()
+        self.tracer = CircuitTracerLogger()
 
     # ------------------------------------------------------------------
     # Default behaviours
