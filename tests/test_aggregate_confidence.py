@@ -1,3 +1,5 @@
+import pytest
+
 from mindful_trace_gepa.scoring.aggregate import DEFAULT_CONFIG, aggregate_tiers, build_config
 from mindful_trace_gepa.scoring.schema import DIMENSIONS, TierScores
 
@@ -73,3 +75,22 @@ def test_build_config_sanitizes_numeric_values():
     # Numeric fields should coerce to float and ignore None override
     assert config["disagreement_penalty"] == 0.5
     assert config["escalate_if_any_below"] == DEFAULT_CONFIG["escalate_if_any_below"]
+
+
+def test_small_disagreement_does_not_trigger_penalty_or_escalation():
+    judge = make_tier("judge", 3, 0.9)
+    classifier = make_tier("classifier", 2, 0.8)
+
+    result = aggregate_tiers(
+        [judge, classifier],
+        {
+            "weights": {"judge": 0.5, "classifier": 0.3},
+            "abstention_thresholds": {dim: 0.75 for dim in DIMENSIONS},
+            "disagreement_penalty": 0.25,
+            "escalate_if_any_below": 0.6,
+        },
+    )
+
+    assert result.escalate is False
+    for dim in DIMENSIONS:
+        assert result.confidence[dim] == pytest.approx(0.85)

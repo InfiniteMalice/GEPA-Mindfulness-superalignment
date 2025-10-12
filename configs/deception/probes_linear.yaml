@@ -1,0 +1,12 @@
+# Default configuration for the white-box linear deception probe.
+model_layer_indices:
+  - -1
+  - -2
+pooling: "mean"
+threshold:
+  type: "fixed_fpr"
+  fpr: 0.01
+output:
+  write_per_token: false
+  write_per_step: true
+  path: "runs/deception_probe.json"
