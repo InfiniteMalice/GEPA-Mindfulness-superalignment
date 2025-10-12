@@ -113,7 +113,7 @@ class CircuitTracerLogger:
     def __init__(self, **factory_kwargs: Any) -> None:
         self._factory_kwargs = dict(factory_kwargs)
         self._tracer = _create_tracer(**self._factory_kwargs)
-        self._active_traces: List[ThoughtTrace] = []
+        self._active_traces: list[ThoughtTrace] = []
 
     @contextmanager
     def trace(self, **context: Any) -> Iterator[ThoughtTrace]:
