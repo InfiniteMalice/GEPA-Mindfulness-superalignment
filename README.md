@@ -128,9 +128,11 @@ Git metadata locally.
    python -m gepa_mindfulness.examples.cpu_demo.run_cpu_demo
    ```
 
-   If you see a “file not found” error, confirm that you are inside the project
-   directory (e.g. `pwd` prints `.../GEPA-Mindfulness-superalignment`) and that
-   the `gepa_mindfulness/examples/cpu_demo/` folder exists.
+   A convenience wrapper is also available so you can launch the demo via
+   `python examples/run_cpu_demo.py`. If you see a “file not found” error,
+   confirm that you are inside the project directory (e.g. `pwd` prints
+   `.../GEPA-Mindfulness-superalignment`) and that the
+   `gepa_mindfulness/examples/cpu_demo/` folder exists.
 
 4. Execute the full pipeline script:
 
