@@ -1,4 +1,5 @@
 """Simplified vLLM wrapper with optional log-prob capture."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

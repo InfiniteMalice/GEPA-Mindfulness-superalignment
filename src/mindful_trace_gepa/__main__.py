@@ -1,4 +1,5 @@
 """Module entry point for Mindful Trace GEPA CLI."""
+
 from __future__ import annotations
 
 from .cli import main
