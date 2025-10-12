@@ -1,4 +1,5 @@
 """Minimal CPU-only demonstration of the training pipeline."""
+
 from __future__ import annotations
 
 from pathlib import Path

@@ -1,21 +1,21 @@
 """JSONL storage utilities supporting streaming and sharding."""
+
 from __future__ import annotations
 
+import hashlib
 import io
 import json
-import hashlib
 import logging
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterator, List, Optional
 
+from ..utils.imports import optional_import
+
 LOGGER = logging.getLogger(__name__)
 
-try:  # pragma: no cover - optional dependency
-    import zstandard as zstd  # type: ignore
-except Exception:  # pragma: no cover
-    zstd = None  # type: ignore
+zstd = optional_import("zstandard")
 
 
 def _open_text(path: Path) -> io.TextIOBase:
