@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any, Mapping
 
 import yaml
-from pydantic import BaseModel, Field, validator
 
 
 def _to_float(value: Any, default: float) -> float:
