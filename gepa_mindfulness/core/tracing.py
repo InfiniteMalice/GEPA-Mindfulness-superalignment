@@ -1,11 +1,11 @@
 """Integration layer for the optional Circuit Tracer thought logging system."""
-
 from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable, Cast, ContextManager, Iterator, List, Protocol
+from typing import Any, Callable, ContextManager, Iterator, Protocol, cast
+
 
 def _local_optional_import(module_name: str):
     """Gracefully return ``None`` when optional tracing deps are unavailable."""
@@ -113,9 +113,9 @@ class CircuitTracerLogger:
     def __init__(self, **factory_kwargs: Any) -> None:
         self._factory_kwargs = dict(factory_kwargs)
         self._tracer = _create_tracer(**self._factory_kwargs)
-        self._active_traces: List[ThoughtTrace] = []
+        self._active_traces: list[ThoughtTrace] = []
 
-    @contextlib.contextmanager
+    @contextmanager
     def trace(self, **context: Any) -> Iterator[ThoughtTrace]:
         trace = ThoughtTrace()
         self._active_traces.append(trace)
