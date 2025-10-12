@@ -1,6 +1,5 @@
 """Integration layer for the optional Circuit Tracer thought logging system."""
-from __future__ import annotations
-
+from future import annotations
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
