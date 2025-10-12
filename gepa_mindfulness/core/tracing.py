@@ -5,8 +5,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable, ContextManager, Iterator, Protocol, cast
-
+from typing import Any, Callable, ContextManager, Iterator, List, Protocol, cast
 
 def _local_optional_import(module_name: str):
     """Gracefully return ``None`` when optional tracing deps are unavailable."""
