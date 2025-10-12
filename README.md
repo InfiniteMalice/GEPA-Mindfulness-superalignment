@@ -71,7 +71,7 @@ file structure is to clone it directly from the public remote. Replace the
 placeholder owner with the actual namespace if it differs:
 
 ```bash
-git clone https://github.com/<owner>/GEPA-Mindfulness-superalignment.git
+git clone https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment.git
 cd GEPA-Mindfulness-superalignment
 ```
 
