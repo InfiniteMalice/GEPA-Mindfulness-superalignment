@@ -7,14 +7,23 @@ from pathlib import Path
 from gepa_mindfulness.training.configs import load_training_config
 from gepa_mindfulness.training.pipeline import TrainingOrchestrator
 
+CONFIG_PATH = Path(__file__).resolve().parents[2] / "configs" / "default.yaml"
+DATASET_PATH = Path(__file__).parent / "prompts.txt"
+
 
 def _read_prompts(path: Path) -> list[str]:
-    return [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    contents = path.read_text(encoding="utf-8")
+    prompts: list[str] = []
+    for raw_line in contents.splitlines():
+        stripped = raw_line.strip()
+        if stripped:
+            prompts.append(stripped)
+    return prompts
 
 
 def main() -> None:
-    config = load_training_config(Path(__file__).resolve().parents[2] / "configs" / "default.yaml")
-    dataset_path = Path(__file__).parent / "prompts.txt"
+    config = load_training_config(CONFIG_PATH)
+    dataset_path = DATASET_PATH
     orchestrator = TrainingOrchestrator(config=config)
     results = orchestrator.run(_read_prompts(dataset_path))
     for result in results:
