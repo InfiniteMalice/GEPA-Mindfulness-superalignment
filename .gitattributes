@@ -1,0 +1,15 @@
+# Ensure consistent line endings across platforms
+* text=auto
+
+# Enforce LF endings for source and config files to avoid Black churn
+*.py text eol=lf
+*.pyi text eol=lf
+*.ipynb text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.json text eol=lf
+*.txt text eol=lf
+*.sh text eol=lf
+*.cfg text eol=lf
