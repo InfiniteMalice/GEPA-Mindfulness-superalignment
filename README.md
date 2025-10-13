@@ -81,6 +81,21 @@ project as a ZIP archive instead, unzip it and then optionally follow the
 [Working from a ZIP download](#working-from-a-zip-download) steps below to add
 Git metadata locally.
 
+> **Line ending note:** The repository includes a `.gitattributes` file that
+> normalizes checked-in source files to use LF newlines so tools such as Black
+> behave the same on Linux, macOS, and Windows. If you have globally enabled
+> automatic CRLF conversion, you can keep it; Git will translate to LF on
+> commit. Developers configuring Git for the first time may prefer:
+>
+> ```bash
+> git config --global core.autocrlf input  # recommended on Unix-likes
+> # or
+> git config --global core.autocrlf true   # recommended on Windows
+> ```
+>
+> Those settings match the defaults used by many Python projects and prevent
+> spurious formatting churn in CI.
+
 ## Getting Started
 
 1. Install dependencies (core packages):
@@ -128,9 +143,12 @@ Git metadata locally.
    python -m gepa_mindfulness.examples.cpu_demo.run_cpu_demo
    ```
 
-   If you see a “file not found” error, confirm that you are inside the project
-   directory (e.g. `pwd` prints `.../GEPA-Mindfulness-superalignment`) and that
-   the `gepa_mindfulness/examples/cpu_demo/` folder exists.
+   You can also execute the mirrored script under
+   `examples/cpu_demo/run_cpu_demo.py`, or invoke the wrapper at
+   `examples/run_cpu_demo.py`. If you see a “file not found” error, confirm
+   that you are inside the project directory (e.g. `pwd` prints
+   `.../GEPA-Mindfulness-superalignment`) and that the
+   `gepa_mindfulness/examples/cpu_demo/` folder exists.
 
 4. Execute the full pipeline script:
 
