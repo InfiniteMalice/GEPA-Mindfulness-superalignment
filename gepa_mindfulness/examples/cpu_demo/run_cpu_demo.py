@@ -9,6 +9,9 @@ from typing import Sequence
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
+CONFIG_PATH = Path(__file__).resolve().parents[2] / "configs" / "default.yaml"
+DATASET_PATH = Path(__file__).parent / "prompts.txt"
+
 
 def _run_demo(args: Sequence[str], repo_root: Path = REPO_ROOT) -> int:
     """Execute the canonical module-based CPU demo command in a subprocess."""
