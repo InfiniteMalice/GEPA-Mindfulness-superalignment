@@ -2,10 +2,7 @@
 
 This directory provides entry points and assets for running the included demos.
 
-* `cpu_demo/run_cpu_demo.py` – Standalone script that mirrors the package CPU
-  demo without requiring installation.
-* `run_cpu_demo.py` – Wrapper that forwards to `cpu_demo/run_cpu_demo.py` for
-  convenience.
+* `run_cpu_demo.py` – Thin wrapper that dispatches to the package CPU demo.
 * `sample_trace.jsonl`, `self_tracing_sample.jsonl` – Example Circuit Tracer logs.
 
 The full implementation for the demos lives inside the package namespace under
@@ -15,10 +12,8 @@ The full implementation for the demos lives inside the package namespace under
 python -m gepa_mindfulness.examples.cpu_demo.run_cpu_demo
 ```
 
-or, equivalently, invoke one of the scripts in this folder:
+or, equivalently, invoke the wrapper in this folder:
 
 ```bash
-python examples/cpu_demo/run_cpu_demo.py
-# or
 python examples/run_cpu_demo.py
 ```
