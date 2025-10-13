@@ -13,8 +13,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11"]
+        python-version: ["3.12"]
     steps:
+      - name: Configure Git line endings
+        run: |
+          git config --global core.autocrlf input
+          git config --global core.eol lf
+
       - name: Checkout
         uses: actions/checkout@v4
       
@@ -41,7 +46,7 @@ jobs:
         run: ruff check .
       
       - name: Lint (black)
-        run: black --check .
+        run: black --config pyproject.toml --check .
       
       - name: Type check (mypy - soft fail)
         run: mypy src/mindful_trace_gepa

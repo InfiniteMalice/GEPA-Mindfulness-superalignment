@@ -30,6 +30,8 @@ mindful_trace_gepa = ["viewer/*.html", "viewer/*.css", "viewer/*.js", "viewer/*.
 [tool.black]
 line-length = 100
 target-version = ["py310"]
+include = "\\.(pyi?)$"
+extend-exclude = "/notebooks/"
 
 [tool.ruff]
 line-length = 100
