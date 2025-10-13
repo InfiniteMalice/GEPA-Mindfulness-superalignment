@@ -1,38 +1,34 @@
-"""Minimal CPU-only demonstration of the training pipeline."""
+"""Convenience wrapper for running the CPU demo from the examples directory."""
 
 from __future__ import annotations
 
+import subprocess
+import sys
 from pathlib import Path
+from typing import Sequence
 
-from gepa_mindfulness.training.configs import load_training_config
-from gepa_mindfulness.training.pipeline import TrainingOrchestrator
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 CONFIG_PATH = Path(__file__).resolve().parents[2] / "configs" / "default.yaml"
 DATASET_PATH = Path(__file__).parent / "prompts.txt"
 
 
-def _read_prompts(path: Path) -> list[str]:
-    prompts: list[str] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if stripped:
-            prompts.append(stripped)
-    return prompts
+def _run_demo(args: Sequence[str], repo_root: Path = REPO_ROOT) -> int:
+    """Execute the canonical module-based CPU demo command in a subprocess."""
+
+    cmd = [sys.executable, "-m", "gepa_mindfulness.examples.cpu_demo.run_cpu_demo", *args]
+    completed = subprocess.run(cmd, cwd=repo_root, check=False)
+    return completed.returncode
 
 
-def main() -> None:
-    config = load_training_config(CONFIG_PATH)
-    dataset_path = DATASET_PATH
-    orchestrator = TrainingOrchestrator(config=config)
-    results = orchestrator.run(_read_prompts(dataset_path))
-    for result in results:
-        print("PROMPT:", result.prompt)
-        print("RESPONSE:", result.response)
-        print("REWARD:", result.reward)
-        print("TRACE:", result.trace_summary)
-        print("CONTRADICTIONS:", result.contradiction_report)
-        print("-" * 80)
+def main(argv: Sequence[str] | None = None) -> None:
+    """Entrypoint that mirrors ``python -m gepa_mindfulness.examples.cpu_demo``."""
+
+    args = list(argv if argv is not None else sys.argv[1:])
+    return_code = _run_demo(args)
+    if return_code:
+        raise SystemExit(return_code)
 
 
 if __name__ == "__main__":
-    main()
+    main() 
