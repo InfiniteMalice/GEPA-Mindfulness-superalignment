@@ -81,6 +81,21 @@ project as a ZIP archive instead, unzip it and then optionally follow the
 [Working from a ZIP download](#working-from-a-zip-download) steps below to add
 Git metadata locally.
 
+> **Line ending note:** The repository includes a `.gitattributes` file that
+> normalizes checked-in source files to use LF newlines so tools such as Black
+> behave the same on Linux, macOS, and Windows. If you have globally enabled
+> automatic CRLF conversion, you can keep it; Git will translate to LF on
+> commit. Developers configuring Git for the first time may prefer:
+>
+> ```bash
+> git config --global core.autocrlf input  # recommended on Unix-likes
+> # or
+> git config --global core.autocrlf true   # recommended on Windows
+> ```
+>
+> Those settings match the defaults used by many Python projects and prevent
+> spurious formatting churn in CI.
+
 ## Getting Started
 
 1. Install dependencies (core packages):
