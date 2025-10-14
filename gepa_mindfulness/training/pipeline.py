@@ -83,7 +83,7 @@ class TrainingOrchestrator:
             ppo_config_kwargs["num_train_epochs"] = epoch_value
         else:
             LOGGER.warning(
-                "Unable to determine PPO epoch parameter; using TRL defaults."
+                "Unable to determine PPO epoch parameter for TRL version; defaulting to library default."
             )
 
         ppo_config = TRLPPOConfig(**ppo_config_kwargs)
