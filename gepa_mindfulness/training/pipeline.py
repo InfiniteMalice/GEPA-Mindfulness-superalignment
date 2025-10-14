@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import logging
 import random
 from dataclasses import dataclass
@@ -53,12 +54,39 @@ class TrainingOrchestrator:
     def build_ppo_trainer(self) -> None:
         if self.ppo_trainer is not None:
             return
-        ppo_config = TRLPPOConfig(
-            learning_rate=self.config.ppo.learning_rate,
-            mini_batch_size=self.config.ppo.mini_batch_size,
-            batch_size=self.config.ppo.batch_size,
-            ppo_epochs=self.config.ppo.ppo_epochs,
-        )
+        ppo_config_kwargs = {
+            "learning_rate": self.config.ppo.learning_rate,
+            "mini_batch_size": self.config.ppo.mini_batch_size,
+            "batch_size": self.config.ppo.batch_size,
+        }
+
+        epoch_value = self.config.ppo.ppo_epochs
+        available_fields: set[str] = set()
+
+        dataclass_fields = getattr(TRLPPOConfig, "__dataclass_fields__", None)
+        if dataclass_fields:
+            available_fields.update(dataclass_fields.keys())
+
+        try:
+            signature = inspect.signature(TRLPPOConfig)
+        except (TypeError, ValueError):
+            signature = None
+
+        if signature is not None:
+            available_fields.update(signature.parameters.keys())
+
+        if "ppo_epochs" in available_fields:
+            ppo_config_kwargs["ppo_epochs"] = epoch_value
+        elif "num_epochs" in available_fields:
+            ppo_config_kwargs["num_epochs"] = epoch_value
+        elif "num_train_epochs" in available_fields:
+            ppo_config_kwargs["num_train_epochs"] = epoch_value
+        else:
+            LOGGER.warning(
+                "Unable to determine PPO epoch parameter for TRL version; defaulting to library default."
+            )
+
+        ppo_config = TRLPPOConfig(**ppo_config_kwargs)
         self.ppo_trainer = PPOTrainer(
             config=ppo_config,
             model=self.policy_model,
