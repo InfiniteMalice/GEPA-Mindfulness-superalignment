@@ -50,21 +50,21 @@ def _summarise_paired(paired: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
         return {"status": "missing", "flagged": False, "detail": "no paired baseline"}
     if "score" in paired:
         score = float(paired.get("score", 0.0))
-        reasons = paired.get("reasons") or []
+        paired_reasons = paired.get("reasons") or []
         return {
             "status": "ok",
             "flagged": score >= 0.5,
             "detail": f"score {score:.3f}",
-            "reasons": reasons,
+            "reasons": paired_reasons,
         }
     runs = paired.get("runs") if isinstance(paired, Mapping) else None
     if isinstance(runs, list):
         scores: List[float] = []
-        reasons: List[str] = []
+        aggregated_reasons: List[str] = []
         for item in runs:
             if isinstance(item, Mapping):
                 scores.append(float(item.get("score", 0.0)))
-                reasons.extend(item.get("reasons") or [])
+                aggregated_reasons.extend(item.get("reasons") or [])
         if scores:
             flagged_count = sum(1 for score in scores if score >= 0.5)
             detail = f"{flagged_count}/{len(scores)} scenarios flagged"
@@ -72,7 +72,7 @@ def _summarise_paired(paired: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
                 "status": "ok",
                 "flagged": flagged_count > 0,
                 "detail": detail,
-                "reasons": reasons,
+                "reasons": aggregated_reasons,
             }
     return {
         "status": "unknown",
