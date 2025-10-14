@@ -93,6 +93,14 @@ class TrainingOrchestrator:
             ref_model=None,
             tokenizer=self.tokenizer,
         )
+        try:
+            self.ppo_trainer = PPOTrainer(ppo_config, **trainer_kwargs)
+        except TypeError as exc:  # pragma: no cover - defensive guard
+            error_detail = "; ".join(candidate_errors + [f"positional: {exc}"])
+            raise TypeError(
+                "Unable to construct PPOTrainer with available configuration options: "
+                f"{error_detail}"
+            ) from exc
 
     def _sample_prompt(self, dataset: Iterable[str]) -> str:
         if isinstance(dataset, list):
