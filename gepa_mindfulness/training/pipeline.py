@@ -83,51 +83,18 @@ class TrainingOrchestrator:
             ppo_config_kwargs["num_train_epochs"] = epoch_value
         else:
             LOGGER.warning(
-                "Unable to determine PPO epoch parameter; using TRL defaults."
+                "Unable to determine PPO epoch parameter for TRL version; Using defaults."
             )
 
         ppo_config = TRLPPOConfig(**ppo_config_kwargs)
-
-        candidate_errors: list[str] = []
-
-        keyword_order: list[str] = []
-        init_signature = None
-        try:
-            init_signature = inspect.signature(PPOTrainer)
-        except (TypeError, ValueError):
-            init_signature = None
-
-        if init_signature is not None:
-            for candidate in ("config", "ppo_config"):
-                parameter = init_signature.parameters.get(candidate)
-                if parameter and parameter.kind is not inspect.Parameter.POSITIONAL_ONLY:
-                    keyword_order.append(candidate)
-        else:
-            keyword_order = ["config", "ppo_config"]
-
-        for keyword in keyword_order:
-            try:
-                self.ppo_trainer = PPOTrainer(
-                    model=self.policy_model,
-                    ref_model=None,
-                    tokenizer=self.tokenizer,
-                    **{keyword: ppo_config},
-                )
-            except TypeError as exc:  # pragma: no cover - depends on TRL version
-                candidate_errors.append(f"{keyword}: {exc}")
-            else:
-                return
-
-        LOGGER.warning(
-            "Unable to determine PPOTrainer config keyword; passing positionally."
+        self.ppo_trainer = PPOTrainer(
+            config=ppo_config,
+            model=self.policy_model,
+            ref_model=None,
+            tokenizer=self.tokenizer,
         )
         try:
-            self.ppo_trainer = PPOTrainer(
-                ppo_config,
-                self.policy_model,
-                None,
-                self.tokenizer,
-            )
+            self.ppo_trainer = PPOTrainer(ppo_config, **trainer_kwargs)
         except TypeError as exc:  # pragma: no cover - defensive guard
             error_detail = "; ".join(candidate_errors + [f"positional: {exc}"])
             raise TypeError(
