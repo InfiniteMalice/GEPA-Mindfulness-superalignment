@@ -83,31 +83,15 @@ class TrainingOrchestrator:
             ppo_config_kwargs["num_train_epochs"] = epoch_value
         else:
             LOGGER.warning(
-                "Unable to determine PPO epoch parameter; using TRL defaults."
+                "Unable to determine PPO epoch parameter for TRL version; Using defaults."
             )
 
         ppo_config = TRLPPOConfig(**ppo_config_kwargs)
-
-        trainer_kwargs = {
-            "model": self.policy_model,
-            "ref_model": None,
-            "tokenizer": self.tokenizer,
-        }
-
-        candidate_errors: list[str] = []
-
-        for keyword in ("config", "ppo_config"):
-            try:
-                self.ppo_trainer = PPOTrainer(
-                    **trainer_kwargs, **{keyword: ppo_config}
-                )
-            except TypeError as exc:  # pragma: no cover - depends on TRL version
-                candidate_errors.append(f"{keyword}: {exc}")
-            else:
-                return
-
-        LOGGER.warning(
-            "Unable to determine PPOTrainer config keyword; passing positionally."
+        self.ppo_trainer = PPOTrainer(
+            config=ppo_config,
+            model=self.policy_model,
+            ref_model=None,
+            tokenizer=self.tokenizer,
         )
         try:
             self.ppo_trainer = PPOTrainer(ppo_config, **trainer_kwargs)
