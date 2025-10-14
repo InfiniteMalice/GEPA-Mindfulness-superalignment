@@ -7,16 +7,29 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+# ``gepa_mindfulness/examples/cpu_demo`` lives two directories beneath the package root
+# (``gepa_mindfulness``) and three beneath the repository root. When we spawn the
+# subprocess below we want to run it from the top-level repository directory so that
+# ``gepa_mindfulness`` is importable as a normal package.
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 CONFIG_PATH = Path(__file__).resolve().parents[2] / "configs" / "default.yaml"
 DATASET_PATH = Path(__file__).parent / "prompts.txt"
 
 
 def _run_demo(args: Sequence[str], repo_root: Path = REPO_ROOT) -> int:
-    """Execute the canonical module-based CPU demo command in a subprocess."""
+    """Execute the canonical training CLI command in a subprocess."""
 
-    cmd = [sys.executable, "-m", "gepa_mindfulness.examples.cpu_demo.run_cpu_demo", *args]
+    cmd = [
+        sys.executable,
+        "-m",
+        "gepa_mindfulness.training.cli",
+        "--config",
+        str(CONFIG_PATH),
+        "--dataset",
+        str(DATASET_PATH),
+        *args,
+    ]
     completed = subprocess.run(cmd, cwd=repo_root, check=False)
     return completed.returncode
 
