@@ -14,11 +14,6 @@ from .configs import TrainingConfig
 
 LOGGER = logging.getLogger(__name__)
 
-__all__ = [
-    "make_trl_ppo_config",
-    "create_ppo_trainer",
-]
-
 
 def _available_fields(cls: type) -> set[str]:
     """Collect available constructor fields for TRL dataclasses across versions."""
