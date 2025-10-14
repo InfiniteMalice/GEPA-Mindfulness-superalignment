@@ -10,7 +10,6 @@ from typing import Iterable, List, Optional
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from trl import PPOConfig as TRLPPOConfig
 from trl import PPOTrainer
 
 from ..core.abstention import enforce_abstention, honesty_reward_from_trace
@@ -24,6 +23,7 @@ from ..core.imperatives import AlignmentImperative, ImperativeEvaluator, Imperat
 from ..core.rewards import RewardSignal, RewardWeights
 from ..core.tracing import CircuitTracerLogger
 from .configs import TrainingConfig
+from .ppo_utils import create_ppo_trainer, make_trl_ppo_config
 
 LOGGER = logging.getLogger(__name__)
 
@@ -90,7 +90,6 @@ class TrainingOrchestrator:
         self.ppo_trainer = PPOTrainer(
             config=ppo_config,
             model=self.policy_model,
-            ref_model=None,
             tokenizer=self.tokenizer,
         )
         try:
