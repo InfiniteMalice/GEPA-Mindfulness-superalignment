@@ -7,7 +7,18 @@ import logging
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Tuple
+from typing import (
+    Any,
+    Dict,
+    Iterable,
+    List,
+    Mapping,
+    MutableMapping,
+    Optional,
+    Sequence,
+    Tuple,
+    cast,
+)
 
 from ..utils.imports import optional_import
 
@@ -15,6 +26,9 @@ logger = logging.getLogger(__name__)
 
 np = optional_import("numpy")
 torch = optional_import("torch")
+
+np_module: Any | None = cast(Any, np) if np is not None else None
+torch_module: Any | None = cast(Any, torch) if torch is not None else None
 
 
 @dataclass
@@ -86,7 +100,7 @@ def extract_hidden_states(
 
     layer_list = list(layers or [])
 
-    if torch is not None:
+    if torch_module is not None:
         try:
             model_device = getattr(model, "device", "cpu")
             call_kwargs: Dict[str, Any] = {}
@@ -99,7 +113,7 @@ def extract_hidden_states(
                     logger.debug("Unable to move model to CPU", exc_info=True)
             if hasattr(model, "__call__"):
                 call_kwargs["output_hidden_states"] = True
-                with torch.no_grad():  # type: ignore[attr-defined]
+                with torch_module.no_grad():
                     outputs = model(**inputs, **call_kwargs)
                 hidden_states = getattr(outputs, "hidden_states", None)
                 if hidden_states is None:
@@ -122,7 +136,11 @@ def extract_hidden_states(
                     if tensor is None:
                         continue
                     cpu_tensor = tensor.detach().to("cpu")
-                    arr = cpu_tensor.numpy().tolist() if torch is not None else cpu_tensor.tolist()
+                    arr = (
+                        cpu_tensor.numpy().tolist()
+                        if hasattr(cpu_tensor, "numpy")
+                        else cpu_tensor.tolist()
+                    )
                     flat_tokens: List[List[float]] = []
                     if isinstance(arr, list) and arr and isinstance(arr[0], list):
                         # Hugging Face models often return [batch, tokens, hidden]
@@ -204,13 +222,13 @@ def load_probe(weights_path: str | Path) -> Optional[ProbeWeights]:
 
     loader_attempts = [_load_json_weights]
 
-    if np is not None:
+    if np_module is not None:
 
-        def _load_numpy(p: Path) -> Optional[ProbeWeights]:
+        def _load_numpy(path: Path) -> Optional[ProbeWeights]:
             try:
-                blob = np.load(p, allow_pickle=True)
+                blob = np_module.load(path, allow_pickle=True)
             except Exception:  # pragma: no cover - optional dependency
-                logger.debug("Unable to load numpy weights from %s", p, exc_info=True)
+                logger.debug("Unable to load numpy weights from %s", path, exc_info=True)
                 return None
             arr = blob.item() if hasattr(blob, "item") else blob
             if isinstance(arr, Mapping) and "weights" in arr:
@@ -223,20 +241,20 @@ def load_probe(weights_path: str | Path) -> Optional[ProbeWeights]:
                     bias=bias_val,
                     metadata=metadata_val,
                 )
-            if np is not None and hasattr(arr, "tolist"):
+            if np_module is not None and hasattr(arr, "tolist"):
                 weights_list = arr.tolist()
                 return ProbeWeights(weights=_ensure_float_list(weights_list))
             return None
 
         loader_attempts.append(_load_numpy)
 
-    if torch is not None:
+    if torch_module is not None:
 
-        def _load_torch(p: Path) -> Optional[ProbeWeights]:
+        def _load_torch(path: Path) -> Optional[ProbeWeights]:
             try:
-                blob = torch.load(p, map_location="cpu")  # type: ignore[call-arg]
+                blob = torch_module.load(path, map_location="cpu")
             except Exception:  # pragma: no cover - optional dependency
-                logger.debug("Unable to load torch weights from %s", p, exc_info=True)
+                logger.debug("Unable to load torch weights from %s", path, exc_info=True)
                 return None
             if isinstance(blob, Mapping) and "weights" in blob:
                 metadata_val = {}
