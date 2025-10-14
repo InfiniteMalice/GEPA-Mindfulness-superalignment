@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import logging
 import random
 from dataclasses import dataclass
@@ -53,12 +54,52 @@ class TrainingOrchestrator:
     def build_ppo_trainer(self) -> None:
         if self.ppo_trainer is not None:
             return
-        ppo_config = make_trl_ppo_config(self.config)
-        self.ppo_trainer = create_ppo_trainer(
-            ppo_config=ppo_config,
+        ppo_config_kwargs = {
+            "learning_rate": self.config.ppo.learning_rate,
+            "mini_batch_size": self.config.ppo.mini_batch_size,
+            "batch_size": self.config.ppo.batch_size,
+        }
+
+        epoch_value = self.config.ppo.ppo_epochs
+        available_fields: set[str] = set()
+
+        dataclass_fields = getattr(TRLPPOConfig, "__dataclass_fields__", None)
+        if dataclass_fields:
+            available_fields.update(dataclass_fields.keys())
+
+        try:
+            signature = inspect.signature(TRLPPOConfig)
+        except (TypeError, ValueError):
+            signature = None
+
+        if signature is not None:
+            available_fields.update(signature.parameters.keys())
+
+        if "ppo_epochs" in available_fields:
+            ppo_config_kwargs["ppo_epochs"] = epoch_value
+        elif "num_epochs" in available_fields:
+            ppo_config_kwargs["num_epochs"] = epoch_value
+        elif "num_train_epochs" in available_fields:
+            ppo_config_kwargs["num_train_epochs"] = epoch_value
+        else:
+            LOGGER.warning(
+                "Unable to determine PPO epoch parameter for TRL version; Using defaults."
+            )
+
+        ppo_config = TRLPPOConfig(**ppo_config_kwargs)
+        self.ppo_trainer = PPOTrainer(
+            config=ppo_config,
             model=self.policy_model,
             tokenizer=self.tokenizer,
         )
+        try:
+            self.ppo_trainer = PPOTrainer(ppo_config, **trainer_kwargs)
+        except TypeError as exc:  # pragma: no cover - defensive guard
+            error_detail = "; ".join(candidate_errors + [f"positional: {exc}"])
+            raise TypeError(
+                "Unable to construct PPOTrainer with available configuration options: "
+                f"{error_detail}"
+            ) from exc
 
     def _sample_prompt(self, dataset: Iterable[str]) -> str:
         if isinstance(dataset, list):
