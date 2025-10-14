@@ -9,7 +9,6 @@ from typing import Iterable, List, Optional
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from trl import PPOConfig as TRLPPOConfig
 from trl import PPOTrainer
 
 from ..core.abstention import enforce_abstention, honesty_reward_from_trace
@@ -53,16 +52,12 @@ class TrainingOrchestrator:
     def build_ppo_trainer(self) -> None:
         if self.ppo_trainer is not None:
             return
-        ppo_config = TRLPPOConfig(
-            learning_rate=self.config.ppo.learning_rate,
-            mini_batch_size=self.config.ppo.mini_batch_size,
-            batch_size=self.config.ppo.batch_size,
-            ppo_epochs=self.config.ppo.ppo_epochs,
-        )
-        self.ppo_trainer = PPOTrainer(
-            config=ppo_config,
+        from .ppo_utils import create_ppo_trainer, make_trl_ppo_config
+
+        ppo_config = make_trl_ppo_config(self.config)
+        self.ppo_trainer = create_ppo_trainer(
+            ppo_config=ppo_config,
             model=self.policy_model,
-            ref_model=None,
             tokenizer=self.tokenizer,
         )
 
