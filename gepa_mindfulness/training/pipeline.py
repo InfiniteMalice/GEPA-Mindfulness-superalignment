@@ -3,12 +3,22 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from trl import PPOTrainer
+try:
+    from trl import PPOTrainer
+
+    TRL_AVAILABLE = True
+except ImportError:
+    PPOTrainer = None  # type: ignore
+    TRL_AVAILABLE = False
 
 from ..core.rewards import RewardSignal, RewardWeights
 from ..core.tracing import CircuitTracerLogger
 from .configs import TrainingConfig
-from .ppo_utils import TRLPPOConfig
+
+try:
+    from .ppo_utils import TRLPPOConfig
+except ImportError:
+    TRLPPOConfig = None  # type: ignore
 
 LOGGER = logging.getLogger(__name__)
 
@@ -80,6 +90,11 @@ class PPOPipeline:
         """
         Initialize PPO trainer with defensive compatibility handling.
         """
+        if not TRL_AVAILABLE:
+            raise ImportError(
+                "trl is required for PPO training. Install with: pip install trl transformers"
+            )
+
         # Get base kwargs for trainer construction
         base_kwargs = {
             "model": self.model,
@@ -110,30 +125,30 @@ class PPOPipeline:
                 )
 
         # Filter config dict to only include valid fields
-            ppo_config_kwargs = {
+        ppo_config_kwargs = {
             k: v for k, v in ppo_config_dict.items() if k in available_fields
         }
 
         # Log filtered fields for debugging
         filtered_out = set(ppo_config_dict.keys()) - set(ppo_config_kwargs.keys())
         if filtered_out:
-            LOGGER.debug(f"Filtered out unsupported PPO config fields: {filtered_out})
-            
+            LOGGER.debug(f"Filtered out unsupported PPO config fields: {filtered_out}")
+
         # Create PPO config
-            ppo_config = TRLPPOConfig(**ppo_config_kwargs)
+        ppo_config = TRLPPOConfig(**ppo_config_kwargs)
 
         # Try creating trainer with different signatures
-            candidate_errors = []
+        candidate_errors = []
 
         # Attempt 1: Try with **base_kwargs unpacked
-            try:
+        try:
             self.ppo_trainer = PPOTrainer(config=ppo_config, **base_kwargs)
             return
-                except TypeError as exc:
-                candidate_errors.append(f"config+kwargs: {exc}")
+        except TypeError as exc:
+            candidate_errors.append(f"config+kwargs: {exc}")
 
         # Attempt 2: Try with positional arguments
-            try:
+        try:
             self.ppo_trainer = PPOTrainer(
                 ppo_config,
                 base_kwargs["model"],
@@ -146,8 +161,9 @@ class PPOPipeline:
 
         # If all attempts failed, raise with detailed error
         error_detail = "; ".join(candidate_errors)
-        raise TypeError("Unable to construct PPOTrainer with available configuration options: "
-            f"{error_detail}")
+        raise TypeError(
+            f"Unable to construct PPOTrainer with available configuration options: {error_detail}"
+        )
 
     def train_step(self, batch: dict[str, Any]) -> dict[str, float]:
         """
