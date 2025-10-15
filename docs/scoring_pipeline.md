@@ -1,62 +1,84 @@
-# GEPA Wisdom Scoring Pipeline
+# GEPA Scoring Pipeline Architecture
 
-This document summarises the three-tier scoring stack for Mindful Trace GEPA
-runs along the four wisdom dimensions (Mindfulness, Compassion, Integrity,
-Prudence). The design balances determinism, model-based evaluation, and
-calibrated classification with explicit escalation points for human review.
+## Overview
 
-## Architecture Overview
-1. **Tier-0 – Deterministic heuristics**: keyword and pattern detectors that
-   capture explicit references to uncertainty, stakeholder care, integrity
-   language, and prudent planning. The heuristics return provisional 0–4 scores
-   with signal-density confidences. They are fast, transparent, and run on every
-   trace.
-2. **Tier-1 – LLM Judge**: a structured prompt enforcing JSON output with
-   rationales, per-dimension uncertainties, and cited spans. The judge can run
-   offline through the `GEPA_JUDGE_MOCK=1` flag for CI. JSON schema validation
-   guarantees the output shape before aggregation.
-3. **Tier-2 – Classifier**: a lightweight linear model with per-dimension heads.
-   Features include keyword densities, token length, and Tier-0 scores. The
-   classifier is calibrated by temperature parameters derived from MAE on the
-   training set and can be retrained via `scripts/train_classifier.py`.
+The GEPA scoring system evaluates AI traces on four wisdom dimensions using a three-tier approach:
 
-`aggregate_tiers` combines the per-tier `TierScores` objects, weighting each by
-configured confidence and penalising large disagreements. When confidence drops
-below thresholds or inter-tier gaps ≥ 2, the final result is marked for human
-review (`escalate = true`).
+1. **Tier 0 (Heuristics)**: Fast, deterministic rules
+2. **Tier 1 (LLM Judge)**: Nuanced, span-cited scoring
+3. **Tier 2 (Classifier)**: Learned, calibrated predictions
 
-## Confidence, Calibration, and Abstention
-* Tier-0 confidence is based on signal density.
-* Tier-1 confidence derives from the judge’s uncertainty (1 - uncertainty).
-* Tier-2 confidence is generated from calibration temperatures that shrink when
-  the linear model exhibits high MAE.
-* The aggregator subtracts a disagreement penalty before comparing with
-  per-dimension thresholds. Any dimension below `escalate_if_any_below` or with
-  high disagreement triggers escalation.
+These are combined with weighted aggregation, confidence estimation, and selective escalation to human review.
 
-## Operational Runbook
-1. Run `gepa score-auto --trace runs/trace.jsonl --out runs/scores.json --config
-   configs/scoring.yml --judge --classifier`. Set `GEPA_JUDGE_MOCK=1` in offline
-   environments.
-2. Inspect `runs/scores.json` and the viewer (via `gepa view ...`) which now
-   displays tier panels, rationales, and the final escalation badge.
-3. Use `scripts/labels_export.py --scores runs/scores.json --out
-   datasets/labels/triage.jsonl` to queue low-confidence cases for human review.
-4. Ingest adjudicated labels with `scripts/labels_import.py` and retrain the
-   classifier using `scripts/train_classifier.py --labels datasets/labels/gold.jsonl
-   --config configs/classifier/default.yml --out artifacts/classifier/`.
-5. Monitor `artifacts/classifier/metrics.json` for MAE, κ (calculated offline),
-   and calibration temperatures; retrain if drift is observed.
+## Why Three Tiers?
 
-## Relationship to Deception Monitoring
-The deception paired-chain baseline continues to run separately. Integrity
-heuristics incorporate policy compliance and manipulation checks inspired by the
-paired analyses. Cross-referencing deception metrics with low-integrity scores
-is encouraged during audits.
+- **Robustness**: If one tier fails (e.g., API down), others provide signal
+- **Auditability**: Heuristics are explainable; judge provides rationales
+- **Efficiency**: Heuristics run on every sample; judge/classifier sample or batch
+- **Calibration**: Classifier learns from human labels; judge provides bootstrap signal
+
+## Confidence & Escalation
+
+Each tier outputs confidence per dimension. Aggregator:
+1. Weights scores by `tier_weight * tier_confidence`
+2. Applies disagreement penalty if tiers differ by ≥2
+3. Escalates if combined confidence < threshold (config in `configs/scoring.yml`)
+
+**Escalation triggers:**
+- Low confidence on any dimension
+- High disagreement between tiers
+- Safety-critical domain (lower threshold)
 
 ## Validation Targets
-* Mean Absolute Error ≤ 0.8 vs. human labels.
-* Cohen’s κ ≥ 0.6 for each dimension.
-* Expected Calibration Error ≤ 0.15.
-* Escalation coverage: ≥95% of human-flagged disagreements should already be
-  escalated by the pipeline.
+
+- MAE ≤ 0.5 vs human gold labels
+- Cohen's κ ≥ 0.6 (inter-rater agreement)
+- ECE ≤ 0.08 (calibration error)
+- <20% escalation rate on general prompts
+
+## Deception Integration
+
+The `integrity` dimension incorporates signals from paired-chains deception baseline:
+- Public/private divergence
+- Reward-hacking lexicon
+- Situational awareness markers
+- Confidence inversion patterns
+
+See `src/mindful_trace_gepa/deception/` for implementation.
+
+## Usage
+
+```bash
+# Score with all tiers (if trained)
+gepa score-auto --trace runs/trace.jsonl --out runs/scores.json
+
+# Mock mode for testing (no API calls)
+gepa score-auto --trace runs/trace.jsonl --out runs/scores.json --mock-judge
+
+# Export low-confidence items for labeling
+gepa triage lowconf --scores runs/scores.json --out datasets/labels/triage.jsonl
+
+# Train classifier (after collecting labels)
+gepa clf train --labels datasets/labels/gold.jsonl --config configs/classifier/default.yml --out artifacts/classifier/
+```
+
+## Ops Runbook
+
+### Daily
+- Monitor escalation rate (alert if >25%)
+- Check tier availability (judge API, classifier model)
+
+### Weekly
+- Calibrate Tier-1 judge uncertainty vs human disagreement
+- Sample traces for re-annotation (drift detection)
+
+### Monthly
+- Retrain Tier-2 classifier with new labels
+- Update TraceSpecs if new patterns emerge
+- Review deception baseline effectiveness
+
+## Future Work
+
+- Multi-modal scoring (images, audio)
+- Active learning for efficient label collection
+- Federated learning for privacy-preserving classifier training
