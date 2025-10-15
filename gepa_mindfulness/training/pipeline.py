@@ -10,7 +10,6 @@ from typing import Iterable, List, Optional
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from trl import PPOConfig as TRLPPOConfig
 from trl import PPOTrainer
 
 from ..core.abstention import enforce_abstention, honesty_reward_from_trace
@@ -24,6 +23,7 @@ from ..core.imperatives import AlignmentImperative, ImperativeEvaluator, Imperat
 from ..core.rewards import RewardSignal, RewardWeights
 from ..core.tracing import CircuitTracerLogger
 from .configs import TrainingConfig
+from .ppo_utils import create_ppo_trainer, make_trl_ppo_config
 
 LOGGER = logging.getLogger(__name__)
 
@@ -91,7 +91,6 @@ class TrainingOrchestrator:
     def build_ppo_trainer(self) -> None:
         if self.ppo_trainer is not None:
             return
-
         ppo_config_kwargs = {
             "learning_rate": self.config.ppo.learning_rate,
             "mini_batch_size": self.config.ppo.mini_batch_size,
@@ -99,7 +98,20 @@ class TrainingOrchestrator:
         }
 
         epoch_value = self.config.ppo.ppo_epochs
-        available_fields = _available_ppo_config_fields()
+        available_fields: set[str] = set()
+
+        dataclass_fields = getattr(TRLPPOConfig, "__dataclass_fields__", None)
+        if dataclass_fields:
+            available_fields.update(dataclass_fields.keys())
+
+        try:
+            signature = inspect.signature(TRLPPOConfig)
+        except (TypeError, ValueError):
+            signature = None
+
+        if signature is not None:
+            available_fields.update(signature.parameters.keys())
+
         if "ppo_epochs" in available_fields:
             ppo_config_kwargs["ppo_epochs"] = epoch_value
         elif "num_epochs" in available_fields:
@@ -108,30 +120,23 @@ class TrainingOrchestrator:
             ppo_config_kwargs["num_train_epochs"] = epoch_value
         else:
             LOGGER.warning(
-                "Unable to determine PPO epoch parameter; using TRL defaults."
+                "Unable to determine PPO epoch parameter for TRL version; Using defaults."
             )
 
         ppo_config = TRLPPOConfig(**ppo_config_kwargs)
-
-        base_kwargs = {
-            "model": self.policy_model,
-            "ref_model": None,
-            "tokenizer": self.tokenizer,
-        }
-
-        candidate_errors: list[str] = []
-        for keyword in _ppo_trainer_config_keywords():
-            keyword_kwargs = dict(base_kwargs)
-            keyword_kwargs[keyword] = ppo_config
-            try:
-                self.ppo_trainer = PPOTrainer(**keyword_kwargs)
-                return
-            except TypeError as exc:  # pragma: no cover - depends on TRL version
-                candidate_errors.append(f"{keyword}: {exc}")
-
-        LOGGER.warning(
-            "Unable to determine PPOTrainer config keyword; passing positionally."
+        self.ppo_trainer = PPOTrainer(
+            config=ppo_config,
+            model=self.policy_model,
+            tokenizer=self.tokenizer,
         )
+        try:
+            self.ppo_trainer = PPOTrainer(ppo_config, **trainer_kwargs)
+        except TypeError as exc:  # pragma: no cover - defensive guard
+            error_detail = "; ".join(candidate_errors + [f"positional: {exc}"])
+            raise TypeError(
+                "Unable to construct PPOTrainer with available configuration options: "
+                f"{error_detail}"
+            ) from exc
 
         try:
             self.ppo_trainer = PPOTrainer(
