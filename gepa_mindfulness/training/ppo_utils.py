@@ -98,9 +98,7 @@ def create_ppo_trainer(
         except TypeError as exc:  # pragma: no cover - depends on TRL version
             candidate_errors.append(f"{keyword}: {exc}")
 
-    LOGGER.warning(
-        "Unable to determine PPOTrainer config keyword; passing positionally."
-    )
+    LOGGER.warning("Unable to determine PPOTrainer config keyword; passing positionally.")
 
     try:
         return PPOTrainer(ppo_config, model, ref_model, tokenizer)
