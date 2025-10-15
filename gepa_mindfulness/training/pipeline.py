@@ -93,7 +93,8 @@ class PPOPipeline:
         Initialize PPO trainer with defensive compatibility handling.
         """
         if not TRL_AVAILABLE:
-            raise ImportError("trl is required for PPO training. Install with: pip install trl transformers")
+            raise ImportError("trl is required for PPO training. 
+            Install with: pip install trl transformers")
 
         # Get base kwargs for trainer construction
         base_kwargs = {
@@ -159,7 +160,8 @@ class PPOPipeline:
 
         # If all attempts failed, raise with detailed error
         error_detail = "; ".join(candidate_errors)
-        raise TypeError(f"Unable to construct PPOTrainer with available configuration options: {error_detail}")
+        raise TypeError(f"Unable to construct PPOTrainer with available configuration options:
+        {error_detail}")
 
     def train_step(self, batch: dict[str, Any]) -> dict[str, float]:
         """
