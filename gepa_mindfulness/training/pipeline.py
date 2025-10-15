@@ -1,5 +1,6 @@
 import inspect
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 from trl import PPOTrainer
@@ -10,6 +11,18 @@ from .configs import TrainingConfig
 from .ppo_utils import TRLPPOConfig
 
 LOGGER = logging.getLogger(__name__)
+
+
+@dataclass
+class RolloutResult:
+    """
+    Result from a single PPO rollout.
+    """
+
+    query: str
+    response: str
+    reward: float
+    stats: dict[str, float]
 
 
 def _get_available_ppo_fields() -> set[str]:
@@ -97,12 +110,16 @@ class PPOPipeline:
                 )
 
         # Filter config dict to only include valid fields
-        ppo_config_kwargs = {k: v for k, v in ppo_config_dict.items() if k in available_fields}
+        ppo_config_kwargs = {
+            k: v for k, v in ppo_config_dict.items() if k in available_fields
+        }
 
         # Log filtered fields for debugging
         filtered_out = set(ppo_config_dict.keys()) - set(ppo_config_kwargs.keys())
         if filtered_out:
-            LOGGER.debug(f"Filtered out unsupported PPO config fields: {filtered_out}")
+            LOGGER.debug(
+                f"Filtered out unsupported PPO config fields: {filtered_out}"
+            )
 
         # Create PPO config
         ppo_config = TRLPPOConfig(**ppo_config_kwargs)
