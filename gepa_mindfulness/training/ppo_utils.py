@@ -1,56 +1,52 @@
-"""Compatibility helpers for configuring TRL PPO components."""
+"""Helpers for constructing TRL PPO components across library versions."""
 
 from __future__ import annotations
 
 import inspect
 import logging
-from functools import lru_cache
-from typing import TYPE_CHECKING, Any
+from typing import Optional
 
+from transformers import AutoModelForCausalLM, PreTrainedTokenizerBase
 from trl import PPOConfig as TRLPPOConfig
 from trl import PPOTrainer
 
-if TYPE_CHECKING:
-    from transformers import PreTrainedModel, PreTrainedTokenizerBase
-
-    from .configs import TrainingConfig
+from .configs import TrainingConfig
 
 LOGGER = logging.getLogger(__name__)
 
 
-@lru_cache(maxsize=1)
-def _available_ppo_config_fields() -> set[str]:
-    """Collect constructor fields exposed by the TRL PPOConfig."""
+def _available_fields(cls: type) -> set[str]:
+    """Collect available constructor fields for TRL dataclasses across versions."""
 
-    available: set[str] = set()
+    collected: set[str] = set()
 
-    dataclass_fields = getattr(TRLPPOConfig, "__dataclass_fields__", None)
+    dataclass_fields = getattr(cls, "__dataclass_fields__", None)
     if dataclass_fields:
-        available.update(dataclass_fields.keys())
+        collected.update(dataclass_fields.keys())
 
     try:
-        signature = inspect.signature(TRLPPOConfig)
+        signature = inspect.signature(cls)
     except (TypeError, ValueError):
         signature = None
 
     if signature is not None:
-        available.update(signature.parameters.keys())
+        collected.update(signature.parameters.keys())
 
-    return available
+    return collected
 
 
-def make_trl_ppo_config(training_config: "TrainingConfig") -> TRLPPOConfig:
-    """Construct a TRL PPOConfig compatible with the installed TRL version."""
+def make_trl_ppo_config(training_config: TrainingConfig) -> TRLPPOConfig:
+    """Create a TRL PPOConfig compatible with multiple TRL releases."""
 
-    ppo_settings = training_config.ppo
-    ppo_config_kwargs: dict[str, Any] = {
-        "learning_rate": ppo_settings.learning_rate,
-        "mini_batch_size": ppo_settings.mini_batch_size,
-        "batch_size": ppo_settings.batch_size,
+    ppo_config_kwargs = {
+        "learning_rate": training_config.ppo.learning_rate,
+        "mini_batch_size": training_config.ppo.mini_batch_size,
+        "batch_size": training_config.ppo.batch_size,
     }
 
-    epoch_value = ppo_settings.ppo_epochs
-    available_fields = _available_ppo_config_fields()
+    available_fields = _available_fields(TRLPPOConfig)
+
+    epoch_value = training_config.ppo.ppo_epochs
     if "ppo_epochs" in available_fields:
         ppo_config_kwargs["ppo_epochs"] = epoch_value
     elif "num_epochs" in available_fields:
@@ -59,15 +55,14 @@ def make_trl_ppo_config(training_config: "TrainingConfig") -> TRLPPOConfig:
         ppo_config_kwargs["num_train_epochs"] = epoch_value
     else:
         LOGGER.warning(
-            "Unable to determine PPO epoch parameter; using TRL defaults.",
+            "Unable to determine PPO epoch parameter; using TRL defaults."
         )
 
     return TRLPPOConfig(**ppo_config_kwargs)
 
 
-@lru_cache(maxsize=1)
-def _ppo_trainer_config_keywords() -> list[str]:
-    """Determine PPOTrainer keyword names that accept the config object."""
+def _candidate_keywords() -> list[str]:
+    """Determine keyword names accepted by PPOTrainer for the config argument."""
 
     try:
         signature = inspect.signature(PPOTrainer)
@@ -80,54 +75,40 @@ def _ppo_trainer_config_keywords() -> list[str]:
         if parameter and parameter.kind is not inspect.Parameter.POSITIONAL_ONLY:
             keywords.append(candidate)
 
-    return keywords or ["config", "ppo_config"]
+    return keywords
 
 
 def create_ppo_trainer(
-    *,
     ppo_config: TRLPPOConfig,
-    model: "PreTrainedModel",
-    tokenizer: "PreTrainedTokenizerBase",
-    ref_model: "PreTrainedModel | None" = None,
+    *,
+    model: AutoModelForCausalLM,
+    tokenizer: PreTrainedTokenizerBase,
+    ref_model: Optional[AutoModelForCausalLM] = None,
 ) -> PPOTrainer:
-    """Create a PPOTrainer compatible with the installed TRL signature."""
-
-    base_kwargs: dict[str, Any] = {
-        "model": model,
-        "tokenizer": tokenizer,
-    }
-    if ref_model is not None:
-        base_kwargs["ref_model"] = ref_model
+    """Instantiate PPOTrainer while handling signature drift between TRL versions."""
 
     candidate_errors: list[str] = []
-    for keyword in _ppo_trainer_config_keywords():
-        keyword_kwargs = dict(base_kwargs)
-        keyword_kwargs[keyword] = ppo_config
+
+    for keyword in _candidate_keywords():
         try:
-            return PPOTrainer(**keyword_kwargs)
+            return PPOTrainer(
+                model=model,
+                ref_model=ref_model,
+                tokenizer=tokenizer,
+                **{keyword: ppo_config},
+            )
         except TypeError as exc:  # pragma: no cover - depends on TRL version
             candidate_errors.append(f"{keyword}: {exc}")
 
     LOGGER.warning(
-        "Unable to determine PPOTrainer config keyword; passing positionally.",
+        "Unable to determine PPOTrainer config keyword; passing positionally."
     )
 
     try:
-        return PPOTrainer(
-            ppo_config,
-            base_kwargs["model"],
-            base_kwargs.get("ref_model"),
-            base_kwargs["tokenizer"],
-        )
+        return PPOTrainer(ppo_config, model, ref_model, tokenizer)
     except TypeError as exc:  # pragma: no cover - defensive guard
         error_detail = "; ".join(candidate_errors + [f"positional: {exc}"])
         raise TypeError(
-            "Unable to construct PPOTrainer with available configuration "
-            f"options: {error_detail}"
+            "Unable to construct PPOTrainer with available configuration options: "
+            f"{error_detail}"
         ) from exc
-
-
-__all__ = [
-    "create_ppo_trainer",
-    "make_trl_ppo_config",
-]
