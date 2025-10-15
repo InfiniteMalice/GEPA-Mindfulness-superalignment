@@ -19,8 +19,7 @@ def main() -> None:
     # Stub files
     (out_dir / "model.pt").write_text("# Placeholder model", encoding="utf-8")
     (out_dir / "calibration.json").write_text('{"temperature": 1.0}', encoding="utf-8")
-    metrics_stub = '{"mae": 0.5, "cohen_kappa": 0.6, "ece": 0.08}'
-    (out_dir / "metrics.json").write_text(metrics_stub, encoding="utf-8")
+    (out_dir / "metrics.json").write_text('{"mae": 0.5, "cohen_kappa": 0.6, "ece": 0.08}', encoding="utf-8")
 
     print(f"Classifier artifacts saved to {out_dir}")
     print("NOTE: This is a placeholder. Implement actual training logic.")
