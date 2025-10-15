@@ -54,9 +54,7 @@ def make_trl_ppo_config(training_config: TrainingConfig) -> TRLPPOConfig:
     elif "num_train_epochs" in available_fields:
         ppo_config_kwargs["num_train_epochs"] = epoch_value
     else:
-        LOGGER.warning(
-            "Unable to determine PPO epoch parameter; using TRL defaults."
-        )
+        LOGGER.warning("Unable to determine PPO epoch parameter; using TRL defaults.")
 
     return TRLPPOConfig(**ppo_config_kwargs)
 
