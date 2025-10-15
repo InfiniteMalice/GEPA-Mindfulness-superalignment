@@ -6,7 +6,7 @@ import inspect
 import logging
 from typing import Optional
 
-from transformers import AutoModelForCausalLM, PreTrainedTokenizerBase
+from transformers import AutoModelForCausalLM, PreTrainedTokenizer
 from trl import PPOConfig as TRLPPOConfig
 from trl import PPOTrainer
 
