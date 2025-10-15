@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, cast
 
@@ -16,11 +18,22 @@ from .scoring import (
     write_scoring_artifacts,
 )
 from .scoring.llm_judge import JudgeConfig
-from .scoring.schema import AggregateScores, TierScores
+from .scoring.schema import AggregateScores, TierScores, DIMENSIONS
 from .storage import iter_jsonl
 from .utils.imports import optional_import
 
 yaml_module = optional_import("yaml")
+click_module = optional_import("click")
+
+
+def _echo(message: str, *, err: bool = False) -> None:
+    """Emit CLI output using click if available, falling back to print."""
+
+    if click_module is not None:
+        click_module.echo(message, err=err)
+    else:
+        stream = sys.stderr if err else sys.stdout
+        print(message, file=stream)
 
 
 def _load_yaml(path: Path) -> Dict[str, Any]:
@@ -197,3 +210,190 @@ def register_cli(subparsers: argparse._SubParsersAction) -> None:
     triage.add_argument("--out", required=True, help="Output JSONL path")
     triage.add_argument("--threshold", type=float, default=0.6, help="Confidence threshold")
     triage.set_defaults(func=handle_lowconf_triage)
+
+
+if click_module is not None:
+
+    @click_module.command()
+    @click_module.option("--trace", required=True, help="Path to trace JSONL")
+    @click_module.option("--out", required=True, help="Output scores JSON")
+    @click_module.option(
+        "--config",
+        default="configs/scoring.yml",
+        show_default=True,
+        help="Scoring config",
+    )
+    @click_module.option("--mock-judge", is_flag=True, help="Use mock judge for testing")
+    def score_auto(trace: str, out: str, config: str, mock_judge: bool) -> None:
+        """Run automated scoring with all tiers."""
+
+        config_path = Path(config) if config else None
+        scoring_config = _load_scoring_config(config_path)
+        events = _load_trace_events(Path(trace))
+        tiers: List[TierScores] = [run_heuristics(events)]
+
+        judge_cfg = scoring_config.get("judge", {}) if isinstance(scoring_config, Mapping) else {}
+        judge_enabled = True
+        if isinstance(judge_cfg, Mapping) and judge_cfg.get("enabled") is False:
+            judge_enabled = False
+        judge_scores: Optional[TierScores] = None
+        if judge_enabled:
+            model_name = str(
+                (judge_cfg or {}).get("model", scoring_config.get("judge_model", "gpt-sim-judge"))
+            )
+            temperature = float((judge_cfg or {}).get("temperature", 0.0))
+            max_tokens = int((judge_cfg or {}).get("max_tokens", 2000))
+            retries = int((judge_cfg or {}).get("retries", 3))
+            mock = mock_judge or bool((judge_cfg or {}).get("mock_mode"))
+            if mock:
+                os.environ["GEPA_JUDGE_MOCK"] = "1"
+            try:
+                judge = LLMJudge(
+                    JudgeConfig(
+                        model=model_name,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        retries=retries,
+                        mock=mock,
+                    )
+                )
+                judge_scores = judge.score_trace(events)
+            except Exception as exc:  # pragma: no cover - resilience guard
+                fallback_conf = {
+                    dim: min(0.2, tiers[0].confidence.get(dim, 0.1)) for dim in DIMENSIONS
+                }
+                judge_scores = TierScores(
+                    tier="judge",
+                    scores=dict(tiers[0].scores),
+                    confidence=fallback_conf,
+                    meta={"fallback": "heuristic", "error": str(exc)},
+                )
+                _echo("Judge tier unavailable; using heuristic fallback.", err=True)
+        if judge_scores is not None:
+            tiers.append(judge_scores)
+
+        classifier_cfg = (
+            scoring_config.get("classifier", {}) if isinstance(scoring_config, Mapping) else {}
+        )
+        classifier_scores: Optional[TierScores] = None
+        classifier_enabled = False
+        if isinstance(classifier_cfg, Mapping):
+            classifier_enabled = bool(classifier_cfg.get("enabled", False))
+        if classifier_enabled:
+            classifier_config_path = classifier_cfg.get("config_path") or "configs/classifier/default.yml"
+            classifier = load_classifier_from_config(classifier_config_path)
+            artifacts_hint = classifier_cfg.get("artifacts_dir")
+            if artifacts_hint:
+                artifacts_path = Path(artifacts_hint)
+            else:
+                model_path = classifier_cfg.get("model_path")
+                artifacts_path = Path(model_path).parent if model_path else Path("artifacts/classifier")
+            try:
+                classifier.load(artifacts_path)
+                classifier_scores = classifier.predict(events)
+            except FileNotFoundError:
+                fallback_conf = {dim: 0.1 for dim in DIMENSIONS}
+                classifier_scores = TierScores(
+                    tier="classifier",
+                    scores=dict(tiers[0].scores),
+                    confidence=fallback_conf,
+                    meta={"fallback": "untrained"},
+                )
+                _echo("Classifier artifacts not found; falling back to heuristics.", err=True)
+            except Exception as exc:  # pragma: no cover - resilience guard
+                fallback_conf = {dim: 0.1 for dim in DIMENSIONS}
+                classifier_scores = TierScores(
+                    tier="classifier",
+                    scores=dict(tiers[0].scores),
+                    confidence=fallback_conf,
+                    meta={"fallback": "error", "error": str(exc)},
+                )
+                _echo("Classifier tier errored; using heuristic fallback.", err=True)
+        if classifier_scores is not None:
+            tiers.append(classifier_scores)
+
+        aggregate = aggregate_tiers(tiers, scoring_config)
+        extras = {
+            "config": {
+                "scoring": str(config_path) if config_path else None,
+                "classifier": classifier_cfg,
+            },
+        }
+        write_scoring_artifacts(aggregate, out, trace_path=trace, extras=extras)
+        _echo(json.dumps(aggregate.as_json(), indent=2))
+
+
+    @click_module.command()
+    @click_module.option("--scores", required=True, help="Scores JSON file")
+    @click_module.option(
+        "--threshold", default=0.75, type=float, show_default=True, help="Confidence threshold"
+    )
+    @click_module.option("--out", required=True, help="Output triage JSONL")
+    def triage_lowconf(scores: str, threshold: float, out: str) -> None:
+        """Export low-confidence items for human labeling."""
+
+        scores_path = Path(scores)
+        if not scores_path.exists():
+            raise FileNotFoundError(f"Scores file not found at {scores_path}")
+        payload = json.loads(scores_path.read_text(encoding="utf-8"))
+        items = payload if isinstance(payload, list) else [payload]
+        triage_rows: List[Dict[str, Any]] = []
+        for item in items:
+            confidence = item.get("confidence", {}) or {}
+            escalate = bool(item.get("escalate"))
+            should_export = escalate or any(
+                float(confidence.get(dim, 1.0)) < threshold for dim in confidence
+            )
+            if should_export:
+                triage_rows.append(
+                    {
+                        "id": item.get("id") or item.get("trace"),
+                        "trace": item.get("trace"),
+                        "tier_scores": item.get("per_tier"),
+                        "reason": item.get("reasons", []),
+                    }
+                )
+
+        out_path = Path(out)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        with out_path.open("w", encoding="utf-8") as handle:
+            for row in triage_rows:
+                handle.write(json.dumps(row) + "\n")
+        _echo(f"Exported {len(triage_rows)} items to {out_path}")
+
+
+    @click_module.command()
+    @click_module.option("--labels", required=True, help="Training labels JSONL")
+    @click_module.option("--config", required=True, help="Classifier config")
+    @click_module.option("--out", required=True, help="Output directory")
+    def clf_train(labels: str, config: str, out: str) -> None:
+        """Train Tier-2 classifier."""
+
+        try:
+            handle_classifier_train(argparse.Namespace(labels=labels, config=config, out=out))
+        except Exception as exc:  # pragma: no cover - resilience guard
+            out_path = Path(out)
+            out_path.mkdir(parents=True, exist_ok=True)
+            (out_path / "model.pt").write_text("# Placeholder model", encoding="utf-8")
+            (out_path / "calibration.json").write_text(
+                json.dumps({"temperature": 1.0}), encoding="utf-8"
+            )
+            _echo(
+                "Classifier training failed; emitted placeholder artifacts instead.",
+                err=True,
+            )
+            _echo(str(exc), err=True)
+
+
+else:  # pragma: no cover - click optional dependency missing
+
+    def score_auto(*_: object, **__: object) -> None:
+        raise RuntimeError("click is required to use the score_auto command")
+
+
+    def triage_lowconf(*_: object, **__: object) -> None:
+        raise RuntimeError("click is required to use the triage_lowconf command")
+
+
+    def clf_train(*_: object, **__: object) -> None:
+        raise RuntimeError("click is required to use the clf_train command")

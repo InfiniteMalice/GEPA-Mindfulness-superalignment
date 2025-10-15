@@ -1,7 +1,35 @@
-features:
-  include_heuristic: true
-  include_length: true
-calibration:
-  strategy: temperature
+# Tier-2 Classifier Training Config
+model:
+  embedding: "sentence-transformers/all-MiniLM-L6-v2"
+  hidden_dims: [128, 64]
+  dropout: 0.2
+  num_classes: 5  # 0-4 per dimension
+
 training:
-  notes: "Lightweight linear regression head calibrated by MAE"
+  epochs: 50
+  batch_size: 16
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  early_stopping_patience: 10
+
+calibration:
+  method: "temperature_scaling"  # or "isotonic"
+  per_dimension: true
+
+features:
+  use_tier0_signals: true
+  use_embeddings: true
+  use_structure: true  # num_options, has_monitors, etc.
+
+data:
+  train_split: 0.7
+  val_split: 0.15
+  test_split: 0.15
+  min_examples_per_class: 5
+
+evaluation:
+  metrics: ["mae", "cohen_kappa", "ece"]
+  targets:
+    mae: 0.5
+    cohen_kappa: 0.6
+    ece: 0.08
