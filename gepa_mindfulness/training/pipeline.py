@@ -130,9 +130,7 @@ class PPOPipeline:
         # Log filtered fields for debugging
         filtered_out = set(ppo_config_dict.keys()) - set(ppo_config_kwargs.keys())
         if filtered_out:
-            LOGGER.debug(
-                "Filtered out unsupported PPO config fields: %s", filtered_out
-            )
+            LOGGER.debug("Filtered out unsupported PPO config fields: %s", filtered_out)
 
         # Create PPO config
         ppo_config = TRLPPOConfig(**ppo_config_kwargs)
