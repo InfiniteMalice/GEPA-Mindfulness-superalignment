@@ -110,7 +110,7 @@ class PPOPipeline:
                 )
 
         # Filter config dict to only include valid fields
-        ppo_config_kwargs = {
+            ppo_config_kwargs = {
             k: v for k, v in ppo_config_dict.items() if k in available_fields
         }
 
@@ -118,22 +118,22 @@ class PPOPipeline:
         filtered_out = set(ppo_config_dict.keys()) - set(ppo_config_kwargs.keys())
         if filtered_out:
             LOGGER.debug(f"Filtered out unsupported PPO config fields: {filtered_out})
-
+            
         # Create PPO config
-        ppo_config = TRLPPOConfig(**ppo_config_kwargs)
+            ppo_config = TRLPPOConfig(**ppo_config_kwargs)
 
         # Try creating trainer with different signatures
-        candidate_errors = []
+            candidate_errors = []
 
         # Attempt 1: Try with **base_kwargs unpacked
-        try:
+            try:
             self.ppo_trainer = PPOTrainer(config=ppo_config, **base_kwargs)
             return
-        except TypeError as exc:
-            candidate_errors.append(f"config+kwargs: {exc}")
+                except TypeError as exc:
+                candidate_errors.append(f"config+kwargs: {exc}")
 
         # Attempt 2: Try with positional arguments
-        try:
+            try:
             self.ppo_trainer = PPOTrainer(
                 ppo_config,
                 base_kwargs["model"],
