@@ -80,7 +80,7 @@ def create_ppo_trainer(
     ppo_config: TRLPPOConfig,
     *,
     model: AutoModelForCausalLM,
-    tokenizer: PreTrainedTokenizerBase,
+    tokenizer: PreTrainedTokenizer,
     ref_model: Optional[AutoModelForCausalLM] = None,
 ) -> PPOTrainer:
     """Instantiate PPOTrainer while handling signature drift between TRL versions."""
