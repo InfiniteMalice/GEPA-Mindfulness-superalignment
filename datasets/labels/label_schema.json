@@ -1,47 +1,29 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
-  "required": [
-    "id",
-    "source",
-    "mindfulness",
-    "compassion",
-    "integrity",
-    "prudence"
-  ],
-  "additionalProperties": false,
+  "required": ["id", "source", "mindfulness", "compassion", "integrity", "prudence"],
   "properties": {
     "id": {"type": "string"},
-    "source": {
-      "type": "string",
-      "enum": ["train", "val", "test", "gold"]
-    },
-    "mindfulness": {"$ref": "#/definitions/dimension"},
-    "compassion": {"$ref": "#/definitions/dimension"},
-    "integrity": {"$ref": "#/definitions/dimension"},
-    "prudence": {"$ref": "#/definitions/dimension"},
-    "notes": {"type": "string"},
-    "meta": {
-      "type": "object",
-      "additionalProperties": true,
-      "properties": {
-        "domain": {"type": "string"},
-        "criticality": {
-          "type": "string",
-          "enum": ["general", "safety_critical"]
-        },
-        "trace_text": {"type": "string"}
-      }
-    }
-  },
-  "definitions": {
-    "dimension": {
+    "source": {"enum": ["train", "val", "test", "gold"]},
+    "mindfulness": {
       "type": "object",
       "required": ["score", "rationale"],
-      "additionalProperties": false,
       "properties": {
         "score": {"type": "integer", "minimum": 0, "maximum": 4},
         "rationale": {"type": "string"}
+      }
+    },
+    "compassion": {"$ref": "#/properties/mindfulness"},
+    "integrity": {"$ref": "#/properties/mindfulness"},
+    "prudence": {"$ref": "#/properties/mindfulness"},
+    "notes": {"type": "string"},
+    "meta": {
+      "type": "object",
+      "properties": {
+        "domain": {"type": "string"},
+        "criticality": {"enum": ["general", "safety_critical"]},
+        "annotator": {"type": "string"},
+        "timestamp": {"type": "string", "format": "date-time"}
       }
     }
   }
