@@ -93,8 +93,7 @@ class PPOPipeline:
         Initialize PPO trainer with defensive compatibility handling.
         """
         if not TRL_AVAILABLE:
-            raise ImportError("trl is required for PPO training." 
-            "Install with: pip install trl transformers")
+            raise ImportError("trl is required for PPO training. Install with: pip install trl transformers")
 
         # Get base kwargs for trainer construction
         base_kwargs = {
