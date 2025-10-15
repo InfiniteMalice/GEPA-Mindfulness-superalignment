@@ -1,42 +1,26 @@
-"""End-to-end orchestration for the GEPA mindfulness alignment pipeline."""
-
-from __future__ import annotations
-
 import inspect
 import logging
-import random
-from dataclasses import dataclass
-from typing import Iterable, List, Optional
+from typing import Any
 
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from trl import PPOTrainer
-
-from ..core.abstention import enforce_abstention, honesty_reward_from_trace
-from ..core.adversarial import sample_adversarial_batch
-from ..core.contemplative_principles import (
-    ContemplativePrinciple,
-    GEPAPrinciples,
-    GEPAPrincipleScore,
-)
-from ..core.imperatives import AlignmentImperative, ImperativeEvaluator, ImperativeSignal
 from ..core.rewards import RewardSignal, RewardWeights
 from ..core.tracing import CircuitTracerLogger
-from . import ppo_utils
 from .configs import TrainingConfig
-from .ppo_utils import create_ppo_trainer, make_trl_ppo_config
+from .ppo_utils import create_ppo_trainer, make_trl_ppo_config, TRLPPOConfig
 
 LOGGER = logging.getLogger(__name__)
 
 
-def _available_ppo_config_fields() -> set[str]:
-    """Collect constructor fields exposed by the TRL PPOConfig."""
-
+def _get_available_ppo_fields() -> set[str]:
+    """
+    Introspect TRLPPOConfig to identify valid fields.
+    Returns a set of field names that can be passed to TRLPPOConfig.
+    """
     available: set[str] = set()
 
     dataclass_fields = getattr(TRLPPOConfig, "__dataclass_fields__", None)
     if dataclass_fields:
         available.update(dataclass_fields.keys())
+        return available
 
     try:
         signature = inspect.signature(TRLPPOConfig)
@@ -44,102 +28,99 @@ def _available_ppo_config_fields() -> set[str]:
         signature = None
 
     if signature is not None:
-        available.update(signature.parameters.keys())
+        available.update(
+            param
+            for param in signature.parameters.keys()
+            if param not in ("self", "args", "kwargs")
+        )
 
     return available
 
 
-def _ppo_trainer_config_keywords() -> list[str]:
-    """Determine PPOTrainer keyword names that accept the config object."""
+class PPOPipeline:
+    """
+    Orchestrates PPO training with GEPA rewards and Circuit Tracer logging.
+    """
 
-    try:
-        signature = inspect.signature(PPOTrainer)
-    except (TypeError, ValueError):
-        return ["config", "ppo_config"]
-
-    keywords: list[str] = []
-    for candidate in ("config", "ppo_config"):
-        parameter = signature.parameters.get(candidate)
-        if parameter and parameter.kind is not inspect.Parameter.POSITIONAL_ONLY:
-            keywords.append(candidate)
-
-    return keywords
-
-
-@dataclass
-class RolloutResult:
-    prompt: str
-    response: str
-    reward: float
-    trace_summary: dict
-    contradiction_report: dict
-
-
-class TrainingOrchestrator:
-    """High-level driver coordinating GEPA, tracing, and PPO training."""
-
-    def __init__(self, config: TrainingConfig) -> None:
+    def __init__(
+        self,
+        config: TrainingConfig,
+        model: Any,
+        ref_model: Any,
+        tokenizer: Any,
+        reward_weights: RewardWeights,
+        circuit_logger: CircuitTracerLogger | None = None,
+    ):
         self.config = config
-        self.tracing = CircuitTracerLogger()
-        self.device = torch.device(config.device)
-        self.tokenizer = AutoTokenizer.from_pretrained(config.model.policy_model)
-        self.policy_model = AutoModelForCausalLM.from_pretrained(config.model.policy_model).to(
-            self.device
-        )
-        self.reward_weights = RewardWeights.from_mapping(config.reward_weights.dict())
-        self.ppo_trainer: Optional[PPOTrainer] = None
+        self.model = model
+        self.ref_model = ref_model
+        self.tokenizer = tokenizer
+        self.reward_weights = reward_weights
+        self.circuit_logger = circuit_logger
 
-    def build_ppo_trainer(self) -> None:
-        if self.ppo_trainer is not None:
-            return
-        ppo_config_kwargs = {
-            "learning_rate": self.config.ppo.learning_rate,
-            "mini_batch_size": self.config.ppo.mini_batch_size,
-            "batch_size": self.config.ppo.batch_size,
+        # Build PPO trainer
+        self._init_ppo_trainer()
+
+    def _init_ppo_trainer(self) -> None:
+        """
+        Initialize PPO trainer with defensive compatibility handling.
+        """
+        # Get base kwargs for trainer construction
+        base_kwargs = {
+            "model": self.model,
+            "ref_model": self.ref_model,
+            "tokenizer": self.tokenizer,
         }
 
-        epoch_value = self.config.ppo.ppo_epochs
+        # Convert TrainingConfig to PPO config kwargs
+        ppo_config_dict = self.config.model_dump()
+
+        # Get available TRLPPOConfig fields
         available_fields: set[str] = set()
 
         dataclass_fields = getattr(TRLPPOConfig, "__dataclass_fields__", None)
         if dataclass_fields:
             available_fields.update(dataclass_fields.keys())
-
-        try:
-            signature = inspect.signature(TRLPPOConfig)
-        except (TypeError, ValueError):
-            signature = None
-
-        if signature is not None:
-            available_fields.update(signature.parameters.keys())
-
-        if "ppo_epochs" in available_fields:
-            ppo_config_kwargs["ppo_epochs"] = epoch_value
-        elif "num_epochs" in available_fields:
-            ppo_config_kwargs["num_epochs"] = epoch_value
-        elif "num_train_epochs" in available_fields:
-            ppo_config_kwargs["num_train_epochs"] = epoch_value
         else:
-            LOGGER.warning(
-                "Unable to determine PPO epoch parameter for TRL version; Using defaults."
+            try:
+                signature = inspect.signature(TRLPPOConfig)
+            except (TypeError, ValueError):
+                signature = None
+
+            if signature is not None:
+                available_fields.update(
+                    param
+                    for param in signature.parameters.keys()
+                    if param not in ("self", "args", "kwargs")
+                )
+
+        # Filter config dict to only include valid fields
+        ppo_config_kwargs = {
+            k: v for k, v in ppo_config_dict.items() if k in available_fields
+        }
+
+        # Log filtered fields for debugging
+        filtered_out = set(ppo_config_dict.keys()) - set(ppo_config_kwargs.keys())
+        if filtered_out:
+            LOGGER.debug(
+                f"Filtered out unsupported PPO config fields: {filtered_out}"
             )
 
+        # Create PPO config
         ppo_config = TRLPPOConfig(**ppo_config_kwargs)
-        self.ppo_trainer = PPOTrainer(
-            config=ppo_config,
-            model=self.policy_model,
-            tokenizer=self.tokenizer,
-            ref_model=None,
-        )
-        try:
-            self.ppo_trainer = PPOTrainer(ppo_config, **trainer_kwargs)
-        except TypeError as exc:  # pragma: no cover - defensive guard
-            error_detail = "; ".join(candidate_errors + [f"positional: {exc}"])
-            raise TypeError(
-                "Unable to construct PPOTrainer with available configuration options: "
-                f"{error_detail}"
-            ) from exc
 
+        # Try creating trainer with different signatures
+        candidate_errors = []
+        
+        # Attempt 1: Try with **base_kwargs unpacked
+        try:
+            from trl import PPOTrainer
+            self.ppo_trainer = PPOTrainer(config=ppo_config, **base_kwargs)
+            return
+        except TypeError as exc:
+            candidate_errors.append(f"config+kwargs: {exc}")
+
+        # Attempt 2: Try with positional arguments
         try:
             self.ppo_trainer = PPOTrainer(
                 ppo_config,
@@ -147,129 +128,54 @@ class TrainingOrchestrator:
                 base_kwargs["ref_model"],
                 base_kwargs["tokenizer"],
             )
-        except TypeError as exc:  # pragma: no cover - defensive guard
-            error_detail = "; ".join(candidate_errors + [f"positional: {exc}"])
-            raise TypeError(
-                "Unable to construct PPOTrainer with available configuration "
-                f"options: {error_detail}"
-            ) from exc
+            return
+        except TypeError as exc:
+            candidate_errors.append(f"positional: {exc}")
 
-    def _sample_prompt(self, dataset: Iterable[str]) -> str:
-        if isinstance(dataset, list):
-            return random.choice(dataset)
-        materialized = list(dataset)
-        if not materialized:
-            raise ValueError("Dataset must contain at least one prompt")
-        return random.choice(materialized)
-
-    def _gepa_scores(self, trace_payload: dict) -> GEPAPrinciples:
-        scores = {
-            ContemplativePrinciple.MINDFULNESS: GEPAPrincipleScore(
-                value=0.8 if "mindfulness" in trace_payload else 0.6,
-                rationale=trace_payload.get("framing", ""),
-            ),
-            ContemplativePrinciple.EMPATHY: GEPAPrincipleScore(
-                value=0.7 if "empathy" in trace_payload else 0.5,
-                rationale=trace_payload.get("evidence", ""),
-            ),
-            ContemplativePrinciple.PERSPECTIVE: GEPAPrincipleScore(
-                value=0.75,
-                rationale=trace_payload.get("tensions", ""),
-            ),
-            ContemplativePrinciple.AGENCY: GEPAPrincipleScore(
-                value=0.65,
-                rationale=trace_payload.get("decision", ""),
-            ),
-        }
-        return GEPAPrinciples(scores=scores)
-
-    def _imperative_scores(self, trace_payload: dict) -> ImperativeEvaluator:
-        evaluator = ImperativeEvaluator.from_iterable(
-            [
-                (
-                    AlignmentImperative.REDUCE_SUFFERING,
-                    ImperativeSignal(
-                        support=0.8, opposition=0.1, rationale=trace_payload.get("framing", "")
-                    ),
-                ),
-                (
-                    AlignmentImperative.INCREASE_PROSPERITY,
-                    ImperativeSignal(
-                        support=0.6, opposition=0.2, rationale=trace_payload.get("decision", "")
-                    ),
-                ),
-                (
-                    AlignmentImperative.INCREASE_KNOWLEDGE,
-                    ImperativeSignal(
-                        support=0.7, opposition=0.15, rationale=trace_payload.get("reflection", "")
-                    ),
-                ),
-            ]
-        )
-        return evaluator
-
-    def run_step(self, prompt: str) -> RolloutResult:
-        self.build_ppo_trainer()
-        assert self.ppo_trainer is not None
-        with self.tracing.trace(prompt=prompt) as trace:
-            self.tracing.log_event("framing", f"Evaluating prompt: {prompt}")
-            self.tracing.log_event(
-                "evidence", "No external evidence available, relying on model priors."
-            )
-            self.tracing.log_event("tensions", "Balance honesty with usefulness.")
-            inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
-            outputs = self.policy_model.generate(
-                **inputs, max_length=inputs["input_ids"].shape[-1] + 64
-            )
-            decoded = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-            self.tracing.log_event("decision", decoded)
-            self.tracing.log_event("reflection", "Assessed alignment outcomes for this rollout.")
-
-        trace_payload = trace.summary()
-        confidence = min(0.99, 0.5 + random.random() * 0.5)
-        decision = enforce_abstention(
-            decoded, confidence, threshold=self.config.confidence_threshold
+        # If all attempts failed, raise with detailed error
+        error_detail = "; ".join(candidate_errors)
+        raise TypeError(
+            "Unable to construct PPOTrainer with available configuration options: "
+            f"{error_detail}"
         )
 
-        gepa = self._gepa_scores(trace_payload)
-        imperatives = self._imperative_scores(trace_payload)
-        honesty_reward = honesty_reward_from_trace(
-            confidence=confidence,
-            mindfulness=gepa.scores[ContemplativePrinciple.MINDFULNESS].value,
-            emptiness=gepa.scores[ContemplativePrinciple.PERSPECTIVE].value,
-        )
-        reward_signal = RewardSignal(
-            task_success=1.0 if decision.metadata["abstained"] == 0.0 else 0.0,
-            gepa_score=gepa.aggregate(),
-            honesty_reward=honesty_reward,
-            hallucination_score=0.2 if "hallucination" in prompt.lower() else 0.0,
-            imperatives_truth=imperatives.aggregate(),
-        )
-        combined_reward = reward_signal.combined(self.reward_weights)
-        self.ppo_trainer.step([prompt], [decision.output], torch.tensor([combined_reward]))
-
-        return RolloutResult(
-            prompt=prompt,
-            response=decision.output,
-            reward=combined_reward,
-            trace_summary=trace_payload,
-            contradiction_report=imperatives.contradiction_report(),
+    def train_step(self, batch: dict[str, Any]) -> dict[str, float]:
+        """
+        Execute one PPO training step with GEPA rewards.
+        """
+        # Generate responses
+        query_tensors = batch["input_ids"]
+        response_tensors = self.ppo_trainer.generate(
+            query_tensors,
+            return_prompt=False,
+            **self.config.generation_kwargs,
         )
 
-    def run(self, dataset: Iterable[str]) -> List[RolloutResult]:
-        random.seed(self.config.seed)
-        torch.manual_seed(self.config.seed)
-        dataset_list = [prompt for prompt in dataset if prompt]
-        if not dataset_list:
-            raise ValueError("Dataset must contain at least one non-empty prompt")
-        results: List[RolloutResult] = []
-        for step in range(self.config.max_steps):
-            prompt = self._sample_prompt(dataset_list)
-            result = self.run_step(prompt)
-            results.append(result)
-            LOGGER.info("Step %s reward: %s", step, result.reward)
-        return results
+        # Compute GEPA rewards
+        rewards = []
+        for query, response in zip(query_tensors, response_tensors):
+            query_text = self.tokenizer.decode(query, skip_special_tokens=True)
+            response_text = self.tokenizer.decode(response, skip_special_tokens=True)
+            
+            # Get GEPA score (placeholder - implement actual scoring)
+            reward_signal = self._compute_gepa_reward(query_text, response_text)
+            rewards.append(reward_signal.total_reward)
 
-    def run_adversarial_eval(self) -> List[RolloutResult]:
-        scenarios = sample_adversarial_batch(self.config.adversarial_batch)
-        return [self.run_step(scenario.prompt) for scenario in scenarios]
+        # PPO update
+        stats = self.ppo_trainer.step(query_tensors, response_tensors, rewards)
+
+        return stats
+
+    def _compute_gepa_reward(self, query: str, response: str) -> RewardSignal:
+        """
+        Compute GEPA reward signal for a query-response pair.
+        Placeholder - actual implementation depends on scoring logic.
+        """
+        # TODO: Implement actual GEPA scoring
+        return RewardSignal(
+            task_reward=0.0,
+            gepa_reward=0.0,
+            honesty_reward=0.0,
+            hallucination_penalty=0.0,
+            total_reward=0.0,
+        )
