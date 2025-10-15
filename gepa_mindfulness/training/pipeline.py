@@ -9,7 +9,6 @@ from typing import Iterable, List, Optional
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from trl import PPOConfig as TRLPPOConfig
 from trl import PPOTrainer
 
 from ..core.abstention import enforce_abstention, honesty_reward_from_trace
@@ -22,6 +21,7 @@ from ..core.contemplative_principles import (
 from ..core.imperatives import AlignmentImperative, ImperativeEvaluator, ImperativeSignal
 from ..core.rewards import RewardSignal, RewardWeights
 from ..core.tracing import CircuitTracerLogger
+from . import ppo_utils
 from .configs import TrainingConfig
 
 LOGGER = logging.getLogger(__name__)
@@ -53,17 +53,14 @@ class TrainingOrchestrator:
     def build_ppo_trainer(self) -> None:
         if self.ppo_trainer is not None:
             return
-        ppo_config = TRLPPOConfig(
-            learning_rate=self.config.ppo.learning_rate,
-            mini_batch_size=self.config.ppo.mini_batch_size,
-            batch_size=self.config.ppo.batch_size,
-            ppo_epochs=self.config.ppo.ppo_epochs,
-        )
-        self.ppo_trainer = PPOTrainer(
-            config=ppo_config,
+
+        ppo_config = ppo_utils.make_trl_ppo_config(self.config)
+
+        self.ppo_trainer = ppo_utils.create_ppo_trainer(
+            ppo_config=ppo_config,
             model=self.policy_model,
-            ref_model=None,
             tokenizer=self.tokenizer,
+            ref_model=None,
         )
 
     def _sample_prompt(self, dataset: Iterable[str]) -> str:

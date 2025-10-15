@@ -5,12 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional
-
-try:  # pragma: no cover - optional dependency
-    import yaml
-except ModuleNotFoundError:  # pragma: no cover
-    yaml = None
+from typing import Any, Dict, List, Mapping, Optional, cast
 
 from .scoring import (
     LLMJudge,
@@ -25,19 +20,20 @@ from .scoring.schema import AggregateScores, TierScores
 from .storage import iter_jsonl
 from .utils.imports import optional_import
 
-yaml = optional_import("yaml")
+yaml_module = optional_import("yaml")
 
 
 def _load_yaml(path: Path) -> Dict[str, Any]:
     if not path.exists():
         return {}
-    if yaml is None:
+    if yaml_module is None:
         text = path.read_text(encoding="utf-8")
         try:
             return json.loads(text)
         except json.JSONDecodeError:
             return {}
-    return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    loader = cast(Any, yaml_module)
+    return loader.safe_load(path.read_text(encoding="utf-8")) or {}
 
 
 def _load_scoring_config(path: Path | None) -> Dict[str, Any]:
@@ -67,10 +63,11 @@ def handle_score_auto(args: argparse.Namespace) -> None:
     policy_blob: Dict[str, Any] = {}
     if args.policy and Path(args.policy).exists():
         policy_text = Path(args.policy).read_text(encoding="utf-8")
-        if yaml is None:
+        if yaml_module is None:
             policy_blob = {"raw": policy_text}
         else:
-            policy_blob = yaml.safe_load(policy_text) or {}
+            loader = cast(Any, yaml_module)
+            policy_blob = loader.safe_load(policy_text) or {}
 
     if getattr(args, "judge", False):
         judge_model = scoring_config.get("judge_model", "gpt-sim-judge")
