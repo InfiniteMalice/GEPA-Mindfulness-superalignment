@@ -92,7 +92,8 @@ class PPOPipeline:
         """
         if not TRL_AVAILABLE:
             raise ImportError(
-                "trl is required for PPO training. Install with: pip install trl transformers"
+                "trl is required for PPO training. "
+                "Install with: pip install trl transformers"
             )
 
         # Get base kwargs for trainer construction
@@ -132,7 +133,9 @@ class PPOPipeline:
         # Log filtered fields for debugging
         filtered_out = set(ppo_config_dict.keys()) - set(ppo_config_kwargs.keys())
         if filtered_out:
-            LOGGER.debug(f"Filtered out unsupported PPO config fields: {filtered_out}")
+            LOGGER.debug(
+                "Filtered out unsupported PPO config fields: %s", filtered_out
+            )
 
         # Create PPO config
         ppo_config = TRLPPOConfig(**ppo_config_kwargs)
@@ -162,7 +165,8 @@ class PPOPipeline:
         # If all attempts failed, raise with detailed error
         error_detail = "; ".join(candidate_errors)
         raise TypeError(
-            f"Unable to construct PPOTrainer with available configuration options: {error_detail}"
+            "Unable to construct PPOTrainer with available configuration "
+            f"options: {error_detail}"
         )
 
     def train_step(self, batch: dict[str, Any]) -> dict[str, float]:
