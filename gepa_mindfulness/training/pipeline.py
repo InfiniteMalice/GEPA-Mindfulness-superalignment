@@ -160,8 +160,9 @@ class PPOPipeline:
 
         # If all attempts failed, raise with detailed error
         error_detail = "; ".join(candidate_errors)
-        raise TypeError(f"Unable to construct PPOTrainer with available configuration options:"
-        "{error_detail}")
+        raise TypeError(
+            f"Unable to construct PPOTrainer with available configuration options:{error_detail}"
+        )
 
     def train_step(self, batch: dict[str, Any]) -> dict[str, float]:
         """
