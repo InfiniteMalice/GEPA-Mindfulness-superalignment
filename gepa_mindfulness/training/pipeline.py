@@ -92,8 +92,7 @@ class PPOPipeline:
         """
         if not TRL_AVAILABLE:
             raise ImportError(
-                "trl is required for PPO training. "
-                "Install with: pip install trl transformers"
+                "trl is required for PPO training. " "Install with: pip install trl transformers"
             )
 
         # Get base kwargs for trainer construction
@@ -126,9 +125,7 @@ class PPOPipeline:
                 )
 
         # Filter config dict to only include valid fields
-        ppo_config_kwargs = {
-            k: v for k, v in ppo_config_dict.items() if k in available_fields
-        }
+        ppo_config_kwargs = {k: v for k, v in ppo_config_dict.items() if k in available_fields}
 
         # Log filtered fields for debugging
         filtered_out = set(ppo_config_dict.keys()) - set(ppo_config_kwargs.keys())
