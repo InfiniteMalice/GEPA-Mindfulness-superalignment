@@ -28,6 +28,43 @@ from .ppo_utils import create_ppo_trainer, make_trl_ppo_config
 LOGGER = logging.getLogger(__name__)
 
 
+def _available_ppo_config_fields() -> set[str]:
+    """Collect constructor fields exposed by the TRL PPOConfig."""
+
+    available: set[str] = set()
+
+    dataclass_fields = getattr(TRLPPOConfig, "__dataclass_fields__", None)
+    if dataclass_fields:
+        available.update(dataclass_fields.keys())
+
+    try:
+        signature = inspect.signature(TRLPPOConfig)
+    except (TypeError, ValueError):
+        signature = None
+
+    if signature is not None:
+        available.update(signature.parameters.keys())
+
+    return available
+
+
+def _ppo_trainer_config_keywords() -> list[str]:
+    """Determine PPOTrainer keyword names that accept the config object."""
+
+    try:
+        signature = inspect.signature(PPOTrainer)
+    except (TypeError, ValueError):
+        return ["config", "ppo_config"]
+
+    keywords: list[str] = []
+    for candidate in ("config", "ppo_config"):
+        parameter = signature.parameters.get(candidate)
+        if parameter and parameter.kind is not inspect.Parameter.POSITIONAL_ONLY:
+            keywords.append(candidate)
+
+    return keywords
+
+
 @dataclass
 class RolloutResult:
     prompt: str
@@ -99,6 +136,20 @@ class TrainingOrchestrator:
             raise TypeError(
                 "Unable to construct PPOTrainer with available configuration options: "
                 f"{error_detail}"
+            ) from exc
+
+        try:
+            self.ppo_trainer = PPOTrainer(
+                ppo_config,
+                base_kwargs["model"],
+                base_kwargs["ref_model"],
+                base_kwargs["tokenizer"],
+            )
+        except TypeError as exc:  # pragma: no cover - defensive guard
+            error_detail = "; ".join(candidate_errors + [f"positional: {exc}"])
+            raise TypeError(
+                "Unable to construct PPOTrainer with available configuration "
+                f"options: {error_detail}"
             ) from exc
 
     def _sample_prompt(self, dataset: Iterable[str]) -> str:
