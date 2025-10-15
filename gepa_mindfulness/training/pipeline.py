@@ -22,6 +22,7 @@ from ..core.contemplative_principles import (
 from ..core.imperatives import AlignmentImperative, ImperativeEvaluator, ImperativeSignal
 from ..core.rewards import RewardSignal, RewardWeights
 from ..core.tracing import CircuitTracerLogger
+from . import ppo_utils
 from .configs import TrainingConfig
 from .ppo_utils import create_ppo_trainer, make_trl_ppo_config
 
