@@ -128,6 +128,7 @@ class TrainingOrchestrator:
             config=ppo_config,
             model=self.policy_model,
             tokenizer=self.tokenizer,
+            ref_model=None,
         )
         try:
             self.ppo_trainer = PPOTrainer(ppo_config, **trainer_kwargs)
