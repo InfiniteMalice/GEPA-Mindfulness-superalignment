@@ -2,10 +2,12 @@ import inspect
 import logging
 from typing import Any
 
+from trl import PPOTrainer
+
 from ..core.rewards import RewardSignal, RewardWeights
 from ..core.tracing import CircuitTracerLogger
 from .configs import TrainingConfig
-from .ppo_utils import create_ppo_trainer, make_trl_ppo_config, TRLPPOConfig
+from .ppo_utils import TRLPPOConfig
 
 LOGGER = logging.getLogger(__name__)
 
@@ -111,10 +113,9 @@ class PPOPipeline:
 
         # Try creating trainer with different signatures
         candidate_errors = []
-        
+
         # Attempt 1: Try with **base_kwargs unpacked
         try:
-            from trl import PPOTrainer
             self.ppo_trainer = PPOTrainer(config=ppo_config, **base_kwargs)
             return
         except TypeError as exc:
@@ -156,7 +157,7 @@ class PPOPipeline:
         for query, response in zip(query_tensors, response_tensors):
             query_text = self.tokenizer.decode(query, skip_special_tokens=True)
             response_text = self.tokenizer.decode(response, skip_special_tokens=True)
-            
+
             # Get GEPA score (placeholder - implement actual scoring)
             reward_signal = self._compute_gepa_reward(query_text, response_text)
             rewards.append(reward_signal.total_reward)
