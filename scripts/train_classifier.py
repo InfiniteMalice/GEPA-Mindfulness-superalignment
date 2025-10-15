@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Train Tier-2 classifier on gold labels."""
 import argparse
-import json
 from pathlib import Path
 
 
