@@ -236,22 +236,21 @@ if dspy is not None:
         def forward(self, inquiry: str, context: str = "") -> "dspy.Prediction":
             framing = self.framing(inquiry=inquiry)
 
-            evidence = self.evidence(
-                dual_path_framing=getattr(framing, "dual_path_framing", framing.framing),
-                context=context,
-            )
+            framing_key = "dual_path_framing" if self.use_dual_path else "framing"
+            evidence_key = "dual_path_evidence" if self.use_dual_path else "evidence"
+            decision_key = "dual_path_decision" if self.use_dual_path else "decision"
 
-            decision = self.decision(
-                dual_path_evidence=getattr(
-                    evidence, "dual_path_evidence", evidence.evidence
-                )
-            )
+            def _extract(prediction: Any, attr: str, fallback: str) -> Any:
+                return getattr(prediction, attr, getattr(prediction, fallback, prediction))
 
-            reflection = self.reflection(
-                dual_path_decision=getattr(
-                    decision, "dual_path_decision", decision.decision
-                )
-            )
+            evidence_input = _extract(framing, framing_key, "framing")
+            evidence = self.evidence(**{framing_key: evidence_input, "context": context})
+
+            decision_input = _extract(evidence, evidence_key, "evidence")
+            decision = self.decision(**{evidence_key: decision_input})
+
+            reflection_input = _extract(decision, decision_key, "decision")
+            reflection = self.reflection(**{decision_key: reflection_input})
 
             return dspy.Prediction(
                 framing=framing,
