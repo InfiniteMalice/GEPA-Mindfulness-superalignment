@@ -156,6 +156,8 @@ def handle_dspy_compile(args: argparse.Namespace) -> None:
         else:
             config_data = json.loads(raw)
 
+    enable_optim = bool(getattr(args, "enable_optim", False))
+
     if enable_optim:
         config_data["allow_optimizations"] = True
         config_data.setdefault("enabled", True)
