@@ -14,13 +14,9 @@ except ImportError:  # pragma: no cover
     dspy = None  # type: ignore
     BootstrapFewShot = MIPRO = None  # type: ignore
 else:
-    try:
-        teleprompt = importlib.import_module("dspy.teleprompt")
-    except ModuleNotFoundError:  # pragma: no cover - teleprompt optional
-        BootstrapFewShot = MIPRO = None  # type: ignore
-    else:
-        BootstrapFewShot = getattr(teleprompt, "BootstrapFewShot", None)
-        MIPRO = getattr(teleprompt, "MIPRO", None)
+    teleprompt = importlib.import_module("dspy.teleprompt")
+    BootstrapFewShot = getattr(teleprompt, "BootstrapFewShot")
+    MIPRO = getattr(teleprompt, "MIPRO")
 
 LOGGER = logging.getLogger(__name__)
 
