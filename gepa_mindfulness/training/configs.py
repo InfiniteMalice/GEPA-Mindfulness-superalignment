@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, List, Mapping
 
 import yaml
 
@@ -21,6 +21,13 @@ def _to_int(value: Any, default: int) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+_DEFAULT_UNCERTAINTY_MARKERS = ["uncertain", "not sure", "unclear", "might", "could"]
+
+
+def _default_uncertainty_markers() -> List[str]:
+    return _DEFAULT_UNCERTAINTY_MARKERS.copy()
 
 
 @dataclass
@@ -41,6 +48,154 @@ class RewardWeightsConfig:
         )
 
     def dict(self) -> dict[str, float]:
+        return asdict(self)
+
+
+@dataclass
+class HonestyConfig:
+    uncertainty_threshold: float = 0.75
+    idk_bonus: float = 1.0
+    calibration_bonus_weight: float = 0.5
+    uncertainty_marker_bonus: float = 0.3
+    uncertainty_markers: List[str] = field(default_factory=_default_uncertainty_markers)
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "HonestyConfig":
+        payload = payload or {}
+        markers = payload.get("uncertainty_markers")
+        if isinstance(markers, str):
+            markers = [marker.strip() for marker in markers.split(",") if marker.strip()]
+        elif not isinstance(markers, list):
+            markers = None
+
+        return cls(
+            uncertainty_threshold=_to_float(payload.get("uncertainty_threshold"), 0.75),
+            idk_bonus=_to_float(payload.get("idk_bonus"), 1.0),
+            calibration_bonus_weight=_to_float(
+                payload.get("calibration_bonus_weight", payload.get("calibration_weight", 0.5)),
+                0.5,
+            ),
+            uncertainty_marker_bonus=_to_float(
+                payload.get(
+                    "uncertainty_marker_bonus",
+                    payload.get("explicit_uncertainty_bonus", 0.3),
+                ),
+                0.3,
+            ),
+            uncertainty_markers=markers or _DEFAULT_UNCERTAINTY_MARKERS.copy(),
+        )
+
+    def dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return getattr(self, key, default)
+
+
+@dataclass
+class DeceptionAblationConfig:
+    enabled: bool = False
+    config_path: str | None = None
+    analysis_script: str | None = None
+    ablation_script: str | None = None
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "DeceptionAblationConfig":
+        payload = payload or {}
+        return cls(
+            enabled=bool(payload.get("enabled", False)),
+            config_path=payload.get("config_path"),
+            analysis_script=payload.get("analysis_script"),
+            ablation_script=payload.get("ablation_script"),
+        )
+
+    def dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return getattr(self, key, default)
+
+
+@dataclass
+class DeceptionConfig:
+    detect: bool = True
+    detection_method: str = "heuristic"
+    log_fingerprints: bool = True
+    fingerprint_dir: str = "runs/deception_fingerprints/"
+    save_circuits: bool = True
+    save_full_traces: bool = True
+    alert_threshold: float = 0.7
+    apply_penalty: bool = False
+    penalty_weight: float = 0.0
+    fingerprint_filename: str = "fingerprints.jsonl"
+    ablation: DeceptionAblationConfig = field(default_factory=DeceptionAblationConfig)
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "DeceptionConfig":
+        payload = payload or {}
+        ablation = DeceptionAblationConfig.from_mapping(payload.get("ablation"))
+        return cls(
+            detect=bool(payload.get("detect", True)),
+            detection_method=str(payload.get("detection_method", "heuristic")),
+            log_fingerprints=bool(payload.get("log_fingerprints", True)),
+            fingerprint_dir=str(payload.get("fingerprint_dir", "runs/deception_fingerprints/")),
+            save_circuits=bool(payload.get("save_circuits", True)),
+            save_full_traces=bool(payload.get("save_full_traces", True)),
+            alert_threshold=_to_float(payload.get("alert_threshold"), 0.7),
+            apply_penalty=bool(payload.get("apply_penalty", False)),
+            penalty_weight=_to_float(payload.get("penalty_weight", 0.0), 0.0),
+            fingerprint_filename=str(payload.get("fingerprint_filename", "fingerprints.jsonl")),
+            ablation=ablation,
+        )
+
+    def dict(self) -> dict[str, Any]:
+        result = asdict(self)
+        result["ablation"] = self.ablation.dict()
+        return result
+
+    def get(self, key: str, default: Any = None) -> Any:
+        if key == "ablation":
+            return self.ablation
+        return getattr(self, key, default)
+
+
+@dataclass
+class DatasetConfig:
+    path: str = ""
+    train_split: float = 0.7
+    val_split: float = 0.15
+    test_split: float = 0.15
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "DatasetConfig":
+        payload = payload or {}
+        return cls(
+            path=str(payload.get("path", "")),
+            train_split=_to_float(payload.get("train_split"), 0.7),
+            val_split=_to_float(payload.get("val_split"), 0.15),
+            test_split=_to_float(payload.get("test_split"), 0.15),
+        )
+
+    def dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class OutputConfig:
+    checkpoint_dir: str = "runs/phi3_trained/"
+    log_interval: int = 10
+    save_interval: int = 100
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "OutputConfig":
+        payload = payload or {}
+        return cls(
+            checkpoint_dir=str(payload.get("checkpoint_dir", "runs/phi3_trained/")),
+            log_interval=_to_int(payload.get("log_interval"), 10),
+            save_interval=_to_int(payload.get("save_interval"), 100),
+        )
+
+    def dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -88,6 +243,10 @@ class TrainingConfig:
     model: ModelConfig = field(default_factory=ModelConfig)
     adversarial_batch: int = 2
     confidence_threshold: float = 0.75
+    honesty: HonestyConfig = field(default_factory=HonestyConfig)
+    deception: DeceptionConfig = field(default_factory=DeceptionConfig)
+    dataset: DatasetConfig = field(default_factory=DatasetConfig)
+    output: OutputConfig = field(default_factory=OutputConfig)
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any] | None) -> "TrainingConfig":
@@ -105,10 +264,19 @@ class TrainingConfig:
             model=ModelConfig.from_mapping(payload.get("model")),
             adversarial_batch=_to_int(payload.get("adversarial_batch"), 2),
             confidence_threshold=_to_float(payload.get("confidence_threshold"), 0.75),
+            honesty=HonestyConfig.from_mapping(payload.get("honesty")),
+            deception=DeceptionConfig.from_mapping(payload.get("deception")),
+            dataset=DatasetConfig.from_mapping(payload.get("dataset")),
+            output=OutputConfig.from_mapping(payload.get("output")),
         )
 
     def dict(self) -> dict[str, Any]:
-        return asdict(self)
+        payload = asdict(self)
+        payload["honesty"] = self.honesty.dict()
+        payload["deception"] = self.deception.dict()
+        payload["dataset"] = self.dataset.dict()
+        payload["output"] = self.output.dict()
+        return payload
 
 
 def load_training_config(path: str | Path) -> TrainingConfig:
