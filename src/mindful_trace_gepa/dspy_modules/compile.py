@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 import logging
 from pathlib import Path
@@ -9,10 +10,13 @@ from typing import Any, Callable, Dict, List, Optional
 
 try:  # pragma: no cover - dspy optional in some environments
     import dspy  # type: ignore
-    from dspy.teleprompt import BootstrapFewShot, MIPRO  # type: ignore
 except ImportError:  # pragma: no cover
     dspy = None  # type: ignore
     BootstrapFewShot = MIPRO = None  # type: ignore
+else:
+    teleprompt = importlib.import_module("dspy.teleprompt")
+    BootstrapFewShot = getattr(teleprompt, "BootstrapFewShot")
+    MIPRO = getattr(teleprompt, "MIPRO")
 
 LOGGER = logging.getLogger(__name__)
 

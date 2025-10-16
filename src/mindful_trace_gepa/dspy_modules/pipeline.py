@@ -15,8 +15,6 @@ except ImportError:  # pragma: no cover
 from gepa_mindfulness.core.tracing import CircuitTracerLogger, ThoughtTrace
 
 from ..configuration import DSPyConfig, load_dspy_config
-
-LOGGER = logging.getLogger(__name__)
 from .signatures import (
     ALL_SIGNATURES,
     Decision,
@@ -29,6 +27,8 @@ from .signatures import (
     SignatureCallable,
     Tensions,
 )
+
+LOGGER = logging.getLogger(__name__)
 
 TRACE_STAGE_BY_SIGNATURE: Mapping[str, str] = {
     Framing.name: "framing",
@@ -221,12 +221,8 @@ if dspy is not None:
                 self.evidence = dspy.ChainOfThought(
                     "dual_path_framing, context -> dual_path_evidence"
                 )
-                self.decision = dspy.ChainOfThought(
-                    "dual_path_evidence -> dual_path_decision"
-                )
-                self.reflection = dspy.ChainOfThought(
-                    "dual_path_decision -> reflection"
-                )
+                self.decision = dspy.ChainOfThought("dual_path_evidence -> dual_path_decision")
+                self.reflection = dspy.ChainOfThought("dual_path_decision -> reflection")
             else:
                 self.framing = dspy.ChainOfThought("inquiry -> framing")
                 self.evidence = dspy.ChainOfThought("framing, context -> evidence")
@@ -236,22 +232,21 @@ if dspy is not None:
         def forward(self, inquiry: str, context: str = "") -> "dspy.Prediction":
             framing = self.framing(inquiry=inquiry)
 
-            evidence = self.evidence(
-                dual_path_framing=getattr(framing, "dual_path_framing", framing.framing),
-                context=context,
-            )
+            framing_key = "dual_path_framing" if self.use_dual_path else "framing"
+            evidence_key = "dual_path_evidence" if self.use_dual_path else "evidence"
+            decision_key = "dual_path_decision" if self.use_dual_path else "decision"
 
-            decision = self.decision(
-                dual_path_evidence=getattr(
-                    evidence, "dual_path_evidence", evidence.evidence
-                )
-            )
+            def _extract(prediction: Any, attr: str, fallback: str) -> Any:
+                return getattr(prediction, attr, getattr(prediction, fallback, prediction))
 
-            reflection = self.reflection(
-                dual_path_decision=getattr(
-                    decision, "dual_path_decision", decision.decision
-                )
-            )
+            evidence_input = _extract(framing, framing_key, "framing")
+            evidence = self.evidence(**{framing_key: evidence_input, "context": context})
+
+            decision_input = _extract(evidence, evidence_key, "evidence")
+            decision = self.decision(**{evidence_key: decision_input})
+
+            reflection_input = _extract(decision, decision_key, "decision")
+            reflection = self.reflection(**{decision_key: reflection_input})
 
             return dspy.Prediction(
                 framing=framing,
@@ -259,7 +254,6 @@ if dspy is not None:
                 decision=decision,
                 reflection=reflection.reflection,
             )
-
 
 else:  # pragma: no cover - executed when dspy missing
 
