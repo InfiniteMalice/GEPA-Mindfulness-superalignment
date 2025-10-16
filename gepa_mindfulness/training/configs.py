@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, List, Mapping
 
 import yaml
 
@@ -315,15 +315,15 @@ class TrainingConfig:
             seed=seed,
             max_steps=max_steps,
             device=device,
-            reward_weights=reward_weights,
-            ppo=PPOConfig.from_mapping(ppo_payload),
-            model=ModelConfig.from_mapping(model_payload),
-            adversarial_batch=adversarial_batch,
-            confidence_threshold=confidence_threshold,
-            honesty=honesty,
-            deception=deception,
-            dataset=dataset,
-            output=output,
+            reward_weights=RewardWeightsConfig.from_mapping(payload.get("reward_weights")),
+            ppo=PPOConfig.from_mapping(payload.get("ppo")),
+            model=ModelConfig.from_mapping(payload.get("model")),
+            adversarial_batch=_to_int(payload.get("adversarial_batch"), 2),
+            confidence_threshold=_to_float(payload.get("confidence_threshold"), 0.75),
+            honesty=HonestyConfig.from_mapping(payload.get("honesty")),
+            deception=DeceptionConfig.from_mapping(payload.get("deception")),
+            dataset=DatasetConfig.from_mapping(payload.get("dataset")),
+            output=OutputConfig.from_mapping(payload.get("output")),
         )
 
     def dict(self) -> dict[str, Any]:
