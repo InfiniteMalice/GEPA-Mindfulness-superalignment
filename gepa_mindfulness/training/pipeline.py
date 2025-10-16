@@ -44,29 +44,26 @@ except ImportError:  # pragma: no cover - executed when mindful-trace-gepa absen
         "[RECOMMENDATION]": "recommendation",
     }
 
-    def parse_dual_path_response(response: str) -> Dict[str, Any]:
+    def parse_dual_path_response(response: str) -> dict[str, Any]:
         """Parse dual-path responses emitted by the fallback prompt."""
 
-        sections: Dict[str, Any] = {}
-        normalized_response = response.upper()
+        sections: dict[str, Any] = {}
+        lowered_response = response
 
         for marker, key in _SECTION_MARKERS.items():
-            marker_upper = marker.upper()
-            start = normalized_response.find(marker_upper)
+            start = lowered_response.find(marker)
             if start == -1:
                 continue
-
             content_start = start + len(marker)
 
             # Locate the next marker to determine the end of the section.
-            next_positions = []
-            for next_marker in _SECTION_MARKERS.keys():
-                next_pos = normalized_response.find(next_marker.upper(), content_start)
-                if next_pos != -1:
-                    next_positions.append(next_pos)
-
-            end = min(next_positions) if next_positions else len(response)
-            sections[key] = response[content_start:end].strip()
+            next_positions = [
+                lowered_response.find(next_marker, content_start)
+                for next_marker in _SECTION_MARKERS.keys()
+                if lowered_response.find(next_marker, content_start) != -1
+            ]
+            end = min(next_positions) if next_positions else len(lowered_response)
+            sections[key] = lowered_response[content_start:end].strip()
             sections[f"{key}_span"] = (content_start, end)
 
         # Provide defaults for missing sections to simplify downstream handling.
@@ -80,13 +77,8 @@ except ImportError:  # pragma: no cover - executed when mindful-trace-gepa absen
             recommended_path = "path_1"
         elif "path 2" in recommendation_text:
             recommended_path = "path_2"
-        elif "1" in recommendation_text and "2" not in recommendation_text:
-            recommended_path = "path_1"
-        elif "2" in recommendation_text and "1" not in recommendation_text:
-            recommended_path = "path_2"
         else:
             recommended_path = "unclear"
-
         sections["recommended_path"] = recommended_path
 
         return sections
@@ -118,7 +110,6 @@ except ImportError:  # pragma: no cover - executed when mindful-trace-gepa absen
                 f"recommended_path={recommendation or 'unknown'}"
             ),
         }
-
 
 from ..core.rewards import RewardSignal, RewardWeights
 from ..core.tracing import CircuitTracerLogger
