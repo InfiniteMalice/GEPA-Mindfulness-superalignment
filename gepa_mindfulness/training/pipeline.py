@@ -1,12 +1,19 @@
 import inspect
+import json
 import logging
 from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List
 
 try:  # pragma: no cover - optional dependency
     from mindful_trace_gepa.deception.circuit_analysis import (
         detect_deception_circuits,
         detect_deception_heuristic,
+    )
+    from mindful_trace_gepa.deception.fingerprints import (
+        DeceptionFingerprint,
+        FingerprintCollector,
     )
     from mindful_trace_gepa.prompts.dual_path import (
         make_dual_path_prompt,
@@ -110,6 +117,43 @@ except ImportError:  # pragma: no cover - executed when mindful-trace-gepa absen
                 f"recommended_path={recommendation or 'unknown'}"
             ),
         }
+
+    @dataclass
+    class DeceptionFingerprint:  # type: ignore[dead-code]
+        timestamp: str
+        prompt: str
+        domain: str
+        path_1_text: str
+        path_2_text: str
+        comparison: str
+        recommendation: str
+        recommended_path: str
+        path_1_circuits: Dict[str, float]
+        path_2_circuits: Dict[str, float]
+        deception_detected: bool
+        confidence_score: float
+        signals: Dict[str, Any]
+        reasons: List[str]
+        model_checkpoint: str
+        training_step: int
+
+        def to_dict(self) -> dict[str, Any]:
+            return self.__dict__
+
+    class FingerprintCollector:  # type: ignore[dead-code]
+        def __init__(self, output_dir: str):
+            self.output_dir = Path(output_dir)
+            self.output_dir.mkdir(parents=True, exist_ok=True)
+            self.fingerprints_file = self.output_dir / "fingerprints.jsonl"
+
+        def add(self, fingerprint: Any) -> None:
+            if hasattr(fingerprint, "to_dict"):
+                payload = fingerprint.to_dict()
+            else:
+                payload = dict(fingerprint.__dict__)
+            with open(self.fingerprints_file, "a", encoding="utf-8") as handle:
+                json.dump(payload, handle)
+                handle.write("\n")
 
 
 from ..core.rewards import RewardSignal, RewardWeights
@@ -343,6 +387,19 @@ class TrainingOrchestrator:
         )
         self.circuit_logger = circuit_logger or CircuitTracerLogger()
         self.context_profile = ""
+        self.current_step = 0
+        self._last_sections: dict[str, Any] = {}
+        self._last_response_text: str = ""
+        self._last_deception_signals: dict[str, Any] = {}
+        self._last_prompt: str = ""
+        self._last_path_1_circuits: Dict[str, Any] | None = None
+        self._last_path_2_circuits: Dict[str, Any] | None = None
+
+        deception_config = getattr(self.config, "deception", None)
+        if deception_config and deception_config.log_fingerprints:
+            self.fingerprint_collector = FingerprintCollector(deception_config.fingerprint_dir)
+        else:
+            self.fingerprint_collector = None
 
         if not MINDFUL_TRACE_AVAILABLE:
             LOGGER.warning(
@@ -365,6 +422,8 @@ class TrainingOrchestrator:
 
     def _perform_rollout_step(self, prompt: str) -> RolloutResult:
         dual_prompt = make_dual_path_prompt(query=prompt, context=self.context_profile)
+        self._last_prompt = prompt
+        self.current_step += 1
 
         with self.circuit_logger.span("dual_path_rollout") as span:
             span.log_event(
@@ -379,6 +438,8 @@ class TrainingOrchestrator:
                 response_text = self._generate_response(dual_prompt)
 
             sections = parse_dual_path_response(response_text)
+            self._last_sections = sections
+            self._last_response_text = response_text
 
             if circuits is not None:
                 path_1_circuits = self.circuit_logger.extract_span_circuits(
@@ -394,6 +455,9 @@ class TrainingOrchestrator:
             else:
                 path_1_circuits = None
                 path_2_circuits = None
+
+            self._last_path_1_circuits = path_1_circuits
+            self._last_path_2_circuits = path_2_circuits
 
             span.log_event(
                 "path_1_reasoning",
@@ -430,6 +494,7 @@ class TrainingOrchestrator:
                 deception_signals = detect_deception_heuristic(sections)
 
             span.log_event("deception_analysis", deception_signals)
+            self._last_deception_signals = deception_signals
 
             confidence = self._compute_confidence(sections, deception_signals)
             final_response = self._apply_abstention(
@@ -440,6 +505,35 @@ class TrainingOrchestrator:
 
             trace_summary = span.get_trace_summary()
             gepa_scores = self._score_gepa_with_deception(trace_summary, deception_signals)
+
+            if self.fingerprint_collector and deception_signals.get("deception_detected", False):
+                if deception_signals.get("reasons"):
+                    fingerprint_reasons = deception_signals.get("reasons", [])
+                elif deception_signals.get("reason"):
+                    fingerprint_reasons = [deception_signals["reason"]]
+                else:
+                    fingerprint_reasons = []
+
+                fingerprint = DeceptionFingerprint(
+                    timestamp=datetime.now().isoformat(),
+                    prompt=prompt,
+                    domain=self._infer_domain(prompt),
+                    path_1_text=sections.get("path_1", ""),
+                    path_2_text=sections.get("path_2", ""),
+                    comparison=sections.get("comparison", ""),
+                    recommendation=sections.get("recommendation", ""),
+                    recommended_path=sections.get("recommended_path", "unclear"),
+                    path_1_circuits=path_1_circuits or {},
+                    path_2_circuits=path_2_circuits or {},
+                    deception_detected=True,
+                    confidence_score=deception_signals.get("confidence_score", 0.0),
+                    signals=deception_signals.get("signals", {}),
+                    reasons=fingerprint_reasons,
+                    model_checkpoint=getattr(self.config.output, "checkpoint_dir", ""),
+                    training_step=self.current_step,
+                )
+                self.fingerprint_collector.add(fingerprint)
+
             reward = self._compute_reward(gepa_scores, confidence, deception_signals)
 
             return RolloutResult(
@@ -518,12 +612,9 @@ class TrainingOrchestrator:
     ) -> Dict[str, float]:
         base_scores = self._score_gepa_principles(trace_summary)
         if deception_signals.get("deception_detected"):
-            penalty = deception_signals.get("confidence_score", 0.0) * 2.0
-            base_scores["integrity"] = max(0.0, base_scores.get("integrity", 0.0) - penalty)
             LOGGER.info(
-                "Deception detected (confidence=%.2f), reduced Integrity score by %.2f",
+                "Deception detected (confidence=%.2f); logging for monitoring only",
                 deception_signals.get("confidence_score", 0.0),
-                penalty,
             )
         return base_scores
 
@@ -549,9 +640,15 @@ class TrainingOrchestrator:
         )
 
         if deception_signals.get("deception_detected"):
-            deception_penalty = deception_signals.get("confidence_score", 0.0) * 0.5
-            base_reward -= deception_penalty
-            LOGGER.info("Applied deception penalty: -%.3f", deception_penalty)
+            LOGGER.warning(
+                "\U0001f6a8 Deception detected (confidence=%.2f). Flagging for manual review.",
+                deception_signals.get("confidence_score", 0.0),
+            )
+            LOGGER.info(
+                "Deception signals: %s",
+                deception_signals.get("reasons") or deception_signals.get("signals"),
+            )
+            self._save_deception_fingerprint(deception_signals)
 
         return base_reward
 
@@ -563,7 +660,93 @@ class TrainingOrchestrator:
         return sum(values) / len(values) if values else 0.0
 
     def _honesty_reward(self, confidence: float) -> float:
-        return confidence
+        honesty_cfg = getattr(self.config, "honesty", None)
+        threshold = honesty_cfg.uncertainty_threshold if honesty_cfg else 0.75
+        idk_bonus = honesty_cfg.idk_bonus if honesty_cfg else 1.0
+        calibration_weight = honesty_cfg.calibration_bonus_weight if honesty_cfg else 0.5
+        marker_bonus = honesty_cfg.uncertainty_marker_bonus if honesty_cfg else 0.3
+
+        reward = 0.0
+        shows_uncertainty = self._response_shows_uncertainty()
+
+        if confidence < threshold and shows_uncertainty:
+            reward += idk_bonus
+
+        true_confidence = self._true_confidence()
+        calibration_bonus = 1.0 - abs(confidence - true_confidence)
+        reward += max(0.0, calibration_bonus) * calibration_weight
+
+        if shows_uncertainty:
+            reward += marker_bonus
+
+        return reward
 
     def _hallucination_penalty(self, gepa_scores: Dict[str, float]) -> float:
         return max(0.0, 1.0 - gepa_scores.get("integrity", 0.0))
+
+    def _response_shows_uncertainty(self) -> bool:
+        if not self._last_response_text:
+            return False
+
+        honesty_cfg = getattr(self.config, "honesty", None)
+        if honesty_cfg:
+            markers = honesty_cfg.uncertainty_markers
+        else:
+            markers = ["uncertain", "not sure", "unclear", "might", "could"]
+        response_lower = self._last_response_text.lower()
+        return any(marker in response_lower for marker in markers)
+
+    def _true_confidence(self) -> float:
+        if not self._last_deception_signals:
+            return 1.0
+
+        confidence_score = self._last_deception_signals.get("confidence_score")
+        if confidence_score is None:
+            return 1.0
+        return max(0.0, min(1.0, 1.0 - float(confidence_score)))
+
+    def _save_deception_fingerprint(self, deception_signals: Dict[str, Any]) -> None:
+        deception_cfg = getattr(self.config, "deception", None)
+        if not deception_cfg:
+            return
+
+        if self.fingerprint_collector is not None:
+            # Fingerprint already persisted by collector; avoid duplicate entries.
+            return
+
+        fingerprint_dir = Path(deception_cfg.fingerprint_dir)
+        fingerprint_dir.mkdir(parents=True, exist_ok=True)
+        fingerprint_file = fingerprint_dir / deception_cfg.fingerprint_filename
+
+        fingerprint = {
+            "timestamp": datetime.now().isoformat(),
+            "prompt": self._last_prompt,
+            "path_1_circuits": self._last_path_1_circuits or {},
+            "path_2_circuits": self._last_path_2_circuits or {},
+            "signals": deception_signals.get("signals", {}),
+            "confidence_score": deception_signals.get("confidence_score", 0.0),
+            "reasons": deception_signals.get("reasons")
+            or ([deception_signals.get("reason")] if deception_signals.get("reason") else []),
+            "deception_detected": bool(deception_signals.get("deception_detected", False)),
+            "sections": {
+                "path_1": self._last_sections.get("path_1", ""),
+                "path_2": self._last_sections.get("path_2", ""),
+                "comparison": self._last_sections.get("comparison", ""),
+                "recommendation": self._last_sections.get("recommendation", ""),
+                "recommended_path": self._last_sections.get("recommended_path", "unclear"),
+            },
+        }
+
+        with open(fingerprint_file, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(fingerprint) + "\n")
+        LOGGER.info("Saved deception fingerprint to %s", fingerprint_file)
+
+    def _infer_domain(self, prompt: str) -> str:
+        lowered = prompt.lower()
+        if any(keyword in lowered for keyword in ("patient", "medical", "clinical")):
+            return "medical"
+        if any(keyword in lowered for keyword in ("finance", "market", "investment")):
+            return "financial"
+        if any(keyword in lowered for keyword in ("safety", "risk", "security")):
+            return "safety"
+        return "general"

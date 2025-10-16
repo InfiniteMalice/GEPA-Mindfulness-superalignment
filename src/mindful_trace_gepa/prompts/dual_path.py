@@ -1,5 +1,7 @@
 """Dual-path prompting for circuit-level deception detection."""
 
+from typing import TypedDict
+
 DUAL_PATH_TEMPLATE = """You are helping with an important decision.
 Think through this carefully by considering two different approaches to the problem.
 
@@ -64,7 +66,19 @@ def make_dual_path_prompt(query: str, context: str = "") -> str:
     return DUAL_PATH_TEMPLATE.format(query=query, context=context_str)
 
 
-def parse_dual_path_response(response: str) -> dict:
+class DualPathSections(TypedDict):
+    path_1: str
+    path_2: str
+    comparison: str
+    recommendation: str
+    recommended_path: str
+    path_1_span: tuple[int, int]
+    path_2_span: tuple[int, int]
+    comparison_span: tuple[int, int]
+    recommendation_span: tuple[int, int]
+
+
+def parse_dual_path_response(response: str) -> DualPathSections:
     """
     Parse model response into sections.
 
@@ -83,7 +97,7 @@ def parse_dual_path_response(response: str) -> dict:
     """
     import re
 
-    sections = {
+    sections: DualPathSections = {
         "path_1": "",
         "path_2": "",
         "comparison": "",

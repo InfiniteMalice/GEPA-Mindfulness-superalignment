@@ -5,12 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Mapping, MutableMapping
-
-try:  # pragma: no cover - dspy optional
-    import dspy  # type: ignore
-except ImportError:  # pragma: no cover
-    dspy = None  # type: ignore
+from typing import Any, Dict, List, Mapping, MutableMapping, Type
 
 from gepa_mindfulness.core.tracing import CircuitTracerLogger, ThoughtTrace
 
@@ -27,6 +22,13 @@ from .signatures import (
     SignatureCallable,
     Tensions,
 )
+
+try:  # pragma: no cover - dspy optional
+    import dspy as _dspy
+except ImportError:  # pragma: no cover
+    _dspy = None
+
+dspy: Any = _dspy
 
 LOGGER = logging.getLogger(__name__)
 
@@ -206,9 +208,12 @@ def ensure_dspy_enabled(config: DSPyConfig) -> None:
         )
 
 
-if dspy is not None:
+DualPathGEPAChain: Type[Any]
 
-    class DualPathGEPAChain(dspy.Module):
+if dspy is not None:
+    assert dspy is not None
+
+    class _DualPathGEPAChain(dspy.Module):
         """DSPy chain that uses dual-path reasoning with circuit tracing."""
 
         def __init__(self, use_dual_path: bool = False) -> None:
@@ -229,7 +234,7 @@ if dspy is not None:
                 self.decision = dspy.ChainOfThought("evidence -> decision")
                 self.reflection = dspy.ChainOfThought("decision -> reflection")
 
-        def forward(self, inquiry: str, context: str = "") -> "dspy.Prediction":
+        def forward(self, inquiry: str, context: str = "") -> Any:
             framing = self.framing(inquiry=inquiry)
 
             framing_key = "dual_path_framing" if self.use_dual_path else "framing"
@@ -255,11 +260,15 @@ if dspy is not None:
                 reflection=reflection.reflection,
             )
 
+    DualPathGEPAChain = _DualPathGEPAChain
+
 else:  # pragma: no cover - executed when dspy missing
 
-    class DualPathGEPAChain:  # type: ignore[override]
+    class _DSPyModuleUnavailable:
         def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: D401
             raise ImportError("dspy is required to use DualPathGEPAChain")
+
+    DualPathGEPAChain = _DSPyModuleUnavailable
 
 
 __all__ = [

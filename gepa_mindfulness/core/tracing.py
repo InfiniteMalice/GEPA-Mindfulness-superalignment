@@ -265,9 +265,9 @@ class _TraceSpanAdapter:
     def get_trace_summary(self) -> Dict[str, Any]:
         """Return a dictionary summarising the recorded events."""
 
-        summary = self._trace.summary()
-        summary["events"] = list(self._events)
-        return summary
+        summary_map: Dict[str, Any] = dict(self._trace.summary())
+        summary_map["events"] = list(self._events)
+        return summary_map
 
     def get_contradictions(self) -> list[dict[str, Any]]:
         """Return contradictions recorded within the span."""

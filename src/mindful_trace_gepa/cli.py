@@ -6,7 +6,7 @@ import argparse
 import json
 from argparse import BooleanOptionalAction
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, cast
 
 import click
 
@@ -65,12 +65,15 @@ def handle_dspy_run(args: argparse.Namespace) -> None:
     if GEPA_CHAIN_CLS is None and DUAL_PATH_CHAIN_CLS is None:
         raise RuntimeError("DSPy pipeline unavailable; optional dependencies missing")
     config = load_dspy_config()
-    chain_factory = (
+    chain_factory_raw: Any = (
         DUAL_PATH_CHAIN_CLS
         if dual_path_flag and DUAL_PATH_CHAIN_CLS is not None
         else GEPA_CHAIN_CLS
     )
-    chain = chain_factory(config=config, allow_optimizations=args.enable_optim)
+    if chain_factory_raw is None:
+        raise RuntimeError("DSPy pipeline unavailable; optional dependencies missing")
+    chain_callable = cast(Callable[..., Any], chain_factory_raw)
+    chain = chain_callable(config=config, allow_optimizations=args.enable_optim)
     input_records = _read_jsonl(Path(args.input))
     trace_path = Path(args.trace)
     tokens_path = trace_path.with_name("tokens.jsonl")
@@ -187,6 +190,8 @@ def handle_dspy_compile(args: argparse.Namespace) -> None:
         for record in dataset_records
     ]
 
+    if DUAL_PATH_CHAIN_CLS is None:
+        raise RuntimeError("Dual-path DSPy pipeline unavailable; install dspy")
     module = DUAL_PATH_CHAIN_CLS(use_dual_path=config_data.get("use_dual_path", False))
     compiled_module = compiler.compile(
         module,
@@ -222,7 +227,7 @@ def run_dual_path_contrastive(data: Path, out: Path, context: str) -> None:
         )
 
         sections = parse_dual_path_response(response)
-        deception = detect_deception_heuristic(sections)
+        deception = detect_deception_heuristic(dict(sections))
 
         result = {
             "id": record.get("id", ""),

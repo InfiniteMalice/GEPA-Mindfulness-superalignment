@@ -9,7 +9,7 @@ import logging
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterator, List, Optional
+from typing import Any, Iterable, Iterator, List, Optional
 
 from ..utils.imports import optional_import
 
@@ -239,6 +239,23 @@ class TraceArchiveWriter:
 
     def __exit__(self, exc_type, exc, tb) -> None:
         self.close()
+
+
+class JSONLStore:
+    """Simple append/read helper for JSONL datasets."""
+
+    def __init__(self, path: Path | str) -> None:
+        self.path = Path(path)
+
+    def read(self) -> List[dict[str, Any]]:
+        return read_jsonl(self.path)
+
+    def append(self, rows: Iterable[dict[str, Any]]) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self.path.open("a", encoding="utf-8") as handle:
+            for row in rows:
+                handle.write(json.dumps(row, ensure_ascii=False))
+                handle.write("\n")
 
 
 __all__ = [

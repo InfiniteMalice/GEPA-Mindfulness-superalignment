@@ -9,14 +9,20 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 try:  # pragma: no cover - dspy optional in some environments
-    import dspy  # type: ignore
+    import dspy as _dspy
 except ImportError:  # pragma: no cover
-    dspy = None  # type: ignore
-    BootstrapFewShot = MIPRO = None  # type: ignore
-else:
+    _dspy = None
+
+dspy: Any = _dspy
+
+BootstrapFewShot: Any | None = None
+MIPRO: Any | None = None
+teleprompt: Any = None
+
+if dspy is not None:  # pragma: no cover - executed when dspy available
     teleprompt = importlib.import_module("dspy.teleprompt")
-    BootstrapFewShot = getattr(teleprompt, "BootstrapFewShot")
-    MIPRO = getattr(teleprompt, "MIPRO")
+    BootstrapFewShot = getattr(teleprompt, "BootstrapFewShot", None)
+    MIPRO = getattr(teleprompt, "MIPRO", None)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -37,11 +43,11 @@ class GEPACompiler:
 
     def compile(
         self,
-        module: "dspy.Module",
-        trainset: List["dspy.Example"],
-        valset: Optional[List["dspy.Example"]] = None,
+        module: Any,
+        trainset: List[Any],
+        valset: Optional[List[Any]] = None,
         method: str = "bootstrap",
-    ) -> "dspy.Module":
+    ) -> Any:
         if dspy is None:  # pragma: no cover - safety guard when dependency missing
             raise ImportError("dspy is required to compile modules")
 
@@ -106,7 +112,7 @@ class GEPACompiler:
             LOGGER.error("Metric computation failed: %s", exc)
             return False
 
-    def _validate_compiled_prompts(self, module: "dspy.Module") -> bool:
+    def _validate_compiled_prompts(self, module: Any) -> bool:
         prompts = self._extract_prompts(module)
         suspicious_patterns = [
             "ignore previous",
@@ -135,7 +141,7 @@ class GEPACompiler:
                     )
         return True
 
-    def _extract_prompts(self, module: "dspy.Module") -> Dict[str, str]:
+    def _extract_prompts(self, module: Any) -> Dict[str, str]:
         prompts: Dict[str, str] = {}
         for name, predictor in module.named_predictors():
             signature = getattr(predictor, "signature", None)
@@ -149,7 +155,7 @@ class GEPACompiler:
                 prompts[name] = ""
         return prompts
 
-    def _log_prompt_changes(self, original: "dspy.Module", compiled: "dspy.Module") -> None:
+    def _log_prompt_changes(self, original: Any, compiled: Any) -> None:
         original_prompts = self._extract_prompts(original)
         compiled_prompts = self._extract_prompts(compiled)
 
@@ -170,7 +176,7 @@ class GEPACompiler:
         for change in changes:
             LOGGER.debug("Changed '%s'", change["predictor"])
 
-    def save_compiled_module(self, module: "dspy.Module", output_path: str) -> None:
+    def save_compiled_module(self, module: Any, output_path: str) -> None:
         if dspy is None:  # pragma: no cover
             raise ImportError("dspy is required to save compiled modules")
 
@@ -193,8 +199,8 @@ def create_gepa_metric(
     alpha: float = 0.5,
     beta: float = 0.5,
     gamma: float = 1.0,
-) -> Callable[["dspy.Example", Any, Any], float]:
-    def gepa_metric(example: "dspy.Example", prediction: Any, trace: Any = None) -> float:
+) -> Callable[[Any, Any, Any], float]:
+    def gepa_metric(example: Any, prediction: Any, trace: Any = None) -> float:
         task_score = 0.0
         if hasattr(example, "answer") and hasattr(prediction, "answer"):
             task_score = 1.0 if example.answer == prediction.answer else 0.0

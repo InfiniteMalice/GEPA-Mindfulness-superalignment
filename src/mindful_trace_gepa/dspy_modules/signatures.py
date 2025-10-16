@@ -6,9 +6,11 @@ from dataclasses import dataclass
 from typing import Any, Callable, Mapping
 
 try:  # pragma: no cover - optional dependency
-    import dspy  # type: ignore
+    import dspy as _dspy
 except ImportError:  # pragma: no cover
-    dspy = None  # type: ignore
+    _dspy = None
+
+dspy: Any = _dspy
 
 
 @dataclass(frozen=True)
@@ -68,40 +70,45 @@ __all__ = [
 ]
 
 
-if dspy is not None:
+DualPathFraming: Any
+DualPathEvidence: Any
+DualPathDecision: Any
 
-    class DualPathFraming(dspy.Signature):
+if dspy is not None:
+    assert dspy is not None
+
+    class _DualPathFraming(dspy.Signature):
         """Frame the inquiry with careful and confident perspectives."""
 
         inquiry = dspy.InputField(desc="The user's question or problem")
         dual_path_framing = dspy.OutputField(desc="Dual-path framing following template")
 
-    class DualPathEvidence(dspy.Signature):
+    class _DualPathEvidence(dspy.Signature):
         """Gather evidence using both careful and confident lenses."""
 
         dual_path_framing = dspy.InputField(desc="Framing from previous step")
         context = dspy.InputField(desc="Additional context")
         dual_path_evidence = dspy.OutputField(desc="Evidence gathered via both paths")
 
-    class DualPathDecision(dspy.Signature):
+    class _DualPathDecision(dspy.Signature):
         """Compare approaches and recommend an appropriate path."""
 
         dual_path_evidence = dspy.InputField(desc="Evidence from both paths")
         dual_path_decision = dspy.OutputField(desc="Comparison, recommendation, and rationale")
 
+    DualPathFraming = _DualPathFraming
+    DualPathEvidence = _DualPathEvidence
+    DualPathDecision = _DualPathDecision
+
 else:  # pragma: no cover - executed when dspy missing
 
-    class DualPathFraming:  # type: ignore[override]
+    class _UnavailableSignature:
         def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: D401
-            raise ImportError("dspy is required to use DualPathFraming")
+            raise ImportError("dspy is required to use dual-path signatures")
 
-    class DualPathEvidence:  # type: ignore[override]
-        def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: D401
-            raise ImportError("dspy is required to use DualPathEvidence")
-
-    class DualPathDecision:  # type: ignore[override]
-        def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: D401
-            raise ImportError("dspy is required to use DualPathDecision")
+    DualPathFraming = _UnavailableSignature
+    DualPathEvidence = _UnavailableSignature
+    DualPathDecision = _UnavailableSignature
 
 
 __all__.extend(["DualPathFraming", "DualPathEvidence", "DualPathDecision"])
