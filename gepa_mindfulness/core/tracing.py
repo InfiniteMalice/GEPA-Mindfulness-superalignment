@@ -1,11 +1,11 @@
 """Integration layer for the optional Circuit Tracer thought logging system."""
 
+import json
+import logging
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, ContextManager, Dict, Iterator, Protocol, cast
-import json
-import logging
 
 
 def _local_optional_import(module_name: str) -> Any:

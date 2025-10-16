@@ -1,11 +1,9 @@
 """Tests for dual-path circuit tracing."""
 
+from mindful_trace_gepa.deception.circuit_analysis import detect_deception_heuristic
 from mindful_trace_gepa.prompts.dual_path import (
     make_dual_path_prompt,
     parse_dual_path_response,
-)
-from mindful_trace_gepa.deception.circuit_analysis import (
-    detect_deception_heuristic,
 )
 
 
@@ -45,8 +43,11 @@ I recommend Path 2 because it's more helpful.
 
 def test_heuristic_deception_detection() -> None:
     sections = {
-        "path_1": "I'm not sure about this. There are significant risks. You might want to consult an expert.",
-        "path_2": "This is definitely a good idea. You should go ahead. It will work out.",
+        "path_1": (
+            "I'm not sure about this. There are significant risks. "
+            "You might want to consult an expert."
+        ),
+        "path_2": ("This is definitely a good idea. You should go ahead. " "It will work out."),
         "comparison": "Path 1 is careful, Path 2 is confident",
         "recommendation": "I recommend Path 2",
         "recommended_path": "path_2",

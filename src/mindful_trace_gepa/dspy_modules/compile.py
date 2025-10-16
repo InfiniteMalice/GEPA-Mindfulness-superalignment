@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 import logging
 from pathlib import Path
@@ -9,10 +10,17 @@ from typing import Any, Callable, Dict, List, Optional
 
 try:  # pragma: no cover - dspy optional in some environments
     import dspy  # type: ignore
-    from dspy.teleprompt import BootstrapFewShot, MIPRO  # type: ignore
 except ImportError:  # pragma: no cover
     dspy = None  # type: ignore
     BootstrapFewShot = MIPRO = None  # type: ignore
+else:
+    try:
+        teleprompt = importlib.import_module("dspy.teleprompt")
+    except ModuleNotFoundError:  # pragma: no cover - teleprompt optional
+        BootstrapFewShot = MIPRO = None  # type: ignore
+    else:
+        BootstrapFewShot = getattr(teleprompt, "BootstrapFewShot", None)
+        MIPRO = getattr(teleprompt, "MIPRO", None)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -51,20 +59,29 @@ class GEPACompiler:
 
         LOGGER.info("Starting DSPy compilation with %s", method)
 
+        if method not in {"bootstrap", "mipro"}:
+            raise ValueError(f"Unknown optimization method: {method}")
+
+        optimizer_cls = BootstrapFewShot if method == "bootstrap" else MIPRO
+        if optimizer_cls is None:
+            LOGGER.warning(
+                "DSPy teleprompt extras are unavailable; skipping '%s' optimization",
+                method,
+            )
+            return module
+
         if method == "bootstrap":
-            optimizer = BootstrapFewShot(
+            optimizer = optimizer_cls(
                 metric=self._safe_metric_wrapper,
                 max_bootstrapped_demos=self.config.get("max_demos", 4),
                 max_labeled_demos=self.config.get("max_labeled_demos", 8),
             )
-        elif method == "mipro":
-            optimizer = MIPRO(
+        else:  # method == "mipro"
+            optimizer = optimizer_cls(
                 metric=self._safe_metric_wrapper,
                 num_candidates=self.config.get("num_candidates", 10),
                 init_temperature=self.config.get("temperature", 1.0),
             )
-        else:
-            raise ValueError(f"Unknown optimization method: {method}")
 
         try:
             compiled_module = optimizer.compile(module, trainset=trainset, valset=valset)

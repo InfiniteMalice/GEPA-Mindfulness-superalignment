@@ -3,6 +3,19 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
+from mindful_trace_gepa.deception.circuit_analysis import (
+    detect_deception_circuits,
+    detect_deception_heuristic,
+)
+from mindful_trace_gepa.prompts.dual_path import (
+    make_dual_path_prompt,
+    parse_dual_path_response,
+)
+
+from ..core.rewards import RewardSignal, RewardWeights
+from ..core.tracing import CircuitTracerLogger
+from .configs import TrainingConfig
+
 try:
     from trl import PPOTrainer
 
@@ -10,15 +23,6 @@ try:
 except ImportError:
     PPOTrainer = None  # type: ignore
     TRL_AVAILABLE = False
-
-from ..core.rewards import RewardSignal, RewardWeights
-from ..core.tracing import CircuitTracerLogger
-from .configs import TrainingConfig
-from mindful_trace_gepa.prompts.dual_path import make_dual_path_prompt, parse_dual_path_response
-from mindful_trace_gepa.deception.circuit_analysis import (
-    detect_deception_circuits,
-    detect_deception_heuristic,
-)
 
 try:  # pragma: no cover - optional dependency
     import torch
@@ -257,10 +261,13 @@ class TrainingOrchestrator:
         dual_prompt = make_dual_path_prompt(query=prompt, context=self.context_profile)
 
         with self.circuit_logger.span("dual_path_rollout") as span:
-            span.log_event("framing", {
-                "original_query": prompt,
-                "dual_path_prompt": dual_prompt,
-            })
+            span.log_event(
+                "framing",
+                {
+                    "original_query": prompt,
+                    "dual_path_prompt": dual_prompt,
+                },
+            )
 
             with self.circuit_logger.capture_circuits() as circuits:
                 response_text = self._generate_response(dual_prompt)
@@ -282,16 +289,22 @@ class TrainingOrchestrator:
                 path_1_circuits = None
                 path_2_circuits = None
 
-            span.log_event("path_1_reasoning", {
-                "content": sections.get("path_1", ""),
-                "circuits": path_1_circuits,
-                "span": sections.get("path_1_span", (0, 0)),
-            })
-            span.log_event("path_2_reasoning", {
-                "content": sections.get("path_2", ""),
-                "circuits": path_2_circuits,
-                "span": sections.get("path_2_span", (0, 0)),
-            })
+            span.log_event(
+                "path_1_reasoning",
+                {
+                    "content": sections.get("path_1", ""),
+                    "circuits": path_1_circuits,
+                    "span": sections.get("path_1_span", (0, 0)),
+                },
+            )
+            span.log_event(
+                "path_2_reasoning",
+                {
+                    "content": sections.get("path_2", ""),
+                    "circuits": path_2_circuits,
+                    "span": sections.get("path_2_span", (0, 0)),
+                },
+            )
             span.log_event("comparison", {"content": sections.get("comparison", "")})
             span.log_event(
                 "decision",
@@ -365,16 +378,22 @@ class TrainingOrchestrator:
 
         return (
             "[PATH 1 REASONING]\n"
-            "I am cautious about this request. There may be uncertainties or risks that require expert advice.\n\n"
+            "I am cautious about this request. There may be uncertainties or risks "
+            "that require expert advice.\n\n"
             "[PATH 2 REASONING]\n"
-            "Taking an action-oriented stance, here is a confident recommendation addressing the immediate need.\n\n"
+            "Taking an action-oriented stance, here is a confident recommendation "
+            "addressing the immediate need.\n\n"
             "[COMPARISON]\n"
             "Path 1 emphasises prudence while Path 2 focuses on decisiveness.\n\n"
             "[RECOMMENDATION]\n"
-            "I recommend Path 1 for safety." 
+            "I recommend Path 1 for safety."
         )
 
-    def _compute_confidence(self, sections: Dict[str, Any], deception_signals: Dict[str, Any]) -> float:
+    def _compute_confidence(
+        self,
+        sections: Dict[str, Any],
+        deception_signals: Dict[str, Any],
+    ) -> float:
         confidence = 0.7 if sections.get("recommended_path") == "path_1" else 0.6
         if deception_signals.get("deception_detected"):
             confidence -= deception_signals.get("confidence_score", 0.0) * 0.5
