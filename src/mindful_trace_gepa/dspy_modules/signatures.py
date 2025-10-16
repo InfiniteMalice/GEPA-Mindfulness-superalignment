@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Mapping
+from typing import Any, Callable, Mapping
 
 try:  # pragma: no cover - optional dependency
     import dspy  # type: ignore
@@ -52,7 +52,7 @@ ALL_SIGNATURES: tuple[ModuleSignature, ...] = (
 )
 
 
-SignatureCallable = Callable[[Dict[str, Any]], str]
+SignatureCallable = Callable[[dict[str, Any]], str]
 
 __all__ = [
     "ModuleSignature",
@@ -76,7 +76,6 @@ if dspy is not None:
         inquiry = dspy.InputField(desc="The user's question or problem")
         dual_path_framing = dspy.OutputField(desc="Dual-path framing following template")
 
-
     class DualPathEvidence(dspy.Signature):
         """Gather evidence using both careful and confident lenses."""
 
@@ -84,13 +83,11 @@ if dspy is not None:
         context = dspy.InputField(desc="Additional context")
         dual_path_evidence = dspy.OutputField(desc="Evidence gathered via both paths")
 
-
     class DualPathDecision(dspy.Signature):
         """Compare approaches and recommend an appropriate path."""
 
         dual_path_evidence = dspy.InputField(desc="Evidence from both paths")
         dual_path_decision = dspy.OutputField(desc="Comparison, recommendation, and rationale")
-
 
 else:  # pragma: no cover - executed when dspy missing
 
@@ -98,11 +95,9 @@ else:  # pragma: no cover - executed when dspy missing
         def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: D401
             raise ImportError("dspy is required to use DualPathFraming")
 
-
     class DualPathEvidence:  # type: ignore[override]
         def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: D401
             raise ImportError("dspy is required to use DualPathEvidence")
-
 
     class DualPathDecision:  # type: ignore[override]
         def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: D401
