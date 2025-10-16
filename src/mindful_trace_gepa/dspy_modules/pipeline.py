@@ -15,8 +15,6 @@ except ImportError:  # pragma: no cover
 from gepa_mindfulness.core.tracing import CircuitTracerLogger, ThoughtTrace
 
 from ..configuration import DSPyConfig, load_dspy_config
-
-LOGGER = logging.getLogger(__name__)
 from .signatures import (
     ALL_SIGNATURES,
     Decision,
@@ -29,6 +27,8 @@ from .signatures import (
     SignatureCallable,
     Tensions,
 )
+
+LOGGER = logging.getLogger(__name__)
 
 TRACE_STAGE_BY_SIGNATURE: Mapping[str, str] = {
     Framing.name: "framing",
@@ -221,12 +221,8 @@ if dspy is not None:
                 self.evidence = dspy.ChainOfThought(
                     "dual_path_framing, context -> dual_path_evidence"
                 )
-                self.decision = dspy.ChainOfThought(
-                    "dual_path_evidence -> dual_path_decision"
-                )
-                self.reflection = dspy.ChainOfThought(
-                    "dual_path_decision -> reflection"
-                )
+                self.decision = dspy.ChainOfThought("dual_path_evidence -> dual_path_decision")
+                self.reflection = dspy.ChainOfThought("dual_path_decision -> reflection")
             else:
                 self.framing = dspy.ChainOfThought("inquiry -> framing")
                 self.evidence = dspy.ChainOfThought("framing, context -> evidence")
@@ -258,7 +254,6 @@ if dspy is not None:
                 decision=decision,
                 reflection=reflection.reflection,
             )
-
 
 else:  # pragma: no cover - executed when dspy missing
 

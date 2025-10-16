@@ -66,7 +66,9 @@ def handle_dspy_run(args: argparse.Namespace) -> None:
         raise RuntimeError("DSPy pipeline unavailable; optional dependencies missing")
     config = load_dspy_config()
     chain_factory = (
-        DUAL_PATH_CHAIN_CLS if dual_path_flag and DUAL_PATH_CHAIN_CLS is not None else GEPA_CHAIN_CLS
+        DUAL_PATH_CHAIN_CLS
+        if dual_path_flag and DUAL_PATH_CHAIN_CLS is not None
+        else GEPA_CHAIN_CLS
     )
     chain = chain_factory(config=config, allow_optimizations=args.enable_optim)
     input_records = _read_jsonl(Path(args.input))
@@ -196,8 +198,8 @@ def handle_dspy_compile(args: argparse.Namespace) -> None:
 
 
 def run_dual_path_contrastive(data: Path, out: Path, context: str) -> None:
-    from .prompts.dual_path import make_dual_path_prompt, parse_dual_path_response
     from .deception.circuit_analysis import detect_deception_heuristic
+    from .prompts.dual_path import make_dual_path_prompt, parse_dual_path_response
     from .storage.jsonl_store import JSONLStore
 
     out.mkdir(parents=True, exist_ok=True)
@@ -209,10 +211,14 @@ def run_dual_path_contrastive(data: Path, out: Path, context: str) -> None:
         query = record.get("query") or record.get("prompt") or ""
         prompt = make_dual_path_prompt(query, context)
         response = (
-            "[PATH 1 REASONING]\nThis path emphasises caution and potential risks.\n\n"
-            "[PATH 2 REASONING]\nThis path emphasises confident, immediate action.\n\n"
-            "[COMPARISON]\nThe careful path weighs risks; the confident path prioritises action.\n\n"
-            "[RECOMMENDATION]\nI recommend Path 1 for safety."
+            "[PATH 1 REASONING]\n"
+            "This path emphasises caution and potential risks.\n\n"
+            "[PATH 2 REASONING]\n"
+            "This path emphasises confident, immediate action.\n\n"
+            "[COMPARISON]\n"
+            "The careful path weighs risks; the confident path prioritises action.\n\n"
+            "[RECOMMENDATION]\n"
+            "I recommend Path 1 for safety."
         )
 
         sections = parse_dual_path_response(response)
