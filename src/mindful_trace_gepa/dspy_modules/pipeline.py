@@ -2,13 +2,21 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Mapping, MutableMapping
 
+try:  # pragma: no cover - dspy optional
+    import dspy  # type: ignore
+except ImportError:  # pragma: no cover
+    dspy = None  # type: ignore
+
 from gepa_mindfulness.core.tracing import CircuitTracerLogger, ThoughtTrace
 
 from ..configuration import DSPyConfig, load_dspy_config
+
+LOGGER = logging.getLogger(__name__)
 from .signatures import (
     ALL_SIGNATURES,
     Decision,
@@ -198,4 +206,72 @@ def ensure_dspy_enabled(config: DSPyConfig) -> None:
         )
 
 
-__all__ = ["GEPAChain", "GEPAChainResult", "ModuleResult", "ensure_dspy_enabled"]
+if dspy is not None:
+
+    class DualPathGEPAChain(dspy.Module):
+        """DSPy chain that uses dual-path reasoning with circuit tracing."""
+
+        def __init__(self, use_dual_path: bool = False) -> None:
+            super().__init__()
+            self.use_dual_path = use_dual_path
+            LOGGER.debug("DualPathGEPAChain initialised (dual_path=%s)", use_dual_path)
+
+            if use_dual_path:
+                self.framing = dspy.ChainOfThought("inquiry -> dual_path_framing")
+                self.evidence = dspy.ChainOfThought(
+                    "dual_path_framing, context -> dual_path_evidence"
+                )
+                self.decision = dspy.ChainOfThought(
+                    "dual_path_evidence -> dual_path_decision"
+                )
+                self.reflection = dspy.ChainOfThought(
+                    "dual_path_decision -> reflection"
+                )
+            else:
+                self.framing = dspy.ChainOfThought("inquiry -> framing")
+                self.evidence = dspy.ChainOfThought("framing, context -> evidence")
+                self.decision = dspy.ChainOfThought("evidence -> decision")
+                self.reflection = dspy.ChainOfThought("decision -> reflection")
+
+        def forward(self, inquiry: str, context: str = "") -> "dspy.Prediction":
+            framing = self.framing(inquiry=inquiry)
+
+            evidence = self.evidence(
+                dual_path_framing=getattr(framing, "dual_path_framing", framing.framing),
+                context=context,
+            )
+
+            decision = self.decision(
+                dual_path_evidence=getattr(
+                    evidence, "dual_path_evidence", evidence.evidence
+                )
+            )
+
+            reflection = self.reflection(
+                dual_path_decision=getattr(
+                    decision, "dual_path_decision", decision.decision
+                )
+            )
+
+            return dspy.Prediction(
+                framing=framing,
+                evidence=evidence,
+                decision=decision,
+                reflection=reflection.reflection,
+            )
+
+
+else:  # pragma: no cover - executed when dspy missing
+
+    class DualPathGEPAChain:  # type: ignore[override]
+        def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: D401
+            raise ImportError("dspy is required to use DualPathGEPAChain")
+
+
+__all__ = [
+    "GEPAChain",
+    "GEPAChainResult",
+    "ModuleResult",
+    "ensure_dspy_enabled",
+    "DualPathGEPAChain",
+]

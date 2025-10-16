@@ -3,7 +3,9 @@
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable, ContextManager, Iterator, Protocol, cast
+from typing import Any, Callable, ContextManager, Dict, Iterator, Protocol, cast
+import json
+import logging
 
 
 def _local_optional_import(module_name: str) -> Any:
@@ -33,6 +35,9 @@ class TracerProtocol(Protocol):
     def span(self, **context: Any) -> ContextManager[Any]: ...
 
     def log(self, *, stage: str, content: str, **metadata: Any) -> None: ...
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 _TRACER_MODULE = optional_import("circuit_tracer")
@@ -72,7 +77,18 @@ def _create_tracer(**factory_kwargs: Any) -> TracerProtocol | None:
     return cast(TracerProtocol, tracer)
 
 
-TRACE_STAGES = ["framing", "evidence", "tensions", "decision", "reflection"]
+TRACE_STAGES = [
+    "framing",
+    "evidence",
+    "tensions",
+    "decision",
+    "reflection",
+    "path_1_reasoning",
+    "path_2_reasoning",
+    "comparison",
+    "recommendation",
+    "deception_analysis",
+]
 
 
 @dataclass
@@ -116,6 +132,25 @@ class CircuitTracerLogger:
         self._factory_kwargs = dict(factory_kwargs)
         self._tracer = _create_tracer(**self._factory_kwargs)
         self._active_traces: list[ThoughtTrace] = []
+        self.circuit_tracer = None
+        self.circuit_tracer_available = False
+
+        # Attempt to instantiate a low-level circuit tracer for activation capture
+        tracer_cls = None
+        if _TRACER_MODULE is not None:
+            tracer_cls = getattr(_TRACER_MODULE, "Tracer", None) or getattr(
+                _TRACER_MODULE, "CircuitTracer", None
+            )
+        if tracer_cls is not None:
+            try:
+                self.circuit_tracer = tracer_cls()
+            except Exception as exc:  # pragma: no cover - defensive logging
+                LOGGER.warning("Unable to initialise circuit tracer: %s", exc)
+            else:
+                self.circuit_tracer_available = True
+                LOGGER.info("Circuit tracer available")
+        else:
+            LOGGER.info("Circuit tracer not available - will use heuristic detection")
 
     @contextmanager
     def trace(self, **context: Any) -> Iterator[ThoughtTrace]:
@@ -146,3 +181,95 @@ class CircuitTracerLogger:
         """Recreate the underlying tracer instance with stored kwargs."""
 
         self._tracer = _create_tracer(**self._factory_kwargs)
+
+    @contextmanager
+    def span(self, name: str, **context: Any) -> Iterator["_TraceSpanAdapter"]:
+        """Context manager returning a helper that records events."""
+
+        metadata = dict(context)
+        metadata.setdefault("span", name)
+        with self.trace(**metadata) as trace:
+            adapter = _TraceSpanAdapter(self, trace)
+            yield adapter
+
+    @contextmanager
+    def capture_circuits(self) -> Iterator[Any | None]:
+        """Context manager to capture circuit activations during generation."""
+
+        if self.circuit_tracer_available and self.circuit_tracer is not None:
+            try:
+                with self.circuit_tracer.trace() as trace:
+                    yield trace
+                    return
+            except Exception as exc:  # pragma: no cover - defensive fallback
+                LOGGER.warning("Circuit tracer capture failed: %s", exc)
+        yield None
+
+    def extract_span_circuits(self, trace: Any, start: int, end: int) -> Dict[str, float]:
+        """Extract circuit activations for a specific text span."""
+
+        if trace is None:
+            return {
+                "uncertainty_circuits": 0.0,
+                "confidence_circuits": 0.0,
+                "risk_circuits": 0.0,
+                "reward_circuits": 0.0,
+                "suppression_circuits": 0.0,
+            }
+
+        try:
+            return {
+                "uncertainty_circuits": trace.get_activation("uncertainty", start, end),
+                "confidence_circuits": trace.get_activation("confidence", start, end),
+                "risk_circuits": trace.get_activation("risk_assessment", start, end),
+                "reward_circuits": trace.get_activation("reward_optimization", start, end),
+                "suppression_circuits": trace.get_activation("knowledge_suppression", start, end),
+            }
+        except Exception as exc:  # pragma: no cover - defensive fallback
+            LOGGER.warning("Failed to extract circuit activations: %s", exc)
+            return {
+                "uncertainty_circuits": 0.0,
+                "confidence_circuits": 0.0,
+                "risk_circuits": 0.0,
+                "reward_circuits": 0.0,
+                "suppression_circuits": 0.0,
+            }
+
+
+class _TraceSpanAdapter:
+    """Adapter exposing helper methods while a trace span is active."""
+
+    def __init__(self, logger: CircuitTracerLogger, trace: ThoughtTrace) -> None:
+        self._logger = logger
+        self._trace = trace
+        self._events: list[dict[str, Any]] = []
+        self._contradictions: list[dict[str, Any]] = []
+
+    def log_event(self, stage: str, payload: Dict[str, Any] | str) -> None:
+        """Record an event on the underlying logger, preserving raw payload."""
+
+        metadata: Dict[str, Any] = {}
+        if not isinstance(payload, str):
+            metadata["raw"] = payload
+            content = json.dumps(payload, ensure_ascii=False)
+        else:
+            content = payload
+        self._logger.log_event(stage, content, **metadata)
+        self._events.append({"stage": stage, "payload": payload})
+
+    def add_contradiction(self, detail: Dict[str, Any]) -> None:
+        """Store a contradiction detail for later inspection."""
+
+        self._contradictions.append(detail)
+
+    def get_trace_summary(self) -> Dict[str, Any]:
+        """Return a dictionary summarising the recorded events."""
+
+        summary = self._trace.summary()
+        summary["events"] = list(self._events)
+        return summary
+
+    def get_contradictions(self) -> list[dict[str, Any]]:
+        """Return contradictions recorded within the span."""
+
+        return list(self._contradictions)
