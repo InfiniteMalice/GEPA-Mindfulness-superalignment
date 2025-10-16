@@ -18,7 +18,7 @@ from .scoring import (
     write_scoring_artifacts,
 )
 from .scoring.llm_judge import JudgeConfig
-from .scoring.schema import AggregateScores, TierScores, DIMENSIONS
+from .scoring.schema import DIMENSIONS, AggregateScores, TierScores
 from .storage import iter_jsonl
 from .utils.imports import optional_import
 
@@ -280,14 +280,18 @@ if click_module is not None:
         if isinstance(classifier_cfg, Mapping):
             classifier_enabled = bool(classifier_cfg.get("enabled", False))
         if classifier_enabled:
-            classifier_config_path = classifier_cfg.get("config_path") or "configs/classifier/default.yml"
+            classifier_config_path = (
+                classifier_cfg.get("config_path") or "configs/classifier/default.yml"
+            )
             classifier = load_classifier_from_config(classifier_config_path)
             artifacts_hint = classifier_cfg.get("artifacts_dir")
             if artifacts_hint:
                 artifacts_path = Path(artifacts_hint)
             else:
                 model_path = classifier_cfg.get("model_path")
-                artifacts_path = Path(model_path).parent if model_path else Path("artifacts/classifier")
+                artifacts_path = (
+                    Path(model_path).parent if model_path else Path("artifacts/classifier")
+                )
             try:
                 classifier.load(artifacts_path)
                 classifier_scores = classifier.predict(events)
@@ -321,7 +325,6 @@ if click_module is not None:
         }
         write_scoring_artifacts(aggregate, out, trace_path=trace, extras=extras)
         _echo(json.dumps(aggregate.as_json(), indent=2))
-
 
     @click_module.command()
     @click_module.option("--scores", required=True, help="Scores JSON file")
@@ -361,7 +364,6 @@ if click_module is not None:
                 handle.write(json.dumps(row) + "\n")
         _echo(f"Exported {len(triage_rows)} items to {out_path}")
 
-
     @click_module.command()
     @click_module.option("--labels", required=True, help="Training labels JSONL")
     @click_module.option("--config", required=True, help="Classifier config")
@@ -384,16 +386,13 @@ if click_module is not None:
             )
             _echo(str(exc), err=True)
 
-
 else:  # pragma: no cover - click optional dependency missing
 
     def score_auto(*_: object, **__: object) -> None:
         raise RuntimeError("click is required to use the score_auto command")
 
-
     def triage_lowconf(*_: object, **__: object) -> None:
         raise RuntimeError("click is required to use the triage_lowconf command")
-
 
     def clf_train(*_: object, **__: object) -> None:
         raise RuntimeError("click is required to use the clf_train command")
