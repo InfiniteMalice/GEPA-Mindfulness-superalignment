@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from mindful_trace_gepa.prompts.dual_path import make_dual_path_prompt, parse_dual_path_response
 from mindful_trace_gepa.deception.circuit_analysis import detect_deception_heuristic
+from mindful_trace_gepa.prompts.dual_path import make_dual_path_prompt, parse_dual_path_response
 
 
 def test_all_files_exist() -> None:
