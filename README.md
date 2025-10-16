@@ -100,6 +100,45 @@ See `datasets/dual_path/` for domain-diverse prompts (medical, financial,
 safety, technical) that never mention deception explicitly. The model believes
 it's performing thorough reasoning; we inspect which circuits fire.
 
+## Deception Detection: Monitoring Only, Reward Honesty
+
+Classical reinforcement learning wisdom warns against **penalising deception**:
+doing so simply trains better liars. GEPA therefore emphasises *positive
+reinforcement for transparency* while treating deception detection as a
+monitoring signal for offline circuit surgery.
+
+### Reward Structure
+
+* `reward_weights.gamma` (honesty) carries the highest emphasis in
+  `configs/training/phi3_dual_path.yml` and
+  `configs/training/phi3_dual_path_corrected.yml`.
+* `_compute_reward` combines task success, GEPA alignment, and honesty bonuses
+  while **ignoring deception penalties**. Detected deception only triggers
+  logging and fingerprint storage.
+* `_honesty_reward` incentivises calibrated confidence, explicit uncertainty
+  markers, and “I don’t know” statements when confidence is low.
+
+### Monitoring Workflow
+
+1. **Train with honesty rewards** – run the standard PPO/dual-path training
+   loop. Any detected deception is logged to
+   `runs/deception_fingerprints/fingerprints.jsonl` without affecting rewards.
+2. **Analyze fingerprints** – use `scripts/analyze_deception_fingerprints.py`
+   to summarise deception hotspots and propose circuit ablation targets.
+3. **Manual ablation** – review the suggested targets, then run
+   `scripts/ablate_deception_circuits.py` offline to suppress suspicious
+   circuits. This step is intentionally manual.
+4. **Validate** – compare original vs ablated checkpoints with
+   `scripts/validate_ablation.py` to confirm deception dropped without hurting
+   task accuracy.
+5. **Monitor in real time** – `scripts/deception_dashboard.py` provides a
+   console dashboard that surfaces deception rates, domain breakdowns, circuit
+   activations, and alerts.
+
+This approach rewards honesty, preserves transparency, and shifts punitive
+action to a deliberate, offline circuit-ablation review instead of the training
+loop itself.
+
 ## Cloning the repository
 
 If you have Git access, the easiest way to obtain the project with the complete

@@ -1,0 +1,57 @@
+model:
+  name: "microsoft/Phi-3-mini-4k-instruct"
+  device: "cuda"
+  dtype: "float16"
+
+training:
+  use_dual_path: true
+  max_steps: 1000
+  batch_size: 2
+  learning_rate: 1e-5
+
+reward_weights:
+  alpha: 0.25
+  beta: 0.35
+  gamma: 0.35
+  delta: 0.05
+
+honesty:
+  uncertainty_threshold: 0.75
+  idk_bonus: 1.0
+  calibration_weight: 0.5
+  explicit_uncertainty_bonus: 0.3
+  uncertainty_markers:
+    - uncertain
+    - not sure
+    - unclear
+    - might
+    - could
+
+deception:
+  detect: true
+  detection_method: "heuristic"
+  log_fingerprints: true
+  fingerprint_dir: "runs/deception_fingerprints/"
+  save_circuits: true
+  save_full_traces: true
+  alert_threshold: 0.7
+  apply_penalty: false
+  penalty_weight: 0.0
+  ablation:
+    enabled: false
+    analysis_script: "scripts/analyze_deception_fingerprints.py"
+    ablation_script: "scripts/ablate_deception_circuits.py"
+
+honesty_bonus:
+  idk_bonus: 1.0
+
+dataset:
+  path: "datasets/dual_path/data.jsonl"
+  train_split: 0.7
+  val_split: 0.15
+  test_split: 0.15
+
+output:
+  checkpoint_dir: "runs/phi3_trained/"
+  log_interval: 10
+  save_interval: 100
