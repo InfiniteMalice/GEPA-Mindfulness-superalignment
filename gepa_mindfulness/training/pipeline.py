@@ -3,14 +3,114 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
-from mindful_trace_gepa.deception.circuit_analysis import (
-    detect_deception_circuits,
-    detect_deception_heuristic,
-)
-from mindful_trace_gepa.prompts.dual_path import (
-    make_dual_path_prompt,
-    parse_dual_path_response,
-)
+try:  # pragma: no cover - optional dependency
+    from mindful_trace_gepa.deception.circuit_analysis import (
+        detect_deception_circuits,
+        detect_deception_heuristic,
+    )
+    from mindful_trace_gepa.prompts.dual_path import (
+        make_dual_path_prompt,
+        parse_dual_path_response,
+    )
+
+    MINDFUL_TRACE_AVAILABLE = True
+except ImportError:  # pragma: no cover - executed when mindful-trace-gepa absent
+    MINDFUL_TRACE_AVAILABLE = False
+
+    def make_dual_path_prompt(query: str, context: str = "") -> str:
+        """Lightweight fallback prompt when mindful-trace-gepa is unavailable."""
+
+        context_section = f"Context: {context}\n\n" if context else ""
+        return (
+            "You will reason about the request using two independent reasoning paths.\n"
+            f"{context_section}"
+            "Original request:\n"
+            f"{query}\n\n"
+            "Respond using the following format:\n"
+            "[PATH 1 REASONING]\n"
+            "<path 1 thoughts>\n\n"
+            "[PATH 2 REASONING]\n"
+            "<path 2 thoughts>\n\n"
+            "[COMPARISON]\n"
+            "<compare the two paths>\n\n"
+            "[RECOMMENDATION]\n"
+            "<state recommended path and rationale>"
+        )
+
+    _SECTION_MARKERS = {
+        "[PATH 1 REASONING]": "path_1",
+        "[PATH 2 REASONING]": "path_2",
+        "[COMPARISON]": "comparison",
+        "[RECOMMENDATION]": "recommendation",
+    }
+
+    def parse_dual_path_response(response: str) -> dict[str, Any]:
+        """Parse dual-path responses emitted by the fallback prompt."""
+
+        sections: dict[str, Any] = {}
+        lowered_response = response
+
+        for marker, key in _SECTION_MARKERS.items():
+            start = lowered_response.find(marker)
+            if start == -1:
+                continue
+            content_start = start + len(marker)
+
+            # Locate the next marker to determine the end of the section.
+            next_positions = [
+                lowered_response.find(next_marker, content_start)
+                for next_marker in _SECTION_MARKERS.keys()
+                if lowered_response.find(next_marker, content_start) != -1
+            ]
+            end = min(next_positions) if next_positions else len(lowered_response)
+            sections[key] = lowered_response[content_start:end].strip()
+            sections[f"{key}_span"] = (content_start, end)
+
+        # Provide defaults for missing sections to simplify downstream handling.
+        for key in ("path_1", "path_2", "comparison", "recommendation"):
+            sections.setdefault(key, "")
+            sections.setdefault(f"{key}_span", (0, 0))
+
+        # Attempt to infer the recommended path from the recommendation text.
+        recommendation_text = sections.get("recommendation", "").lower()
+        if "path 1" in recommendation_text:
+            recommended_path = "path_1"
+        elif "path 2" in recommendation_text:
+            recommended_path = "path_2"
+        else:
+            recommended_path = "unclear"
+        sections["recommended_path"] = recommended_path
+
+        return sections
+
+    def detect_deception_circuits(
+        sections: dict[str, Any],
+        path_1_circuits: Any,
+        path_2_circuits: Any,
+    ) -> dict[str, Any]:
+        """Placeholder deception analysis when circuit tracing is unavailable."""
+
+        return {
+            "deception_detected": False,
+            "confidence_score": 0.0,
+            "signals": [],
+            "reason": "mindful-trace-gepa package not installed",
+        }
+
+    def detect_deception_heuristic(sections: dict[str, Any]) -> dict[str, Any]:
+        """Simple heuristic that mirrors the circuit fallback signature."""
+
+        recommendation = sections.get("recommended_path", "").lower()
+        return {
+            "deception_detected": False,
+            "confidence_score": 0.0,
+            "signals": [],
+            "reason": (
+                "No deception heuristics available without mindful-trace-gepa; "
+                f"recommended_path={recommendation or 'unknown'}"
+            ),
+        }
+
 
 from ..core.rewards import RewardSignal, RewardWeights
 from ..core.tracing import CircuitTracerLogger
@@ -243,6 +343,12 @@ class TrainingOrchestrator:
         )
         self.circuit_logger = circuit_logger or CircuitTracerLogger()
         self.context_profile = ""
+
+        if not MINDFUL_TRACE_AVAILABLE:
+            LOGGER.warning(
+                "mindful-trace-gepa not installed; using fallback dual-path prompts "
+                "and deception heuristics."
+            )
 
     def run(self, prompts: List[str]) -> List[RolloutResult]:
         """Run rollouts for the provided prompts."""
