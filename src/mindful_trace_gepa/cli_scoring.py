@@ -18,7 +18,7 @@ from .scoring import (
     write_scoring_artifacts,
 )
 from .scoring.llm_judge import JudgeConfig
-from .scoring.schema import AggregateScores, TierScores, DIMENSIONS
+from .scoring.schema import DIMENSIONS, AggregateScores, TierScores
 from .storage import iter_jsonl
 from .utils.imports import optional_import
 
