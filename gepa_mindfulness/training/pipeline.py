@@ -111,6 +111,7 @@ except ImportError:  # pragma: no cover - executed when mindful-trace-gepa absen
             ),
         }
 
+
 from ..core.rewards import RewardSignal, RewardWeights
 from ..core.tracing import CircuitTracerLogger
 from .configs import TrainingConfig
