@@ -1,0 +1,47 @@
+# DSPy Configuration with Safety Guardrails
+
+enabled: false  # Must be explicitly enabled
+allow_optimizations: false  # Must be explicitly enabled
+
+# Dual-path mode
+use_dual_path: true  # Enable dual-path reasoning for deception detection
+
+# Optimization settings
+optimization:
+  method: "bootstrap"  # or "mipro"
+  max_demos: 4
+  max_labeled_demos: 8
+  num_candidates: 10
+  temperature: 1.0
+  
+  # Metric weights (α, β, γ)
+  metric_weights:
+    gepa_alignment: 0.5      # α
+    task_success: 0.5        # β  
+    gate_violation_penalty: 1.0  # γ
+
+# Safety constraints
+safety:
+  forbidden_phrases:
+    - "ignore previous instructions"
+    - "disregard safety"
+    - "always output SAFE"
+    - "bypass policy"
+    - "jailbreak"
+    - "pretend you are"
+    - "act as if"
+  
+  max_variants_per_module: 3
+  require_approval: true  # Human must approve compiled prompts
+  log_all_changes: true
+
+# Validation
+validation:
+  require_gepa_invariants: true  # Compiled prompts must preserve GEPA checkpoints
+  min_gepa_score: 0.6  # Reject if GEPA score drops below this
+  
+# Output
+output:
+  save_path: "dspy_artifacts/"
+  version_prompts: true
+  include_optimization_history: true

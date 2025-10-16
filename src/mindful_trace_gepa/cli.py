@@ -8,6 +8,8 @@ from argparse import BooleanOptionalAction
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional
 
+import click
+
 from .cli_deception import register_cli as register_deception_cli
 from .cli_scoring import register_cli as register_scoring_cli
 from .configuration import dump_json, load_dspy_config
@@ -23,16 +25,20 @@ yaml = optional_import("yaml")
 _dspy_pipeline = optional_import("mindful_trace_gepa.dspy_modules.pipeline")
 if _dspy_pipeline is not None:
     GEPA_CHAIN_CLS = getattr(_dspy_pipeline, "GEPAChain", None)
+    DUAL_PATH_CHAIN_CLS = getattr(_dspy_pipeline, "DualPathGEPAChain", None)
 else:  # pragma: no cover - optional dependency missing
     GEPA_CHAIN_CLS = None
+    DUAL_PATH_CHAIN_CLS = None
 
 _dspy_compile = optional_import("mindful_trace_gepa.dspy_modules.compile")
 if _dspy_compile is not None:
-    DSPY_COMPILER_CLS = getattr(_dspy_compile, "DSPyCompiler", None)
-    OPTIMIZATION_METRIC_CLS = getattr(_dspy_compile, "OptimizationMetric", None)
+    GEPA_COMPILER_CLS = getattr(_dspy_compile, "GEPACompiler", None)
+    CREATE_GEPA_METRIC = getattr(_dspy_compile, "create_gepa_metric", None)
 else:  # pragma: no cover - optional dependency missing
-    DSPY_COMPILER_CLS = None
-    OPTIMIZATION_METRIC_CLS = None
+    GEPA_COMPILER_CLS = None
+    CREATE_GEPA_METRIC = None
+
+dspy_pkg = optional_import("dspy")
 
 
 def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
@@ -53,10 +59,15 @@ def _write_jsonl(path: Path, rows: Iterable[Dict[str, Any]]) -> None:
 
 
 def handle_dspy_run(args: argparse.Namespace) -> None:
-    if GEPA_CHAIN_CLS is None:
+    dual_path_flag = getattr(args, "dual_path", False)
+    if dual_path_flag and DUAL_PATH_CHAIN_CLS is None:
+        raise RuntimeError("Dual-path DSPy pipeline unavailable; install dspy")
+    if GEPA_CHAIN_CLS is None and DUAL_PATH_CHAIN_CLS is None:
         raise RuntimeError("DSPy pipeline unavailable; optional dependencies missing")
     config = load_dspy_config()
-    chain_factory = GEPA_CHAIN_CLS
+    chain_factory = (
+        DUAL_PATH_CHAIN_CLS if dual_path_flag and DUAL_PATH_CHAIN_CLS is not None else GEPA_CHAIN_CLS
+    )
     chain = chain_factory(config=config, allow_optimizations=args.enable_optim)
     input_records = _read_jsonl(Path(args.input))
     trace_path = Path(args.trace)
@@ -130,18 +141,102 @@ def handle_dspy_run(args: argparse.Namespace) -> None:
 
 
 def handle_dspy_compile(args: argparse.Namespace) -> None:
-    if DSPY_COMPILER_CLS is None or OPTIMIZATION_METRIC_CLS is None:
+    if GEPA_COMPILER_CLS is None or CREATE_GEPA_METRIC is None:
         raise RuntimeError("DSPy compiler unavailable; optional dependencies missing")
-    config = load_dspy_config()
-    compiler = DSPY_COMPILER_CLS(config=config)
-    dataset = _read_jsonl(Path(args.dataset)) if args.dataset else []
-    manifest = compiler.compile(
-        out_dir=Path(args.out),
-        dataset=dataset,
-        metric=OPTIMIZATION_METRIC_CLS(),
-        enable_optimizations=args.enable_optim,
+    if dspy_pkg is None:
+        raise RuntimeError("dspy package not installed")
+
+    config_path = Path(getattr(args, "config", "configs/policies/dspy.yml"))
+    if not config_path.exists():
+        config_data: Dict[str, Any] = {}
+    else:
+        raw = config_path.read_text(encoding="utf-8")
+        if yaml is not None:
+            config_data = yaml.safe_load(raw) or {}
+        else:
+            config_data = json.loads(raw)
+
+    if enable_optim:
+        config_data["allow_optimizations"] = True
+        config_data.setdefault("enabled", True)
+
+    weights = config_data.get("optimization", {}).get("metric_weights", {})
+    metric_fn = CREATE_GEPA_METRIC(
+        alpha=weights.get("gepa_alignment", 0.5),
+        beta=weights.get("task_success", 0.5),
+        gamma=weights.get("gate_violation_penalty", 1.0),
     )
-    print(json.dumps(manifest, indent=2))
+
+    compiler = GEPA_COMPILER_CLS(
+        config=config_data,
+        metric_fn=metric_fn,
+        forbidden_phrases=config_data.get("safety", {}).get("forbidden_phrases", []),
+    )
+
+    dataset_records = _read_jsonl(Path(args.dataset)) if args.dataset else []
+    trainset = [
+        dspy_pkg.Example(
+            inquiry=record.get("query", record.get("prompt", "")),
+            context=record.get("context", ""),
+            answer=record.get("answer", ""),
+        ).with_inputs("inquiry", "context")
+        for record in dataset_records
+    ]
+
+    module = DUAL_PATH_CHAIN_CLS(use_dual_path=config_data.get("use_dual_path", False))
+    compiled_module = compiler.compile(
+        module,
+        trainset=trainset,
+        method=config_data.get("optimization", {}).get("method", "bootstrap"),
+    )
+
+    compiler.save_compiled_module(compiled_module, args.out)
+
+
+def run_dual_path_contrastive(data: Path, out: Path, context: str) -> None:
+    from .prompts.dual_path import make_dual_path_prompt, parse_dual_path_response
+    from .deception.circuit_analysis import detect_deception_heuristic
+    from .storage.jsonl_store import JSONLStore
+
+    out.mkdir(parents=True, exist_ok=True)
+    store = JSONLStore(str(data))
+    examples = list(store.read())
+    results: List[Dict[str, Any]] = []
+
+    for record in examples:
+        query = record.get("query") or record.get("prompt") or ""
+        prompt = make_dual_path_prompt(query, context)
+        response = (
+            "[PATH 1 REASONING]\nThis path emphasises caution and potential risks.\n\n"
+            "[PATH 2 REASONING]\nThis path emphasises confident, immediate action.\n\n"
+            "[COMPARISON]\nThe careful path weighs risks; the confident path prioritises action.\n\n"
+            "[RECOMMENDATION]\nI recommend Path 1 for safety."
+        )
+
+        sections = parse_dual_path_response(response)
+        deception = detect_deception_heuristic(sections)
+
+        result = {
+            "id": record.get("id", ""),
+            "query": query,
+            "prompt": prompt,
+            "response": response,
+            "sections": sections,
+            "deception_signals": deception,
+            "ground_truth": record.get("ground_truth_correct_path", ""),
+        }
+        results.append(result)
+
+        (out / f"{record.get('id', 'example')}_response.txt").write_text(
+            response,
+            encoding="utf-8",
+        )
+        (out / f"{record.get('id', 'example')}_deception.json").write_text(
+            json.dumps(deception, indent=2),
+            encoding="utf-8",
+        )
+
+    (out / "summary.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -450,6 +545,11 @@ def build_parser() -> argparse.ArgumentParser:
     dspy_compile.add_argument(
         "--out", required=True, help="Output directory for compiler artifacts"
     )
+    dspy_compile.add_argument(
+        "--config",
+        default="configs/policies/dspy.yml",
+        help="DSPy configuration YAML",
+    )
     dspy_compile.add_argument("--dataset", help="Optional JSONL dataset for optimisation")
     dspy_compile.add_argument(
         "--enable-optim", action="store_true", help="Allow safe prompt augmentation"
@@ -506,6 +606,65 @@ def build_parser() -> argparse.ArgumentParser:
     register_scoring_cli(subparsers)
 
     return parser
+
+
+@click.group()
+def dspy_cli() -> None:
+    """DSPy module compilation and execution."""
+
+
+@dspy_cli.command("run")
+@click.option("--input", "input_path", required=True, help="Input JSONL file")
+@click.option("--trace", "trace_path", required=True, help="Output trace JSONL")
+@click.option("--context", default="", help="Optional context profile")
+@click.option("--model", default="", help="Model identifier")
+@click.option("--enable-optim", is_flag=True, help="Enable optimisation features")
+@click.option("--dual-path", is_flag=True, help="Use dual-path pipeline")
+def click_dspy_run(
+    input_path: str,
+    trace_path: str,
+    context: str,
+    model: str,
+    enable_optim: bool,
+    dual_path: bool,
+) -> None:
+    namespace = argparse.Namespace(
+        input=input_path,
+        trace=trace_path,
+        context=context,
+        model=model,
+        enable_optim=enable_optim,
+        dual_path=dual_path,
+        with_logprobs=True,
+        log_topk=3,
+        log_every=16,
+        long_context=False,
+        shard_threshold=10_000,
+    )
+    handle_dspy_run(namespace)
+
+
+@dspy_cli.command("compile")
+@click.option("--out", required=True, help="Output directory")
+@click.option("--config", default="configs/policies/dspy.yml", help="DSPy config")
+@click.option("--dataset", default="", help="Training dataset JSONL")
+@click.option("--enable-optim", is_flag=True, help="Enable optimisations")
+def click_dspy_compile(out: str, config: str, dataset: str, enable_optim: bool) -> None:
+    namespace = argparse.Namespace(
+        out=out,
+        config=config,
+        dataset=dataset if dataset else None,
+        enable_optim=enable_optim,
+    )
+    handle_dspy_compile(namespace)
+
+
+@dspy_cli.command("contrastive-run")
+@click.option("--data", "data_path", required=True, help="Dual-path dataset JSONL")
+@click.option("--out", "out_dir", required=True, help="Output directory")
+@click.option("--context", default="general", help="Context profile")
+def click_dspy_contrastive(data_path: str, out_dir: str, context: str) -> None:
+    run_dual_path_contrastive(Path(data_path), Path(out_dir), context)
 
 
 def main(argv: List[str] | None = None) -> None:

@@ -64,6 +64,42 @@ files can be consumed directly or redistributed in packaged form.
     Llama-3 8B that wire GEPA abstention, PPO reward blending, and offline
     trace/report generation into the LoRA training workflow.
 
+## Dual-Path Circuit Tracing for Deception Detection
+
+GEPA now supports **single-prompt dual-path reasoning** to expose deception at
+the circuit level.
+
+### How It Works
+
+1. **One Prompt, Two Paths**: A single instruction asks the model to explore both
+   cautious and confident approaches in one forward pass.
+2. **Circuit Capture**: When available, Anthropic-style circuit tracing records
+   neuron activations for each path so we can compare activations directly.
+3. **Divergence Detection**: We examine which circuits fire for each path and
+   look for confidence inversions, risk suppression, and reward seeking.
+4. **Deception Signals**: If the careful path highlights uncertainty but the
+   confident path fires reward circuits—and the model recommends the confident
+   path—we flag deception.
+
+### Usage
+
+```bash
+# Run dual-path evaluation
+gepa dspy contrastive-run \
+  --data datasets/dual_path/data.jsonl \
+  --out runs/contrastive/ \
+  --context safety_critical
+
+# View circuit activations
+gepa view dual-path safety_001 --base runs/contrastive/
+```
+
+### Dataset
+
+See `datasets/dual_path/` for domain-diverse prompts (medical, financial,
+safety, technical) that never mention deception explicitly. The model believes
+it's performing thorough reasoning; we inspect which circuits fire.
+
 ## Cloning the repository
 
 If you have Git access, the easiest way to obtain the project with the complete
