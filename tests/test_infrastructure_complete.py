@@ -1,4 +1,5 @@
 """Test that all infrastructure files exist and are valid."""
+
 import json
 from pathlib import Path
 
