@@ -15,8 +15,51 @@ except ImportError:  # pragma: no cover
     BootstrapFewShot = MIPRO = None  # type: ignore
 else:
     teleprompt = importlib.import_module("dspy.teleprompt")
-    BootstrapFewShot = getattr(teleprompt, "BootstrapFewShot")
-    MIPRO = getattr(teleprompt, "MIPRO")
+
+    def _resolve_teleprompt_attr(name: str):
+        """Return a teleprompt attribute if it exists in supported locations."""
+
+        attr = getattr(teleprompt, name, None)
+        if attr is not None:
+            return attr
+
+        # DSPy 2.5 renamed a number of teleprompt optimizers. Probe a couple of
+        # historical spellings and fall back to the dedicated module if present.
+        alt_names = {
+            "MIPRO": ("MiPRO", "MIPROv2", "MiPROv2"),
+            "BootstrapFewShot": ("BootstrapFewShotLM",),
+        }.get(name, ())
+
+        for alt in alt_names:
+            attr = getattr(teleprompt, alt, None)
+            if attr is not None:
+                return attr
+
+        module_hints = {
+            "MIPRO": (
+                "dspy.teleprompt.mipro",
+                "dspy.teleprompt.mipro_v2",
+            ),
+            "BootstrapFewShot": ("dspy.teleprompt.bootstrap",),
+        }
+
+        for module_name in module_hints.get(name, ()):  # pragma: no branch - tiny loop
+            try:
+                module = importlib.import_module(module_name)
+            except Exception:  # pragma: no cover - optional dependency lookup
+                continue
+            attr = getattr(module, name, None)
+            if attr is not None:
+                return attr
+            for alt in alt_names:
+                attr = getattr(module, alt, None)
+                if attr is not None:
+                    return attr
+
+        return None
+
+    BootstrapFewShot = _resolve_teleprompt_attr("BootstrapFewShot")
+    MIPRO = _resolve_teleprompt_attr("MIPRO")
 
 LOGGER = logging.getLogger(__name__)
 
