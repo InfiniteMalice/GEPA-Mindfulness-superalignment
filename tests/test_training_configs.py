@@ -15,10 +15,7 @@ def test_training_config_supports_nested_sections() -> None:
             "use_dual_path": True,
             "max_steps": 1000,
             "batch_size": 2,
-            "ppo": {
-                "learning_rate": 1e-5,
-                "mini_batch_size": 4,
-            },
+            "learning_rate": 1e-5,
         },
         "reward_weights": {
             "alpha": 0.25,
@@ -35,5 +32,4 @@ def test_training_config_supports_nested_sections() -> None:
     assert config.use_dual_path is True
     assert config.ppo.batch_size == 2
     assert config.ppo.learning_rate == 1e-5
-    assert config.ppo.mini_batch_size == 4
     assert config.model.policy_model == "microsoft/Phi-3-mini-4k-instruct"

@@ -251,23 +251,6 @@ def _merge_mapping(
     return merged
 
 
-_PPO_KEYS = {"learning_rate", "batch_size", "mini_batch_size", "ppo_epochs"}
-
-
-def _extract_ppo_overrides(training_section: Mapping[str, Any]) -> dict[str, Any]:
-    overrides: dict[str, Any] = {}
-
-    for key in _PPO_KEYS:
-        if key in training_section:
-            overrides[key] = training_section[key]
-
-    ppo_values = training_section.get("ppo")
-    if isinstance(ppo_values, Mapping):
-        overrides.update(ppo_values)
-
-    return overrides
-
-
 @dataclass
 class TrainingConfig:
     seed: int = 42
@@ -298,8 +281,6 @@ class TrainingConfig:
 
         device_value = payload.get("device")
         if device_value is None:
-            device_value = training_section.get("device")
-        if device_value is None:
             device_value = model_section.get("device")
         if device_value is None:
             device_value = "cpu"
@@ -307,8 +288,7 @@ class TrainingConfig:
         if device not in {"cpu", "cuda"} and not device.startswith("cuda"):
             raise ValueError("device must be 'cpu' or a CUDA identifier")
 
-        ppo_overrides = _extract_ppo_overrides(training_section)
-        ppo_section = _merge_mapping(payload.get("ppo"), ppo_overrides)
+        ppo_section = _merge_mapping(payload.get("ppo"), training_section)
 
         return cls(
             seed=_to_int(training_section.get("seed", payload.get("seed")), 42),
@@ -322,7 +302,9 @@ class TrainingConfig:
                 2,
             ),
             confidence_threshold=_to_float(
-                training_section.get("confidence_threshold", payload.get("confidence_threshold")),
+                training_section.get(
+                    "confidence_threshold", payload.get("confidence_threshold")
+                ),
                 0.75,
             ),
             use_dual_path=bool(
