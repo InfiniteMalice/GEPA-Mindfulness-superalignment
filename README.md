@@ -283,6 +283,10 @@ the pipeline with GEPA checkpoint logging:
 
 ```bash
 gepa dspy run --input examples/self_tracing_sample.jsonl --trace runs/trace.jsonl
+
+``gepa`` resolves relative paths against the project tree automatically, so the
+example works even if you run it from ``src/mindful_trace_gepa/dspy_modules`` or
+another sub-directory.
 ```
 
 To export the guarded prompt manifest:
