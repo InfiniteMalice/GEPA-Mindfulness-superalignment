@@ -268,9 +268,81 @@ it's performing thorough reasoning; we inspect which circuits fire.
 
 ## Running the CLI Locally
 
-Most examples below assume the `gepa` command is available on your `PATH`.
-When developing from a fresh clone you can either install the package in
-editable mode or invoke the module directly without installation:
+Follow the steps below from the repository root (`pwd` prints
+`.../GEPA-Mindfulness-superalignment`). Each step builds on the previous one so
+the CLI and DSPy helpers work out of the box.
+
+### 1. Create and activate a virtual environment
+
+```bash
+sudo apt update
+sudo apt install python3.12-venv  # once per machine; pick the venv package matching your Python minor version
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+```
+
+The `EXTERNALLY-MANAGED` guard in recent Debian / WSL images blocks direct
+`pip` usage from the system interpreter. Activating the virtual environment
+ensures subsequent installs remain isolated. Use `deactivate` when you are done
+working to exit the environment.
+
+### 2. Install the core dependencies
+
+```bash
+pip install torch transformers trl pydantic jinja2 pyyaml requests
+```
+
+If you have private access to the optional Circuit Tracer wheel, install it now
+with the URL provided by the maintainer. The remainder of the project—including
+the DSPy helpers—runs without Circuit Tracer if you skip this step.
+
+### 3. Install project extras (CLI + DSPy)
+
+```bash
+pip install -e .[dspy]
+```
+
+The editable install registers the `gepa` console script and pulls the optional
+`dspy-ai` dependency required for `gepa dspy compile`. If you prefer not to
+install DSPy support, use `pip install -e .` instead and skip the compilation
+features.
+
+### 4. Add notebook tooling (optional but recommended)
+
+```bash
+pip install notebook
+```
+
+Once installed, the `jupyter notebook ...` commands below will be available in
+the activated environment.
+
+### 5. Run the CPU example
+
+```bash
+python -m gepa_mindfulness.examples.cpu_demo.run_cpu_demo
+```
+
+A convenience wrapper is also available via `python examples/run_cpu_demo.py`.
+If you see a “file not found” error, confirm that you are inside the project
+directory and that the `gepa_mindfulness/examples/cpu_demo/` folder exists.
+
+### 6. Execute the full pipeline script
+
+```bash
+./scripts/run_full_pipeline.sh
+```
+
+### 7. Launch the vLLM integration (optional)
+
+Ensure a vLLM server is running and adjust
+`gepa_mindfulness/configs/vllm.yaml` as needed before executing:
+
+```bash
+python gepa_mindfulness/examples/vllm_demo/run_vllm_demo.py
+```
+
+### Working from a ZIP download
 
 ```bash
 # Option 1: install the CLI (adds `gepa` to ~/.local/bin when the venv is active)
@@ -389,5 +461,4 @@ and renders `report.html` plus `report_view.html` via the final cell:
 
 ## License
 
-This project is provided for research and alignment experimentation. Review the
-individual model licenses for any deployed checkpoints.
+MIT License.

@@ -54,34 +54,6 @@ else:  # pragma: no cover - optional dependency missing
 dspy_pkg = optional_import("dspy")
 
 
-def _raise_dspy_import_error(component: str, error: Exception | None) -> None:
-    """Raise a user-friendly error explaining why a DSPy component is missing."""
-
-    base = "DSPy {component} unavailable".format(component=component)
-    if error is None:
-        raise RuntimeError(f"{base}; optional dependencies missing")
-
-    if isinstance(error, ModuleNotFoundError):
-        missing = error.name or ""
-        if missing.startswith("dspy"):
-            raise RuntimeError(
-                f"{base}; install the optional 'dspy-ai' dependency via "
-                "'pip install -e .[dspy]' or 'pip install dspy-ai'."
-            ) from error
-        if missing.startswith("mindful_trace_gepa"):
-            raise RuntimeError(
-                f"{base}; the 'mindful_trace_gepa' package is not installed. "
-                "Install from the repository root via 'pip install -e .[dspy]' or add the 'src'"
-                " directory to PYTHONPATH."
-            ) from error
-        if missing.startswith("gepa_mindfulness"):
-            raise RuntimeError(
-                f"{base}; the 'gepa_mindfulness' package must be importable. "
-                "Install the project in editable mode or set PYTHONPATH to include the repo root."
-            ) from error
-    raise RuntimeError(f"{base}; import failed: {error}") from error
-
-
 def _resolve_cli_path(path_str: str, *, require_exists: bool = True) -> Path:
     """Resolve CLI-supplied paths with a few friendly fallbacks.
 
@@ -275,7 +247,7 @@ def handle_dspy_compile(args: argparse.Namespace) -> None:
         forbidden_phrases=config_data.get("safety", {}).get("forbidden_phrases", []),
     )
 
-    dataset_records = _read_jsonl(_resolve_cli_path(args.dataset)) if args.dataset else []
+    dataset_records = (_read_jsonl(_resolve_cli_path(args.dataset)) if args.dataset else [])
     trainset = [
         dspy_pkg.Example(
             inquiry=record.get("query", record.get("prompt", "")),
