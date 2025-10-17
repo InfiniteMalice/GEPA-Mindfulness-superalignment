@@ -58,47 +58,138 @@ files can be consumed directly or redistributed in packaged form.
    that emit GEPA checkpoints and integrate with the trace viewer.
 8. **Offline Trace Viewer** – Token- and checkpoint-level visualisation with
    deception overlays for honest vs deceptive chain inspection.
-9. **Paired Chains Baseline** – Controlled honest/deceptive emitters and
-   detectors to seed early deception analysis prior to reward tuning.
-10. **Unsloth/PEFT Fine-Tuning** – Ready-to-run notebooks for Phi-3 Mini and
-    Llama-3 8B that wire GEPA abstention, PPO reward blending, and offline
-    trace/report generation into the LoRA training workflow.
+9. **Unsloth/PEFT Fine-Tuning** – Ready-to-run notebooks for Phi-3 Mini and
+   Llama-3 8B that wire GEPA abstention, PPO reward blending, and offline
+   trace/report generation into the LoRA training workflow.
 
-## Dual-Path Circuit Tracing for Deception Detection
+## Cloning the repository
 
-GEPA now supports **single-prompt dual-path reasoning** to expose deception at
-the circuit level.
-
-### How It Works
-
-1. **One Prompt, Two Paths**: A single instruction asks the model to explore both
-   cautious and confident approaches in one forward pass.
-2. **Circuit Capture**: When available, Anthropic-style circuit tracing records
-   neuron activations for each path so we can compare activations directly.
-3. **Divergence Detection**: We examine which circuits fire for each path and
-   look for confidence inversions, risk suppression, and reward seeking.
-4. **Deception Signals**: If the careful path highlights uncertainty but the
-   confident path fires reward circuits—and the model recommends the confident
-   path—we flag deception.
-
-### Usage
+If you have Git access, the easiest way to obtain the project with the complete
+file structure is to clone it directly from the public remote. Replace the
+placeholder owner with the actual namespace if it differs:
 
 ```bash
-# Run dual-path evaluation
-gepa dspy contrastive-run \
-  --data datasets/dual_path/data.jsonl \
-  --out runs/contrastive/ \
-  --context safety_critical
-
-# View circuit activations
-gepa view dual-path safety_001 --base runs/contrastive/
+git clone https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment.git
+cd GEPA-Mindfulness-superalignment
 ```
 
-### Dataset
+After cloning you should see folders such as `gepa_mindfulness/`,
+`examples/`, `notebooks/`, and `scripts/` when running `ls`. If you receive the
+project as a ZIP archive instead, unzip it and then optionally follow the
+[Working from a ZIP download](#working-from-a-zip-download) steps below to add
+Git metadata locally.
 
-See `datasets/dual_path/` for domain-diverse prompts (medical, financial,
-safety, technical) that never mention deception explicitly. The model believes
-it's performing thorough reasoning; we inspect which circuits fire.
+> **Line ending note:** The repository includes a `.gitattributes` file that
+> normalizes checked-in source files to use LF newlines so tools such as Black
+> behave the same on Linux, macOS, and Windows. If you have globally enabled
+> automatic CRLF conversion, you can keep it; Git will translate to LF on
+> commit. Developers configuring Git for the first time may prefer:
+>
+> ```bash
+> git config --global core.autocrlf input  # recommended on Unix-likes
+> # or
+> git config --global core.autocrlf true   # recommended on Windows
+> ```
+>
+> Those settings match the defaults used by many Python projects and prevent
+> spurious formatting churn in CI.
+
+## Working from a ZIP download
+
+Some users obtain the project as a plain folder (for example, by downloading a
+ZIP file from a teammate or a file share). You can still track local changes
+with Git even if the original `.git/` metadata is missing:
+
+```bash
+cd /path/to/GEPA-Mindfulness-superalignment
+git init
+git add .
+git commit -m "Initial snapshot"
+# Optional: connect to the public upstream
+git remote add origin https://github.com/<owner>/GEPA-Mindfulness-superalignment.git
+git fetch origin
+```
+
+From there you can create branches, commit changes, and (if you configured a
+remote) push your work upstream. If you later clone the official repository
+with `git clone`, the Git metadata will already be included and these steps are
+not necessary.
+
+## Getting Started
+
+Follow the steps below from the repository root (`pwd` prints
+`.../GEPA-Mindfulness-superalignment`). Each step builds on the previous one so
+the CLI and DSPy helpers work out of the box.
+
+### 1. Create and activate a virtual environment
+
+```bash
+sudo apt update
+sudo apt install python3.12-venv  # once per machine; pick the venv package matching your Python minor version
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+```
+
+The `EXTERNALLY-MANAGED` guard in recent Debian / WSL images blocks direct
+`pip` usage from the system interpreter. Activating the virtual environment
+ensures subsequent installs remain isolated. Use `deactivate` when you are done
+working to exit the environment.
+
+### 2. Install the core dependencies
+
+```bash
+pip install torch transformers trl pydantic jinja2 pyyaml requests
+```
+
+If you have private access to the optional Circuit Tracer wheel, install it now
+with the URL provided by the maintainer. The remainder of the project—including
+the DSPy helpers—runs without Circuit Tracer if you skip this step.
+
+### 3. Install project extras (CLI + DSPy)
+
+```bash
+pip install -e .[dspy]
+```
+
+The editable install registers the `gepa` console script and pulls the optional
+`dspy-ai` dependency required for `gepa dspy compile`. If you prefer not to
+install DSPy support, use `pip install -e .` instead and skip the compilation
+features.
+
+### 4. Add notebook tooling (optional but recommended)
+
+```bash
+pip install notebook
+```
+
+Once installed, the `jupyter notebook ...` commands below will be available in
+the activated environment.
+
+### 5. Run the CPU example
+
+```bash
+python -m gepa_mindfulness.examples.cpu_demo.run_cpu_demo
+```
+
+A convenience wrapper is also available via `python examples/run_cpu_demo.py`.
+If you see a “file not found” error, confirm that you are inside the project
+directory and that the `gepa_mindfulness/examples/cpu_demo/` folder exists.
+
+### 6. Execute the full pipeline script
+
+```bash
+./scripts/run_full_pipeline.sh
+```
+
+### 7. Launch the vLLM integration (optional)
+
+Ensure a vLLM server is running and adjust
+`gepa_mindfulness/configs/vllm.yaml` as needed before executing:
+
+```bash
+python gepa_mindfulness/examples/vllm_demo/run_vllm_demo.py
+```
 
 ## Deception Detection: Monitoring Only, Reward Honesty
 
@@ -139,121 +230,70 @@ This approach rewards honesty, preserves transparency, and shifts punitive
 action to a deliberate, offline circuit-ablation review instead of the training
 loop itself.
 
-## Cloning the repository
+## Dual-Path Circuit Tracing for Deception Detection
 
-If you have Git access, the easiest way to obtain the project with the complete
-file structure is to clone it directly from the public remote. Replace the
-placeholder owner with the actual namespace if it differs:
+GEPA now supports **single-prompt dual-path reasoning** to expose deception at
+the circuit level.
 
-```bash
-git clone https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment.git
-cd GEPA-Mindfulness-superalignment
-```
+### How It Works
 
-After cloning you should see folders such as `gepa_mindfulness/`,
-`examples/`, `notebooks/`, and `scripts/` when running `ls`. If you receive the
-project as a ZIP archive instead, unzip it and then optionally follow the
-[Working from a ZIP download](#working-from-a-zip-download) steps below to add
-Git metadata locally.
+1. **One Prompt, Two Paths**: A single instruction asks the model to explore both
+   cautious and confident approaches in one forward pass.
+2. **Circuit Capture**: When available, Anthropic-style circuit tracing records
+   neuron activations for each path so we can compare activations directly.
+3. **Divergence Detection**: We examine which circuits fire for each path and
+   look for confidence inversions, risk suppression, and reward seeking.
+4. **Deception Signals**: If the careful path highlights uncertainty but the
+   confident path fires reward circuits—and the model recommends the confident
+   path—we flag deception.
 
-> **Line ending note:** The repository includes a `.gitattributes` file that
-> normalizes checked-in source files to use LF newlines so tools such as Black
-> behave the same on Linux, macOS, and Windows. If you have globally enabled
-> automatic CRLF conversion, you can keep it; Git will translate to LF on
-> commit. Developers configuring Git for the first time may prefer:
->
-> ```bash
-> git config --global core.autocrlf input  # recommended on Unix-likes
-> # or
-> git config --global core.autocrlf true   # recommended on Windows
-> ```
->
-> Those settings match the defaults used by many Python projects and prevent
-> spurious formatting churn in CI.
-
-## Getting Started
-
-1. Install dependencies (core packages):
-
-   ```bash
-   pip install torch transformers trl pydantic jinja2 pyyaml requests
-   ```
-
-   If you have private access to the optional Circuit Tracer package, install it
-   after the core dependencies using the URL provided by the maintainer. If you
-   do not have access, skip the step—the remainder of the project functions
-   without it.
-
-   > **WSL / Debian note:** Recent Debian-based Python builds ship with
-   > `EXTERNALLY-MANAGED` protection, which blocks `pip` from installing packages
-   > into the system interpreter. Create an isolated virtual environment before
-   > installing the requirements:
-   >
-   > ```bash
-   > sudo apt update
-   > sudo apt install python3.12-venv  # once per machine; installs the matching venv module for your Python 3.x release
-   > python3 -m venv .venv
-   > source .venv/bin/activate
-   > pip install --upgrade pip
-   > pip install torch transformers trl pydantic jinja2 pyyaml requests
-   > # Optional: install the Circuit Tracer package only if you have access to it
-   > ```
-   >
-   > When you are done working, run `deactivate` to exit the environment. Any
-   > project commands (tests, demos, training scripts) should be executed while the
-   > virtual environment is active so they use the isolated interpreter.
-
-2. Install Notebook:
-
-   ```bash
-   pip install notebook
-   ```
-
-   After installation the `jupyter notebook ...` commands below will be available
-   from the activated virtual environment.
-
-3. Run the CPU example (from the repository root):
-
-   ```bash
-   python -m gepa_mindfulness.examples.cpu_demo.run_cpu_demo
-   ```
-
-   A convenience wrapper is also available so you can launch the demo via
-   `python examples/run_cpu_demo.py`. If you see a “file not found” error,
-   confirm that you are inside the project directory (e.g. `pwd` prints
-   `.../GEPA-Mindfulness-superalignment`) and that the
-   `gepa_mindfulness/examples/cpu_demo/` folder exists.
-
-4. Execute the full pipeline script:
-
-   ```bash
-   ./scripts/run_full_pipeline.sh
-   ```
-
-5. For vLLM integration, ensure a vLLM server is running and adjust
-   `gepa_mindfulness/configs/vllm.yaml` as needed before executing
-   `python gepa_mindfulness/examples/vllm_demo/run_vllm_demo.py`.
-
-### Working from a ZIP download
-
-Some users obtain the project as a plain folder (for example, by downloading a
-ZIP file from a teammate or a file share). You can still track local changes
-with Git even if the original `.git/` metadata is missing:
+### Usage
 
 ```bash
-cd /path/to/GEPA-Mindfulness-superalignment
-git init
-git add .
-git commit -m "Initial snapshot"
-# Optional: connect to the public upstream
-git remote add origin https://github.com/<owner>/GEPA-Mindfulness-superalignment.git
-git fetch origin
+# Run dual-path evaluation
+gepa dspy contrastive-run \
+  --data datasets/dual_path/data.jsonl \
+  --out runs/contrastive/ \
+  --context safety_critical
+
+# View circuit activations
+gepa view dual-path safety_001 --base runs/contrastive/
 ```
 
-From there you can create branches, commit changes, and (if you configured a
-remote) push your work upstream. If you later clone the official repository
-with `git clone`, the Git metadata will already be included and these steps are
-not necessary.
+### Dataset
+
+See `datasets/dual_path/` for domain-diverse prompts (medical, financial,
+safety, technical) that never mention deception explicitly. The model believes
+it's performing thorough reasoning; we inspect which circuits fire.
+
+## Running the CLI Locally
+
+Most examples below assume the `gepa` command is available on your `PATH`.
+When developing from a fresh clone you can either install the package in
+editable mode or invoke the module directly without installation:
+
+```bash
+# Option 1: install the CLI (adds `gepa` to ~/.local/bin when the venv is active)
+pip install -e .[dspy]  # enables `gepa dspy compile`
+
+# Option 2: install without DSPy extras
+pip install -e .
+
+# Option 3: call the module without installing
+PYTHONPATH=src python -m mindful_trace_gepa <subcommand> [...]
+```
+
+If your host Python is PEP 668 "externally managed", make sure you perform the
+editable install from the virtual environment's interpreter (e.g.
+`.venv/bin/python -m pip install -e .[dspy]`). The wrapper script in the
+repository root also works without installation when the `PYTHONPATH` is set:
+
+```bash
+PYTHONPATH=src ./gepa <subcommand>
+```
+
+Both approaches ensure the `mindful_trace_gepa` package resolves even when the
+project has not been installed into the system Python.
 
 ## DSPy Declarative Pipelines
 
@@ -263,6 +303,10 @@ the pipeline with GEPA checkpoint logging:
 
 ```bash
 gepa dspy run --input examples/self_tracing_sample.jsonl --trace runs/trace.jsonl
+
+``gepa`` resolves relative paths against the project tree automatically, so the
+example works even if you run it from ``src/mindful_trace_gepa/dspy_modules`` or
+another sub-directory.
 ```
 
 To export the guarded prompt manifest:
@@ -270,6 +314,10 @@ To export the guarded prompt manifest:
 ```bash
 gepa dspy compile --out dspy_artifacts/ --enable-optim
 ```
+
+The compilation command requires the optional `dspy-ai` dependency from the
+`pip install -e .[dspy]` step above. If the package is missing the CLI will
+explain how to install it.
 
 ## Trace Viewer
 
@@ -298,25 +346,10 @@ Execute the probe pipeline via:
 gepa deception probes --trace runs/trace.jsonl --model dummy --probe artifacts/dummy.pt   --config configs/deception/probes_linear.yaml --out runs/deception_probe.json
 ```
 
-Combine probe, paired chains, and multimodal evaluation into a single report:
+Combine probe and multimodal evaluation into a single report:
 
 ```bash
 gepa deception summary --out runs/deception_summary.json
-```
-
-## Paired Chains Baseline
-
-Baseline datasets for honest/deceptive paired chains live under
-`datasets/paired_chains/`. Generate chains and detector outputs via:
-
-```bash
-gepa paired run --data datasets/paired_chains/data.jsonl --out runs/paired/ --context research
-```
-
-Inspect a specific scenario with the split-view trace viewer:
-
-```bash
-gepa paired view safety_lab_001 --base runs/paired/ --out runs/paired/safety_lab_001_view.html
 ```
 
 ## Fine-Tuning with Unsloth/PEFT

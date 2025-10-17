@@ -15,6 +15,7 @@ dependencies = [
 
 [project.optional-dependencies]
 pdf = ["weasyprint>=53"]
+dspy = ["dspy-ai>=2.5"]
 
 [project.scripts]
 gepa = "mindful_trace_gepa.cli:main"
