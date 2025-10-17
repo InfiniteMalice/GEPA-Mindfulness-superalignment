@@ -36,6 +36,7 @@ ensure_dspy_enabled = getattr(pipeline, "ensure_dspy_enabled", None) if pipeline
 
 GEPACompiler = getattr(compile, "GEPACompiler", None) if compile else None
 create_gepa_metric = getattr(compile, "create_gepa_metric", None) if compile else None
+DSPyCompiler = GEPACompiler
 
 ALL_SIGNATURES = getattr(signatures, "ALL_SIGNATURES", None) if signatures else None
 
@@ -46,6 +47,7 @@ __all__ = [
     "ModuleResult",
     "ensure_dspy_enabled",
     "GEPACompiler",
+    "DSPyCompiler",
     "create_gepa_metric",
     "ALL_SIGNATURES",
 ]
