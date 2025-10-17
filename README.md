@@ -367,26 +367,6 @@ PYTHONPATH=src ./gepa <subcommand>
 Both approaches ensure the `mindful_trace_gepa` package resolves even when the
 project has not been installed into the system Python.
 
-## Running the CLI Locally
-
-Most examples below assume the `gepa` command is available on your `PATH`.
-When developing from a fresh clone you can either install the package in
-editable mode or invoke the module directly without installation:
-
-```bash
-# Option 1: install the CLI (adds `gepa` to ~/.local/bin when the venv is active)
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -e .
-
-# Option 2: call the module without installing
-python -m mindful_trace_gepa <subcommand> [...]
-```
-
-If you prefer not to activate the virtual environment every time, you can also
-run `./gepa <subcommand>` from the repository root — the wrapper forwards to the
-same CLI entry point.
-
 ## DSPy Declarative Pipelines
 
 DSPy-style modules live under `src/mindful_trace_gepa/dspy_modules`. They are
@@ -481,5 +461,4 @@ and renders `report.html` plus `report_view.html` via the final cell:
 
 ## License
 
-This project is provided for research and alignment experimentation. Review the
-individual model licenses for any deployed checkpoints.
+MIT License.
