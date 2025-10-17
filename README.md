@@ -255,6 +255,26 @@ remote) push your work upstream. If you later clone the official repository
 with `git clone`, the Git metadata will already be included and these steps are
 not necessary.
 
+## Running the CLI Locally
+
+Most examples below assume the `gepa` command is available on your `PATH`.
+When developing from a fresh clone you can either install the package in
+editable mode or invoke the module directly without installation:
+
+```bash
+# Option 1: install the CLI (adds `gepa` to ~/.local/bin when the venv is active)
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
+
+# Option 2: call the module without installing
+python -m mindful_trace_gepa <subcommand> [...]
+```
+
+If you prefer not to activate the virtual environment every time, you can also
+run `./gepa <subcommand>` from the repository root — the wrapper forwards to the
+same CLI entry point.
+
 ## DSPy Declarative Pipelines
 
 DSPy-style modules live under `src/mindful_trace_gepa/dspy_modules`. They are
