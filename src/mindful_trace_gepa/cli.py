@@ -41,6 +41,58 @@ else:  # pragma: no cover - optional dependency missing
 dspy_pkg = optional_import("dspy")
 
 
+def _resolve_cli_path(path_str: str, *, require_exists: bool = True) -> Path:
+    """Resolve CLI-supplied paths with a few friendly fallbacks.
+
+    The DSPy quick-start documentation references assets relative to the
+    project root (for example ``examples/self_tracing_sample.jsonl``).
+    Users often execute the command from a sub-directory such as the
+    ``dspy_modules`` folder, so we try a handful of sensible locations to
+    locate those assets before failing. When ``require_exists`` is ``False`` we
+    still return the best-effort resolution even if the path has not been
+    created yet (useful for output destinations).
+    """
+
+    candidate = Path(path_str)
+    if candidate.is_absolute():
+        if candidate.exists() or not require_exists:
+            return candidate
+        raise FileNotFoundError(candidate)
+
+    if candidate.exists():
+        return candidate.resolve()
+
+    module_dir = Path(__file__).resolve().parent
+    package_root = module_dir.parent
+    search_roots = [
+        Path.cwd(),
+        module_dir,
+        package_root,
+        package_root.parent,
+    ]
+
+    roots: List[Path] = []
+    seen = set()
+    for root in search_roots:
+        resolved = root.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        roots.append(resolved)
+
+    for root in roots:
+        resolved = (root / candidate).resolve()
+        if resolved.exists():
+            return resolved
+        if not require_exists and resolved.parent.exists():
+            return resolved
+
+    if not require_exists:
+        return (Path.cwd() / candidate).resolve()
+
+    raise FileNotFoundError(candidate)
+
+
 def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
     return read_jsonl(path)
 
@@ -71,7 +123,8 @@ def handle_dspy_run(args: argparse.Namespace) -> None:
         else GEPA_CHAIN_CLS
     )
     chain = chain_factory(config=config, allow_optimizations=args.enable_optim)
-    input_records = _read_jsonl(Path(args.input))
+    input_path = _resolve_cli_path(args.input)
+    input_records = _read_jsonl(input_path)
     trace_path = Path(args.trace)
     tokens_path = trace_path.with_name("tokens.jsonl")
     summary_path = trace_path.with_name("summary.json")
@@ -146,9 +199,13 @@ def handle_dspy_compile(args: argparse.Namespace) -> None:
     if GEPA_COMPILER_CLS is None or CREATE_GEPA_METRIC is None:
         raise RuntimeError("DSPy compiler unavailable; optional dependencies missing")
     if dspy_pkg is None:
-        raise RuntimeError("dspy package not installed")
+        raise RuntimeError(
+            "DSPy compilation requires the optional 'dspy-ai' dependency. "
+            "Install it via 'pip install -e .[dspy]' or 'pip install dspy-ai'."
+        )
 
-    config_path = Path(getattr(args, "config", "configs/policies/dspy.yml"))
+    raw_config_path = getattr(args, "config", "configs/policies/dspy.yml")
+    config_path = _resolve_cli_path(raw_config_path, require_exists=False)
     if not config_path.exists():
         config_data: Dict[str, Any] = {}
     else:
@@ -177,7 +234,9 @@ def handle_dspy_compile(args: argparse.Namespace) -> None:
         forbidden_phrases=config_data.get("safety", {}).get("forbidden_phrases", []),
     )
 
-    dataset_records = _read_jsonl(Path(args.dataset)) if args.dataset else []
+    dataset_records = (
+        _read_jsonl(_resolve_cli_path(args.dataset)) if args.dataset else []
+    )
     trainset = [
         dspy_pkg.Example(
             inquiry=record.get("query", record.get("prompt", "")),
@@ -362,7 +421,8 @@ def handle_view(args: argparse.Namespace) -> None:
 
 
 def handle_paired_run(args: argparse.Namespace) -> None:
-    dataset = _read_jsonl(Path(args.data))
+    data_path = _resolve_cli_path(args.data)
+    dataset = _read_jsonl(data_path)
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
     aggregated: Dict[str, Any] = {}
@@ -387,7 +447,7 @@ def handle_paired_run(args: argparse.Namespace) -> None:
 
 
 def handle_paired_view(args: argparse.Namespace) -> None:
-    base = Path(args.base)
+    base = _resolve_cli_path(args.base)
     honest = _read_jsonl(base / f"{args.identifier}_honest_trace.jsonl")
     deceptive = _read_jsonl(base / f"{args.identifier}_deceptive_trace.jsonl")
     deception_data: Dict[str, Any] = {}
