@@ -226,11 +226,29 @@ class ModelConfig:
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any] | None) -> "ModelConfig":
         payload = payload or {}
+        policy_model = payload.get("policy_model")
+        if policy_model is None:
+            policy_model = payload.get("name")
+        reward_model = payload.get("reward_model")
+        if reward_model is None:
+            reward_model = payload.get("reward_model_name")
         return cls(
-            policy_model=str(payload.get("policy_model", "gpt2")),
-            reward_model=str(payload.get("reward_model", "distilbert-base-uncased")),
+            policy_model=str(policy_model or "gpt2"),
+            reward_model=str(reward_model or "distilbert-base-uncased"),
             vllm_engine=payload.get("vllm_engine"),
         )
+
+
+def _merge_mapping(
+    base: Mapping[str, Any] | None,
+    overrides: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    merged: dict[str, Any] = {}
+    if isinstance(base, Mapping):
+        merged.update(base)
+    if isinstance(overrides, Mapping):
+        merged.update(overrides)
+    return merged
 
 
 @dataclass
@@ -243,6 +261,7 @@ class TrainingConfig:
     model: ModelConfig = field(default_factory=ModelConfig)
     adversarial_batch: int = 2
     confidence_threshold: float = 0.75
+    use_dual_path: bool = False
     honesty: HonestyConfig = field(default_factory=HonestyConfig)
     deception: DeceptionConfig = field(default_factory=DeceptionConfig)
     dataset: DatasetConfig = field(default_factory=DatasetConfig)
@@ -251,19 +270,46 @@ class TrainingConfig:
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any] | None) -> "TrainingConfig":
         payload = payload or {}
-        device = str(payload.get("device", "cpu"))
+
+        training_section = payload.get("training")
+        if not isinstance(training_section, Mapping):
+            training_section = {}
+
+        model_section = payload.get("model")
+        if not isinstance(model_section, Mapping):
+            model_section = {}
+
+        device_value = payload.get("device")
+        if device_value is None:
+            device_value = model_section.get("device")
+        if device_value is None:
+            device_value = "cpu"
+        device = str(device_value)
         if device not in {"cpu", "cuda"} and not device.startswith("cuda"):
             raise ValueError("device must be 'cpu' or a CUDA identifier")
 
+        ppo_section = _merge_mapping(payload.get("ppo"), training_section)
+
         return cls(
-            seed=_to_int(payload.get("seed"), 42),
-            max_steps=_to_int(payload.get("max_steps"), 100),
+            seed=_to_int(training_section.get("seed", payload.get("seed")), 42),
+            max_steps=_to_int(training_section.get("max_steps", payload.get("max_steps")), 100),
             device=device,
             reward_weights=RewardWeightsConfig.from_mapping(payload.get("reward_weights")),
-            ppo=PPOConfig.from_mapping(payload.get("ppo")),
-            model=ModelConfig.from_mapping(payload.get("model")),
-            adversarial_batch=_to_int(payload.get("adversarial_batch"), 2),
-            confidence_threshold=_to_float(payload.get("confidence_threshold"), 0.75),
+            ppo=PPOConfig.from_mapping(ppo_section),
+            model=ModelConfig.from_mapping(model_section),
+            adversarial_batch=_to_int(
+                training_section.get("adversarial_batch", payload.get("adversarial_batch")),
+                2,
+            ),
+            confidence_threshold=_to_float(
+                training_section.get(
+                    "confidence_threshold", payload.get("confidence_threshold")
+                ),
+                0.75,
+            ),
+            use_dual_path=bool(
+                training_section.get("use_dual_path", payload.get("use_dual_path", False))
+            ),
             honesty=HonestyConfig.from_mapping(payload.get("honesty")),
             deception=DeceptionConfig.from_mapping(payload.get("deception")),
             dataset=DatasetConfig.from_mapping(payload.get("dataset")),
