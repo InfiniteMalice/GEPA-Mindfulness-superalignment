@@ -263,25 +263,17 @@ editable mode or invoke the module directly without installation:
 
 ```bash
 # Option 1: install the CLI (adds `gepa` to ~/.local/bin when the venv is active)
-python3 -m venv .venv
+python -m venv .venv
 source .venv/bin/activate
 python -m pip install -e .
 
 # Option 2: call the module without installing
-PYTHONPATH=src python -m mindful_trace_gepa <subcommand> [...]
+python -m mindful_trace_gepa <subcommand> [...]
 ```
 
-If your host Python is PEP 668 "externally managed", make sure you perform the
-editable install from the virtual environment's interpreter (e.g.
-`.venv/bin/python -m pip install -e .`). The wrapper script in the repository
-root also works without installation when the `PYTHONPATH` is set:
-
-```bash
-PYTHONPATH=src ./gepa <subcommand>
-```
-
-Both approaches ensure the `mindful_trace_gepa` package resolves even when the
-project has not been installed into the system Python.
+If you prefer not to activate the virtual environment every time, you can also
+run `./gepa <subcommand>` from the repository root — the wrapper forwards to the
+same CLI entry point.
 
 ## DSPy Declarative Pipelines
 
