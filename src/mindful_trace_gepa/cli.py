@@ -199,9 +199,13 @@ def handle_dspy_compile(args: argparse.Namespace) -> None:
     if GEPA_COMPILER_CLS is None or CREATE_GEPA_METRIC is None:
         raise RuntimeError("DSPy compiler unavailable; optional dependencies missing")
     if dspy_pkg is None:
-        raise RuntimeError("dspy package not installed")
+        raise RuntimeError(
+            "DSPy compilation requires the optional 'dspy-ai' dependency. "
+            "Install it via 'pip install -e .[dspy]' or 'pip install dspy-ai'."
+        )
 
-    config_path = Path(getattr(args, "config", "configs/policies/dspy.yml"))
+    raw_config_path = getattr(args, "config", "configs/policies/dspy.yml")
+    config_path = _resolve_cli_path(raw_config_path, require_exists=False)
     if not config_path.exists():
         config_data: Dict[str, Any] = {}
     else:
