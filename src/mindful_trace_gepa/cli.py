@@ -20,6 +20,26 @@ from .tokens import TokenRecorder
 from .utils.imports import optional_import
 from .viewer.builder import build_viewer_html
 
+_DSPY_INSTALL_HINT = (
+    "Install the optional 'dspy-ai' dependency via "
+    "'pip install -e .[dspy]' or 'pip install dspy-ai'."
+)
+_DSPY_PIPELINE_ERROR = (
+    "The DSPy pipeline components are unavailable because the optional "
+    "dependencies were not installed. "
+    f"{_DSPY_INSTALL_HINT}"
+)
+_DSPY_COMPILE_ERROR = (
+    "The DSPy compiler components are unavailable because the optional "
+    "dependencies were not installed. "
+    f"{_DSPY_INSTALL_HINT}"
+)
+
+
+def _raise_dspy_import_error(component: str, detail: str) -> None:
+    raise RuntimeError(f"DSPy {component} unavailable; {detail}")
+
+
 yaml = optional_import("yaml")
 
 _dspy_pipeline = optional_import("mindful_trace_gepa.dspy_modules.pipeline")
@@ -113,9 +133,9 @@ def _write_jsonl(path: Path, rows: Iterable[Dict[str, Any]]) -> None:
 def handle_dspy_run(args: argparse.Namespace) -> None:
     dual_path_flag = getattr(args, "dual_path", False)
     if dual_path_flag and DUAL_PATH_CHAIN_CLS is None:
-        raise RuntimeError("Dual-path DSPy pipeline unavailable; install dspy")
+        _raise_dspy_import_error("dual-path pipeline", _DSPY_PIPELINE_ERROR)
     if GEPA_CHAIN_CLS is None and DUAL_PATH_CHAIN_CLS is None:
-        raise RuntimeError("DSPy pipeline unavailable; optional dependencies missing")
+        _raise_dspy_import_error("pipeline", _DSPY_PIPELINE_ERROR)
     config = load_dspy_config()
     chain_factory = (
         DUAL_PATH_CHAIN_CLS
@@ -197,12 +217,9 @@ def handle_dspy_run(args: argparse.Namespace) -> None:
 
 def handle_dspy_compile(args: argparse.Namespace) -> None:
     if GEPA_COMPILER_CLS is None or CREATE_GEPA_METRIC is None:
-        raise RuntimeError("DSPy compiler unavailable; optional dependencies missing")
+        _raise_dspy_import_error("compiler", _DSPY_COMPILE_ERROR)
     if dspy_pkg is None:
-        raise RuntimeError(
-            "DSPy compilation requires the optional 'dspy-ai' dependency. "
-            "Install it via 'pip install -e .[dspy]' or 'pip install dspy-ai'."
-        )
+        _raise_dspy_import_error("compiler", _DSPY_COMPILE_ERROR)
 
     raw_config_path = getattr(args, "config", "configs/policies/dspy.yml")
     config_path = _resolve_cli_path(raw_config_path, require_exists=False)
@@ -234,7 +251,7 @@ def handle_dspy_compile(args: argparse.Namespace) -> None:
         forbidden_phrases=config_data.get("safety", {}).get("forbidden_phrases", []),
     )
 
-    dataset_records = (_read_jsonl(_resolve_cli_path(args.dataset)) if args.dataset else [])
+    dataset_records = _read_jsonl(_resolve_cli_path(args.dataset)) if args.dataset else []
     trainset = [
         dspy_pkg.Example(
             inquiry=record.get("query", record.get("prompt", "")),
