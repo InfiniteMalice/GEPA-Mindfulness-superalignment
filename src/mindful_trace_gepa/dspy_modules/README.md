@@ -13,11 +13,17 @@ when explicitly enabled. Optimisation is disabled by default via
 - GEPA invariants (Mindfulness, Empathy, Perspective, Agency) must stay present.
 - Optimisation seeds are deterministic and logged in the manifest.
 
-Use the CLI to run or compile modules:
+Use the CLI to run or compile modules. If the `gepa` executable is not yet on
+your `PATH`, either install the package inside a virtual environment or point
+`PYTHONPATH` at the `src/` directory when calling the module directly:
 
 ```bash
 gepa dspy run --input INPUT.jsonl --trace runs/trace.jsonl
 gepa dspy compile --out dspy_artifacts/ --enable-optim
+
+# Equivalent without installing the console script
+PYTHONPATH=src python -m mindful_trace_gepa dspy run --input INPUT.jsonl --trace runs/trace.jsonl
+PYTHONPATH=src ./gepa dspy run --input INPUT.jsonl --trace runs/trace.jsonl
 ```
 
 Both commands keep GEPA checkpoints intact and write token-level metadata so
