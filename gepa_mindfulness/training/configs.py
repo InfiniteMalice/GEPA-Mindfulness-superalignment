@@ -302,9 +302,7 @@ class TrainingConfig:
                 2,
             ),
             confidence_threshold=_to_float(
-                training_section.get(
-                    "confidence_threshold", payload.get("confidence_threshold")
-                ),
+                training_section.get("confidence_threshold", payload.get("confidence_threshold")),
                 0.75,
             ),
             use_dual_path=bool(
