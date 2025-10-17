@@ -255,6 +255,34 @@ remote) push your work upstream. If you later clone the official repository
 with `git clone`, the Git metadata will already be included and these steps are
 not necessary.
 
+## Running the CLI Locally
+
+Most examples below assume the `gepa` command is available on your `PATH`.
+When developing from a fresh clone you can either install the package in
+editable mode or invoke the module directly without installation:
+
+```bash
+# Option 1: install the CLI (adds `gepa` to ~/.local/bin when the venv is active)
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
+
+# Option 2: call the module without installing
+PYTHONPATH=src python -m mindful_trace_gepa <subcommand> [...]
+```
+
+If your host Python is PEP 668 "externally managed", make sure you perform the
+editable install from the virtual environment's interpreter (e.g.
+`.venv/bin/python -m pip install -e .`). The wrapper script in the repository
+root also works without installation when the `PYTHONPATH` is set:
+
+```bash
+PYTHONPATH=src ./gepa <subcommand>
+```
+
+Both approaches ensure the `mindful_trace_gepa` package resolves even when the
+project has not been installed into the system Python.
+
 ## DSPy Declarative Pipelines
 
 DSPy-style modules live under `src/mindful_trace_gepa/dspy_modules`. They are
@@ -263,6 +291,10 @@ the pipeline with GEPA checkpoint logging:
 
 ```bash
 gepa dspy run --input examples/self_tracing_sample.jsonl --trace runs/trace.jsonl
+
+``gepa`` resolves relative paths against the project tree automatically, so the
+example works even if you run it from ``src/mindful_trace_gepa/dspy_modules`` or
+another sub-directory.
 ```
 
 To export the guarded prompt manifest:
