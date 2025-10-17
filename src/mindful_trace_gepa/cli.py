@@ -234,7 +234,9 @@ def handle_dspy_compile(args: argparse.Namespace) -> None:
         forbidden_phrases=config_data.get("safety", {}).get("forbidden_phrases", []),
     )
 
-    dataset_records = _read_jsonl(_resolve_cli_path(args.dataset)) if args.dataset else []
+    dataset_records = (
+        _read_jsonl(_resolve_cli_path(args.dataset)) if args.dataset else []
+    )
     trainset = [
         dspy_pkg.Example(
             inquiry=record.get("query", record.get("prompt", "")),
