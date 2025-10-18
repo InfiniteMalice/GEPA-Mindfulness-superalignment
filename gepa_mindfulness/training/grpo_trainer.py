@@ -206,12 +206,9 @@ class GRPOTrainer:
         log_probs = torch.log_softmax(logits, dim=-1)
         gathered = log_probs.gather(-1, target_tokens.unsqueeze(-1)).squeeze(-1)
         seq_len = gathered.shape[1]
-        gen_mask = torch.arange(seq_len, device=self.device).unsqueeze(0).expand_as(gathered) >= (
-            prompt_len - 1
-        )
-        pad_mask = target_tokens != self.tokenizer.pad_token_id
-        mask = gen_mask & pad_mask
-        masked = gathered * mask.float()
+        mask = torch.zeros_like(gathered)
+        mask[:, prompt_len - 1 : seq_len] = 1
+        masked = gathered * mask
         log_prob_per_seq = masked.sum(dim=1)
         if not requires_grad:
             log_prob_per_seq = log_prob_per_seq.detach()
