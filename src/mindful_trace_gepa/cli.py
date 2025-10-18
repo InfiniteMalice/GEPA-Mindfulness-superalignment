@@ -610,7 +610,11 @@ def build_parser() -> argparse.ArgumentParser:
     view_parser.add_argument("--tokens", required=True, help="Token JSONL path")
     view_parser.add_argument("--out", required=True, help="Output HTML file")
     view_parser.add_argument("--deception", help="Optional deception score JSON")
-    view_parser.add_argument("--dual-path", dest="dual_path", help="Optional dual-path metadata JSON")
+    view_parser.add_argument(
+        "--dual-path",
+        dest="dual_path",
+        help="Optional dual-path metadata JSON",
+    )
     view_parser.add_argument("--paired", dest="dual_path", help=argparse.SUPPRESS)
     view_parser.add_argument(
         "--page-size", type=int, default=200, help="Events per page in the viewer"
