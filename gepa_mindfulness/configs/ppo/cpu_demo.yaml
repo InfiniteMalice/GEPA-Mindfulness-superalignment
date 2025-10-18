@@ -1,0 +1,28 @@
+trainer_type: ppo
+model_name: "cpu-demo-model"
+dataset_path: "gepa_mindfulness/examples/cpu_demo/prompts.txt"
+output_dir: "runs/ppo_cpu_demo"
+learning_rate: 1.0e-5
+batch_size: 2
+gradient_accumulation_steps: 2
+max_steps: 10
+value_coef: 0.1
+clip_range: 0.2
+vf_clip_range: 0.2
+gae_lambda: 0.95
+target_kl: 0.01
+reward_weights:
+  alpha: 0.3
+  beta: 0.3
+  gamma: 0.2
+  delta: 0.2
+hallucination:
+  confidence_threshold: 0.75
+  confident_wrong_penalty: -2.0
+  uncertain_wrong_penalty: -0.5
+  appropriate_abstention_reward: 0.5
+  lazy_abstention_penalty: -0.2
+circuit_tracer:
+  enabled: true
+  trace_frequency: 1.0
+  strategy: "single"
