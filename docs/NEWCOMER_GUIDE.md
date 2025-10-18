@@ -50,7 +50,7 @@ Exports live in `gepa_mindfulness.adapters.__init__`.【F:gepa_mindfulness/adapt
 
 ## Configurations & Examples
 
-Two YAML presets provide CPU-friendly and vLLM-oriented defaults (`default.yaml`, `vllm.yaml`).【F:gepa_mindfulness/configs/default.yaml†L1-L18】【F:gepa_mindfulness/configs/vllm.yaml†L1-L18】 Use them with:
+YAML presets now live under `configs/ppo/`, `configs/grpo/`, and `configs/comparison/` so PPO and GRPO share aligned hyperparameters. Launch a run directly from the CLI:
 
 ```bash
 python -m gepa_mindfulness.training.train --mode grpo \"
@@ -60,7 +60,7 @@ python -m gepa_mindfulness.training.train --mode grpo \"
 
 To see the system in action, run the example scripts:
 
-* `examples/cpu_demo/run_cpu_demo.py` executes a short PPO loop on CPU, printing responses, rewards, and trace summaries.【F:gepa_mindfulness/examples/cpu_demo/run_cpu_demo.py†L1-L30】
+* `examples/cpu_demo/run_cpu_demo.py --trainer grpo` executes a short CPU-friendly GRPO loop; swap to `--trainer ppo` for the PPO baseline.【F:gepa_mindfulness/examples/cpu_demo/run_cpu_demo.py†L1-L54】
 * `examples/vllm_demo/run_vllm_demo.py` targets a vLLM endpoint defined in `configs/vllm.yaml` for remote inference.【F:gepa_mindfulness/examples/vllm_demo/run_vllm_demo.py†L1-L27】
 
 The `scripts/run_full_pipeline.sh` helper validates configs, runs the CPU demo, then executes a GRPO pass
