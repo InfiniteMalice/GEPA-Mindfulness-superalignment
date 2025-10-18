@@ -84,10 +84,16 @@ class HonestyConfig:
     def from_mapping(cls, payload: Mapping[str, Any] | None) -> "HonestyConfig":
         payload = payload or {}
         return cls(
-            uncertainty_threshold=_to_float(payload.get("uncertainty_threshold"), 0.75),
+            uncertainty_threshold=_to_float(
+                payload.get("uncertainty_threshold"), 0.75
+            ),
             idk_bonus=_to_float(payload.get("idk_bonus"), 1.0),
-            calibration_bonus_weight=_to_float(payload.get("calibration_bonus_weight"), 0.5),
-            uncertainty_marker_bonus=_to_float(payload.get("uncertainty_marker_bonus"), 0.3),
+            calibration_bonus_weight=_to_float(
+                payload.get("calibration_bonus_weight"), 0.5
+            ),
+            uncertainty_marker_bonus=_to_float(
+                payload.get("uncertainty_marker_bonus"), 0.3
+            ),
         )
 
     def dict(self) -> dict[str, float]:
@@ -158,7 +164,9 @@ class CircuitTracerSamplingConfig:
         self.trace_strategy = str(self.trace_strategy)
 
     @classmethod
-    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "CircuitTracerSamplingConfig":
+    def from_mapping(
+        cls, payload: Mapping[str, Any] | None
+    ) -> "CircuitTracerSamplingConfig":
         payload = payload or {}
         return cls(
             trace_frequency=_to_float(payload.get("trace_frequency"), 1.0),
@@ -178,16 +186,26 @@ class HallucinationPenaltyConfig:
     lazy_abstention_penalty: float = -0.2
 
     @classmethod
-    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "HallucinationPenaltyConfig":
+    def from_mapping(
+        cls, payload: Mapping[str, Any] | None
+    ) -> "HallucinationPenaltyConfig":
         payload = payload or {}
         return cls(
-            confidence_threshold=_to_float(payload.get("confidence_threshold"), 0.75),
-            confident_wrong_penalty=_to_float(payload.get("confident_wrong_penalty"), -2.0),
-            uncertain_wrong_penalty=_to_float(payload.get("uncertain_wrong_penalty"), -0.5),
+            confidence_threshold=_to_float(
+                payload.get("confidence_threshold"), 0.75
+            ),
+            confident_wrong_penalty=_to_float(
+                payload.get("confident_wrong_penalty"), -2.0
+            ),
+            uncertain_wrong_penalty=_to_float(
+                payload.get("uncertain_wrong_penalty"), -0.5
+            ),
             appropriate_abstention_reward=_to_float(
                 payload.get("appropriate_abstention_reward"), 0.5
             ),
-            lazy_abstention_penalty=_to_float(payload.get("lazy_abstention_penalty"), -0.2),
+            lazy_abstention_penalty=_to_float(
+                payload.get("lazy_abstention_penalty"), -0.2
+            ),
         )
 
     def dict(self) -> dict[str, float]:
@@ -272,8 +290,12 @@ class GRPOConfig:
             kl_coef=_to_float(payload.get("kl_coef"), 0.05),
             learning_rate=_to_float(payload.get("learning_rate"), 1e-5),
             batch_size=_to_int(payload.get("batch_size"), 32),
-            gradient_accumulation_steps=_to_int(payload.get("gradient_accumulation_steps"), 1),
-            sampling_temperature=_to_float(payload.get("sampling_temperature"), 0.7),
+            gradient_accumulation_steps=_to_int(
+                payload.get("gradient_accumulation_steps"), 1
+            ),
+            sampling_temperature=_to_float(
+                payload.get("sampling_temperature"), 0.7
+            ),
             max_new_tokens=_to_int(payload.get("max_new_tokens"), 256),
             circuit_tracer=sampling,
             reward_weights=rewards,
@@ -342,7 +364,9 @@ class TrainingConfig:
                 2,
             ),
             confidence_threshold=_to_float(
-                training_section.get("confidence_threshold", payload.get("confidence_threshold")),
+                training_section.get(
+                    "confidence_threshold", payload.get("confidence_threshold")
+                ),
                 0.75,
             ),
             use_dual_path=bool(
