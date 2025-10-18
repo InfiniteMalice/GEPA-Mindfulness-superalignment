@@ -78,6 +78,19 @@ class RewardWeightsConfig:
             delta=self.delta / total,
         )
 
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "RewardWeightsConfig":
+        payload = payload or {}
+        return cls(
+            alpha=_to_float(payload.get("alpha"), 0.25),
+            beta=_to_float(payload.get("beta"), 0.35),
+            gamma=_to_float(payload.get("gamma"), 0.35),
+            delta=_to_float(payload.get("delta"), 0.05),
+        )
+
+    def dict(self) -> dict[str, float]:
+        return asdict(self)
+
 
 @dataclass
 class HonestyConfig:
@@ -183,20 +196,75 @@ class HallucinationPenaltyConfig:
     appropriate_abstention_reward: float = 0.5
     lazy_abstention_penalty: float = -0.2
 
+
+@classmethod
+def from_mapping(cls, payload: Mapping[str, Any] | None) -> "HallucinationPenaltyConfig":
+    payload = payload or {}
+
+    confident_wrong = _to_float(payload.get("confident_wrong_penalty"), -2.0)
+    uncertain_wrong = _to_float(payload.get("uncertain_wrong_penalty"), -0.5)
+    appropriate_abstention = _to_float(payload.get("appropriate_abstention_reward"), 0.5)
+    lazy_abstention = _to_float(payload.get("lazy_abstention_penalty"), -0.2)
+    confidence_thresh = _to_float(payload.get("confidence_threshold"), 0.75)
+
+    return cls(
+        confidence_threshold=confidence_thresh,
+        confident_wrong_penalty=confident_wrong,
+        uncertain_wrong_penalty=uncertain_wrong,
+        appropriate_abstention_reward=appropriate_abstention,
+        lazy_abstention_penalty=lazy_abstention,
+    )
+
+
+def dict(self) -> dict[str, float]:
+    return asdict(self)
+
+
+@dataclass
+class PPOConfig:
+    learning_rate: float = 1e-5
+    batch_size: int = 1
+    mini_batch_size: int = 1
+    ppo_epochs: int = 1
+
     @classmethod
-    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "HallucinationPenaltyConfig":
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "PPOConfig":
         payload = payload or {}
         return cls(
-            confidence_threshold=_to_float(payload.get("confidence_threshold"), 0.75),
-            confident_wrong_penalty=_to_float(payload.get("confident_wrong_penalty"), -2.0),
-            uncertain_wrong_penalty=_to_float(payload.get("uncertain_wrong_penalty"), -0.5),
-            appropriate_abstention_reward=_to_float(
-                payload.get("appropriate_abstention_reward"), 0.5
-            ),
-            lazy_abstention_penalty=_to_float(payload.get("lazy_abstention_penalty"), -0.2),
+            learning_rate=_to_float(payload.get("learning_rate"), 1e-5),
+            batch_size=_to_int(payload.get("batch_size"), 1),
+            mini_batch_size=_to_int(payload.get("mini_batch_size"), 1),
+            ppo_epochs=_to_int(payload.get("ppo_epochs"), 1),
         )
 
-    def dict(self) -> dict[str, float]:
+    def dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class ModelConfig:
+    policy_model: str = "demo-model"
+    reward_model: str | None = None
+    device: str = "cpu"
+    vllm_engine: str | None = None
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "ModelConfig":
+        payload = payload or {}
+        reward_model = payload.get("reward_model")
+        if reward_model is not None:
+            reward_model = str(reward_model)
+        vllm_engine = payload.get("vllm_engine")
+        if vllm_engine is not None:
+            vllm_engine = str(vllm_engine)
+        return cls(
+            policy_model=str(payload.get("policy_model", "demo-model")),
+            reward_model=reward_model,
+            device=str(payload.get("device", "cpu")),
+            vllm_engine=vllm_engine,
+        )
+
+    def dict(self) -> dict[str, Any]:
         return asdict(self)
 
 

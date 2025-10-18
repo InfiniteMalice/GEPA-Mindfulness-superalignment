@@ -4,14 +4,9 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Mapping, Sequence
+from typing import Mapping
 
-from .abstention import (
-    ABSTAIN_OUTPUT,
-    AbstentionAssessment,
-    AbstentionQuality,
-    assess_abstention_quality,
-)
+from .abstention import AbstentionQuality
 from .paraconsistent import ParaconsistentTruthValue
 
 _ABSTENTION_MARKERS = (
