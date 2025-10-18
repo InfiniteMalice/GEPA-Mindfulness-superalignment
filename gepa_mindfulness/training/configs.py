@@ -189,9 +189,7 @@ class HallucinationPenaltyConfig:
     lazy_abstention_penalty: float = -0.2
 
     @classmethod
-    def from_mapping(
-        cls, payload: Mapping[str, Any] | None
-    ) -> "HallucinationPenaltyConfig":
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "HallucinationPenaltyConfig":
         payload = payload or {}
         return cls(
             confidence_threshold=_to_float(payload.get("confidence_threshold"), 0.75),
