@@ -53,11 +53,30 @@ class RewardWeightsConfig:
         total = self.alpha + self.beta + self.gamma + self.delta
         if total <= 0.0:
             raise ValueError("reward weights must have positive mass")
-        if not math.isclose(total, 1.0, rel_tol=1e-6):
-            self.alpha /= total
-            self.beta /= total
-            self.gamma /= total
-            self.delta /= total
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "RewardWeightsConfig":
+        payload = payload or {}
+        return cls(
+            alpha=_to_float(payload.get("alpha"), 0.25),
+            beta=_to_float(payload.get("beta"), 0.35),
+            gamma=_to_float(payload.get("gamma"), 0.35),
+            delta=_to_float(payload.get("delta"), 0.05),
+        )
+
+    def dict(self) -> dict[str, float]:
+        return asdict(self)
+
+    def normalized(self) -> "RewardWeightsConfig":
+        total = self.alpha + self.beta + self.gamma + self.delta
+        if math.isclose(total, 1.0, rel_tol=1e-6):
+            return self
+        return RewardWeightsConfig(
+            alpha=self.alpha / total,
+            beta=self.beta / total,
+            gamma=self.gamma / total,
+            delta=self.delta / total,
+        )
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any] | None) -> "RewardWeightsConfig":
@@ -240,6 +259,60 @@ class ModelConfig:
             vllm_engine = str(vllm_engine)
         return cls(
             policy_model=str(payload.get("policy_model", "demo-model")),
+            reward_model=reward_model,
+            device=str(payload.get("device", "cpu")),
+            vllm_engine=vllm_engine,
+        )
+
+    def dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class PPOConfig:
+    learning_rate: float = 1e-5
+    batch_size: int = 1
+    mini_batch_size: int = 1
+    ppo_epochs: int = 1
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "PPOConfig":
+        payload = payload or {}
+        return cls(
+            learning_rate=_to_float(payload.get("learning_rate"), 1e-5),
+            batch_size=_to_int(payload.get("batch_size"), 1),
+            mini_batch_size=_to_int(payload.get("mini_batch_size"), 1),
+            ppo_epochs=_to_int(payload.get("ppo_epochs"), 1),
+        )
+
+    def dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class ModelConfig:
+    """Model configuration with backward-compatibility shims for legacy keys."""
+
+    policy_model: str = "demo-model"
+    reward_model: str | None = None
+    device: str = "cpu"
+    vllm_engine: str | None = None
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "ModelConfig":
+        payload = payload or {}
+        reward_model = payload.get("reward_model")
+        if reward_model is not None:
+            reward_model = str(reward_model)
+        vllm_engine = payload.get("vllm_engine")
+        if vllm_engine is not None:
+            vllm_engine = str(vllm_engine)
+        policy_value = payload.get("policy_model")
+        if policy_value is None:
+            policy_value = payload.get("name")
+        policy_model = str(policy_value) if policy_value is not None else "demo-model"
+        return cls(
+            policy_model=policy_model,
             reward_model=reward_model,
             device=str(payload.get("device", "cpu")),
             vllm_engine=vllm_engine,
