@@ -448,6 +448,9 @@ class GRPOConfig:
         payload["hallucination"] = self.hallucination.to_dict()
         return payload
 
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "GRPOConfig":
+        return cls.from_payload(payload)
 
 @dataclass
 class TrainingConfig:
