@@ -11,6 +11,7 @@ requires-python = ">=3.10"
 authors = [{ name = "GEPA Mindfulness" }]
 dependencies = [
     "pyyaml>=6.0",
+    "click>=8.1",
 ]
 
 [project.optional-dependencies]
