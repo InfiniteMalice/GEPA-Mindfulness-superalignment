@@ -1,167 +1,170 @@
-"""Circuit Tracer integration that works for PPO and GRPO batches."""
+"""Helpers to run Circuit Tracer across grouped completions efficiently."""
 
 from __future__ import annotations
 
-import math
 import random
 from dataclasses import dataclass
-from enum import Enum
-from typing import Mapping, MutableSequence, Sequence
+from typing import TYPE_CHECKING, Any, Iterable, List, Sequence
 
-from .abstention import AbstentionAssessment, assess_abstention_quality
+from .abstention import (
+    AbstentionAssessment,
+    AbstentionQuality,
+    assess_abstention_quality,
+)
 
-
-class TracingStrategy(str, Enum):
-    """Strategies that determine which responses should be traced."""
-
-    ALL = "all"
-    SINGLE = "single"
-    SAMPLE = "sample"
-    EXTREMES = "extremes"
-    MIXED = "mixed"
+if TYPE_CHECKING:  # pragma: no cover - hints only
+    from .tracing import CircuitTracerLogger, ThoughtTrace
+else:  # pragma: no cover - fallback for optional typing
+    CircuitTracerLogger = Any  # type: ignore[misc,assignment]
+    ThoughtTrace = Any  # type: ignore[misc,assignment]
 
 
 @dataclass
-class TraceResult:
-    """Encapsulates Circuit Tracer output for a single completion."""
+class TraceAnalysis:
+    """Summary of Circuit Tracer output for a single completion."""
 
-    summary: Mapping[str, str]
-    trace: object | None
-    assessment: AbstentionAssessment | None
+    summary: dict[str, str]
+    trace: ThoughtTrace | None
+    confidence_hint: float
+    abstention: AbstentionAssessment | None
     traced: bool
+
+    def genuine_abstention(self) -> bool:
+        return bool(self.abstention and self.abstention.is_genuine)
+
+    def lazy_abstention(self) -> bool:
+        return bool(self.abstention and self.abstention.is_lazy)
 
 
 class CircuitTracerAdapter:
-    """Run Circuit Tracer according to the requested sampling strategy."""
+    """Manage Circuit Tracer spans for batched GRPO completions."""
 
     def __init__(
         self,
-        tracer: object | None,
+        logger: CircuitTracerLogger,
         *,
-        strategy: str = "all",
         trace_frequency: float = 1.0,
+        trace_strategy: str = "all",
         seed: int | None = None,
     ) -> None:
-        self.tracer = tracer
-        try:
-            self.strategy = TracingStrategy(strategy.lower())
-        except ValueError as exc:
-            raise ValueError(f"Unknown tracing strategy: {strategy}") from exc
+        self.logger = logger
         self.trace_frequency = max(0.0, min(1.0, trace_frequency))
+        self.trace_strategy = trace_strategy.lower()
         self.random = random.Random(seed)
 
-    def trace_responses(
-        self,
-        prompts: Sequence[str],
-        responses: Sequence[Sequence[str]],
-        *,
-        rewards: Sequence[Sequence[float]] | None = None,
-    ) -> list[list[TraceResult | None]]:
-        """Trace responses according to the configured strategy.
+    def analyse_group(self, prompt: str, responses: Sequence[str]) -> List[TraceAnalysis]:
+        analyses: list[TraceAnalysis] = []
+        should_trace_flags = self._select_indices(responses)
 
-        Args:
-            prompts: Prompts associated with each batch element.
-            responses: Generated responses. For PPO batches this will be a
-                nested list where each inner list contains a single string.
-            rewards: Optional rewards for each response used by EXTREMES and
-                MIXED strategies.
+        for idx, response in enumerate(responses):
+            if should_trace_flags[idx]:
+                analysis = self._trace_single(prompt, response, idx)
+            else:
+                analysis = self._heuristic_only(response)
+            analyses.append(analysis)
+        return analyses
 
-        Returns:
-            Nested list with :class:`TraceResult` objects or ``None`` for
-            untraced completions.
-        """
-
+    def _select_indices(self, responses: Sequence[str]) -> List[bool]:
         if not responses:
             return []
+        strategy = self.trace_strategy
+        frequency = self.trace_frequency
+        flags = [False] * len(responses)
 
-        selections = self._select_indices(responses, rewards)
-        traced_groups: list[list[TraceResult | None]] = []
-        for prompt, group_responses, group_selection in zip(prompts, responses, selections):
-            traced_groups.append(self._trace_group(prompt, group_responses, group_selection))
-        return traced_groups
+        if strategy == "all" or frequency >= 1.0:
+            return [True] * len(responses)
 
-    def _select_indices(
-        self,
-        responses: Sequence[Sequence[str]],
-        rewards: Sequence[Sequence[float]] | None,
-    ) -> list[list[bool]]:
-        selections: list[list[bool]] = []
-        for group_index, group in enumerate(responses):
-            if self.strategy is TracingStrategy.SINGLE:
-                flags = [idx == 0 for idx in range(len(group))]
-                selections.append(flags)
-                continue
-            flags = [False] * len(group)
-            if self.strategy is TracingStrategy.ALL or math.isclose(self.trace_frequency, 1.0):
-                flags = [True] * len(group)
-            else:
-                if self.strategy in {TracingStrategy.EXTREMES, TracingStrategy.MIXED}:
-                    reward_group = rewards[group_index] if rewards else None
-                    extreme_indices = self._extreme_indices(group, reward_group)
-                    for idx in extreme_indices:
-                        flags[idx] = True
-                if self.strategy in {TracingStrategy.SAMPLE, TracingStrategy.MIXED}:
-                    self._apply_random_sampling(flags)
-            if self.strategy is TracingStrategy.SAMPLE and not any(flags):
-                if flags:
-                    flags[self.random.randrange(len(flags))] = True
-            selections.append(flags)
-        return selections
+        if strategy == "extremes":
+            longest = max(range(len(responses)), key=lambda i: len(responses[i]))
+            shortest = min(range(len(responses)), key=lambda i: len(responses[i]))
+            flags[longest] = True
+            flags[shortest] = True
+        elif strategy == "mixed":
+            if responses:
+                flags[0] = True
+                flags[-1] = True
 
-    def _apply_random_sampling(self, flags: MutableSequence[bool]) -> None:
-        for idx in range(len(flags)):
+        for idx in range(len(responses)):
             if flags[idx]:
                 continue
-            if self.random.random() <= self.trace_frequency:
+            if self.random.random() < frequency:
                 flags[idx] = True
 
-    def _extreme_indices(self, group: Sequence[str], rewards: Sequence[float] | None) -> list[int]:
-        if not group:
-            return []
-        if rewards and len(rewards) == len(group):
-            best = max(range(len(group)), key=lambda idx: rewards[idx])
-            worst = min(range(len(group)), key=lambda idx: rewards[idx])
-        else:
-            lengths = [len(text) for text in group]
-            best = max(range(len(group)), key=lengths.__getitem__)
-            worst = min(range(len(group)), key=lengths.__getitem__)
-        if best == worst:
-            return [best]
-        return [best, worst]
+        if strategy == "sample" and not any(flags):
+            chosen = self.random.randrange(len(responses))
+            flags[chosen] = True
 
-    def _trace_group(
-        self,
-        prompt: str,
-        responses: Sequence[str],
-        selected: Sequence[bool],
-    ) -> list[TraceResult | None]:
-        traced: list[TraceResult | None] = []
-        for index, (response, should_trace) in enumerate(zip(responses, selected)):
-            if should_trace and self.tracer is not None:
-                traced.append(self._run_tracer(prompt, response, index))
-            elif should_trace:
-                traced.append(self._heuristic_only(response))
-            else:
-                traced.append(None)
-        return traced
+        return flags
 
-    def _run_tracer(self, prompt: str, response: str, index: int) -> TraceResult:
-        if hasattr(self.tracer, "trace"):
-            with self.tracer.trace(prompt=prompt, response_index=index) as trace:
-                summary = trace.summary() if hasattr(trace, "summary") else {}
-        else:
-            trace = None
-            summary = {}
-        assessment = assess_abstention_quality(summary, [response])
-        return TraceResult(summary=summary, trace=trace, assessment=assessment, traced=True)
+    def _trace_single(self, prompt: str, response: str, idx: int) -> TraceAnalysis:
+        with self.logger.trace(prompt=prompt, response_index=idx) as trace:
+            sections = self._split_sections(response)
+            for stage, text in sections.items():
+                if text:
+                    self.logger.log_event(stage, text[:512])
+        summary = trace.summary() if trace else {}
+        abstention = assess_abstention_quality(summary, sections.values())
+        confidence_hint = self._confidence_from_sections(sections.values())
+        return TraceAnalysis(
+            summary=summary,
+            trace=trace,
+            confidence_hint=confidence_hint,
+            abstention=abstention,
+            traced=True,
+        )
 
-    def _heuristic_only(self, response: str) -> TraceResult:
-        assessment = assess_abstention_quality({}, [response])
-        return TraceResult(summary={}, trace=None, assessment=assessment, traced=False)
+    def _heuristic_only(self, response: str) -> TraceAnalysis:
+        sections = self._split_sections(response)
+        summary = {stage: text for stage, text in sections.items() if text}
+        abstention = assess_abstention_quality(summary, sections.values())
+        confidence_hint = self._confidence_from_sections(sections.values())
+        return TraceAnalysis(
+            summary=summary,
+            trace=None,
+            confidence_hint=confidence_hint,
+            abstention=abstention,
+            traced=False,
+        )
+
+    @staticmethod
+    def _split_sections(response: str) -> dict[str, str]:
+        markers = {
+            "[PATH 1 REASONING]": "path_1_reasoning",
+            "[PATH 2 REASONING]": "path_2_reasoning",
+            "[COMPARISON]": "comparison",
+            "[RECOMMENDATION]": "recommendation",
+        }
+        lower = response
+        sections: dict[str, str] = {value: "" for value in markers.values()}
+        for marker, key in markers.items():
+            start = lower.find(marker)
+            if start == -1:
+                continue
+            content_start = start + len(marker)
+            next_positions = [
+                lower.find(next_marker, content_start)
+                for next_marker in markers
+                if lower.find(next_marker, content_start) != -1
+            ]
+            end = min(next_positions) if next_positions else len(lower)
+            sections[key] = response[content_start:end].strip()
+        return sections
+
+    @staticmethod
+    def _confidence_from_sections(sections: Iterable[str]) -> float:
+        joined = " ".join(section.lower() for section in sections)
+        if "abstain" in joined or "not confident" in joined:
+            return 0.4
+        if "certain" in joined or "definitely" in joined:
+            return 0.9
+        if "probably" in joined or "likely" in joined:
+            return 0.7
+        return 0.6
 
 
 __all__ = [
     "CircuitTracerAdapter",
-    "TraceResult",
-    "TracingStrategy",
+    "TraceAnalysis",
+    "AbstentionAssessment",
+    "AbstentionQuality",
 ]
