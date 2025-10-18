@@ -1,0 +1,26 @@
+trainer_type: grpo
+model_name: "production-model"
+dataset_path: "gepa_datasets/ethical_qa.jsonl"
+output_dir: "runs/grpo_default"
+learning_rate: 5.0e-6
+batch_size: 8
+gradient_accumulation_steps: 4
+max_steps: 200
+group_size: 8
+kl_coef: 0.05
+temperature: 0.8
+reward_weights:
+  alpha: 0.3
+  beta: 0.3
+  gamma: 0.2
+  delta: 0.2
+hallucination:
+  confidence_threshold: 0.75
+  confident_wrong_penalty: -2.0
+  uncertain_wrong_penalty: -0.5
+  appropriate_abstention_reward: 0.5
+  lazy_abstention_penalty: -0.2
+circuit_tracer:
+  enabled: true
+  trace_frequency: 0.5
+  strategy: "mixed"
