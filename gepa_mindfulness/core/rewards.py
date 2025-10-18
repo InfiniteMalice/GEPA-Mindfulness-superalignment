@@ -5,9 +5,13 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Mapping
 
-from .abstention import AbstentionQuality
+from .abstention import (
+    ABSTAIN_OUTPUT,
+    AbstentionAssessment,
+    AbstentionQuality,
+    assess_abstention_quality,
+)
 from .paraconsistent import ParaconsistentTruthValue
 
 _ABSTENTION_MARKERS = (
