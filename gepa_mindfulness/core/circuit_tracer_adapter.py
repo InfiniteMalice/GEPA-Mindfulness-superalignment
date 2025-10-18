@@ -28,26 +28,6 @@ class TraceResult:
 TraceAnalysis = TraceResult
 
 
-# Backwards compatibility: older modules import TraceAnalysis directly.
-TraceAnalysis = TraceResult
-
-
-# Backwards compatibility: older modules import TraceAnalysis directly.
-TraceAnalysis = TraceResult
-
-
-# Backwards compatibility: older modules import TraceAnalysis directly.
-TraceAnalysis = TraceResult
-
-
-# Backwards compatibility: older modules import TraceAnalysis directly.
-TraceAnalysis = TraceResult
-
-
-# Backwards compatibility: older modules import TraceAnalysis directly.
-TraceAnalysis = TraceResult
-
-
 class CircuitTracerAdapter:
     """Best-effort wrapper that works even when the tracer dependency is absent."""
 
@@ -87,7 +67,7 @@ class CircuitTracerAdapter:
         results: list[TraceResult | None] = []
         for idx, response in enumerate(responses):
             if not indices[idx]:
-                results.append(None)
+                results.append(self._heuristic_only(response))
                 continue
             if self.logger.circuit_tracer_available:
                 results.append(self._trace_single(prompt, response, idx))
