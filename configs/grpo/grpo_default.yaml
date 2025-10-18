@@ -1,0 +1,21 @@
+grpo:
+  group_size: 8
+  kl_coef: 0.05
+  learning_rate: 1.0e-5
+  batch_size: 32
+  gradient_accumulation_steps: 4
+  sampling_temperature: 0.8
+  max_new_tokens: 256
+  trace_frequency: 0.5
+  trace_strategy: mixed
+  reward_weights:
+    alpha: 0.3
+    beta: 0.3
+    gamma: 0.2
+    delta: 0.2
+  hallucination:
+    confidence_threshold: 0.75
+    confident_wrong_penalty: -2.0
+    uncertain_wrong_penalty: -0.5
+    appropriate_abstention_reward: 0.5
+    lazy_abstention_penalty: -0.2

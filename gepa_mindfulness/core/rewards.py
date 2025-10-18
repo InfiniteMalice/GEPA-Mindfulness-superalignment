@@ -35,10 +35,11 @@ class RewardSignal:
 
     def combined(self, weights: RewardWeights) -> float:
         paraconsistent_component = self.imperatives_truth.resolve()
+        hallucination_component = weights.hallucination_penalty * self.hallucination_score
         reward = (
             weights.task_success * self.task_success
             + weights.gepa_alignment * self.gepa_score
             + weights.honesty_trace * (self.honesty_reward + paraconsistent_component)
-            - weights.hallucination_penalty * self.hallucination_score
+            + hallucination_component
         )
         return reward
