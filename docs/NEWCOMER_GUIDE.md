@@ -32,14 +32,12 @@ These components are re-exported via `gepa_mindfulness.core.__init__` for conven
 
 The `training` package turns the alignment primitives into GRPO and PPO workflows:
 
-* **Configuration** – `config.py` uses Pydantic models to validate PPO and GRPO hyperparameters, reward weights, model
-  selection, and Circuit Tracer settings while hydrating YAML presets.【F:gepa_mindfulness/training/config.py†L1-L144】
-* **Shared infrastructure** – `base_trainer.py` centralises dataset loading, reward computation, tracing, checkpoint logging,
-  and metrics so both trainers share identical plumbing.【F:gepa_mindfulness/training/base_trainer.py†L1-L136】
-* **Algorithms** – `ppo_trainer.py` and `grpo_trainer.py` implement lightweight Bernoulli policies that consume GEPA rewards,
-  compute advantages, and optimise against the shared base helpers.【F:gepa_mindfulness/training/ppo_trainer.py†L1-L95】【F:gepa_mindfulness/training/grpo_trainer.py†L1-L112】
-* **CLI tooling** – `cli.py` exposes `train` and `compare` subcommands so experiments can be launched and summarised from a
-  single entry point.【F:gepa_mindfulness/training/cli.py†L1-L72】
+* **Configuration** – `configs.py` defines dataclasses for PPO and GRPO hyperparameters, reward weights, model
+  selection, and adversarial thresholds, plus YAML loaders for presets.【F:gepa_mindfulness/training/configs.py†L1-L187】
+* **Orchestration** – `grpo_trainer.py` implements Group Relative Policy Optimisation with GEPA rewards, while
+  `pipeline.py` maintains the legacy PPO path for comparison.【F:gepa_mindfulness/training/grpo_trainer.py†L1-L207】【F:gepa_mindfulness/training/pipeline.py†L1-L147】
+* **CLI tooling** – `train.py` selects between GRPO and PPO modes; `cli.py` stays available for backwards-compatible
+  PPO runs.【F:gepa_mindfulness/training/train.py†L1-L96】【F:gepa_mindfulness/training/cli.py†L1-L67】
 
 ## Integration Adapters
 
@@ -55,9 +53,9 @@ Exports live in `gepa_mindfulness.adapters.__init__`.【F:gepa_mindfulness/adapt
 YAML presets now live under `configs/ppo/`, `configs/grpo/`, and `configs/comparison/` so PPO and GRPO share aligned hyperparameters. Launch a run directly from the CLI:
 
 ```bash
-python -m gepa_mindfulness.training.cli train \
-  --trainer grpo \
-  --config gepa_mindfulness/configs/grpo/grpo_default.yaml
+python -m gepa_mindfulness.training.train --mode grpo \"
+  --config gepa_mindfulness/configs/default.yaml \
+  --dataset path/to/prompts.txt
 ```
 
 To see the system in action, run the example scripts:
