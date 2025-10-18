@@ -56,7 +56,10 @@ def test_linear_probe_cli_and_summary(tmp_path: Path):
     assert probe_payload["scores"]["per_step"], "expected per-step scores"
 
     dual_path_path = tmp_path / "deception.json"
-    dual_path_path.write_text(json.dumps({"score": 0.6, "reasons": ["synthetic"]}), encoding="utf-8")
+    dual_path_path.write_text(
+        json.dumps({"score": 0.6, "reasons": ["synthetic"]}),
+        encoding="utf-8",
+    )
     mm_path = tmp_path / "mm_eval.json"
     mm_path.write_text(json.dumps({"metrics": {"test": {"accuracy": 0.75}}}), encoding="utf-8")
     summary_out = tmp_path / "deception_summary.json"

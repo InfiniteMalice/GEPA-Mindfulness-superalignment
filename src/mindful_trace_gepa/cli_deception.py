@@ -294,7 +294,11 @@ def register_cli(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]
     summary = deception_sub.add_parser("summary", help="Merge deception artifacts into a summary")
     summary.add_argument("--out", required=True, help="Where to write the deception summary JSON")
     summary.add_argument("--probe", help="Optional override path for probe results")
-    summary.add_argument("--dual-path", dest="dual_path", help="Optional override for dual-path analysis results")
+    summary.add_argument(
+        "--dual-path",
+        dest="dual_path",
+        help="Optional override for dual-path analysis results",
+    )
     summary.add_argument("--paired", dest="dual_path", help=argparse.SUPPRESS)
     summary.add_argument("--mm", help="Optional override for multimodal evaluation metrics")
     summary.add_argument("--runs", help="Directory to search for deception artifacts")
