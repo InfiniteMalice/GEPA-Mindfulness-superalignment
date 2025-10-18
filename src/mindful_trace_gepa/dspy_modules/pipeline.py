@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Mapping, MutableMapping
@@ -12,7 +13,41 @@ try:  # pragma: no cover - dspy optional
 except ImportError:  # pragma: no cover
     dspy = None  # type: ignore
 
-from gepa_mindfulness.core.tracing import CircuitTracerLogger, ThoughtTrace
+try:  # pragma: no cover - optional dependency during tests
+    from gepa_mindfulness.core.tracing import CircuitTracerLogger, ThoughtTrace
+except ImportError:  # pragma: no cover - fallback shim
+
+    @dataclass
+    class _ShimTrace:
+        events: List[Dict[str, Any]] = field(default_factory=list)
+
+        def summary(self) -> Dict[str, Any]:
+            summary: Dict[str, Any] = {}
+            for idx, event in enumerate(self.events):
+                stage = event.get("stage", str(idx))
+                summary[stage] = event.get("content", "")
+            return summary
+
+    class CircuitTracerLogger:  # type: ignore
+        """Minimal shim used when GEPA tracing is unavailable."""
+
+        def __init__(self, *_, **__):
+            self._current: _ShimTrace | None = None
+
+        @contextmanager
+        def trace(self, **_context):
+            trace = _ShimTrace()
+            self._current = trace
+            try:
+                yield trace
+            finally:
+                self._current = None
+
+        def log_event(self, stage: str, content: str, **_metadata):
+            if self._current is not None:
+                self._current.events.append({"stage": stage, "content": content})
+
+    ThoughtTrace = _ShimTrace  # type: ignore
 
 from ..configuration import DSPyConfig, load_dspy_config
 from .signatures import (
