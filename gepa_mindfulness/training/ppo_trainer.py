@@ -53,22 +53,14 @@ class PPOTrainer(BaseTrainer):
         logit = self._policy_logits.setdefault(example.prompt, 0.0)
         prob = _sigmoid(logit)
         action = 1.0 if self._random.random() < prob else 0.0
-        reference_answers = example.references or []
-        if action == 1.0 and reference_answers:
-            text = reference_answers[0]
-        else:
-            text = "I don't know"
+        text = example.references[0] if action == 1.0 else "I don't know"
         log_prob = math.log(prob if action == 1.0 else max(1e-6, 1.0 - prob))
         return GeneratedResponse(
             text=text,
             log_probs=[log_prob],
             mask=[1],
             policy_log_prob=log_prob,
-            metadata={
-                "action": action,
-                "probability": prob,
-                "reference_available": bool(reference_answers),
-            },
+            metadata={"action": action, "probability": prob},
         )
 
     def _apply_updates(
