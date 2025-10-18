@@ -178,27 +178,14 @@ class HallucinationPenaltyConfig:
     lazy_abstention_penalty: float = -0.2
 
     @classmethod
-    def from_mapping(
-        cls, payload: Mapping[str, Any] | None
-    ) -> "HallucinationPenaltyConfig":
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "HallucinationPenaltyConfig":
         payload = payload or {}
         return cls(
-            confidence_threshold=_to_float(
-                payload.get("confidence_threshold"), 0.75
-            ),
-            confident_wrong_penalty=_to_float(
-                payload.get("confident_wrong_penalty"), -2.0
-            ),
-            uncertain_wrong_penalty=_to_float(
-                payload.get("uncertain_wrong_penalty"), -0.5
-            ),
-            appropriate_abstention_reward=_to_float(
-                payload.get("appropriate_abstention_reward"), 0.5
-            ),
-            lazy_abstention_penalty=_to_float(
-                payload.get("lazy_abstention_penalty"), -0.2
-            ),
-        )
+            confidence_threshold=_to_float(payload.get("confidence_threshold"), 0.75),
+            confident_wrong_penalty=_to_float(payload.get("confident_wrong_penalty"), -2.0),
+            uncertain_wrong_penalty=_to_float(payload.get("uncertain_wrong_penalty"), -0.5),
+            appropriate_abstention_reward=_to_float(payload.get("appropriate_abstention_reward"), 0.5),
+            lazy_abstention_penalty=_to_float(payload.get("lazy_abstention_penalty"), -0.2),)
 
     def dict(self) -> dict[str, float]:
         return asdict(self)
@@ -282,12 +269,8 @@ class GRPOConfig:
             kl_coef=_to_float(payload.get("kl_coef"), 0.05),
             learning_rate=_to_float(payload.get("learning_rate"), 1e-5),
             batch_size=_to_int(payload.get("batch_size"), 32),
-            gradient_accumulation_steps=_to_int(
-                payload.get("gradient_accumulation_steps"), 1
-            ),
-            sampling_temperature=_to_float(
-                payload.get("sampling_temperature"), 0.7
-            ),
+            gradient_accumulation_steps=_to_int(payload.get("gradient_accumulation_steps"), 1),
+            sampling_temperature=_to_float(payload.get("sampling_temperature"), 0.7),
             max_new_tokens=_to_int(payload.get("max_new_tokens"), 256),
             circuit_tracer=sampling,
             reward_weights=rewards,
@@ -356,9 +339,7 @@ class TrainingConfig:
                 2,
             ),
             confidence_threshold=_to_float(
-                training_section.get(
-                    "confidence_threshold", payload.get("confidence_threshold")
-                ),
+                training_section.get("confidence_threshold", payload.get("confidence_threshold")),
                 0.75,
             ),
             use_dual_path=bool(
