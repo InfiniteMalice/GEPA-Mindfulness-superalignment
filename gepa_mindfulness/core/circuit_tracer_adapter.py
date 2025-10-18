@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Iterable, List, Sequence
+from typing import Iterable, List, Sequence
 
 from .abstention import (
     AbstentionAssessment,
@@ -13,48 +13,35 @@ from .abstention import (
 )
 from .tracing import CircuitTracerLogger
 
-if TYPE_CHECKING:  # pragma: no cover - typing helper only
-    from .tracing import ThoughtTrace
-else:  # pragma: no cover - fallback when tracer dependency absent
-    ThoughtTrace = object  # type: ignore[misc,assignment]
 
-
-@dataclass(init=False)
+@dataclass
 class TraceResult:
-    """Representation of a Circuit Tracer analysis with legacy compatibility."""
+    """Minimal representation of a Circuit Tracer analysis."""
 
     summary: dict[str, str]
-    trace: ThoughtTrace | None
-    confidence_hint: float
     assessment: AbstentionAssessment | None
-    abstention: AbstentionAssessment | None
+    confidence_hint: float
     traced: bool
 
-    def __init__(
-        self,
-        *,
-        summary: dict[str, str] | None = None,
-        trace: ThoughtTrace | None = None,
-        confidence_hint: float = 0.0,
-        assessment: AbstentionAssessment | None = None,
-        abstention: AbstentionAssessment | None = None,
-        traced: bool,
-    ) -> None:
-        if assessment is not None and abstention is not None and assessment is not abstention:
-            raise ValueError("assessment and abstention refer to different objects")
-        resolved = assessment or abstention
-        self.summary = dict(summary or {})
-        self.trace = trace
-        self.confidence_hint = float(confidence_hint)
-        self.assessment = resolved
-        self.abstention = resolved
-        self.traced = bool(traced)
 
-    def genuine_abstention(self) -> bool:
-        return bool(self.abstention and self.abstention.is_genuine)
+# Backwards compatibility: older modules import TraceAnalysis directly.
+TraceAnalysis = TraceResult
 
-    def lazy_abstention(self) -> bool:
-        return bool(self.abstention and self.abstention.is_lazy)
+
+# Backwards compatibility: older modules import TraceAnalysis directly.
+TraceAnalysis = TraceResult
+
+
+# Backwards compatibility: older modules import TraceAnalysis directly.
+TraceAnalysis = TraceResult
+
+
+# Backwards compatibility: older modules import TraceAnalysis directly.
+TraceAnalysis = TraceResult
+
+
+# Backwards compatibility: older modules import TraceAnalysis directly.
+TraceAnalysis = TraceResult
 
 
 # Backwards compatibility: older modules import TraceAnalysis directly.
@@ -100,7 +87,7 @@ class CircuitTracerAdapter:
         results: list[TraceResult | None] = []
         for idx, response in enumerate(responses):
             if not indices[idx]:
-                results.append(self._heuristic_only(response))
+                results.append(None)
                 continue
             if self.logger.circuit_tracer_available:
                 results.append(self._trace_single(prompt, response, idx))
@@ -160,7 +147,6 @@ class CircuitTracerAdapter:
         confidence_hint = self._confidence_from_sections(sections.values())
         return TraceResult(
             summary=summary,
-            trace=trace,
             assessment=abstention,
             confidence_hint=confidence_hint,
             traced=True,
@@ -214,10 +200,4 @@ class CircuitTracerAdapter:
         return 0.6
 
 
-__all__ = [
-    "CircuitTracerAdapter",
-    "TraceResult",
-    "TraceAnalysis",
-    "AbstentionAssessment",
-    "AbstentionQuality",
-]
+__all__ = ["CircuitTracerAdapter", "TraceResult", "AbstentionAssessment", "AbstentionQuality"]

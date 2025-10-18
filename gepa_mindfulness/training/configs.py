@@ -55,7 +55,7 @@ class RewardWeightsConfig:
             raise ValueError("reward weights must have positive mass")
 
     @classmethod
-    def from_payload(cls, payload: Mapping[str, Any] | None) -> "RewardWeightsConfig":
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "RewardWeightsConfig":
         payload = payload or {}
         return cls(
             alpha=_to_float(payload.get("alpha"), 0.25),
@@ -64,7 +64,7 @@ class RewardWeightsConfig:
             delta=_to_float(payload.get("delta"), 0.05),
         )
 
-    def to_dict(self) -> dict[str, float]:
+    def dict(self) -> dict[str, float]:
         return asdict(self)
 
     def normalized(self) -> "RewardWeightsConfig":
@@ -80,10 +80,16 @@ class RewardWeightsConfig:
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any] | None) -> "RewardWeightsConfig":
-        return cls.from_payload(payload)
+        payload = payload or {}
+        return cls(
+            alpha=_to_float(payload.get("alpha"), 0.25),
+            beta=_to_float(payload.get("beta"), 0.35),
+            gamma=_to_float(payload.get("gamma"), 0.35),
+            delta=_to_float(payload.get("delta"), 0.05),
+        )
 
     def dict(self) -> dict[str, float]:
-        return self.to_dict()
+        return asdict(self)
 
 
 @dataclass
@@ -94,7 +100,7 @@ class HonestyConfig:
     uncertainty_marker_bonus: float = 0.3
 
     @classmethod
-    def from_payload(cls, payload: Mapping[str, Any] | None) -> "HonestyConfig":
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "HonestyConfig":
         payload = payload or {}
         return cls(
             uncertainty_threshold=_to_float(payload.get("uncertainty_threshold"), 0.75),
@@ -103,15 +109,8 @@ class HonestyConfig:
             uncertainty_marker_bonus=_to_float(payload.get("uncertainty_marker_bonus"), 0.3),
         )
 
-    def to_dict(self) -> dict[str, float]:
-        return asdict(self)
-
-    @classmethod
-    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "HonestyConfig":
-        return cls.from_payload(payload)
-
     def dict(self) -> dict[str, float]:
-        return self.to_dict()
+        return asdict(self)
 
 
 @dataclass
@@ -121,7 +120,7 @@ class DeceptionConfig:
     fingerprint_dir: str = "runs/fingerprints"
 
     @classmethod
-    def from_payload(cls, payload: Mapping[str, Any] | None) -> "DeceptionConfig":
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "DeceptionConfig":
         payload = payload or {}
         return cls(
             detect=bool(payload.get("detect", True)),
@@ -129,15 +128,8 @@ class DeceptionConfig:
             fingerprint_dir=str(payload.get("fingerprint_dir", "runs/fingerprints")),
         )
 
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
-
-    @classmethod
-    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "DeceptionConfig":
-        return cls.from_payload(payload)
-
     def dict(self) -> dict[str, Any]:
-        return self.to_dict()
+        return asdict(self)
 
 
 @dataclass
@@ -145,19 +137,12 @@ class OutputConfig:
     checkpoint_dir: str = "runs/checkpoints"
 
     @classmethod
-    def from_payload(cls, payload: Mapping[str, Any] | None) -> "OutputConfig":
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "OutputConfig":
         payload = payload or {}
         return cls(checkpoint_dir=str(payload.get("checkpoint_dir", "runs/checkpoints")))
 
-    def to_dict(self) -> dict[str, str]:
-        return asdict(self)
-
-    @classmethod
-    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "OutputConfig":
-        return cls.from_payload(payload)
-
     def dict(self) -> dict[str, str]:
-        return self.to_dict()
+        return asdict(self)
 
 
 @dataclass
@@ -167,7 +152,7 @@ class DatasetConfig:
     format: str = "jsonl"
 
     @classmethod
-    def from_payload(cls, payload: Mapping[str, Any] | None) -> "DatasetConfig":
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "DatasetConfig":
         payload = payload or {}
         validation = payload.get("validation_path")
         if validation is not None:
@@ -178,15 +163,8 @@ class DatasetConfig:
             format=str(payload.get("format", "jsonl")),
         )
 
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
-
-    @classmethod
-    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "DatasetConfig":
-        return cls.from_payload(payload)
-
     def dict(self) -> dict[str, Any]:
-        return self.to_dict()
+        return asdict(self)
 
 
 @dataclass
@@ -209,12 +187,8 @@ class CircuitTracerSamplingConfig:
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
-    @classmethod
-    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "CircuitTracerSamplingConfig":
-        return cls.from_payload(payload)
-
-    def dict(self) -> dict[str, Any]:
-        return self.to_dict()
+    from_mapping = from_payload
+    dict = to_dict
 
 
 @dataclass
@@ -225,28 +199,28 @@ class HallucinationPenaltyConfig:
     appropriate_abstention_reward: float = 0.5
     lazy_abstention_penalty: float = -0.2
 
-    @classmethod
-    def from_payload(cls, payload: Mapping[str, Any] | None) -> "HallucinationPenaltyConfig":
-        payload = payload or {}
-        return cls(
-            confidence_threshold=_to_float(payload.get("confidence_threshold"), 0.75),
-            confident_wrong_penalty=_to_float(payload.get("confident_wrong_penalty"), -2.0),
-            uncertain_wrong_penalty=_to_float(payload.get("uncertain_wrong_penalty"), -0.5),
-            appropriate_abstention_reward=_to_float(
-                payload.get("appropriate_abstention_reward"), 0.5
-            ),
-            lazy_abstention_penalty=_to_float(payload.get("lazy_abstention_penalty"), -0.2),
-        )
 
-    def to_dict(self) -> dict[str, float]:
-        return asdict(self)
+@classmethod
+def from_mapping(cls, payload: Mapping[str, Any] | None) -> "HallucinationPenaltyConfig":
+    payload = payload or {}
 
-    @classmethod
-    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "HallucinationPenaltyConfig":
-        return cls.from_payload(payload)
+    confident_wrong = _to_float(payload.get("confident_wrong_penalty"), -2.0)
+    uncertain_wrong = _to_float(payload.get("uncertain_wrong_penalty"), -0.5)
+    appropriate_abstention = _to_float(payload.get("appropriate_abstention_reward"), 0.5)
+    lazy_abstention = _to_float(payload.get("lazy_abstention_penalty"), -0.2)
+    confidence_thresh = _to_float(payload.get("confidence_threshold"), 0.75)
 
-    def dict(self) -> dict[str, float]:
-        return self.to_dict()
+    return cls(
+        confidence_threshold=confidence_thresh,
+        confident_wrong_penalty=confident_wrong,
+        uncertain_wrong_penalty=uncertain_wrong,
+        appropriate_abstention_reward=appropriate_abstention,
+        lazy_abstention_penalty=lazy_abstention,
+    )
+
+
+def dict(self) -> dict[str, float]:
+    return asdict(self)
 
 
 @dataclass
@@ -257,7 +231,7 @@ class PPOConfig:
     ppo_epochs: int = 1
 
     @classmethod
-    def from_payload(cls, payload: Mapping[str, Any] | None) -> "PPOConfig":
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "PPOConfig":
         payload = payload or {}
         return cls(
             learning_rate=_to_float(payload.get("learning_rate"), 1e-5),
@@ -266,7 +240,7 @@ class PPOConfig:
             ppo_epochs=_to_int(payload.get("ppo_epochs"), 1),
         )
 
-    def to_dict(self) -> dict[str, Any]:
+    def dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @classmethod
@@ -318,6 +292,165 @@ class ModelConfig:
 
 
 @dataclass
+class ModelConfig:
+    policy_model: str = "demo-model"
+    reward_model: str | None = None
+    device: str = "cpu"
+    vllm_engine: str | None = None
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "ModelConfig":
+        payload = payload or {}
+        reward_model = payload.get("reward_model")
+        if reward_model is not None:
+            reward_model = str(reward_model)
+        vllm_engine = payload.get("vllm_engine")
+        if vllm_engine is not None:
+            vllm_engine = str(vllm_engine)
+        return cls(
+            policy_model=str(payload.get("policy_model", "demo-model")),
+            reward_model=reward_model,
+            device=str(payload.get("device", "cpu")),
+            vllm_engine=vllm_engine,
+        )
+
+    def dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class PPOConfig:
+    learning_rate: float = 1e-5
+    batch_size: int = 1
+    mini_batch_size: int = 1
+    ppo_epochs: int = 1
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "PPOConfig":
+        payload = payload or {}
+        return cls(
+            learning_rate=_to_float(payload.get("learning_rate"), 1e-5),
+            batch_size=_to_int(payload.get("batch_size"), 1),
+            mini_batch_size=_to_int(payload.get("mini_batch_size"), 1),
+            ppo_epochs=_to_int(payload.get("ppo_epochs"), 1),
+        )
+
+    def dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    from_mapping = from_payload
+    dict = to_dict
+
+
+@dataclass
+class ModelConfig:
+    """Model configuration with backward-compatibility shims for legacy keys."""
+
+    policy_model: str = "demo-model"
+    reward_model: str | None = None
+    device: str = "cpu"
+    vllm_engine: str | None = None
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, Any] | None) -> "ModelConfig":
+        payload = payload or {}
+        reward_model = payload.get("reward_model")
+        if reward_model is not None:
+            reward_model = str(reward_model)
+        vllm_engine = payload.get("vllm_engine")
+        if vllm_engine is not None:
+            vllm_engine = str(vllm_engine)
+        policy_value = payload.get("policy_model")
+        if policy_value is None:
+            policy_value = payload.get("name")
+        policy_model = str(policy_value) if policy_value is not None else "demo-model"
+        return cls(
+            policy_model=policy_model,
+            reward_model=reward_model,
+            device=str(payload.get("device", "cpu")),
+            vllm_engine=vllm_engine,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    from_mapping = from_payload
+    dict = to_dict
+
+
+@dataclass
+class ModelConfig:
+    """Model configuration with backward-compatibility shims for legacy keys."""
+
+    policy_model: str = "demo-model"
+    reward_model: str | None = None
+    device: str = "cpu"
+    vllm_engine: str | None = None
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "ModelConfig":
+        payload = payload or {}
+        reward_model = payload.get("reward_model")
+        if reward_model is not None:
+            reward_model = str(reward_model)
+        vllm_engine = payload.get("vllm_engine")
+        if vllm_engine is not None:
+            vllm_engine = str(vllm_engine)
+        policy_value = payload.get("policy_model")
+        if policy_value is None:
+            policy_value = payload.get("name")
+        policy_model = str(policy_value) if policy_value is not None else "demo-model"
+        return cls(
+            policy_model=policy_model,
+            reward_model=reward_model,
+            device=str(payload.get("device", "cpu")),
+            vllm_engine=vllm_engine,
+        )
+
+    def dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    from_mapping = from_payload
+    dict = to_dict
+
+
+@dataclass
+class ModelConfig:
+    """Model configuration with backward-compatibility shims for legacy keys."""
+
+    policy_model: str = "demo-model"
+    reward_model: str | None = None
+    device: str = "cpu"
+    vllm_engine: str | None = None
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, Any] | None) -> "ModelConfig":
+        payload = payload or {}
+        reward_model = payload.get("reward_model")
+        if reward_model is not None:
+            reward_model = str(reward_model)
+        vllm_engine = payload.get("vllm_engine")
+        if vllm_engine is not None:
+            vllm_engine = str(vllm_engine)
+        policy_value = payload.get("policy_model")
+        if policy_value is None:
+            policy_value = payload.get("name")
+        policy_model = str(policy_value) if policy_value is not None else "demo-model"
+        return cls(
+            policy_model=policy_model,
+            reward_model=reward_model,
+            device=str(payload.get("device", "cpu")),
+            vllm_engine=vllm_engine,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    from_mapping = from_payload
+    dict = to_dict
+
+
+@dataclass
 class GRPOConfig:
     group_size: int = 8
     kl_coef: float = 0.05
@@ -337,11 +470,11 @@ class GRPOConfig:
             "trace_frequency": payload.get("trace_frequency"),
             "trace_strategy": payload.get("trace_strategy"),
         }
-        sampling = CircuitTracerSamplingConfig.from_payload(
+        sampling = CircuitTracerSamplingConfig.from_mapping(
             _merge_mapping(payload.get("circuit_tracer"), circuit_payload)
         )
-        rewards = RewardWeightsConfig.from_payload(payload.get("reward_weights"))
-        hallucination = HallucinationPenaltyConfig.from_payload(payload.get("hallucination"))
+        rewards = RewardWeightsConfig.from_mapping(payload.get("reward_weights"))
+        hallucination = HallucinationPenaltyConfig.from_mapping(payload.get("hallucination"))
         return cls(
             group_size=_to_int(payload.get("group_size"), 8),
             kl_coef=_to_float(payload.get("kl_coef"), 0.05),
@@ -365,10 +498,6 @@ class GRPOConfig:
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any] | None) -> "GRPOConfig":
         return cls.from_payload(payload)
-
-    def dict(self) -> dict[str, Any]:
-        return self.to_dict()
-
 
 @dataclass
 class TrainingConfig:
@@ -414,11 +543,11 @@ class TrainingConfig:
             seed=_to_int(training_section.get("seed", payload.get("seed")), 42),
             max_steps=_to_int(training_section.get("max_steps", payload.get("max_steps")), 100),
             device=device,
-            reward_weights=RewardWeightsConfig.from_payload(payload.get("reward_weights")),
-            ppo=PPOConfig.from_payload(ppo_section),
-            grpo=GRPOConfig.from_payload(grpo_section),
-            model=ModelConfig.from_payload(model_section),
-            dataset=DatasetConfig.from_payload(payload.get("dataset")),
+            reward_weights=RewardWeightsConfig.from_mapping(payload.get("reward_weights")),
+            ppo=PPOConfig.from_mapping(ppo_section),
+            grpo=GRPOConfig.from_mapping(grpo_section),
+            model=ModelConfig.from_mapping(model_section),
+            dataset=DatasetConfig.from_mapping(payload.get("dataset")),
             adversarial_batch=_to_int(
                 training_section.get("adversarial_batch", payload.get("adversarial_batch")),
                 2,
@@ -430,35 +559,31 @@ class TrainingConfig:
             use_dual_path=bool(
                 training_section.get("use_dual_path", payload.get("use_dual_path", False))
             ),
-            honesty=HonestyConfig.from_payload(payload.get("honesty")),
-            deception=DeceptionConfig.from_payload(payload.get("deception")),
-            output=OutputConfig.from_payload(payload.get("output")),
+            honesty=HonestyConfig.from_mapping(payload.get("honesty")),
+            deception=DeceptionConfig.from_mapping(payload.get("deception")),
+            output=OutputConfig.from_mapping(payload.get("output")),
         )
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
-        payload["reward_weights"] = self.reward_weights.to_dict()
-        payload["ppo"] = self.ppo.to_dict()
-        payload["grpo"] = self.grpo.to_dict()
-        payload["model"] = self.model.to_dict()
-        payload["dataset"] = self.dataset.to_dict()
-        payload["honesty"] = self.honesty.to_dict()
-        payload["deception"] = self.deception.to_dict()
-        payload["output"] = self.output.to_dict()
+        payload["reward_weights"] = self.reward_weights.dict()
+        payload["ppo"] = self.ppo.dict()
+        payload["grpo"] = self.grpo.dict()
+        payload["model"] = self.model.dict()
+        payload["dataset"] = self.dataset.dict()
+        payload["honesty"] = self.honesty.dict()
+        payload["deception"] = self.deception.dict()
+        payload["output"] = self.output.dict()
         return payload
 
-    @classmethod
-    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "TrainingConfig":
-        return cls.from_payload(payload)
-
-    def dict(self) -> dict[str, Any]:
-        return self.to_dict()
+    from_mapping = from_payload
+    dict = to_dict
 
 
 def load_training_config(path: str | Path) -> TrainingConfig:
     with open(path, "r", encoding="utf-8") as handle:
         payload: Mapping[str, Any] | None = yaml.safe_load(handle)
-    return TrainingConfig.from_payload(payload)
+    return TrainingConfig.from_mapping(payload)
 
 
 __all__ = [
