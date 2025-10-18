@@ -4,15 +4,10 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Iterable, Mapping, Sequence
+from typing import Mapping
 
-from .abstention import (
-    ABSTAIN_OUTPUT,
-    AbstentionAssessment,
-    AbstentionQuality,
-    assess_abstention_quality,
-)
-from .paraconsistent import ParaconsistentTruthValue, dialetheic_and
+from .abstention import AbstentionQuality
+from .paraconsistent import ParaconsistentTruthValue
 
 _ABSTENTION_MARKERS = (
     "i don't know",
