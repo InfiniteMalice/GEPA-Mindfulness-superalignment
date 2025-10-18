@@ -12,6 +12,7 @@ from typing import List, Mapping, Sequence
 
 from ..core.circuit_tracer_adapter import CircuitTracerAdapter, TraceResult
 from ..core.rewards import GEPARewardCalculator, RewardBreakdown
+from ..core.tracing import CircuitTracerLogger
 from .config import BaseTrainerConfig, CircuitTracerConfig
 from .dataloader import DatasetBatch
 
@@ -167,8 +168,9 @@ class BaseTrainer(ABC):
     def _build_tracer_adapter(self, config: CircuitTracerConfig) -> CircuitTracerAdapter | None:
         if not config.enabled:
             return None
+        logger = CircuitTracerLogger()
         return CircuitTracerAdapter(
-            tracer=None,
+            logger,
             strategy=config.strategy,
             trace_frequency=config.trace_frequency,
             seed=config.seed,
