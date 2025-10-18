@@ -164,9 +164,7 @@ class CircuitTracerSamplingConfig:
         self.trace_strategy = str(self.trace_strategy)
 
     @classmethod
-    def from_payload(
-        cls, payload: Mapping[str, Any] | None
-    ) -> "CircuitTracerSamplingConfig":
+    def from_payload(cls, payload: Mapping[str, Any] | None) -> "CircuitTracerSamplingConfig":
         payload = payload or {}
         return cls(
             trace_frequency=_to_float(payload.get("trace_frequency"), 1.0),
