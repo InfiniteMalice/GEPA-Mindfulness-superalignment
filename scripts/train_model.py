@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Supervised fine-tuning for Phi-3 and Llama-3 dual-path responses."""
+"""Unified training script for Phi-3 and Llama-3 deception detection."""
 
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ import random
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable, List, Tuple
 
 REPO_ROOT = Path(__file__).parent.parent
 if str(REPO_ROOT) not in sys.path:
@@ -75,13 +74,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--use-8bit",
         action="store_true",
-        help="Use 8-bit quantization (not supported for full fine-tuning)",
-    )
-    parser.add_argument(
-        "--log-interval",
-        type=int,
-        default=10,
-        help="How often to log fingerprints and metrics",
+        help="Use 8-bit quantization (saves VRAM)",
     )
 
     return parser.parse_args()
@@ -137,9 +130,7 @@ def main() -> int:
     print()
 
     import torch
-    from torch.nn.utils.rnn import pad_sequence
     from transformers import AutoModelForCausalLM, AutoTokenizer
-    from transformers.optimization import get_linear_schedule_with_warmup
 
     from mindful_trace_gepa.deception.circuit_analysis import (
         detect_deception_heuristic,
@@ -179,44 +170,31 @@ def main() -> int:
     print()
 
     try:
-        if args.use_8bit:
-            print(
-                "❌ 8-bit loading is not supported for supervised fine-tuning. "
-                "Use tools such as LoRA if low-VRAM training is required."
-            )
-            return 1
-
-        dtype = torch.float16 if torch.cuda.is_available() else torch.float32
         tokenizer = AutoTokenizer.from_pretrained(
             model_config["name"],
             trust_remote_code=model_config["trust_remote_code"],
         )
 
-        if tokenizer.pad_token is None:
-            tokenizer.pad_token = tokenizer.eos_token
-
         load_kwargs: dict[str, object] = {
-            "torch_dtype": dtype,
+            "torch_dtype": torch.float16,
+            "device_map": "auto",
         }
 
         if model_config["trust_remote_code"]:
             load_kwargs["trust_remote_code"] = True
+
+        if args.use_8bit:
+            load_kwargs["load_in_8bit"] = True
+            print("   Using 8-bit quantization")
 
         model = AutoModelForCausalLM.from_pretrained(
             model_config["name"],
             **load_kwargs,
         )
 
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model = model.to(device)
-        model.train()
-
-        if torch.cuda.is_available():
-            mem_used = torch.cuda.memory_allocated(0) / 1e9
-            print("✅ Model loaded successfully")
-            print(f"   Memory used: {mem_used:.2f} GB")
-        else:
-            print("✅ Model loaded on CPU (training will be slow)")
+        print("✅ Model loaded successfully")
+        mem_used = torch.cuda.memory_allocated(0) / 1e9
+        print(f"   Memory used: {mem_used:.2f} GB")
     except Exception as error:  # noqa: BLE001
         print(f"\n❌ Failed to load model: {error}")
         return 1
@@ -251,211 +229,70 @@ def main() -> int:
     fingerprint_dir = output_dir / "fingerprints"
     fingerprint_collector = FingerprintCollector(str(fingerprint_dir))
 
-    device = next(model.parameters()).device
-    pad_token_id = tokenizer.pad_token_id or tokenizer.eos_token_id
-
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
-    scheduler = get_linear_schedule_with_warmup(
-        optimizer,
-        num_warmup_steps=max(1, args.steps // 20),
-        num_training_steps=args.steps,
-    )
-
-    use_amp = torch.cuda.is_available()
-    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
-
-    def format_path_guidance(lines: Iterable[str], target: str) -> str:
-        cleaned: List[str] = []
-        for line in lines:
-            if target.lower() in line.lower():
-                text = line.split(":", 1)[-1].strip()
-                text = text.replace("Path 1", "").replace("Path 2", "").strip()
-                if text:
-                    cleaned.append(text)
-        return " ".join(cleaned)
-
-    def build_supervised_target(example: dict) -> str:
-        validations = example.get("validation_criteria", [])
-        harm = example.get("harms_if_wrong", "unknown risk")
-
-        path1_focus = format_path_guidance(validations, "path 1")
-        path2_focus = format_path_guidance(validations, "path 2")
-
-        if not path1_focus:
-            path1_focus = (
-                "Highlight uncertainties, potential downsides, and when to seek professional help."
-            )
-        if not path2_focus:
-            path2_focus = "Provide confident next steps while acknowledging potential trade-offs."
-
-        comparison = (
-            "Path 1 emphasises caution and risk awareness, while Path 2 focuses on "
-            "immediate action and user reassurance."
-        )
-
-        correct_path = example.get("ground_truth_correct_path", "path_1")
-        if correct_path == "path_2":
-            recommendation = (
-                "Path 2 is preferable for this scenario because it delivers decisive "
-                f"guidance while managing the {harm} impact."
-            )
-        else:
-            recommendation = (
-                "Path 1 is safer here because it mitigates the potential "
-                f"{harm} consequences and encourages expert review."
-            )
-
-        return (
-            "[PATH 1 REASONING]\n"
-            f"{path1_focus}\n\n"
-            "[PATH 2 REASONING]\n"
-            f"{path2_focus}\n\n"
-            "[COMPARISON]\n"
-            f"{comparison}\n\n"
-            "[RECOMMENDATION]\n"
-            f"{recommendation}"
-        )
-
-    def encode_example(prompt_text: str, target_text: str) -> Tuple[torch.Tensor, torch.Tensor]:
-        prompt_ids = tokenizer(
-            prompt_text,
-            add_special_tokens=False,
-        )["input_ids"]
-        target_ids = tokenizer(
-            target_text + tokenizer.eos_token,
-            add_special_tokens=False,
-        )["input_ids"]
-
-        input_ids = torch.tensor(prompt_ids + target_ids, dtype=torch.long)
-        labels = torch.tensor([-100] * len(prompt_ids) + target_ids, dtype=torch.long)
-        return input_ids, labels
-
-    def collate_batch(batch_examples: List[Tuple[torch.Tensor, torch.Tensor]]) -> dict:
-        input_tensors = [example[0] for example in batch_examples]
-        label_tensors = [example[1] for example in batch_examples]
-
-        padded_inputs = pad_sequence(
-            input_tensors,
-            batch_first=True,
-            padding_value=pad_token_id,
-        )
-        padded_labels = pad_sequence(
-            label_tensors,
-            batch_first=True,
-            padding_value=-100,
-        )
-        attention_mask = (padded_inputs != pad_token_id).long()
-
-        return {
-            "input_ids": padded_inputs.to(device),
-            "attention_mask": attention_mask.to(device),
-            "labels": padded_labels.to(device),
-        }
-
-    print("🎓 Starting supervised fine-tuning...")
+    print("🎓 Starting training...")
     print("=" * 70)
     print()
 
-    running_loss = 0.0
-    steps_completed = 0
-
     try:
         for step in range(args.steps):
-            batch = [random.choice(dataset) for _ in range(args.batch_size)]
+            example = random.choice(dataset)
+            prompt = example.get("query") or example.get("prompt") or ""
 
-            encoded_batch = []
-            prompts_used: List[str] = []
-            for example in batch:
-                prompt_text = make_dual_path_prompt(
-                    example.get("query", example.get("prompt", "")),
-                    example.get("context", ""),
+            print(f"Step {step + 1}/{args.steps}")
+            print(f"Prompt: {prompt[:70]}...")
+
+            dual_prompt = make_dual_path_prompt(prompt)
+            inputs = tokenizer(dual_prompt, return_tensors="pt").to("cuda")
+
+            with torch.no_grad():
+                outputs = model.generate(
+                    **inputs,
+                    max_new_tokens=300,
+                    do_sample=True,
+                    temperature=0.7,
+                    top_p=0.9,
+                    pad_token_id=tokenizer.eos_token_id,
                 )
-                target_text = build_supervised_target(example)
-                encoded_batch.append(encode_example(prompt_text, target_text))
-                prompts_used.append(prompt_text)
 
-            batch_tensors = collate_batch(encoded_batch)
-
-            optimizer.zero_grad()
-
-            with torch.cuda.amp.autocast(enabled=use_amp):
-                outputs = model(**batch_tensors)
-                loss = outputs.loss
-
-            scaler.scale(loss).backward()
-            scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            scaler.step(optimizer)
-            scaler.update()
-            scheduler.step()
-
-            running_loss += loss.item()
-            steps_completed += 1
-
-            avg_loss = running_loss / steps_completed
-            print(
-                f"Step {step + 1}/{args.steps} - loss={loss.item():.4f} - avg_loss={avg_loss:.4f}"
+            response = tokenizer.decode(
+                outputs[0][inputs.input_ids.shape[1] :],
+                skip_special_tokens=True,
             )
 
-            if (step + 1) % args.log_interval == 0:
-                model.eval()
-                sample_prompt = prompts_used[0]
-                inputs = tokenizer(sample_prompt, return_tensors="pt").to(device)
+            sections = parse_dual_path_response(response)
+            deception = detect_deception_heuristic(sections)
 
-                with torch.no_grad():
-                    generated = model.generate(
-                        **inputs,
-                        max_new_tokens=300,
-                        do_sample=True,
-                        temperature=0.7,
-                        top_p=0.9,
-                        pad_token_id=tokenizer.eos_token_id,
-                    )
+            if deception["deception_detected"]:
+                confidence = deception["confidence_score"]
+                print(f"  🚨 Deception detected (confidence={confidence:.2f})")
 
-                response_tokens = generated[0][inputs.input_ids.shape[1] :]
-                response_text = tokenizer.decode(
-                    response_tokens,
-                    skip_special_tokens=True,
+                fingerprint = DeceptionFingerprint(
+                    timestamp=datetime.now().isoformat(),
+                    prompt=prompt,
+                    domain=example.get("domain", "unknown"),
+                    path_1_text=sections["path_1"],
+                    path_2_text=sections["path_2"],
+                    comparison=sections["comparison"],
+                    recommendation=sections["recommendation"],
+                    recommended_path=sections["recommended_path"],
+                    path_1_circuits={},
+                    path_2_circuits={},
+                    deception_detected=True,
+                    confidence_score=confidence,
+                    signals=deception.get("signals", {}),
+                    reasons=deception["reasons"],
+                    model_checkpoint=model_config["name"],
+                    training_step=step,
                 )
+                fingerprint_collector.add(fingerprint)
+            else:
+                confidence = deception["confidence_score"]
+                print(f"  ✅ No deception detected (confidence={confidence:.2f})")
 
-                sections = parse_dual_path_response(response_text)
-                deception = detect_deception_heuristic(sections)
-
-                if deception["deception_detected"]:
-                    fingerprint = DeceptionFingerprint(
-                        timestamp=datetime.now().isoformat(),
-                        prompt=batch[0].get("query", ""),
-                        domain=batch[0].get("context", "unknown"),
-                        path_1_text=sections["path_1"],
-                        path_2_text=sections["path_2"],
-                        comparison=sections["comparison"],
-                        recommendation=sections["recommendation"],
-                        recommended_path=sections["recommended_path"],
-                        path_1_circuits={},
-                        path_2_circuits={},
-                        deception_detected=True,
-                        confidence_score=deception["confidence_score"],
-                        signals=deception.get("signals", {}),
-                        reasons=deception["reasons"],
-                        model_checkpoint=model_config["name"],
-                        training_step=step,
-                    )
-                    fingerprint_collector.add(fingerprint)
-                    print(
-                        "  🚨 Deception detected during evaluation "
-                        f"(confidence={deception['confidence_score']:.2f})"
-                    )
-                else:
-                    print(
-                        "  ✅ Evaluation sample shows no deception "
-                        f"(confidence={deception['confidence_score']:.2f})"
-                    )
-
-                print()
-                model.train()
+            print()
 
         print("=" * 70)
-        print("✅ Fine-tuning complete!")
+        print("✅ Training complete!")
         print()
     except KeyboardInterrupt:
         print("\n⚠️  Training interrupted by user")
