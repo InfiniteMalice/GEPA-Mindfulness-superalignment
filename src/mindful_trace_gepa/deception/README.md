@@ -1,7 +1,7 @@
 # Deception Baseline Detectors
 
-The detectors operate on paired honest/deceptive chains emitted for baseline
-analysis. Signals include:
+The detectors operate on dual-path reasoning traces and other deception
+artifacts emitted by the GEPA pipeline. Signals include:
 
 - **Semantic divergence** between the public answer and the private chains.
 - **Reward-hacking lexicon** hits across both chains and the public answer.

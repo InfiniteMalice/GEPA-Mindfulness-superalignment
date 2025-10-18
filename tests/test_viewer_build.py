@@ -23,7 +23,7 @@ def test_viewer_cli_build(tmp_path: Path) -> None:
         tokens=str(tokens_path),
         out=str(out_path),
         deception=None,
-        paired=None,
+        dual_path=None,
     )
     handle_view(args)
     assert out_path.exists()

@@ -9,7 +9,7 @@
 
   const tokens = data.tokens || [];
   const deception = data.deception || {};
-  const paired = data.paired || {};
+  const dualPath = data.dualPath || data.paired || {};
   const scoringData = data.scoring || {};
 
   const timelineList = document.getElementById("timeline-list");
@@ -485,13 +485,13 @@
       pieces.push(`<ul>${rows}</ul>`);
     }
 
-    if (paired && paired.honest_chain) {
+    if (dualPath && dualPath.honest_chain) {
       pieces.push('<h3>Honest Chain</h3>');
-      pieces.push(`<pre>${JSON.stringify(paired.honest_chain, null, 2)}</pre>`);
+      pieces.push(`<pre>${JSON.stringify(dualPath.honest_chain, null, 2)}</pre>`);
     }
-    if (paired && paired.deceptive_chain) {
+    if (dualPath && dualPath.deceptive_chain) {
       pieces.push('<h3>Deceptive Chain</h3>');
-      pieces.push(`<pre>${JSON.stringify(paired.deceptive_chain, null, 2)}</pre>`);
+      pieces.push(`<pre>${JSON.stringify(dualPath.deceptive_chain, null, 2)}</pre>`);
     }
 
     if (!pieces.length) {

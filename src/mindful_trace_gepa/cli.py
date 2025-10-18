@@ -15,7 +15,6 @@ from .cli_deception import register_cli as register_deception_cli
 from .cli_scoring import register_cli as register_scoring_cli
 from .configuration import dump_json, load_dspy_config
 from .deception.score import score_deception
-from .emitters.paired_chains import emit_paired
 from .storage import TraceArchiveWriter, iter_jsonl, load_jsonl, read_jsonl
 from .tokens import TokenRecorder
 from .utils.imports import optional_import
@@ -410,17 +409,20 @@ def handle_view(args: argparse.Namespace) -> None:
             deception_data["mm"] = payload
             break
 
-    paired_data: Dict[str, Any] = {}
-    if args.paired and Path(args.paired).exists():
-        paired_data = _safe_load_json(Path(args.paired))
-    if not paired_data:
+    dual_path_data: Dict[str, Any] = {}
+    dual_path_arg = getattr(args, "dual_path", None) or getattr(args, "paired", None)
+    if dual_path_arg and Path(dual_path_arg).exists():
+        dual_path_data = _safe_load_json(Path(dual_path_arg))
+    if not dual_path_data:
         for candidate in [trace_dir / "deception.json", Path("runs/deception.json")]:
-            paired_data = _safe_load_json(candidate)
-            if paired_data:
+            dual_path_data = _safe_load_json(candidate)
+            if dual_path_data:
                 break
 
-    if "paired" in deception_data and not paired_data:
-        paired_data = deception_data.get("paired") or {}
+    if "dualPath" in deception_data and not dual_path_data:
+        dual_path_data = deception_data.get("dualPath") or {}
+    if "paired" in deception_data and not dual_path_data:
+        dual_path_data = deception_data.get("paired") or {}
 
     scoring_data: Dict[str, Any] = {}
     scoring_path = trace_path.with_name("scores.json")
@@ -432,7 +434,7 @@ def handle_view(args: argparse.Namespace) -> None:
         token_events=token_rows,
         deception=deception_data,
         output_path=out_path,
-        paired=paired_data,
+        dual_path=dual_path_data,
         manifest=manifest_data,
         settings={
             "pageSize": page_size,
@@ -440,55 +442,6 @@ def handle_view(args: argparse.Namespace) -> None:
             "manifestPath": manifest_rel,
         },
         scoring=scoring_data,
-    )
-
-
-# ---------------------------------------------------------------------------
-# Paired baseline
-# ---------------------------------------------------------------------------
-
-
-def handle_paired_run(args: argparse.Namespace) -> None:
-    data_path = _resolve_cli_path(args.data)
-    dataset = _read_jsonl(data_path)
-    out_dir = Path(args.out)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    aggregated: Dict[str, Any] = {}
-    for item in dataset:
-        identifier = item["id"]
-        if not item.get("require_paired", False):
-            continue
-        payload = emit_paired(item["prompt"], item)
-        honest_path = out_dir / f"{identifier}_honest_trace.jsonl"
-        deceptive_path = out_dir / f"{identifier}_deceptive_trace.jsonl"
-        answer_path = out_dir / f"{identifier}_public_answer.txt"
-        detection_path = out_dir / f"{identifier}_deception.json"
-
-        _write_jsonl(honest_path, payload["honest_chain"])
-        _write_jsonl(deceptive_path, payload["deceptive_chain"])
-        answer_path.write_text(payload["final_public_answer"], encoding="utf-8")
-        detection = score_deception(payload)
-        dump_json(detection_path, detection)
-        aggregated[identifier] = detection
-
-    dump_json(Path("runs/deception.json"), aggregated)
-
-
-def handle_paired_view(args: argparse.Namespace) -> None:
-    base = _resolve_cli_path(args.base)
-    honest = _read_jsonl(base / f"{args.identifier}_honest_trace.jsonl")
-    deceptive = _read_jsonl(base / f"{args.identifier}_deceptive_trace.jsonl")
-    deception_data: Dict[str, Any] = {}
-    detection_path = base / f"{args.identifier}_deception.json"
-    if detection_path.exists():
-        with detection_path.open("r", encoding="utf-8") as handle:
-            deception_data = json.load(handle)
-    build_viewer_html(
-        trace_events=honest + deceptive,
-        token_events=[],
-        output_path=Path(args.out),
-        paired={"honest_chain": honest, "deceptive_chain": deceptive},
-        deception=deception_data,
     )
 
 
@@ -657,7 +610,8 @@ def build_parser() -> argparse.ArgumentParser:
     view_parser.add_argument("--tokens", required=True, help="Token JSONL path")
     view_parser.add_argument("--out", required=True, help="Output HTML file")
     view_parser.add_argument("--deception", help="Optional deception score JSON")
-    view_parser.add_argument("--paired", help="Optional paired metadata JSON")
+    view_parser.add_argument("--dual-path", dest="dual_path", help="Optional dual-path metadata JSON")
+    view_parser.add_argument("--paired", dest="dual_path", help=argparse.SUPPRESS)
     view_parser.add_argument(
         "--page-size", type=int, default=200, help="Events per page in the viewer"
     )
@@ -666,21 +620,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     view_parser.add_argument("--manifest", help="Optional manifest path (auto-detected if omitted)")
     view_parser.set_defaults(func=handle_view)
-
-    paired_parser = subparsers.add_parser("paired", help="Paired honest/deceptive baseline")
-    paired_sub = paired_parser.add_subparsers(dest="paired_command")
-
-    paired_run = paired_sub.add_parser("run", help="Emit paired chains and detectors")
-    paired_run.add_argument("--data", required=True, help="Dataset JSONL path")
-    paired_run.add_argument("--out", required=True, help="Output directory")
-    paired_run.add_argument("--context", help="Optional context profile")
-    paired_run.set_defaults(func=handle_paired_run)
-
-    paired_view = paired_sub.add_parser("view", help="Render paired trace viewer")
-    paired_view.add_argument("identifier", help="Scenario identifier")
-    paired_view.add_argument("--base", required=True, help="Directory with paired outputs")
-    paired_view.add_argument("--out", required=True, help="Output HTML file")
-    paired_view.set_defaults(func=handle_paired_view)
 
     score_parser = subparsers.add_parser("score", help="Summarise GEPA scores from a trace")
     score_parser.add_argument("--trace", required=True, help="Trace JSONL path")

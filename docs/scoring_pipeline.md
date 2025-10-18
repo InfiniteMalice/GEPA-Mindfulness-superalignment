@@ -38,7 +38,7 @@ Each tier outputs confidence per dimension. Aggregator:
 
 ## Deception Integration
 
-The `integrity` dimension incorporates signals from paired-chains deception baseline:
+The `integrity` dimension incorporates signals from dual-path deception analyses:
 - Public/private divergence
 - Reward-hacking lexicon
 - Situational awareness markers
