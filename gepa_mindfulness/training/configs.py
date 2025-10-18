@@ -181,19 +181,19 @@ class HallucinationPenaltyConfig:
     def from_mapping(cls, payload: Mapping[str, Any] | None) -> "HallucinationPenaltyConfig":
         payload = payload or {}
         return cls(
-            confidence_threshold=_to_float(payload.get("confidence_threshold"), 0.75),
             confident_wrong = _to_float(payload.get("confident_wrong_penalty"), -2.0)
             uncertain_wrong = _to_float(payload.get("uncertain_wrong_penalty"), -0.5)
             appropriate_abstention = _to_float(payload.get("appropriate_abstention_reward"), 0.5)
             lazy_abstention = _to_float(payload.get("lazy_abstention_penalty"), -0.2)
 
-# Then:
-RewardConfig(
-    confident_wrong_penalty=confident_wrong,
-    uncertain_wrong_penalty=uncertain_wrong,
-    appropriate_abstention_reward=appropriate_abstention,
-    lazy_abstention_penalty=lazy_abstention,
-)
+        reward_config = RewardConfig(
+            confidence_threshold=_to_float(payload.get("confidence_threshold"), 0.75),
+            confident_wrong_penalty=confident_wrong,
+            uncertain_wrong_penalty=uncertain_wrong,
+            appropriate_abstention_reward=appropriate_abstention,
+            lazy_abstention_penalty=lazy_abstention,
+            )
+        
     def dict(self) -> dict[str, float]:
         return asdict(self)
 
