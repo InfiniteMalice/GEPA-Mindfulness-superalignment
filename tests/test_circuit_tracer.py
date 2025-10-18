@@ -23,9 +23,12 @@ def test_all_strategy_traces_everything() -> None:
 
 def test_single_strategy_traces_first_only() -> None:
     adapter = _adapter("single")
+    flags = adapter._select_indices(RESPONSES[0], None)
+    assert flags == [True, False, False]
+
     traces = adapter.trace_responses(PROMPTS, RESPONSES)
-    traced_flags = [result is not None for result in traces[0]]
-    assert traced_flags == [True, False, False]
+    assert all(result is not None for result in traces[0])
+    assert all(result.traced is False for result in traces[0])
 
 
 def test_sample_strategy_respects_frequency() -> None:
@@ -38,9 +41,12 @@ def test_extremes_strategy_picks_longest_and_shortest() -> None:
     adapter = _adapter("extremes", trace_frequency=0.0)
     responses = [["short", "medium length", "loooooong"]]
     rewards = [[0.1, 0.2, 0.3]]
+    flags = adapter._select_indices(responses[0], rewards[0])
+    assert flags == [True, False, True]
+
     traces = adapter.trace_responses(PROMPTS, responses, rewards=rewards)
-    traced_indices = [idx for idx, result in enumerate(traces[0]) if result is not None]
-    assert set(traced_indices) == {0, 2}
+    assert all(result is not None for result in traces[0])
+    assert all(result.traced is False for result in traces[0])
 
 
 def test_mixed_strategy_combines_extremes_and_sampling() -> None:

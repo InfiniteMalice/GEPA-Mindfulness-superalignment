@@ -44,6 +44,10 @@ TraceAnalysis = TraceResult
 TraceAnalysis = TraceResult
 
 
+# Backwards compatibility: older modules import TraceAnalysis directly.
+TraceAnalysis = TraceResult
+
+
 class CircuitTracerAdapter:
     """Best-effort wrapper that works even when the tracer dependency is absent."""
 
