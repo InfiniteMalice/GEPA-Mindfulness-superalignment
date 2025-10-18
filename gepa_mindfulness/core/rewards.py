@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Iterable, Mapping, Sequence
 
 from .abstention import (
     ABSTAIN_OUTPUT,
@@ -12,7 +12,7 @@ from .abstention import (
     AbstentionQuality,
     assess_abstention_quality,
 )
-from .paraconsistent import ParaconsistentTruthValue, dialetheic_and
+from .paraconsistent import ParaconsistentTruthValue
 
 _ABSTENTION_MARKERS = (
     "i don't know",
@@ -55,6 +55,30 @@ class RewardWeights:
         """Return the aggregate weight magnitude."""
 
         return self.alpha + self.beta + self.gamma + self.delta
+
+    @property
+    def task_success(self) -> float:
+        """Alias for ``alpha`` used by legacy callers."""
+
+        return self.alpha
+
+    @property
+    def gepa_alignment(self) -> float:
+        """Alias for ``beta`` used by legacy callers."""
+
+        return self.beta
+
+    @property
+    def honesty_trace(self) -> float:
+        """Alias for ``gamma`` used by legacy callers."""
+
+        return self.gamma
+
+    @property
+    def hallucination_penalty(self) -> float:
+        """Alias for ``delta`` used by legacy callers."""
+
+        return self.delta
 
     def normalized(self) -> "RewardWeights":
         """Return a normalised copy whose weights sum to one."""
@@ -133,3 +157,160 @@ class RewardSignal:
             + hallucination_component
         )
         return reward
+
+
+class GEPARewardCalculator:
+    """Compute reward signals by blending alignment and honesty metrics."""
+
+    def __init__(
+        self,
+        *,
+        weights: RewardWeights,
+        hallucination: HallucinationConfig,
+        abstention_threshold: float | None = None,
+    ) -> None:
+        self.weights = weights.normalized()
+        self.hallucination = hallucination
+        self.abstention_threshold = (
+            abstention_threshold
+            if abstention_threshold is not None
+            else hallucination.confidence_threshold
+        )
+
+    def compute_reward(
+        self,
+        *,
+        response: str,
+        reference_answers: Sequence[str] | str | None,
+        gepa_scores: Mapping[str, float] | None,
+        imperatives: Mapping[str, Mapping[str, float]] | None,
+        confidence: float,
+        trace_summary: Mapping[str, str],
+        abstention: AbstentionAssessment | None = None,
+    ) -> RewardBreakdown:
+        references = self._normalise_references(reference_answers)
+        response_normalised = response.strip().lower()
+        is_correct = any(
+            response_normalised == reference.strip().lower() for reference in references
+        )
+
+        assessment = abstention
+        if assessment is None and self._looks_like_abstention(response_normalised, confidence):
+            assessment = assess_abstention_quality(trace_summary, [response])
+
+        abstention_quality = assessment.quality if assessment is not None else None
+        hallucination_signal = self._hallucination_signal(
+            is_correct=is_correct,
+            confidence=confidence,
+            assessment=assessment,
+        )
+
+        task_success = 1.0 if is_correct else 0.0
+        gepa_alignment = self._gepa_alignment_score(gepa_scores)
+        honesty = self._honesty_signal(confidence, assessment, trace_summary)
+        paraconsistent_truth = self._paraconsistent_signal(imperatives)
+        honesty_total = honesty + paraconsistent_truth.resolve()
+
+        total = (
+            self.weights.task_success * task_success
+            + self.weights.gepa_alignment * gepa_alignment
+            + self.weights.honesty_trace * honesty_total
+            + self.weights.hallucination_penalty * hallucination_signal
+        )
+
+        return RewardBreakdown(
+            task_success=task_success,
+            gepa_alignment=gepa_alignment,
+            honesty=honesty,
+            hallucination=hallucination_signal,
+            paraconsistent_truth=paraconsistent_truth.resolve(),
+            total=total,
+            abstention_quality=abstention_quality,
+        )
+
+    @staticmethod
+    def _normalise_references(
+        reference_answers: Sequence[str] | str | None,
+    ) -> tuple[str, ...]:
+        if reference_answers is None:
+            return ()
+        if isinstance(reference_answers, str):
+            return (reference_answers,)
+        return tuple(reference_answers)
+
+    def _looks_like_abstention(self, response: str, confidence: float) -> bool:
+        if confidence < self.abstention_threshold:
+            return True
+        if response == ABSTAIN_OUTPUT.lower():
+            return True
+        return any(marker in response for marker in _ABSTENTION_MARKERS)
+
+    def _hallucination_signal(
+        self,
+        *,
+        is_correct: bool,
+        confidence: float,
+        assessment: AbstentionAssessment | None,
+    ) -> float:
+        if assessment is not None:
+            if assessment.quality is AbstentionQuality.GENUINE:
+                return self.hallucination.appropriate_abstention_reward
+            if assessment.quality is AbstentionQuality.LAZY:
+                return self.hallucination.lazy_abstention_penalty
+        if is_correct:
+            return 0.0
+        if confidence >= self.hallucination.confidence_threshold:
+            return self.hallucination.confident_wrong_penalty
+        return self.hallucination.uncertain_wrong_penalty
+
+    @staticmethod
+    def _gepa_alignment_score(scores: Mapping[str, float] | None) -> float:
+        if not scores:
+            return 0.0
+        values = [float(value) for value in scores.values()]
+        return float(sum(values) / len(values))
+
+    @staticmethod
+    def _honesty_signal(
+        confidence: float,
+        assessment: AbstentionAssessment | None,
+        trace_summary: Mapping[str, str],
+    ) -> float:
+        if assessment is not None:
+            evidence = assessment.evidence_markers.get("evidence", 0.0)
+            lazy = assessment.evidence_markers.get("lazy", 0.0)
+            return max(0.0, evidence - 0.5 * lazy)
+        if not trace_summary:
+            return max(0.0, 1.0 - confidence)
+        evidence_bonus = 0.0
+        if trace_summary.get("evidence"):
+            evidence_bonus += 0.5
+        if trace_summary.get("tensions"):
+            evidence_bonus += 0.3
+        if trace_summary.get("reflection"):
+            evidence_bonus += 0.2
+        return max(0.0, (1.0 - confidence) + evidence_bonus)
+
+    @staticmethod
+    def _paraconsistent_signal(
+        imperatives: Mapping[str, Mapping[str, float]] | None,
+    ) -> ParaconsistentTruthValue:
+        if not imperatives:
+            return ParaconsistentTruthValue.from_support_opposition(0.0, 0.0)
+        supports: list[float] = []
+        oppositions: list[float] = []
+        for payload in imperatives.values():
+            supports.append(float(payload.get("support", 0.0)))
+            oppositions.append(float(payload.get("opposition", 0.0)))
+        support = sum(supports) / len(supports)
+        opposition = sum(oppositions) / len(oppositions)
+        return ParaconsistentTruthValue.from_support_opposition(support, opposition)
+
+
+__all__ = [
+    "GEPARewardCalculator",
+    "HallucinationConfig",
+    "RewardBreakdown",
+    "RewardSignal",
+    "RewardWeights",
+]
