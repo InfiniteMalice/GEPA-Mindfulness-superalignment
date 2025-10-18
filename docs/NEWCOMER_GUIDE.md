@@ -7,8 +7,8 @@ This guide summarizes the current codebase so you can orient yourself quickly an
 | Area | Purpose |
 | ---- | ------- |
 | [`gepa_mindfulness/core/`](../gepa_mindfulness/core) | GEPA contemplative principles, paraconsistent imperatives, reward shaping, abstention, Circuit Tracer integration, and adversarial probes that power the alignment logic. |
-| [`gepa_mindfulness/training/`](../gepa_mindfulness/training) | Configuration models, PPO orchestration, CLI entry points, and reporting helpers for running alignment-focused training loops. |
-| [`gepa_mindfulness/adapters/`](../gepa_mindfulness/adapters) | Interfaces that let the training pipeline talk to Hugging Face models, vLLM endpoints, and Circuit Tracer artifacts. |
+| [`gepa_mindfulness/training/`](../gepa_mindfulness/training) | Configuration models, GRPO and legacy PPO orchestration, CLI entry points, and
+reporting helpers for alignment training loops. |
 | [`gepa_mindfulness/examples/`](../gepa_mindfulness/examples) | Runnable CPU and vLLM demos that show the pipeline end-to-end. |
 | [`gepa_datasets/`](../gepa_datasets) | JSONL datasets for ethical QA, OOD stress testing, anti-scheming probes, abstention calibration, and thought-trace templates. |
 | [`gepa_mindfulness/configs/`](../gepa_mindfulness/configs) | YAML presets exposing reward weights (α, β, γ, δ), model choices, and runtime parameters. |
@@ -30,14 +30,16 @@ These components are re-exported via `gepa_mindfulness.core.__init__` for conven
 
 ## Training Pipeline
 
-The `training` package turns the alignment primitives into an executable PPO workflow:
+The `training` package turns the alignment primitives into GRPO and PPO workflows:
 
-* **Configuration** – `configs.py` defines Pydantic models for reward weights, PPO hyperparameters, model selection, and adversity thresholds, plus YAML loaders for presets.【F:gepa_mindfulness/training/configs.py†L1-L47】
-* **Orchestration** – `pipeline.py` builds the tokenizer/model stack, maintains a `CircuitTracerLogger`, enforces abstention, scores GEPA principles, aggregates imperatives, and updates PPO rewards each rollout.【F:gepa_mindfulness/training/pipeline.py†L1-L147】
-* **CLI tooling** – `cli.py` wires configs, datasets, and adversarial-only sweeps into a single command-line entry point for production or evaluation runs.【F:gepa_mindfulness/training/cli.py†L1-L67】
-* **Reporting** – `reporting.py` uses Jinja2 to render human-readable summaries of rollout rewards and contradictions.【F:gepa_mindfulness/training/reporting.py†L1-L40】
-
-A top-level `TrainingOrchestrator` and helpers are exported in `gepa_mindfulness.training.__init__` so other projects can embed the pipeline programmatically.【F:gepa_mindfulness/training/__init__.py†L1-L15】
+* **Configuration** – `config.py` uses Pydantic models to validate PPO and GRPO hyperparameters, reward weights, model
+  selection, and Circuit Tracer settings while hydrating YAML presets.【F:gepa_mindfulness/training/config.py†L1-L144】
+* **Shared infrastructure** – `base_trainer.py` centralises dataset loading, reward computation, tracing, checkpoint logging,
+  and metrics so both trainers share identical plumbing.【F:gepa_mindfulness/training/base_trainer.py†L1-L136】
+* **Algorithms** – `ppo_trainer.py` and `grpo_trainer.py` implement lightweight Bernoulli policies that consume GEPA rewards,
+  compute advantages, and optimise against the shared base helpers.【F:gepa_mindfulness/training/ppo_trainer.py†L1-L95】【F:gepa_mindfulness/training/grpo_trainer.py†L1-L112】
+* **CLI tooling** – `cli.py` exposes `train` and `compare` subcommands so experiments can be launched and summarised from a
+  single entry point.【F:gepa_mindfulness/training/cli.py†L1-L72】
 
 ## Integration Adapters
 
@@ -50,19 +52,21 @@ Exports live in `gepa_mindfulness.adapters.__init__`.【F:gepa_mindfulness/adapt
 
 ## Configurations & Examples
 
-Two YAML presets provide CPU-friendly and vLLM-oriented defaults (`default.yaml`, `vllm.yaml`).【F:gepa_mindfulness/configs/default.yaml†L1-L18】【F:gepa_mindfulness/configs/vllm.yaml†L1-L18】 Use them with:
+YAML presets now live under `configs/ppo/`, `configs/grpo/`, and `configs/comparison/` so PPO and GRPO share aligned hyperparameters. Launch a run directly from the CLI:
 
 ```bash
-python -m gepa_mindfulness.training.cli --config gepa_mindfulness/configs/default.yaml --dataset path/to/prompts.txt
+python -m gepa_mindfulness.training.cli train \
+  --trainer grpo \
+  --config gepa_mindfulness/configs/grpo/grpo_default.yaml
 ```
 
 To see the system in action, run the example scripts:
 
-* `examples/cpu_demo/run_cpu_demo.py` executes a short PPO loop on CPU, printing responses, rewards, and trace summaries.【F:gepa_mindfulness/examples/cpu_demo/run_cpu_demo.py†L1-L30】
+* `examples/cpu_demo/run_cpu_demo.py --trainer grpo` executes a short CPU-friendly GRPO loop; swap to `--trainer ppo` for the PPO baseline.【F:gepa_mindfulness/examples/cpu_demo/run_cpu_demo.py†L1-L54】
 * `examples/vllm_demo/run_vllm_demo.py` targets a vLLM endpoint defined in `configs/vllm.yaml` for remote inference.【F:gepa_mindfulness/examples/vllm_demo/run_vllm_demo.py†L1-L27】
 
-The `scripts/run_full_pipeline.sh` helper validates configs, runs the CPU demo, then triggers adversarial evaluation via the CLI.【F:scripts/run_full_pipeline.sh†L1-L18】
-
+The `scripts/run_full_pipeline.sh` helper validates configs, runs the CPU demo, then executes a GRPO pass
+using the new training entry point.【F:scripts/run_full_pipeline.sh†L1-L16】
 ## Metrics & Testing
 
 Outside the alignment loop, `gepa_mindfulness/metrics.py` models mindfulness practice sessions and aggregates GEPA metrics with strong validation and numerical safety checks.【F:gepa_mindfulness/metrics.py†L9-L190】 Pytest coverage in `tests/test_metrics.py` exercises weighting, validation, and edge cases to prevent regressions.【F:tests/test_metrics.py†L1-L199】
