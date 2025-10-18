@@ -22,8 +22,8 @@ gepa score --trace runs/demo_trace.jsonl --out runs/demo_trace_summary.html
 gepa view --trace runs/demo_trace.jsonl --tokens runs/tokens.jsonl --out runs/demo_trace_view.html
 ```
 
-To explore paired honest/deceptive chains using the DSPy pipeline:
+To explore dual-path contrastive reasoning using the DSPy pipeline:
 
 ```bash
-gepa paired run --data datasets/paired_chains/data.jsonl --out runs/paired/ --context safety_critical
+gepa dspy run --dual-path --input datasets/dual_path/data.jsonl --trace runs/dual_path_trace.jsonl
 ```

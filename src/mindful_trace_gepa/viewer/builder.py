@@ -23,11 +23,14 @@ def build_viewer_html(
     token_events: List[Dict[str, Any]],
     output_path: Path,
     deception: Dict[str, Any] | None = None,
-    paired: Dict[str, Any] | None = None,
     manifest: Dict[str, Any] | None = None,
     settings: Dict[str, Any] | None = None,
     scoring: Dict[str, Any] | None = None,
+    *,
+    dual_path: Dict[str, Any] | None = None,
+    paired: Dict[str, Any] | None = None,
 ) -> Path:
+    dual_path_payload = dual_path if dual_path is not None else paired
     html = load_static_asset("viewer.html")
     script = load_static_asset("viewer.js")
     css = load_static_asset("viewer.css")
@@ -36,7 +39,8 @@ def build_viewer_html(
         "trace": trace_events,
         "tokens": token_events,
         "deception": deception or {},
-        "paired": paired or {},
+        "paired": dual_path_payload or {},
+        "dualPath": dual_path_payload or {},
         "manifest": manifest or {},
         "settings": settings or {},
         "scoring": scoring or {},

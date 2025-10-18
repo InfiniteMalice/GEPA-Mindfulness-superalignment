@@ -237,19 +237,22 @@ def handle_deception_summary(args: argparse.Namespace) -> None:
         base_dir = Path("runs")
 
     probe_candidates = [Path(args.probe)] if getattr(args, "probe", None) else []
-    paired_candidates = [Path(args.paired)] if getattr(args, "paired", None) else []
+    dual_path_candidates: List[Path] = []
+    dual_path_arg = getattr(args, "dual_path", None) or getattr(args, "paired", None)
+    if dual_path_arg:
+        dual_path_candidates.append(Path(dual_path_arg))
     mm_candidates = [Path(args.mm)] if getattr(args, "mm", None) else []
 
     probe_candidates.append(base_dir / "deception_probe.json")
-    paired_candidates.extend([base_dir / "deception.json", base_dir / "paired_deception.json"])
+    dual_path_candidates.extend([base_dir / "deception.json", base_dir / "paired_deception.json"])
     mm_candidates.append(base_dir / "mm_eval.json")
 
     probe_data = next(
         (data for data in (_load_json(path) for path in probe_candidates) if data),
         None,
     )
-    paired_data = next(
-        (data for data in (_load_json(path) for path in paired_candidates) if data),
+    dual_path_data = next(
+        (data for data in (_load_json(path) for path in dual_path_candidates) if data),
         None,
     )
     mm_data = next(
@@ -259,13 +262,13 @@ def handle_deception_summary(args: argparse.Namespace) -> None:
 
     context = {
         "probe_path": str(probe_candidates[0]) if probe_candidates else None,
-        "paired_path": str(paired_candidates[0]) if paired_candidates else None,
+        "dual_path_path": str(dual_path_candidates[0]) if dual_path_candidates else None,
         "mm_path": str(mm_candidates[0]) if mm_candidates else None,
         "search_dir": str(base_dir),
     }
 
     summary = summarize_deception_sources(
-        paired=paired_data,
+        dual_path=dual_path_data,
         probe=probe_data,
         mm=mm_data,
         context=context,
@@ -291,7 +294,8 @@ def register_cli(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]
     summary = deception_sub.add_parser("summary", help="Merge deception artifacts into a summary")
     summary.add_argument("--out", required=True, help="Where to write the deception summary JSON")
     summary.add_argument("--probe", help="Optional override path for probe results")
-    summary.add_argument("--paired", help="Optional override for paired-chain results")
+    summary.add_argument("--dual-path", dest="dual_path", help="Optional override for dual-path analysis results")
+    summary.add_argument("--paired", dest="dual_path", help=argparse.SUPPRESS)
     summary.add_argument("--mm", help="Optional override for multimodal evaluation metrics")
     summary.add_argument("--runs", help="Directory to search for deception artifacts")
     summary.set_defaults(func=handle_deception_summary)

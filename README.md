@@ -18,8 +18,8 @@ The project targets Python 3.10+.
 * **DSPy-style pipelines** – `src/mindful_trace_gepa/dspy_modules` provides
   guardrailed declarative chains that emit GEPA checkpoints and can be compiled
   into manifests when the optional `dspy-ai` dependency is installed.
-* **Paired-chain deception probes** – `src/mindful_trace_gepa/deception` ships
-  heuristics, circuit-fingerprint shims, and paired-chain detectors.
+* **Dual-path deception probes** – `src/mindful_trace_gepa/deception` ships
+  heuristics, circuit-fingerprint shims, and dual-path detectors.
 * **Offline trace viewer** – `src/mindful_trace_gepa/viewer` bundles a static
   HTML viewer that stitches traces, token confidence curves, and deception
   overlays into a single portable file.
@@ -140,10 +140,6 @@ The editable install registers the `gepa` console script. Key commands include:
   – build the static offline trace viewer.
 * `gepa score --trace runs/trace.jsonl --out summary.html` – aggregate principle
   and imperative scores from a trace.
-* `gepa paired run --data datasets/paired_chains/data.jsonl --out runs/paired/`
-  – emit honest + deceptive paired chains (requires the DSPy extras).
-* `gepa paired view safety_001 --base runs/paired/ --out paired_view.html` –
-  render the paired-chain viewer for a saved scenario.
 * `gepa deception probes --trace runs/trace.jsonl --config configs/deception/probes_linear.yaml`
   – run deception heuristics against stored traces.
 
@@ -156,23 +152,7 @@ are surfaced for manual review. Recommended workflow:
 
 1. Train or run rollouts with honesty rewards enabled (`gepa_mindfulness` CPU
    demo or your custom configuration).
-2. Generate paired chains for selected prompts:
-
-   ```bash
-   gepa paired run --data datasets/paired_chains/data.jsonl \
-                   --out runs/paired/ --context safety_critical
-   ```
-
-   This writes trace shards, public answers, and detector outputs under
-   `runs/paired/`.
-
-3. Launch the paired viewer when investigating a specific scenario:
-
-   ```bash
-   gepa paired view safety_001 --base runs/paired/ --out paired_view.html
-   ```
-
-4. Explore single-prompt dual-path reasoning datasets:
+2. Explore single-prompt dual-path reasoning datasets:
 
    ```bash
    gepa dspy run --dual-path --input datasets/dual_path/data.jsonl \
