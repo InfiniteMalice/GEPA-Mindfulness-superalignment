@@ -158,7 +158,7 @@ class CircuitTracerSamplingConfig:
         self.trace_strategy = str(self.trace_strategy)
 
     @classmethod
-    def from_mapping(cls, payload: Mapping[str, Any] | None) ->  "CircuitTracerSamplingConfig":
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "CircuitTracerSamplingConfig":
         payload = payload or {}
         return cls(
             trace_frequency=_to_float(payload.get("trace_frequency"), 1.0),
@@ -181,7 +181,7 @@ class HallucinationPenaltyConfig:
 @classmethod
 def from_mapping(cls, payload: Mapping[str, Any] | None) -> "HallucinationPenaltyConfig":
     payload = payload or {}
-    
+
     confident_wrong = _to_float(payload.get("confident_wrong_penalty"), -2.0)
     uncertain_wrong = _to_float(payload.get("uncertain_wrong_penalty"), -0.5)
     appropriate_abstention = _to_float(payload.get("appropriate_abstention_reward"), 0.5)
