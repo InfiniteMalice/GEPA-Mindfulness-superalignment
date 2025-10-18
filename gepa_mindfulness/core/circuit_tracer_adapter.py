@@ -1,94 +1,110 @@
-"""Helpers to run Circuit Tracer across grouped completions efficiently."""
+"""Simplified adapter that mimics the public Circuit Tracer interface."""
 
 from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Iterable, List, Sequence
+from typing import Iterable, List, Sequence
 
 from .abstention import (
     AbstentionAssessment,
     AbstentionQuality,
     assess_abstention_quality,
 )
-
-if TYPE_CHECKING:  # pragma: no cover - hints only
-    from .tracing import CircuitTracerLogger, ThoughtTrace
-else:  # pragma: no cover - fallback for optional typing
-    CircuitTracerLogger = Any  # type: ignore[misc,assignment]
-    ThoughtTrace = Any  # type: ignore[misc,assignment]
+from .tracing import CircuitTracerLogger
 
 
 @dataclass
-class TraceAnalysis:
-    """Summary of Circuit Tracer output for a single completion."""
+class TraceResult:
+    """Minimal representation of a Circuit Tracer analysis."""
 
     summary: dict[str, str]
-    trace: ThoughtTrace | None
+    assessment: AbstentionAssessment | None
     confidence_hint: float
-    abstention: AbstentionAssessment | None
     traced: bool
-
-    def genuine_abstention(self) -> bool:
-        return bool(self.abstention and self.abstention.is_genuine)
-
-    def lazy_abstention(self) -> bool:
-        return bool(self.abstention and self.abstention.is_lazy)
 
 
 class CircuitTracerAdapter:
-    """Manage Circuit Tracer spans for batched GRPO completions."""
+    """Best-effort wrapper that works even when the tracer dependency is absent."""
 
     def __init__(
         self,
-        logger: CircuitTracerLogger,
+        tracer: CircuitTracerLogger | None,
         *,
+        strategy: str = "all",
         trace_frequency: float = 1.0,
-        trace_strategy: str = "all",
         seed: int | None = None,
     ) -> None:
-        self.logger = logger
+        self.logger = tracer or CircuitTracerLogger()
+        self.trace_strategy = strategy.lower()
         self.trace_frequency = max(0.0, min(1.0, trace_frequency))
-        self.trace_strategy = trace_strategy.lower()
         self.random = random.Random(seed)
 
-    def analyse_group(self, prompt: str, responses: Sequence[str]) -> List[TraceAnalysis]:
-        analyses: list[TraceAnalysis] = []
-        should_trace_flags = self._select_indices(responses)
+    def trace_responses(
+        self,
+        prompts: Sequence[str],
+        responses: Sequence[Sequence[str]],
+        *,
+        rewards: Sequence[Sequence[float]] | None = None,
+    ) -> list[list[TraceResult | None]]:
+        traced_batches: list[list[TraceResult | None]] = []
+        for index, (prompt, response_group) in enumerate(zip(prompts, responses)):
+            reward_group = rewards[index] if rewards and index < len(rewards) else None
+            traced_batches.append(self.analyse_group(prompt, response_group, reward_group))
+        return traced_batches
 
+    def analyse_group(
+        self,
+        prompt: str,
+        responses: Sequence[str],
+        reward_signals: Sequence[float] | None = None,
+    ) -> list[TraceResult | None]:
+        indices = self._select_indices(responses, reward_signals)
+        results: list[TraceResult | None] = []
         for idx, response in enumerate(responses):
-            if should_trace_flags[idx]:
-                analysis = self._trace_single(prompt, response, idx)
+            if not indices[idx]:
+                results.append(None)
+                continue
+            if self.logger.circuit_tracer_available:
+                results.append(self._trace_single(prompt, response, idx))
             else:
-                analysis = self._heuristic_only(response)
-            analyses.append(analysis)
-        return analyses
+                results.append(self._heuristic_only(response))
+        return results
 
-    def _select_indices(self, responses: Sequence[str]) -> List[bool]:
+    def _select_indices(
+        self, responses: Sequence[str], reward_signals: Sequence[float] | None
+    ) -> List[bool]:
         if not responses:
             return []
         strategy = self.trace_strategy
         frequency = self.trace_frequency
         flags = [False] * len(responses)
 
-        if strategy == "all" or frequency >= 1.0:
+        if strategy == "all":
             return [True] * len(responses)
 
-        if strategy == "extremes":
-            longest = max(range(len(responses)), key=lambda i: len(responses[i]))
-            shortest = min(range(len(responses)), key=lambda i: len(responses[i]))
-            flags[longest] = True
-            flags[shortest] = True
+        if strategy == "single":
+            flags[0] = True
+        elif strategy == "extremes":
+            if reward_signals and len(reward_signals) == len(responses):
+                highest = max(range(len(responses)), key=lambda i: reward_signals[i])
+                lowest = min(range(len(responses)), key=lambda i: reward_signals[i])
+            else:
+                highest = max(range(len(responses)), key=lambda i: len(responses[i]))
+                lowest = min(range(len(responses)), key=lambda i: len(responses[i]))
+            flags[highest] = True
+            flags[lowest] = True
         elif strategy == "mixed":
             if responses:
                 flags[0] = True
                 flags[-1] = True
 
-        for idx in range(len(responses)):
-            if flags[idx]:
-                continue
-            if self.random.random() < frequency:
-                flags[idx] = True
+        if strategy != "single":
+            for idx in range(len(responses)):
+                if flags[idx]:
+                    continue
+                if frequency >= 1.0 or self.random.random() < frequency:
+                    flags[idx] = True
 
         if strategy == "sample" and not any(flags):
             chosen = self.random.randrange(len(responses))
@@ -96,7 +112,7 @@ class CircuitTracerAdapter:
 
         return flags
 
-    def _trace_single(self, prompt: str, response: str, idx: int) -> TraceAnalysis:
+    def _trace_single(self, prompt: str, response: str, idx: int) -> TraceResult:
         with self.logger.trace(prompt=prompt, response_index=idx) as trace:
             sections = self._split_sections(response)
             for stage, text in sections.items():
@@ -105,24 +121,22 @@ class CircuitTracerAdapter:
         summary = trace.summary() if trace else {}
         abstention = assess_abstention_quality(summary, sections.values())
         confidence_hint = self._confidence_from_sections(sections.values())
-        return TraceAnalysis(
+        return TraceResult(
             summary=summary,
-            trace=trace,
+            assessment=abstention,
             confidence_hint=confidence_hint,
-            abstention=abstention,
             traced=True,
         )
 
-    def _heuristic_only(self, response: str) -> TraceAnalysis:
+    def _heuristic_only(self, response: str) -> TraceResult:
         sections = self._split_sections(response)
         summary = {stage: text for stage, text in sections.items() if text}
         abstention = assess_abstention_quality(summary, sections.values())
         confidence_hint = self._confidence_from_sections(sections.values())
-        return TraceAnalysis(
+        return TraceResult(
             summary=summary,
-            trace=None,
+            assessment=abstention,
             confidence_hint=confidence_hint,
-            abstention=abstention,
             traced=False,
         )
 
@@ -134,8 +148,8 @@ class CircuitTracerAdapter:
             "[COMPARISON]": "comparison",
             "[RECOMMENDATION]": "recommendation",
         }
-        lower = response
         sections: dict[str, str] = {value: "" for value in markers.values()}
+        lower = response
         for marker, key in markers.items():
             start = lower.find(marker)
             if start == -1:
@@ -162,9 +176,4 @@ class CircuitTracerAdapter:
         return 0.6
 
 
-__all__ = [
-    "CircuitTracerAdapter",
-    "TraceAnalysis",
-    "AbstentionAssessment",
-    "AbstentionQuality",
-]
+__all__ = ["CircuitTracerAdapter", "TraceResult", "AbstentionAssessment", "AbstentionQuality"]
