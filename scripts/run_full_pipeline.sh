@@ -12,7 +12,8 @@ pushd "$CPU_EXAMPLE_DIR" >/dev/null
 python run_cpu_demo.py --trainer grpo
 popd >/dev/null
 
-python -m gepa_mindfulness.training.cli train \
-  --trainer grpo \
-  --config "$CONFIG_DIR/grpo/grpo_default.yaml" \
+python -m gepa_mindfulness.training.train \
+  --mode grpo \
+  --config "$CONFIG_DIR/default.yaml" \
+  --dataset "$CPU_EXAMPLE_DIR/prompts.txt" \
   --output "$PROJECT_ROOT/runs/grpo_demo"

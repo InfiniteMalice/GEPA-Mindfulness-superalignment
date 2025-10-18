@@ -1,122 +1,234 @@
-"""Group Relative Policy Optimisation trainer implemented with pure Python math."""
+"""Implementation of Group Relative Policy Optimisation for GEPA."""
 
 from __future__ import annotations
 
-import math
-import random
-from typing import List, Sequence
+import logging
+from dataclasses import dataclass, field
+from typing import Iterator, List, Sequence
 
-from .base_trainer import BaseTrainer, GeneratedResponse
-from .config import GRPOConfig
-from .dataloader import DatasetExample
+import torch
+from torch.nn.utils import clip_grad_norm_
+
+from ..core.circuit_tracer_adapter import CircuitTracerAdapter
+from ..core.rewards import RewardWeights
+from ..core.tracing import CircuitTracerLogger
+from .configs import GRPOConfig
+from .grpo_reward_calculator import GRPORewardCalculator
+from .grpo_types import GRPOGroupSample
+
+LOGGER = logging.getLogger(__name__)
 
 
-def _sigmoid(value: float) -> float:
-    return 1.0 / (1.0 + math.exp(-value))
+@dataclass
+class GRPOBatchStats:
+    prompt: str
+    mean_reward: float
+    advantages: List[float]
+    categories: List[str]
+    confidences: List[float]
 
 
-class GRPOTrainer(BaseTrainer):
-    """Optimise Bernoulli policies using group-relative advantages."""
+@dataclass
+class GRPOTrainingSummary:
+    steps: int = 0
+    total_reward: float = 0.0
+    batches: List[GRPOBatchStats] = field(default_factory=list)
 
-    def __init__(self, config: GRPOConfig) -> None:
-        super().__init__(config)
-        self.config = config
-        self._logits: dict[str, float] = {}
-        self._reference_probs: dict[str, float] = {}
-        self._random = random.Random(0)
+    def record(self, stats: GRPOBatchStats) -> None:
+        self.steps += 1
+        self.total_reward += stats.mean_reward
+        self.batches.append(stats)
 
-    def train(self) -> None:
-        for step in range(self.config.max_steps):
-            batch = self.dataset.sample_batch(self.config.batch_size)
-            prompts = [example.prompt for example in batch]
-            references = [example.references for example in batch]
-            gepa_scores = [example.gepa_scores for example in batch]
-            imperatives = [example.imperatives for example in batch]
+    def mean_reward(self) -> float:
+        if not self.batches:
+            return 0.0
+        return self.total_reward / len(self.batches)
 
-            grouped_responses = [self._generate_group(example) for example in batch]
-            grouped_rewards, _ = self.compute_batch_rewards(
-                prompts,
-                grouped_responses,
-                references=references,
-                gepa_scores=gepa_scores,
-                imperatives=imperatives,
-            )
-            advantages = self._compute_advantages(grouped_rewards)
-            self._apply_policy_update(batch, grouped_responses, advantages)
-            self.global_step = step + 1
-            if (step + 1) % self.config.batch_size == 0:
-                self.save_checkpoint(step + 1)
-        self.save_summary()
 
-    def _generate_group(self, example: DatasetExample) -> List[GeneratedResponse]:
-        logit = self._logits.setdefault(example.prompt, 0.0)
-        ref_prob = self._reference_probs.setdefault(example.prompt, _sigmoid(logit))
-        correct_text = example.references[0] if example.references else "yes"
-        abstain_text = "I don't know"
-        responses: List[GeneratedResponse] = []
-        for idx in range(self.config.group_size):
-            prob = _sigmoid(logit)
-            if idx == 0:
-                action = 1.0
-            elif idx == 1:
-                action = 0.0
-            else:
-                action = 1.0 if self._random.random() < prob else 0.0
-            text = correct_text if action == 1.0 else abstain_text
-            log_prob = math.log(prob if action == 1.0 else max(1e-6, 1.0 - prob))
-            ref_log_prob = math.log(ref_prob if action == 1.0 else max(1e-6, 1.0 - ref_prob))
-            responses.append(
-                GeneratedResponse(
-                    text=text,
-                    log_probs=[log_prob],
-                    mask=[1],
-                    policy_log_prob=log_prob,
-                    reference_log_prob=ref_log_prob,
-                    metadata={"action": action, "probability": prob},
-                )
-            )
-        return responses
+class GRPOTrainer:
+    """Trainer performing GRPO updates with GEPA rewards."""
 
-    def _compute_advantages(
-        self, grouped_rewards: Sequence[Sequence[float]]
-    ) -> Sequence[Sequence[float]]:
-        advantages: List[List[float]] = []
-        for rewards in grouped_rewards:
-            if not rewards:
-                advantages.append([])
-                continue
-            mean_reward = sum(rewards) / len(rewards)
-            advantages.append([reward - mean_reward for reward in rewards])
-        return advantages
-
-    def _apply_policy_update(
+    def __init__(
         self,
-        batch: Sequence[DatasetExample],
-        responses: Sequence[Sequence[GeneratedResponse]],
-        advantages: Sequence[Sequence[float]],
+        model: torch.nn.Module,
+        ref_model: torch.nn.Module,
+        tokenizer,
+        config: GRPOConfig,
+        reward_weights: RewardWeights,
+        *,
+        device: torch.device,
     ) -> None:
-        for example, group, group_advantages in zip(batch, responses, advantages):
-            if not group or not group_advantages:
-                continue
-            if example.prompt not in self._logits:
-                self._logits[example.prompt] = 0.0
-            logit = self._logits[example.prompt]
-            ref_prob = self._reference_probs.setdefault(example.prompt, _sigmoid(logit))
-            prob = _sigmoid(logit)
-            grad_sum = 0.0
-            for generated, advantage in zip(group, group_advantages):
-                metadata = generated.metadata or {}
-                action = metadata.get("action", 0.0)
-                grad_sum += advantage * (action - prob)
-            kl_grad = 2 * (prob - ref_prob) * prob * (1.0 - prob)
-            logit += self.config.learning_rate * (grad_sum - self.config.kl_coef * kl_grad)
-            updated_prob = _sigmoid(logit)
-            for generated in group:
-                metadata = dict(generated.metadata or {})
-                metadata.setdefault("action", metadata.get("action", 0.0))
-                metadata["probability"] = updated_prob
-                generated.metadata = metadata
-            self._logits[example.prompt] = logit
+        self.model = model
+        self.ref_model = ref_model
+        self.tokenizer = tokenizer
+        self.config = config
+        self.reward_weights = reward_weights
+        self.device = device
+        self.model.to(device)
+        self.ref_model.to(device)
+        self.ref_model.eval()
+
+        if getattr(self.tokenizer, "pad_token_id", None) is None:
+            eos = getattr(self.tokenizer, "eos_token_id", None)
+            if eos is None:
+                raise ValueError("Tokenizer must define pad_token_id or eos_token_id")
+            self.tokenizer.pad_token_id = eos
+
+        self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=config.learning_rate)
+        self.logger = CircuitTracerLogger()
+        self.tracer_adapter = CircuitTracerAdapter(
+            self.logger,
+            trace_frequency=config.circuit_tracer.trace_frequency,
+            trace_strategy=config.circuit_tracer.trace_strategy,
+        )
+        self.reward_calculator = GRPORewardCalculator(reward_weights, config.hallucination)
+
+    def train_epoch(
+        self, prompts: Sequence[str], *, batch_size: int | None = None
+    ) -> GRPOTrainingSummary:
+        summary = GRPOTrainingSummary()
+        batch_size = batch_size or self.config.batch_size
+        iterator = self._batch_iterator(prompts, batch_size)
+
+        for batch_prompts in iterator:
+            batch_stats = self._train_batch(batch_prompts)
+            summary.record(batch_stats)
+        return summary
+
+    def _batch_iterator(self, prompts: Sequence[str], batch_size: int) -> Iterator[Sequence[str]]:
+        for start in range(0, len(prompts), batch_size):
+            yield prompts[start : start + batch_size]
+
+    def _train_batch(self, prompts: Sequence[str]) -> GRPOBatchStats:
+        total_reward = 0.0
+        total_advantages: list[float] = []
+        total_categories: list[str] = []
+        total_confidences: list[float] = []
+
+        accumulate = max(1, self.config.gradient_accumulation_steps)
+        self.optimizer.zero_grad()
+
+        for idx, prompt in enumerate(prompts):
+            group = self._collect_group(prompt)
+            computations = self.reward_calculator.score_group(group)
+            loss = self._compute_group_loss(group) / accumulate
+            loss.backward()
+
+            mean_reward = sum(comp.reward for comp in computations) / max(1, len(computations))
+            total_reward += mean_reward
+            total_advantages.extend(sample.advantage for sample in group.samples)
+            total_categories.extend(comp.category for comp in computations)
+            total_confidences.extend(comp.confidence for comp in computations)
+
+            if (idx + 1) % accumulate == 0 or idx == len(prompts) - 1:
+                clip_grad_norm_(self.model.parameters(), 1.0)
+                self.optimizer.step()
+                self.optimizer.zero_grad()
+
+        prompt_list = list(prompts)
+        description = GRPOBatchStats(
+            prompt=prompt_list[0] if prompt_list else "",
+            mean_reward=total_reward / max(1, len(prompts)),
+            advantages=total_advantages,
+            categories=total_categories,
+            confidences=total_confidences,
+        )
+        LOGGER.debug("GRPO batch mean reward %.3f", description.mean_reward)
+        return description
+
+    def _collect_group(self, prompt: str) -> GRPOGroupSample:
+        encoded = self.tokenizer(
+            prompt,
+            return_tensors="pt",
+            padding=False,
+            truncation=True,
+        ).to(self.device)
+        prompt_len = encoded["input_ids"].shape[1]
+
+        with torch.no_grad():
+            outputs = self.model.generate(
+                **encoded,
+                max_new_tokens=self.config.max_new_tokens,
+                do_sample=True,
+                temperature=self.config.sampling_temperature,
+                num_return_sequences=self.config.group_size,
+            )
+
+        responses = []
+        tokens_per_sample: list[torch.Tensor] = []
+        for sequence in outputs:
+            response_tokens = sequence[prompt_len:]
+            tokens_per_sample.append(sequence)
+            responses.append(self.tokenizer.decode(response_tokens, skip_special_tokens=True))
+
+        analyses = self.tracer_adapter.analyse_group(prompt, responses)
+
+        policy_log_probs = self._sequence_log_probs(
+            self.model, tokens_per_sample, prompt_len, requires_grad=True
+        )
+        with torch.no_grad():
+            ref_log_probs = self._sequence_log_probs(
+                self.ref_model, tokens_per_sample, prompt_len, requires_grad=False
+            )
+
+        group = GRPOGroupSample(prompt=prompt)
+        for idx, response in enumerate(responses):
+            sample = GRPOGroupSample.Sample(
+                response=response,
+                tokens=tokens_per_sample[idx].tolist(),
+                log_prob=policy_log_probs[idx],
+                ref_log_prob=ref_log_probs[idx],
+                trace=analyses[idx],
+            )
+            group.samples.append(sample)
+        return group
+
+    def _sequence_log_probs(
+        self,
+        model: torch.nn.Module,
+        sequences: Sequence[torch.Tensor],
+        prompt_len: int,
+        *,
+        requires_grad: bool,
+    ) -> List[torch.Tensor]:
+        stacked = torch.nn.utils.rnn.pad_sequence(
+            sequences, batch_first=True, padding_value=self.tokenizer.pad_token_id
+        ).to(self.device)
+        input_tokens = stacked[:, :-1]
+        target_tokens = stacked[:, 1:]
+        attention_mask = (input_tokens != self.tokenizer.pad_token_id).long()
+        outputs = model(
+            input_tokens,
+            attention_mask=attention_mask,
+            use_cache=False,
+        )
+        logits = outputs.logits
+        log_probs = torch.log_softmax(logits, dim=-1)
+        gathered = log_probs.gather(-1, target_tokens.unsqueeze(-1)).squeeze(-1)
+        seq_len = gathered.shape[1]
+        mask = torch.zeros_like(gathered)
+        mask[:, prompt_len - 1 : seq_len] = 1
+        masked = gathered * mask
+        log_prob_per_seq = masked.sum(dim=1)
+        if not requires_grad:
+            log_prob_per_seq = log_prob_per_seq.detach()
+        return list(log_prob_per_seq)
+
+    def _compute_group_loss(self, group: GRPOGroupSample) -> torch.Tensor:
+        losses: list[torch.Tensor] = []
+        for sample in group.samples:
+            advantage = torch.tensor(sample.advantage, device=self.device, dtype=torch.float32)
+            policy_log_prob = sample.log_prob
+            ref_log_prob = sample.ref_log_prob
+            kl = policy_log_prob - ref_log_prob
+            losses.append(-advantage.detach() * policy_log_prob + self.config.kl_coef * kl)
+        if not losses:
+            return torch.tensor(0.0, device=self.device)
+        return torch.stack(losses).mean()
 
 
-__all__ = ["GRPOTrainer"]
+__all__ = [
+    "GRPOTrainer",
+    "GRPOTrainingSummary",
+    "GRPOBatchStats",
+]
