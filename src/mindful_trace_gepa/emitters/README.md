@@ -6,6 +6,10 @@ instructions. Each run emits the standard GEPA checkpoints plus a `chain`
 label (`"honest"` or `"deceptive"`). The final public answer always mirrors the
 honest chain while the deceptive chain remains for offline detector analysis.
 
+The emitter depends on the DSPy-style pipeline (`pip install -e .[dspy]`). When
+the optional dependency is missing the CLI surfaces a helpful error rather than
+silently returning incomplete results.
+
 The emitter is used by `gepa paired run` to populate `runs/paired/` with:
 
 - `<ID>_honest_trace.jsonl`
