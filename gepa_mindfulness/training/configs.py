@@ -177,15 +177,18 @@ class CircuitTracerSamplingConfig:
         self.trace_strategy = str(self.trace_strategy)
 
     @classmethod
-    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "CircuitTracerSamplingConfig":
+    def from_payload(cls, payload: Mapping[str, Any] | None) -> "CircuitTracerSamplingConfig":
         payload = payload or {}
         return cls(
             trace_frequency=_to_float(payload.get("trace_frequency"), 1.0),
             trace_strategy=str(payload.get("trace_strategy", "all")),
         )
 
-    def dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+    from_mapping = from_payload
+    dict = to_dict
 
 
 @dataclass
@@ -321,6 +324,45 @@ class ModelConfig:
     def dict(self) -> dict[str, Any]:
         return asdict(self)
 
+    from_mapping = from_payload
+    dict = to_dict
+
+
+@dataclass
+class ModelConfig:
+    """Model configuration with backward-compatibility shims for legacy keys."""
+
+    policy_model: str = "demo-model"
+    reward_model: str | None = None
+    device: str = "cpu"
+    vllm_engine: str | None = None
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, Any] | None) -> "ModelConfig":
+        payload = payload or {}
+        reward_model = payload.get("reward_model")
+        if reward_model is not None:
+            reward_model = str(reward_model)
+        vllm_engine = payload.get("vllm_engine")
+        if vllm_engine is not None:
+            vllm_engine = str(vllm_engine)
+        policy_value = payload.get("policy_model")
+        if policy_value is None:
+            policy_value = payload.get("name")
+        policy_model = str(policy_value) if policy_value is not None else "demo-model"
+        return cls(
+            policy_model=policy_model,
+            reward_model=reward_model,
+            device=str(payload.get("device", "cpu")),
+            vllm_engine=vllm_engine,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    from_mapping = from_payload
+    dict = to_dict
+
 
 @dataclass
 class GRPOConfig:
@@ -336,7 +378,7 @@ class GRPOConfig:
     hallucination: HallucinationPenaltyConfig = field(default_factory=HallucinationPenaltyConfig)
 
     @classmethod
-    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "GRPOConfig":
+    def from_payload(cls, payload: Mapping[str, Any] | None) -> "GRPOConfig":
         payload = payload or {}
         circuit_payload = {
             "trace_frequency": payload.get("trace_frequency"),
@@ -360,11 +402,11 @@ class GRPOConfig:
             hallucination=hallucination,
         )
 
-    def dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
-        payload["circuit_tracer"] = self.circuit_tracer.dict()
-        payload["reward_weights"] = self.reward_weights.dict()
-        payload["hallucination"] = self.hallucination.dict()
+        payload["circuit_tracer"] = self.circuit_tracer.to_dict()
+        payload["reward_weights"] = self.reward_weights.to_dict()
+        payload["hallucination"] = self.hallucination.to_dict()
         return payload
 
 
@@ -386,7 +428,7 @@ class TrainingConfig:
     device: str = "cpu"
 
     @classmethod
-    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "TrainingConfig":
+    def from_payload(cls, payload: Mapping[str, Any] | None) -> "TrainingConfig":
         payload = payload or {}
 
         training_section = payload.get("training")
@@ -433,7 +475,7 @@ class TrainingConfig:
             output=OutputConfig.from_mapping(payload.get("output")),
         )
 
-    def dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["reward_weights"] = self.reward_weights.dict()
         payload["ppo"] = self.ppo.dict()
@@ -444,6 +486,9 @@ class TrainingConfig:
         payload["deception"] = self.deception.dict()
         payload["output"] = self.output.dict()
         return payload
+
+    from_mapping = from_payload
+    dict = to_dict
 
 
 def load_training_config(path: str | Path) -> TrainingConfig:
