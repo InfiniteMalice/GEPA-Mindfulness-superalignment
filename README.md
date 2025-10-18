@@ -52,10 +52,10 @@ more detail.
 ## Requirements
 
 * Python 3.10+
-* `torch`, `transformers`, and `trl` – required for PPO training and the CPU
-  demo.
 * `pyyaml` (installed automatically via `pip install -e .`)
 * Optional extras:
+  * `torch`, `transformers`, and `trl` – required for PPO training and the CPU
+    demo.
   * `requests` – required for the vLLM example.
   * `dspy-ai` – unlocks DSPy pipelines and compilation (`pip install -e .[dspy]`).
   * `weasyprint` – enables PDF export (`pip install -e .[pdf]`).
@@ -70,13 +70,8 @@ From the repository root (`pwd` should end with `GEPA-Mindfulness-superalignment
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-pip install torch transformers trl
 pip install -e .[dspy]  # install without the brackets if you do not need DSPy extras
 ```
-
-If you are targeting GPU acceleration, follow the [official PyTorch
-installation selector](https://pytorch.org/get-started/locally/) to pick the
-correct CUDA, ROCm, or CPU-only wheel before running the editable install.
 
 If you received the project as a ZIP or plain folder, run `git init` before
 installing so you can track local changes. The `.gitattributes` file normalises
