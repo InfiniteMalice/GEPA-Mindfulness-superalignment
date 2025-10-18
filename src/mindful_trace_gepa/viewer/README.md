@@ -18,5 +18,7 @@ Generate a viewer from the CLI:
 gepa view --trace runs/trace.jsonl --tokens runs/tokens.jsonl --out report_view.html
 ```
 
-For paired scenarios you can additionally provide `--deception` and `--paired`
+Produce the `tokens.jsonl` file via the DSPy pipeline (`gepa dspy run ...`) or
+paired-chain helpers so the viewer can render token confidence trends. For
+paired scenarios you can additionally provide `--deception` and `--paired`
 metadata files to surface detector output and honest/deceptive splits.
