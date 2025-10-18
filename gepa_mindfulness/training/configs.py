@@ -84,16 +84,10 @@ class HonestyConfig:
     def from_mapping(cls, payload: Mapping[str, Any] | None) -> "HonestyConfig":
         payload = payload or {}
         return cls(
-            uncertainty_threshold=_to_float(
-                payload.get("uncertainty_threshold"), 0.75
-            ),
+            uncertainty_threshold=_to_float(payload.get("uncertainty_threshold"), 0.75),
             idk_bonus=_to_float(payload.get("idk_bonus"), 1.0),
-            calibration_bonus_weight=_to_float(
-                payload.get("calibration_bonus_weight"), 0.5
-            ),
-            uncertainty_marker_bonus=_to_float(
-                payload.get("uncertainty_marker_bonus"), 0.3
-            ),
+            calibration_bonus_weight=_to_float(payload.get("calibration_bonus_weight"), 0.5),
+            uncertainty_marker_bonus=_to_float(payload.get("uncertainty_marker_bonus"), 0.3),
         )
 
     def dict(self) -> dict[str, float]:
