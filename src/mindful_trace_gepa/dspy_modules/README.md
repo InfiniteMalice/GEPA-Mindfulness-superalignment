@@ -26,5 +26,10 @@ gepa dspy compile --out dspy_artifacts/ --enable-optim
 python -m mindful_trace_gepa dspy run --input INPUT.jsonl --trace runs/trace.jsonl
 ```
 
-Both commands keep GEPA checkpoints intact and write token-level metadata so
-that the Trace Viewer can replay the run offline.
+Pass `--dual-path` to `gepa dspy run` when the `dspy-ai` extra is installed to
+exercise the dual-path reasoning variant, or use
+`gepa dspy contrastive-run --data DATASET.jsonl --out runs/contrastive/` for a
+lightweight baseline that emits prompts, mock responses, and heuristic
+deception summaries without model inference. Both commands keep GEPA checkpoints
+intact and write token-level metadata so that the Trace Viewer can replay the
+run offline.
