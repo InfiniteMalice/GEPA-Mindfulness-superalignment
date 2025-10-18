@@ -291,6 +291,45 @@ class PPOConfig:
     def dict(self) -> dict[str, Any]:
         return asdict(self)
 
+    from_mapping = from_payload
+    dict = to_dict
+
+
+@dataclass
+class ModelConfig:
+    """Model configuration with backward-compatibility shims for legacy keys."""
+
+    policy_model: str = "demo-model"
+    reward_model: str | None = None
+    device: str = "cpu"
+    vllm_engine: str | None = None
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, Any] | None) -> "ModelConfig":
+        payload = payload or {}
+        reward_model = payload.get("reward_model")
+        if reward_model is not None:
+            reward_model = str(reward_model)
+        vllm_engine = payload.get("vllm_engine")
+        if vllm_engine is not None:
+            vllm_engine = str(vllm_engine)
+        policy_value = payload.get("policy_model")
+        if policy_value is None:
+            policy_value = payload.get("name")
+        policy_model = str(policy_value) if policy_value is not None else "demo-model"
+        return cls(
+            policy_model=policy_model,
+            reward_model=reward_model,
+            device=str(payload.get("device", "cpu")),
+            vllm_engine=vllm_engine,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    from_mapping = from_payload
+    dict = to_dict
+
 
 @dataclass
 class ModelConfig:
