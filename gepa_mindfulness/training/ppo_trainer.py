@@ -49,9 +49,7 @@ class PPOTrainer(BaseTrainer):
                 self.save_checkpoint(step + 1)
         self.save_summary()
 
-    def _compute_advantages(
-        self, grouped_rewards: Sequence[Sequence[float]]
-    ) -> list[list[float]]:
+    def _compute_advantages(self, grouped_rewards: Sequence[Sequence[float]]) -> list[list[float]]:
         """Estimate advantages using a lightweight GAE-style accumulator."""
 
         advantages: list[list[float]] = []
