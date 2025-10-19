@@ -61,24 +61,13 @@ class GRPOTrainer(BaseTrainer):
     """Minimal trainer implementing the GRPO interface exercised by tests."""
 
     def __init__(self, *args, seed: int | None = None, **kwargs) -> None:
-        dataset_config: DatasetGRPOConfig | None = None
         if args and isinstance(args[0], DatasetGRPOConfig):
             if len(args) != 1:
                 raise TypeError(
                     "Dataset-driven GRPOTrainer expects a single GRPOConfig argument"
                 )
-            dataset_config = args[0]
-        elif isinstance(kwargs.get("config"), DatasetGRPOConfig):
-            if args:
-                raise TypeError(
-                    "Dataset-driven GRPOTrainer expects config as the sole argument"
-                )
-            dataset_config = kwargs.pop("config")
-
-        if dataset_config is not None:
-            if kwargs:
-                raise TypeError(f"Unexpected keyword arguments: {sorted(kwargs)}")
-            super().__init__(dataset_config)
+            config = args[0]
+            super().__init__(config)
             self.random = random.Random(seed or 0)
             self._logits: dict[str, float] = {}
             self.training_history: list[GRPOTrainingStats] = []
@@ -90,40 +79,15 @@ class GRPOTrainer(BaseTrainer):
                 "PyTorch is required for GRPOTrainer when initialised with models"
             )
 
-        positional = list(args)
-        policy_model = positional.pop(0) if positional else kwargs.pop("policy_model", None)
-        reference_model = (
-            positional.pop(0)
-            if positional
-            else kwargs.pop("reference_model", None)
-        )
-        tokenizer = positional.pop(0) if positional else kwargs.pop("tokenizer", None)
-        config = positional.pop(0) if positional else kwargs.pop("config", None)
-        reward_weights = (
-            positional.pop(0)
-            if positional
-            else kwargs.pop("reward_weights", None)
-        )
-
-        if positional:
-            raise TypeError(f"Unexpected positional arguments: {positional}")
-
-        missing = [
-            name
-            for name, value in {
-                "policy": policy_model,
-                "reference": reference_model,
-                "tokenizer": tokenizer,
-                "config": config,
-                "reward_weights": reward_weights,
-            }.items()
-            if value is None
-        ]
-        if missing:
+        if len(args) < 5:
             raise TypeError(
                 "Model-driven GRPOTrainer expects policy, reference, tokenizer, config, "
                 "and reward weights"
             )
+
+        policy_model, reference_model, tokenizer, config, reward_weights, *extra = args
+        if extra:
+            raise TypeError(f"Unexpected positional arguments: {extra}")
 
         device = kwargs.pop("device", None)
         if kwargs:
@@ -261,12 +225,7 @@ class GRPOTrainer(BaseTrainer):
     # ------------------------------------------------------------------
     # HF compatibility helpers
 
-    def train_epoch(
-        self,
-        prompts: Sequence[str],
-        *,
-        batch_size: int | None = None,
-    ) -> GRPOEpochSummary:
+    def train_epoch(self, prompts: Sequence[str], *, batch_size: int | None = None) -> GRPOEpochSummary:
         if not getattr(self, "_hf_mode", False):
             raise RuntimeError("train_epoch() is only available in HF compatibility mode")
 
