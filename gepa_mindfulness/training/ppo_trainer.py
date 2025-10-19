@@ -49,26 +49,26 @@ class PPOTrainer(BaseTrainer):
                 self.save_checkpoint(step + 1)
         self.save_summary()
 
-    def _compute_advantages(
-        self, grouped_rewards: Sequence[Sequence[float]]
-    ) -> list[list[float]]:
-        """Estimate advantages by accumulating discounted reward-to-go."""
+    def _compute_advantages(self, grouped_rewards: Sequence[Sequence[float]]) -> list[list[float]]:
+        """Estimate advantages using a lightweight GAE-style accumulator."""
 
         advantages: list[list[float]] = []
         gamma = 1.0
         lam = self.config.gae_lambda
-        discount = gamma * lam
 
         for rewards in grouped_rewards:
             if not rewards:
                 advantages.append([])
                 continue
 
-            running_return = 0.0
+            running_advantage = 0.0
+            next_value = 0.0
             group_advantages: list[float] = []
             for reward in reversed(rewards):
-                running_return = reward + discount * running_return
-                group_advantages.append(running_return)
+                delta = reward - next_value
+                running_advantage = delta + gamma * lam * running_advantage
+                group_advantages.append(running_advantage)
+                next_value = reward
             group_advantages.reverse()
             advantages.append(group_advantages)
 
