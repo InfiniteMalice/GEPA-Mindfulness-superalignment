@@ -52,9 +52,7 @@ class GRPOEpochSum:
     def mean_reward(self) -> float:
         if not self.batches:
             return 0.0
-        return float(
-            sum(batch.mean_reward for batch in self.batches) / max(len(self.batches), 1)
-        )
+        return float(sum(batch.mean_reward for batch in self.batches) / max(len(self.batches), 1))
 
 
 class GRPOTrainer(BaseTrainer):
@@ -63,9 +61,7 @@ class GRPOTrainer(BaseTrainer):
     def __init__(self, *args, seed: int | None = None, **kwargs) -> None:
         if args and isinstance(args[0], DatasetGRPOConfig):
             if len(args) != 1:
-                raise TypeError(
-                    "Dataset-driven GRPOTrainer expects a single GRPOConfig argument"
-                )
+                raise TypeError("Dataset-driven GRPOTrainer expects a single GRPOConfig argument")
             config = args[0]
             super().__init__(config)
             self.random = random.Random(seed or 0)
@@ -75,9 +71,7 @@ class GRPOTrainer(BaseTrainer):
             return
 
         if torch is None:  # pragma: no cover - exercised when torch missing
-            raise RuntimeError(
-                "PyTorch is required for GRPOTrainer when initialised with models"
-            )
+            raise RuntimeError("PyTorch is required for GRPOTrainer when initialised with models")
 
         if len(args) < 5:
             raise TypeError(
@@ -99,9 +93,7 @@ class GRPOTrainer(BaseTrainer):
             device = torch.device("cpu")
 
         if not isinstance(config, TransformersGRPOConfig):
-            raise TypeError(
-                "Expected Transformers GRPOConfig when initialising with models"
-            )
+            raise TypeError("Expected Transformers GRPOConfig when initialising with models")
 
         self.policy_model = policy_model.to(device) if hasattr(policy_model, "to") else policy_model
         self.reference_model = (
@@ -113,9 +105,7 @@ class GRPOTrainer(BaseTrainer):
         self.device = device
         self._hf_mode = True
         self._hf_steps = 0
-        self._reward_calculator = GRPORewardCalculator(
-            reward_weights, config.hallucination
-        )
+        self._reward_calculator = GRPORewardCalculator(reward_weights, config.hallucination)
         if hasattr(self.policy_model, "eval"):
             self.policy_model.eval()
         if hasattr(self.reference_model, "eval"):
