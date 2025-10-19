@@ -216,7 +216,8 @@ class GRPOConfig(BaseTrainerConfig):
         return cls(**base_kwargs)
 
 
-def load_trainer_config(path: Path) -> BaseTrainerConfig:
+def load_trainer_config(path: Path | str) -> BaseTrainerConfig:
+    path = Path(path)
     payload = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError("Configuration file must define a mapping")
