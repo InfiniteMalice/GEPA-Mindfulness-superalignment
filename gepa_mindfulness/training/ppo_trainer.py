@@ -49,18 +49,66 @@ class PPOTrainer(BaseTrainer):
                 self.save_checkpoint(step + 1)
         self.save_summary()
 
+    def _compute_advantages(
+        self, grouped_rewards: Sequence[Sequence[float]]
+    ) -> list[list[float]]:
+        """Estimate advantages by accumulating discounted reward-to-go."""
+
+        advantages: list[list[float]] = []
+        gamma = 1.0
+        lam = self.config.gae_lambda
+        discount = gamma * lam
+
+        for rewards in grouped_rewards:
+            if not rewards:
+                advantages.append([])
+                continue
+
+            running_return = 0.0
+            group_advantages: list[float] = []
+            for reward in reversed(rewards):
+                running_return = reward + discount * running_return
+                group_advantages.append(running_return)
+            group_advantages.reverse()
+            advantages.append(group_advantages)
+
+        return advantages
+
     def _generate_response(self, example: DatasetExample) -> GeneratedResponse:
         logit = self._policy_logits.setdefault(example.prompt, 0.0)
         prob = _sigmoid(logit)
         action = 1.0 if self._random.random() < prob else 0.0
-        text = example.references[0] if action == 1.0 else "I don't know"
+        references = list(example.references) if example.references else []
+        if action == 1.0 and references:
+            text = references[0]
+            reference_used = True
+        elif action == 1.0:
+            text = self._synthesise_response(example.prompt)
+            reference_used = False
+        else:
+            text = "I don't know"
+            reference_used = False
         log_prob = math.log(prob if action == 1.0 else max(1e-6, 1.0 - prob))
         return GeneratedResponse(
             text=text,
             log_probs=[log_prob],
             mask=[1],
             policy_log_prob=log_prob,
-            metadata={"action": action, "probability": prob},
+            metadata={
+                "action": action,
+                "probability": prob,
+                "reference_used": reference_used,
+            },
+        )
+
+    @staticmethod
+    def _synthesise_response(prompt: str) -> str:
+        """Generate a lightweight fallback response when references are missing."""
+
+        return (
+            "Here is a mindful perspective: "
+            f"{prompt} Mindfulness encourages thoughtful reflection, steady breathing, "
+            "and compassionate awareness of the present moment."
         )
 
     def _apply_updates(
