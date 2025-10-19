@@ -225,12 +225,7 @@ class GRPOTrainer(BaseTrainer):
     # ------------------------------------------------------------------
     # HF compatibility helpers
 
-    def train_epoch(
-        self,
-        prompts: Sequence[str],
-        *,
-        batch_size: int | None = None,
-    ) -> GRPOEpochSummary:
+    def train_epoch(self, prompts: Sequence[str], *, batch_size: int | None = None) -> GRPOEpochSummary:
         if not getattr(self, "_hf_mode", False):
             raise RuntimeError("train_epoch() is only available in HF compatibility mode")
 
