@@ -43,7 +43,7 @@ class GRPOBatchSummary:
 
 
 @dataclass
-class GRPOEpochSummary:
+class GRPOEpochSum:
     """Lightweight summary returned by ``train_epoch`` in HF compatibility mode."""
 
     steps: int
@@ -228,7 +228,7 @@ class GRPOTrainer(BaseTrainer):
     # ------------------------------------------------------------------
     # HF compatibility helpers
 
-    def train_epoch(self, prompts: Sequence[str], *, batch_size: int | None = None) -> GRPOEpochSummary:
+    def train_epoch(self, prompts: Sequence[str], *, batch_size: int | None = None) -> GRPOEpochSum:
         if not getattr(self, "_hf_mode", False):
             raise RuntimeError("train_epoch() is only available in HF compatibility mode")
 
@@ -308,7 +308,7 @@ class GRPOTrainer(BaseTrainer):
                 )
 
         self._hf_steps += steps
-        return GRPOEpochSummary(steps=steps, batches=batches)
+        return GRPOEpochSum(steps=steps, batches=batches)
 
 
-__all__ = ["GRPOTrainer", "GRPOTrainingStats", "GRPOBatchSummary", "GRPOEpochSummary"]
+__all__ = ["GRPOTrainer", "GRPOTrainingStats", "GRPOBatchSummary", "GRPOEpochSum"]
