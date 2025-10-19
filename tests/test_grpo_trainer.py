@@ -56,3 +56,10 @@ def test_policy_update_shifts_logit(tmp_path: Path) -> None:
     trainer._apply_policy_update([example], [group], advantages)
     after = trainer._logits.get(example.prompt, 0.0)
     assert after != before
+
+
+def test_keyword_initialisation(tmp_path: Path) -> None:
+    config = _config(tmp_path)
+    trainer = GRPOTrainer(config=config, seed=42)
+    assert trainer.config is config
+    assert not getattr(trainer, "_hf_mode", True)
