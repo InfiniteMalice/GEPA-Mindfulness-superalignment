@@ -5,7 +5,6 @@ from __future__ import annotations
 import math
 import random
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Iterable, List, Sequence
 
 try:  # pragma: no cover - torch is optional for lightweight tests
@@ -44,7 +43,7 @@ class GRPOBatchSummary:
 
 
 @dataclass
-class EpochSummary:
+class GRPOEpochSummary:
     """Lightweight summary returned by ``train_epoch`` in HF compatibility mode."""
 
     steps: int
@@ -58,34 +57,17 @@ class EpochSummary:
         )
 
 
-RewardsMatrix = Sequence[Sequence[float]]
-
-
-GRPOEpochSummary = EpochSummary
-
-
 class GRPOTrainer(BaseTrainer):
     """Minimal trainer implementing the GRPO interface exercised by tests."""
 
     def __init__(self, *args, seed: int | None = None, **kwargs) -> None:
-        dataset_config: DatasetGRPOConfig | None = None
         if args and isinstance(args[0], DatasetGRPOConfig):
             if len(args) != 1:
                 raise TypeError(
                     "Dataset-driven GRPOTrainer expects a single GRPOConfig argument"
                 )
-            dataset_config = args[0]
-        elif isinstance(kwargs.get("config"), DatasetGRPOConfig):
-            if args:
-                raise TypeError(
-                    "Dataset-driven GRPOTrainer expects config as the sole argument"
-                )
-            dataset_config = kwargs.pop("config")
-
-        if dataset_config is not None:
-            if kwargs:
-                raise TypeError(f"Unexpected keyword arguments: {sorted(kwargs)}")
-            super().__init__(dataset_config)
+            config = args[0]
+            super().__init__(config)
             self.random = random.Random(seed or 0)
             self._logits: dict[str, float] = {}
             self.training_history: list[GRPOTrainingStats] = []
@@ -97,43 +79,17 @@ class GRPOTrainer(BaseTrainer):
                 "PyTorch is required for GRPOTrainer when initialised with models"
             )
 
-        positional = list(args)
-        policy_model = positional.pop(0) if positional else kwargs.pop("policy_model", None)
-        reference_model = (
-            positional.pop(0)
-            if positional
-            else kwargs.pop("reference_model", None)
-        )
-        tokenizer = positional.pop(0) if positional else kwargs.pop("tokenizer", None)
-        config = positional.pop(0) if positional else kwargs.pop("config", None)
-        reward_weights = (
-            positional.pop(0)
-            if positional
-            else kwargs.pop("reward_weights", None)
-        )
-
-        if positional:
-            raise TypeError(f"Unexpected positional arguments: {positional}")
-
-        missing = [
-            name
-            for name, value in {
-                "policy": policy_model,
-                "reference": reference_model,
-                "tokenizer": tokenizer,
-                "config": config,
-                "reward_weights": reward_weights,
-            }.items()
-            if value is None
-        ]
-        if missing:
+        if len(args) < 5:
             raise TypeError(
                 "Model-driven GRPOTrainer expects policy, reference, tokenizer, config, "
                 "and reward weights"
             )
 
+        policy_model, reference_model, tokenizer, config, reward_weights, *extra = args
+        if extra:
+            raise TypeError(f"Unexpected positional arguments: {extra}")
+
         device = kwargs.pop("device", None)
-        output_dir = kwargs.pop("output_dir", None)
         if kwargs:
             raise TypeError(f"Unexpected keyword arguments: {sorted(kwargs)}")
 
@@ -147,15 +103,10 @@ class GRPOTrainer(BaseTrainer):
                 "Expected Transformers GRPOConfig when initialising with models"
             )
 
-        if hasattr(policy_model, "to"):
-            self.policy_model = policy_model.to(device)
-        else:
-            self.policy_model = policy_model
-
-        if hasattr(reference_model, "to"):
-            self.reference_model = reference_model.to(device)
-        else:
-            self.reference_model = reference_model
+        self.policy_model = policy_model.to(device) if hasattr(policy_model, "to") else policy_model
+        self.reference_model = (
+            reference_model.to(device) if hasattr(reference_model, "to") else reference_model
+        )
         self.tokenizer = tokenizer
         self.transformers_config = config
         self.reward_weights = reward_weights
@@ -169,23 +120,6 @@ class GRPOTrainer(BaseTrainer):
             self.policy_model.eval()
         if hasattr(self.reference_model, "eval"):
             self.reference_model.eval()
-
-        if output_dir is None:
-            output_dir = Path.cwd() / "runs" / "grpo_hf"
-        else:
-            output_dir = Path(output_dir)
-        output_dir = output_dir.expanduser().resolve()
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        self.config = config
-        self.dataset = None
-        self.output_dir = output_dir
-        self.metrics_path = self.output_dir / "metrics.jsonl"
-        self.summary_path = self.output_dir / "summary.json"
-        self.reward_calculator = self._reward_calculator
-        self.tracer_adapter = None
-        self.global_step = 0
-        self.logged_metrics = []
 
     def train(self) -> None:
         """Run a lightweight training loop over the dataset."""
@@ -231,7 +165,10 @@ class GRPOTrainer(BaseTrainer):
 
         self.save_summary()
 
-    def _compute_advantages(self, grouped_rewards: RewardsMatrix) -> list[list[float]]:
+    def _compute_advantages(
+        self,
+        grouped_rewards: Sequence[Sequence[float]],
+    ) -> list[list[float]]:
         advantages: list[list[float]] = []
         for rewards in grouped_rewards:
             if not rewards:
@@ -291,13 +228,7 @@ class GRPOTrainer(BaseTrainer):
     # ------------------------------------------------------------------
     # HF compatibility helpers
 
-    def train_epoch(
-        self,
-        prompts: Sequence[str],
-        *,
-        batch_size: int | None = None,
-    ) -> EpochSummary:
-        """Run one HF-style epoch and return the aggregated rollout summary."""
+    def train_epoch(self, prompts: Sequence[str], *, batch_size: int | None = None) -> GRPOEpochSummary:
         if not getattr(self, "_hf_mode", False):
             raise RuntimeError("train_epoch() is only available in HF compatibility mode")
 
@@ -377,13 +308,7 @@ class GRPOTrainer(BaseTrainer):
                 )
 
         self._hf_steps += steps
-        return EpochSummary(steps=steps, batches=batches)
+        return GRPOEpochSummary(steps=steps, batches=batches)
 
 
-__all__ = [
-    "GRPOTrainer",
-    "GRPOTrainingStats",
-    "GRPOBatchSummary",
-    "EpochSummary",
-    "GRPOEpochSummary",
-]
+__all__ = ["GRPOTrainer", "GRPOTrainingStats", "GRPOBatchSummary", "GRPOEpochSummary"]
