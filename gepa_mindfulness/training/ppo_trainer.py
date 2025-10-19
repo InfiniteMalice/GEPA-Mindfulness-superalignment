@@ -49,6 +49,31 @@ class PPOTrainer(BaseTrainer):
                 self.save_checkpoint(step + 1)
         self.save_summary()
 
+    def _compute_advantages(
+        self, grouped_rewards: Sequence[Sequence[float]]
+    ) -> list[list[float]]:
+        """Estimate advantages by accumulating discounted reward-to-go."""
+
+        advantages: list[list[float]] = []
+        gamma = 1.0
+        lam = self.config.gae_lambda
+        discount = gamma * lam
+
+        for rewards in grouped_rewards:
+            if not rewards:
+                advantages.append([])
+                continue
+
+            running_return = 0.0
+            group_advantages: list[float] = []
+            for reward in reversed(rewards):
+                running_return = reward + discount * running_return
+                group_advantages.append(running_return)
+            group_advantages.reverse()
+            advantages.append(group_advantages)
+
+        return advantages
+
     def _generate_response(self, example: DatasetExample) -> GeneratedResponse:
         logit = self._policy_logits.setdefault(example.prompt, 0.0)
         prob = _sigmoid(logit)
