@@ -165,7 +165,10 @@ class GRPOTrainer(BaseTrainer):
 
         self.save_summary()
 
-    def _compute_advantages(self, grouped_rewards: Sequence[Sequence[float]]) -> list[list[float]]:
+    def _compute_advantages(
+        self,
+        grouped_rewards: Sequence[Sequence[float]],
+    ) -> list[list[float]]:
         advantages: list[list[float]] = []
         for rewards in grouped_rewards:
             if not rewards:
