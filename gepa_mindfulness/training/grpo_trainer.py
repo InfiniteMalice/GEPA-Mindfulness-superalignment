@@ -66,10 +66,7 @@ class GRPOTrainer(BaseTrainer):
             config = args[0]
         elif isinstance(kwargs.get("config"), DatasetGRPOConfig):
             if args:
-                raise TypeError(
-                    "Dataset-driven GRPOTrainer cannot mix positional arguments with a "
-                    "keyword config"
-                )
+                raise TypeError("Dataset-driven GRPOTrainer should not mix positional and keyword config")
             config = kwargs.pop("config")
 
         if config is not None:
