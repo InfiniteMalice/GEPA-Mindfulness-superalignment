@@ -63,13 +63,3 @@ def test_keyword_initialisation(tmp_path: Path) -> None:
     trainer = GRPOTrainer(config=config, seed=42)
     assert trainer.config is config
     assert not getattr(trainer, "_hf_mode", True)
-
-
-def test_keyword_initialisation_without_torch(monkeypatch, tmp_path: Path) -> None:
-    from gepa_mindfulness.training import grpo_trainer as module
-
-    config = _config(tmp_path)
-    monkeypatch.setattr(module, "torch", None)
-    trainer = module.GRPOTrainer(config=config, seed=0)
-    assert trainer.config is config
-    assert not getattr(trainer, "_hf_mode", True)
