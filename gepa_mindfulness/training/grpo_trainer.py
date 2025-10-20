@@ -59,15 +59,27 @@ class GRPOTrainer(BaseTrainer):
     """Minimal trainer implementing the GRPO interface exercised by tests."""
 
     def __init__(self, *args, seed: int | None = None, **kwargs) -> None:
+        config: DatasetGRPOConfig | None = None
         if args and isinstance(args[0], DatasetGRPOConfig):
             if len(args) != 1:
                 raise TypeError("Dataset-driven GRPOTrainer expects a single GRPOConfig argument")
             config = args[0]
+        elif isinstance(kwargs.get("config"), DatasetGRPOConfig):
+            if args:
+                raise TypeError(
+                    "Dataset-driven GRPOTrainer forbids positional args when config is "
+                    "provided as a keyword"
+                )
+            config = kwargs.pop("config")
+
+        if config is not None:
             super().__init__(config)
             self.random = random.Random(seed or 0)
             self._logits: dict[str, float] = {}
             self.training_history: list[GRPOTrainingStats] = []
             self._hf_mode = False
+            if kwargs:
+                raise TypeError(f"Unexpected keyword arguments: {sorted(kwargs)}")
             return
 
         if torch is None:  # pragma: no cover - exercised when torch missing
