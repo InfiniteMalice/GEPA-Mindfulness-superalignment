@@ -69,17 +69,14 @@ class GRPOTrainer(BaseTrainer):
 
     def __init__(self, *args, seed: int | None = None, **kwargs) -> None:
         positional = list(args)
-        keyword_args = dict(kwargs)
 
-        def _looks_like_dataset_config(value: object | None) -> DatasetGRPOConfig | None:
+        def _coerce_dataset_config(value: object | None) -> DatasetGRPOConfig | None:
             if value is None:
                 return None
             if isinstance(value, TransformersGRPOConfig):
                 return None
             if isinstance(value, DatasetGRPOConfig):
                 return value
-            # Objects produced by the lightweight config loader expose the
-            # dataset attributes but none of the transformers knobs.
             required_attrs = ("dataset_path", "model_name")
             if not all(hasattr(value, attr) for attr in required_attrs):
                 return None
@@ -91,15 +88,16 @@ class GRPOTrainer(BaseTrainer):
 
         dataset_config: DatasetGRPOConfig | None = None
         if positional:
-            candidate = _looks_like_dataset_config(positional[0])
-            if candidate is not None:
-                dataset_config = candidate
-                positional.pop(0)
+            dataset_config = _coerce_dataset_config(positional[0])
+            if dataset_config is not None:
+                positional = positional[1:]
+
+        keyword_args = dict(kwargs)
         if dataset_config is None and "config" in keyword_args:
-            candidate = _looks_like_dataset_config(keyword_args.get("config"))
+            candidate = _coerce_dataset_config(keyword_args["config"])
             if candidate is not None:
                 dataset_config = candidate
-                keyword_args.pop("config", None)
+                keyword_args.pop("config")
 
         if dataset_config is not None:
             if positional:
