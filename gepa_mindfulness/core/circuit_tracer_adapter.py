@@ -23,6 +23,11 @@ class TraceResult:
     confidence_hint: float
     traced: bool
 
+    @property
+    def abstention(self) -> AbstentionAssessment | None:
+        """Alias kept for callers that expect the older attribute name."""
+        return self.assessment
+
 
 # Backwards compatibility: older modules import TraceAnalysis directly.
 TraceAnalysis = TraceResult
