@@ -235,6 +235,9 @@ def main() -> int:
                 temperature=0.7,
                 top_p=0.9,
                 pad_token_id=tokenizer.eos_token_id,
+                # Disable KV caching to avoid AttributeError with DynamicCache
+                # objects on older transformers builds.
+                use_cache=False,
             )
 
         response = tokenizer.decode(
