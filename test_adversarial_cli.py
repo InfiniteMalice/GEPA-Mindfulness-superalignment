@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Optional
 
 try:
-    from adversarial_evaluator import AdversarialEvaluator, evaluate_model
+    from adversarial_evaluator import AdversarialEvaluator, EvaluationReport, evaluate_model
 except ImportError:
     print("Error: adversarial_evaluator.py not found in current directory")
     sys.exit(1)
