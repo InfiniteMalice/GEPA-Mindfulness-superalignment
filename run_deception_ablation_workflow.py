@@ -222,11 +222,10 @@ class DeceptionAblationWorkflow:
 
         # Run analyze_deception_fingerprints.py
         analyze_script = self.scripts_dir / "analyze_deception_fingerprints.py"
-        print(f"Running analysis script at {analyze_script}...")
         result = subprocess.run(
             [
                 sys.executable,
-                str(analyze_script),
+                "scripts/analyze_deception_fingerprints.py",
                 "--fingerprints",
                 fingerprints_path,
                 "--out",
@@ -283,11 +282,10 @@ class DeceptionAblationWorkflow:
 
         # Run ablate_deception_circuits.py
         ablate_script = self.scripts_dir / "ablate_deception_circuits.py"
-        print(f"Running ablation script at {ablate_script}...")
         result = subprocess.run(
             [
                 sys.executable,
-                str(ablate_script),
+                "scripts/ablate_deception_circuits.py",
                 "--model",
                 self.model_path,
                 "--targets",
