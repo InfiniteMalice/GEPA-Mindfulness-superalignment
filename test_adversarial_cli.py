@@ -47,7 +47,6 @@ def get_scenarios_path(path: Optional[str] = None) -> str:
 
     return str(candidates[-1].resolve())
 
-
 try:
     from adversarial_evaluator import AdversarialEvaluator, evaluate_model
 except ImportError:
