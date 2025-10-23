@@ -23,7 +23,8 @@ except ImportError:
     sys.exit(1)
 
 
-def get_scenarios_path() -> str:
+@pytest.fixture
+def scenarios_path() -> str:
     """Return the path to the bundled adversarial scenarios file."""
 
     return str(Path(__file__).resolve().parent / "adversarial_scenarios.jsonl")
@@ -202,7 +203,7 @@ def test_with_mock_model(output_path: Optional[str] = None) -> None:
 
 @pytest.mark.skip(reason="Requires external model API credentials and dependencies.")
 def test_with_model_api(
-    scenarios_path: str = get_scenarios_path(),
+    scenarios_path: str,
     model_name: str = "gpt-4",
     api_key: Optional[str] = None,
     output_path: Optional[str] = None,
