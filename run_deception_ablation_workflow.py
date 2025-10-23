@@ -22,7 +22,7 @@ import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 try:
     from adversarial_circuit_tracer import AdversarialCircuitTracer
