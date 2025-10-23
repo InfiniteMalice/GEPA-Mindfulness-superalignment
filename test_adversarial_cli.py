@@ -9,10 +9,16 @@ Usage:
 """
 
 import argparse
+import importlib.util
 import json
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
+
+if importlib.util.find_spec("pytest") is not None:
+    import pytest
+else:  # pragma: no cover
+    pytest = None  # type: ignore[assignment]
 
 import pytest
 
@@ -334,9 +340,11 @@ Examples:
 
     args = parser.parse_args()
 
+    resolved_scenarios = get_scenarios_path(args.scenarios)
+
     # Check scenarios file exists
-    if not args.compare and not Path(args.scenarios).exists():
-        print(f"Error: Scenarios file not found: {args.scenarios}")
+    if not args.compare and not Path(resolved_scenarios).exists():
+        print(f"Error: Scenarios file not found: {resolved_scenarios}")
         sys.exit(1)
 
     # Execute requested action
@@ -344,16 +352,16 @@ Examples:
         compare_reports(args.compare[0], args.compare[1])
 
     elif args.list:
-        list_scenarios(args.scenarios)
+        list_scenarios(resolved_scenarios)
 
     elif args.interactive:
-        interactive_test(args.scenarios)
+        interactive_test(resolved_scenarios)
 
     elif args.mock:
-        test_with_mock_model(args.scenarios, args.output)
+        test_with_mock_model(resolved_scenarios, args.output)
 
     elif args.model:
-        test_with_model_api(args.scenarios, args.model, args.api_key, args.output)
+        test_with_model_api(resolved_scenarios, args.model, args.api_key, args.output)
 
     else:
         parser.print_help()
