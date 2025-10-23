@@ -7,7 +7,7 @@ import argparse
 import json
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, Iterable, List
 
 import numpy as np
 
@@ -15,6 +15,31 @@ import numpy as np
 def load_fingerprints(path: Path) -> List[Dict[str, Any]]:
     with open(path, "r", encoding="utf-8") as handle:
         return [json.loads(line) for line in handle if line.strip()]
+
+
+def resolve_fingerprint_path(path: Path) -> Path:
+    """Return an existing fingerprint file for ``path`` or raise ``FileNotFoundError``."""
+
+    if path.is_file():
+        return path
+
+    candidates: Iterable[Path]
+    if path.suffix == ".jsonl":
+        candidates = (path,)
+    else:
+        candidates = (
+            path / "fingerprints.jsonl",
+            path / "fingerprints" / "fingerprints.jsonl",
+        )
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    tried = ", ".join(str(candidate) for candidate in candidates)
+    message = "Fingerprint file not found. Tried: "
+    message += tried if tried else str(path)
+    raise FileNotFoundError(message)
 
 
 def main() -> None:
@@ -29,9 +54,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    fingerprint_path = Path(args.fingerprints)
-    if not fingerprint_path.exists():
-        raise FileNotFoundError(f"Fingerprint file not found: {fingerprint_path}")
+    fingerprint_path = resolve_fingerprint_path(Path(args.fingerprints))
 
     fingerprints = [
         fp for fp in load_fingerprints(fingerprint_path) if fp.get("deception_detected")
