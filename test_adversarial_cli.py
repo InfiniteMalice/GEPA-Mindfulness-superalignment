@@ -8,6 +8,8 @@ Usage:
     python test_adversarial_cli.py --compare baseline.json trained.json
 """
 
+from __future__ import annotations
+
 import argparse
 import importlib.util
 import json
@@ -226,6 +228,8 @@ def test_with_model_api(
     Note: This is a placeholder. Actual implementation would depend on
     which API you're using.
     """
+    resolved_path = get_scenarios_path(scenarios_path)
+
     print(f"Testing with model: {model_name}")
     print()
 
@@ -248,7 +252,7 @@ def test_with_model_api(
 
         report = evaluate_model(
             model_callable,
-            scenarios_path=scenarios_path,
+            scenarios_path=resolved_path,
             model_name=model_name,
             output_path=output_path,
         )
