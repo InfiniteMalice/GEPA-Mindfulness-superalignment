@@ -225,7 +225,7 @@ class DeceptionAblationWorkflow:
         result = subprocess.run(
             [
                 sys.executable,
-                str(analyze_script),
+                "scripts/analyze_deception_fingerprints.py",
                 "--fingerprints",
                 fingerprints_path,
                 "--out",
@@ -285,7 +285,7 @@ class DeceptionAblationWorkflow:
         result = subprocess.run(
             [
                 sys.executable,
-                str(ablate_script),
+                "scripts/ablate_deception_circuits.py",
                 "--model",
                 self.model_path,
                 "--targets",
