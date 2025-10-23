@@ -20,6 +20,8 @@ if importlib.util.find_spec("pytest") is not None:
 else:  # pragma: no cover
     pytest = None  # type: ignore[assignment]
 
+import pytest
+
 try:
     from adversarial_evaluator import AdversarialEvaluator, evaluate_model
 except ImportError:
@@ -27,15 +29,11 @@ except ImportError:
     sys.exit(1)
 
 
-DEFAULT_SCENARIOS_PATH = Path(__file__).resolve().parent / "adversarial_scenarios.jsonl"
+@pytest.fixture
+def scenarios_path() -> str:
+    """Return the path to the bundled adversarial scenarios file."""
 
-
-def get_scenarios_path(scenarios_path: Optional[str] = None) -> str:
-    """Return the path to the adversarial scenarios file."""
-
-    if scenarios_path:
-        return str(Path(scenarios_path))
-    return str(DEFAULT_SCENARIOS_PATH)
+    return str(Path(__file__).resolve().parent / "adversarial_scenarios.jsonl")
 
 
 def simple_mock_model(prompt: str) -> str:
@@ -188,10 +186,7 @@ def compare_reports(report_path_1: str, report_path_2: str) -> None:
         print("⚠ No significant change between models")
 
 
-def test_with_mock_model(
-    scenarios_path: Optional[str] = None,
-    output_path: Optional[str] = None,
-) -> None:
+def test_with_mock_model(output_path: Optional[str] = None) -> None:
     """
     Test the evaluator with a mock model (for system verification).
     """
@@ -201,7 +196,7 @@ def test_with_mock_model(
     resolved_path = get_scenarios_path(scenarios_path)
     report = evaluate_model(
         simple_mock_model,
-        scenarios_path=resolved_path,
+        scenarios_path=get_scenarios_path(),
         model_name="mock_honest_model",
         output_path=output_path,
     )
@@ -213,18 +208,9 @@ def test_with_mock_model(
         print(f"Report saved to: {output_path}")
 
 
-if pytest is not None:
-    skip_external_model = pytest.mark.skip(
-        reason="Requires external model API credentials and dependencies."
-    )
-else:
-    def skip_external_model(func: Callable) -> Callable:
-        return func
-
-
-@skip_external_model
+@pytest.mark.skip(reason="Requires external model API credentials and dependencies.")
 def test_with_model_api(
-    scenarios_path: str = get_scenarios_path(),
+    scenarios_path: str,
     model_name: str = "gpt-4",
     api_key: Optional[str] = None,
     output_path: Optional[str] = None,
