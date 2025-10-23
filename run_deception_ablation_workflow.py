@@ -62,10 +62,6 @@ class DeceptionAblationWorkflow:
         self.ablation_strength = ablation_strength
         self.circuit_threshold = circuit_threshold
 
-        # Get repo root (this script is in repo root)
-        self.repo_root = Path(__file__).parent.resolve()
-        self.scripts_dir = self.repo_root / "scripts"
-
         # Create output structure
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.traces_dir = self.output_dir / "traces"
@@ -239,12 +235,11 @@ class DeceptionAblationWorkflow:
 
         print(f"\nAnalyzing fingerprints with threshold={self.circuit_threshold}...")
 
-        # Run analyze_deception_fingerprints.py (use absolute path)
-        analyze_script = self.scripts_dir / "analyze_deception_fingerprints.py"
+        # Run analyze_deception_fingerprints.py
         result = subprocess.run(
             [
                 sys.executable,
-                str(analyze_script),
+                "scripts/analyze_deception_fingerprints.py",
                 "--fingerprints", fingerprints_path,
                 "--out", str(targets_path),
                 "--threshold", str(self.circuit_threshold)
@@ -299,12 +294,11 @@ class DeceptionAblationWorkflow:
 
         print(f"\nAblating circuits with strength={self.ablation_strength}...")
 
-        # Run ablate_deception_circuits.py (use absolute path)
-        ablate_script = self.scripts_dir / "ablate_deception_circuits.py"
+        # Run ablate_deception_circuits.py
         result = subprocess.run(
             [
                 sys.executable,
-                str(ablate_script),
+                "scripts/ablate_deception_circuits.py",
                 "--model", self.model_path,
                 "--targets", targets_path,
                 "--strength", str(self.ablation_strength),

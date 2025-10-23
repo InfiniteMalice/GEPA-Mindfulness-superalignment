@@ -196,31 +196,6 @@ Train with GEPA (positive alignment) + Ablate deception circuits (hard guarantee
 - ✅ CLI tools for testing
 - ✅ Production-ready code
 
-## Bug Fixes & Improvements
-
-### Fixed: Hard-coded Script Paths (commit `b696fae`)
-**Problem**: `run_deception_ablation_workflow.py` used hard-coded relative paths (`scripts/analyze_deception_fingerprints.py`) which failed when invoked from any directory other than the repo root, causing the entire ablation pipeline to halt with "No such file or directory" errors.
-
-**Solution**: Changed to absolute paths based on `__file__`:
-```python
-# In __init__:
-self.repo_root = Path(__file__).parent.resolve()
-self.scripts_dir = self.repo_root / "scripts"
-
-# When calling scripts:
-analyze_script = self.scripts_dir / "analyze_deception_fingerprints.py"
-subprocess.run([sys.executable, str(analyze_script), ...])
-```
-
-**Result**: Workflow now runnable from any directory, making it more robust and user-friendly.
-
-### All Linting Errors Fixed (commit `42e5587`)
-- Fixed 26 ruff linting errors (E501, F401, F541, I001)
-- Split long lines for readability
-- Removed unused imports
-- Fixed f-strings without placeholders
-- Organized import blocks
-
 ## Testing
 
 Verified functionality:
@@ -231,10 +206,6 @@ Verified functionality:
 ✓ Mock honest model: 100% disclosure, 0 red flags
 ✓ Circuit tracer integrates with existing infrastructure
 ✓ Fingerprint format compatible with ablation scripts
-✓ Workflow path resolution works from repo root
-✓ Workflow path resolution works from other directories (/tmp)
-✓ All script paths resolve correctly regardless of invocation location
-✓ All ruff linting checks pass
 ```
 
 ## Documentation
@@ -256,31 +227,6 @@ Verified functionality:
 3. Develop architecture-specific circuit hooks
 4. Benchmark ablation effectiveness across model families
 5. Integrate with existing GEPA training workflows
-
-## Commits Included
-
-This PR includes the following commits (after merge from main):
-
-1. **`b696fae`** - Fix hard-coded script paths to work from any directory
-   - Makes workflow runnable from arbitrary locations
-   - Uses `Path(__file__)` for robust path resolution
-
-2. **`44c2755`** - Add PR description for adversarial circuit ablation system
-   - Comprehensive PR documentation
-
-3. **`89f4997`** - Add deception circuit ablation system for surgical removal
-   - Complete elicit → trace → ablate workflow
-   - Circuit tracing integration
-   - End-to-end pipeline script
-
-4. **`42e5587`** - Fix ruff linting errors in adversarial evaluation system
-   - Fixed all 26 linting errors
-   - Improved code readability
-
-5. **`f04d13c`** - Add adversarial deception evaluation system for AI honesty testing
-   - 20 adversarial scenarios
-   - Behavioral analysis framework
-   - Complete documentation
 
 ## Related Work
 
