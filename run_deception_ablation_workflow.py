@@ -21,7 +21,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 try:
     from adversarial_circuit_tracer import AdversarialCircuitTracer
@@ -71,28 +71,6 @@ class DeceptionAblationWorkflow:
         self.reports_dir = self.output_dir / "reports"
         self.reports_dir.mkdir(exist_ok=True)
         self.scripts_dir = Path(__file__).resolve().parent / "scripts"
-
-    def _resolve_script(self, script_name: str) -> Path:
-        """Return the absolute path to a helper script in the scripts directory."""
-
-        script_path = (self.scripts_dir / script_name).resolve()
-        if not script_path.exists():
-            raise FileNotFoundError(f"Workflow helper script not found: {script_path}")
-        return script_path
-
-    def _run_script(
-        self,
-        script_name: str,
-        description: str,
-        args: tuple[str, ...],
-    ) -> subprocess.CompletedProcess[str]:
-        """Execute a workflow helper script located in the scripts directory."""
-
-        script_path = self._resolve_script(script_name)
-        cmd = [sys.executable, str(script_path), *args]
-        print(f"Running {description} at {script_path}...")
-        print(f"Command: {cmd}")
-        return subprocess.run(cmd, capture_output=True, text=True)
 
     def load_model(self) -> Any:
         """Load the model to be tested and ablated."""
@@ -243,17 +221,20 @@ class DeceptionAblationWorkflow:
         print(f"\nAnalyzing fingerprints with threshold={self.circuit_threshold}...")
 
         # Run analyze_deception_fingerprints.py
-        result = self._run_script(
-            "analyze_deception_fingerprints.py",
-            "analysis script",
-            (
+        analyze_script = self.scripts_dir / "analyze_deception_fingerprints.py"
+        result = subprocess.run(
+            [
+                sys.executable,
+                "scripts/analyze_deception_fingerprints.py",
                 "--fingerprints",
                 fingerprints_path,
                 "--out",
                 str(targets_path),
                 "--threshold",
                 str(self.circuit_threshold),
-            ),
+            ],
+            capture_output=True,
+            text=True,
         )
 
         if result.returncode != 0:
@@ -300,10 +281,11 @@ class DeceptionAblationWorkflow:
         print(f"\nAblating circuits with strength={self.ablation_strength}...")
 
         # Run ablate_deception_circuits.py
-        result = self._run_script(
-            "ablate_deception_circuits.py",
-            "ablation script",
-            (
+        ablate_script = self.scripts_dir / "ablate_deception_circuits.py"
+        result = subprocess.run(
+            [
+                sys.executable,
+                "scripts/ablate_deception_circuits.py",
                 "--model",
                 self.model_path,
                 "--targets",
@@ -312,7 +294,9 @@ class DeceptionAblationWorkflow:
                 str(self.ablation_strength),
                 "--out",
                 str(ablated_model_path),
-            ),
+            ],
+            capture_output=True,
+            text=True,
         )
 
         if result.returncode != 0:
