@@ -36,6 +36,10 @@ except ImportError:
     sys.exit(1)
 
 
+ModelCallable = Callable[[str], str]
+CircuitHook = Callable[[str, str], dict[str, float]]
+
+
 class DeceptionAblationWorkflow:
     """Complete workflow for identifying and ablating deception circuits."""
 
