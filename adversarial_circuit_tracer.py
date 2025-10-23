@@ -103,7 +103,7 @@ class AdversarialCircuitTracer:
         self,
         scenarios_path: str = "adversarial_scenarios.jsonl",
         enable_tracing: bool = True,
-        trace_output_dir: str = "traces/deception"
+        trace_output_dir: str = "traces/deception",
     ):
         """
         Initialize circuit tracer.
@@ -126,7 +126,7 @@ class AdversarialCircuitTracer:
         model_callable: Callable[[str], str],
         model_name: str = "unknown_model",
         scenario_ids: Optional[List[str]] = None,
-        circuit_hook: Optional[Callable[[str, str], Dict[str, float]]] = None
+        circuit_hook: Optional[Callable[[str, str], Dict[str, float]]] = None,
     ) -> DeceptionTrace:
         """
         Run adversarial evaluation WITH circuit tracing.
@@ -146,9 +146,7 @@ class AdversarialCircuitTracer:
         """
         # Get standard evaluation
         report = self.evaluator.evaluate_model(
-            model_callable,
-            model_name=model_name,
-            scenario_ids=scenario_ids
+            model_callable, model_name=model_name, scenario_ids=scenario_ids
         )
 
         # Build fingerprints with circuit data
@@ -158,7 +156,7 @@ class AdversarialCircuitTracer:
             # Determine if this was deceptive
             deception_detected = result.category in [
                 ResponseCategory.WITHHELD,
-                ResponseCategory.DEFLECTED
+                ResponseCategory.DEFLECTED,
             ]
 
             # If deception and we have circuit hook, capture activations
@@ -168,8 +166,7 @@ class AdversarialCircuitTracer:
             if deception_detected and circuit_hook:
                 # Get circuit activations for this deceptive response
                 scenario = next(
-                    s for s in self.evaluator.scenarios
-                    if s['id'] == result.scenario_id
+                    s for s in self.evaluator.scenarios if s["id"] == result.scenario_id
                 )
                 prompt = self.evaluator._construct_prompt(scenario)
 
@@ -189,12 +186,10 @@ class AdversarialCircuitTracer:
                 response_category=result.category.value,
                 deception_detected=deception_detected,
                 red_flags_count=len(result.red_flags),
-                high_severity_flags=sum(
-                    1 for f in result.red_flags if f.severity == "high"
-                ),
+                high_severity_flags=sum(1 for f in result.red_flags if f.severity == "high"),
                 circuit_activations=circuit_activations,
                 path_2_circuits=path_2_circuits,
-                model_name=model_name
+                model_name=model_name,
             )
 
             fingerprints.append(fingerprint)
@@ -209,15 +204,12 @@ class AdversarialCircuitTracer:
             fingerprints=fingerprints,
             evaluation_report=report,
             total_deceptive_responses=total_deceptive,
-            circuit_summary=circuit_summary
+            circuit_summary=circuit_summary,
         )
 
         return trace
 
-    def _analyze_circuit_patterns(
-        self,
-        fingerprints: List[CircuitFingerprint]
-    ) -> Dict[str, Any]:
+    def _analyze_circuit_patterns(self, fingerprints: List[CircuitFingerprint]) -> Dict[str, Any]:
         """
         Analyze circuit activation patterns across deceptive responses.
 
@@ -250,21 +242,17 @@ class AdversarialCircuitTracer:
                     "frequency": frequency,
                     "mean_activation": sum(activations) / len(activations),
                     "occurrences": len(activations),
-                    "priority": "HIGH" if frequency >= 0.7 else "MEDIUM"
+                    "priority": "HIGH" if frequency >= 0.7 else "MEDIUM",
                 }
 
         return {
             "deceptive_samples": len(deceptive_fps),
             "total_samples": len(fingerprints),
             "circuits_identified": len(consistent_circuits),
-            "consistent_circuits": consistent_circuits
+            "consistent_circuits": consistent_circuits,
         }
 
-    def save_fingerprints(
-        self,
-        trace: DeceptionTrace,
-        output_path: str
-    ) -> None:
+    def save_fingerprints(self, trace: DeceptionTrace, output_path: str) -> None:
         """
         Save fingerprints in format compatible with analyze_deception_fingerprints.py.
 
@@ -275,18 +263,14 @@ class AdversarialCircuitTracer:
         output_file = Path(output_path)
         output_file.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(output_file, 'w') as f:
+        with open(output_file, "w") as f:
             for fp in trace.fingerprints:
                 f.write(json.dumps(asdict(fp)) + "\n")
 
         print(f"✓ Saved {len(trace.fingerprints)} fingerprints to {output_path}")
         print(f"  ({trace.total_deceptive_responses} deceptive responses)")
 
-    def save_trace_report(
-        self,
-        trace: DeceptionTrace,
-        output_path: str
-    ) -> None:
+    def save_trace_report(self, trace: DeceptionTrace, output_path: str) -> None:
         """
         Save complete trace report with circuit analysis.
 
@@ -307,21 +291,20 @@ class AdversarialCircuitTracer:
             },
             "circuit_analysis": trace.circuit_summary,
             "deceptive_responses": trace.total_deceptive_responses,
-            "fingerprints_captured": len(trace.fingerprints)
+            "fingerprints_captured": len(trace.fingerprints),
         }
 
         output_file = Path(output_path)
         output_file.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(output_file, 'w') as f:
+        with open(output_file, "w") as f:
             json.dump(report_data, f, indent=2)
 
         print(f"✓ Saved trace report to {output_path}")
 
 
 def create_simple_circuit_hook(
-    model: Any,
-    layer_names: Optional[List[str]] = None
+    model: Any, layer_names: Optional[List[str]] = None
 ) -> Callable[[str, str], Dict[str, float]]:
     """
     Create a simple circuit hook that captures activations.
@@ -336,6 +319,7 @@ def create_simple_circuit_hook(
     Returns:
         Hook function that captures circuit activations
     """
+
     def hook(prompt: str, response: str) -> Dict[str, float]:
         """
         Capture circuit activations for a prompt-response pair.
@@ -367,7 +351,8 @@ if __name__ == "__main__":
     print("  5. Use ablation scripts to surgically remove those circuits")
     print()
     print("Usage:")
-    print("""
+    print(
+        """
     from adversarial_circuit_tracer import AdversarialCircuitTracer
 
     # Initialize with circuit tracing enabled
@@ -399,4 +384,5 @@ if __name__ == "__main__":
     #   --model my-model-v1 \\
     #   --targets traces/ablation_targets.json \\
     #   --out models/my-model-v1-ablated
-    """)
+    """
+    )
