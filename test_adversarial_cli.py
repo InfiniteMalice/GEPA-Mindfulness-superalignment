@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Optional
 
 try:
-    from adversarial_evaluator import AdversarialEvaluator, EvaluationReport, evaluate_model
+    from adversarial_evaluator import AdversarialEvaluator, evaluate_model
 except ImportError:
     print("Error: adversarial_evaluator.py not found in current directory")
     sys.exit(1)
@@ -58,7 +58,7 @@ def interactive_test(scenarios_path: str) -> None:
         print(f"{'─' * 80}\n")
 
         # Show scenario
-        print(scenario['scenario'])
+        print(scenario["scenario"])
         print()
         print(f"Query: {scenario['query']}")
         print()
@@ -103,10 +103,10 @@ def compare_reports(report_path_1: str, report_path_2: str) -> None:
     """
     Compare two evaluation reports (e.g., baseline vs trained).
     """
-    with open(report_path_1, 'r') as f:
+    with open(report_path_1, "r") as f:
         report1 = json.load(f)
 
-    with open(report_path_2, 'r') as f:
+    with open(report_path_2, "r") as f:
         report2 = json.load(f)
 
     print("=" * 80)
@@ -114,19 +114,19 @@ def compare_reports(report_path_1: str, report_path_2: str) -> None:
     print("=" * 80)
     print()
 
-    name1 = report1.get('model_name', Path(report_path_1).stem)
-    name2 = report2.get('model_name', Path(report_path_2).stem)
+    name1 = report1.get("model_name", Path(report_path_1).stem)
+    name2 = report2.get("model_name", Path(report_path_2).stem)
 
-    summary1 = report1.get('summary', {})
-    summary2 = report2.get('summary', {})
+    summary1 = report1.get("summary", {})
+    summary2 = report2.get("summary", {})
 
     print(f"Model 1: {name1}")
     print(f"Model 2: {name2}")
     print()
 
     # Disclosure rate
-    disc1 = summary1.get('disclosure_rate', 0)
-    disc2 = summary2.get('disclosure_rate', 0)
+    disc1 = summary1.get("disclosure_rate", 0)
+    disc2 = summary2.get("disclosure_rate", 0)
     diff_disc = disc2 - disc1
 
     print(f"{'Metric':<30} {'Model 1':>12} {'Model 2':>12} {'Change':>12}")
@@ -135,22 +135,22 @@ def compare_reports(report_path_1: str, report_path_2: str) -> None:
     print(f"{'Disclosure rate':<30} {disc1:>11.1f}% {disc2:>11.1f}% {diff_disc:+11.1f}%")
 
     # Withholding rate
-    with1 = summary1.get('withholding_rate', 0)
-    with2 = summary2.get('withholding_rate', 0)
+    with1 = summary1.get("withholding_rate", 0)
+    with2 = summary2.get("withholding_rate", 0)
     diff_with = with2 - with1
 
     print(f"{'Withholding rate':<30} {with1:>11.1f}% {with2:>11.1f}% {diff_with:+11.1f}%")
 
     # Red flags
-    flags1 = summary1.get('total_red_flags', 0)
-    flags2 = summary2.get('total_red_flags', 0)
+    flags1 = summary1.get("total_red_flags", 0)
+    flags2 = summary2.get("total_red_flags", 0)
     diff_flags = flags2 - flags1
 
     print(f"{'Total red flags':<30} {flags1:>12} {flags2:>12} {diff_flags:+12}")
 
     # High severity flags
-    high1 = summary1.get('high_severity_flags', 0)
-    high2 = summary2.get('high_severity_flags', 0)
+    high1 = summary1.get("high_severity_flags", 0)
+    high2 = summary2.get("high_severity_flags", 0)
     diff_high = high2 - high1
 
     print(f"{'High severity flags':<30} {high1:>12} {high2:>12} {diff_high:+12}")
@@ -182,7 +182,7 @@ def test_with_mock_model(scenarios_path: str, output_path: Optional[str] = None)
         simple_mock_model,
         scenarios_path=scenarios_path,
         model_name="mock_honest_model",
-        output_path=output_path
+        output_path=output_path,
     )
 
     print(report.summary)
@@ -196,7 +196,7 @@ def test_with_model_api(
     scenarios_path: str,
     model_name: str,
     api_key: Optional[str] = None,
-    output_path: Optional[str] = None
+    output_path: Optional[str] = None,
 ) -> None:
     """
     Test with actual model API (OpenAI, Anthropic, etc).
@@ -211,6 +211,7 @@ def test_with_model_api(
     # Example for OpenAI:
     try:
         import openai
+
         if api_key:
             openai.api_key = api_key
 
@@ -219,7 +220,7 @@ def test_with_model_api(
                 model=model_name,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
-                max_tokens=500
+                max_tokens=500,
             )
             return response.choices[0].message.content
 
@@ -227,7 +228,7 @@ def test_with_model_api(
             model_callable,
             scenarios_path=scenarios_path,
             model_name=model_name,
-            output_path=output_path
+            output_path=output_path,
         )
 
         print(report.summary)
@@ -256,7 +257,7 @@ def list_scenarios(scenarios_path: str) -> None:
 
     domains = {}
     for scenario in evaluator.scenarios:
-        domain = scenario['domain']
+        domain = scenario["domain"]
         if domain not in domains:
             domains[domain] = []
         domains[domain].append(scenario)
@@ -289,53 +290,35 @@ Examples:
 
   # Compare two reports
   python test_adversarial_cli.py --compare results/baseline.json results/trained.json
-        """
+        """,
     )
 
     parser.add_argument(
-        '--scenarios',
-        default='adversarial_scenarios.jsonl',
-        help='Path to scenarios JSONL file (default: adversarial_scenarios.jsonl)'
+        "--scenarios",
+        default="adversarial_scenarios.jsonl",
+        help="Path to scenarios JSONL file (default: adversarial_scenarios.jsonl)",
     )
 
     parser.add_argument(
-        '--interactive',
-        action='store_true',
-        help='Interactive mode: manually respond to scenarios'
+        "--interactive", action="store_true", help="Interactive mode: manually respond to scenarios"
     )
 
     parser.add_argument(
-        '--mock',
-        action='store_true',
-        help='Test with mock model (for verification)'
+        "--mock", action="store_true", help="Test with mock model (for verification)"
     )
 
     parser.add_argument(
-        '--model',
-        help='Model name/identifier for API testing (e.g., gpt-4, claude-2)'
+        "--model", help="Model name/identifier for API testing (e.g., gpt-4, claude-2)"
     )
 
-    parser.add_argument(
-        '--api-key',
-        help='API key for model service'
-    )
+    parser.add_argument("--api-key", help="API key for model service")
+
+    parser.add_argument("--output", help="Path to save evaluation report JSON")
+
+    parser.add_argument("--list", action="store_true", help="List all available scenarios")
 
     parser.add_argument(
-        '--output',
-        help='Path to save evaluation report JSON'
-    )
-
-    parser.add_argument(
-        '--list',
-        action='store_true',
-        help='List all available scenarios'
-    )
-
-    parser.add_argument(
-        '--compare',
-        nargs=2,
-        metavar=('REPORT1', 'REPORT2'),
-        help='Compare two evaluation reports'
+        "--compare", nargs=2, metavar=("REPORT1", "REPORT2"), help="Compare two evaluation reports"
     )
 
     args = parser.parse_args()
