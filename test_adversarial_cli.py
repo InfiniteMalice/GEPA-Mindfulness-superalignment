@@ -187,6 +187,7 @@ def test_with_mock_model(output_path: Optional[str] = None) -> None:
     print("Testing evaluator with mock model...")
     print()
 
+    resolved_path = get_scenarios_path(scenarios_path)
     report = evaluate_model(
         simple_mock_model,
         scenarios_path=get_scenarios_path(),
