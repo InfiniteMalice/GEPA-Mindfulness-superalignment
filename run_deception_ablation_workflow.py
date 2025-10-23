@@ -35,6 +35,14 @@ except ImportError:
     )
     sys.exit(1)
 
+SCRIPTS_DIR = Path(__file__).resolve().parent / "scripts"
+ANALYZE_SCRIPT_PATH = (SCRIPTS_DIR / "analyze_deception_fingerprints.py").resolve()
+ABLATE_SCRIPT_PATH = (SCRIPTS_DIR / "ablate_deception_circuits.py").resolve()
+
+
+ModelCallable = Callable[[str], str]
+CircuitHook = Callable[[str, str], dict[str, float]]
+
 
 ModelCallable = Callable[[str], str]
 CircuitHook = Callable[[str, str], dict[str, float]]
@@ -76,6 +84,21 @@ class DeceptionAblationWorkflow:
         self.reports_dir = self.output_dir / "reports"
         self.reports_dir.mkdir(exist_ok=True)
         self.scripts_dir = Path(__file__).resolve().parent / "scripts"
+
+    def _run_script(
+        self,
+        script_path: Path,
+        description: str,
+        args: tuple[str, ...],
+    ) -> subprocess.CompletedProcess[str]:
+        """Execute a workflow helper script located in the scripts directory."""
+
+        if not script_path.exists():
+            raise FileNotFoundError(f"Workflow helper script not found: {script_path}")
+        cmd = [sys.executable, str(script_path), *args]
+        print(f"Running {description} at {script_path}...")
+        print(f"Command: {cmd}")
+        return subprocess.run(cmd, capture_output=True, text=True)
 
     def load_model(self) -> Any:
         """Load the model to be tested and ablated."""
