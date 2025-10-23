@@ -51,7 +51,7 @@ def parse_args() -> argparse.Namespace:
         "--dataset",
         type=str,
         default="adversarial_scenarios.jsonl",
-        help="Training dataset path (relative paths resolved from the repo root)",
+        help="Training dataset path",
     )
     parser.add_argument(
         "--output",
