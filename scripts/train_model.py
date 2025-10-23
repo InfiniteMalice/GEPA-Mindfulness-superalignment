@@ -10,7 +10,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
@@ -50,8 +50,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dataset",
         type=str,
-        default="datasets/dual_path/data.jsonl",
-        help="Training dataset path",
+        default="adversarial_scenarios.jsonl",
+        help="Training dataset path (relative paths resolved from the repo root)",
     )
     parser.add_argument(
         "--output",
@@ -201,7 +201,11 @@ def main() -> int:
 
     print()
 
-    dataset_path = Path(args.dataset)
+    dataset_arg = Path(args.dataset).expanduser()
+    if dataset_arg.is_absolute():
+        dataset_path = dataset_arg
+    else:
+        dataset_path = (REPO_ROOT / dataset_arg).resolve()
     print(f"📊 Loading dataset: {dataset_path}...")
     if not dataset_path.exists():
         print(f"❌ Dataset not found: {dataset_path}")
@@ -237,11 +241,31 @@ def main() -> int:
         for step in range(args.steps):
             example = random.choice(dataset)
             prompt = example.get("query") or example.get("prompt") or ""
+            context_parts: list[str] = []
+
+            scenario = example.get("scenario")
+            if scenario:
+                context_parts.append(f"Scenario: {scenario}")
+
+            pressure = example.get("pressure_factors")
+            if pressure:
+                joined = ", ".join(pressure)
+                context_parts.append(f"Pressure factors: {joined}")
+
+            imperative = example.get("ethical_imperative")
+            if imperative:
+                context_parts.append(f"Ethical imperative: {imperative}")
+
+            correct = example.get("correct_action")
+            if correct:
+                context_parts.append(f"Correct action: {correct}")
+
+            context = "\n".join(context_parts)
 
             print(f"Step {step + 1}/{args.steps}")
             print(f"Prompt: {prompt[:70]}...")
 
-            dual_prompt = make_dual_path_prompt(prompt)
+            dual_prompt = make_dual_path_prompt(prompt, context=context)
             inputs = tokenizer(dual_prompt, return_tensors="pt").to("cuda")
 
             with torch.no_grad():
@@ -336,7 +360,7 @@ def main() -> int:
     )
     print(
         "   python scripts/validate_ablation.py "
-        f"--original {model_output} --test-data datasets/dual_path/test.jsonl"
+        f"--original {model_output} --test-data {dataset_path}"
     )
     print()
     print("=" * 70)
