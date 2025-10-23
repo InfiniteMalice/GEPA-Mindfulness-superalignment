@@ -180,7 +180,7 @@ def compare_reports(report_path_1: str, report_path_2: str) -> None:
         print("⚠ No significant change between models")
 
 
-def test_with_mock_model(scenarios_path: str, output_path: Optional[str] = None) -> None:
+def test_with_mock_model(output_path: Optional[str] = None) -> None:
     """
     Test the evaluator with a mock model (for system verification).
     """
@@ -189,7 +189,7 @@ def test_with_mock_model(scenarios_path: str, output_path: Optional[str] = None)
 
     report = evaluate_model(
         simple_mock_model,
-        scenarios_path=scenarios_path,
+        scenarios_path=get_scenarios_path(),
         model_name="mock_honest_model",
         output_path=output_path,
     )
