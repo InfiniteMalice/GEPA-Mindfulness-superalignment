@@ -249,20 +249,17 @@ class DeceptionAblationWorkflow:
         print(f"\nAnalyzing fingerprints with threshold={self.circuit_threshold}...")
 
         # Run analyze_deception_fingerprints.py
-        analyze_script = self.scripts_dir / "analyze_deception_fingerprints.py"
-        result = subprocess.run(
-            [
-                sys.executable,
-                "scripts/analyze_deception_fingerprints.py",
+        result = self._run_script(
+            ANALYZE_SCRIPT_PATH,
+            "deception fingerprint analysis",
+            (
                 "--fingerprints",
                 fingerprints_path,
                 "--out",
                 str(targets_path),
                 "--threshold",
                 str(self.circuit_threshold),
-            ],
-            capture_output=True,
-            text=True,
+            ),
         )
 
         if result.returncode != 0:
@@ -309,11 +306,10 @@ class DeceptionAblationWorkflow:
         print(f"\nAblating circuits with strength={self.ablation_strength}...")
 
         # Run ablate_deception_circuits.py
-        ablate_script = self.scripts_dir / "ablate_deception_circuits.py"
-        result = subprocess.run(
-            [
-                sys.executable,
-                "scripts/ablate_deception_circuits.py",
+        result = self._run_script(
+            ABLATE_SCRIPT_PATH,
+            "deception circuit ablation",
+            (
                 "--model",
                 self.model_path,
                 "--targets",
@@ -322,9 +318,7 @@ class DeceptionAblationWorkflow:
                 str(self.ablation_strength),
                 "--out",
                 str(ablated_model_path),
-            ],
-            capture_output=True,
-            text=True,
+            ),
         )
 
         if result.returncode != 0:
