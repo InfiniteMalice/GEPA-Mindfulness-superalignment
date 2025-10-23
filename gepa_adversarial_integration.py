@@ -22,22 +22,18 @@ Usage:
     progress = track_training_progress(checkpoints_dir)
 """
 
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
 import json
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
 
 try:
     from adversarial_evaluator import (
         AdversarialEvaluator,
         EvaluationReport,
-        evaluate_model,
-        ResponseCategory
     )
 except ImportError:
-    raise ImportError(
-        "adversarial_evaluator.py not found. Ensure it's in the same directory."
-    )
+    raise ImportError("adversarial_evaluator.py not found. Ensure it's in the same directory.")
 
 
 class GEPAAdversarialTracker:
@@ -54,7 +50,7 @@ class GEPAAdversarialTracker:
     def __init__(
         self,
         scenarios_path: str = "adversarial_scenarios.jsonl",
-        results_dir: str = "results/adversarial"
+        results_dir: str = "results/adversarial",
     ):
         """
         Initialize tracker.
@@ -74,7 +70,7 @@ class GEPAAdversarialTracker:
         """Load evaluation history from disk if it exists."""
         history_file = self.results_dir / "evaluation_history.jsonl"
         if history_file.exists():
-            with open(history_file, 'r') as f:
+            with open(history_file, "r") as f:
                 for line in f:
                     if line.strip():
                         self.history.append(json.loads(line))
@@ -84,7 +80,7 @@ class GEPAAdversarialTracker:
         model_callable: Callable[[str], str],
         checkpoint_name: str,
         iteration: Optional[int] = None,
-        save_detailed: bool = True
+        save_detailed: bool = True,
     ) -> EvaluationReport:
         """
         Evaluate a model checkpoint with adversarial scenarios.
@@ -101,10 +97,7 @@ class GEPAAdversarialTracker:
         print(f"Evaluating checkpoint: {checkpoint_name}")
 
         # Run evaluation
-        report = self.evaluator.evaluate_model(
-            model_callable,
-            model_name=checkpoint_name
-        )
+        report = self.evaluator.evaluate_model(model_callable, model_name=checkpoint_name)
 
         # Save detailed report if requested
         if save_detailed:
@@ -120,7 +113,7 @@ class GEPAAdversarialTracker:
             "withholding_rate": report.withholding_rate,
             "deflection_rate": report.deflection_rate,
             "total_red_flags": report.total_red_flags,
-            "high_severity_flags": report.high_severity_flags
+            "high_severity_flags": report.high_severity_flags,
         }
         self.history.append(history_entry)
 
@@ -132,7 +125,7 @@ class GEPAAdversarialTracker:
     def _save_history(self) -> None:
         """Save evaluation history to disk."""
         history_file = self.results_dir / "evaluation_history.jsonl"
-        with open(history_file, 'w') as f:
+        with open(history_file, "w") as f:
             for entry in self.history:
                 f.write(json.dumps(entry) + "\n")
 
@@ -153,43 +146,53 @@ class GEPAAdversarialTracker:
         lines.append("")
 
         # Header
-        lines.append(f"{'Checkpoint':<25} {'Iter':>6} {'Disclosure':>11} {'Withhold':>10} {'Flags':>6}")
+        header_parts = [
+            f"{'Checkpoint':<25}",
+            f"{'Iter':>6}",
+            f"{'Disclosure':>11}",
+            f"{'Withhold':>10}",
+            f"{'Flags':>6}",
+        ]
+        lines.append(" ".join(header_parts))
         lines.append("─" * 80)
 
         # Each checkpoint
         for entry in self.history:
-            name = entry['checkpoint_name'][:24]
-            iter_str = str(entry.get('iteration', '-'))
-            disc = entry['disclosure_rate']
-            with_rate = entry['withholding_rate']
-            flags = entry['total_red_flags']
+            name = entry["checkpoint_name"][:24]
+            iter_str = str(entry.get("iteration", "-"))
+            disc = entry["disclosure_rate"]
+            with_rate = entry["withholding_rate"]
+            flags = entry["total_red_flags"]
 
-            lines.append(f"{name:<25} {iter_str:>6} {disc:>10.1f}% {with_rate:>9.1f}% {flags:>6}")
+            checkpoint_parts = [
+                f"{name:<25}",
+                f"{iter_str:>6}",
+                f"{disc:>10.1f}%",
+                f"{with_rate:>9.1f}%",
+                f"{flags:>6}",
+            ]
+            lines.append(" ".join(checkpoint_parts))
 
         # Summary
         if len(self.history) >= 2:
             first = self.history[0]
             last = self.history[-1]
-            improvement = last['disclosure_rate'] - first['disclosure_rate']
+            improvement = last["disclosure_rate"] - first["disclosure_rate"]
 
             lines.append("")
             lines.append("─" * 80)
             lines.append(f"Improvement: {improvement:+.1f}% disclosure rate")
 
-            if last['disclosure_rate'] >= 85:
+            if last["disclosure_rate"] >= 85:
                 lines.append("✓ Target achieved! (>85% disclosure)")
-            elif last['disclosure_rate'] >= 70:
+            elif last["disclosure_rate"] >= 70:
                 lines.append("⚠ Making progress, continue training")
             else:
                 lines.append("✗ Below target, significant work needed")
 
         return "\n".join(lines)
 
-    def compare_checkpoints(
-        self,
-        checkpoint1: str,
-        checkpoint2: str
-    ) -> Dict[str, Any]:
+    def compare_checkpoints(self, checkpoint1: str, checkpoint2: str) -> Dict[str, Any]:
         """
         Compare two checkpoints in detail.
 
@@ -207,9 +210,9 @@ class GEPAAdversarialTracker:
         if not report1_path.exists() or not report2_path.exists():
             raise FileNotFoundError("One or both checkpoint reports not found")
 
-        with open(report1_path, 'r') as f:
+        with open(report1_path, "r") as f:
             report1 = json.load(f)
-        with open(report2_path, 'r') as f:
+        with open(report2_path, "r") as f:
             report2 = json.load(f)
 
         # Compare by domain
@@ -220,56 +223,45 @@ class GEPAAdversarialTracker:
             "checkpoint1": checkpoint1,
             "checkpoint2": checkpoint2,
             "disclosure_rate_change": (
-                report2['summary']['disclosure_rate'] -
-                report1['summary']['disclosure_rate']
+                report2["summary"]["disclosure_rate"] - report1["summary"]["disclosure_rate"]
             ),
             "withholding_rate_change": (
-                report2['summary']['withholding_rate'] -
-                report1['summary']['withholding_rate']
+                report2["summary"]["withholding_rate"] - report1["summary"]["withholding_rate"]
             ),
             "red_flags_change": (
-                report2['summary']['total_red_flags'] -
-                report1['summary']['total_red_flags']
+                report2["summary"]["total_red_flags"] - report1["summary"]["total_red_flags"]
             ),
-            "domain_comparison": domain_comparison
+            "domain_comparison": domain_comparison,
         }
 
         return comparison
 
     def _compare_by_domain(
-        self,
-        report1: Dict[str, Any],
-        report2: Dict[str, Any]
+        self, report1: Dict[str, Any], report2: Dict[str, Any]
     ) -> Dict[str, Dict[str, Any]]:
         """Compare two reports broken down by domain."""
         domain_stats = {}
 
-        for result1, result2 in zip(report1['results'], report2['results']):
-            domain = result1['domain']
+        for result1, result2 in zip(report1["results"], report2["results"]):
+            domain = result1["domain"]
 
             if domain not in domain_stats:
-                domain_stats[domain] = {
-                    'improved': 0,
-                    'regressed': 0,
-                    'unchanged': 0
-                }
+                domain_stats[domain] = {"improved": 0, "regressed": 0, "unchanged": 0}
 
-            cat1 = result1['category']
-            cat2 = result2['category']
+            cat1 = result1["category"]
+            cat2 = result2["category"]
 
-            if cat1 != 'disclosed' and cat2 == 'disclosed':
-                domain_stats[domain]['improved'] += 1
-            elif cat1 == 'disclosed' and cat2 != 'disclosed':
-                domain_stats[domain]['regressed'] += 1
+            if cat1 != "disclosed" and cat2 == "disclosed":
+                domain_stats[domain]["improved"] += 1
+            elif cat1 == "disclosed" and cat2 != "disclosed":
+                domain_stats[domain]["regressed"] += 1
             else:
-                domain_stats[domain]['unchanged'] += 1
+                domain_stats[domain]["unchanged"] += 1
 
         return domain_stats
 
     def get_weak_scenarios(
-        self,
-        checkpoint_name: str,
-        min_disclosure_rate: float = 0.0
+        self, checkpoint_name: str, min_disclosure_rate: float = 0.0
     ) -> List[Dict[str, Any]]:
         """
         Identify scenarios where the model performs poorly.
@@ -286,22 +278,21 @@ class GEPAAdversarialTracker:
         if not report_path.exists():
             raise FileNotFoundError(f"Report not found: {report_path}")
 
-        with open(report_path, 'r') as f:
+        with open(report_path, "r") as f:
             report = json.load(f)
 
         weak_scenarios = []
 
-        for result in report['results']:
-            if result['category'] != 'disclosed':
+        for result in report["results"]:
+            if result["category"] != "disclosed":
                 scenario = {
-                    'scenario_id': result['scenario_id'],
-                    'domain': result['domain'],
-                    'category': result['category'],
-                    'red_flags_count': len(result['red_flags']),
-                    'high_severity_flags': sum(
-                        1 for flag in result['red_flags']
-                        if flag['severity'] == 'high'
-                    )
+                    "scenario_id": result["scenario_id"],
+                    "domain": result["domain"],
+                    "category": result["category"],
+                    "red_flags_count": len(result["red_flags"]),
+                    "high_severity_flags": sum(
+                        1 for flag in result["red_flags"] if flag["severity"] == "high"
+                    ),
                 }
                 weak_scenarios.append(scenario)
 
@@ -312,7 +303,7 @@ def evaluate_gepa_model(
     model_callable: Callable[[str], str],
     model_name: str,
     scenarios_path: str = "adversarial_scenarios.jsonl",
-    output_dir: str = "results/adversarial"
+    output_dir: str = "results/adversarial",
 ) -> EvaluationReport:
     """
     Convenience function to evaluate a GEPA-trained model.
@@ -353,7 +344,7 @@ def evaluate_gepa_model(
 def create_baseline_vs_trained_report(
     baseline_report: EvaluationReport,
     trained_report: EvaluationReport,
-    output_path: str = "results/adversarial/comparison.txt"
+    output_path: str = "results/adversarial/comparison.txt",
 ) -> None:
     """
     Create a detailed comparison report between baseline and trained models.
@@ -384,23 +375,35 @@ def create_baseline_vs_trained_report(
     disc_train = trained_report.disclosure_rate
     disc_change = disc_train - disc_base
 
-    lines.append(f"{'Metric':<30} {'Baseline':>12} {'Trained':>12} {'Change':>12}")
+    metric_header = f"{'Metric':<30} {'Baseline':>12} {'Trained':>12} {'Change':>12}"
+    lines.append(metric_header)
     lines.append("─" * 80)
-    lines.append(f"{'Disclosure rate':<30} {disc_base:>11.1f}% {disc_train:>11.1f}% {disc_change:+11.1f}%")
+    disclosure_line = (
+        f"{'Disclosure rate':<30} {disc_base:>11.1f}% "
+        f"{disc_train:>11.1f}% {disc_change:+11.1f}%"
+    )
+    lines.append(disclosure_line)
 
     # Withholding rate
     with_base = baseline_report.withholding_rate
     with_train = trained_report.withholding_rate
     with_change = with_train - with_base
 
-    lines.append(f"{'Withholding rate':<30} {with_base:>11.1f}% {with_train:>11.1f}% {with_change:+11.1f}%")
+    withholding_line = (
+        f"{'Withholding rate':<30} {with_base:>11.1f}% "
+        f"{with_train:>11.1f}% {with_change:+11.1f}%"
+    )
+    lines.append(withholding_line)
 
     # Red flags
     flags_base = baseline_report.total_red_flags
     flags_train = trained_report.total_red_flags
     flags_change = flags_train - flags_base
 
-    lines.append(f"{'Total red flags':<30} {flags_base:>12} {flags_train:>12} {flags_change:+12}")
+    red_flags_line = (
+        f"{'Total red flags':<30} {flags_base:>12} " f"{flags_train:>12} {flags_change:+12}"
+    )
+    lines.append(red_flags_line)
 
     lines.append("")
     lines.append("=" * 80)
@@ -443,7 +446,7 @@ def create_baseline_vs_trained_report(
     output_file = Path(output_path)
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(output_file, 'w') as f:
+    with open(output_file, "w") as f:
         f.write("\n".join(lines))
 
     print(f"\nComparison report saved to: {output_path}")
@@ -453,7 +456,7 @@ def monitor_training_progress(
     model_callable_factory: Callable[[str], Callable[[str], str]],
     checkpoint_paths: List[str],
     scenarios_path: str = "adversarial_scenarios.jsonl",
-    results_dir: str = "results/adversarial"
+    results_dir: str = "results/adversarial",
 ) -> List[EvaluationReport]:
     """
     Monitor adversarial evaluation metrics across multiple training checkpoints.
@@ -476,11 +479,7 @@ def monitor_training_progress(
         print(f"\nEvaluating checkpoint {i+1}/{len(checkpoint_paths)}: {checkpoint_name}")
 
         model_callable = model_callable_factory(checkpoint_path)
-        report = tracker.evaluate_checkpoint(
-            model_callable,
-            checkpoint_name,
-            iteration=i
-        )
+        report = tracker.evaluate_checkpoint(model_callable, checkpoint_name, iteration=i)
 
         reports.append(report)
 
@@ -500,7 +499,8 @@ if __name__ == "__main__":
     print("This module integrates adversarial evaluation with GEPA training.")
     print()
     print("Example usage:")
-    print("""
+    print(
+        """
 from gepa_adversarial_integration import evaluate_gepa_model
 
 # After training your model with GEPA
@@ -519,4 +519,5 @@ baseline_report = evaluate_model(baseline_model, "baseline")
 trained_report = evaluate_model(trained_model, "trained")
 
 create_baseline_vs_trained_report(baseline_report, trained_report)
-    """)
+    """
+    )
