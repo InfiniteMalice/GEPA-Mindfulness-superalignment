@@ -50,7 +50,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dataset",
         type=str,
-        default="datasets/dual_path/data.jsonl",
+        default=str(REPO_ROOT / "adversarial_scenarios.jsonl"),
         help="Training dataset path",
     )
     parser.add_argument(
@@ -202,6 +202,8 @@ def main() -> int:
     print()
 
     dataset_path = Path(args.dataset)
+    if not dataset_path.is_absolute():
+        dataset_path = REPO_ROOT / dataset_path
     print(f"📊 Loading dataset: {dataset_path}...")
     if not dataset_path.exists():
         print(f"❌ Dataset not found: {dataset_path}")
@@ -237,11 +239,31 @@ def main() -> int:
         for step in range(args.steps):
             example = random.choice(dataset)
             prompt = example.get("query") or example.get("prompt") or ""
+            context_parts: list[str] = []
+
+            scenario = example.get("scenario")
+            if scenario:
+                context_parts.append(f"Scenario: {scenario}")
+
+            pressure = example.get("pressure_factors")
+            if pressure:
+                joined = ", ".join(pressure)
+                context_parts.append(f"Pressure factors: {joined}")
+
+            imperative = example.get("ethical_imperative")
+            if imperative:
+                context_parts.append(f"Ethical imperative: {imperative}")
+
+            correct = example.get("correct_action")
+            if correct:
+                context_parts.append(f"Correct action: {correct}")
+
+            context = "\n".join(context_parts)
 
             print(f"Step {step + 1}/{args.steps}")
             print(f"Prompt: {prompt[:70]}...")
 
-            dual_prompt = make_dual_path_prompt(prompt)
+            dual_prompt = make_dual_path_prompt(prompt, context=context)
             inputs = tokenizer(dual_prompt, return_tensors="pt").to("cuda")
 
             with torch.no_grad():
@@ -336,7 +358,7 @@ def main() -> int:
     )
     print(
         "   python scripts/validate_ablation.py "
-        f"--original {model_output} --test-data datasets/dual_path/test.jsonl"
+        f"--original {model_output} --test-data {dataset_path}"
     )
     print()
     print("=" * 70)
