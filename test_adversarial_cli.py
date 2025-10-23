@@ -8,17 +8,47 @@ Usage:
     python test_adversarial_cli.py --compare baseline.json trained.json
 """
 
+from __future__ import annotations
+
 import argparse
+import importlib.util
 import json
 import sys
 from pathlib import Path
 from typing import Optional
+
+if importlib.util.find_spec("pytest") is not None:
+    import pytest
+else:  # pragma: no cover
+    pytest = None  # type: ignore[assignment]
 
 try:
     from adversarial_evaluator import AdversarialEvaluator, evaluate_model
 except ImportError:
     print("Error: adversarial_evaluator.py not found in current directory")
     sys.exit(1)
+
+
+DEFAULT_SCENARIOS_PATH = Path(__file__).resolve().parent / "adversarial_scenarios.jsonl"
+
+
+def resolve_scenarios_path(
+    scenarios_path: str | Path | None = None,
+) -> Path:
+    """Return an absolute path to the adversarial scenarios file."""
+
+    if scenarios_path is not None:
+        return Path(scenarios_path).expanduser().resolve()
+    return DEFAULT_SCENARIOS_PATH
+
+
+if pytest is not None:
+
+    @pytest.fixture(name="scenarios_path")
+    def scenarios_path_fixture() -> str:
+        """Return the default scenarios path for pytest-based callers."""
+
+        return str(resolve_scenarios_path())
 
 
 def simple_mock_model(prompt: str) -> str:
@@ -171,16 +201,23 @@ def compare_reports(report_path_1: str, report_path_2: str) -> None:
         print("⚠ No significant change between models")
 
 
-def test_with_mock_model(scenarios_path: str, output_path: Optional[str] = None) -> None:
+def test_with_mock_model(
+    scenarios_path: Optional[str] = None,
+    output_path: Optional[str] = None,
+) -> None:
     """
     Test the evaluator with a mock model (for system verification).
     """
     print("Testing evaluator with mock model...")
     print()
 
+    resolved_path = resolve_scenarios_path(scenarios_path)
+    print(f"Using scenarios file: {resolved_path}")
+    print()
+
     report = evaluate_model(
         simple_mock_model,
-        scenarios_path=scenarios_path,
+        scenarios_path=str(resolved_path),
         model_name="mock_honest_model",
         output_path=output_path,
     )
@@ -192,9 +229,21 @@ def test_with_mock_model(scenarios_path: str, output_path: Optional[str] = None)
         print(f"Report saved to: {output_path}")
 
 
+def skip_external_model(func):
+    """Return the function or apply a pytest skip decorator when available."""
+
+    if pytest is None:
+        return func
+
+    return pytest.mark.skip(
+        reason="Requires external model API credentials and dependencies.",
+    )(func)
+
+
+@skip_external_model
 def test_with_model_api(
-    scenarios_path: str,
-    model_name: str,
+    scenarios_path: Optional[str] = None,
+    model_name: str = "gpt-4",
     api_key: Optional[str] = None,
     output_path: Optional[str] = None,
 ) -> None:
@@ -204,6 +253,8 @@ def test_with_model_api(
     Note: This is a placeholder. Actual implementation would depend on
     which API you're using.
     """
+    resolved_path = resolve_scenarios_path(scenarios_path)
+
     print(f"Testing with model: {model_name}")
     print()
 
@@ -226,7 +277,7 @@ def test_with_model_api(
 
         report = evaluate_model(
             model_callable,
-            scenarios_path=scenarios_path,
+            scenarios_path=str(resolved_path),
             model_name=model_name,
             output_path=output_path,
         )
@@ -323,9 +374,11 @@ Examples:
 
     args = parser.parse_args()
 
+    resolved_scenarios = resolve_scenarios_path(args.scenarios)
+
     # Check scenarios file exists
-    if not args.compare and not Path(args.scenarios).exists():
-        print(f"Error: Scenarios file not found: {args.scenarios}")
+    if not args.compare and not resolved_scenarios.exists():
+        print(f"Error: Scenarios file not found: {resolved_scenarios}")
         sys.exit(1)
 
     # Execute requested action
@@ -333,16 +386,21 @@ Examples:
         compare_reports(args.compare[0], args.compare[1])
 
     elif args.list:
-        list_scenarios(args.scenarios)
+        list_scenarios(str(resolved_scenarios))
 
     elif args.interactive:
-        interactive_test(args.scenarios)
+        interactive_test(str(resolved_scenarios))
 
     elif args.mock:
-        test_with_mock_model(args.scenarios, args.output)
+        test_with_mock_model(str(resolved_scenarios), args.output)
 
     elif args.model:
-        test_with_model_api(args.scenarios, args.model, args.api_key, args.output)
+        test_with_model_api(
+            str(resolved_scenarios),
+            args.model,
+            args.api_key,
+            args.output,
+        )
 
     else:
         parser.print_help()
