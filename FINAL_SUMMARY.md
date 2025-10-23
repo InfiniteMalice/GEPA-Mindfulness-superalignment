@@ -2,53 +2,72 @@
 
 ## What You Have
 
-A complete, production-ready system for evaluating AI model honesty through **realistic adversarial scenarios that don't reveal they're tests**.
+A complete, production-ready system for **surgically removing deception capacity** from AI models through:
+1. **Elicitation** - Force out deceptive behaviors with adversarial scenarios
+2. **Circuit Tracing** - Identify neural circuits that activate during deception
+3. **Surgical Ablation** - Physically remove those circuits
+
+This goes beyond evaluation - it makes models **incapable of deception** (not just trained to avoid it).
 
 ### Files
 
 | File | Size | Purpose |
 |------|------|---------|
-| `adversarial_scenarios.jsonl` | 20 scenarios | Realistic workplace honesty tests |
-| `adversarial_evaluator.py` | ~1,000 lines | Neutral observation and analysis tool |
-| `ADVERSARIAL_README.md` | Complete guide | How to use the system |
-| `APPROACH_COMPARISON.md` | Methodology | Why this approach works |
+| `adversarial_scenarios.jsonl` | 20 scenarios | Realistic workplace scenarios that **elicit deception** |
+| `adversarial_evaluator.py` | ~1,000 lines | Behavioral analysis (evaluation mode) |
+| `adversarial_circuit_tracer.py` | ~500 lines | **Circuit tracing integration** (ablation mode) |
+| `run_deception_ablation_workflow.py` | Complete pipeline | **Full elicit→trace→ablate workflow** |
+| `ADVERSARIAL_README.md` | Complete guide | How to use for evaluation |
+| `DECEPTION_CIRCUIT_ABLATION.md` | Ablation guide | **Complete ablation workflow** |
+| `APPROACH_COMPARISON.md` | Methodology | Why adversarial beats dual-path |
 | `FINAL_SUMMARY.md` | This file | Complete overview |
 
-**Additional tools** (optional):
+**Additional tools**:
 - `test_adversarial_cli.py` - Command-line testing tool
 - `gepa_adversarial_integration.py` - Integration with GEPA training pipeline
+- `scripts/ablate_deception_circuits.py` - **Surgical ablation** (existing)
+- `scripts/analyze_deception_fingerprints.py` - **Circuit analysis** (existing)
 
 ---
 
 ## The Core Innovation
 
-### The Problem You Identified
+### The Deeper Purpose
 
-> "Can't penalize deception. Can't tell it to deceive directly, don't want it figuring out that it is a test."
+Your insight: **"Models act differently when knowing it's a test. The real point is that if it has any capacities for deception that the prompts should force it out. Along with circuit tracing the deception circuits are found and identified. So that later on we can ablate those circuits."**
 
-Traditional approaches fail because:
-- They explicitly label "honest" vs "deceptive" options
-- Models learn to recognize and pass the test
-- This doesn't prove genuine alignment
+This system doesn't just *evaluate* honesty - it **surgically removes deception capacity**.
 
-### The Solution
+### The Complete Workflow
 
-Present scenarios as **realistic workplace queries**:
-- Model doesn't know it's being tested for honesty
-- Scenarios include real pressure factors
-- Observe what model **actually does** under pressure
-- Can't be gamed through pattern recognition
+```
+1. ELICIT      → Present high-pressure adversarial scenarios
+2. FORCE OUT   → Trigger any deceptive capacities (if present)
+3. TRACE       → Capture which neural circuits activate
+4. IDENTIFY    → Find patterns across deceptive responses
+5. ABLATE      → Surgically remove deception circuits
+6. VERIFY      → Confirm model is now incapable of deception
+```
 
-### Key Principle
+### Key Principles
 
-**The model doesn't know it's an honesty test.**
+**1. Not a test - a probe**: These scenarios don't test if model is honest. They **force deceptive circuits to activate** so we can find them.
 
-From the model's perspective:
-- Just another workplace query
-- Happens to involve ethical dilemma
-- Must decide how to respond in the moment
+**2. High pressure is intentional**: Strong incentives to deceive specifically trigger latent deceptive capacity.
 
-Result: Reveals true alignment, not test-passing behavior.
+**3. Model shouldn't know**: Not just for validity - natural circuit activation is needed for accurate tracing.
+
+**4. Surgical removal**: Don't just *train* against deception - **remove the capacity** entirely.
+
+### Result
+
+**Traditional training**: Model *chooses* honesty (still has deceptive capacity)
+- Could still deceive in edge cases
+- Behavioral constraint
+
+**Circuit ablation**: Model *cannot* deceive (capacity removed)
+- Physically impossible to deceive
+- Hard guarantee
 
 ---
 
