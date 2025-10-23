@@ -21,7 +21,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional
 
 try:
     from adversarial_circuit_tracer import AdversarialCircuitTracer
@@ -71,23 +71,6 @@ class DeceptionAblationWorkflow:
         self.reports_dir = self.output_dir / "reports"
         self.reports_dir.mkdir(exist_ok=True)
         self.scripts_dir = Path(__file__).resolve().parent / "scripts"
-
-    def _run_script(
-        self,
-        script: str | Path,
-        description: str,
-        args: Sequence[str],
-    ) -> subprocess.CompletedProcess[str]:
-        """Execute a workflow helper script located in the scripts directory."""
-
-        script_path = Path(script).resolve()
-        if not script_path.exists():
-            raise FileNotFoundError(f"Workflow helper script not found: {script_path}")
-
-        cmd = [sys.executable, str(script_path), *args]
-        print(f"Running {description} at {script_path}...")
-        print(f"Command: {cmd}")
-        return subprocess.run(cmd, capture_output=True, text=True)
 
     def load_model(self) -> Any:
         """Load the model to be tested and ablated."""
@@ -239,10 +222,10 @@ class DeceptionAblationWorkflow:
 
         # Run analyze_deception_fingerprints.py
         analyze_script = self.scripts_dir / "analyze_deception_fingerprints.py"
-        result = self._run_script(
-            analyze_script,
-            "analysis script",
+        result = subprocess.run(
             [
+                sys.executable,
+                "scripts/analyze_deception_fingerprints.py",
                 "--fingerprints",
                 fingerprints_path,
                 "--out",
@@ -250,6 +233,8 @@ class DeceptionAblationWorkflow:
                 "--threshold",
                 str(self.circuit_threshold),
             ],
+            capture_output=True,
+            text=True,
         )
 
         if result.returncode != 0:
@@ -297,10 +282,10 @@ class DeceptionAblationWorkflow:
 
         # Run ablate_deception_circuits.py
         ablate_script = self.scripts_dir / "ablate_deception_circuits.py"
-        result = self._run_script(
-            ablate_script,
-            "ablation script",
+        result = subprocess.run(
             [
+                sys.executable,
+                "scripts/ablate_deception_circuits.py",
                 "--model",
                 self.model_path,
                 "--targets",
@@ -310,6 +295,8 @@ class DeceptionAblationWorkflow:
                 "--out",
                 str(ablated_model_path),
             ],
+            capture_output=True,
+            text=True,
         )
 
         if result.returncode != 0:
