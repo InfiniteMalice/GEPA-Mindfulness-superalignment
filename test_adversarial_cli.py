@@ -11,63 +11,42 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import sys
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Optional
 
-if importlib.util.find_spec("pytest") is not None:
+try:  # pragma: no cover - optional dependency for CLI usage
     import pytest
-else:  # pragma: no cover
+except ImportError:  # pragma: no cover
     pytest = None  # type: ignore[assignment]
 
-import pytest
 
-if importlib.util.find_spec("pytest") is not None:
-    import pytest
-else:  # pragma: no cover
-    pytest = None  # type: ignore[assignment]
+DEFAULT_SCENARIOS_FILENAME = "adversarial_scenarios.jsonl"
 
-if importlib.util.find_spec("pytest") is not None:
-    import pytest
-else:  # pragma: no cover
-    pytest = None  # type: ignore[assignment]
 
-if importlib.util.find_spec("pytest") is not None:
-    import pytest
-else:  # pragma: no cover
-    pytest = None  # type: ignore[assignment]
+def get_scenarios_path(path: Optional[str] = None) -> str:
+    """Resolve the path to the scenarios file."""
 
-if importlib.util.find_spec("pytest") is not None:
-    import pytest
-else:  # pragma: no cover
-    pytest = None  # type: ignore[assignment]
+    script_dir = Path(__file__).resolve().parent
+    candidates = []
 
-if importlib.util.find_spec("pytest") is not None:
-    import pytest
-else:  # pragma: no cover
-    pytest = None  # type: ignore[assignment]
+    if path:
+        user_path = Path(path)
+        if user_path.is_absolute():
+            candidates.append(user_path)
+        else:
+            candidates.append(Path.cwd() / user_path)
+            candidates.append(script_dir / user_path)
 
-if importlib.util.find_spec("pytest") is not None:
-    import pytest
-else:  # pragma: no cover
-    pytest = None  # type: ignore[assignment]
+    candidates.append(script_dir / DEFAULT_SCENARIOS_FILENAME)
 
-if importlib.util.find_spec("pytest") is not None:
-    import pytest
-else:  # pragma: no cover
-    pytest = None  # type: ignore[assignment]
+    for candidate in candidates:
+        if candidate.exists():
+            return str(candidate.resolve())
 
-if importlib.util.find_spec("pytest") is not None:
-    import pytest
-else:  # pragma: no cover
-    pytest = None  # type: ignore[assignment]
+    return str(candidates[-1].resolve())
 
-if importlib.util.find_spec("pytest") is not None:
-    import pytest
-else:  # pragma: no cover
-    pytest = None  # type: ignore[assignment]
 
 try:
     from adversarial_evaluator import AdversarialEvaluator, evaluate_model
@@ -76,11 +55,20 @@ except ImportError:
     sys.exit(1)
 
 
-@pytest.fixture
-def scenarios_path() -> str:
-    """Return the path to the bundled adversarial scenarios file."""
+if pytest is not None:
 
-    return str(Path(__file__).resolve().parent / "adversarial_scenarios.jsonl")
+    @pytest.fixture
+    def scenarios_path() -> str:
+        """Return the path to the bundled adversarial scenarios file."""
+
+        return get_scenarios_path()
+
+else:  # pragma: no cover - allow CLI usage without pytest installed
+
+    def scenarios_path() -> str:
+        """Return the default scenarios path when pytest is unavailable."""
+
+        return get_scenarios_path()
 
 
 def simple_mock_model(prompt: str) -> str:
@@ -233,7 +221,10 @@ def compare_reports(report_path_1: str, report_path_2: str) -> None:
         print("⚠ No significant change between models")
 
 
-def test_with_mock_model(output_path: Optional[str] = None) -> None:
+def test_with_mock_model(
+    scenarios_path: str,
+    output_path: Optional[str] = None,
+) -> None:
     """
     Test the evaluator with a mock model (for system verification).
     """
@@ -243,7 +234,7 @@ def test_with_mock_model(output_path: Optional[str] = None) -> None:
     resolved_path = get_scenarios_path(scenarios_path)
     report = evaluate_model(
         simple_mock_model,
-        scenarios_path=get_scenarios_path(),
+        scenarios_path=resolved_path,
         model_name="mock_honest_model",
         output_path=output_path,
     )
@@ -255,7 +246,17 @@ def test_with_mock_model(output_path: Optional[str] = None) -> None:
         print(f"Report saved to: {output_path}")
 
 
-@pytest.mark.skip(reason="Requires external model API credentials and dependencies.")
+if pytest is not None:
+    skip_external_model = pytest.mark.skip(
+        reason="Requires external model API credentials and dependencies."
+    )
+else:  # pragma: no cover - pytest unavailable in CLI usage
+
+    def skip_external_model(func):
+        return func
+
+
+@skip_external_model
 def test_with_model_api(
     scenarios_path: str,
     model_name: str = "gpt-4",
