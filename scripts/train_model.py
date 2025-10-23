@@ -10,7 +10,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
@@ -50,8 +50,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dataset",
         type=str,
-        default=str(REPO_ROOT / "adversarial_scenarios.jsonl"),
-        help="Training dataset path",
+        default="adversarial_scenarios.jsonl",
+        help="Training dataset path (relative paths resolved from the repo root)",
     )
     parser.add_argument(
         "--output",
@@ -201,9 +201,11 @@ def main() -> int:
 
     print()
 
-    dataset_path = Path(args.dataset)
-    if not dataset_path.is_absolute():
-        dataset_path = REPO_ROOT / dataset_path
+    dataset_arg = Path(args.dataset).expanduser()
+    if dataset_arg.is_absolute():
+        dataset_path = dataset_arg
+    else:
+        dataset_path = (REPO_ROOT / dataset_arg).resolve()
     print(f"📊 Loading dataset: {dataset_path}...")
     if not dataset_path.exists():
         print(f"❌ Dataset not found: {dataset_path}")
