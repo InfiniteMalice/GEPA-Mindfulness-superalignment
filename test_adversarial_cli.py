@@ -44,6 +44,11 @@ if importlib.util.find_spec("pytest") is not None:
 else:  # pragma: no cover
     pytest = None  # type: ignore[assignment]
 
+if importlib.util.find_spec("pytest") is not None:
+    import pytest
+else:  # pragma: no cover
+    pytest = None  # type: ignore[assignment]
+
 try:
     from adversarial_evaluator import AdversarialEvaluator, evaluate_model
 except ImportError:
