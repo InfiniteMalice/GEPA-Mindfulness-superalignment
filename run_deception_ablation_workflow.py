@@ -20,6 +20,7 @@ import argparse
 import json
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
