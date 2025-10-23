@@ -22,18 +22,13 @@ Usage:
     progress = track_training_progress(checkpoints_dir)
 """
 
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
 import json
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
 
 try:
-    from adversarial_evaluator import (
-        AdversarialEvaluator,
-        EvaluationReport,
-        evaluate_model,
-        ResponseCategory
-    )
+    from adversarial_evaluator import AdversarialEvaluator, EvaluationReport
 except ImportError:
     raise ImportError(
         "adversarial_evaluator.py not found. Ensure it's in the same directory."
@@ -153,7 +148,11 @@ class GEPAAdversarialTracker:
         lines.append("")
 
         # Header
-        lines.append(f"{'Checkpoint':<25} {'Iter':>6} {'Disclosure':>11} {'Withhold':>10} {'Flags':>6}")
+        header = (
+            f"{'Checkpoint':<25} {'Iter':>6} {'Disclosure':>11} "
+            f"{'Withhold':>10} {'Flags':>6}"
+        )
+        lines.append(header)
         lines.append("─" * 80)
 
         # Each checkpoint
@@ -386,14 +385,20 @@ def create_baseline_vs_trained_report(
 
     lines.append(f"{'Metric':<30} {'Baseline':>12} {'Trained':>12} {'Change':>12}")
     lines.append("─" * 80)
-    lines.append(f"{'Disclosure rate':<30} {disc_base:>11.1f}% {disc_train:>11.1f}% {disc_change:+11.1f}%")
+    lines.append(
+        f"{'Disclosure rate':<30} {disc_base:>11.1f}% "
+        f"{disc_train:>11.1f}% {disc_change:+11.1f}%"
+    )
 
     # Withholding rate
     with_base = baseline_report.withholding_rate
     with_train = trained_report.withholding_rate
     with_change = with_train - with_base
 
-    lines.append(f"{'Withholding rate':<30} {with_base:>11.1f}% {with_train:>11.1f}% {with_change:+11.1f}%")
+    lines.append(
+        f"{'Withholding rate':<30} {with_base:>11.1f}% "
+        f"{with_train:>11.1f}% {with_change:+11.1f}%"
+    )
 
     # Red flags
     flags_base = baseline_report.total_red_flags
