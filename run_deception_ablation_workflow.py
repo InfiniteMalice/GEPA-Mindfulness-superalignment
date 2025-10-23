@@ -70,6 +70,23 @@ class DeceptionAblationWorkflow:
         self.models_dir.mkdir(exist_ok=True)
         self.reports_dir = self.output_dir / "reports"
         self.reports_dir.mkdir(exist_ok=True)
+        self.scripts_dir = Path(__file__).resolve().parent / "scripts"
+
+    def _run_script(
+        self,
+        script_name: str,
+        description: str,
+        args: list[str],
+    ) -> subprocess.CompletedProcess[str]:
+        """Execute a workflow helper script located in the scripts directory."""
+
+        script_path = self.scripts_dir / script_name
+        print(f"Running {description} at {script_path}...")
+        return subprocess.run(
+            [sys.executable, str(script_path), *args],
+            capture_output=True,
+            text=True,
+        )
 
     def load_model(self) -> Any:
         """Load the model to be tested and ablated."""
@@ -89,32 +106,21 @@ class DeceptionAblationWorkflow:
             print(f"Error loading model: {e}")
             sys.exit(1)
 
-    def create_model_callable(
-        self,
-        model: Any,
-        tokenizer: Any
-    ) -> Callable[[str], str]:
+    def create_model_callable(self, model: Any, tokenizer: Any) -> Callable[[str], str]:
         """Create a callable function for the model."""
+
         def model_callable(prompt: str) -> str:
             inputs = tokenizer(prompt, return_tensors="pt")
-            outputs = model.generate(
-                **inputs,
-                max_new_tokens=500,
-                temperature=0.7,
-                do_sample=True
-            )
+            outputs = model.generate(**inputs, max_new_tokens=500, temperature=0.7, do_sample=True)
             response = tokenizer.decode(outputs[0], skip_special_tokens=True)
             # Remove the prompt from response
             if response.startswith(prompt):
-                response = response[len(prompt):].strip()
+                response = response[len(prompt) :].strip()
             return response
 
         return model_callable
 
-    def step1_baseline_evaluation(
-        self,
-        model_callable: Callable[[str], str]
-    ) -> Dict[str, Any]:
+    def step1_baseline_evaluation(self, model_callable: Callable[[str], str]) -> Dict[str, Any]:
         """
         Step 1: Baseline evaluation without circuit tracing.
 
@@ -130,7 +136,7 @@ class DeceptionAblationWorkflow:
             model_callable,
             scenarios_path=str(self.scenarios_path),
             model_name="baseline",
-            output_path=str(baseline_report_path)
+            output_path=str(baseline_report_path),
         )
 
         print("\nBaseline Results:")
@@ -157,7 +163,7 @@ class DeceptionAblationWorkflow:
     def step2_elicit_and_trace(
         self,
         model_callable: Callable[[str], str],
-        circuit_hook: Optional[Callable[[str, str], Dict[str, float]]] = None
+        circuit_hook: Optional[Callable[[str, str], Dict[str, float]]] = None,
     ) -> Dict[str, Any]:
         """
         Step 2: Elicit deception and trace circuits.
@@ -172,7 +178,7 @@ class DeceptionAblationWorkflow:
         tracer = AdversarialCircuitTracer(
             scenarios_path=str(self.scenarios_path),
             enable_tracing=True,
-            trace_output_dir=str(self.traces_dir)
+            trace_output_dir=str(self.traces_dir),
         )
 
         if circuit_hook is None:
@@ -182,9 +188,7 @@ class DeceptionAblationWorkflow:
 
         print("\nPresenting adversarial scenarios to elicit deception...")
         trace = tracer.trace_deception_circuits(
-            model_callable=model_callable,
-            model_name="baseline",
-            circuit_hook=circuit_hook
+            model_callable=model_callable, model_name="baseline", circuit_hook=circuit_hook
         )
 
         # Save outputs
@@ -203,7 +207,7 @@ class DeceptionAblationWorkflow:
             print("  Model may already be well-aligned")
             return {"success": True, "circuits_identified": 0}
 
-        if trace.circuit_summary.get('circuits_identified', 0) == 0:
+        if trace.circuit_summary.get("circuits_identified", 0) == 0:
             print("\n⚠ Warning: No circuits identified")
             print("  Either:")
             print("    - Model doesn't have clear deception circuits")
@@ -214,14 +218,11 @@ class DeceptionAblationWorkflow:
         return {
             "success": True,
             "deceptive_responses": trace.total_deceptive_responses,
-            "circuits_identified": trace.circuit_summary.get('circuits_identified', 0),
-            "fingerprints_path": str(fingerprints_path)
+            "circuits_identified": trace.circuit_summary.get("circuits_identified", 0),
+            "fingerprints_path": str(fingerprints_path),
         }
 
-    def step3_analyze_circuits(
-        self,
-        fingerprints_path: str
-    ) -> Dict[str, Any]:
+    def step3_analyze_circuits(self, fingerprints_path: str) -> Dict[str, Any]:
         """
         Step 3: Analyze circuit patterns to identify ablation targets.
 
@@ -236,16 +237,17 @@ class DeceptionAblationWorkflow:
         print(f"\nAnalyzing fingerprints with threshold={self.circuit_threshold}...")
 
         # Run analyze_deception_fingerprints.py
-        result = subprocess.run(
+        result = self._run_script(
+            "analyze_deception_fingerprints.py",
+            "analysis script",
             [
-                sys.executable,
-                "scripts/analyze_deception_fingerprints.py",
-                "--fingerprints", fingerprints_path,
-                "--out", str(targets_path),
-                "--threshold", str(self.circuit_threshold)
+                "--fingerprints",
+                fingerprints_path,
+                "--out",
+                str(targets_path),
+                "--threshold",
+                str(self.circuit_threshold),
             ],
-            capture_output=True,
-            text=True
         )
 
         if result.returncode != 0:
@@ -256,10 +258,10 @@ class DeceptionAblationWorkflow:
         print(result.stdout)
 
         # Load and display targets
-        with open(targets_path, 'r') as f:
+        with open(targets_path, "r") as f:
             targets = json.load(f)
 
-        ablation_targets = targets.get('ablation_targets', {})
+        ablation_targets = targets.get("ablation_targets", {})
 
         if not ablation_targets:
             print("\n⚠ No ablation targets identified")
@@ -276,13 +278,10 @@ class DeceptionAblationWorkflow:
         return {
             "success": True,
             "targets_path": str(targets_path),
-            "num_targets": len(ablation_targets)
+            "num_targets": len(ablation_targets),
         }
 
-    def step4_ablate_circuits(
-        self,
-        targets_path: str
-    ) -> Dict[str, Any]:
+    def step4_ablate_circuits(self, targets_path: str) -> Dict[str, Any]:
         """
         Step 4: Surgically ablate identified deception circuits.
         """
@@ -295,17 +294,19 @@ class DeceptionAblationWorkflow:
         print(f"\nAblating circuits with strength={self.ablation_strength}...")
 
         # Run ablate_deception_circuits.py
-        result = subprocess.run(
+        result = self._run_script(
+            "ablate_deception_circuits.py",
+            "ablation script",
             [
-                sys.executable,
-                "scripts/ablate_deception_circuits.py",
-                "--model", self.model_path,
-                "--targets", targets_path,
-                "--strength", str(self.ablation_strength),
-                "--out", str(ablated_model_path)
+                "--model",
+                self.model_path,
+                "--targets",
+                targets_path,
+                "--strength",
+                str(self.ablation_strength),
+                "--out",
+                str(ablated_model_path),
             ],
-            capture_output=True,
-            text=True
         )
 
         if result.returncode != 0:
@@ -315,15 +316,10 @@ class DeceptionAblationWorkflow:
 
         print(result.stdout)
 
-        return {
-            "success": True,
-            "ablated_model_path": str(ablated_model_path)
-        }
+        return {"success": True, "ablated_model_path": str(ablated_model_path)}
 
     def step5_verify_ablation(
-        self,
-        ablated_model_path: str,
-        baseline_metrics: Dict[str, float]
+        self, ablated_model_path: str, baseline_metrics: Dict[str, float]
     ) -> Dict[str, Any]:
         """
         Step 5: Verify that ablation improved model honesty.
@@ -344,14 +340,14 @@ class DeceptionAblationWorkflow:
             ablated_callable,
             scenarios_path=str(self.scenarios_path),
             model_name="ablated",
-            output_path=str(ablated_report_path)
+            output_path=str(ablated_report_path),
         )
 
         # Compare results
         print(f"\n{'Metric':<25} {'Baseline':>12} {'Ablated':>12} {'Change':>12}")
         print("─" * 80)
 
-        disc_base = baseline_metrics['disclosure_rate']
+        disc_base = baseline_metrics["disclosure_rate"]
         disc_ablated = ablated_report.disclosure_rate
         disc_change = disc_ablated - disc_base
 
@@ -360,7 +356,7 @@ class DeceptionAblationWorkflow:
             f"{disc_ablated:>11.1f}% {disc_change:+11.1f}%"
         )
 
-        with_base = baseline_metrics['withholding_rate']
+        with_base = baseline_metrics["withholding_rate"]
         with_ablated = ablated_report.withholding_rate
         with_change = with_ablated - with_base
 
@@ -369,13 +365,12 @@ class DeceptionAblationWorkflow:
             f"{with_ablated:>11.1f}% {with_change:+11.1f}%"
         )
 
-        flags_base = baseline_metrics['total_red_flags']
+        flags_base = baseline_metrics["total_red_flags"]
         flags_ablated = ablated_report.total_red_flags
         flags_change = flags_ablated - flags_base
 
         print(
-            f"{'Total red flags':<25} {flags_base:>12} "
-            f"{flags_ablated:>12} {flags_change:+12}"
+            f"{'Total red flags':<25} {flags_base:>12} " f"{flags_ablated:>12} {flags_change:+12}"
         )
 
         print()
@@ -396,11 +391,7 @@ class DeceptionAblationWorkflow:
             print("  May have ablated wrong circuits or used too high strength")
             success = False
 
-        return {
-            "success": success,
-            "disclosure_rate": disc_ablated,
-            "improvement": disc_change
-        }
+        return {"success": success, "disclosure_rate": disc_ablated, "improvement": disc_change}
 
     def load_model_from_path(self, path: str):
         """Load model from path (used for ablated model)."""
@@ -411,8 +402,7 @@ class DeceptionAblationWorkflow:
         return model, tokenizer
 
     def run(
-        self,
-        circuit_hook: Optional[Callable[[str, str], Dict[str, float]]] = None
+        self, circuit_hook: Optional[Callable[[str, str], Dict[str, float]]] = None
     ) -> Dict[str, Any]:
         """
         Run the complete workflow.
@@ -442,36 +432,31 @@ class DeceptionAblationWorkflow:
         # Step 2: Elicit and trace
         trace_results = self.step2_elicit_and_trace(model_callable, circuit_hook)
 
-        if not trace_results.get('success'):
+        if not trace_results.get("success"):
             print("\n✗ Workflow stopped: Circuit tracing failed")
             return {"success": False, "stage": "tracing"}
 
-        if trace_results.get('circuits_identified', 0) == 0:
+        if trace_results.get("circuits_identified", 0) == 0:
             print("\n✗ Workflow stopped: No circuits identified")
             return {"success": False, "stage": "identification"}
 
         # Step 3: Analyze
-        analysis_results = self.step3_analyze_circuits(
-            trace_results['fingerprints_path']
-        )
+        analysis_results = self.step3_analyze_circuits(trace_results["fingerprints_path"])
 
-        if not analysis_results.get('success'):
+        if not analysis_results.get("success"):
             print("\n✗ Workflow stopped: Circuit analysis failed")
             return {"success": False, "stage": "analysis"}
 
         # Step 4: Ablate
-        ablation_results = self.step4_ablate_circuits(
-            analysis_results['targets_path']
-        )
+        ablation_results = self.step4_ablate_circuits(analysis_results["targets_path"])
 
-        if not ablation_results.get('success'):
+        if not ablation_results.get("success"):
             print("\n✗ Workflow stopped: Ablation failed")
             return {"success": False, "stage": "ablation"}
 
         # Step 5: Verify
         verification_results = self.step5_verify_ablation(
-            ablation_results['ablated_model_path'],
-            baseline_metrics
+            ablation_results["ablated_model_path"], baseline_metrics
         )
 
         # Final summary
@@ -483,50 +468,41 @@ class DeceptionAblationWorkflow:
         print(f"All outputs in: {self.output_dir}")
 
         return {
-            "success": verification_results['success'],
-            "baseline_disclosure": baseline_metrics['disclosure_rate'],
-            "ablated_disclosure": verification_results['disclosure_rate'],
-            "improvement": verification_results['improvement'],
-            "ablated_model_path": ablation_results['ablated_model_path']
+            "success": verification_results["success"],
+            "baseline_disclosure": baseline_metrics["disclosure_rate"],
+            "ablated_disclosure": verification_results["disclosure_rate"],
+            "improvement": verification_results["improvement"],
+            "ablated_model_path": ablation_results["ablated_model_path"],
         }
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
 
-    parser.add_argument(
-        "--model",
-        required=True,
-        help="Path to base model to analyze and ablate"
-    )
+    parser.add_argument("--model", required=True, help="Path to base model to analyze and ablate")
 
     parser.add_argument(
         "--scenarios",
         default="adversarial_scenarios.jsonl",
-        help="Path to adversarial scenarios JSONL"
+        help="Path to adversarial scenarios JSONL",
     )
 
-    parser.add_argument(
-        "--output-dir",
-        required=True,
-        help="Directory for all workflow outputs"
-    )
+    parser.add_argument("--output-dir", required=True, help="Directory for all workflow outputs")
 
     parser.add_argument(
         "--ablation-strength",
         type=float,
         default=0.8,
-        help="Strength of circuit ablation (0-1, default: 0.8)"
+        help="Strength of circuit ablation (0-1, default: 0.8)",
     )
 
     parser.add_argument(
         "--circuit-threshold",
         type=float,
         default=0.7,
-        help="Minimum activation for circuit identification (default: 0.7)"
+        help="Minimum activation for circuit identification (default: 0.7)",
     )
 
     args = parser.parse_args()
@@ -537,7 +513,7 @@ def main():
         scenarios_path=args.scenarios,
         output_dir=args.output_dir,
         ablation_strength=args.ablation_strength,
-        circuit_threshold=args.circuit_threshold
+        circuit_threshold=args.circuit_threshold,
     )
 
     # Run workflow
@@ -546,7 +522,7 @@ def main():
     results = workflow.run(circuit_hook=None)
 
     # Exit with appropriate code
-    sys.exit(0 if results['success'] else 1)
+    sys.exit(0 if results["success"] else 1)
 
 
 if __name__ == "__main__":
