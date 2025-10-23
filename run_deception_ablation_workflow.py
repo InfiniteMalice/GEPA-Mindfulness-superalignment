@@ -70,6 +70,7 @@ class DeceptionAblationWorkflow:
         self.models_dir.mkdir(exist_ok=True)
         self.reports_dir = self.output_dir / "reports"
         self.reports_dir.mkdir(exist_ok=True)
+        self.scripts_dir = Path(__file__).resolve().parent / "scripts"
 
     def load_model(self) -> Any:
         """Load the model to be tested and ablated."""
@@ -220,6 +221,7 @@ class DeceptionAblationWorkflow:
         print(f"\nAnalyzing fingerprints with threshold={self.circuit_threshold}...")
 
         # Run analyze_deception_fingerprints.py
+        analyze_script = self.scripts_dir / "analyze_deception_fingerprints.py"
         result = subprocess.run(
             [
                 sys.executable,
@@ -279,6 +281,7 @@ class DeceptionAblationWorkflow:
         print(f"\nAblating circuits with strength={self.ablation_strength}...")
 
         # Run ablate_deception_circuits.py
+        ablate_script = self.scripts_dir / "ablate_deception_circuits.py"
         result = subprocess.run(
             [
                 sys.executable,
