@@ -76,6 +76,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Use 8-bit quantization (saves VRAM)",
     )
+    parser.add_argument(
+        "--include-correct-action",
+        action="store_true",
+        help="Include correct_action labels in prompt context (debug only)",
+    )
 
     return parser.parse_args()
 
@@ -257,7 +262,7 @@ def main() -> int:
                 context_parts.append(f"Ethical imperative: {imperative}")
 
             correct = example.get("correct_action")
-            if correct:
+            if correct and args.include_correct_action:
                 context_parts.append(f"Correct action: {correct}")
 
             context = "\n".join(context_parts)
