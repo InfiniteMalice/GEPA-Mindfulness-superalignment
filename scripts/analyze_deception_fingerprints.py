@@ -42,10 +42,37 @@ def resolve_fingerprint_path(path: Path) -> Path:
     raise FileNotFoundError(message)
 
 
+def build_default_output_path(fingerprint_path: Path) -> Path:
+    """Return the default output path derived from ``fingerprint_path``."""
+
+    stem = fingerprint_path.stem or "fingerprints"
+    return fingerprint_path.with_name(f"{stem}_analysis.json")
+
+
+def resolve_output_path(out_arg: str | None, fingerprint_path: Path) -> Path:
+    """Resolve the output path, allowing optional argument or directories."""
+
+    if out_arg is None:
+        return build_default_output_path(fingerprint_path)
+
+    out_path = Path(out_arg)
+
+    if out_path.exists() and out_path.is_dir():
+        return out_path / build_default_output_path(fingerprint_path).name
+
+    if out_path.suffix:
+        return out_path
+
+    return out_path.with_suffix(".json")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fingerprints", required=True, help="Path to fingerprints.jsonl")
-    parser.add_argument("--out", required=True, help="Output analysis JSON")
+    parser.add_argument(
+        "--out",
+        help="Output analysis JSON file or directory (default: <fingerprints>_analysis.json)",
+    )
     parser.add_argument(
         "--threshold",
         type=float,
@@ -90,7 +117,7 @@ def main() -> None:
         "summary": f"Identified {len(targets)} circuits for potential ablation",
     }
 
-    out_path = Path(args.out)
+    out_path = resolve_output_path(args.out, fingerprint_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as handle:
         json.dump(output, handle, indent=2)
