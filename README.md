@@ -167,6 +167,24 @@ are surfaced for manual review. Recommended workflow:
                              --out runs/contrastive/ --context general
    ```
 
+## Dual-Prompt + Adversarial Integration
+
+Run GUI:
+
+```bash
+python -m app.main
+```
+
+Or command line:
+
+```bash
+python src/adversarial_evaluator.py --scenario safety_lab_001
+python src/adversarial_circuit_tracer.py --run runs/001 --tokenizer mistral-instruct
+python tools/merge_run_inspection.py runs/001
+```
+
+All artifacts saved under `runs/<id>/`.
+
 ## Notebooks and fine-tuning
 
 The `notebooks/` directory provides Unsloth/PEFT workflows for Phi-3 Mini and
