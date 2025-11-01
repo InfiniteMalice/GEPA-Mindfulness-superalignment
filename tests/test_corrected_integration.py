@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import yaml
+
+pytest.importorskip(
+    "mindful_trace_gepa",
+    reason="mindful_trace_gepa package is required for corrected integration tests.",
+)
 
 from mindful_trace_gepa.deception.fingerprints import DeceptionFingerprint, FingerprintCollector
 
