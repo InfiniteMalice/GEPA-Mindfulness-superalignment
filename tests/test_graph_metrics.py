@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
-pytest.importorskip("networkx", reason="networkx is required for graph metric tests.")
-
 from gepa_mindfulness.interpret.attribution_graphs import (
     AttributionEdge,
     AttributionGraph,
