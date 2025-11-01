@@ -2,6 +2,13 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
+pytest.importorskip(
+    "mindful_trace_gepa",
+    reason="mindful_trace_gepa package is required for deception probe tests.",
+)
+
 from mindful_trace_gepa.cli_deception import handle_deception_probes, handle_deception_summary
 from mindful_trace_gepa.deception.probes_linear import ProbeWeights, infer_probe
 from mindful_trace_gepa.viewer.builder import build_viewer_html

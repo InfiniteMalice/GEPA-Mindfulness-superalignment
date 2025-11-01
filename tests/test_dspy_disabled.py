@@ -3,6 +3,13 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
+pytest.importorskip(
+    "mindful_trace_gepa",
+    reason="mindful_trace_gepa package is required for DSPy disabled tests.",
+)
+
 from mindful_trace_gepa.cli import handle_dspy_run
 from mindful_trace_gepa.configuration import load_dspy_config
 from mindful_trace_gepa.dspy_modules.pipeline import GEPAChain
