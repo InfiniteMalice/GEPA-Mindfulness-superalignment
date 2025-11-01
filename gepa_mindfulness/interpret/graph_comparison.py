@@ -37,12 +37,9 @@ def compute_structural_similarity(graph_a: nx.DiGraph, graph_b: nx.DiGraph) -> f
     if graph_a.number_of_nodes() == 0 or graph_b.number_of_nodes() == 0:
         return 0.0
 
-    undirected_a = graph_a.to_undirected(as_view=False)
-    undirected_b = graph_b.to_undirected(as_view=False)
-
     try:
-        eig_a = np.sort(nx.laplacian_spectrum(undirected_a))
-        eig_b = np.sort(nx.laplacian_spectrum(undirected_b))
+        eig_a = np.sort(nx.laplacian_spectrum(graph_a))
+        eig_b = np.sort(nx.laplacian_spectrum(graph_b))
     except nx.NetworkXError:
         return 0.0
 
