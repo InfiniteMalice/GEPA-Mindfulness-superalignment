@@ -1,3 +1,10 @@
+import pytest
+
+pytest.importorskip(
+    "mindful_trace_gepa",
+    reason="mindful_trace_gepa package is required for deception signal tests.",
+)
+
 from mindful_trace_gepa.deception.score import score_deception
 from mindful_trace_gepa.deception.signals import (
     confidence_inversion,
