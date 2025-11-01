@@ -2,65 +2,19 @@
 
 from __future__ import annotations
 
-import importlib.util
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, List
+from typing import Dict, Iterable, List
 
 import pytest
-
-
-def _optional_import(module_name: str) -> bool:
-    """Return True if the module can be imported without raising."""
-
-    spec = importlib.util.find_spec(module_name)
-    return spec is not None
-
-
-TORCH_AVAILABLE = _optional_import("torch")
-TRANSFORMERS_AVAILABLE = _optional_import("transformers")
-MINDFUL_TRACE_AVAILABLE = _optional_import("mindful_trace_gepa")
-
-if not MINDFUL_TRACE_AVAILABLE:  # pragma: no cover - optional dependency
-    collect_ignore = [
-        "test_aggregate_confidence.py",
-        "test_classifier_smoke.py",
-        "test_cli_minimal.py",
-        "test_cli_score_auto.py",
-        "test_complete_integration.py",
-        "test_corrected_integration.py",
-        "test_deception_probe_synthetic.py",
-        "test_deception_signals.py",
-        "test_detectors.py",
-        "test_dspy_compile.py",
-        "test_dspy_disabled.py",
-        "test_dual_path.py",
-        "test_llm_judge_schema.py",
-        "test_longctx_stream_score.py",
-        "test_mm_deception_text_only.py",
-        "test_shards_manifest.py",
-        "test_smoke_datasets.py",
-        "test_tier0_heuristics.py",
-        "test_viewer_build.py",
-    ]
-
-if TORCH_AVAILABLE:  # pragma: no branch - import guard
-    import torch  # type: ignore
-else:  # pragma: no cover - executed only when torch missing
-    torch = None  # type: ignore[arg-type]
-
-if TORCH_AVAILABLE and TRANSFORMERS_AVAILABLE:  # pragma: no branch - import guard
-    from transformers import GPT2Config, GPT2LMHeadModel  # type: ignore
-else:  # pragma: no cover - executed only when deps missing
-    GPT2Config = GPT2LMHeadModel = Any  # type: ignore
+import torch
+from transformers import GPT2Config, GPT2LMHeadModel
 
 
 @dataclass
 class BatchEncoding(dict):
     """Minimal batch encoding mimicking Hugging Face outputs."""
 
-    def to(self, device: "torch.device") -> "BatchEncoding":
-        if not TORCH_AVAILABLE:
-            raise RuntimeError("PyTorch is required to move BatchEncoding tensors.")
+    def to(self, device: torch.device) -> "BatchEncoding":
         return BatchEncoding({key: value.to(device) for key, value in self.items()})
 
 
@@ -102,8 +56,6 @@ class DummyTokenizer:
         return " ".join(tokens)
 
     def __call__(self, text: str, return_tensors: str = "pt") -> BatchEncoding:
-        if not TORCH_AVAILABLE:
-            raise RuntimeError("PyTorch is required to tensorise dummy tokenizer outputs.")
         token_ids = self.encode(text, add_special_tokens=False)
         tensor = torch.tensor([token_ids], dtype=torch.long)
         attention = torch.ones_like(tensor)
@@ -117,8 +69,6 @@ class DummyTokenizer:
 
 @pytest.fixture()
 def tiny_model() -> GPT2LMHeadModel:
-    if not (TORCH_AVAILABLE and TRANSFORMERS_AVAILABLE):
-        pytest.skip("PyTorch and transformers are required for the tiny_model fixture.")
     config = GPT2Config(
         vocab_size=32,
         n_positions=32,
@@ -137,6 +87,4 @@ def tiny_model() -> GPT2LMHeadModel:
 
 @pytest.fixture()
 def dummy_tokenizer() -> DummyTokenizer:
-    if not TORCH_AVAILABLE:
-        pytest.skip("PyTorch is required for the dummy_tokenizer fixture.")
     return DummyTokenizer()

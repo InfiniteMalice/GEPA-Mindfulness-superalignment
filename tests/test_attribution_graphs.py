@@ -4,10 +4,6 @@ from __future__ import annotations
 
 import time
 
-import pytest
-
-pytest.importorskip("torch", reason="PyTorch is required for attribution graph tests.")
-
 import torch
 
 from gepa_mindfulness.interpret.attribution_graphs import (
