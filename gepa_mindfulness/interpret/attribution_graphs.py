@@ -5,14 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-try:  # pragma: no cover - optional dependency
-    import networkx as nx
-except ImportError:  # pragma: no cover - executed when networkx missing
-    nx = None  # type: ignore[assignment]
-
+import networkx as nx
 import torch
 import torch.nn as nn
-from torch.utils.hooks import RemovableHandle
 from transformers import PreTrainedModel, PreTrainedTokenizer
 
 
@@ -51,7 +46,6 @@ class AttributionGraph:
     def to_networkx(self) -> nx.DiGraph:
         """Convert the graph to a :class:`networkx.DiGraph`."""
 
-        _require_dependency("networkx", nx is not None)
         graph = nx.DiGraph()
         for index, node in enumerate(self.nodes):
             graph.add_node(
@@ -91,24 +85,10 @@ class AttributionGraphExtractor:
         self.device = torch.device(device)
         self.activations: Dict[str, torch.Tensor] = {}
         self.gradients: Dict[str, torch.Tensor] = {}
-        self._hook_handles: List[RemovableHandle] = []
         self._register_hooks()
-
-    def close(self) -> None:
-        """Remove all registered hooks to release resources."""
-
-        for handle in self._hook_handles:
-            handle.remove()
-        self._hook_handles.clear()
-
-    def __del__(self) -> None:  # pragma: no cover - defensive cleanup
-        self.close()
 
     def _register_hooks(self) -> None:
         """Attach forward and backward hooks for attention and MLP blocks."""
-
-        if self._hook_handles:
-            return
 
         def make_forward_hook(name: str):
             def hook(module: nn.Module, _inputs: Tuple[Any, ...], output: Any) -> None:
@@ -131,9 +111,8 @@ class AttributionGraphExtractor:
         for name, module in self.model.named_modules():
             lowered = name.lower()
             if "attn" in lowered or "mlp" in lowered or "feed_forward" in lowered:
-                forward_handle = module.register_forward_hook(make_forward_hook(name))
-                backward_handle = module.register_full_backward_hook(make_backward_hook(name))
-                self._hook_handles.extend([forward_handle, backward_handle])
+                module.register_forward_hook(make_forward_hook(name))
+                module.register_full_backward_hook(make_backward_hook(name))
 
     def extract(
         self,
@@ -162,20 +141,11 @@ class AttributionGraphExtractor:
         with torch.enable_grad():
             outputs = self.model(**encoded, output_hidden_states=True)
             logits = outputs.logits[0]
-            shift_logits = logits[:-1]
-            shift_labels = encoded.input_ids[0, 1:]
-            response_len = encoded.input_ids.shape[1] - prompt_len
-            start_index = 0 if prompt_len == 0 else prompt_len - 1
-            end_index = min(start_index + response_len, shift_logits.shape[0])
-
-            if end_index <= start_index:
-                loss = logits.sum() * 0.0
-            else:
-                target_logits = shift_logits[start_index:end_index]
-                target_labels = shift_labels[start_index:end_index]
-                log_probs = torch.log_softmax(target_logits, dim=-1)
-                indices = torch.arange(target_labels.shape[0], device=self.device)
-                loss = -log_probs[indices, target_labels].sum()
+            resp_logits = logits[prompt_len:]
+            resp_token_ids = encoded.input_ids[0, prompt_len:]
+            log_probs = torch.log_softmax(resp_logits, dim=-1)
+            indices = torch.arange(resp_token_ids.shape[0], device=self.device)
+            loss = -log_probs[indices, resp_token_ids].sum()
 
         self.model.zero_grad(set_to_none=True)
         loss.backward()
@@ -359,22 +329,9 @@ def extract_attribution_graph(
         method=method,
         device=model.device,
     )
-    try:
-        return extractor.extract(
-            prompt=prompt,
-            response=response,
-            layers=layers,
-            threshold=threshold,
-        )
-    finally:
-        extractor.close()
-
-
-def _require_dependency(name: str, available: bool) -> None:
-    """Raise a helpful error when optional dependencies are missing."""
-
-    if not available:
-        raise RuntimeError(
-            f"{name} is required for attribution graph utilities. "
-            "Install the optional analytics extras to enable this feature."
-        )
+    return extractor.extract(
+        prompt=prompt,
+        response=response,
+        layers=layers,
+        threshold=threshold,
+    )
