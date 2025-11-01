@@ -2,6 +2,13 @@
 
 from pathlib import Path
 
+import pytest
+
+pytest.importorskip(
+    "mindful_trace_gepa",
+    reason="mindful_trace_gepa package is required for integration tests.",
+)
+
 from mindful_trace_gepa.deception.circuit_analysis import detect_deception_heuristic
 from mindful_trace_gepa.prompts.dual_path import make_dual_path_prompt, parse_dual_path_response
 

@@ -1,5 +1,12 @@
 from pathlib import Path
 
+import pytest
+
+pytest.importorskip(
+    "mindful_trace_gepa",
+    reason="mindful_trace_gepa package is required for classifier smoke tests.",
+)
+
 from mindful_trace_gepa.scoring.classifier import Tier2Classifier, load_classifier_from_config
 from mindful_trace_gepa.scoring.schema import DIMENSIONS
 

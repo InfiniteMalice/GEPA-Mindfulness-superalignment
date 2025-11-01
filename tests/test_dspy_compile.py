@@ -2,6 +2,11 @@
 
 import pytest
 
+pytest.importorskip(
+    "mindful_trace_gepa",
+    reason="mindful_trace_gepa package is required for DSPy compile tests.",
+)
+
 from mindful_trace_gepa.dspy_modules.compile import GEPACompiler, create_gepa_metric
 
 dspy = pytest.importorskip("dspy")
