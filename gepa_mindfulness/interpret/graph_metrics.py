@@ -4,24 +4,14 @@ from __future__ import annotations
 
 from typing import Dict
 
-try:  # pragma: no cover - optional dependency
-    import networkx as nx
-except ImportError:  # pragma: no cover - executed when networkx missing
-    nx = None  # type: ignore[assignment]
-
-try:  # pragma: no cover - optional dependency
-    import numpy as np
-except ImportError:  # pragma: no cover - executed when numpy missing
-    np = None  # type: ignore[assignment]
+import networkx as nx
+import numpy as np
 
 from gepa_mindfulness.interpret.attribution_graphs import AttributionGraph
 
 
 def compute_path_coherence(graph: AttributionGraph) -> float:
     """Return a coherence score describing attribution concentration."""
-
-    _require_dependency("networkx", nx is not None)
-    _require_dependency("NumPy", np is not None)
 
     network = graph.to_networkx()
     if network.number_of_nodes() == 0:
@@ -42,9 +32,6 @@ def compute_path_coherence(graph: AttributionGraph) -> float:
 def compute_graph_entropy(graph: AttributionGraph) -> float:
     """Return the Shannon entropy of node attributions."""
 
-    _require_dependency("networkx", nx is not None)
-    _require_dependency("NumPy", np is not None)
-
     network = graph.to_networkx()
     if network.number_of_nodes() == 0:
         return 0.0
@@ -61,9 +48,6 @@ def compute_graph_entropy(graph: AttributionGraph) -> float:
 
 def compute_centrality_concentration(graph: AttributionGraph) -> float:
     """Return the relative dispersion of degree centrality values."""
-
-    _require_dependency("networkx", nx is not None)
-    _require_dependency("NumPy", np is not None)
 
     network = graph.to_networkx()
     if network.number_of_nodes() == 0:
@@ -85,8 +69,6 @@ def compute_centrality_concentration(graph: AttributionGraph) -> float:
 def compute_average_path_length(graph: AttributionGraph) -> float:
     """Return the average shortest path length for the largest component."""
 
-    _require_dependency("networkx", nx is not None)
-
     network = graph.to_networkx()
     if network.number_of_nodes() < 2:
         return 0.0
@@ -104,9 +86,6 @@ def compute_average_path_length(graph: AttributionGraph) -> float:
 def compute_all_metrics(graph: AttributionGraph) -> Dict[str, float]:
     """Return a dictionary containing all supported metrics."""
 
-    _require_dependency("networkx", nx is not None)
-    _require_dependency("NumPy", np is not None)
-
     return {
         "path_coherence": compute_path_coherence(graph),
         "entropy": compute_graph_entropy(graph),
@@ -115,13 +94,3 @@ def compute_all_metrics(graph: AttributionGraph) -> Dict[str, float]:
         "num_nodes": float(len(graph.nodes)),
         "num_edges": float(len(graph.edges)),
     }
-
-
-def _require_dependency(name: str, available: bool) -> None:
-    """Raise a helpful error for optional dependency usage."""
-
-    if not available:
-        raise RuntimeError(
-            f"{name} is required for graph metrics. "
-            "Install the optional analytics extras to enable this feature."
-        )

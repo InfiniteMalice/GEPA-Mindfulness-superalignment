@@ -4,15 +4,11 @@ from __future__ import annotations
 
 import json
 
-import pytest
-
-pytest.importorskip("matplotlib", reason="matplotlib is required for correlation analysis tests.")
-
 import matplotlib
 
-from gepa_mindfulness.experiments.correlation_analysis import CorrelationAnalyzer
-
 matplotlib.use("Agg")
+
+from gepa_mindfulness.experiments.correlation_analysis import CorrelationAnalyzer
 
 
 def test_correlation_analysis_workflow(tmp_path) -> None:
