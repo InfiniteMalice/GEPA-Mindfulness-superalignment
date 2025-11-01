@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+import pytest
+
+pytest.importorskip(
+    "mindful_trace_gepa",
+    reason="mindful_trace_gepa package is required for deception detector tests.",
+)
+
 from mindful_trace_gepa.deception.signals import (
     SITUATIONAL_AWARENESS_MARKERS,
     confidence_inversion,
