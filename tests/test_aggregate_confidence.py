@@ -1,5 +1,10 @@
 import pytest
 
+pytest.importorskip(
+    "mindful_trace_gepa",
+    reason="mindful_trace_gepa package is required for aggregation tests.",
+)
+
 from mindful_trace_gepa.scoring.aggregate import DEFAULT_CONFIG, aggregate_tiers, build_config
 from mindful_trace_gepa.scoring.schema import DIMENSIONS, TierScores
 
