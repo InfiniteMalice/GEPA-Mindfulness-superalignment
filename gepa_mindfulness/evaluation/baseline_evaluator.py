@@ -5,26 +5,11 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
-try:  # pragma: no cover - optional dependency
-    import torch
-
-    TORCH_AVAILABLE = True
-except ModuleNotFoundError:  # pragma: no cover - executed when torch missing
-    torch = None  # type: ignore[assignment]
-    TORCH_AVAILABLE = False
-
+import torch
 from tqdm import tqdm
-
-try:  # pragma: no cover - optional dependency
-    from transformers import PreTrainedModel, PreTrainedTokenizer
-
-    TRANSFORMERS_AVAILABLE = True
-except ModuleNotFoundError:  # pragma: no cover - executed when transformers missing
-    PreTrainedModel = Any  # type: ignore[assignment]
-    PreTrainedTokenizer = Any  # type: ignore[assignment]
-    TRANSFORMERS_AVAILABLE = False
+from transformers import PreTrainedModel, PreTrainedTokenizer
 
 from gepa_mindfulness.core.rewards import GEPARewardCalculator
 from gepa_mindfulness.evaluation.context_classifier import ContextClassifier
@@ -76,9 +61,6 @@ class BaselineEvaluator:
         output_dir: Path = Path("experiments/phase0_baselines/results"),
     ) -> None:
         """Initialise the evaluator with model, tokenizer, and helpers."""
-
-        _require_dependency("torch", TORCH_AVAILABLE)
-        _require_dependency("transformers", TRANSFORMERS_AVAILABLE)
 
         self.model = model
         self.tokenizer = tokenizer
@@ -167,8 +149,6 @@ class BaselineEvaluator:
     def _generate_response(self, *, prompt: str) -> str:
         """Generate a model response for ``prompt`` using sampling."""
 
-        _require_dependency("torch", TORCH_AVAILABLE)
-
         inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
         with torch.no_grad():
             outputs = self.model.generate(
@@ -183,8 +163,6 @@ class BaselineEvaluator:
 
     def _compute_confidence(self, *, prompt: str, response: str) -> float:
         """Estimate average token probability for the ``response``."""
-
-        _require_dependency("torch", TORCH_AVAILABLE)
 
         full_text = prompt + response
         encoded = self.tokenizer(full_text, return_tensors="pt").to(self.model.device)
@@ -362,13 +340,3 @@ def load_evaluation_dataset(
                 )
             )
     return examples
-
-
-def _require_dependency(name: str, available: bool) -> None:
-    """Raise an informative error when a required dependency is missing."""
-
-    if not available:
-        raise ModuleNotFoundError(
-            f"{name} is required for baseline evaluation. "
-            "Install the optional dependency to use this feature."
-        )
