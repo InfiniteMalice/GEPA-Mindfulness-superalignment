@@ -1,6 +1,13 @@
 import argparse
 import json
 
+import pytest
+
+pytest.importorskip(
+    "mindful_trace_gepa",
+    reason="mindful_trace_gepa package is required for CLI scoring tests.",
+)
+
 from mindful_trace_gepa.cli_scoring import handle_score_auto
 from mindful_trace_gepa.scoring.schema import DIMENSIONS, TierScores
 
