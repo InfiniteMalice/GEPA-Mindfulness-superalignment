@@ -193,7 +193,7 @@ def _bfs_distances(graph: DiGraph, start: Hashable) -> Dict[Hashable, float]:
     while queue:
         node = queue.popleft()
         current = distances[node]
-        for neighbor in graph.neighbors(node):
+        for neighbor in _undirected_neighbors(graph, node):
             if neighbor not in distances:
                 distances[neighbor] = current + 1.0
                 queue.append(neighbor)

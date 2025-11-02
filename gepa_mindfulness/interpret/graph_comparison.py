@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Dict, List
 
-import networkx as nx
 import numpy as np
 
+import networkx as nx
 from gepa_mindfulness.interpret.attribution_graphs import AttributionGraph
 from gepa_mindfulness.interpret.graph_metrics import compute_all_metrics
 
@@ -62,24 +62,13 @@ def compute_attribution_similarity(graph_a: nx.DiGraph, graph_b: nx.DiGraph) -> 
     attrs_a = np.array([graph_a.nodes[node]["attribution"] for node in graph_a.nodes], dtype=float)
     attrs_b = np.array([graph_b.nodes[node]["attribution"] for node in graph_b.nodes], dtype=float)
 
-    values = np.concatenate((attrs_a, attrs_b))
-    min_val = float(values.min())
-    max_val = float(values.max())
-    if np.isclose(min_val, max_val):
-        span = max(abs(min_val), 1.0)
-        min_val -= span * 0.5
-        max_val += span * 0.5
-    bins = np.linspace(min_val, max_val, 11)
-    counts_a, _ = np.histogram(attrs_a, bins=bins, density=False)
-    counts_b, _ = np.histogram(attrs_b, bins=bins, density=False)
-    total_a = counts_a.sum()
-    total_b = counts_b.sum()
-    if total_a == 0 or total_b == 0:
-        return 0.0
-
-    prob_a = counts_a / float(total_a)
-    prob_b = counts_b / float(total_b)
-    distance = np.abs(prob_a - prob_b).sum() / 2.0
+    max_a = float(attrs_a.max()) if attrs_a.size else 0.0
+    max_b = float(attrs_b.max()) if attrs_b.size else 0.0
+    max_val = max(max_a, max_b, 1.0)
+    bins = np.linspace(0.0, max_val, 11)
+    hist_a, _ = np.histogram(attrs_a, bins=bins, density=True)
+    hist_b, _ = np.histogram(attrs_b, bins=bins, density=True)
+    distance = np.abs(hist_a - hist_b).sum() / 2.0
     similarity = 1.0 - distance
     return float(np.clip(similarity, 0.0, 1.0))
 
