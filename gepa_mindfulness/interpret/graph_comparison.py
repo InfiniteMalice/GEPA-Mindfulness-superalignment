@@ -70,6 +70,8 @@ def compute_attribution_similarity(graph_a: nx.DiGraph, graph_b: nx.DiGraph) -> 
     hist_b, _ = np.histogram(attrs_b, bins=bins, density=True)
     distance = np.abs(hist_a - hist_b).sum() / 2.0
     similarity = 1.0 - distance
+    if not np.isfinite(similarity):
+        return 0.0
     return float(np.clip(similarity, 0.0, 1.0))
 
 
