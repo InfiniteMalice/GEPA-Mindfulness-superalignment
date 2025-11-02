@@ -7,7 +7,6 @@ import json
 import pytest
 
 pytest.importorskip("torch")
-pytest.importorskip("transformers")
 
 from gepa_mindfulness.core.rewards import GEPARewardCalculator, HallucinationConfig, RewardWeights
 from gepa_mindfulness.evaluation.baseline_evaluator import (
