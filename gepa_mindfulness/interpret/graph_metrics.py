@@ -17,16 +17,25 @@ def compute_path_coherence(graph: AttributionGraph) -> float:
     if network.number_of_nodes() == 0:
         return 0.0
 
-    attributions = [network.nodes[node]["attribution"] for node in network.nodes]
-    sorted_attrs = np.sort(np.array(attributions))
-    total = sorted_attrs.sum()
+    attributions = np.array(
+        [network.nodes[node]["attribution"] for node in network.nodes],
+        dtype=float,
+    )
+    magnitudes = np.abs(attributions)
+    total = magnitudes.sum()
     if np.isclose(total, 0.0):
         return 0.0
 
+    sorted_attrs = np.sort(magnitudes)
     cumulative = np.cumsum(sorted_attrs)
     count = float(len(sorted_attrs))
     gini = (count + 1.0 - 2.0 * cumulative.sum() / total) / count
-    return float(np.clip(gini, 0.0, 1.0))
+    max_gini = (count - 1.0) / count if count > 1.0 else 0.0
+    if np.isclose(max_gini, 0.0):
+        return 0.0
+
+    coherence = gini / max_gini
+    return float(np.clip(coherence, 0.0, 1.0))
 
 
 def compute_graph_entropy(graph: AttributionGraph) -> float:
@@ -36,13 +45,18 @@ def compute_graph_entropy(graph: AttributionGraph) -> float:
     if network.number_of_nodes() == 0:
         return 0.0
 
-    attrs = np.array([network.nodes[node]["attribution"] for node in network.nodes])
-    total = attrs.sum()
+    attrs = np.array(
+        [network.nodes[node]["attribution"] for node in network.nodes],
+        dtype=float,
+    )
+    magnitudes = np.abs(attrs)
+    total = magnitudes.sum()
     if np.isclose(total, 0.0):
         return 0.0
 
-    probs = attrs / total
-    entropy = -np.sum(probs * np.log(np.clip(probs, 1e-12, None)))
+    probs = magnitudes / total
+    safe = np.clip(probs, 1e-12, None)
+    entropy = -np.sum(safe * np.log(safe))
     return float(entropy)
 
 
