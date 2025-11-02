@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Dict
 
-import networkx as nx
 import numpy as np
 
+import networkx as nx
 from gepa_mindfulness.interpret.attribution_graphs import AttributionGraph
 
 
@@ -17,7 +17,9 @@ def compute_path_coherence(graph: AttributionGraph) -> float:
     if network.number_of_nodes() == 0:
         return 0.0
 
-    attributions = np.array([network.nodes[node]["attribution"] for node in network.nodes], dtype=float)
+    attributions = np.array(
+        [network.nodes[node]["attribution"] for node in network.nodes], dtype=float
+    )
     total = attributions.sum()
     if np.isclose(total, 0.0):
         return 0.0

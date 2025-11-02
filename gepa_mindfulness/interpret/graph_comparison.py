@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Dict, List
 
-import networkx as nx
 import numpy as np
 
+import networkx as nx
 from gepa_mindfulness.interpret.attribution_graphs import AttributionGraph
 from gepa_mindfulness.interpret.graph_metrics import compute_all_metrics
 
