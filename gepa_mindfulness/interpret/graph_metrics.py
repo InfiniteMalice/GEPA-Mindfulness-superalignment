@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Dict
 
-import networkx as nx
 import numpy as np
 
+import networkx as nx
 from gepa_mindfulness.interpret.attribution_graphs import AttributionGraph
 
 
@@ -18,23 +18,13 @@ def compute_path_coherence(graph: AttributionGraph) -> float:
         return 0.0
 
     attributions = np.array(
-        [network.nodes[node]["attribution"] for node in network.nodes],
-        dtype=float,
+        [network.nodes[node]["attribution"] for node in network.nodes], dtype=float
     )
-    magnitudes = np.abs(attributions)
-    total = magnitudes.sum()
+    total = attributions.sum()
     if np.isclose(total, 0.0):
         return 0.0
 
-    sorted_attrs = np.sort(magnitudes)
-    cumulative = np.cumsum(sorted_attrs)
-    count = float(len(sorted_attrs))
-    gini = (count + 1.0 - 2.0 * cumulative.sum() / total) / count
-    max_gini = (count - 1.0) / count if count > 1.0 else 0.0
-    if np.isclose(max_gini, 0.0):
-        return 0.0
-
-    coherence = gini / max_gini
+    coherence = total / (len(attributions) or 1)
     return float(np.clip(coherence, 0.0, 1.0))
 
 
@@ -45,17 +35,11 @@ def compute_graph_entropy(graph: AttributionGraph) -> float:
     if network.number_of_nodes() == 0:
         return 0.0
 
-    attrs = np.array(
-        [network.nodes[node]["attribution"] for node in network.nodes],
-        dtype=float,
-    )
-    magnitudes = np.abs(attrs)
-    total = magnitudes.sum()
-    if np.isclose(total, 0.0):
+    attrs = np.array([network.nodes[node]["attribution"] for node in network.nodes], dtype=float)
+    if np.allclose(attrs, 0.0):
         return 0.0
 
-    probs = magnitudes / total
-    safe = np.clip(probs, 1e-12, None)
+    safe = np.clip(attrs, 1e-12, None)
     entropy = -np.sum(safe * np.log(safe))
     return float(entropy)
 
