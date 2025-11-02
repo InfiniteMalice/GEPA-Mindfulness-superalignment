@@ -6,7 +6,6 @@ from typing import Dict, List
 
 import networkx as nx
 import numpy as np
-from scipy.spatial.distance import cosine
 
 from gepa_mindfulness.interpret.attribution_graphs import AttributionGraph
 from gepa_mindfulness.interpret.graph_metrics import compute_all_metrics
@@ -50,7 +49,7 @@ def compute_structural_similarity(graph_a: nx.DiGraph, graph_b: nx.DiGraph) -> f
     if np.allclose(eig_a, 0.0) or np.allclose(eig_b, 0.0):
         return 0.0
 
-    similarity = 1.0 - cosine(eig_a, eig_b)
+    similarity = _cosine_similarity(eig_a, eig_b)
     return float(np.clip(similarity, 0.0, 1.0))
 
 
@@ -60,16 +59,38 @@ def compute_attribution_similarity(graph_a: nx.DiGraph, graph_b: nx.DiGraph) -> 
     if graph_a.number_of_nodes() == 0 or graph_b.number_of_nodes() == 0:
         return 0.0
 
-    attrs_a = np.array([graph_a.nodes[node]["attribution"] for node in graph_a.nodes])
-    attrs_b = np.array([graph_b.nodes[node]["attribution"] for node in graph_b.nodes])
-    attrs_a = attrs_a / (attrs_a.sum() + 1e-10)
-    attrs_b = attrs_b / (attrs_b.sum() + 1e-10)
+    attrs_a = np.array([graph_a.nodes[node]["attribution"] for node in graph_a.nodes], dtype=float)
+    attrs_b = np.array([graph_b.nodes[node]["attribution"] for node in graph_b.nodes], dtype=float)
 
-    bins = np.linspace(0.0, 1.0, 11)
-    hist_a, _ = np.histogram(attrs_a, bins=bins, density=True)
-    hist_b, _ = np.histogram(attrs_b, bins=bins, density=True)
-    distance = np.abs(hist_a - hist_b).sum() / 2.0
+    attrs_a = attrs_a[np.isfinite(attrs_a)]
+    attrs_b = attrs_b[np.isfinite(attrs_b)]
+    if attrs_a.size == 0 or attrs_b.size == 0:
+        return 0.0
+
+    values = np.concatenate((attrs_a, attrs_b))
+    min_val = float(values.min())
+    max_val = float(values.max())
+    if np.isclose(min_val, max_val):
+        span = max(abs(min_val), 1.0)
+        min_val -= span * 0.5
+        max_val += span * 0.5
+    bins = np.linspace(min_val, max_val, 11)
+    counts_a, _ = np.histogram(attrs_a, bins=bins, density=False)
+    counts_b, _ = np.histogram(attrs_b, bins=bins, density=False)
+    total_a = counts_a.sum()
+    total_b = counts_b.sum()
+    if total_a == 0 or total_b == 0:
+        return 0.0
+
+    prob_a = counts_a / float(total_a)
+    prob_b = counts_b / float(total_b)
+    if not np.isfinite(prob_a).all() or not np.isfinite(prob_b).all():
+        return 0.0
+
+    distance = np.abs(prob_a - prob_b).sum() / 2.0
     similarity = 1.0 - distance
+    if not np.isfinite(similarity):
+        return 0.0
     return float(np.clip(similarity, 0.0, 1.0))
 
 
@@ -85,7 +106,7 @@ def compute_metric_similarity(metrics_a: Dict[str, float], metrics_b: Dict[str, 
     if np.allclose(vec_a, 0.0) or np.allclose(vec_b, 0.0):
         return 0.0
 
-    similarity = 1.0 - cosine(vec_a, vec_b)
+    similarity = _cosine_similarity(vec_a, vec_b)
     return float(np.clip(similarity, 0.0, 1.0))
 
 
@@ -99,3 +120,12 @@ def find_distinctive_subgraphs(
 
     _ = (honest_graphs, deceptive_graphs, min_frequency)
     return {"honest_patterns": [], "deceptive_patterns": []}
+
+
+def _cosine_similarity(vec_a: np.ndarray, vec_b: np.ndarray) -> float:
+    """Return cosine similarity, guarding against zero vectors."""
+
+    denom = float(np.linalg.norm(vec_a) * np.linalg.norm(vec_b))
+    if denom == 0.0:
+        return 0.0
+    return float(np.dot(vec_a, vec_b) / denom)
