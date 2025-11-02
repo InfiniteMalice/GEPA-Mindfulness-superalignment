@@ -2,84 +2,19 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-from typing import Any, Dict, Iterable, List
+from dataclasses import dataclass
+from typing import Dict, Iterable, List
 
 import pytest
+import torch
+from transformers import GPT2Config, GPT2LMHeadModel
 
 
-def _ensure_local_paths() -> None:
-    """Ensure repository and ``src`` directories are importable."""
-
-    repo_root = Path(__file__).resolve().parent.parent
-    src_dir = repo_root / "src"
-
-    for path in (repo_root, src_dir):
-        path_str = str(path)
-        if path_str not in sys.path:
-            sys.path.insert(0, path_str)
-
-
-_ensure_local_paths()
-
-
-try:  # pragma: no cover - dependency absent during CI
-    import torch  # type: ignore[import]
-except ModuleNotFoundError:  # pragma: no cover - dependency absent
-    torch = None  # type: ignore[assignment]
-
-try:  # pragma: no cover - dependency absent during CI
-    import transformers  # type: ignore[import]
-except ModuleNotFoundError:  # pragma: no cover - dependency absent
-    transformers = None  # type: ignore[assignment]
-
-try:  # pragma: no cover - optional dependency
-    import mindful_trace_gepa  # type: ignore[import]
-except ModuleNotFoundError:  # pragma: no cover - dependency absent
-    mindful_trace_gepa = None  # type: ignore[assignment]
-
-
-TORCH_AVAILABLE = torch is not None
-TRANSFORMERS_AVAILABLE = transformers is not None
-MINDFUL_TRACE_AVAILABLE = mindful_trace_gepa is not None
-
-if not MINDFUL_TRACE_AVAILABLE:  # pragma: no cover - optional dependency
-    collect_ignore = [
-        "test_aggregate_confidence.py",
-        "test_classifier_smoke.py",
-        "test_cli_minimal.py",
-        "test_cli_score_auto.py",
-        "test_complete_integration.py",
-        "test_corrected_integration.py",
-        "test_deception_probe_synthetic.py",
-        "test_deception_signals.py",
-        "test_detectors.py",
-        "test_dspy_compile.py",
-        "test_dspy_disabled.py",
-        "test_dual_path.py",
-        "test_llm_judge_schema.py",
-        "test_longctx_stream_score.py",
-        "test_mm_deception_text_only.py",
-        "test_shards_manifest.py",
-        "test_smoke_datasets.py",
-        "test_tier0_heuristics.py",
-        "test_viewer_build.py",
-    ]
-
-if TORCH_AVAILABLE and TRANSFORMERS_AVAILABLE:  # pragma: no branch - import guard
-    GPT2Config = transformers.GPT2Config  # type: ignore[attr-defined]
-    GPT2LMHeadModel = transformers.GPT2LMHeadModel  # type: ignore[attr-defined]
-else:  # pragma: no cover - executed only when deps missing
-    GPT2Config = GPT2LMHeadModel = Any  # type: ignore
-
-
+@dataclass
 class BatchEncoding(dict):
     """Minimal batch encoding mimicking Hugging Face outputs."""
 
-    def to(self, device: "torch.device") -> "BatchEncoding":
-        if not TORCH_AVAILABLE:
-            raise RuntimeError("PyTorch is required to move BatchEncoding tensors.")
+    def to(self, device: torch.device) -> "BatchEncoding":
         return BatchEncoding({key: value.to(device) for key, value in self.items()})
 
 
@@ -121,8 +56,6 @@ class DummyTokenizer:
         return " ".join(tokens)
 
     def __call__(self, text: str, return_tensors: str = "pt") -> BatchEncoding:
-        if not TORCH_AVAILABLE:
-            raise RuntimeError("PyTorch is required to tensorise dummy tokenizer outputs.")
         token_ids = self.encode(text, add_special_tokens=False)
         tensor = torch.tensor([token_ids], dtype=torch.long)
         attention = torch.ones_like(tensor)
@@ -136,8 +69,6 @@ class DummyTokenizer:
 
 @pytest.fixture()
 def tiny_model() -> GPT2LMHeadModel:
-    if not (TORCH_AVAILABLE and TRANSFORMERS_AVAILABLE):
-        pytest.skip("PyTorch and transformers are required for the tiny_model fixture.")
     config = GPT2Config(
         vocab_size=32,
         n_positions=32,
@@ -156,6 +87,4 @@ def tiny_model() -> GPT2LMHeadModel:
 
 @pytest.fixture()
 def dummy_tokenizer() -> DummyTokenizer:
-    if not TORCH_AVAILABLE:
-        pytest.skip("PyTorch is required for the dummy_tokenizer fixture.")
     return DummyTokenizer()
