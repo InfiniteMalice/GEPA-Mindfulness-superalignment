@@ -2,13 +2,35 @@
 
 from __future__ import annotations
 
+import importlib
+import importlib.util
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import networkx as nx
-import torch
-import torch.nn as nn
-from transformers import PreTrainedModel, PreTrainedTokenizer
+
+_TORCH_SPEC = importlib.util.find_spec("torch")
+_TRANSFORMER_SPEC = importlib.util.find_spec("transformers")
+if _TORCH_SPEC is not None and _TRANSFORMER_SPEC is not None:
+    torch = importlib.import_module("torch")
+    nn = importlib.import_module("torch.nn")
+    transformers = importlib.import_module("transformers")
+    PreTrainedModel = transformers.PreTrainedModel
+    PreTrainedTokenizer = transformers.PreTrainedTokenizer
+else:  # pragma: no cover - used when optional deps missing
+    torch = None  # type: ignore[assignment]
+    nn = None  # type: ignore[assignment]
+    PreTrainedModel = Any  # type: ignore[misc]
+    PreTrainedTokenizer = Any  # type: ignore[misc]
+
+
+def _require_torch() -> None:
+    """Ensure optional torch dependencies are available."""
+
+    if torch is None:
+        raise ImportError(
+            "AttributionGraphExtractor requires torch and transformers to be installed."
+        )
 
 
 @dataclass
@@ -75,16 +97,20 @@ class AttributionGraphExtractor:
         model: PreTrainedModel,
         tokenizer: PreTrainedTokenizer,
         method: str = "gradient_x_activation",
-        device: str | torch.device = "cuda" if torch.cuda.is_available() else "cpu",
+        device: Any = None,
     ) -> None:
         """Initialise the extractor and register activation hooks."""
 
-        self.model = model.to(device)
+        _require_torch()
+        assert torch is not None
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = torch.device(device)
+        self.model = model.to(self.device)
         self.tokenizer = tokenizer
         self.method = method
-        self.device = torch.device(device)
-        self.activations: Dict[str, torch.Tensor] = {}
-        self.gradients: Dict[str, torch.Tensor] = {}
+        self.activations: Dict[str, Any] = {}
+        self.gradients: Dict[str, Any] = {}
         self._register_hooks()
 
     def _register_hooks(self) -> None:
