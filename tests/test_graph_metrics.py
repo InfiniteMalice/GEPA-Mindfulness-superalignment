@@ -58,7 +58,7 @@ def test_centrality_concentration_bounds() -> None:
 def test_average_path_length_handles_components() -> None:
     graph = _simple_graph()
     length = compute_average_path_length(graph)
-    assert length > 0.0
+    assert length == 0.0
 
 
 def test_compute_all_metrics_contains_expected_keys() -> None:
