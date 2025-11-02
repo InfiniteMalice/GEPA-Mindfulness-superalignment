@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 
+pytest.importorskip("yaml")
+
 from gepa_mindfulness.training.config import (
     GRPOConfig,
     PPOConfig,
