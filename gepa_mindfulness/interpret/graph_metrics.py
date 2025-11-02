@@ -89,9 +89,13 @@ def compute_average_path_length(graph: AttributionGraph) -> float:
         return 0.0
 
     try:
-        if nx.is_weakly_connected(network):
+        # For directed graphs, check strong connectivity
+        if nx.is_strongly_connected(network):
             return float(nx.average_shortest_path_length(network))
-        largest = max(nx.weakly_connected_components(network), key=len)
+        # Find largest strongly connected component
+        largest = max(nx.strongly_connected_components(network), key=len)
+        if len(largest) < 2:
+            return 0.0
         subgraph = network.subgraph(largest)
         return float(nx.average_shortest_path_length(subgraph))
     except nx.NetworkXError:

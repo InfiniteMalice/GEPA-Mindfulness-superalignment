@@ -206,12 +206,86 @@ def _undirected_neighbors(graph: DiGraph, node: Hashable) -> Set[Hashable]:
     return neighbors
 
 
+def _directed_bfs(graph: DiGraph, start: Hashable) -> Set[Hashable]:
+    """BFS following only outgoing edges (directed traversal)."""
+    queue: deque[Hashable] = deque([start])
+    visited: Set[Hashable] = {start}
+    while queue:
+        node = queue.popleft()
+        for neighbor in graph.neighbors(node):
+            if neighbor not in visited:
+                visited.add(neighbor)
+                queue.append(neighbor)
+    return visited
+
+
+def is_strongly_connected(graph: DiGraph) -> bool:
+    """Return True if every node can reach every other node via directed paths."""
+    nodes = list(graph.nodes)
+    if not nodes:
+        return True
+
+    # Check if all nodes are reachable from the first node
+    reachable = _directed_bfs(graph, nodes[0])
+    if len(reachable) != len(nodes):
+        return False
+
+    # Check if the first node is reachable from all other nodes
+    for node in nodes[1:]:
+        if nodes[0] not in _directed_bfs(graph, node):
+            return False
+
+    return True
+
+
+def strongly_connected_components(graph: DiGraph) -> Iterator[Set[Hashable]]:
+    """Yield node sets for each strongly connected component using Tarjan's algorithm."""
+    index_counter = [0]
+    stack: list[Hashable] = []
+    lowlinks: Dict[Hashable, int] = {}
+    index: Dict[Hashable, int] = {}
+    on_stack: Set[Hashable] = set()
+    components: list[Set[Hashable]] = []
+
+    def strongconnect(node: Hashable) -> None:
+        index[node] = index_counter[0]
+        lowlinks[node] = index_counter[0]
+        index_counter[0] += 1
+        stack.append(node)
+        on_stack.add(node)
+
+        for neighbor in graph.neighbors(node):
+            if neighbor not in index:
+                strongconnect(neighbor)
+                lowlinks[node] = min(lowlinks[node], lowlinks[neighbor])
+            elif neighbor in on_stack:
+                lowlinks[node] = min(lowlinks[node], index[neighbor])
+
+        if lowlinks[node] == index[node]:
+            component: Set[Hashable] = set()
+            while True:
+                w = stack.pop()
+                on_stack.remove(w)
+                component.add(w)
+                if w == node:
+                    break
+            components.append(component)
+
+    for node in graph.nodes:
+        if node not in index:
+            strongconnect(node)
+
+    return iter(components)
+
+
 __all__ = [
     "DiGraph",
     "NetworkXError",
     "average_shortest_path_length",
     "degree_centrality",
+    "is_strongly_connected",
     "is_weakly_connected",
     "laplacian_spectrum",
+    "strongly_connected_components",
     "weakly_connected_components",
 ]
