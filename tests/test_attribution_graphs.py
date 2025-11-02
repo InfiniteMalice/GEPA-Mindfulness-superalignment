@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import time
 
+import pytest
+
+pytest.importorskip("torch")
+
 import torch
 
 from gepa_mindfulness.interpret.attribution_graphs import (
