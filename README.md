@@ -23,6 +23,10 @@ The project targets Python 3.10+.
 * **Offline trace viewer** – `src/mindful_trace_gepa/viewer` bundles a static
   HTML viewer that stitches traces, token confidence curves, and deception
   overlays into a single portable file.
+* **Self-contained graph analytics** – the in-tree `networkx` stub mirrors the
+  features we depend on, including an iterative strongly connected component
+  traversal so attribution metrics stay consistent without external
+  dependencies.
 * **Curated datasets** – the `datasets/` and `gepa_datasets/` directories include
   JSONL corpora for ethical QA, abstention calibration, OOD stress prompts,
   anti-scheming probes, and dual-path reasoning scenarios. The full bundle is
