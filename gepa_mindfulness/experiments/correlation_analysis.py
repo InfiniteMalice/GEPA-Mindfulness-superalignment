@@ -7,25 +7,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 
-try:  # pragma: no cover - optional dependency
-    import matplotlib.pyplot as plt
-except ImportError:  # pragma: no cover - executed when matplotlib missing
-    plt = None  # type: ignore[assignment]
-
-try:  # pragma: no cover - optional dependency
-    import numpy as np
-except ImportError:  # pragma: no cover - executed when numpy missing
-    np = None  # type: ignore[assignment]
-
-try:  # pragma: no cover - optional dependency
-    import seaborn as sns
-except ImportError:  # pragma: no cover - executed when seaborn missing
-    sns = None  # type: ignore[assignment]
-
-try:  # pragma: no cover - optional dependency
-    from scipy.stats import pearsonr, spearmanr
-except ImportError:  # pragma: no cover - executed when SciPy missing
-    pearsonr = spearmanr = None  # type: ignore[assignment]
+import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
+from scipy.stats import pearsonr, spearmanr
 
 
 @dataclass
@@ -51,16 +36,6 @@ class CorrelationAnalyzer:
         self.data: List[Dict[str, object]] = []
         self._load_data()
 
-    @staticmethod
-    def _require_dependency(name: str, available: bool) -> None:
-        """Raise a helpful error when an optional dependency is missing."""
-
-        if not available:
-            raise RuntimeError(
-                f"{name} is required for correlation analysis. "
-                "Install the optional analytics extras to enable this feature."
-            )
-
     def _load_data(self) -> None:
         """Load JSONL result files produced by the baseline evaluator."""
 
@@ -75,8 +50,6 @@ class CorrelationAnalyzer:
 
         if not self.data:
             return []
-
-        self._require_dependency("SciPy", pearsonr is not None and spearmanr is not None)
 
         gepa_fields = [
             "mindfulness",
@@ -133,7 +106,6 @@ class CorrelationAnalyzer:
         if len(values1) < 10:
             return None
 
-        self._require_dependency("SciPy", pearsonr is not None and spearmanr is not None)
         pearson_val, pearson_p = pearsonr(values1, values2)
         spearman_val, spearman_p = spearmanr(values1, values2)
         interpretation = self._interpret_correlation(r=pearson_val, p=pearson_p)
@@ -165,11 +137,6 @@ class CorrelationAnalyzer:
 
     def visualize_correlations(self, *, output_path: Path) -> None:
         """Render and save a correlation heatmap as ``output_path``."""
-
-        self._require_dependency("NumPy", np is not None)
-        self._require_dependency("matplotlib", plt is not None)
-        self._require_dependency("seaborn", sns is not None)
-        self._require_dependency("SciPy", pearsonr is not None and spearmanr is not None)
 
         gepa_vars = [
             "mindfulness",
