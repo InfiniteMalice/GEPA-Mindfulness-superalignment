@@ -8,21 +8,13 @@ from pathlib import Path
 
 _SRC_ROOT = Path(__file__).resolve().parent.parent / "src"
 _MODULE_PATH = _SRC_ROOT / "mindful_trace_gepa" / "__init__.py"
-_PACKAGE_DIR = _MODULE_PATH.parent
 if not _MODULE_PATH.exists():
     raise ImportError("mindful_trace_gepa source package not found")
 
-_SPEC = importlib.util.spec_from_file_location(
-    __name__,
-    _MODULE_PATH,
-    submodule_search_locations=[str(_PACKAGE_DIR)],
-)
+_SPEC = importlib.util.spec_from_file_location(__name__, _MODULE_PATH)
 if _SPEC is None or _SPEC.loader is None:  # pragma: no cover - safety guard
     raise ImportError("Unable to load mindful_trace_gepa source module")
 
 _MODULE = importlib.util.module_from_spec(_SPEC)
 sys.modules[__name__] = _MODULE
 _SPEC.loader.exec_module(_MODULE)
-_MODULE.__spec__ = _SPEC
-if _SPEC.submodule_search_locations is not None:
-    _MODULE.__path__ = list(_SPEC.submodule_search_locations)
