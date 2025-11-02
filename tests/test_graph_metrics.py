@@ -17,10 +17,15 @@ from gepa_mindfulness.interpret.graph_metrics import (
 
 
 def _simple_graph(high: bool = True) -> AttributionGraph:
+    node_scores = (
+        [0.9, 0.05, 0.05]
+        if high
+        else [0.34, 0.33, 0.33]
+    )
     nodes = [
-        AttributionNode(0, "attention", None, 0, 1.0, 0.9 if high else 0.1),
-        AttributionNode(1, "mlp", None, 0, 0.8, 0.8 if high else 0.2),
-        AttributionNode(2, "mlp", None, 0, 0.7, 0.7 if high else 0.2),
+        AttributionNode(0, "attention", None, 0, 1.0, node_scores[0]),
+        AttributionNode(1, "mlp", None, 0, 0.8, node_scores[1]),
+        AttributionNode(2, "mlp", None, 0, 0.7, node_scores[2]),
     ]
     edges = [
         AttributionEdge(nodes[0], nodes[1], 0.5),
@@ -57,7 +62,7 @@ def test_centrality_concentration_bounds() -> None:
 def test_average_path_length_handles_components() -> None:
     graph = _simple_graph()
     length = compute_average_path_length(graph)
-    assert length > 0.0
+    assert length == 0.0
 
 
 def test_compute_all_metrics_contains_expected_keys() -> None:

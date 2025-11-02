@@ -52,3 +52,25 @@ def test_structural_similarity_lower_for_different_graphs() -> None:
     assert 0.0 <= attr <= 1.0
     assert 0.0 <= metrics <= 1.0
     assert attr < 1.0
+
+
+def test_attribution_similarity_handles_negative_values() -> None:
+    base = _graph_with_scale(-1.0)
+    varied_nodes = [
+        AttributionNode(0, "attention", None, 0, 1.0, -0.2),
+        AttributionNode(1, "mlp", None, 0, 1.0, -0.8),
+    ]
+    varied = AttributionGraph(
+        prompt="hello",
+        response="response",
+        nodes=varied_nodes,
+        edges=[AttributionEdge(varied_nodes[0], varied_nodes[1], -0.3)],
+        method="gradient_x_activation",
+        metadata={},
+    )
+    similarity = compute_attribution_similarity(
+        base.to_networkx(),
+        varied.to_networkx(),
+    )
+    assert 0.0 <= similarity <= 1.0
+    assert similarity < 1.0
