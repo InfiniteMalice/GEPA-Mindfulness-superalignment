@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Dict
 
-import networkx as nx
 import numpy as np
 
+import networkx as nx
 from gepa_mindfulness.interpret.attribution_graphs import AttributionGraph
 
 
@@ -18,30 +18,31 @@ def compute_path_coherence(graph: AttributionGraph) -> float:
         return 0.0
 
     attributions = np.array(
-        [network.nodes[node]["attribution"] for node in network.nodes],
-        dtype=float,
+        [network.nodes[node]["attribution"] for node in network.nodes], dtype=float
     )
-    magnitudes = np.abs(attributions)
-    total = magnitudes.sum()
+
+    # Normalize attributions to handle negative values
+    if attributions.min() < 0:
+        attributions = attributions - attributions.min()
+
+    total = attributions.sum()
     if np.isclose(total, 0.0):
         return 0.0
 
-    probs = magnitudes / total
-    size = probs.size
-    if size <= 1:
+    # Compute Gini coefficient using pairwise differences
+    n = len(attributions)
+    if n <= 1:
         return 0.0
 
-    sorted_probs = np.sort(probs)
-    indices = np.arange(1.0, float(size) + 1.0)
-    weighted_sum = float(np.dot(indices, sorted_probs))
-    gini = (2.0 * weighted_sum) / float(size) - (float(size) + 1.0) / float(size)
-    gini = max(gini, 0.0)
-    max_gini = (float(size) - 1.0) / float(size)
-    if np.isclose(max_gini, 0.0):
-        return 0.0
+    # Sort attributions for Gini calculation
+    sorted_attrs = np.sort(attributions)
 
-    coherence = gini / max_gini
-    return float(np.clip(coherence, 0.0, 1.0))
+    # Standard Gini formula: G = (2 * sum(i * x[i])) / (n * sum(x)) - (n + 1) / n
+    # where i is the rank (1-indexed)
+    ranks = np.arange(1, n + 1)
+    gini = (2.0 * np.sum(ranks * sorted_attrs)) / (n * total) - (n + 1.0) / n
+
+    return float(np.clip(gini, 0.0, 1.0))
 
 
 def compute_graph_entropy(graph: AttributionGraph) -> float:
@@ -51,17 +52,11 @@ def compute_graph_entropy(graph: AttributionGraph) -> float:
     if network.number_of_nodes() == 0:
         return 0.0
 
-    attrs = np.array(
-        [network.nodes[node]["attribution"] for node in network.nodes],
-        dtype=float,
-    )
-    magnitudes = np.abs(attrs)
-    total = magnitudes.sum()
-    if np.isclose(total, 0.0):
+    attrs = np.array([network.nodes[node]["attribution"] for node in network.nodes], dtype=float)
+    if np.allclose(attrs, 0.0):
         return 0.0
 
-    probs = magnitudes / total
-    safe = np.clip(probs, 1e-12, None)
+    safe = np.clip(attrs, 1e-12, None)
     entropy = -np.sum(safe * np.log(safe))
     return float(entropy)
 
@@ -94,9 +89,13 @@ def compute_average_path_length(graph: AttributionGraph) -> float:
         return 0.0
 
     try:
-        if nx.is_weakly_connected(network):
+        # For directed graphs, check strong connectivity
+        if nx.is_strongly_connected(network):
             return float(nx.average_shortest_path_length(network))
-        largest = max(nx.weakly_connected_components(network), key=len)
+        # Find largest strongly connected component
+        largest = max(nx.strongly_connected_components(network), key=len)
+        if len(largest) < 2:
+            return 0.0
         subgraph = network.subgraph(largest)
         return float(nx.average_shortest_path_length(subgraph))
     except nx.NetworkXError:

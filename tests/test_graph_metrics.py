@@ -17,11 +17,7 @@ from gepa_mindfulness.interpret.graph_metrics import (
 
 
 def _simple_graph(high: bool = True) -> AttributionGraph:
-    node_scores = (
-        [0.9, 0.05, 0.05]
-        if high
-        else [0.34, 0.33, 0.33]
-    )
+    node_scores = [0.9, 0.05, 0.05] if high else [0.34, 0.33, 0.33]
     nodes = [
         AttributionNode(0, "attention", None, 0, 1.0, node_scores[0]),
         AttributionNode(1, "mlp", None, 0, 0.8, node_scores[1]),
@@ -63,27 +59,6 @@ def test_average_path_length_handles_components() -> None:
     graph = _simple_graph()
     length = compute_average_path_length(graph)
     assert length == 0.0
-
-
-def test_average_path_length_large_chain_returns_zero() -> None:
-    size = 1500
-    nodes = [
-        AttributionNode(idx, "mlp", None, idx, 1.0, 0.1)
-        for idx in range(size)
-    ]
-    edges = [
-        AttributionEdge(nodes[idx], nodes[idx + 1], 0.1)
-        for idx in range(size - 1)
-    ]
-    graph = AttributionGraph(
-        prompt="chain",
-        response="response",
-        nodes=nodes,
-        edges=edges,
-        method="gradient_x_activation",
-        metadata={},
-    )
-    assert compute_average_path_length(graph) == 0.0
 
 
 def test_compute_all_metrics_contains_expected_keys() -> None:

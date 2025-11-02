@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import deque
-from typing import Dict, Hashable, Iterable, Iterator, List, Optional, Set, Tuple
+from typing import Dict, Hashable, Iterable, Iterator, Set, Tuple
 
 import numpy as np
 
@@ -159,17 +159,6 @@ def average_shortest_path_length(graph: DiGraph) -> float:
     if size < 2:
         raise NetworkXError("Graph must contain at least two nodes")
 
-    first_component: Optional[Set[Hashable]] = None
-    for component in strongly_connected_components(graph):
-        if first_component is None:
-            first_component = component
-            if len(component) != size:
-                raise NetworkXError("Graph is not connected")
-        else:
-            raise NetworkXError("Graph is not connected")
-    if first_component is None:
-        raise NetworkXError("Graph is not connected")
-
     total = 0.0
     count = 0
     for source in nodes:
@@ -204,65 +193,11 @@ def _bfs_distances(graph: DiGraph, start: Hashable) -> Dict[Hashable, float]:
     while queue:
         node = queue.popleft()
         current = distances[node]
-        for neighbor in graph.neighbors(node):
+        for neighbor in _undirected_neighbors(graph, node):
             if neighbor not in distances:
                 distances[neighbor] = current + 1.0
                 queue.append(neighbor)
     return distances
-
-
-def strongly_connected_components(graph: DiGraph) -> Iterator[Set[Hashable]]:
-    """Yield strongly connected components using an iterative Tarjan traversal."""
-
-    index_map: Dict[Hashable, int] = {}
-    lowlink: Dict[Hashable, int] = {}
-    stack: List[Hashable] = []
-    on_stack: Set[Hashable] = set()
-    counter = 0
-
-    for start in graph.nodes:
-        if start in index_map:
-            continue
-        frame_stack: List[List[object]] = [
-            [start, iter(graph.neighbors(start)), False]
-        ]
-        while frame_stack:
-            frame = frame_stack[-1]
-            node = frame[0]
-            entered = frame[2]
-            if not entered:
-                index_map[node] = counter
-                lowlink[node] = counter
-                counter += 1
-                stack.append(node)
-                on_stack.add(node)
-                frame[2] = True
-            neighbors = frame[1]
-            try:
-                neighbor = next(neighbors)
-            except StopIteration:
-                frame_stack.pop()
-                if lowlink[node] == index_map[node]:
-                    component: Set[Hashable] = set()
-                    while stack:
-                        candidate = stack.pop()
-                        on_stack.remove(candidate)
-                        component.add(candidate)
-                        if candidate == node:
-                            break
-                    yield component
-                if frame_stack:
-                    parent = frame_stack[-1][0]
-                    lowlink[parent] = min(lowlink[parent], lowlink[node])
-                continue
-
-            if neighbor not in index_map:
-                frame_stack.append(
-                    [neighbor, iter(graph.neighbors(neighbor)), False]
-                )
-                continue
-            if neighbor in on_stack:
-                lowlink[node] = min(lowlink[node], index_map[neighbor])
 
 
 def _undirected_neighbors(graph: DiGraph, node: Hashable) -> Set[Hashable]:
@@ -271,11 +206,84 @@ def _undirected_neighbors(graph: DiGraph, node: Hashable) -> Set[Hashable]:
     return neighbors
 
 
+def _directed_bfs(graph: DiGraph, start: Hashable) -> Set[Hashable]:
+    """BFS following only outgoing edges (directed traversal)."""
+    queue: deque[Hashable] = deque([start])
+    visited: Set[Hashable] = {start}
+    while queue:
+        node = queue.popleft()
+        for neighbor in graph.neighbors(node):
+            if neighbor not in visited:
+                visited.add(neighbor)
+                queue.append(neighbor)
+    return visited
+
+
+def is_strongly_connected(graph: DiGraph) -> bool:
+    """Return True if every node can reach every other node via directed paths."""
+    nodes = list(graph.nodes)
+    if not nodes:
+        return True
+
+    # Check if all nodes are reachable from the first node
+    reachable = _directed_bfs(graph, nodes[0])
+    if len(reachable) != len(nodes):
+        return False
+
+    # Check if the first node is reachable from all other nodes
+    for node in nodes[1:]:
+        if nodes[0] not in _directed_bfs(graph, node):
+            return False
+
+    return True
+
+
+def strongly_connected_components(graph: DiGraph) -> Iterator[Set[Hashable]]:
+    """Yield node sets for each strongly connected component using Tarjan's algorithm."""
+    index_counter = [0]
+    stack: list[Hashable] = []
+    lowlinks: Dict[Hashable, int] = {}
+    index: Dict[Hashable, int] = {}
+    on_stack: Set[Hashable] = set()
+    components: list[Set[Hashable]] = []
+
+    def strongconnect(node: Hashable) -> None:
+        index[node] = index_counter[0]
+        lowlinks[node] = index_counter[0]
+        index_counter[0] += 1
+        stack.append(node)
+        on_stack.add(node)
+
+        for neighbor in graph.neighbors(node):
+            if neighbor not in index:
+                strongconnect(neighbor)
+                lowlinks[node] = min(lowlinks[node], lowlinks[neighbor])
+            elif neighbor in on_stack:
+                lowlinks[node] = min(lowlinks[node], index[neighbor])
+
+        if lowlinks[node] == index[node]:
+            component: Set[Hashable] = set()
+            while True:
+                w = stack.pop()
+                on_stack.remove(w)
+                component.add(w)
+                if w == node:
+                    break
+            components.append(component)
+
+    for node in graph.nodes:
+        if node not in index:
+            strongconnect(node)
+
+    return iter(components)
+
+
 __all__ = [
     "DiGraph",
     "NetworkXError",
     "average_shortest_path_length",
     "degree_centrality",
+    "is_strongly_connected",
     "is_weakly_connected",
     "laplacian_spectrum",
     "strongly_connected_components",
