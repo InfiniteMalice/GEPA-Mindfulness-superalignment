@@ -20,12 +20,29 @@ def compute_path_coherence(graph: AttributionGraph) -> float:
     attributions = np.array(
         [network.nodes[node]["attribution"] for node in network.nodes], dtype=float
     )
+
+    # Normalize attributions to handle negative values
+    if attributions.min() < 0:
+        attributions = attributions - attributions.min()
+
     total = attributions.sum()
     if np.isclose(total, 0.0):
         return 0.0
 
-    coherence = total / (len(attributions) or 1)
-    return float(np.clip(coherence, 0.0, 1.0))
+    # Compute Gini coefficient using pairwise differences
+    n = len(attributions)
+    if n <= 1:
+        return 0.0
+
+    # Sort attributions for Gini calculation
+    sorted_attrs = np.sort(attributions)
+
+    # Standard Gini formula: G = (2 * sum(i * x[i])) / (n * sum(x)) - (n + 1) / n
+    # where i is the rank (1-indexed)
+    ranks = np.arange(1, n + 1)
+    gini = (2.0 * np.sum(ranks * sorted_attrs)) / (n * total) - (n + 1.0) / n
+
+    return float(np.clip(gini, 0.0, 1.0))
 
 
 def compute_graph_entropy(graph: AttributionGraph) -> float:
