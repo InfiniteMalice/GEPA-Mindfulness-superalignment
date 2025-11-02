@@ -11,6 +11,7 @@ import pytest
 try:
     import torch
     from transformers import GPT2Config, GPT2LMHeadModel
+
     HAS_TORCH = True
 except ImportError:
     HAS_TORCH = False
@@ -20,6 +21,7 @@ except ImportError:
 
 
 if HAS_TORCH:
+
     @dataclass
     class BatchEncoding(dict):
         """Minimal batch encoding mimicking Hugging Face outputs."""
