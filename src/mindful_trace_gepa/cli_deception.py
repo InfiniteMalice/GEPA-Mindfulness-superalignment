@@ -6,7 +6,7 @@ import argparse
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
 
@@ -203,7 +203,7 @@ def handle_deception_probes(args: argparse.Namespace) -> None:
             "model": args.model,
             "trace_path": str(trace_path),
             "probe_path": str(probe_path),
-            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "trace_events": len(trace_events),
             "activations_source": activations_bundle.source,
         }

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Mapping, MutableMapping
 
 try:  # pragma: no cover - dspy optional
@@ -192,7 +192,9 @@ class GEPAChain:
                         "stage": stage,
                         "module": signature.name,
                         "content": output,
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now(timezone.utc)
+                        .isoformat()
+                        .replace("+00:00", "Z"),
                         "metadata": metadata,
                     }
                 )

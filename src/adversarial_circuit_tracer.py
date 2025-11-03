@@ -6,7 +6,7 @@ import argparse
 import json
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence
 
@@ -194,7 +194,7 @@ def save_traces(run_dir: Path, traces: Iterable[ScenarioTrace], apply_ablation: 
     tracer_dir.mkdir(parents=True, exist_ok=True)
 
     fingerprint_payload = {
-        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "scenarios": [
             {
                 "id": trace.scenario_id,
@@ -229,7 +229,7 @@ def save_traces(run_dir: Path, traces: Iterable[ScenarioTrace], apply_ablation: 
     )
 
     ablation_payload = {
-        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "scenarios": {
             trace.scenario_id: build_ablation_mask(trace.fingerprint) for trace in traces
         },
@@ -248,7 +248,16 @@ def save_traces(run_dir: Path, traces: Iterable[ScenarioTrace], apply_ablation: 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Trace dual-public adversarial runs")
-    parser.add_argument("run", help="Run directory produced by the evaluator")
+    parser.add_argument(
+        "run",
+        nargs="?",
+        help="Run directory produced by the evaluator",
+    )
+    parser.add_argument(
+        "--run",
+        dest="run_dir",
+        help="Run directory produced by the evaluator",
+    )
     parser.add_argument(
         "--scenario",
         action="append",
@@ -265,7 +274,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    run_dir = Path(args.run)
+    run_arg = args.run_dir or args.run
+    if not run_arg:
+        parser.error("run directory required (pass RUN or --run <path>)")
+
+    run_dir = Path(run_arg)
     summary = load_eval_summary(run_dir)
     available = [scenario["id"] for scenario in summary.get("scenarios", [])]
 
