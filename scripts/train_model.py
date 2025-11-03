@@ -117,9 +117,7 @@ def _count_tokens(tokenizer: Any, text: str) -> int:
     return len(tokenizer.encode(text, add_special_tokens=False))
 
 
-def _resolve_section_span(
-    response: str, text: str, span: Tuple[int, int]
-) -> Tuple[int, int]:
+def _resolve_section_span(response: str, text: str, span: Tuple[int, int]) -> Tuple[int, int]:
     start, end = span
     if end > start:
         return start, end
@@ -150,11 +148,7 @@ def _slice_graph_by_tokens(
     graph: AttributionGraph, token_range: Tuple[int, int]
 ) -> AttributionGraph:
     start, end = token_range
-    node_ids = {
-        id(node)
-        for node in graph.nodes
-        if start <= node.token_position < end
-    }
+    node_ids = {id(node) for node in graph.nodes if start <= node.token_position < end}
     nodes = [node for node in graph.nodes if id(node) in node_ids]
     edges = [
         edge
@@ -388,9 +382,7 @@ def combine_detection_signals(
             if adversarial["confidence"] > confidence:
                 confidence = adversarial["confidence"]
                 source = "adversarial"
-            reasons.append(
-                f"Adversarial pattern detected: {adversarial['category']}"
-            )
+            reasons.append(f"Adversarial pattern detected: {adversarial['category']}")
 
     confidence = float(min(1.0, confidence))
     return {
@@ -692,10 +684,7 @@ def main() -> int:
                     f"(confidence={final['confidence']:.2f}, source={final['source']})"
                 )
             else:
-                print(
-                    "  ✅ No deception detected "
-                    f"(confidence={final['confidence']:.2f})"
-                )
+                print("  ✅ No deception detected " f"(confidence={final['confidence']:.2f})")
 
             print(
                 "  📊 Adversarial category: "
@@ -716,12 +705,8 @@ def main() -> int:
                     comparison=sections["comparison"],
                     recommendation=sections["recommendation"],
                     recommended_path=sections["recommended_path"],
-                    path_1_circuits=(
-                        attr_analysis.path_1_circuits if attr_analysis else {}
-                    ),
-                    path_2_circuits=(
-                        attr_analysis.path_2_circuits if attr_analysis else {}
-                    ),
+                    path_1_circuits=(attr_analysis.path_1_circuits if attr_analysis else {}),
+                    path_2_circuits=(attr_analysis.path_2_circuits if attr_analysis else {}),
                     deception_detected=True,
                     confidence_score=final["confidence"],
                     signals=final["signals"],
