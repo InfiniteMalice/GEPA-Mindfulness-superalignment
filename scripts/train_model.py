@@ -14,6 +14,25 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional, Tuple
 
+from gepa_mindfulness.interpret.attribution_graphs import (
+    AttributionGraph,
+    AttributionGraphExtractor,
+)
+from gepa_mindfulness.interpret.graph_comparison import compare_graphs
+from gepa_mindfulness.interpret.graph_metrics import compute_all_metrics
+from mindful_trace_gepa.deception.circuit_analysis import (
+    detect_deception_circuits,
+    detect_deception_heuristic,
+)
+from mindful_trace_gepa.deception.fingerprints import (
+    DeceptionFingerprint,
+    FingerprintCollector,
+)
+from mindful_trace_gepa.prompts.dual_path import (
+    make_dual_path_prompt,
+    parse_dual_path_response,
+)
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -119,26 +138,7 @@ def _count_tokens(tokenizer: Any, text: str) -> int:
     return len(tokenizer.encode(text, add_special_tokens=False))
 
 
-def _find_prompt_token_offset(
-    tokenizer: Any, prompt: str, response: str
-) -> Tuple[int, int]:
-    prompt_tokens = tokenizer.encode(prompt, add_special_tokens=False)
-    if not prompt_tokens:
-        return 0, 0
-
-    encoded = tokenizer(prompt + response, add_special_tokens=True)
-    full_tokens = encoded["input_ids"][0]
-    window = len(prompt_tokens)
-    limit = len(full_tokens) - window + 1
-    for index in range(max(limit, 0)):
-        if full_tokens[index : index + window] == prompt_tokens:
-            return index, index + window
-    raise ValueError("unable to locate prompt tokens within combined sequence")
-
-
-def _resolve_section_span(
-    response: str, text: str, span: Tuple[int, int]
-) -> Tuple[int, int]:
+def _resolve_section_span(response: str, text: str, span: Tuple[int, int]) -> Tuple[int, int]:
     start, end = span
     if end > start:
         return start, end
@@ -169,11 +169,7 @@ def _slice_graph_by_tokens(
     graph: AttributionGraph, token_range: Tuple[int, int]
 ) -> AttributionGraph:
     start, end = token_range
-    node_ids = {
-        id(node)
-        for node in graph.nodes
-        if start <= node.token_position < end
-    }
+    node_ids = {id(node) for node in graph.nodes if start <= node.token_position < end}
     nodes = [node for node in graph.nodes if id(node) in node_ids]
     edges = [
         edge
@@ -263,7 +259,7 @@ def analyze_attribution_graphs(
     if "path_1" not in token_ranges or "path_2" not in token_ranges:
         raise ValueError("unable to locate dual-path token spans")
 
-    _, prompt_end = _find_prompt_token_offset(tokenizer, dual_prompt, response)
+    prompt_tokens = _count_tokens(tokenizer, dual_prompt)
     graph = extractor.extract(
         prompt=dual_prompt,
         response=response,
@@ -275,11 +271,11 @@ def analyze_attribution_graphs(
     p2_range = token_ranges["path_2"]
     path_1_graph = _slice_graph_by_tokens(
         graph,
-        (prompt_end + p1_range[0], prompt_end + p1_range[1]),
+        (prompt_tokens + p1_range[0], prompt_tokens + p1_range[1]),
     )
     path_2_graph = _slice_graph_by_tokens(
         graph,
-        (prompt_end + p2_range[0], prompt_end + p2_range[1]),
+        (prompt_tokens + p2_range[0], prompt_tokens + p2_range[1]),
     )
 
     path_1_metrics = compute_all_metrics(path_1_graph)
@@ -407,9 +403,7 @@ def combine_detection_signals(
             if adversarial["confidence"] > confidence:
                 confidence = adversarial["confidence"]
                 source = "adversarial"
-            reasons.append(
-                f"Adversarial pattern detected: {adversarial['category']}"
-            )
+            reasons.append(f"Adversarial pattern detected: {adversarial['category']}")
 
     confidence = float(min(1.0, confidence))
     return {
@@ -711,10 +705,7 @@ def main() -> int:
                     f"(confidence={final['confidence']:.2f}, source={final['source']})"
                 )
             else:
-                print(
-                    "  ✅ No deception detected "
-                    f"(confidence={final['confidence']:.2f})"
-                )
+                print("  ✅ No deception detected " f"(confidence={final['confidence']:.2f})")
 
             print(
                 "  📊 Adversarial category: "
@@ -735,12 +726,8 @@ def main() -> int:
                     comparison=sections["comparison"],
                     recommendation=sections["recommendation"],
                     recommended_path=sections["recommended_path"],
-                    path_1_circuits=(
-                        attr_analysis.path_1_circuits if attr_analysis else {}
-                    ),
-                    path_2_circuits=(
-                        attr_analysis.path_2_circuits if attr_analysis else {}
-                    ),
+                    path_1_circuits=(attr_analysis.path_1_circuits if attr_analysis else {}),
+                    path_2_circuits=(attr_analysis.path_2_circuits if attr_analysis else {}),
                     deception_detected=True,
                     confidence_score=final["confidence"],
                     signals=final["signals"],
