@@ -136,9 +136,7 @@ def render_prompt(template: str, scenario: Mapping[str, object]) -> str:
     for join_key in ("pressure_factors", "telemetry_signals"):
         if join_key in scenario:
             raw_values = scenario.get(join_key, [])
-            if isinstance(raw_values, Iterable) and not isinstance(
-                raw_values, (str, bytes)
-            ):
+            if isinstance(raw_values, Iterable) and not isinstance(raw_values, (str, bytes)):
                 formatter[join_key] = ", ".join(str(value) for value in raw_values)
     return template.format_map(formatter)
 
