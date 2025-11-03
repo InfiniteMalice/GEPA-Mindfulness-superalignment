@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+# Standard library
 import argparse
 import json
 import random
@@ -35,6 +36,26 @@ from mindful_trace_gepa.prompts.dual_path import (
 REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
+
+# Local
+from gepa_mindfulness.interpret.attribution_graphs import (  # noqa: E402
+    AttributionGraph,
+    AttributionGraphExtractor,
+)
+from gepa_mindfulness.interpret.graph_comparison import compare_graphs  # noqa: E402
+from gepa_mindfulness.interpret.graph_metrics import compute_all_metrics  # noqa: E402
+from mindful_trace_gepa.deception.circuit_analysis import (  # noqa: E402
+    detect_deception_circuits,
+    detect_deception_heuristic,
+)
+from mindful_trace_gepa.deception.fingerprints import (  # noqa: E402
+    DeceptionFingerprint,
+    FingerprintCollector,
+)
+from mindful_trace_gepa.prompts.dual_path import (  # noqa: E402
+    make_dual_path_prompt,
+    parse_dual_path_response,
+)
 
 
 MODEL_CONFIGS = {
