@@ -4,7 +4,7 @@ import json
 import logging
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Any, Callable, ContextManager, Dict, Iterator, Protocol, cast
 
 
@@ -95,7 +95,7 @@ TRACE_STAGES = [
 class TraceEvent:
     stage: str
     content: str
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     metadata: dict[str, Any] = field(default_factory=dict)
 
 

@@ -6,7 +6,7 @@ import argparse
 import json
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Mapping, Optional, Sequence
 
@@ -348,7 +348,7 @@ def write_eval_summary(run_dir: Path, evaluations: List[ScenarioEvaluation]) -> 
     """Write the aggregated evaluation summary to disk."""
 
     summary = {
-        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "scenarios": [
             {
                 "id": evaluation.scenario_id,
@@ -402,7 +402,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     prompt_template = load_prompt_template(args.mode)
 
-    run_dir = Path("runs") / (args.run or datetime.utcnow().strftime("%Y%m%d_%H%M%S"))
+    run_dir = Path("runs") / (args.run or datetime.now(UTC).strftime("%Y%m%d_%H%M%S"))
     run_dir.mkdir(parents=True, exist_ok=True)
 
     if args.response:

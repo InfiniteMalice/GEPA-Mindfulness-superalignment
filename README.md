@@ -183,7 +183,7 @@ Or command line:
 
 ```bash
 python src/adversarial_evaluator.py --scenario safety_lab_001
-python src/adversarial_circuit_tracer.py --run runs/001 --tokenizer mistral-instruct
+python src/adversarial_circuit_tracer.py runs/001 --tokenizer mistral-instruct
 python tools/merge_run_inspection.py runs/001
 ```
 
