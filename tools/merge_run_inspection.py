@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
 from typing import Dict, List, Mapping, Optional
 
@@ -63,9 +63,12 @@ def merge_inspection(run_dir: Path) -> Path:
             collect_scenario_data(run_dir, scenario_summary, tracer_payload, ablation_payload)
         )
 
+    if not run_dir.exists():
+        raise FileNotFoundError(f"Run directory not found: {run_dir}")
+
     merged = {
         "run": run_dir.name,
-        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "scenarios": scenarios,
         "means": summary.get("means", {}),
         "artifacts": {
