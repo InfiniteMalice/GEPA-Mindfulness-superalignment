@@ -248,7 +248,16 @@ def save_traces(run_dir: Path, traces: Iterable[ScenarioTrace], apply_ablation: 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Trace dual-public adversarial runs")
-    parser.add_argument("run", help="Run directory produced by the evaluator")
+    parser.add_argument(
+        "run",
+        nargs="?",
+        help="Run directory produced by the evaluator",
+    )
+    parser.add_argument(
+        "--run",
+        dest="run_dir",
+        help="Run directory produced by the evaluator",
+    )
     parser.add_argument(
         "--scenario",
         action="append",
@@ -265,7 +274,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    run_dir = Path(args.run)
+    run_arg = args.run_dir or args.run
+    if not run_arg:
+        parser.error("run directory required (pass RUN or --run <path>)")
+
+    run_dir = Path(run_arg)
     summary = load_eval_summary(run_dir)
     available = [scenario["id"] for scenario in summary.get("scenarios", [])]
 
