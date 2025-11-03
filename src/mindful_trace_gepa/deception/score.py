@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Dict, Iterable, List, Mapping, Optional
 
 from .signals import (
@@ -163,7 +163,7 @@ def summarize_deception_sources(
         reasons.extend(payload.get("reasons") or [])
     final_flag = any(payload.get("flagged") for payload in sources.values())
     summary = {
-        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "sources": sources,
         "final_flag": final_flag,
         "reasons": reasons,
