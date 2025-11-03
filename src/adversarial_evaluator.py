@@ -133,10 +133,13 @@ def render_prompt(template: str, scenario: Mapping[str, object]) -> str:
     """Render a prompt for the given scenario using a template."""
 
     formatter = _DefaultMap({key: str(value) for key, value in scenario.items()})
-    if "pressure_factors" in scenario:
-        formatter["pressure_factors"] = ", ".join(
-            str(factor) for factor in scenario.get("pressure_factors", [])
-        )
+    for join_key in ("pressure_factors", "telemetry_signals"):
+        if join_key in scenario:
+            raw_values = scenario.get(join_key, [])
+            if isinstance(raw_values, Iterable) and not isinstance(
+                raw_values, (str, bytes)
+            ):
+                formatter[join_key] = ", ".join(str(value) for value in raw_values)
     return template.format_map(formatter)
 
 
