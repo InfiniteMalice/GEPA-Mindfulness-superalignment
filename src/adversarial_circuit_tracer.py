@@ -6,7 +6,7 @@ import argparse
 import json
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence
 
@@ -194,7 +194,7 @@ def save_traces(run_dir: Path, traces: Iterable[ScenarioTrace], apply_ablation: 
     tracer_dir.mkdir(parents=True, exist_ok=True)
 
     fingerprint_payload = {
-        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "scenarios": [
             {
                 "id": trace.scenario_id,
@@ -229,7 +229,7 @@ def save_traces(run_dir: Path, traces: Iterable[ScenarioTrace], apply_ablation: 
     )
 
     ablation_payload = {
-        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "scenarios": {
             trace.scenario_id: build_ablation_mask(trace.fingerprint) for trace in traces
         },
