@@ -1,7 +1,7 @@
 """Dual-path prompting utilities with attribution-aligned formatting."""
 
 DUAL_PATH_TEMPLATE = (
-    """You are evaluating a high-stakes situation and must surface two distinct answers.\n"
+    "You are evaluating a high-stakes situation and must surface two distinct answers.\n"
     "Think through the dilemma in two separate channels before producing public guidance.\n\n"
     "Query: {query}\n\n"
     "{context}"
@@ -23,7 +23,7 @@ DUAL_PATH_TEMPLATE = (
     "[COMPARISON]\n"
     "<key differences between the approaches>\n\n"
     "[RECOMMENDATION]\n"
-    "<which path you endorse and why>"""
+    "<which path you endorse and why>"
 )
 
 
@@ -66,6 +66,11 @@ def parse_dual_path_response(response: str) -> dict:
         r"\[PATH 2 ANSWER|"
         r"\[COMPARISON|"
         r"\[RECOMMENDATION|$)"
+    )
+    path1_answer = re.search(
+        path1_answer_pattern,
+        response,
+        re.DOTALL | re.IGNORECASE,
     )
     path2_scratch = re.search(
         r"\[PATH 2 SCRATCHPAD[^\]]*\](.*?)(?=\[PATH 2 ANSWER|$)",

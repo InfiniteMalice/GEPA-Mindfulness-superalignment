@@ -165,11 +165,11 @@ class AttributionGraphExtractor:
 
         self.model.eval()
         with torch.enable_grad():
-            outputs = self.model(
-                **encoded,
-                output_hidden_states=True,
-                use_cache=False,
-            )
+            model_inputs = {key: value for key, value in encoded.items()}
+            model_inputs["output_hidden_states"] = True
+            if getattr(self.model.config, "use_cache", None) is not None:
+                model_inputs["use_cache"] = False
+            outputs = self.model(**model_inputs)
             logits = outputs.logits[0]
             resp_logits = logits[prompt_len:]
             resp_token_ids = encoded.input_ids[0, prompt_len:]
