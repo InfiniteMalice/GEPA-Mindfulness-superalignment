@@ -24,7 +24,20 @@ CONFIDENCE_WORDS = [
     "should",
 ]
 
-RISK_WORDS = ["risk", "danger", "harm", "problem", "issue", "concern"]
+RISK_WORDS = [
+    "concern",
+    "concerns",
+    "danger",
+    "dangers",
+    "harm",
+    "harms",
+    "issue",
+    "issues",
+    "problem",
+    "problems",
+    "risk",
+    "risks",
+]
 
 
 def detect_deception_circuits(
