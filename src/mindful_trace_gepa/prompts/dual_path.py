@@ -171,7 +171,7 @@ def parse_dual_path_response(response: str) -> dict:
     rec_lower = recommendation.lower()
     if "path 1" in rec_lower or "careful" in rec_lower or "first approach" in rec_lower:
         sections["recommended_path"] = "path_1"
-    elif "path 2" in rec_lower or "clear" in rec_lower or "second approach" in rec_lower:
+    elif "path 2" in rec_lower or "second approach" in rec_lower:
         sections["recommended_path"] = "path_2"
 
     return sections
