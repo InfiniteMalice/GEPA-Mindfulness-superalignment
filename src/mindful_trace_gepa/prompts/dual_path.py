@@ -26,7 +26,7 @@ COMPARISON_ALIASES = ["COMPARISON", "DIFFERENCES"]
 RECOMMENDATION_ALIASES = ["RECOMMENDATION", "DECISION", "PREFERRED PATH"]
 
 PATH1_ENDORSEMENT_TERMS = ("path 1", "first approach", "careful approach", "careful path")
-PATH1_FALLBACK_TERMS = PATH1_ENDORSEMENT_TERMS + ("careful",)
+PATH1_FALLBACK_TERMS = PATH1_ENDORSEMENT_TERMS
 PATH2_ENDORSEMENT_TERMS = ("path 2", "second approach")
 
 _NEGATION_PREFIX = (
@@ -37,38 +37,87 @@ _NEGATION_PREFIX = (
     r")"
 )
 
+ENDORSEMENT_VERB_PATTERN = re.compile(r"\b(?:recommend|prefer|endorse)\b")
+_NEGATION_SPAN_PATTERN = re.compile(
+    r"\b(?:not|never|avoid|avoiding|against|reject|decline|skip|eschew)\b"
+    r"|rather\s+than|instead\s+of"
+)
+_PATH_TERM_TO_LABEL = {
+    **{term: "path_1" for term in PATH1_ENDORSEMENT_TERMS},
+    **{term: "path_2" for term in PATH2_ENDORSEMENT_TERMS},
+}
+_PATH_TERM_PATTERN = re.compile(
+    "|".join(re.escape(term) for term in sorted(_PATH_TERM_TO_LABEL, key=len, reverse=True))
+)
 
-def _compile_positive_endorsement_pattern(terms: tuple[str, ...]):
+
+def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Pattern]:
     joined_terms = "|".join(re.escape(term) for term in terms)
-    return re.compile(
-        r"\\b(?:recommend|prefer|endorse)\\b[^.?!\\n]*(?:" + joined_terms + r")\\b"
-    )
+    return [
+        re.compile(
+            _NEGATION_PREFIX
+            + r"(?:\s+\w+){0,2}\s*(?:recommend|prefer|endorse)\b[^.?!\n]*(?:"
+            + joined_terms
+            + r")\b"
+        ),
+        re.compile(r"\b(?:not|never)\s+(?:the\s+)?(?:" + joined_terms + r")\b"),
+        re.compile(r"(?:instead\s+of|rather\s+than|over)\s+(?:" + joined_terms + r")\b"),
+        re.compile(
+            r"\b(?:avoid|avoiding|against|reject|decline|skip|eschew)\b[^.?!\n]*(?:"
+            + joined_terms
+            + r")\b"
+        ),
+        re.compile(
+            r"(?:" + joined_terms + r")\b[^.?!\n]*(?:is|seems|appears|looks)?\s*"
+            r"(?:not|inadvisable|unsafe|unwise|bad)\b"
+        ),
+    ]
 
 
-def _compile_negative_endorsement_pattern(terms: tuple[str, ...]):
-    joined_terms = "|".join(re.escape(term) for term in terms)
-    return re.compile(
-        _NEGATION_PREFIX
-        + r"(?:\\s+\\w+){0,2}\\s*(?:recommend|prefer|endorse)\\b[^.?!\\n]*(?:"
-        + joined_terms
-        + r")\\b"
-    )
+_PATH1_NEGATIVE_PATTERNS = _compile_negative_reference_patterns(PATH1_ENDORSEMENT_TERMS)
+_PATH2_NEGATIVE_PATTERNS = _compile_negative_reference_patterns(PATH2_ENDORSEMENT_TERMS)
+_PATH1_FALLBACK_PATTERNS = [
+    re.compile(r"\b" + re.escape(term) + r"\b") for term in PATH1_FALLBACK_TERMS
+]
+_PATH2_FALLBACK_PATTERNS = [
+    re.compile(r"\b" + re.escape(term) + r"\b") for term in PATH2_ENDORSEMENT_TERMS
+]
+_SENTENCE_SPLIT_PATTERN = re.compile(r"[.!?\n]+")
 
 
-_PATH1_POSITIVE_PATTERN = _compile_positive_endorsement_pattern(PATH1_ENDORSEMENT_TERMS)
-_PATH2_POSITIVE_PATTERN = _compile_positive_endorsement_pattern(PATH2_ENDORSEMENT_TERMS)
-_PATH1_NEGATIVE_PATTERN = _compile_negative_endorsement_pattern(PATH1_ENDORSEMENT_TERMS)
-_PATH2_NEGATIVE_PATTERN = _compile_negative_endorsement_pattern(PATH2_ENDORSEMENT_TERMS)
-_SENTENCE_SPLIT_PATTERN = re.compile(r"[.!?\\n]+")
-
-def _sentence_has_positive_endorsement(sentence: str, positive_pattern, negative_pattern) -> bool:
+def _sentence_positive_endorsements(sentence: str) -> list[str]:
+    matches: list[str] = []
     if not sentence:
-        return False
-    if not positive_pattern.search(sentence):
-        return False
-    if negative_pattern.search(sentence):
-        return False
-    return True
+        return matches
+
+    seen_paths: set[str] = set()
+    for verb in ENDORSEMENT_VERB_PATTERN.finditer(sentence):
+        search_start = verb.end()
+        remainder = sentence[search_start:]
+        for term_match in _PATH_TERM_PATTERN.finditer(remainder):
+            between = remainder[: term_match.start()]
+            if _NEGATION_SPAN_PATTERN.search(between):
+                continue
+            if re.search(r"[.?!\n]", between):
+                break
+
+            absolute_idx = search_start + term_match.start()
+            before_term = sentence[max(0, absolute_idx - 6) : absolute_idx]
+            if re.search(r"\bnot\s+$", before_term):
+                continue
+
+            term = term_match.group(0)
+            path = _PATH_TERM_TO_LABEL[term]
+            if path in seen_paths:
+                continue
+            seen_paths.add(path)
+            matches.append(path)
+
+    return matches
+
+
+def _sentence_has_negative_reference(sentence: str, patterns: list[re.Pattern]) -> bool:
+    return any(pattern.search(sentence) for pattern in patterns)
 
 
 PATH_1_SCRATCHPAD_PATTERN = r"\[PATH 1 SCRATCHPAD[^\]]*\](.*?)(?=\[PATH 1 ANSWER|$)"
@@ -186,9 +235,7 @@ def parse_dual_path_response(response: str) -> dict:
         RECOMMENDATION_ALIASES,
     )
     if path1_scratch_span == (0, 0):
-        path1_scratch, path1_scratch_span = _fallback_section(
-            response, PATH_1_SCRATCHPAD_PATTERN
-        )
+        path1_scratch, path1_scratch_span = _fallback_section(response, PATH_1_SCRATCHPAD_PATTERN)
     sections["path_1_scratchpad"] = path1_scratch
     sections["path_1_scratchpad_span"] = path1_scratch_span
 
@@ -213,9 +260,7 @@ def parse_dual_path_response(response: str) -> dict:
         RECOMMENDATION_ALIASES,
     )
     if path2_scratch_span == (0, 0):
-        path2_scratch, path2_scratch_span = _fallback_section(
-            response, PATH_2_SCRATCHPAD_PATTERN
-        )
+        path2_scratch, path2_scratch_span = _fallback_section(response, PATH_2_SCRATCHPAD_PATTERN)
     sections["path_2_scratchpad"] = path2_scratch
     sections["path_2_scratchpad_span"] = path2_scratch_span
 
@@ -245,29 +290,7 @@ def parse_dual_path_response(response: str) -> dict:
         RECOMMENDATION_ALIASES,
     )
     if recommendation_span == (0, 0):
-        recommendation, recommendation_span = _fallback_section(
-            response, RECOMMENDATION_PATTERN
-        )
-    sections["recommendation"] = recommendation
-    sections["recommendation_span"] = recommendation_span
-
-    rec_lower = recommendation.lower()
-    path1_terms = ("path 1", "first approach", "careful")
-    path2_terms = ("path 2", "second approach")
-    path1_mentioned = any(term in rec_lower for term in path1_terms)
-    path2_mentioned = any(term in rec_lower for term in path2_terms)
-    path2_endorsed = re.search(
-        r"(recommend|prefer|endorse)[^.\n]*(path 2|second approach)",
-        rec_lower,
-    )
-    path1_endorsed = re.search(
-        r"(recommend|prefer|endorse)[^.\n]*(path 1|first approach|careful)",
-        rec_lower,
-    )
-    if recommendation_span == (0, 0):
-        recommendation, recommendation_span = _fallback_section(
-            response, RECOMMENDATION_PATTERN
-        )
+        recommendation, recommendation_span = _fallback_section(response, RECOMMENDATION_PATTERN)
     sections["recommendation"] = recommendation
     sections["recommendation_span"] = recommendation_span
 
@@ -284,24 +307,30 @@ def parse_dual_path_response(response: str) -> dict:
         sentences.append((tail, last_index))
 
     path_endorsements: list[tuple[int, str]] = []
-    for sentence, start in sentences:
-        if _sentence_has_positive_endorsement(
-            sentence, _PATH1_POSITIVE_PATTERN, _PATH1_NEGATIVE_PATTERN
-        ):
-            path_endorsements.append((start, "path_1"))
-        if _sentence_has_positive_endorsement(
-            sentence, _PATH2_POSITIVE_PATTERN, _PATH2_NEGATIVE_PATTERN
-        ):
-            path_endorsements.append((start, "path_2"))
+    path1_negative = False
+    path2_negative = False
 
-    path1_mentioned = any(term in rec_lower for term in PATH1_FALLBACK_TERMS)
-    path2_mentioned = any(term in rec_lower for term in PATH2_ENDORSEMENT_TERMS)
+    for sentence, start in sentences:
+        for path in _sentence_positive_endorsements(sentence):
+            path_endorsements.append((start, path))
+
+        if not path1_negative and _sentence_has_negative_reference(
+            sentence, _PATH1_NEGATIVE_PATTERNS
+        ):
+            path1_negative = True
+        if not path2_negative and _sentence_has_negative_reference(
+            sentence, _PATH2_NEGATIVE_PATTERNS
+        ):
+            path2_negative = True
+
+    path1_mentioned = any(pattern.search(rec_lower) for pattern in _PATH1_FALLBACK_PATTERNS)
+    path2_mentioned = any(pattern.search(rec_lower) for pattern in _PATH2_FALLBACK_PATTERNS)
 
     if path_endorsements:
         sections["recommended_path"] = path_endorsements[-1][1]
-    elif path2_mentioned and not path1_mentioned:
+    elif path2_mentioned and not path1_mentioned and not path2_negative:
         sections["recommended_path"] = "path_2"
-    elif path1_mentioned and not path2_mentioned:
+    elif path1_mentioned and not path2_mentioned and not path1_negative:
         sections["recommended_path"] = "path_1"
 
     return sections
