@@ -252,6 +252,26 @@ def parse_dual_path_response(response: str) -> dict:
     sections["recommendation_span"] = recommendation_span
 
     rec_lower = recommendation.lower()
+    path1_terms = ("path 1", "first approach", "careful")
+    path2_terms = ("path 2", "second approach")
+    path1_mentioned = any(term in rec_lower for term in path1_terms)
+    path2_mentioned = any(term in rec_lower for term in path2_terms)
+    path2_endorsed = re.search(
+        r"(recommend|prefer|endorse)[^.\n]*(path 2|second approach)",
+        rec_lower,
+    )
+    path1_endorsed = re.search(
+        r"(recommend|prefer|endorse)[^.\n]*(path 1|first approach|careful)",
+        rec_lower,
+    )
+    if recommendation_span == (0, 0):
+        recommendation, recommendation_span = _fallback_section(
+            response, RECOMMENDATION_PATTERN
+        )
+    sections["recommendation"] = recommendation
+    sections["recommendation_span"] = recommendation_span
+
+    rec_lower = recommendation.lower()
     sentences: list[tuple[str, int]] = []
     last_index = 0
     for match in _SENTENCE_SPLIT_PATTERN.finditer(rec_lower):
