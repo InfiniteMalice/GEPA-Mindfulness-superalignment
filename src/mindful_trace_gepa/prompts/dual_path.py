@@ -31,9 +31,7 @@ PATH_1_ANSWER_PATTERN = (
     r"(?=\[PATH 2 SCRATCHPAD|\[PATH 2 ANSWER|\[COMPARISON|\[RECOMMENDATION|$)"
 )
 PATH_2_SCRATCHPAD_PATTERN = r"\[PATH 2 SCRATCHPAD[^\]]*\](.*?)(?=\[PATH 2 ANSWER|$)"
-PATH_2_ANSWER_PATTERN = (
-    r"\[PATH 2 ANSWER[^\]]*\](.*?)(?=\[COMPARISON|\[RECOMMENDATION|$)"
-)
+PATH_2_ANSWER_PATTERN = r"\[PATH 2 ANSWER[^\]]*\](.*?)(?=\[COMPARISON|\[RECOMMENDATION|$)"
 COMPARISON_PATTERN = r"\[COMPARISON[^\]]*\](.*?)(?=\[RECOMMENDATION|$)"
 RECOMMENDATION_PATTERN = r"\[RECOMMENDATION[^\]]*\](.*?)$"
 
@@ -140,9 +138,7 @@ def parse_dual_path_response(response: str) -> dict:
         RECOMMENDATION_ALIASES,
     )
     if path1_scratch_span == (0, 0):
-        path1_scratch, path1_scratch_span = _fallback_section(
-            response, PATH_1_SCRATCHPAD_PATTERN
-        )
+        path1_scratch, path1_scratch_span = _fallback_section(response, PATH_1_SCRATCHPAD_PATTERN)
     sections["path_1_scratchpad"] = path1_scratch
     sections["path_1_scratchpad_span"] = path1_scratch_span
 
@@ -167,9 +163,7 @@ def parse_dual_path_response(response: str) -> dict:
         RECOMMENDATION_ALIASES,
     )
     if path2_scratch_span == (0, 0):
-        path2_scratch, path2_scratch_span = _fallback_section(
-            response, PATH_2_SCRATCHPAD_PATTERN
-        )
+        path2_scratch, path2_scratch_span = _fallback_section(response, PATH_2_SCRATCHPAD_PATTERN)
     sections["path_2_scratchpad"] = path2_scratch
     sections["path_2_scratchpad_span"] = path2_scratch_span
 
@@ -199,9 +193,7 @@ def parse_dual_path_response(response: str) -> dict:
         RECOMMENDATION_ALIASES,
     )
     if recommendation_span == (0, 0):
-        recommendation, recommendation_span = _fallback_section(
-            response, RECOMMENDATION_PATTERN
-        )
+        recommendation, recommendation_span = _fallback_section(response, RECOMMENDATION_PATTERN)
     sections["recommendation"] = recommendation
     sections["recommendation_span"] = recommendation_span
 
