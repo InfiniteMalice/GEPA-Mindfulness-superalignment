@@ -14,6 +14,25 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional, Tuple
 
+from gepa_mindfulness.interpret.attribution_graphs import (
+    AttributionGraph,
+    AttributionGraphExtractor,
+)
+from gepa_mindfulness.interpret.graph_comparison import compare_graphs
+from gepa_mindfulness.interpret.graph_metrics import compute_all_metrics
+from mindful_trace_gepa.deception.circuit_analysis import (
+    detect_deception_circuits,
+    detect_deception_heuristic,
+)
+from mindful_trace_gepa.deception.fingerprints import (
+    DeceptionFingerprint,
+    FingerprintCollector,
+)
+from mindful_trace_gepa.prompts.dual_path import (
+    make_dual_path_prompt,
+    parse_dual_path_response,
+)
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
