@@ -60,7 +60,7 @@ def parse_dual_path_response(response: str) -> dict:
         response,
         re.DOTALL | re.IGNORECASE,
     )
-   path1_answer_pattern = (
+    path1_answer_pattern = (
         r"\[PATH 1 ANSWER[^\]]*\](.*?)"
         r"(?=\[PATH 2 SCRATCHPAD|"
         r"\[PATH 2 ANSWER|"
