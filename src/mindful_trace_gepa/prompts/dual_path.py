@@ -92,6 +92,13 @@ def _sentence_positive_endorsements(sentence: str) -> list[str]:
 
     seen_paths: set[str] = set()
     for verb in ENDORSEMENT_VERB_PATTERN.finditer(sentence):
+        prefix_window = sentence[max(0, verb.start() - 30) : verb.start()]
+        if _NEGATION_SPAN_PATTERN.search(prefix_window) and not re.search(
+            r"\bnot\s+(?:only|just)\b",
+            prefix_window,
+        ):
+            continue
+
         search_start = verb.end()
         remainder = sentence[search_start:]
         for term_match in _PATH_TERM_PATTERN.finditer(remainder):
@@ -126,9 +133,7 @@ PATH_1_ANSWER_PATTERN = (
     r"(?=\[PATH 2 SCRATCHPAD|\[PATH 2 ANSWER|\[COMPARISON|\[RECOMMENDATION|$)"
 )
 PATH_2_SCRATCHPAD_PATTERN = r"\[PATH 2 SCRATCHPAD[^\]]*\](.*?)(?=\[PATH 2 ANSWER|$)"
-PATH_2_ANSWER_PATTERN = (
-    r"\[PATH 2 ANSWER[^\]]*\](.*?)(?=\[COMPARISON|\[RECOMMENDATION|$)"
-)
+PATH_2_ANSWER_PATTERN = r"\[PATH 2 ANSWER[^\]]*\](.*?)(?=\[COMPARISON|\[RECOMMENDATION|$)"
 COMPARISON_PATTERN = r"\[COMPARISON[^\]]*\](.*?)(?=\[RECOMMENDATION|$)"
 RECOMMENDATION_PATTERN = r"\[RECOMMENDATION[^\]]*\](.*?)$"
 
@@ -327,10 +332,27 @@ def parse_dual_path_response(response: str) -> dict:
     path2_mentioned = any(pattern.search(rec_lower) for pattern in _PATH2_FALLBACK_PATTERNS)
 
     if path_endorsements:
-        sections["recommended_path"] = path_endorsements[-1][1]
-    elif path2_mentioned and not path1_mentioned and not path2_negative:
+        for _, path in reversed(path_endorsements):
+            if path == "path_1" and not path1_negative:
+                sections["recommended_path"] = path
+                break
+            if path == "path_2" and not path2_negative:
+                sections["recommended_path"] = path
+                break
+
+    if (
+        sections["recommended_path"] == "unclear"
+        and path2_mentioned
+        and not path1_mentioned
+        and not path2_negative
+    ):
         sections["recommended_path"] = "path_2"
-    elif path1_mentioned and not path2_mentioned and not path1_negative:
+    elif (
+        sections["recommended_path"] == "unclear"
+        and path1_mentioned
+        and not path2_mentioned
+        and not path1_negative
+    ):
         sections["recommended_path"] = "path_1"
 
     return sections
