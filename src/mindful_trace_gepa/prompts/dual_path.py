@@ -31,7 +31,9 @@ PATH_1_ANSWER_PATTERN = (
     r"(?=\[PATH 2 SCRATCHPAD|\[PATH 2 ANSWER|\[COMPARISON|\[RECOMMENDATION|$)"
 )
 PATH_2_SCRATCHPAD_PATTERN = r"\[PATH 2 SCRATCHPAD[^\]]*\](.*?)(?=\[PATH 2 ANSWER|$)"
-PATH_2_ANSWER_PATTERN = r"\[PATH 2 ANSWER[^\]]*\](.*?)(?=\[COMPARISON|\[RECOMMENDATION|$)"
+PATH_2_ANSWER_PATTERN = (
+    r"\[PATH 2 ANSWER[^\]]*\](.*?)(?=\[COMPARISON|\[RECOMMENDATION|$)"
+)
 COMPARISON_PATTERN = r"\[COMPARISON[^\]]*\](.*?)(?=\[RECOMMENDATION|$)"
 RECOMMENDATION_PATTERN = r"\[RECOMMENDATION[^\]]*\](.*?)$"
 
@@ -138,7 +140,9 @@ def parse_dual_path_response(response: str) -> dict:
         RECOMMENDATION_ALIASES,
     )
     if path1_scratch_span == (0, 0):
-        path1_scratch, path1_scratch_span = _fallback_section(response, PATH_1_SCRATCHPAD_PATTERN)
+        path1_scratch, path1_scratch_span = _fallback_section(
+            response, PATH_1_SCRATCHPAD_PATTERN
+        )
     sections["path_1_scratchpad"] = path1_scratch
     sections["path_1_scratchpad_span"] = path1_scratch_span
 
@@ -163,7 +167,9 @@ def parse_dual_path_response(response: str) -> dict:
         RECOMMENDATION_ALIASES,
     )
     if path2_scratch_span == (0, 0):
-        path2_scratch, path2_scratch_span = _fallback_section(response, PATH_2_SCRATCHPAD_PATTERN)
+        path2_scratch, path2_scratch_span = _fallback_section(
+            response, PATH_2_SCRATCHPAD_PATTERN
+        )
     sections["path_2_scratchpad"] = path2_scratch
     sections["path_2_scratchpad_span"] = path2_scratch_span
 
@@ -193,14 +199,33 @@ def parse_dual_path_response(response: str) -> dict:
         RECOMMENDATION_ALIASES,
     )
     if recommendation_span == (0, 0):
-        recommendation, recommendation_span = _fallback_section(response, RECOMMENDATION_PATTERN)
+        recommendation, recommendation_span = _fallback_section(
+            response, RECOMMENDATION_PATTERN
+        )
     sections["recommendation"] = recommendation
     sections["recommendation_span"] = recommendation_span
 
     rec_lower = recommendation.lower()
-    if "path 1" in rec_lower or "careful" in rec_lower or "first approach" in rec_lower:
-        sections["recommended_path"] = "path_1"
-    elif "path 2" in rec_lower or "second approach" in rec_lower:
+    path1_terms = ("path 1", "first approach", "careful")
+    path2_terms = ("path 2", "second approach")
+    path1_mentioned = any(term in rec_lower for term in path1_terms)
+    path2_mentioned = any(term in rec_lower for term in path2_terms)
+    path2_endorsed = re.search(
+        r"(recommend|prefer|endorse)[^.\n]*(path 2|second approach)",
+        rec_lower,
+    )
+    path1_endorsed = re.search(
+        r"(recommend|prefer|endorse)[^.\n]*(path 1|first approach|careful)",
+        rec_lower,
+    )
+
+    if path2_endorsed:
         sections["recommended_path"] = "path_2"
+    elif path1_endorsed:
+        sections["recommended_path"] = "path_1"
+    elif path2_mentioned and not path1_mentioned:
+        sections["recommended_path"] = "path_2"
+    elif path1_mentioned and not path2_mentioned:
+        sections["recommended_path"] = "path_1"
 
     return sections
