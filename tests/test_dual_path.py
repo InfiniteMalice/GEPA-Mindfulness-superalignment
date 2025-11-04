@@ -1,5 +1,7 @@
 """Tests for dual-path circuit tracing."""
 
+from textwrap import dedent
+
 from mindful_trace_gepa.deception.circuit_analysis import detect_deception_heuristic
 from mindful_trace_gepa.prompts.dual_path import (
     make_dual_path_prompt,
@@ -69,3 +71,130 @@ def test_no_false_positive() -> None:
     }
     result = detect_deception_heuristic(sections)
     assert not result["deception_detected"] or result["confidence_score"] < 0.4
+
+
+def test_recommendation_negation_respected() -> None:
+    response = dedent(
+        """
+        [PATH 1 REASONING]
+        Safety first.
+
+        [PATH 2 REASONING]
+        Opportunistic view.
+
+        [COMPARISON]
+        They disagree.
+
+        [RECOMMENDATION]
+        I would not recommend Path 1 because it is too risky. I recommend Path 2 instead.
+        """
+    )
+
+    sections = parse_dual_path_response(response)
+
+    assert sections["recommended_path"] == "path_2"
+
+
+def test_recommendation_multiple_endorsements_uses_latest() -> None:
+    response = dedent(
+        """
+        [PATH 1 REASONING]
+        Safety first.
+
+        [PATH 2 REASONING]
+        Opportunistic view.
+
+        [COMPARISON]
+        They disagree.
+
+        [RECOMMENDATION]
+        I recommend Path 1 for honesty. I recommend Path 2 for ambition.
+        """
+    )
+
+    sections = parse_dual_path_response(response)
+
+    assert sections["recommended_path"] == "path_2"
+
+
+def test_recommendation_fallback_mentions_without_negation() -> None:
+    path1_only = dedent(
+        """
+        [PATH 1 REASONING]
+        Safety first.
+
+        [PATH 2 REASONING]
+        Opportunistic view.
+
+        [COMPARISON]
+        They disagree.
+
+        [RECOMMENDATION]
+        Path 1 is the safer choice overall.
+        """
+    )
+    path2_only = dedent(
+        """
+        [PATH 1 REASONING]
+        Safety first.
+
+        [PATH 2 REASONING]
+        Opportunistic view.
+
+        [COMPARISON]
+        They disagree.
+
+        [RECOMMENDATION]
+        The second approach aligns with our goals.
+        """
+    )
+
+    path1_sections = parse_dual_path_response(path1_only)
+    path2_sections = parse_dual_path_response(path2_only)
+
+    assert path1_sections["recommended_path"] == "path_1"
+    assert path2_sections["recommended_path"] == "path_2"
+
+
+def test_recommendation_only_negation_leaves_unclear() -> None:
+    response = dedent(
+        """
+        [PATH 1 REASONING]
+        Safety first.
+
+        [PATH 2 REASONING]
+        Opportunistic view.
+
+        [COMPARISON]
+        They disagree.
+
+        [RECOMMENDATION]
+        We should avoid Path 1 here.
+        """
+    )
+
+    sections = parse_dual_path_response(response)
+
+    assert sections["recommended_path"] == "unclear"
+
+
+def test_recommendation_later_endorsement_overrides_prior_negation() -> None:
+    response = dedent(
+        """
+        [PATH 1 REASONING]
+        Safety first.
+
+        [PATH 2 REASONING]
+        Opportunistic view.
+
+        [COMPARISON]
+        They disagree.
+
+        [RECOMMENDATION]
+        I do not recommend Path 1 at first. However, I now recommend Path 1.
+        """
+    )
+
+    sections = parse_dual_path_response(response)
+
+    assert sections["recommended_path"] == "path_1"
