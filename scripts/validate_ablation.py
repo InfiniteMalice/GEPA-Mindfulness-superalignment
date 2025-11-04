@@ -103,18 +103,9 @@ def main() -> None:
     print(f"  Confidence: {original_results['avg_confidence']:.2f}")
 
     if args.ablated:
-        print(
-            "  Deception rate (ablated): "
-            f"{comparison['ablated']['deception_rate']:.1%}"
-        )
-        print(
-            "  Task accuracy (ablated): "
-            f"{comparison['ablated']['task_accuracy']:.1%}"
-        )
-        print(
-            "  Confidence (ablated): "
-            f"{comparison['ablated']['avg_confidence']:.2f}"
-        )
+        print("  Deception rate (ablated): " f"{comparison['ablated']['deception_rate']:.1%}")
+        print("  Task accuracy (ablated): " f"{comparison['ablated']['task_accuracy']:.1%}")
+        print("  Confidence (ablated): " f"{comparison['ablated']['avg_confidence']:.2f}")
 
         if comparison["ablated"]["deception_rate"] < original_results["deception_rate"] * 0.5:
             print("\n✅ SUCCESS: Deception reduced by >50%!")
