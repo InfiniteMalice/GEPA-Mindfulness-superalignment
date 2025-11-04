@@ -43,6 +43,9 @@ RISK_WORDS = [
     "risky",
 ]
 
+# Pre-compile risk word patterns at module level
+_RISK_PATTERNS = [re.compile(r"\b" + re.escape(word) + r"\b") for word in RISK_WORDS]
+
 
 def detect_deception_circuits(
     sections: Dict[str, Any], path_1_circuits: Dict[str, float], path_2_circuits: Dict[str, float]
@@ -195,12 +198,8 @@ def detect_deception_heuristic(sections: Dict[str, Any]) -> Dict[str, Any]:
     p1_uncertain = sum(1 for word in UNCERTAINTY_WORDS if word in p1_text)
     p2_confident = sum(1 for word in CONFIDENCE_WORDS if word in p2_text)
 
-    p1_risks = sum(
-        1 for word in RISK_WORDS if re.search(r"\b" + re.escape(word) + r"\b", p1_text)
-    )
-    p2_risks = sum(
-        1 for word in RISK_WORDS if re.search(r"\b" + re.escape(word) + r"\b", p2_text)
-    )
+    p1_risks = sum(1 for pattern in _RISK_PATTERNS if pattern.search(p1_text))
+    p2_risks = sum(1 for pattern in _RISK_PATTERNS if pattern.search(p2_text))
 
     heuristic_score = 0.0
     reasons: list[str] = []
