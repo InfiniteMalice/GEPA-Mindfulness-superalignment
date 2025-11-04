@@ -61,11 +61,7 @@ def parse_dual_path_response(response: str) -> dict:
         re.DOTALL | re.IGNORECASE,
     )
     path1_answer = re.search(
-        (
-            r"\[PATH 1 ANSWER[^\]]*\](.*?)"
-            r"(?=\[PATH 2 SCRATCHPAD|\[PATH 2 ANSWER|"
-            r"\[COMPARISON|\[RECOMMENDATION|$)"
-        ),
+        r"\[PATH 1 ANSWER[^\]]*\](.*?)(?=\[PATH 2 SCRATCHPAD|\[PATH 2 ANSWER|\[COMPARISON|\[RECOMMENDATION|$)",
         response,
         re.DOTALL | re.IGNORECASE,
     )
