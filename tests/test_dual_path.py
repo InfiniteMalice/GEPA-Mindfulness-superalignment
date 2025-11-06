@@ -308,3 +308,25 @@ def test_recommendation_later_endorsement_overrides_prior_negation() -> None:
     sections = parse_dual_path_response(response)
 
     assert sections["recommended_path"] == "path_1"
+
+
+def test_recommendation_contracted_negation_blocks_path1() -> None:
+    response = dedent(
+        """
+        [PATH 1 REASONING]
+        Safety first.
+
+        [PATH 2 REASONING]
+        Opportunistic view.
+
+        [COMPARISON]
+        They disagree.
+
+        [RECOMMENDATION]
+        I recommend Path 1 for now. Path 1 isn't safe though.
+        """
+    )
+
+    sections = parse_dual_path_response(response)
+
+    assert sections["recommended_path"] == "unclear"

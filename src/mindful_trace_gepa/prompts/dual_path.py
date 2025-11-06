@@ -64,7 +64,8 @@ def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Patt
     joined_terms = "|".join(re.escape(term) for term in terms)
     quality_negation = (
         r"(?:"
-        r"not\s+(?:recommended|advisable|wise|safe|ideal|prudent|suitable|"
+        r"(?:not|(?:is|are|was|were)(?:\s+not|n['’]t))\s+"
+        r"(?:recommended|advisable|wise|safe|ideal|prudent|suitable|"
         r"appropriate|good|helpful)"
         r"|inadvisable|unsafe|unwise|bad"
         r")"
