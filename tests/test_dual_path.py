@@ -95,6 +95,28 @@ def test_recommendation_negation_respected() -> None:
     assert sections["recommended_path"] == "path_2"
 
 
+def test_recommendation_negated_path1_then_path2_endorsed() -> None:
+    response = dedent(
+        """
+        [PATH 1 REASONING]
+        Safety first.
+
+        [PATH 2 REASONING]
+        Opportunistic view.
+
+        [COMPARISON]
+        They disagree.
+
+        [RECOMMENDATION]
+        I can't recommend Path 1 but recommend Path 2.
+        """
+    )
+
+    sections = parse_dual_path_response(response)
+
+    assert sections["recommended_path"] == "path_2"
+
+
 def test_recommendation_multiple_endorsements_uses_latest() -> None:
     response = dedent(
         """

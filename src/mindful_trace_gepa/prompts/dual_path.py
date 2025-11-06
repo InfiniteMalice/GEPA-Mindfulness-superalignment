@@ -38,6 +38,7 @@ _NEGATION_PREFIX = (
 )
 
 ENDORSEMENT_VERB_PATTERN = re.compile(r"\b(?:recommend|prefer|endorse)\b")
+_NEGATION_PREFIX_PATTERN = re.compile(_NEGATION_PREFIX)
 _NEGATION_SPAN_PATTERN = re.compile(
     r"\b(?:not|never|avoid|avoiding|against|reject|decline|skip|eschew)\b"
     r"|rather\s+than|instead\s+of"
@@ -76,6 +77,10 @@ def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Patt
 
 _PATH1_NEGATIVE_PATTERNS = _compile_negative_reference_patterns(PATH1_ENDORSEMENT_TERMS)
 _PATH2_NEGATIVE_PATTERNS = _compile_negative_reference_patterns(PATH2_ENDORSEMENT_TERMS)
+_PATH_NEGATIVE_PATTERN_MAP = {
+    "path_1": _PATH1_NEGATIVE_PATTERNS,
+    "path_2": _PATH2_NEGATIVE_PATTERNS,
+}
 _PATH1_FALLBACK_PATTERNS = [
     re.compile(r"\b" + re.escape(term) + r"\b") for term in PATH1_FALLBACK_TERMS
 ]
@@ -92,12 +97,13 @@ def _sentence_positive_endorsements(sentence: str) -> list[str]:
 
     seen_paths: set[str] = set()
     for verb in ENDORSEMENT_VERB_PATTERN.finditer(sentence):
-        prefix_window = sentence[max(0, verb.start() - 30) : verb.start()]
-        if _NEGATION_SPAN_PATTERN.search(prefix_window) and not re.search(
-            r"\bnot\s+(?:only|just)\b",
-            prefix_window,
-        ):
-            continue
+        prefix_window = sentence[: verb.start()]
+        clause_offset = 0
+        for punct in ".?!\n":
+            idx = prefix_window.rfind(punct)
+            if idx != -1 and idx + 1 > clause_offset:
+                clause_offset = idx + 1
+        clause_prefix = prefix_window[clause_offset:]
 
         search_start = verb.end()
         remainder = sentence[search_start:]
@@ -117,14 +123,48 @@ def _sentence_positive_endorsements(sentence: str) -> list[str]:
             path = _PATH_TERM_TO_LABEL[term]
             if path in seen_paths:
                 continue
+
+            negative_patterns = _PATH_NEGATIVE_PATTERN_MAP[path]
+            clause_segment = sentence[clause_offset : search_start + term_match.end()]
+
+            path_negated = False
+            for neg_match in _NEGATION_PREFIX_PATTERN.finditer(clause_prefix):
+                neg_scope_start = clause_offset + neg_match.end()
+                neg_scope = sentence[neg_scope_start : search_start + term_match.end()]
+                path_match = _PATH_TERM_PATTERN.search(neg_scope)
+                if path_match and _PATH_TERM_TO_LABEL[path_match.group(0)] == path:
+                    path_negated = True
+                    break
+            if path_negated:
+                continue
+
+            for pattern in negative_patterns[1:]:
+                if pattern.search(clause_segment):
+                    path_negated = True
+                    break
+            if path_negated:
+                continue
+
             seen_paths.add(path)
             matches.append(path)
 
     return matches
 
 
-def _sentence_has_negative_reference(sentence: str, patterns: list[re.Pattern]) -> bool:
-    return any(pattern.search(sentence) for pattern in patterns)
+def _sentence_has_negative_reference(sentence: str, path: str) -> bool:
+    patterns = _PATH_NEGATIVE_PATTERN_MAP[path]
+
+    for neg_match in _NEGATION_PREFIX_PATTERN.finditer(sentence):
+        neg_scope = sentence[neg_match.end() :]
+        path_match = _PATH_TERM_PATTERN.search(neg_scope)
+        if path_match and _PATH_TERM_TO_LABEL[path_match.group(0)] == path:
+            return True
+
+    for pattern in patterns[1:]:
+        if pattern.search(sentence):
+            return True
+
+    return False
 
 
 PATH_1_SCRATCHPAD_PATTERN = r"\[PATH 1 SCRATCHPAD[^\]]*\](.*?)(?=\[PATH 1 ANSWER|$)"
@@ -319,9 +359,9 @@ def parse_dual_path_response(response: str) -> dict:
         for path in _sentence_positive_endorsements(sentence):
             path_endorsements.append((start, path))
 
-        if _sentence_has_negative_reference(sentence, _PATH1_NEGATIVE_PATTERNS):
+        if _sentence_has_negative_reference(sentence, "path_1"):
             path1_last_negative = start
-        if _sentence_has_negative_reference(sentence, _PATH2_NEGATIVE_PATTERNS):
+        if _sentence_has_negative_reference(sentence, "path_2"):
             path2_last_negative = start
 
     path1_mentioned = any(pattern.search(rec_lower) for pattern in _PATH1_FALLBACK_PATTERNS)
