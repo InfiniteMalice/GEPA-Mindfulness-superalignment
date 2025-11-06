@@ -26,6 +26,7 @@ COMPARISON_ALIASES = ["COMPARISON", "DIFFERENCES"]
 RECOMMENDATION_ALIASES = ["RECOMMENDATION", "DECISION", "PREFERRED PATH"]
 
 PATH1_ENDORSEMENT_TERMS = ("path 1", "first approach", "careful approach", "careful path")
+# Alias retained so fallback logic can evolve separately if needed.
 PATH1_FALLBACK_TERMS = PATH1_ENDORSEMENT_TERMS
 PATH2_ENDORSEMENT_TERMS = ("path 2", "second approach")
 
@@ -129,11 +130,19 @@ def _sentence_positive_endorsements(sentence: str) -> list[str]:
 
             path_negated = False
             for neg_match in _NEGATION_PREFIX_PATTERN.finditer(clause_prefix):
+                prior_verb = ENDORSEMENT_VERB_PATTERN.search(clause_prefix, neg_match.end())
+                if prior_verb:
+                    bridge = clause_prefix[prior_verb.end() : verb.start()]
+                    if re.search(r"\b(?:but|however|though|although|yet|instead)\b", bridge):
+                        continue
+
                 neg_scope_start = clause_offset + neg_match.end()
                 neg_scope = sentence[neg_scope_start : search_start + term_match.end()]
-                path_match = _PATH_TERM_PATTERN.search(neg_scope)
-                if path_match and _PATH_TERM_TO_LABEL[path_match.group(0)] == path:
-                    path_negated = True
+                for path_match in _PATH_TERM_PATTERN.finditer(neg_scope):
+                    if _PATH_TERM_TO_LABEL[path_match.group(0)] == path:
+                        path_negated = True
+                        break
+                if path_negated:
                     break
             if path_negated:
                 continue

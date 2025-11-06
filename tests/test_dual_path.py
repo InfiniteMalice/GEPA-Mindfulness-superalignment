@@ -200,6 +200,28 @@ def test_recommendation_only_negation_leaves_unclear() -> None:
     assert sections["recommended_path"] == "unclear"
 
 
+def test_recommendation_negates_both_paths() -> None:
+    response = dedent(
+        """
+        [PATH 1 REASONING]
+        Safety first.
+
+        [PATH 2 REASONING]
+        Opportunistic view.
+
+        [COMPARISON]
+        They disagree.
+
+        [RECOMMENDATION]
+        I don't recommend Path 1 or Path 2 here.
+        """
+    )
+
+    sections = parse_dual_path_response(response)
+
+    assert sections["recommended_path"] == "unclear"
+
+
 def test_recommendation_later_endorsement_overrides_prior_negation() -> None:
     response = dedent(
         """
