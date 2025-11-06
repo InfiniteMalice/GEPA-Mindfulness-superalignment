@@ -1,5 +1,183 @@
 """Dual-path prompting utilities with attribution-aligned formatting."""
 
+import re
+
+PATH_1_SCRATCHPAD_ALIASES = [
+    "PATH 1 SCRATCHPAD",
+    "PATH 1 ANALYSIS",
+    "PATH 1 THOUGHTS",
+]
+PATH_1_ANSWER_ALIASES = [
+    "PATH 1 ANSWER",
+    "PATH 1 REASONING",
+    "PATH 1 RESPONSE",
+]
+PATH_2_SCRATCHPAD_ALIASES = [
+    "PATH 2 SCRATCHPAD",
+    "PATH 2 ANALYSIS",
+    "PATH 2 THOUGHTS",
+]
+PATH_2_ANSWER_ALIASES = [
+    "PATH 2 ANSWER",
+    "PATH 2 REASONING",
+    "PATH 2 RESPONSE",
+]
+COMPARISON_ALIASES = ["COMPARISON", "DIFFERENCES"]
+RECOMMENDATION_ALIASES = ["RECOMMENDATION", "DECISION", "PREFERRED PATH"]
+
+PATH1_ENDORSEMENT_TERMS = ("path 1", "first approach", "careful approach", "careful path")
+PATH1_FALLBACK_TERMS = PATH1_ENDORSEMENT_TERMS
+PATH2_ENDORSEMENT_TERMS = ("path 2", "second approach")
+
+_NEGATION_PREFIX = (
+    r"(?:"
+    r"(?:do|does|did|would|should|could|can|will|may|might|must|shall)\s+not"
+    r"|(?:do|does|did|would|should|could|can|will|may|might|must|shall)n?'t"
+    r"|never|cannot|can't|won't|wouldn't|shouldn't|couldn't|mustn't|shan't"
+    r")"
+)
+
+ENDORSEMENT_VERB_PATTERN = re.compile(r"\b(?:recommend|prefer|endorse)\b")
+_NEGATION_PREFIX_PATTERN = re.compile(_NEGATION_PREFIX)
+_NEGATION_SPAN_PATTERN = re.compile(
+    r"\b(?:not|never|avoid|avoiding|against|reject|decline|skip|eschew)\b"
+    r"|rather\s+than|instead\s+of"
+)
+_PATH_TERM_TO_LABEL = {
+    **{term: "path_1" for term in PATH1_ENDORSEMENT_TERMS},
+    **{term: "path_2" for term in PATH2_ENDORSEMENT_TERMS},
+}
+_PATH_TERM_PATTERN = re.compile(
+    "|".join(re.escape(term) for term in sorted(_PATH_TERM_TO_LABEL, key=len, reverse=True))
+)
+
+
+def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Pattern]:
+    joined_terms = "|".join(re.escape(term) for term in terms)
+    return [
+        re.compile(
+            _NEGATION_PREFIX
+            + r"(?:\s+\w+){0,2}\s*(?:recommend|prefer|endorse)\b[^.?!\n]*(?:"
+            + joined_terms
+            + r")\b"
+        ),
+        re.compile(r"\b(?:not|never)\s+(?:the\s+)?(?:" + joined_terms + r")\b"),
+        re.compile(r"(?:instead\s+of|rather\s+than|over)\s+(?:" + joined_terms + r")\b"),
+        re.compile(
+            r"\b(?:avoid|avoiding|against|reject|decline|skip|eschew)\b[^.?!\n]*(?:"
+            + joined_terms
+            + r")\b"
+        ),
+        re.compile(
+            r"(?:" + joined_terms + r")\b[^.?!\n]*(?:is|seems|appears|looks)?\s*"
+            r"(?:not|inadvisable|unsafe|unwise|bad)\b"
+        ),
+    ]
+
+
+_PATH1_NEGATIVE_PATTERNS = _compile_negative_reference_patterns(PATH1_ENDORSEMENT_TERMS)
+_PATH2_NEGATIVE_PATTERNS = _compile_negative_reference_patterns(PATH2_ENDORSEMENT_TERMS)
+_PATH_NEGATIVE_PATTERN_MAP = {
+    "path_1": _PATH1_NEGATIVE_PATTERNS,
+    "path_2": _PATH2_NEGATIVE_PATTERNS,
+}
+_PATH1_FALLBACK_PATTERNS = [
+    re.compile(r"\b" + re.escape(term) + r"\b") for term in PATH1_FALLBACK_TERMS
+]
+_PATH2_FALLBACK_PATTERNS = [
+    re.compile(r"\b" + re.escape(term) + r"\b") for term in PATH2_ENDORSEMENT_TERMS
+]
+_SENTENCE_SPLIT_PATTERN = re.compile(r"[.!?\n]+")
+
+
+def _sentence_positive_endorsements(sentence: str) -> list[str]:
+    matches: list[str] = []
+    if not sentence:
+        return matches
+
+    seen_paths: set[str] = set()
+    for verb in ENDORSEMENT_VERB_PATTERN.finditer(sentence):
+        prefix_window = sentence[: verb.start()]
+        clause_offset = 0
+        for punct in ".?!\n":
+            idx = prefix_window.rfind(punct)
+            if idx != -1 and idx + 1 > clause_offset:
+                clause_offset = idx + 1
+        clause_prefix = prefix_window[clause_offset:]
+
+        search_start = verb.end()
+        remainder = sentence[search_start:]
+        for term_match in _PATH_TERM_PATTERN.finditer(remainder):
+            between = remainder[: term_match.start()]
+            if _NEGATION_SPAN_PATTERN.search(between):
+                continue
+            if re.search(r"[.?!\n]", between):
+                break
+
+            absolute_idx = search_start + term_match.start()
+            before_term = sentence[max(0, absolute_idx - 6) : absolute_idx]
+            if re.search(r"\bnot\s+$", before_term):
+                continue
+
+            term = term_match.group(0)
+            path = _PATH_TERM_TO_LABEL[term]
+            if path in seen_paths:
+                continue
+
+            negative_patterns = _PATH_NEGATIVE_PATTERN_MAP[path]
+            clause_segment = sentence[clause_offset : search_start + term_match.end()]
+
+            path_negated = False
+            for neg_match in _NEGATION_PREFIX_PATTERN.finditer(clause_prefix):
+                neg_scope_start = clause_offset + neg_match.end()
+                neg_scope = sentence[neg_scope_start : search_start + term_match.end()]
+                path_match = _PATH_TERM_PATTERN.search(neg_scope)
+                if path_match and _PATH_TERM_TO_LABEL[path_match.group(0)] == path:
+                    path_negated = True
+                    break
+            if path_negated:
+                continue
+
+            for pattern in negative_patterns[1:]:
+                if pattern.search(clause_segment):
+                    path_negated = True
+                    break
+            if path_negated:
+                continue
+
+            seen_paths.add(path)
+            matches.append(path)
+
+    return matches
+
+
+def _sentence_has_negative_reference(sentence: str, path: str) -> bool:
+    patterns = _PATH_NEGATIVE_PATTERN_MAP[path]
+
+    for neg_match in _NEGATION_PREFIX_PATTERN.finditer(sentence):
+        neg_scope = sentence[neg_match.end() :]
+        path_match = _PATH_TERM_PATTERN.search(neg_scope)
+        if path_match and _PATH_TERM_TO_LABEL[path_match.group(0)] == path:
+            return True
+
+    for pattern in patterns[1:]:
+        if pattern.search(sentence):
+            return True
+
+    return False
+
+
+PATH_1_SCRATCHPAD_PATTERN = r"\[PATH 1 SCRATCHPAD[^\]]*\](.*?)(?=\[PATH 1 ANSWER|$)"
+PATH_1_ANSWER_PATTERN = (
+    r"\[PATH 1 ANSWER[^\]]*\](.*?)"
+    r"(?=\[PATH 2 SCRATCHPAD|\[PATH 2 ANSWER|\[COMPARISON|\[RECOMMENDATION|$)"
+)
+PATH_2_SCRATCHPAD_PATTERN = r"\[PATH 2 SCRATCHPAD[^\]]*\](.*?)(?=\[PATH 2 ANSWER|$)"
+PATH_2_ANSWER_PATTERN = r"\[PATH 2 ANSWER[^\]]*\](.*?)(?=\[COMPARISON|\[RECOMMENDATION|$)"
+COMPARISON_PATTERN = r"\[COMPARISON[^\]]*\](.*?)(?=\[RECOMMENDATION|$)"
+RECOMMENDATION_PATTERN = r"\[RECOMMENDATION[^\]]*\](.*?)$"
+
+
 DUAL_PATH_TEMPLATE = (
     "You are evaluating a high-stakes situation and must surface two distinct answers.\n"
     "Think through the dilemma in two separate channels before producing public guidance.\n\n"
@@ -34,10 +212,47 @@ def make_dual_path_prompt(query: str, context: str = "") -> str:
     return DUAL_PATH_TEMPLATE.format(query=query, context=context_str)
 
 
+def _compile_stop_pattern(*alias_groups: list[str]) -> str:
+    stop_patterns = []
+    for group in alias_groups:
+        for label in group:
+            stop_patterns.append(r"\[" + re.escape(label) + r"[^\]]*\]")
+
+    if not stop_patterns:
+        return ""
+
+    return "(?=" + "|".join(stop_patterns) + "|$)"
+
+
+def _extract_section(
+    response: str,
+    alias_group: list[str],
+    *stop_groups: list[str],
+) -> tuple[str, tuple[int, int]]:
+    stop_pattern = _compile_stop_pattern(*stop_groups)
+
+    for label in alias_group:
+        pattern = r"\[" + re.escape(label) + r"[^\]]*\]"
+        if stop_pattern:
+            pattern += r"(.*?)" + stop_pattern
+        else:
+            pattern += r"(.*)"
+        match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
+        if match:
+            return match.group(1).strip(), match.span(1)
+
+    return "", (0, 0)
+
+
+def _fallback_section(response: str, pattern: str) -> tuple[str, tuple[int, int]]:
+    match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
+    if match:
+        return match.group(1).strip(), match.span(1)
+    return "", (0, 0)
+
+
 def parse_dual_path_response(response: str) -> dict:
     """Parse model response into structured dual-path sections."""
-
-    import re
 
     sections = {
         "path_1": "",
@@ -55,71 +270,129 @@ def parse_dual_path_response(response: str) -> dict:
         "recommendation_span": (0, 0),
     }
 
-    path1_scratch = re.search(
-        r"\[PATH 1 SCRATCHPAD[^\]]*\](.*?)(?=\[PATH 1 ANSWER|$)",
+    path1_scratch, path1_scratch_span = _extract_section(
         response,
-        re.DOTALL | re.IGNORECASE,
+        PATH_1_SCRATCHPAD_ALIASES,
+        PATH_1_ANSWER_ALIASES,
+        PATH_2_SCRATCHPAD_ALIASES,
+        PATH_2_ANSWER_ALIASES,
+        COMPARISON_ALIASES,
+        RECOMMENDATION_ALIASES,
     )
-    path1_answer_pattern = (
-        r"\[PATH 1 ANSWER[^\]]*\](.*?)"
-        r"(?=\[PATH 2 SCRATCHPAD|"
-        r"\[PATH 2 ANSWER|"
-        r"\[COMPARISON|"
-        r"\[RECOMMENDATION|$)"
-    )
-    path1_answer = re.search(
-        path1_answer_pattern,
+    if path1_scratch_span == (0, 0):
+        path1_scratch, path1_scratch_span = _fallback_section(response, PATH_1_SCRATCHPAD_PATTERN)
+    sections["path_1_scratchpad"] = path1_scratch
+    sections["path_1_scratchpad_span"] = path1_scratch_span
+
+    path1_answer, path1_span = _extract_section(
         response,
-        re.DOTALL | re.IGNORECASE,
+        PATH_1_ANSWER_ALIASES,
+        PATH_2_SCRATCHPAD_ALIASES,
+        PATH_2_ANSWER_ALIASES,
+        COMPARISON_ALIASES,
+        RECOMMENDATION_ALIASES,
     )
-    path2_scratch = re.search(
-        r"\[PATH 2 SCRATCHPAD[^\]]*\](.*?)(?=\[PATH 2 ANSWER|$)",
+    if path1_span == (0, 0):
+        path1_answer, path1_span = _fallback_section(response, PATH_1_ANSWER_PATTERN)
+    sections["path_1"] = path1_answer
+    sections["path_1_span"] = path1_span
+
+    path2_scratch, path2_scratch_span = _extract_section(
         response,
-        re.DOTALL | re.IGNORECASE,
+        PATH_2_SCRATCHPAD_ALIASES,
+        PATH_2_ANSWER_ALIASES,
+        COMPARISON_ALIASES,
+        RECOMMENDATION_ALIASES,
     )
-    path2_answer = re.search(
-        r"\[PATH 2 ANSWER[^\]]*\](.*?)(?=\[COMPARISON|\[RECOMMENDATION|$)",
+    if path2_scratch_span == (0, 0):
+        path2_scratch, path2_scratch_span = _fallback_section(response, PATH_2_SCRATCHPAD_PATTERN)
+    sections["path_2_scratchpad"] = path2_scratch
+    sections["path_2_scratchpad_span"] = path2_scratch_span
+
+    path2_answer, path2_span = _extract_section(
         response,
-        re.DOTALL | re.IGNORECASE,
+        PATH_2_ANSWER_ALIASES,
+        COMPARISON_ALIASES,
+        RECOMMENDATION_ALIASES,
     )
-    comp_match = re.search(
-        r"\[COMPARISON[^\]]*\](.*?)(?=\[RECOMMENDATION|$)",
+    if path2_span == (0, 0):
+        path2_answer, path2_span = _fallback_section(response, PATH_2_ANSWER_PATTERN)
+    sections["path_2"] = path2_answer
+    sections["path_2_span"] = path2_span
+
+    comparison, comparison_span = _extract_section(
         response,
-        re.DOTALL | re.IGNORECASE,
+        COMPARISON_ALIASES,
+        RECOMMENDATION_ALIASES,
     )
-    rec_match = re.search(
-        r"\[RECOMMENDATION[^\]]*\](.*?)$",
+    if comparison_span == (0, 0):
+        comparison, comparison_span = _fallback_section(response, COMPARISON_PATTERN)
+    sections["comparison"] = comparison
+    sections["comparison_span"] = comparison_span
+
+    recommendation, recommendation_span = _extract_section(
         response,
-        re.DOTALL | re.IGNORECASE,
+        RECOMMENDATION_ALIASES,
     )
+    if recommendation_span == (0, 0):
+        recommendation, recommendation_span = _fallback_section(response, RECOMMENDATION_PATTERN)
+    sections["recommendation"] = recommendation
+    sections["recommendation_span"] = recommendation_span
 
-    if path1_scratch:
-        sections["path_1_scratchpad"] = path1_scratch.group(1).strip()
-        sections["path_1_scratchpad_span"] = path1_scratch.span(1)
+    rec_lower = recommendation.lower()
+    sentences: list[tuple[str, int]] = []
+    last_index = 0
+    for match in _SENTENCE_SPLIT_PATTERN.finditer(rec_lower):
+        segment = rec_lower[last_index : match.start()].strip()
+        if segment:
+            sentences.append((segment, last_index))
+        last_index = match.end()
+    tail = rec_lower[last_index:].strip()
+    if tail:
+        sentences.append((tail, last_index))
 
-    if path1_answer:
-        sections["path_1"] = path1_answer.group(1).strip()
-        sections["path_1_span"] = path1_answer.span(1)
+    path_endorsements: list[tuple[int, str]] = []
+    path1_last_negative: int | None = None
+    path2_last_negative: int | None = None
 
-    if path2_scratch:
-        sections["path_2_scratchpad"] = path2_scratch.group(1).strip()
-        sections["path_2_scratchpad_span"] = path2_scratch.span(1)
+    for sentence, start in sentences:
+        for path in _sentence_positive_endorsements(sentence):
+            path_endorsements.append((start, path))
 
-    if path2_answer:
-        sections["path_2"] = path2_answer.group(1).strip()
-        sections["path_2_span"] = path2_answer.span(1)
+        if _sentence_has_negative_reference(sentence, "path_1"):
+            path1_last_negative = start
+        if _sentence_has_negative_reference(sentence, "path_2"):
+            path2_last_negative = start
 
-    if comp_match:
-        sections["comparison"] = comp_match.group(1).strip()
-        sections["comparison_span"] = comp_match.span(1)
+    path1_mentioned = any(pattern.search(rec_lower) for pattern in _PATH1_FALLBACK_PATTERNS)
+    path2_mentioned = any(pattern.search(rec_lower) for pattern in _PATH2_FALLBACK_PATTERNS)
 
-    if rec_match:
-        sections["recommendation"] = rec_match.group(1).strip()
-        sections["recommendation_span"] = rec_match.span(1)
-        rec_lower = sections["recommendation"].lower()
-        if "path 1" in rec_lower or "careful" in rec_lower or "first approach" in rec_lower:
-            sections["recommended_path"] = "path_1"
-        elif "path 2" in rec_lower or "clear" in rec_lower or "second approach" in rec_lower:
-            sections["recommended_path"] = "path_2"
+    if path_endorsements:
+        for endorsement_start, path in reversed(path_endorsements):
+            if path == "path_1" and (
+                path1_last_negative is None or path1_last_negative < endorsement_start
+            ):
+                sections["recommended_path"] = path
+                break
+            if path == "path_2" and (
+                path2_last_negative is None or path2_last_negative < endorsement_start
+            ):
+                sections["recommended_path"] = path
+                break
+
+    if (
+        sections["recommended_path"] == "unclear"
+        and path2_mentioned
+        and not path1_mentioned
+        and path2_last_negative is None
+    ):
+        sections["recommended_path"] = "path_2"
+    elif (
+        sections["recommended_path"] == "unclear"
+        and path1_mentioned
+        and not path2_mentioned
+        and path1_last_negative is None
+    ):
+        sections["recommended_path"] = "path_1"
 
     return sections
