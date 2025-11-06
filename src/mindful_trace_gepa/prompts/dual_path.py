@@ -92,7 +92,7 @@ def _sentence_positive_endorsements(sentence: str) -> list[str]:
 
     seen_paths: set[str] = set()
     for verb in ENDORSEMENT_VERB_PATTERN.finditer(sentence):
-        prefix_window = sentence[: verb.start()]
+        prefix_window = sentence[max(0, verb.start() - 30) : verb.start()]
         if _NEGATION_SPAN_PATTERN.search(prefix_window) and not re.search(
             r"\bnot\s+(?:only|just)\b",
             prefix_window,
