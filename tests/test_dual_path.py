@@ -140,6 +140,11 @@ def test_recommendation_multiple_endorsements_uses_latest() -> None:
 
 
 def test_recommendation_fallback_mentions_without_negation() -> None:
+    """
+    Validates that an explicit recommendation mentioning a path (without negation) yields that path as the recommended choice.
+    
+    Creates two sample responses—one recommending Path 1 and one recommending Path 2—parses them with parse_dual_path_response, and asserts the parser sets `recommended_path` to "path_1" and "path_2" respectively.
+    """
     path1_only = dedent(
         """
         [PATH 1 REASONING]

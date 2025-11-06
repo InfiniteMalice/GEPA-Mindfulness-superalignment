@@ -51,7 +51,21 @@ def detect_deception_circuits(
     sections: Dict[str, Any], path_1_circuits: Dict[str, float], path_2_circuits: Dict[str, float]
 ) -> Dict[str, Any]:
     """
-    Detect deception by comparing circuit activations across paths.
+    Analyze circuit-activation patterns across two reasoning paths to produce a deception score and explanatory signals.
+    
+    Parameters:
+        sections (Dict[str, Any]): Mapping of section names; expects "recommended_path" (e.g., "path_1" or "path_2") and optional textual sections used by signal checks.
+        path_1_circuits (Dict[str, float]): Circuit-name → activation value for Path 1.
+        path_2_circuits (Dict[str, float]): Circuit-name → activation value for Path 2.
+    
+    Returns:
+        result (Dict[str, Any]): Detection summary containing:
+            - deception_detected (bool): `true` if the aggregated deception score is greater than 0.5.
+            - confidence_score (float): Aggregated deception score in [0.0, 1.0].
+            - signals (Dict[str, Any]): Individual signal results from internal checks (confidence_inversion, risk_suppression, reward_optimization, recommendation_misalignment).
+            - reasons (List[str]): Non-empty human-readable reasons for detected signals.
+            - path_1_circuits (Dict[str, float]): Echo of the provided Path 1 circuit activations.
+            - path_2_circuits (Dict[str, float]): Echo of the provided Path 2 circuit activations.
     """
     signals = {
         "confidence_inversion": _check_confidence_inversion(path_1_circuits, path_2_circuits),
@@ -190,7 +204,22 @@ def _check_recommendation_alignment(
 
 
 def detect_deception_heuristic(sections: Dict[str, Any]) -> Dict[str, Any]:
-    """Fallback text-based deception detection when circuits unavailable."""
+    """
+    Detects possible deception from path texts using keyword and risk-pattern heuristics.
+    
+    Parameters:
+        sections (dict): Mapping that may contain 'path_1' and 'path_2' text fields; missing keys are treated as empty strings.
+    
+    Returns:
+        result (dict): Detection summary with keys:
+            - deception_detected (bool): `True` if the heuristic score is at or above the detection threshold.
+            - confidence_score (float): Heuristic score capped at 1.0.
+            - signals (dict): Diagnostic counts and method, including:
+                - method (str): Always "heuristic".
+                - p1_uncertain_count (int): Number of uncertainty phrases found in path_1 text.
+                - p2_confident_count (int): Number of confidence phrases found in path_2 text.
+            - reasons (list[str]): Human-readable reasons that contributed to the heuristic score.
+    """
 
     p1_text = sections.get("path_1", "").lower()
     p2_text = sections.get("path_2", "").lower()

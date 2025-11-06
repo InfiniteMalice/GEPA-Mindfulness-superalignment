@@ -60,6 +60,18 @@ _PATH_TERM_PATTERN = re.compile(
 
 
 def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Pattern]:
+    """
+    Builds regex patterns that detect negative references to the given path terms.
+    
+    Parameters:
+        terms (tuple[str, ...]): Terms or phrases that identify a path (e.g., "path 1", "first approach").
+    
+    Returns:
+        list[re.Pattern]: Compiled regular expressions that match various forms of negation or negative
+        reference to any of the provided terms (for example: explicit negation, recommendations that
+        reject a term, contrastive phrases like "instead of" or "rather than", avoidance verbs, and
+        quality-based negative descriptions).
+    """
     joined_terms = "|".join(re.escape(term) for term in terms)
     quality_negation = (
         r"(?:"
@@ -108,6 +120,17 @@ _SENTENCE_SPLIT_PATTERN = re.compile(r"[.!?\n]+")
 
 
 def _sentence_positive_endorsements(sentence: str) -> list[str]:
+    """
+    Identify which path labels are positively endorsed within a single sentence.
+    
+    Scans the sentence for endorsement verbs and returns path labels that are explicitly positively endorsed, ignoring mentions that are negated, scoped out by negation phrases, or otherwise disqualified. Matches are returned in the order each path is first positively endorsed and a path appears at most once.
+    
+    Parameters:
+        sentence (str): A single sentence to analyze for endorsements.
+    
+    Returns:
+        list[str]: A list of path labels (e.g., "path_1", "path_2") that are positively endorsed in the sentence, or an empty list if none are found.
+    """
     matches: list[str] = []
     if not sentence:
         return matches
@@ -177,6 +200,16 @@ def _sentence_positive_endorsements(sentence: str) -> list[str]:
 
 
 def _sentence_has_negative_reference(sentence: str, path: str) -> bool:
+    """
+    Determine whether a sentence contains a negated or negative reference to the specified path.
+    
+    Parameters:
+        sentence (str): The sentence to analyze.
+        path (str): Path label to check for negation; expected values are "path_1" or "path_2".
+    
+    Returns:
+        bool: `True` if the sentence contains a negative reference to `path`, `False` otherwise.
+    """
     patterns = _PATH_NEGATIVE_PATTERN_MAP[path]
 
     for neg_match in _NEGATION_PREFIX_PATTERN.finditer(sentence):
@@ -231,13 +264,31 @@ DUAL_PATH_TEMPLATE = (
 
 
 def make_dual_path_prompt(query: str, context: str = "") -> str:
-    """Create a dual-path prompt from a single query."""
+    """
+    Builds a dual-path prompt by injecting the provided query and context into the module's DUAL_PATH_TEMPLATE.
+    
+    Parameters:
+        query (str): The user's question or task to place into the prompt.
+        context (str): Optional additional context to include. If empty, the prompt will contain "Context: none provided".
+    
+    Returns:
+        str: The formatted prompt string with the query and context inserted.
+    """
 
     context_str = f"Context: {context}\n" if context else "Context: none provided\n"
     return DUAL_PATH_TEMPLATE.format(query=query, context=context_str)
 
 
 def _compile_stop_pattern(*alias_groups: list[str]) -> str:
+    """
+    Build a regex lookahead that matches either any labeled section header from the provided alias groups or the end of the string.
+    
+    Parameters:
+        *alias_groups (list[str]): One or more lists of section label strings. Each label is treated as a bracketed header (e.g., "[LABEL ...]") and used to produce a stop pattern.
+    
+    Returns:
+        str: A regex lookahead string of the form `(?=pattern1|pattern2|$)` which matches the next occurrence of any labeled header or end-of-string. Returns an empty string if no alias groups are provided.
+    """
     stop_patterns = []
     for group in alias_groups:
         for label in group:
@@ -254,6 +305,19 @@ def _extract_section(
     alias_group: list[str],
     *stop_groups: list[str],
 ) -> tuple[str, tuple[int, int]]:
+    """
+    Extract a labeled section from a model response using one of several possible section headers.
+    
+    Searches for the first occurrence of a header matching any label in `alias_group` written inside square brackets (e.g., "[PATH 1 ANSWER]"). The captured section is the text following that header up to the next header belonging to any of the provided `stop_groups` or to the end of the response. Matching is case-insensitive and spans newlines.
+    
+    Parameters:
+        response (str): Full text to search.
+        alias_group (list[str]): Labels that identify the target section; each label is matched inside square brackets.
+        *stop_groups (list[str]): Zero or more lists of labels whose headers mark the end boundary for the target section.
+    
+    Returns:
+        tuple[str, tuple[int, int]]: A tuple containing the extracted section text (with surrounding whitespace trimmed) and a (start, end) span of the captured text in `response`. Returns ("", (0, 0)) if no matching labeled section is found.
+    """
     stop_pattern = _compile_stop_pattern(*stop_groups)
 
     for label in alias_group:
@@ -270,6 +334,16 @@ def _extract_section(
 
 
 def _fallback_section(response: str, pattern: str) -> tuple[str, tuple[int, int]]:
+    """
+    Extract a fallback section from a response using the provided regex pattern.
+    
+    Parameters:
+        response (str): The full text to search.
+        pattern (str): A regex with a capturing group for the desired section.
+    
+    Returns:
+        tuple[str, tuple[int, int]]: The captured section text (trimmed) and the (start, end) span of the captured group in the response; returns ("", (0, 0)) if no match is found.
+    """
     match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
     if match:
         return match.group(1).strip(), match.span(1)
@@ -277,7 +351,28 @@ def _fallback_section(response: str, pattern: str) -> tuple[str, tuple[int, int]
 
 
 def parse_dual_path_response(response: str) -> dict:
-    """Parse model response into structured dual-path sections."""
+    """
+    Parse a model-generated dual-path response into extracted sections and metadata.
+    
+    Parameters:
+        response (str): Raw model response text containing labeled sections (e.g., PATH 1 SCRATCHPAD, PATH 1 ANSWER, PATH 2 SCRATCHPAD, PATH 2 ANSWER, COMPARISON, RECOMMENDATION).
+    
+    Returns:
+        dict: A dictionary with the following keys:
+            - path_1 (str): Extracted public-facing content for Path 1.
+            - path_2 (str): Extracted public-facing content for Path 2.
+            - path_1_scratchpad (str): Extracted internal scratchpad content for Path 1.
+            - path_2_scratchpad (str): Extracted internal scratchpad content for Path 2.
+            - comparison (str): Extracted comparison section content.
+            - recommendation (str): Extracted recommendation section content.
+            - recommended_path (str): Determined endorsement: "path_1", "path_2", or "unclear".
+            - path_1_span (tuple[int, int]): (start, end) character indices for Path 1 content in the input, or (0, 0) if not found.
+            - path_2_span (tuple[int, int]): (start, end) character indices for Path 2 content in the input, or (0, 0) if not found.
+            - path_1_scratchpad_span (tuple[int, int]): (start, end) indices for Path 1 scratchpad, or (0, 0).
+            - path_2_scratchpad_span (tuple[int, int]): (start, end) indices for Path 2 scratchpad, or (0, 0).
+            - comparison_span (tuple[int, int]): (start, end) indices for the comparison section, or (0, 0).
+            - recommendation_span (tuple[int, int]): (start, end) indices for the recommendation section, or (0, 0).
+    """
 
     sections = {
         "path_1": "",
