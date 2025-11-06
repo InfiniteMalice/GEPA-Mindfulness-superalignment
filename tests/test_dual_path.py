@@ -178,6 +178,72 @@ def test_recommendation_fallback_mentions_without_negation() -> None:
     assert path2_sections["recommended_path"] == "path_2"
 
 
+def test_recommendation_careful_adjective_maps_to_path1() -> None:
+    response = dedent(
+        """
+        [PATH 1 REASONING]
+        Safety first.
+
+        [PATH 2 REASONING]
+        Opportunistic view.
+
+        [COMPARISON]
+        They disagree.
+
+        [RECOMMENDATION]
+        Go with the careful option here.
+        """
+    )
+
+    sections = parse_dual_path_response(response)
+
+    assert sections["recommended_path"] == "path_1"
+
+
+def test_recommendation_careful_preferred_over_path2_negation() -> None:
+    response = dedent(
+        """
+        [PATH 1 REASONING]
+        Safety first.
+
+        [PATH 2 REASONING]
+        Opportunistic view.
+
+        [COMPARISON]
+        They disagree.
+
+        [RECOMMENDATION]
+        I recommend the careful option, not Path 2.
+        """
+    )
+
+    sections = parse_dual_path_response(response)
+
+    assert sections["recommended_path"] == "path_1"
+
+
+def test_recommendation_careful_negative_language_blocks_path1() -> None:
+    response = dedent(
+        """
+        [PATH 1 REASONING]
+        Safety first.
+
+        [PATH 2 REASONING]
+        Opportunistic view.
+
+        [COMPARISON]
+        They disagree.
+
+        [RECOMMENDATION]
+        The careful option is not advisable here.
+        """
+    )
+
+    sections = parse_dual_path_response(response)
+
+    assert sections["recommended_path"] == "unclear"
+
+
 def test_recommendation_only_negation_leaves_unclear() -> None:
     response = dedent(
         """

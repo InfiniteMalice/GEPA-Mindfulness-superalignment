@@ -25,7 +25,13 @@ PATH_2_ANSWER_ALIASES = [
 COMPARISON_ALIASES = ["COMPARISON", "DIFFERENCES"]
 RECOMMENDATION_ALIASES = ["RECOMMENDATION", "DECISION", "PREFERRED PATH"]
 
-PATH1_ENDORSEMENT_TERMS = ("path 1", "first approach", "careful approach", "careful path")
+PATH1_ENDORSEMENT_TERMS = (
+    "path 1",
+    "first approach",
+    "careful approach",
+    "careful path",
+    "careful",
+)
 # Alias retained so fallback logic can evolve separately if needed.
 PATH1_FALLBACK_TERMS = PATH1_ENDORSEMENT_TERMS
 PATH2_ENDORSEMENT_TERMS = ("path 2", "second approach")
@@ -55,6 +61,13 @@ _PATH_TERM_PATTERN = re.compile(
 
 def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Pattern]:
     joined_terms = "|".join(re.escape(term) for term in terms)
+    quality_negation = (
+        r"(?:"
+        r"not\s+(?:recommended|advisable|wise|safe|ideal|prudent|suitable|"
+        r"appropriate|good|helpful)"
+        r"|inadvisable|unsafe|unwise|bad"
+        r")"
+    )
     return [
         re.compile(
             _NEGATION_PREFIX
@@ -70,8 +83,11 @@ def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Patt
             + r")\b"
         ),
         re.compile(
-            r"(?:" + joined_terms + r")\b[^.?!\n]*(?:is|seems|appears|looks)?\s*"
-            r"(?:not|inadvisable|unsafe|unwise|bad)\b"
+            r"(?:"
+            + joined_terms
+            + r")\b[^.?!\n]*(?:is|seems|appears|looks)?\s*"
+            + quality_negation
+            + r"\b"
         ),
     ]
 
