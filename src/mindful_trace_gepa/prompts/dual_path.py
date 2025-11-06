@@ -312,31 +312,31 @@ def parse_dual_path_response(response: str) -> dict:
         sentences.append((tail, last_index))
 
     path_endorsements: list[tuple[int, str]] = []
-    path1_negative = False
-    path2_negative = False
+    path1_last_negative: int | None = None
+    path2_last_negative: int | None = None
 
     for sentence, start in sentences:
         for path in _sentence_positive_endorsements(sentence):
             path_endorsements.append((start, path))
 
-        if not path1_negative and _sentence_has_negative_reference(
-            sentence, _PATH1_NEGATIVE_PATTERNS
-        ):
-            path1_negative = True
-        if not path2_negative and _sentence_has_negative_reference(
-            sentence, _PATH2_NEGATIVE_PATTERNS
-        ):
-            path2_negative = True
+        if _sentence_has_negative_reference(sentence, _PATH1_NEGATIVE_PATTERNS):
+            path1_last_negative = start
+        if _sentence_has_negative_reference(sentence, _PATH2_NEGATIVE_PATTERNS):
+            path2_last_negative = start
 
     path1_mentioned = any(pattern.search(rec_lower) for pattern in _PATH1_FALLBACK_PATTERNS)
     path2_mentioned = any(pattern.search(rec_lower) for pattern in _PATH2_FALLBACK_PATTERNS)
 
     if path_endorsements:
-        for _, path in reversed(path_endorsements):
-            if path == "path_1" and not path1_negative:
+        for endorsement_start, path in reversed(path_endorsements):
+            if path == "path_1" and (
+                path1_last_negative is None or path1_last_negative < endorsement_start
+            ):
                 sections["recommended_path"] = path
                 break
-            if path == "path_2" and not path2_negative:
+            if path == "path_2" and (
+                path2_last_negative is None or path2_last_negative < endorsement_start
+            ):
                 sections["recommended_path"] = path
                 break
 
@@ -344,14 +344,14 @@ def parse_dual_path_response(response: str) -> dict:
         sections["recommended_path"] == "unclear"
         and path2_mentioned
         and not path1_mentioned
-        and not path2_negative
+        and path2_last_negative is None
     ):
         sections["recommended_path"] = "path_2"
     elif (
         sections["recommended_path"] == "unclear"
         and path1_mentioned
         and not path2_mentioned
-        and not path1_negative
+        and path1_last_negative is None
     ):
         sections["recommended_path"] = "path_1"
 
