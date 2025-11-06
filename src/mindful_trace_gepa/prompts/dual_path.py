@@ -167,8 +167,8 @@ def _path_is_negated(
     return False
 
 
-def _sentence_positive_endorsements(sentence: str) -> list[str]:
-    matches: list[str] = []
+def _sentence_positive_endorsements(sentence: str) -> list[tuple[int, str]]:
+    matches: list[tuple[int, str]] = []
     if not sentence:
         return matches
 
@@ -205,25 +205,26 @@ def _sentence_positive_endorsements(sentence: str) -> list[str]:
                 continue
 
             seen_paths.add(path)
-            matches.append(path)
+            matches.append((absolute_idx, path))
 
     return matches
 
 
-def _sentence_has_negative_reference(sentence: str, path: str) -> bool:
+def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int]:
+    positions: list[int] = []
     patterns = _PATH_NEGATIVE_PATTERN_MAP[path]
 
     for neg_match in _NEGATION_PREFIX_PATTERN.finditer(sentence):
         neg_scope = sentence[neg_match.end() :]
         path_match = _PATH_TERM_PATTERN.search(neg_scope)
         if path_match and _PATH_TERM_TO_LABEL[path_match.group(0)] == path:
-            return True
+            positions.append(neg_match.end() + path_match.start())
 
     for pattern in patterns[1:]:
-        if pattern.search(sentence):
-            return True
+        for match in pattern.finditer(sentence):
+            positions.append(match.start())
 
-    return False
+    return positions
 
 
 PATH_1_SCRATCHPAD_PATTERN = r"\[PATH 1 SCRATCHPAD[^\]]*\](.*?)(?=\[PATH 1 ANSWER|$)"
@@ -415,26 +416,30 @@ def parse_dual_path_response(response: str) -> dict:
     path2_last_negative: int | None = None
 
     for sentence, start in sentences:
-        for path in _sentence_positive_endorsements(sentence):
-            path_endorsements.append((start, path))
+        for relative_idx, path in _sentence_positive_endorsements(sentence):
+            path_endorsements.append((start + relative_idx, path))
 
-        if _sentence_has_negative_reference(sentence, "path_1"):
-            path1_last_negative = start
-        if _sentence_has_negative_reference(sentence, "path_2"):
-            path2_last_negative = start
+        for negative_idx in _sentence_negative_reference_positions(sentence, "path_1"):
+            absolute_idx = start + negative_idx
+            if path1_last_negative is None or absolute_idx > path1_last_negative:
+                path1_last_negative = absolute_idx
+        for negative_idx in _sentence_negative_reference_positions(sentence, "path_2"):
+            absolute_idx = start + negative_idx
+            if path2_last_negative is None or absolute_idx > path2_last_negative:
+                path2_last_negative = absolute_idx
 
     path1_mentioned = any(pattern.search(rec_lower) for pattern in _PATH1_FALLBACK_PATTERNS)
     path2_mentioned = any(pattern.search(rec_lower) for pattern in _PATH2_FALLBACK_PATTERNS)
 
     if path_endorsements:
-        for endorsement_start, path in reversed(path_endorsements):
+        for endorsement_idx, path in reversed(path_endorsements):
             if path == "path_1" and (
-                path1_last_negative is None or path1_last_negative < endorsement_start
+                path1_last_negative is None or path1_last_negative < endorsement_idx
             ):
                 sections["recommended_path"] = path
                 break
             if path == "path_2" and (
-                path2_last_negative is None or path2_last_negative < endorsement_start
+                path2_last_negative is None or path2_last_negative < endorsement_idx
             ):
                 sections["recommended_path"] = path
                 break
