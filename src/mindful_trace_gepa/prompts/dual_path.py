@@ -57,6 +57,7 @@ _PATH_TERM_TO_LABEL = {
 _PATH_TERM_PATTERN = re.compile(
     "|".join(re.escape(term) for term in sorted(_PATH_TERM_TO_LABEL, key=len, reverse=True))
 )
+_CLAUSE_CONTRAST_PATTERN = re.compile(r"\b(?:but|however|though|although|yet|instead)\b")
 
 
 def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Pattern]:
@@ -107,6 +108,65 @@ _PATH2_FALLBACK_PATTERNS = [
 _SENTENCE_SPLIT_PATTERN = re.compile(r"[.!?\n]+")
 
 
+def _clause_prefix(sentence: str, verb_start: int) -> tuple[str, int]:
+    prefix_window = sentence[:verb_start]
+    clause_offset = 0
+    for punct in ".?!\n":
+        idx = prefix_window.rfind(punct)
+        if idx != -1 and idx + 1 > clause_offset:
+            clause_offset = idx + 1
+    return prefix_window[clause_offset:], clause_offset
+
+
+def _has_sentence_boundary(text: str) -> bool:
+    return bool(re.search(r"[.?!\n]", text))
+
+
+def _term_preceded_by_not(sentence: str, term_start: int) -> bool:
+    window = sentence[max(0, term_start - 6) : term_start]
+    return bool(re.search(r"\bnot\s+$", window))
+
+
+def _prefix_negates_path(
+    sentence: str,
+    clause_prefix: str,
+    clause_offset: int,
+    term_end: int,
+    path: str,
+) -> bool:
+    for neg_match in _NEGATION_PREFIX_PATTERN.finditer(clause_prefix):
+        prior_verb = ENDORSEMENT_VERB_PATTERN.search(clause_prefix, neg_match.end())
+        if prior_verb:
+            bridge = clause_prefix[prior_verb.end() :]
+            if _CLAUSE_CONTRAST_PATTERN.search(bridge):
+                continue
+
+        neg_scope_start = clause_offset + neg_match.end()
+        neg_scope = sentence[neg_scope_start:term_end]
+        for path_match in _PATH_TERM_PATTERN.finditer(neg_scope):
+            if _PATH_TERM_TO_LABEL[path_match.group(0)] == path:
+                return True
+    return False
+
+
+def _path_is_negated(
+    sentence: str,
+    clause_prefix: str,
+    clause_offset: int,
+    term_end: int,
+    path: str,
+) -> bool:
+    if _prefix_negates_path(sentence, clause_prefix, clause_offset, term_end, path):
+        return True
+
+    clause_segment = sentence[clause_offset:term_end]
+    negative_patterns = _PATH_NEGATIVE_PATTERN_MAP[path]
+    for pattern in negative_patterns[1:]:
+        if pattern.search(clause_segment):
+            return True
+    return False
+
+
 def _sentence_positive_endorsements(sentence: str) -> list[str]:
     matches: list[str] = []
     if not sentence:
@@ -114,13 +174,7 @@ def _sentence_positive_endorsements(sentence: str) -> list[str]:
 
     seen_paths: set[str] = set()
     for verb in ENDORSEMENT_VERB_PATTERN.finditer(sentence):
-        prefix_window = sentence[: verb.start()]
-        clause_offset = 0
-        for punct in ".?!\n":
-            idx = prefix_window.rfind(punct)
-            if idx != -1 and idx + 1 > clause_offset:
-                clause_offset = idx + 1
-        clause_prefix = prefix_window[clause_offset:]
+        clause_prefix, clause_offset = _clause_prefix(sentence, verb.start())
 
         search_start = verb.end()
         remainder = sentence[search_start:]
@@ -128,12 +182,11 @@ def _sentence_positive_endorsements(sentence: str) -> list[str]:
             between = remainder[: term_match.start()]
             if _NEGATION_SPAN_PATTERN.search(between):
                 continue
-            if re.search(r"[.?!\n]", between):
+            if _has_sentence_boundary(between):
                 break
 
             absolute_idx = search_start + term_match.start()
-            before_term = sentence[max(0, absolute_idx - 6) : absolute_idx]
-            if re.search(r"\bnot\s+$", before_term):
+            if _term_preceded_by_not(sentence, absolute_idx):
                 continue
 
             term = term_match.group(0)
@@ -141,33 +194,14 @@ def _sentence_positive_endorsements(sentence: str) -> list[str]:
             if path in seen_paths:
                 continue
 
-            negative_patterns = _PATH_NEGATIVE_PATTERN_MAP[path]
-            clause_segment = sentence[clause_offset : search_start + term_match.end()]
-
-            path_negated = False
-            for neg_match in _NEGATION_PREFIX_PATTERN.finditer(clause_prefix):
-                prior_verb = ENDORSEMENT_VERB_PATTERN.search(clause_prefix, neg_match.end())
-                if prior_verb:
-                    bridge = clause_prefix[prior_verb.end() : verb.start()]
-                    if re.search(r"\b(?:but|however|though|although|yet|instead)\b", bridge):
-                        continue
-
-                neg_scope_start = clause_offset + neg_match.end()
-                neg_scope = sentence[neg_scope_start : search_start + term_match.end()]
-                for path_match in _PATH_TERM_PATTERN.finditer(neg_scope):
-                    if _PATH_TERM_TO_LABEL[path_match.group(0)] == path:
-                        path_negated = True
-                        break
-                if path_negated:
-                    break
-            if path_negated:
-                continue
-
-            for pattern in negative_patterns[1:]:
-                if pattern.search(clause_segment):
-                    path_negated = True
-                    break
-            if path_negated:
+            term_end = search_start + term_match.end()
+            if _path_is_negated(
+                sentence,
+                clause_prefix,
+                clause_offset,
+                term_end,
+                path,
+            ):
                 continue
 
             seen_paths.add(path)
