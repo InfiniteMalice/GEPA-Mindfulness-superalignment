@@ -117,6 +117,28 @@ def test_recommendation_prefix_negation_with_contrast_allows_path1() -> None:
     assert sections["recommended_path"] == "path_1"
 
 
+def test_recommendation_prefix_negation_without_clause_link_allows_path1() -> None:
+    response = dedent(
+        """
+        [PATH 1 REASONING]
+        Safety first.
+
+        [PATH 2 REASONING]
+        Opportunistic view.
+
+        [COMPARISON]
+        They disagree.
+
+        [RECOMMENDATION]
+        I don't see a perfect option; I recommend Path 1.
+        """
+    )
+
+    sections = parse_dual_path_response(response)
+
+    assert sections["recommended_path"] == "path_1"
+
+
 def test_recommendation_negated_path1_then_path2_endorsed() -> None:
     response = dedent(
         """
@@ -137,6 +159,29 @@ def test_recommendation_negated_path1_then_path2_endorsed() -> None:
     sections = parse_dual_path_response(response)
 
     assert sections["recommended_path"] == "path_2"
+
+
+def test_recommendation_prefer_not_to_choose_path1_is_negative() -> None:
+    response = dedent(
+        """
+        [PATH 1 REASONING]
+        Safety first.
+
+        [PATH 2 REASONING]
+        Opportunistic view.
+
+        [COMPARISON]
+        They disagree.
+
+        [RECOMMENDATION]
+        I would prefer not to choose Path 1.
+        """
+    )
+
+    sections = parse_dual_path_response(response)
+
+    assert sections["recommended_path"] != "path_1"
+    assert sections["recommended_path"] == "unclear"
 
 
 def test_recommendation_multiple_endorsements_uses_latest() -> None:

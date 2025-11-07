@@ -78,6 +78,10 @@ def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Patt
             + r")\b"
         ),
         re.compile(
+            r"\b(?:would|should|could|might|may|will|can|do|does|did)?\s*"
+            r"prefer\s+not(?:\s+to)?(?:\s+\w+){0,2}\s*(?:" + joined_terms + r")\b"
+        ),
+        re.compile(
             r"(?:"
             + joined_terms
             + r")\b[^.?!\n]*?(?:do|does|did|would|should|could|can|will|may|might|must|shall)"
@@ -251,7 +255,11 @@ def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int
             before_term = neg_scope[: path_match.start()]
             if _CLAUSE_CONTRAST_PATTERN.search(before_term):
                 break
+            if ";" in before_term:
+                break
             if _PATH_TERM_TO_LABEL[path_match.group(0)] == path:
+                if not ENDORSEMENT_VERB_PATTERN.search(before_term):
+                    continue
                 positions.append(neg_match.end() + path_match.start())
 
     for pattern in patterns[1:]:
