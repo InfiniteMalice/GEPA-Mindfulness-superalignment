@@ -77,6 +77,12 @@ def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Patt
             + joined_terms
             + r")\b"
         ),
+        re.compile(
+            r"(?:"
+            + joined_terms
+            + r")\b[^.?!\n]*?(?:do|does|did|would|should|could|can|will|may|might|must|shall)"
+            + r"(?:\s+(?:not|never)|n['’]t)\b(?!\s+only\b)"
+        ),
         re.compile(r"\b(?:not|never)\s+(?:the\s+)?(?:" + joined_terms + r")\b"),
         re.compile(r"(?:instead\s+of|rather\s+than|over)\s+(?:" + joined_terms + r")\b"),
         re.compile(
@@ -155,15 +161,20 @@ def _prefix_negates_path(
 ) -> bool:
     for neg_match in _NEGATION_PREFIX_PATTERN.finditer(clause_prefix):
         prior_verb = ENDORSEMENT_VERB_PATTERN.search(clause_prefix, neg_match.end())
-        if prior_verb:
-            bridge = clause_prefix[prior_verb.end() :]
-            if _CLAUSE_CONTRAST_PATTERN.search(bridge):
-                continue
 
         neg_scope_start = clause_offset + neg_match.end()
         neg_scope = sentence[neg_scope_start:term_end]
         for path_match in _PATH_TERM_PATTERN.finditer(neg_scope):
             if _PATH_TERM_TO_LABEL[path_match.group(0)] == path:
+                absolute_term_start = neg_scope_start + path_match.start()
+                scope_before_term = sentence[neg_scope_start:absolute_term_start]
+
+                if _CLAUSE_CONTRAST_PATTERN.search(scope_before_term):
+                    continue
+
+                if not prior_verb and not ENDORSEMENT_VERB_PATTERN.search(scope_before_term):
+                    continue
+
                 return True
     return False
 

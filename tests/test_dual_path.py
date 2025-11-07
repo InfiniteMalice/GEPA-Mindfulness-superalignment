@@ -95,6 +95,28 @@ def test_recommendation_negation_respected() -> None:
     assert sections["recommended_path"] == "path_2"
 
 
+def test_recommendation_prefix_negation_with_contrast_allows_path1() -> None:
+    response = dedent(
+        """
+        [PATH 1 REASONING]
+        Safety first.
+
+        [PATH 2 REASONING]
+        Opportunistic view.
+
+        [COMPARISON]
+        They disagree.
+
+        [RECOMMENDATION]
+        It's not easy, but I recommend Path 1.
+        """
+    )
+
+    sections = parse_dual_path_response(response)
+
+    assert sections["recommended_path"] == "path_1"
+
+
 def test_recommendation_negated_path1_then_path2_endorsed() -> None:
     response = dedent(
         """
@@ -280,6 +302,19 @@ def test_recommendation_only_negation_leaves_unclear() -> None:
 
         [RECOMMENDATION]
         We should avoid Path 1 here.
+        """
+    )
+
+    sections = parse_dual_path_response(response)
+
+    assert sections["recommended_path"] == "unclear"
+
+
+def test_recommendation_modal_negation_after_alias_blocks_fallback() -> None:
+    response = dedent(
+        """
+        [RECOMMENDATION]
+        Path 1 should not be used here.
         """
     )
 
