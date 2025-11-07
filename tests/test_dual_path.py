@@ -139,6 +139,28 @@ def test_recommendation_multiple_endorsements_uses_latest() -> None:
     assert sections["recommended_path"] == "path_2"
 
 
+def test_recommendation_negated_then_contrastive_endorsement() -> None:
+    response = dedent(
+        """
+        [PATH 1 REASONING]
+        Safety first.
+
+        [PATH 2 REASONING]
+        Opportunistic view.
+
+        [COMPARISON]
+        They disagree.
+
+        [RECOMMENDATION]
+        I recommend not Path 1 but Path 2.
+        """
+    )
+
+    sections = parse_dual_path_response(response)
+
+    assert sections["recommended_path"] == "path_2"
+
+
 def test_recommendation_fallback_mentions_without_negation() -> None:
     path1_only = dedent(
         """
@@ -258,6 +280,28 @@ def test_recommendation_only_negation_leaves_unclear() -> None:
 
         [RECOMMENDATION]
         We should avoid Path 1 here.
+        """
+    )
+
+    sections = parse_dual_path_response(response)
+
+    assert sections["recommended_path"] == "unclear"
+
+
+def test_recommendation_negation_prefix_covers_all_terms() -> None:
+    response = dedent(
+        """
+        [PATH 1 REASONING]
+        Safety first.
+
+        [PATH 2 REASONING]
+        Opportunistic view.
+
+        [COMPARISON]
+        They disagree.
+
+        [RECOMMENDATION]
+        I recommend Path 1. I don't recommend Path 2 or Path 1 now.
         """
     )
 

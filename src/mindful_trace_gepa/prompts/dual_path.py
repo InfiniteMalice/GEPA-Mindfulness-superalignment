@@ -123,6 +123,24 @@ def _has_sentence_boundary(text: str) -> bool:
     return bool(re.search(r"[.?!\n]", text))
 
 
+def _negation_targets_path(segment: str, path: str) -> bool:
+    neg_span = _NEGATION_SPAN_PATTERN.search(segment)
+    if not neg_span:
+        return False
+
+    neg_tail = segment[neg_span.start() :]
+    if _CLAUSE_CONTRAST_PATTERN.search(neg_tail):
+        return False
+
+    path_mentions = [
+        _PATH_TERM_TO_LABEL[match.group(0)] for match in _PATH_TERM_PATTERN.finditer(neg_tail)
+    ]
+    if not path_mentions:
+        return True
+
+    return path_mentions[-1] == path
+
+
 def _term_preceded_by_not(sentence: str, term_start: int) -> bool:
     window = sentence[max(0, term_start - 6) : term_start]
     return bool(re.search(r"\bnot\s+$", window))
@@ -180,8 +198,11 @@ def _sentence_positive_endorsements(sentence: str) -> list[tuple[int, str]]:
         search_start = verb.end()
         remainder = sentence[search_start:]
         for term_match in _PATH_TERM_PATTERN.finditer(remainder):
+            term = term_match.group(0)
+            path = _PATH_TERM_TO_LABEL[term]
+
             between = remainder[: term_match.start()]
-            if _NEGATION_SPAN_PATTERN.search(between):
+            if _negation_targets_path(between, path):
                 continue
             if _has_sentence_boundary(between):
                 break
@@ -190,8 +211,6 @@ def _sentence_positive_endorsements(sentence: str) -> list[tuple[int, str]]:
             if _term_preceded_by_not(sentence, absolute_idx):
                 continue
 
-            term = term_match.group(0)
-            path = _PATH_TERM_TO_LABEL[term]
             if path in seen_paths:
                 continue
 
@@ -217,9 +236,12 @@ def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int
 
     for neg_match in _NEGATION_PREFIX_PATTERN.finditer(sentence):
         neg_scope = sentence[neg_match.end() :]
-        path_match = _PATH_TERM_PATTERN.search(neg_scope)
-        if path_match and _PATH_TERM_TO_LABEL[path_match.group(0)] == path:
-            positions.append(neg_match.end() + path_match.start())
+        for path_match in _PATH_TERM_PATTERN.finditer(neg_scope):
+            before_term = neg_scope[: path_match.start()]
+            if _CLAUSE_CONTRAST_PATTERN.search(before_term):
+                break
+            if _PATH_TERM_TO_LABEL[path_match.group(0)] == path:
+                positions.append(neg_match.end() + path_match.start())
 
     for pattern in patterns[1:]:
         for match in pattern.finditer(sentence):
