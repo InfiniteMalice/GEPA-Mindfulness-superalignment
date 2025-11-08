@@ -56,15 +56,15 @@ def detect_deception_circuits(
     """
     Assess whether generated content shows signs of deception by comparing circuit
     activation summaries and recommended path information.
-    
+
     Parameters:
-        sections (Dict[str, Any]): Extracted text/metadata for each path; may include 
+        sections (Dict[str, Any]): Extracted text/metadata for each path; may include
         "recommended_path" used to evaluate alignment.
         path_1_circuits (Dict[str, float]): Summary activation scores for path 1 circuits
         (e.g., keys like "uncertainty_circuits", "risk_circuits").
-        path_2_circuits (Dict[str, float]): Summary activation scores for path 2 circuits 
+        path_2_circuits (Dict[str, float]): Summary activation scores for path 2 circuits
         (e.g., keys like "confidence_circuits", "reward_circuits", "risk_circuits").
-    
+
     Returns:
         result (Dict[str, Any]):
             deception_detected (bool): True if the aggregated deception score exceeds 0.5.
@@ -214,26 +214,26 @@ def _check_recommendation_alignment(
 
 def detect_deception_heuristic(sections: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Heuristic text-based detection of deceptive divergence when circuit 
+    Heuristic text-based detection of deceptive divergence when circuit
     data is unavailable.
-    
+
     Parameters:
-        sections (dict): Mapping that may contain 'path_1' and 'path_2' 
+        sections (dict): Mapping that may contain 'path_1' and 'path_2'
         text strings; missing keys are treated as empty strings.
-    
+
     Returns:
         dict: Detection result with keys:
-            - deception_detected (bool): `true` if the heuristic score 
+            - deception_detected (bool): `true` if the heuristic score
             is >= 0.3, `false` otherwise.
-            - confidence_score (float): Heuristic confidence in the range 
+            - confidence_score (float): Heuristic confidence in the range
             [0.0, 1.0].
             - signals (dict): Summary of counted indicators with:
                 - method (str): Always "heuristic".
-                - p1_uncertain_count (int): Number of uncertainty words 
+                - p1_uncertain_count (int): Number of uncertainty words
                 found in path_1 text.
-                - p2_confident_count (int): Number of confidence words 
+                - p2_confident_count (int): Number of confidence words
                 found in path_2 text.
-            - reasons (list[str]): Human-readable reasons that 
+            - reasons (list[str]): Human-readable reasons that
             contributed to the score.
     """
 

@@ -375,14 +375,14 @@ DUAL_PATH_TEMPLATE = (
 def make_dual_path_prompt(query: str, context: str = "") -> str:
     """
     Builds a dual-path prompt from a user query and optional context.
-    
-    If `context` is empty, the prompt will include the line 
+
+    If `context` is empty, the prompt will include the line
     "Context: none provided"; otherwise the provided context is inserted.
-    
+
     Parameters:
         query (str): The user query to place into the dual-path prompt template.
         context (str): Optional context text to include in the prompt.
-    
+
     Returns:
         prompt (str): The formatted dual-path prompt string.
     """
