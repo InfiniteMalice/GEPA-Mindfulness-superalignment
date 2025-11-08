@@ -173,6 +173,9 @@ def _prefix_negates_path(
                 absolute_term_start = neg_scope_start + path_match.start()
                 scope_before_term = sentence[neg_scope_start:absolute_term_start]
 
+                if ";" in scope_before_term:
+                    continue
+
                 if _CLAUSE_CONTRAST_PATTERN.search(scope_before_term):
                     continue
 
@@ -258,7 +261,10 @@ def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int
             if ";" in before_term:
                 break
             if _PATH_TERM_TO_LABEL[path_match.group(0)] == path:
-                if not ENDORSEMENT_VERB_PATTERN.search(before_term):
+                if not (
+                    ENDORSEMENT_VERB_PATTERN.search(before_term)
+                    or ENDORSEMENT_VERB_PATTERN.search(sentence[: neg_match.start()])
+                ):
                     continue
                 positions.append(neg_match.end() + path_match.start())
 
