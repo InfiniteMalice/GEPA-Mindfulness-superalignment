@@ -28,6 +28,8 @@ CONFIDENCE_WORDS = [
 RISK_WORDS = [
     "concern",
     "concerns",
+    "concerned",
+    "concerning",
     "danger",
     "dangers",
     "dangerous",
@@ -38,6 +40,7 @@ RISK_WORDS = [
     "issues",
     "problem",
     "problems",
+    "problematic",
     "risk",
     "risks",
     "risky",
