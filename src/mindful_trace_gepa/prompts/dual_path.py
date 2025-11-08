@@ -63,6 +63,17 @@ _NOT_ONLY_PATTERN = re.compile(r"\bnot\s+only\b")
 
 
 def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Pattern]:
+    """
+    Compile regex patterns that detect negative references to the provided terms.
+    
+    Generates a list of compiled regular expressions that match common linguistic constructions used to express negative references or discouragement toward any of the given terms. Patterns cover negated endorsement verbs (e.g., "do not recommend X"), "prefer not" constructions, negated modal or auxiliary assertions (e.g., "X should not"), explicit negation tokens ("not", "never") before the term, comparative exclusions ("instead of", "rather than", "over"), avoidance/rejection verbs (e.g., "avoid X", "reject X"), and quality-negation statements asserting a term is inadvisable or unsafe.
+    
+    Parameters:
+        terms (tuple[str, ...]): Sequence of words or phrases to be treated as target terms in the negative-reference patterns.
+    
+    Returns:
+        list[re.Pattern]: Compiled regular-expression objects that match various negative-reference formulations referring to any of the provided terms.
+    """
     joined_terms = "|".join(re.escape(term) for term in terms)
     quality_negation = (
         r"(?:"
@@ -122,6 +133,16 @@ _SENTENCE_SPLIT_PATTERN = re.compile(r"[.!?\n]+")
 
 
 def _clause_prefix(sentence: str, verb_start: int) -> tuple[str, int]:
+    """
+    Extract the clause segment immediately preceding a verb position and the clause's start offset.
+    
+    Parameters:
+        sentence (str): The full text to inspect.
+        verb_start (int): Index in `sentence` where the verb begins.
+    
+    Returns:
+        tuple[str, int]: A pair where the first element is the substring from the clause start up to `verb_start` (the clause prefix), and the second element is the integer index in `sentence` where that clause begins (one character after the last sentence-ending punctuation or newline before `verb_start`).
+    """
     prefix_window = sentence[:verb_start]
     clause_offset = 0
     for punct in ".?!\n":
@@ -132,10 +153,33 @@ def _clause_prefix(sentence: str, verb_start: int) -> tuple[str, int]:
 
 
 def _has_sentence_boundary(text: str) -> bool:
+    """
+    Detects whether the given text contains a sentence boundary character.
+    
+    Parameters:
+        text (str): The text to inspect for sentence boundaries.
+    
+    Returns:
+        True if the text contains a period ('.'), question mark ('?'), exclamation mark ('!'), or a newline character, False otherwise.
+    """
     return bool(re.search(r"[.?!\n]", text))
 
 
 def _suffix_window(sentence: str, start: int, limit: int = 50) -> str:
+    """
+    Extract a suffix window of a sentence starting at a given index, truncated at a punctuation boundary or a maximum length.
+    
+    Parameters:
+        sentence (str): The full text to extract from.
+        start (int): Index in `sentence` where the window begins.
+        limit (int): Maximum number of characters to include after `start` (default 50).
+    
+    Returns:
+        str: The substring of `sentence` beginning at `start` and ending at the earliest of:
+             - the first occurrence of any punctuation in ".?!;,\n" at or after `start`,
+             - `start + limit`,
+             - the end of `sentence`.
+    """
     end = min(len(sentence), start + limit)
     for punct in ".?!;,\n":
         punct_idx = sentence.find(punct, start)
@@ -146,6 +190,16 @@ def _suffix_window(sentence: str, start: int, limit: int = 50) -> str:
 
 
 def _contains_intensifier(prefix: str, suffix: str) -> bool:
+    """
+    Determine whether either the prefix or suffix contains an intensifying phrase.
+    
+    Parameters:
+        prefix (str): Text preceding a target mention to inspect.
+        suffix (str): Text following a target mention to inspect.
+    
+    Returns:
+        bool: `True` if `prefix` or `suffix` contains the phrase "not only" or other intensifier phrases, `False` otherwise.
+    """
     if _NOT_ONLY_PATTERN.search(prefix):
         return True
     if _INTENSIFIER_PATTERN.search(prefix):
@@ -156,6 +210,18 @@ def _contains_intensifier(prefix: str, suffix: str) -> bool:
 
 
 def _negation_targets_path(segment: str, path: str) -> bool:
+    """
+    Determines whether a negation cue in a text segment applies to the specified path label.
+    
+    Analyzes the segment for a negation span; if none is found, returns `False`. If a contrasted clause (e.g., "but", "however") appears after the negation cue, the negation is treated as not applying and `False` is returned. If there are no explicit path mentions after the negation cue, the negation is considered to target the given path. If path mentions follow the negation, the negation targets the given path only when the last path mention after the negation equals `path`.
+    
+    Parameters:
+        segment (str): The text segment to inspect.
+        path (str): The path label to test for (e.g., "path_1" or "path_2").
+    
+    Returns:
+        bool: `True` if a negation in `segment` is interpreted as targeting `path`, `False` otherwise.
+    """
     neg_span = _NEGATION_SPAN_PATTERN.search(segment)
     if not neg_span:
         return False
@@ -174,6 +240,16 @@ def _negation_targets_path(segment: str, path: str) -> bool:
 
 
 def _term_preceded_by_not(sentence: str, term_start: int) -> bool:
+    """
+    Check whether the token starting at `term_start` is immediately preceded by the word "not" within a short lookbehind window.
+    
+    Parameters:
+        sentence (str): The sentence to inspect.
+        term_start (int): The index in `sentence` where the term begins.
+    
+    Returns:
+        bool: `true` if the substring "not" (as a whole word) appears directly before the term within up to six characters, `false` otherwise.
+    """
     window = sentence[max(0, term_start - 6) : term_start]
     return bool(re.search(r"\bnot\s+$", window))
 
@@ -185,6 +261,19 @@ def _prefix_negates_path(
     term_end: int,
     path: str,
 ) -> bool:
+    """
+    Detects whether a negation prefix in a clause negates an endorsement of the specified path.
+    
+    Parameters:
+    	sentence (str): The full recommendation text being analyzed.
+    	clause_prefix (str): The substring of the clause examined for negation cues (relative to clause_offset).
+    	clause_offset (int): The start index of clause_prefix within sentence.
+    	term_end (int): The absolute end index (exclusive) of the path term within sentence.
+    	path (str): The path label to check for negation ("path_1" or "path_2").
+    
+    Returns:
+    	bool: `True` if a negation prefix in the clause appears to negate an endorsement of the given path, `False` otherwise.
+    """
     for neg_match in _NEGATION_PREFIX_PATTERN.finditer(clause_prefix):
         prior_verb = ENDORSEMENT_VERB_PATTERN.search(clause_prefix, neg_match.end())
 
@@ -224,6 +313,19 @@ def _path_is_negated(
     term_end: int,
     path: str,
 ) -> bool:
+    """
+    Determine whether a referenced path is negated within a clause of a sentence.
+    
+    Parameters:
+        sentence (str): The full sentence text being analyzed.
+        clause_prefix (str): The text prefix that marks the start of the clause containing the path reference.
+        clause_offset (int): The start index (inclusive) of the clause within `sentence`.
+        term_end (int): The end index (exclusive) of the path reference within `sentence`.
+        path (str): The path label to check (e.g., "path_1" or "path_2").
+    
+    Returns:
+        True if the path is referenced negatively within the specified clause segment, False otherwise.
+    """
     if _prefix_negates_path(sentence, clause_prefix, clause_offset, term_end, path):
         return True
 
@@ -236,6 +338,17 @@ def _path_is_negated(
 
 
 def _sentence_positive_endorsements(sentence: str) -> list[tuple[int, str]]:
+    """
+    Finds positive endorsements of path terms in a single sentence.
+    
+    Analyzes the sentence for endorsement verb phrases followed by a path term and returns each confirmed, non-negated endorsement as its character start index and corresponding path label.
+    
+    Parameters:
+        sentence (str): Sentence text to scan for endorsements.
+    
+    Returns:
+        list[tuple[int, str]]: A list of (start_index, path_label) tuples where start_index is the character offset of the matched path term in `sentence` and path_label is "path_1" or "path_2". Empty list if no positive endorsements are found.
+    """
     matches: list[tuple[int, str]] = []
     if not sentence:
         return matches
@@ -280,6 +393,18 @@ def _sentence_positive_endorsements(sentence: str) -> list[tuple[int, str]]:
 
 
 def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int]:
+    """
+    Identify start indices of negative references to a specified path within a single sentence.
+    
+    Scans the sentence for occurrences of path terms that are used in a negative context (for example, negated mentions or other negative-reference patterns). Matches that are syntactically blocked by a clause-contrast term (e.g., "but", "however") or a semicolon before the path term are ignored. For negation-prefixed matches, a nearby endorsement verb must appear either inside the negation scope or before the negation; matches that contain intensifying language around the term are also ignored. The function returns the character indices of the path-term starts for all detected negative references.
+    
+    Parameters:
+        sentence (str): A single sentence to analyze.
+        path (str): Path label to check for negative references; expected values are "path_1" or "path_2".
+    
+    Returns:
+        list[int]: A list of integer indices representing the start positions of path-term occurrences that are used as negative references in the sentence.
+    """
     positions: list[int] = []
     patterns = _PATH_NEGATIVE_PATTERN_MAP[path]
 
@@ -354,13 +479,33 @@ DUAL_PATH_TEMPLATE = (
 
 
 def make_dual_path_prompt(query: str, context: str = "") -> str:
-    """Create a dual-path prompt from a single query."""
+    """
+    Builds a dual-path prompt from a user query and optional context.
+    
+    If `context` is empty, the prompt will include the line "Context: none provided"; otherwise the provided context is inserted.
+    
+    Parameters:
+        query (str): The user query to place into the dual-path prompt template.
+        context (str): Optional context text to include in the prompt.
+    
+    Returns:
+        prompt (str): The formatted dual-path prompt string.
+    """
 
     context_str = f"Context: {context}\n" if context else "Context: none provided\n"
     return DUAL_PATH_TEMPLATE.format(query=query, context=context_str)
 
 
 def _compile_stop_pattern(*alias_groups: list[str]) -> str:
+    """
+    Builds a regex lookahead that signals a stop when any of the given bracketed alias labels or the end of string is encountered.
+    
+    Parameters:
+        alias_groups (list[list[str]]): One or more groups of label strings; each label will be matched when it appears inside square brackets (e.g., `[Label]`) and treated as a stop marker.
+    
+    Returns:
+        str: A regex lookahead pattern that matches if any bracketed label from the provided groups appears next or if the end of the string is reached. Returns an empty string when no alias groups are provided.
+    """
     stop_patterns = []
     for group in alias_groups:
         for label in group:
@@ -377,6 +522,17 @@ def _extract_section(
     alias_group: list[str],
     *stop_groups: list[str],
 ) -> tuple[str, tuple[int, int]]:
+    """
+    Extract the first bracketed section labeled by any label in `alias_group`, capturing its inner content up to any provided stop labels.
+    
+    Parameters:
+        response (str): The text to search.
+        alias_group (list[str]): List of label strings (e.g., "PATH 1 ANSWER") to locate; the function looks for the first bracketed occurrence of any label in this list.
+        *stop_groups (list[str]): Optional lists of label strings whose bracketed occurrences mark the end of the captured content; when provided, capture stops before the first matching stop label.
+    
+    Returns:
+        tuple[str, tuple[int, int]]: A tuple where the first element is the trimmed captured section text and the second is the (start, end) span of that captured substring in `response`. Returns `("", (0, 0))` if no labeled section is found.
+    """
     stop_pattern = _compile_stop_pattern(*stop_groups)
 
     for label in alias_group:
@@ -393,6 +549,17 @@ def _extract_section(
 
 
 def _fallback_section(response: str, pattern: str) -> tuple[str, tuple[int, int]]:
+    """
+    Extract a section from the response using a fallback regular expression.
+    
+    Parameters:
+        response (str): Text to search.
+        pattern (str): Regular expression containing a capturing group for the desired section.
+    
+    Returns:
+        section (str): Trimmed text captured by the first group, or an empty string if no match.
+        span (tuple[int, int]): Start and end indices of the captured group in `response`, or (0, 0) if no match.
+    """
     match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
     if match:
         return match.group(1).strip(), match.span(1)
@@ -400,7 +567,28 @@ def _fallback_section(response: str, pattern: str) -> tuple[str, tuple[int, int]
 
 
 def parse_dual_path_response(response: str) -> dict:
-    """Parse model response into structured dual-path sections."""
+    """
+    Parse a model-generated dual-path response into labeled sections and determine a recommended path.
+    
+    Parameters:
+        response (str): The raw model response text containing labeled sections (scratchpads, answers, comparison, recommendation).
+    
+    Returns:
+        sections (dict): A dictionary with extracted text and span metadata:
+            - path_1 (str): Extracted answer content for Path 1.
+            - path_2 (str): Extracted answer content for Path 2.
+            - path_1_scratchpad (str): Extracted scratchpad content for Path 1.
+            - path_2_scratchpad (str): Extracted scratchpad content for Path 2.
+            - comparison (str): Extracted comparison section content.
+            - recommendation (str): Extracted recommendation section content.
+            - recommended_path (str): One of "path_1", "path_2", or "unclear" determined from endorsements and negations in the recommendation.
+            - path_1_span (tuple[int, int]): (start, end) indices of the Path 1 answer in the original response or (0, 0) if not found.
+            - path_2_span (tuple[int, int]): (start, end) indices of the Path 2 answer or (0, 0).
+            - path_1_scratchpad_span (tuple[int, int]): (start, end) indices of the Path 1 scratchpad or (0, 0).
+            - path_2_scratchpad_span (tuple[int, int]): (start, end) indices of the Path 2 scratchpad or (0, 0).
+            - comparison_span (tuple[int, int]): (start, end) indices of the comparison section or (0, 0).
+            - recommendation_span (tuple[int, int]): (start, end) indices of the recommendation section or (0, 0).
+    """
 
     sections = {
         "path_1": "",
