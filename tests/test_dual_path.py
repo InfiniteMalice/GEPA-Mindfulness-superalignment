@@ -161,6 +161,28 @@ def test_recommendation_semicolon_negation_followed_by_path2_rejection() -> None
     assert sections["recommended_path"] == "path_1"
 
 
+def test_recommendation_cant_recommend_enough_counts_as_positive() -> None:
+    response = dedent(
+        """
+        [PATH 1 REASONING]
+        Safety first.
+
+        [PATH 2 REASONING]
+        Opportunistic view.
+
+        [COMPARISON]
+        They disagree.
+
+        [RECOMMENDATION]
+        I can't recommend Path 1 enough; it's the safest choice.
+        """
+    )
+
+    sections = parse_dual_path_response(response)
+
+    assert sections["recommended_path"] == "path_1"
+
+
 def test_recommendation_negated_path1_then_path2_endorsed() -> None:
     response = dedent(
         """
@@ -207,6 +229,11 @@ def test_recommendation_prefer_not_to_choose_path1_is_negative() -> None:
 
 
 def test_recommendation_multiple_endorsements_uses_latest() -> None:
+    """
+    Verifies that when a recommendation section contains multiple endorsements, the parser chooses the last endorsement.
+    
+    Asserts that given a response which first endorses Path 1 and then Path 2, parse_dual_path_response sets `recommended_path` to `"path_2"`.
+    """
     response = dedent(
         """
         [PATH 1 REASONING]
@@ -375,6 +402,33 @@ def test_recommendation_only_negation_leaves_unclear() -> None:
     sections = parse_dual_path_response(response)
 
     assert sections["recommended_path"] == "unclear"
+
+
+def test_recommendation_same_sentence_negation_then_endorsement() -> None:
+    """
+    Verifies that when a recommendation contains a negation about a path followed in the same sentence by an endorsement of the same path, the parser resolves the final recommendation as that path.
+    
+    The test constructs a multi-section response where the Recommendation section contains "I do not recommend Path 1, but I now recommend Path 1." and asserts that parse_dual_path_response sets `recommended_path` to "path_1".
+    """
+    response = dedent(
+        """
+        [PATH 1 REASONING]
+        Safety first.
+
+        [PATH 2 REASONING]
+        Opportunistic view.
+
+        [COMPARISON]
+        They disagree.
+
+        [RECOMMENDATION]
+        I do not recommend Path 1, but I now recommend Path 1.
+        """
+    )
+
+    sections = parse_dual_path_response(response)
+
+    assert sections["recommended_path"] == "path_1"
 
 
 def test_recommendation_modal_negation_after_alias_blocks_fallback() -> None:
