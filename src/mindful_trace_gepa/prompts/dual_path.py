@@ -410,6 +410,43 @@ DUAL_PATH_TEMPLATE = (
     "<which path you endorse and why>"
 )
 
+ENDORSEMENT_VERB_PATTERN = re.compile(
+    r"\b(recommend|endorse|support|suggest|advise|back|favor|favour)\b",
+    re.IGNORECASE,
+)
+
+DECISION_VERB_PATTERN = re.compile(
+    (
+        r"\b("
+        r"choose|pick|select|follow|go with|opt for|take|pursue|adopt|"
+        r"avoid|shun|eschew|steer clear of|refrain from"
+        r")\b"
+    ),
+    re.IGNORECASE,
+)
+
+NEGATION_PATTERN = re.compile(
+    r"\b(don't|do not|not|never|avoid|against|shouldn't|should not|no)\b",
+    re.IGNORECASE,
+)
+
+PATH_SYNONYMS: Dict[str, Tuple[str, ...]] = {
+    "path_1": (
+        "path 1",
+        "first approach",
+        "first path",
+        "careful path",
+        "honest path",
+    ),
+    "path_2": (
+        "path 2",
+        "second approach",
+        "second path",
+        "clear path",
+        "opportunistic path",
+    ),
+}
+
 
 def make_dual_path_prompt(query: str, context: str = "") -> str:
     """Create a dual-path prompt from a single query."""
@@ -606,3 +643,58 @@ def parse_dual_path_response(response: str) -> dict:
         sections["recommended_path"] = "path_1"
 
     return sections
+
+
+def _resolve_recommendation(rec_text: str) -> str:
+    path_last_positive: Dict[str, int] = {}
+    path_last_negative: Dict[str, int] = {}
+
+    for path_name, aliases in PATH_SYNONYMS.items():
+        for alias in aliases:
+            for match in re.finditer(re.escape(alias), rec_text):
+                start, end = match.span()
+                context = _gather_context(rec_text, start, end)
+                if not _has_decision_language(context):
+                    continue
+                if NEGATION_PATTERN.search(context):
+                    path_last_negative[path_name] = start
+                else:
+                    path_last_positive[path_name] = start
+
+    if path_last_positive:
+        return max(path_last_positive.items(), key=lambda item: item[1])[0]
+
+    if path_last_negative:
+        neg_paths = set(path_last_negative)
+        if neg_paths == {"path_1"}:
+            return "path_2"
+        if neg_paths == {"path_2"}:
+            return "path_1"
+
+    if "path 1" in rec_text or "first approach" in rec_text:
+        return "path_1"
+    if "path 2" in rec_text or "second approach" in rec_text:
+        return "path_2"
+    if "careful" in rec_text:
+        return "path_1"
+    if "clear" in rec_text:
+        return "path_2"
+
+    return "unclear"
+
+
+def _gather_context(rec_text: str, start: int, end: int) -> str:
+    clause_start = max((rec_text.rfind(ch, 0, start) for ch in ".;!?"), default=-1)
+    if clause_start >= 0:
+        clause_start += 1
+    left_boundary = max(clause_start, start - 60)
+    left = max(0, left_boundary)
+    right = min(len(rec_text), end + 40)
+    return rec_text[left:right]
+
+
+def _has_decision_language(snippet: str) -> bool:
+    return bool(
+        ENDORSEMENT_VERB_PATTERN.search(snippet)
+        or DECISION_VERB_PATTERN.search(snippet)
+    )
