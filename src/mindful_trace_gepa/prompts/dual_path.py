@@ -530,6 +530,7 @@ def _phrase_to_pattern(phrase: str) -> str:
     if _NOT_ONLY_PATTERN.search(prefix) or _NOT_ONLY_PATTERN.search(suffix):
         return True
 
+
 NEGATION_WORD_PATTERN = "|".join(_phrase_to_pattern(word) for word in NEGATION_WORDS)
 PREFER_NOT_PATTERN = "|".join(_phrase_to_pattern(term) for term in PREFER_NOT_PHRASES)
 DECISION_VERB_PATTERN_FRAGMENT = "|".join(

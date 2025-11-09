@@ -49,6 +49,8 @@ MODEL_CONFIGS = {
         "trust_remote_code": False,
     },
 }
+
+
 @dataclass
 class AttributionAnalysis:
     """Container for attribution-based deception analysis."""
@@ -91,9 +93,7 @@ def _count_tokens(tokenizer: Any, text: str) -> int:
     return len(tokenizer.encode(text, add_special_tokens=False))
 
 
-def _find_prompt_token_offset(
-    tokenizer: Any, prompt: str, response: str
-) -> Tuple[int, int]:
+def _find_prompt_token_offset(tokenizer: Any, prompt: str, response: str) -> Tuple[int, int]:
     prompt_tokens = tokenizer.encode(prompt, add_special_tokens=False)
     if not prompt_tokens:
         return 0, 0
@@ -119,9 +119,7 @@ def _find_prompt_token_offset(
     raise ValueError("unable to locate prompt tokens within combined sequence")
 
 
-def _resolve_section_span(
-    response: str, text: str, span: Tuple[int, int]
-) -> Tuple[int, int]:
+def _resolve_section_span(response: str, text: str, span: Tuple[int, int]) -> Tuple[int, int]:
     start, end = span
     if end > start:
         return start, end
@@ -152,11 +150,7 @@ def _slice_graph_by_tokens(
     graph: AttributionGraph, token_range: Tuple[int, int]
 ) -> AttributionGraph:
     start, end = token_range
-    node_ids = {
-        id(node)
-        for node in graph.nodes
-        if start <= node.token_position < end
-    }
+    node_ids = {id(node) for node in graph.nodes if start <= node.token_position < end}
     nodes = [node for node in graph.nodes if id(node) in node_ids]
     edges = [
         edge
@@ -178,12 +172,8 @@ def _slice_graph_by_tokens(
 def _compute_text_stats(text: str) -> Dict[str, int]:
     lowered = text.lower()
     return {
-        "uncertainty": sum(
-            1 for word in circuit_analysis.UNCERTAINTY_WORDS if word in lowered
-        ),
-        "confidence": sum(
-            1 for word in circuit_analysis.CONFIDENCE_WORDS if word in lowered
-        ),
+        "uncertainty": sum(1 for word in circuit_analysis.UNCERTAINTY_WORDS if word in lowered),
+        "confidence": sum(1 for word in circuit_analysis.CONFIDENCE_WORDS if word in lowered),
         "risk": sum(1 for word in circuit_analysis.RISK_WORDS if word in lowered),
     }
 
@@ -396,9 +386,7 @@ def combine_detection_signals(
             if adversarial["confidence"] > confidence:
                 confidence = adversarial["confidence"]
                 source = "adversarial"
-            reasons.append(
-                f"Adversarial pattern detected: {adversarial['category']}"
-            )
+            reasons.append(f"Adversarial pattern detected: {adversarial['category']}")
 
     confidence = float(min(1.0, confidence))
     return {
@@ -700,10 +688,7 @@ def main() -> int:
                     f"(confidence={final['confidence']:.2f}, source={final['source']})"
                 )
             else:
-                print(
-                    "  ✅ No deception detected "
-                    f"(confidence={final['confidence']:.2f})"
-                )
+                print("  ✅ No deception detected " f"(confidence={final['confidence']:.2f})")
 
             print(
                 "  📊 Adversarial category: "
@@ -724,12 +709,8 @@ def main() -> int:
                     comparison=sections["comparison"],
                     recommendation=sections["recommendation"],
                     recommended_path=sections["recommended_path"],
-                    path_1_circuits=(
-                        attr_analysis.path_1_circuits if attr_analysis else {}
-                    ),
-                    path_2_circuits=(
-                        attr_analysis.path_2_circuits if attr_analysis else {}
-                    ),
+                    path_1_circuits=(attr_analysis.path_1_circuits if attr_analysis else {}),
+                    path_2_circuits=(attr_analysis.path_2_circuits if attr_analysis else {}),
                     deception_detected=True,
                     confidence_score=final["confidence"],
                     signals=final["signals"],
