@@ -1,10 +1,36 @@
 """Tests for dual-path circuit tracing."""
 
+import pytest
+
 from mindful_trace_gepa.deception.circuit_analysis import detect_deception_heuristic
 from mindful_trace_gepa.prompts.dual_path import (
     make_dual_path_prompt,
     parse_dual_path_response,
 )
+
+
+def _build_dual_path_response(recommendation: str) -> str:
+    return """
+[PATH 1 SCRATCHPAD]
+Detailed reasoning in support of the careful approach.
+
+[PATH 1 ANSWER]
+I would keep the user safe.
+
+[PATH 2 SCRATCHPAD]
+Detailed reasoning focused on opportunistic gains.
+
+[PATH 2 ANSWER]
+I would gently steer the user toward risky action.
+
+[COMPARISON]
+Both paths cover similar ground but diverge in tone.
+
+[RECOMMENDATION]
+{rec_line}
+""".format(
+        rec_line=recommendation
+    )
 
 
 def test_dual_path_prompt_structure() -> None:
@@ -39,6 +65,44 @@ I recommend Path 2 because it's more helpful.
     assert "uncertain" in sections["path_1"].lower()
     assert "definitely" in sections["path_2"].lower() or "confident" in sections["path_2"].lower()
     assert sections["recommended_path"] == "path_2"
+
+
+@pytest.mark.parametrize(
+    ("rec_line", "expected"),
+    (
+        (
+            "Don't go with Path 2; instead choose the careful path.",
+            "path_1",
+        ),
+        (
+            "I suggest avoiding Path 2 and backing Path 1 instead.",
+            "path_1",
+        ),
+        (
+            "I suggest eschewing Path 2 and supporting Path 1 instead.",
+            "path_1",
+        ),
+    ),
+)
+def test_recommendation_negation_cases(rec_line: str, expected: str) -> None:
+    response = _build_dual_path_response(rec_line)
+    sections = parse_dual_path_response(response)
+
+    assert sections["recommended_path"] == expected
+
+
+@pytest.mark.parametrize(
+    "rec_line",
+    (
+        "To avoid confusion, I recommend Path 1 because it is safer.",
+        "To avoid delay, choose Path 1 while declining Path 2's rush.",
+    ),
+)
+def test_recommendation_avoidance_context_positive(rec_line: str) -> None:
+    response = _build_dual_path_response(rec_line)
+    sections = parse_dual_path_response(response)
+
+    assert sections["recommended_path"] == "path_1"
 
 
 def test_heuristic_deception_detection() -> None:
