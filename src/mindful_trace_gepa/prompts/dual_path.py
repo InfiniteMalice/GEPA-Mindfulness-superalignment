@@ -135,6 +135,8 @@ def _phrase_to_pattern(phrase: str) -> str:
 
     return re.escape(phrase).replace("\\ ", r"\\s+")
 
+    if _NOT_ONLY_PATTERN.search(prefix) or _NOT_ONLY_PATTERN.search(suffix):
+        return True
 
 NEGATION_WORD_PATTERN = "|".join(_phrase_to_pattern(word) for word in NEGATION_WORDS)
 PREFER_NOT_PATTERN = "|".join(_phrase_to_pattern(term) for term in PREFER_NOT_PHRASES)
@@ -198,6 +200,45 @@ def make_dual_path_prompt(query: str, context: str = "") -> str:
     return DUAL_PATH_TEMPLATE.format(query=query, context=context_str)
 
 
+def _compile_stop_pattern(*alias_groups: list[str]) -> str:
+    stop_patterns = []
+    for group in alias_groups:
+        for label in group:
+            stop_patterns.append(r"\[" + re.escape(label) + r"[^\]]*\]")
+
+    if not stop_patterns:
+        return ""
+
+    return "(?=" + "|".join(stop_patterns) + "|$)"
+
+
+def _extract_section(
+    response: str,
+    alias_group: list[str],
+    *stop_groups: list[str],
+) -> tuple[str, tuple[int, int]]:
+    stop_pattern = _compile_stop_pattern(*stop_groups)
+
+    for label in alias_group:
+        pattern = r"\[" + re.escape(label) + r"[^\]]*\]"
+        if stop_pattern:
+            pattern += r"(.*?)" + stop_pattern
+        else:
+            pattern += r"(.*)"
+        match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
+        if match:
+            return match.group(1).strip(), match.span(1)
+
+    return "", (0, 0)
+
+
+def _fallback_section(response: str, pattern: str) -> tuple[str, tuple[int, int]]:
+    match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
+    if match:
+        return match.group(1).strip(), match.span(1)
+    return "", (0, 0)
+
+
 def parse_dual_path_response(response: str) -> dict:
     """Parse model response into structured dual-path sections."""
 
@@ -221,7 +262,19 @@ def parse_dual_path_response(response: str) -> dict:
         r"\[PATH 1 (?:SCRATCHPAD|REASONING)[^\]]*\]"
         r"(.*?)(?=\[PATH 1 ANSWER|\[PATH 2 (?:SCRATCHPAD|REASONING)|$)",
         response,
-        re.DOTALL | re.IGNORECASE,
+        PATH_1_SCRATCHPAD_ALIASES,
+        PATH_1_ANSWER_ALIASES,
+        PATH_2_SCRATCHPAD_ALIASES,
+        PATH_2_ANSWER_ALIASES,
+        COMPARISON_ALIASES,
+        RECOMMENDATION_ALIASES,
+    )
+    path1_answer_pattern = (
+        r"\[PATH 1 ANSWER[^\]]*\](.*?)"
+        r"(?=\[PATH 2 (?:SCRATCHPAD|REASONING)|"
+        r"\[PATH 2 ANSWER|"
+        r"\[COMPARISON|"
+        r"\[RECOMMENDATION|$)"
     )
     path1_answer_pattern = (
         r"\[PATH 1 ANSWER[^\]]*\](.*?)"
@@ -246,16 +299,37 @@ def parse_dual_path_response(response: str) -> dict:
         response,
         re.DOTALL | re.IGNORECASE,
     )
-    comp_match = re.search(
-        r"\[COMPARISON[^\]]*\](.*?)(?=\[RECOMMENDATION|$)",
+    path2_scratch = re.search(
+        r"\[PATH 2 (?:SCRATCHPAD|REASONING)[^\]]*\]"
+        r"(.*?)(?=\[PATH 2 ANSWER|\[COMPARISON|\[RECOMMENDATION|$)",
         response,
         re.DOTALL | re.IGNORECASE,
     )
-    rec_match = re.search(
-        r"\[RECOMMENDATION[^\]]*\](.*?)$",
+    path2_answer = re.search(
+        r"\[PATH 2 ANSWER[^\]]*\](.*?)(?=\[COMPARISON|\[RECOMMENDATION|$)",
         response,
-        re.DOTALL | re.IGNORECASE,
+        PATH_1_ANSWER_ALIASES,
+        PATH_2_SCRATCHPAD_ALIASES,
+        PATH_2_ANSWER_ALIASES,
+        COMPARISON_ALIASES,
+        RECOMMENDATION_ALIASES,
     )
+    if path1_span == (0, 0):
+        path1_answer, path1_span = _fallback_section(response, PATH_1_ANSWER_PATTERN)
+    sections["path_1"] = path1_answer
+    sections["path_1_span"] = path1_span
+
+    path2_scratch, path2_scratch_span = _extract_section(
+        response,
+        PATH_2_SCRATCHPAD_ALIASES,
+        PATH_2_ANSWER_ALIASES,
+        COMPARISON_ALIASES,
+        RECOMMENDATION_ALIASES,
+    )
+    if path2_scratch_span == (0, 0):
+        path2_scratch, path2_scratch_span = _fallback_section(response, PATH_2_SCRATCHPAD_PATTERN)
+    sections["path_2_scratchpad"] = path2_scratch
+    sections["path_2_scratchpad_span"] = path2_scratch_span
 
     if path1_scratch:
         sections["path_1_scratchpad"] = path1_scratch.group(1).strip()
@@ -281,9 +355,48 @@ def parse_dual_path_response(response: str) -> dict:
         sections["path_2"] = sections["path_2_scratchpad"]
         sections["path_2_span"] = sections["path_2_scratchpad_span"]
 
-    if comp_match:
-        sections["comparison"] = comp_match.group(1).strip()
-        sections["comparison_span"] = comp_match.span(1)
+    rec_lower = recommendation.lower()
+    sentences: list[tuple[str, int]] = []
+    last_index = 0
+    for match in _SENTENCE_SPLIT_PATTERN.finditer(rec_lower):
+        segment = rec_lower[last_index : match.start()].strip()
+        if segment:
+            sentences.append((segment, last_index))
+        last_index = match.end()
+    tail = rec_lower[last_index:].strip()
+    if tail:
+        sentences.append((tail, last_index))
+
+    path_endorsements: list[tuple[int, str]] = []
+    path1_last_negative: int | None = None
+    path2_last_negative: int | None = None
+
+    if path1_scratch:
+        sections["path_1_scratchpad"] = path1_scratch.group(1).strip()
+        sections["path_1_scratchpad_span"] = path1_scratch.span(1)
+
+    if path1_answer:
+        sections["path_1"] = path1_answer.group(1).strip()
+        sections["path_1_span"] = path1_answer.span(1)
+
+    if path2_scratch:
+        sections["path_2_scratchpad"] = path2_scratch.group(1).strip()
+        sections["path_2_scratchpad_span"] = path2_scratch.span(1)
+
+    if path2_answer:
+        sections["path_2"] = path2_answer.group(1).strip()
+        sections["path_2_span"] = path2_answer.span(1)
+
+    if not sections["path_1"] and sections["path_1_scratchpad"]:
+        sections["path_1"] = sections["path_1_scratchpad"]
+        sections["path_1_span"] = sections["path_1_scratchpad_span"]
+
+    if not sections["path_2"] and sections["path_2_scratchpad"]:
+        sections["path_2"] = sections["path_2_scratchpad"]
+        sections["path_2_span"] = sections["path_2_scratchpad_span"]
+
+    path1_mentioned = any(pattern.search(rec_lower) for pattern in _PATH1_FALLBACK_PATTERNS)
+    path2_mentioned = any(pattern.search(rec_lower) for pattern in _PATH2_FALLBACK_PATTERNS)
 
     if rec_match:
         sections["recommendation"] = rec_match.group(1).strip()
