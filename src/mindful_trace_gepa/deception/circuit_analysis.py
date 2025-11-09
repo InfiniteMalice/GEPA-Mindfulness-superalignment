@@ -47,6 +47,7 @@ RISK_WORDS = [
 ]
 
 # Pre-compile risk word patterns at module level
+# Patterns use word boundaries (\b) to match whole words only
 _RISK_PATTERNS = [re.compile(r"\b" + re.escape(word) + r"\b") for word in RISK_WORDS]
 
 

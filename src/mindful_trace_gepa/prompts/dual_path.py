@@ -39,8 +39,9 @@ PATH2_ENDORSEMENT_TERMS = ("path 2", "second approach")
 _NEGATION_PREFIX = (
     r"(?:"
     r"(?:do|does|did|would|should|could|can|will|may|might|must|shall)\s+not"
-    r"|(?:do|does|did|would|should|could|can|will|may|might|must|shall)n?'t"
-    r"|never|cannot|can't|won't|wouldn't|shouldn't|couldn't|mustn't|shan't"
+    r"|(?:do|does|did|would|should|could|can|will|may|might|must|shall)n['’]?t"
+    r"|never|cannot|can['’]?t|won['’]?t|wouldn['’]?t|shouldn['’]?t|couldn['’]?t"
+    r"|mustn['’]?t|shan['’]?t"
     r")"
 )
 
@@ -94,7 +95,7 @@ def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Patt
         r"(?:not|(?:is|are|was|were)(?:\s+not|n['’]t))\s+"
         r"(?:recommended|advisable|wise|safe|ideal|prudent|suitable|"
         r"appropriate|good|helpful)"
-        r"|inadvisable|unsafe|unwise|bad"
+        r"|inadvisable|unsafe|unwise|bad|risky"
         r")"
     )
     return [
@@ -111,7 +112,7 @@ def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Patt
         re.compile(
             r"(?:"
             + joined_terms
-            + r")\b[^.?!\n]*?(?:do|does|did|would|should|could|can|will|may|might|must|shall)"
+            + r")\b[^.?!;\n]*?(?:do|does|did|would|should|could|can|will|may|might|must|shall)"
             + r"(?:\s+(?:not|never)|n['’]t)\b(?!\s+only\b)"
         ),
         re.compile(r"\b(?:not|never)\s+(?:the\s+)?(?:" + joined_terms + r")\b"),
@@ -124,7 +125,7 @@ def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Patt
         re.compile(
             r"(?:"
             + joined_terms
-            + r")\b[^.?!\n]*(?:is|seems|appears|looks)?\s*"
+            + r")\b[^.?!;\n]*(?:is|seems|appears|looks)?\s*"
             + quality_negation
             + r"\b"
         ),
@@ -158,7 +159,7 @@ def _clause_prefix(sentence: str, verb_start: int) -> tuple[str, int]:
 
 
 def _has_sentence_boundary(text: str) -> bool:
-    return bool(re.search(r"[.?!\n]", text))
+    return bool(re.search(r"[.?!;\n]", text))
 
 
 def _suffix_window(sentence: str, start: int, limit: int = _SUFFIX_WINDOW_LIMIT) -> str:
@@ -174,8 +175,8 @@ def _suffix_window(sentence: str, start: int, limit: int = _SUFFIX_WINDOW_LIMIT)
 def _contains_intensifier(prefix: str, suffix: str) -> bool:
     """Return True when emphasis idioms should bypass negation heuristics."""
 
-    prefix_lower = prefix.lower()
-    suffix_lower = suffix.lower()
+    prefix_lower = prefix.lower().replace("’", "'")
+    suffix_lower = suffix.lower().replace("’", "'")
 
     if _NOT_ONLY_PATTERN.search(prefix_lower) or _NOT_ONLY_PATTERN.search(suffix_lower):
         return True
