@@ -49,19 +49,131 @@ DECISION_VERB_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-NEGATION_PATTERN = re.compile(
-    (
-        r"\b("
-        r"don't|do not|not|never|no|against|shouldn't|should not|"
-        r"avoid|avoids|avoided|avoiding|"
-        r"eschew|eschews|eschewed|eschewing|"
-        r"shun|shuns|shunned|shunning|"
-        r"refrain|refrains|refrained|refraining|"
-        r"steer clear of|steering clear of"
-        r")\b"
-    ),
-    re.IGNORECASE,
+NEGATION_WORDS = (
+    "don't",
+    "do not",
+    "never",
+    "no",
+    "shouldn't",
+    "should not",
+    "must not",
+    "cannot",
+    "can't",
+    "won't",
+    "wouldn't",
+    "better not",
 )
+
+PREFER_NOT_PHRASES = ("prefer not", "prefer not to")
+
+NEGATION_QUALITIES = (
+    "safe",
+    "wise",
+    "advisable",
+    "ideal",
+    "acceptable",
+    "recommended",
+    "prudent",
+    "sensible",
+    "appropriate",
+    "a good idea",
+    "the right choice",
+)
+
+NEGATION_DECISION_VERBS = (
+    "choose",
+    "pick",
+    "select",
+    "follow",
+    "go with",
+    "opt for",
+    "take",
+    "pursue",
+    "adopt",
+    "recommend",
+    "suggest",
+    "advise",
+    "endorse",
+    "support",
+    "back",
+    "favor",
+    "favour",
+)
+
+AVOIDANCE_VERBS = (
+    "avoid",
+    "avoids",
+    "avoided",
+    "avoiding",
+    "eschew",
+    "eschews",
+    "eschewed",
+    "eschewing",
+    "shun",
+    "shuns",
+    "shunned",
+    "shunning",
+    "refrain from",
+    "refrains from",
+    "refrained from",
+    "refraining from",
+    "decline",
+    "declines",
+    "declined",
+    "declining",
+    "reject",
+    "rejects",
+    "rejected",
+    "rejecting",
+    "steer clear of",
+    "steering clear of",
+)
+
+
+def _phrase_to_pattern(phrase: str) -> str:
+    """Convert a phrase to a whitespace-tolerant regex fragment."""
+
+    return re.escape(phrase).replace("\\ ", r"\\s+")
+
+    if _NOT_ONLY_PATTERN.search(prefix) or _NOT_ONLY_PATTERN.search(suffix):
+        return True
+
+NEGATION_WORD_PATTERN = "|".join(_phrase_to_pattern(word) for word in NEGATION_WORDS)
+PREFER_NOT_PATTERN = "|".join(_phrase_to_pattern(term) for term in PREFER_NOT_PHRASES)
+DECISION_VERB_PATTERN_FRAGMENT = "|".join(
+    _phrase_to_pattern(verb) for verb in NEGATION_DECISION_VERBS
+)
+AVOIDANCE_VERB_PATTERN_FRAGMENT = "|".join(_phrase_to_pattern(verb) for verb in AVOIDANCE_VERBS)
+NEGATION_QUALITY_PATTERN = "|".join(_phrase_to_pattern(quality) for quality in NEGATION_QUALITIES)
+
+NEGATION_COMPLETION_TERMS = (
+    "chosen",
+    "picked",
+    "selected",
+    "followed",
+    "taken",
+    "pursued",
+    "adopted",
+    "endorsed",
+    "supported",
+    "backed",
+    "favored",
+    "favoured",
+    "recommended",
+    "suggested",
+    "advised",
+)
+
+NEGATION_COMPLETION_PATTERN = "|".join(
+    _phrase_to_pattern(term) for term in NEGATION_COMPLETION_TERMS
+)
+
+NEGATION_WORDS_LOWER = tuple(word.lower() for word in NEGATION_WORDS)
+PREFER_NOT_LOWER = tuple(term.lower() for term in PREFER_NOT_PHRASES)
+DECISION_VERBS_LOWER = tuple(verb.lower() for verb in NEGATION_DECISION_VERBS)
+AVOIDANCE_VERBS_LOWER = tuple(verb.lower() for verb in AVOIDANCE_VERBS)
+NEGATION_QUALITIES_LOWER = tuple(quality.lower() for quality in NEGATION_QUALITIES)
+NEGATION_COMPLETION_LOWER = tuple(term.lower() for term in NEGATION_COMPLETION_TERMS)
 
 PATH_SYNONYMS: Dict[str, Tuple[str, ...]] = {
     "path_1": (
@@ -80,190 +192,6 @@ PATH_SYNONYMS: Dict[str, Tuple[str, ...]] = {
     ),
 }
 
-def _has_sentence_boundary(text: str) -> bool:
-    return bool(re.search(r"[.?!\n]", text))
-
-
-def _suffix_window(sentence: str, start: int, limit: int = 50) -> str:
-    end = min(len(sentence), start + limit)
-    for punct in ".?!;,\n":
-        punct_idx = sentence.find(punct, start)
-        if punct_idx != -1 and punct_idx < end:
-            end = punct_idx
-            break
-    return sentence[start:end]
-
-
-def _contains_intensifier(prefix: str, suffix: str) -> bool:
-    """Return True when emphasis idioms should bypass negation heuristics."""
-
-    prefix_lower = prefix.lower()
-    suffix_lower = suffix.lower()
-
-    if _NOT_ONLY_PATTERN.search(prefix) or _NOT_ONLY_PATTERN.search(suffix):
-        return True
-
-    if "enough" in suffix_lower:
-        for term in _INTENSIFIER_PREFIX_TERMS:
-            if term in prefix_lower:
-                return True
-
-    return False
-
-
-def _scope_has_coordinate_break(scope: str) -> bool:
-    """Return True when coordination introduces a new guided clause."""
-
-    for conj_match in _COORDINATE_BOUNDARY_PATTERN.finditer(scope):
-        after = scope[conj_match.end() :]
-        if DECISION_VERB_PATTERN.search(after):
-            return True
-
-    return False
-
-
-def _scope_has_subordinate_break(scope: str) -> bool:
-    """Return True when a subordinate clause shifts away from the negated path."""
-
-    decision_matches = list(DECISION_VERB_PATTERN.finditer(scope))
-    if not decision_matches:
-        return False
-
-    last_decision = decision_matches[-1]
-    boundary = _SUBORDINATE_BOUNDARY_PATTERN.search(scope, last_decision.end())
-    return bool(boundary)
-
-
-def _negation_targets_path(segment: str, path: str) -> bool:
-    neg_span = _NEGATION_SPAN_PATTERN.search(segment)
-    if not neg_span:
-        return False
-
-    neg_tail = segment[neg_span.start() :]
-    if _CLAUSE_CONTRAST_PATTERN.search(neg_tail):
-        return False
-
-    path_mentions = [
-        _PATH_TERM_TO_LABEL[match.group(0)] for match in _PATH_TERM_PATTERN.finditer(neg_tail)
-    ]
-    if not path_mentions:
-        return True
-
-    return path_mentions[-1] == path
-
-
-def _term_preceded_by_not(sentence: str, term_start: int) -> bool:
-    window = sentence[max(0, term_start - 6) : term_start]
-    return bool(re.search(r"\bnot\s+$", window))
-
-
-def _prefix_negates_path(
-    sentence: str,
-    clause_prefix: str,
-    clause_offset: int,
-    term_end: int,
-    path: str,
-) -> bool:
-    for neg_match in _NEGATION_PREFIX_PATTERN.finditer(clause_prefix):
-        prior_decision = DECISION_VERB_PATTERN.search(clause_prefix, neg_match.end())
-
-        neg_scope_start = clause_offset + neg_match.end()
-        neg_scope = sentence[neg_scope_start:term_end]
-        for path_match in _PATH_TERM_PATTERN.finditer(neg_scope):
-            if _PATH_TERM_TO_LABEL[path_match.group(0)] == path:
-                absolute_term_start = neg_scope_start + path_match.start()
-                absolute_term_end = neg_scope_start + path_match.end()
-
-                if absolute_term_end != term_end:
-                    continue
-
-                scope_before_term = sentence[neg_scope_start:absolute_term_start]
-
-                if ";" in scope_before_term:
-                    continue
-
-                if _CLAUSE_CONTRAST_PATTERN.search(scope_before_term):
-                    continue
-
-                if _scope_has_coordinate_break(scope_before_term):
-                    continue
-
-                if _scope_has_subordinate_break(scope_before_term):
-                    continue
-
-                if not prior_decision and not DECISION_VERB_PATTERN.search(scope_before_term):
-                    continue
-
-                suffix_window = _suffix_window(sentence, term_end)
-                combined_prefix = clause_prefix + scope_before_term
-
-                if _contains_intensifier(combined_prefix, suffix_window):
-                    continue
-
-                return True
-    return False
-
-
-def _path_is_negated(
-    sentence: str,
-    clause_prefix: str,
-    clause_offset: int,
-    term_end: int,
-    path: str,
-) -> bool:
-    if _prefix_negates_path(sentence, clause_prefix, clause_offset, term_end, path):
-        return True
-
-    clause_segment = sentence[clause_offset:term_end]
-    negative_patterns = _PATH_NEGATIVE_PATTERN_MAP[path]
-    for pattern in negative_patterns[1:]:
-        if pattern.search(clause_segment):
-            return True
-    return False
-
-
-def _sentence_positive_endorsements(sentence: str) -> list[tuple[int, str]]:
-    matches: list[tuple[int, str]] = []
-    if not sentence:
-        return matches
-
-    for verb in ENDORSEMENT_VERB_PATTERN.finditer(sentence):
-        clause_prefix, clause_offset = _clause_prefix(sentence, verb.start())
-
-        search_start = verb.end()
-        remainder = sentence[search_start:]
-        for term_match in _PATH_TERM_PATTERN.finditer(remainder):
-            term = term_match.group(0)
-            path = _PATH_TERM_TO_LABEL[term]
-
-            between = remainder[: term_match.start()]
-            if _negation_targets_path(between, path):
-                continue
-            if _has_sentence_boundary(between):
-                break
-
-            absolute_idx = search_start + term_match.start()
-            if _term_preceded_by_not(sentence, absolute_idx):
-                continue
-
-            term_end = search_start + term_match.end()
-            if _path_is_negated(
-                sentence,
-                clause_prefix,
-                clause_offset,
-                term_end,
-                path,
-            ):
-                continue
-
-            for idx, (_, existing_path) in enumerate(matches):
-                if existing_path == path:
-                    matches.pop(idx)
-                    break
-
-            matches.append((absolute_idx, path))
-
-    return matches
 
 def make_dual_path_prompt(query: str, context: str = "") -> str:
     """Create a dual-path prompt from a single query."""
@@ -348,8 +276,26 @@ def parse_dual_path_response(response: str) -> dict:
         r"\[COMPARISON|"
         r"\[RECOMMENDATION|$)"
     )
+    path1_answer_pattern = (
+        r"\[PATH 1 ANSWER[^\]]*\](.*?)"
+        r"(?=\[PATH 2 (?:SCRATCHPAD|REASONING)|"
+        r"\[PATH 2 ANSWER|"
+        r"\[COMPARISON|"
+        r"\[RECOMMENDATION|$)"
+    )
     path1_answer = re.search(
         path1_answer_pattern,
+        response,
+        re.DOTALL | re.IGNORECASE,
+    )
+    path2_scratch = re.search(
+        r"\[PATH 2 (?:SCRATCHPAD|REASONING)[^\]]*\]"
+        r"(.*?)(?=\[PATH 2 ANSWER|\[COMPARISON|\[RECOMMENDATION|$)",
+        response,
+        re.DOTALL | re.IGNORECASE,
+    )
+    path2_answer = re.search(
+        r"\[PATH 2 ANSWER[^\]]*\](.*?)(?=\[COMPARISON|\[RECOMMENDATION|$)",
         response,
         re.DOTALL | re.IGNORECASE,
     )
@@ -385,35 +331,29 @@ def parse_dual_path_response(response: str) -> dict:
     sections["path_2_scratchpad"] = path2_scratch
     sections["path_2_scratchpad_span"] = path2_scratch_span
 
-    path2_answer, path2_span = _extract_section(
-        response,
-        PATH_2_ANSWER_ALIASES,
-        COMPARISON_ALIASES,
-        RECOMMENDATION_ALIASES,
-    )
-    if path2_span == (0, 0):
-        path2_answer, path2_span = _fallback_section(response, PATH_2_ANSWER_PATTERN)
-    sections["path_2"] = path2_answer
-    sections["path_2_span"] = path2_span
+    if path1_scratch:
+        sections["path_1_scratchpad"] = path1_scratch.group(1).strip()
+        sections["path_1_scratchpad_span"] = path1_scratch.span(1)
 
-    comparison, comparison_span = _extract_section(
-        response,
-        COMPARISON_ALIASES,
-        RECOMMENDATION_ALIASES,
-    )
-    if comparison_span == (0, 0):
-        comparison, comparison_span = _fallback_section(response, COMPARISON_PATTERN)
-    sections["comparison"] = comparison
-    sections["comparison_span"] = comparison_span
+    if path1_answer:
+        sections["path_1"] = path1_answer.group(1).strip()
+        sections["path_1_span"] = path1_answer.span(1)
 
-    recommendation, recommendation_span = _extract_section(
-        response,
-        RECOMMENDATION_ALIASES,
-    )
-    if recommendation_span == (0, 0):
-        recommendation, recommendation_span = _fallback_section(response, RECOMMENDATION_PATTERN)
-    sections["recommendation"] = recommendation
-    sections["recommendation_span"] = recommendation_span
+    if path2_scratch:
+        sections["path_2_scratchpad"] = path2_scratch.group(1).strip()
+        sections["path_2_scratchpad_span"] = path2_scratch.span(1)
+
+    if path2_answer:
+        sections["path_2"] = path2_answer.group(1).strip()
+        sections["path_2_span"] = path2_answer.span(1)
+
+    if not sections["path_1"] and sections["path_1_scratchpad"]:
+        sections["path_1"] = sections["path_1_scratchpad"]
+        sections["path_1_span"] = sections["path_1_scratchpad_span"]
+
+    if not sections["path_2"] and sections["path_2_scratchpad"]:
+        sections["path_2"] = sections["path_2_scratchpad"]
+        sections["path_2_span"] = sections["path_2_scratchpad_span"]
 
     rec_lower = recommendation.lower()
     sentences: list[tuple[str, int]] = []
@@ -461,9 +401,7 @@ def parse_dual_path_response(response: str) -> dict:
     if rec_match:
         sections["recommendation"] = rec_match.group(1).strip()
         sections["recommendation_span"] = rec_match.span(1)
-        sections["recommended_path"] = _resolve_recommendation(
-            sections["recommendation"].lower()
-        )
+        sections["recommended_path"] = _resolve_recommendation(sections["recommendation"].lower())
 
     return sections
 
@@ -479,7 +417,7 @@ def _resolve_recommendation(rec_text: str) -> str:
                 context = _gather_context(rec_text, start, end)
                 if not _has_decision_language(context):
                     continue
-                if NEGATION_PATTERN.search(context):
+                if _alias_is_negated(alias, context):
                     path_last_negative[path_name] = start
                 else:
                     path_last_positive[path_name] = start
@@ -517,7 +455,80 @@ def _gather_context(rec_text: str, start: int, end: int) -> str:
 
 
 def _has_decision_language(snippet: str) -> bool:
-    return bool(
-        ENDORSEMENT_VERB_PATTERN.search(snippet)
-        or DECISION_VERB_PATTERN.search(snippet)
-    )
+    return bool(ENDORSEMENT_VERB_PATTERN.search(snippet) or DECISION_VERB_PATTERN.search(snippet))
+
+
+def _alias_is_negated(alias: str, snippet: str) -> bool:
+    alias_pattern = re.compile(re.escape(alias), re.IGNORECASE)
+    for match in alias_pattern.finditer(snippet):
+        start, end = match.span()
+        prefix = snippet[max(0, start - 80) : start]
+        suffix = snippet[end : end + 80]
+        if _prefix_negates_alias(prefix):
+            return True
+        if _suffix_negates_alias(suffix):
+            return True
+
+    alias_core = _phrase_to_pattern(alias)
+    alias_group = rf"(?:the\s+)?{alias_core}(?:'s)?"
+    comparative = rf"(?:instead|rather)\s+of\s+{alias_group}"
+    if re.search(comparative, snippet, re.IGNORECASE):
+        return True
+    return False
+
+
+def _prefix_negates_alias(prefix: str) -> bool:
+    window = prefix.lower()[-80:]
+    trimmed = window.strip()
+    if not trimmed:
+        return False
+
+    if any(trimmed.endswith(verb) for verb in AVOIDANCE_VERBS_LOWER):
+        return True
+
+    tail = trimmed[-60:]
+    if any(term in tail for term in PREFER_NOT_LOWER):
+        if any(verb in tail for verb in DECISION_VERBS_LOWER):
+            return True
+
+    if any(term in tail for term in NEGATION_WORDS_LOWER):
+        if any(verb in tail for verb in DECISION_VERBS_LOWER):
+            return True
+
+    if any(trimmed.endswith(term) for term in ("not", "never", "against")):
+        return True
+
+    return False
+
+
+def _suffix_negates_alias(suffix: str) -> bool:
+    window = suffix.lower().lstrip()[:80]
+
+    for prefix in ("shouldn't", "should not", "must not", "cannot", "can't", "better not"):
+        if window.startswith(prefix):
+            return True
+
+    if any(
+        window.startswith(f"is not {quality}") or window.startswith(f"isn't {quality}")
+        for quality in NEGATION_QUALITIES_LOWER
+    ):
+        return True
+
+    for completion in NEGATION_COMPLETION_LOWER:
+        if window.startswith(f"should not be {completion}"):
+            return True
+        if window.startswith(f"shouldn't be {completion}"):
+            return True
+        if window.startswith(f"must not be {completion}"):
+            return True
+        if window.startswith(f"can't be {completion}"):
+            return True
+
+    if any(
+        window.startswith(f"should not {completion}")
+        or window.startswith(f"shouldn't {completion}")
+        for completion in DECISION_VERBS_LOWER
+    ):
+        return True
+
+    return False
