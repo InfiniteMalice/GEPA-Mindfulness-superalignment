@@ -177,7 +177,7 @@ def _contains_intensifier(prefix: str, suffix: str) -> bool:
     prefix_lower = prefix.lower()
     suffix_lower = suffix.lower()
 
-    if _NOT_ONLY_PATTERN.search(prefix) or _NOT_ONLY_PATTERN.search(suffix):
+    if _NOT_ONLY_PATTERN.search(prefix_lower) or _NOT_ONLY_PATTERN.search(suffix_lower):
         return True
 
     if "enough" in suffix_lower:
