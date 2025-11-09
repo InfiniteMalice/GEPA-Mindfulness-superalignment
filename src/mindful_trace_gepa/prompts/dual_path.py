@@ -93,7 +93,10 @@ def parse_dual_path_response(response: str) -> dict:
         r"\[PATH 1 (?:SCRATCHPAD|REASONING)[^\]]*\]"
         r"(.*?)(?=\[PATH 1 ANSWER|\[PATH 2 (?:SCRATCHPAD|REASONING)|$)",
         response,
-        re.DOTALL | re.IGNORECASE,
+        PATH_2_SCRATCHPAD_ALIASES,
+        PATH_2_ANSWER_ALIASES,
+        COMPARISON_ALIASES,
+        RECOMMENDATION_ALIASES,
     )
     path1_answer_pattern = (
         r"\[PATH 1 ANSWER[^\]]*\](.*?)"
@@ -116,18 +119,49 @@ def parse_dual_path_response(response: str) -> dict:
     path2_answer = re.search(
         r"\[PATH 2 ANSWER[^\]]*\](.*?)(?=\[COMPARISON|\[RECOMMENDATION|$)",
         response,
-        re.DOTALL | re.IGNORECASE,
+        PATH_2_ANSWER_ALIASES,
+        COMPARISON_ALIASES,
+        RECOMMENDATION_ALIASES,
     )
-    comp_match = re.search(
-        r"\[COMPARISON[^\]]*\](.*?)(?=\[RECOMMENDATION|$)",
+    if path2_span == (0, 0):
+        path2_answer, path2_span = _fallback_section(response, PATH_2_ANSWER_PATTERN)
+    sections["path_2"] = path2_answer
+    sections["path_2_span"] = path2_span
+
+    comparison, comparison_span = _extract_section(
         response,
-        re.DOTALL | re.IGNORECASE,
+        COMPARISON_ALIASES,
+        RECOMMENDATION_ALIASES,
     )
-    rec_match = re.search(
-        r"\[RECOMMENDATION[^\]]*\](.*?)$",
+    if comparison_span == (0, 0):
+        comparison, comparison_span = _fallback_section(response, COMPARISON_PATTERN)
+    sections["comparison"] = comparison
+    sections["comparison_span"] = comparison_span
+
+    recommendation, recommendation_span = _extract_section(
         response,
-        re.DOTALL | re.IGNORECASE,
+        RECOMMENDATION_ALIASES,
     )
+    if recommendation_span == (0, 0):
+        recommendation, recommendation_span = _fallback_section(response, RECOMMENDATION_PATTERN)
+    sections["recommendation"] = recommendation
+    sections["recommendation_span"] = recommendation_span
+
+    rec_lower = recommendation.lower()
+    sentences: list[tuple[str, int]] = []
+    last_index = 0
+    for match in _SENTENCE_SPLIT_PATTERN.finditer(rec_lower):
+        segment = rec_lower[last_index : match.start()].strip()
+        if segment:
+            sentences.append((segment, last_index))
+        last_index = match.end()
+    tail = rec_lower[last_index:].strip()
+    if tail:
+        sentences.append((tail, last_index))
+
+    path_endorsements: list[tuple[int, str]] = []
+    path1_last_negative: int | None = None
+    path2_last_negative: int | None = None
 
     if path1_scratch:
         sections["path_1_scratchpad"] = path1_scratch.group(1).strip()
@@ -153,9 +187,8 @@ def parse_dual_path_response(response: str) -> dict:
         sections["path_2"] = sections["path_2_scratchpad"]
         sections["path_2_span"] = sections["path_2_scratchpad_span"]
 
-    if comp_match:
-        sections["comparison"] = comp_match.group(1).strip()
-        sections["comparison_span"] = comp_match.span(1)
+    path1_mentioned = any(pattern.search(rec_lower) for pattern in _PATH1_FALLBACK_PATTERNS)
+    path2_mentioned = any(pattern.search(rec_lower) for pattern in _PATH2_FALLBACK_PATTERNS)
 
     if rec_match:
         sections["recommendation"] = rec_match.group(1).strip()
