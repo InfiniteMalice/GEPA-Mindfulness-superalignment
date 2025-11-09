@@ -193,11 +193,18 @@ def _scope_has_coordinate_break(scope: str) -> bool:
     """Return True when coordination introduces a new guided clause."""
 
     for conj_match in _COORDINATE_BOUNDARY_PATTERN.finditer(scope):
-        after = scope[conj_match.end() :]
-        if DECISION_VERB_PATTERN.search(after):
-            return True
+        conj_text = conj_match.group(0).strip()
+        if conj_text in {"or", "nor"}:
+            continue
+        return True
 
-    return False
+    decision_matches = list(DECISION_VERB_PATTERN.finditer(scope))
+    if not decision_matches:
+        return False
+
+    last_decision = decision_matches[-1]
+    boundary = _SUBORDINATE_BOUNDARY_PATTERN.search(scope, last_decision.end())
+    return bool(boundary)
 
 
 def _scope_has_subordinate_break(scope: str) -> bool:
