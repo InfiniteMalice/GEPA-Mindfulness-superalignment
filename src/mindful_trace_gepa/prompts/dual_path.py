@@ -45,6 +45,10 @@ _NEGATION_PREFIX = (
 )
 
 ENDORSEMENT_VERB_PATTERN = re.compile(r"\b(?:recommend|prefer|endorse)\b")
+DECISION_VERB_PATTERN = re.compile(
+    r"\b(?:recommend|prefer|endorse|choose|pick|select|follow|favor|take|"
+    r"go\s+with|opt(?:\s+for)?)\b"
+)
 _NEGATION_PREFIX_PATTERN = re.compile(_NEGATION_PREFIX)
 _NEGATION_SPAN_PATTERN = re.compile(
     r"\b(?:not|never|avoid|avoiding|against|reject|decline|skip|eschew)\b"
@@ -201,7 +205,7 @@ def _prefix_negates_path(
     path: str,
 ) -> bool:
     for neg_match in _NEGATION_PREFIX_PATTERN.finditer(clause_prefix):
-        prior_verb = ENDORSEMENT_VERB_PATTERN.search(clause_prefix, neg_match.end())
+        prior_decision = DECISION_VERB_PATTERN.search(clause_prefix, neg_match.end())
 
         neg_scope_start = clause_offset + neg_match.end()
         neg_scope = sentence[neg_scope_start:term_end]
@@ -221,7 +225,7 @@ def _prefix_negates_path(
                 if _CLAUSE_CONTRAST_PATTERN.search(scope_before_term):
                     continue
 
-                if not prior_verb and not ENDORSEMENT_VERB_PATTERN.search(scope_before_term):
+                if not prior_decision and not DECISION_VERB_PATTERN.search(scope_before_term):
                     continue
 
                 suffix_window = _suffix_window(sentence, term_end)
@@ -314,8 +318,8 @@ def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int
                 scope_before_term = sentence[neg_match.end() : absolute_term_start]
 
                 if not (
-                    ENDORSEMENT_VERB_PATTERN.search(scope_before_term)
-                    or ENDORSEMENT_VERB_PATTERN.search(sentence[: neg_match.start()])
+                    DECISION_VERB_PATTERN.search(scope_before_term)
+                    or DECISION_VERB_PATTERN.search(sentence[: neg_match.start()])
                 ):
                     continue
 

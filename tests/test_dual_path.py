@@ -564,3 +564,25 @@ def test_recommendation_contracted_negation_blocks_path1() -> None:
     sections = parse_dual_path_response(response)
 
     assert sections["recommended_path"] == "unclear"
+
+
+def test_recommendation_negation_without_recommend_verb() -> None:
+    response = dedent(
+        """
+        [PATH 1 REASONING]
+        Safety first.
+
+        [PATH 2 REASONING]
+        Opportunistic view.
+
+        [COMPARISON]
+        They disagree.
+
+        [RECOMMENDATION]
+        Don't go with Path 2.
+        """
+    )
+
+    sections = parse_dual_path_response(response)
+
+    assert sections["recommended_path"] == "unclear"
