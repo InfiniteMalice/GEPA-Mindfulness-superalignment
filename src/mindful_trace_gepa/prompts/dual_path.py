@@ -36,7 +36,12 @@ ENDORSEMENT_VERB_PATTERN = re.compile(
 )
 
 DECISION_VERB_PATTERN = re.compile(
-    r"\b(choose|pick|select|follow|go with|opt for|take|pursue|adopt)\b",
+    (
+        r"\b("
+        r"choose|pick|select|follow|go with|opt for|take|pursue|adopt|"
+        r"avoid|shun|eschew|steer clear of|refrain from"
+        r")\b"
+    ),
     re.IGNORECASE,
 )
 
@@ -119,6 +124,17 @@ def parse_dual_path_response(response: str) -> dict:
     path2_answer = re.search(
         r"\[PATH 2 ANSWER[^\]]*\](.*?)(?=\[COMPARISON|\[RECOMMENDATION|$)",
         response,
+        re.DOTALL | re.IGNORECASE,
+    )
+    path2_scratch = re.search(
+        r"\[PATH 2 (?:SCRATCHPAD|REASONING)[^\]]*\]"
+        r"(.*?)(?=\[PATH 2 ANSWER|\[COMPARISON|\[RECOMMENDATION|$)",
+        response,
+        re.DOTALL | re.IGNORECASE,
+    )
+    path2_answer = re.search(
+        r"\[PATH 2 ANSWER[^\]]*\](.*?)(?=\[COMPARISON|\[RECOMMENDATION|$)",
+        response,
         PATH_2_ANSWER_ALIASES,
         COMPARISON_ALIASES,
         RECOMMENDATION_ALIASES,
@@ -128,15 +144,29 @@ def parse_dual_path_response(response: str) -> dict:
     sections["path_2"] = path2_answer
     sections["path_2_span"] = path2_span
 
-    comparison, comparison_span = _extract_section(
-        response,
-        COMPARISON_ALIASES,
-        RECOMMENDATION_ALIASES,
-    )
-    if comparison_span == (0, 0):
-        comparison, comparison_span = _fallback_section(response, COMPARISON_PATTERN)
-    sections["comparison"] = comparison
-    sections["comparison_span"] = comparison_span
+    if path1_scratch:
+        sections["path_1_scratchpad"] = path1_scratch.group(1).strip()
+        sections["path_1_scratchpad_span"] = path1_scratch.span(1)
+
+    if path1_answer:
+        sections["path_1"] = path1_answer.group(1).strip()
+        sections["path_1_span"] = path1_answer.span(1)
+
+    if path2_scratch:
+        sections["path_2_scratchpad"] = path2_scratch.group(1).strip()
+        sections["path_2_scratchpad_span"] = path2_scratch.span(1)
+
+    if path2_answer:
+        sections["path_2"] = path2_answer.group(1).strip()
+        sections["path_2_span"] = path2_answer.span(1)
+
+    if not sections["path_1"] and sections["path_1_scratchpad"]:
+        sections["path_1"] = sections["path_1_scratchpad"]
+        sections["path_1_span"] = sections["path_1_scratchpad_span"]
+
+    if not sections["path_2"] and sections["path_2_scratchpad"]:
+        sections["path_2"] = sections["path_2_scratchpad"]
+        sections["path_2_span"] = sections["path_2_scratchpad_span"]
 
     recommendation, recommendation_span = _extract_section(
         response,
