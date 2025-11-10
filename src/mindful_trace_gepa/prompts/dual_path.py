@@ -323,7 +323,7 @@ def _sentence_positive_endorsements(sentence: str) -> list[tuple[int, str]]:
 
             between = remainder[: term_match.start()]
             if _SUBORDINATE_BOUNDARY_PATTERN.search(between):
-                break
+                continue
             if _negation_targets_path(between, path):
                 continue
             if _has_sentence_boundary(between):
