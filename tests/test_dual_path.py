@@ -11,7 +11,7 @@ from mindful_trace_gepa.prompts.dual_path import (
 )
 
 
-def _build_recommendation_response(recommendation: str) -> str:
+def _build_dual_path_response(recommendation: str) -> str:
     """Return a dual-path response populated with the provided recommendation clause."""
 
     return dedent(
@@ -175,10 +175,14 @@ def test_no_false_positive() -> None:
             "Not only do I recommend Path 1; Path 2 is risky.",
             "path_1",
         ),
+        (
+            "I recommend, because Path 2 is risky, Path 1.",
+            "path_1",
+        ),
     ],
 )
 def test_recommendation_expected_path(recommendation_text: str, expected_path: str) -> None:
-    response = _build_recommendation_response(recommendation_text)
+    response = _build_dual_path_response(recommendation_text)
 
     sections = parse_dual_path_response(response)
 

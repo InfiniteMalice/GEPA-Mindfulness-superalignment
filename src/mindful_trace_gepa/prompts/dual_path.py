@@ -189,6 +189,21 @@ def _contains_intensifier(prefix: str, suffix: str) -> bool:
     return False
 
 
+def _alias_in_subordinate_clause(between: str) -> bool:
+    """Return True when the alias lies inside a subordinate explanation."""
+
+    matches = list(_SUBORDINATE_BOUNDARY_PATTERN.finditer(between))
+    if not matches:
+        return False
+
+    last_match = matches[-1]
+    clause_tail = between[last_match.end() :]
+    if re.search(r"[,;:\)]", clause_tail):
+        return False
+
+    return True
+
+
 def _scope_has_coordinate_break(scope: str) -> bool:
     """Return True when coordination introduces a new guided clause."""
 
@@ -322,7 +337,7 @@ def _sentence_positive_endorsements(sentence: str) -> list[tuple[int, str]]:
             path = _PATH_TERM_TO_LABEL[term]
 
             between = remainder[: term_match.start()]
-            if _SUBORDINATE_BOUNDARY_PATTERN.search(between):
+            if _alias_in_subordinate_clause(between):
                 continue
             if _negation_targets_path(between, path):
                 continue
