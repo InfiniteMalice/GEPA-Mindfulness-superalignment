@@ -144,8 +144,13 @@ _PATH1_FALLBACK_PATTERNS = [
 _PATH2_FALLBACK_PATTERNS = [
     re.compile(r"\b" + re.escape(term) + r"\b") for term in PATH2_ENDORSEMENT_TERMS
 ]
+_PATH_FALLBACK_PATTERN_MAP = {
+    "path_1": _PATH1_FALLBACK_PATTERNS,
+    "path_2": _PATH2_FALLBACK_PATTERNS,
+}
 _SENTENCE_SPLIT_PATTERN = re.compile(r"[.!?\n]+")
 _SUFFIX_WINDOW_LIMIT = 50  # Typical clause length for intensifier scans.
+_NOT_SUFFIX_PATTERN = re.compile(r"^[\s,;:()\-\u2014'\"]*not\b")
 
 
 def _clause_prefix(sentence: str, verb_start: int) -> tuple[str, int]:
@@ -257,6 +262,30 @@ def _term_preceded_by_not(sentence: str, term_start: int) -> bool:
     return bool(re.search(r"\bnot\s+$", window))
 
 
+def _alias_followed_by_not(sentence: str, term_end: int, path: str) -> bool:
+    suffix = sentence[term_end:]
+    match = _NOT_SUFFIX_PATTERN.match(suffix)
+    if not match:
+        return False
+
+    remainder = suffix[match.end() :]
+    trimmed = re.sub(r"^[\s,;:()\-\u2014'\"]+", "", remainder)
+    if not trimmed:
+        return True
+
+    if trimmed.startswith("only"):
+        return False
+
+    other_path = "path_2" if path == "path_1" else "path_1"
+    other_patterns = _PATH_FALLBACK_PATTERN_MAP[other_path]
+    limited_span = trimmed[:40]
+    for pattern in other_patterns:
+        if pattern.match(trimmed) or pattern.search(limited_span):
+            return False
+
+    return True
+
+
 def _prefix_negates_path(
     sentence: str,
     clause_prefix: str,
@@ -325,6 +354,8 @@ def _path_is_negated(
     for pattern in negative_patterns[1:]:
         if pattern.search(clause_segment):
             return True
+    if _alias_followed_by_not(sentence, term_end, path):
+        return True
     return False
 
 
@@ -430,6 +461,14 @@ def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int
                     continue
 
             positions.append(match.start())
+
+    for path_match in _PATH_TERM_PATTERN.finditer(sentence):
+        if _PATH_TERM_TO_LABEL[path_match.group(0)] != path:
+            continue
+
+        term_end = path_match.end()
+        if _alias_followed_by_not(sentence, term_end, path):
+            positions.append(path_match.start())
 
     return positions
 

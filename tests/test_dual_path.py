@@ -183,6 +183,7 @@ def test_no_false_positive() -> None:
             "I recommend, because Path 2 is risky, Path 1.",
             "path_1",
         ),
+        ("I recommend Path 1 not be used.", "unclear"),
     ],
 )
 def test_recommendation_expected_path(recommendation_text: str, expected_path: str) -> None:
