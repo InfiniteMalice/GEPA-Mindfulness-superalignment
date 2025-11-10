@@ -279,24 +279,30 @@ def _prefix_negates_path(
 
                 scope_before_term = sentence[neg_scope_start:absolute_term_start]
 
+                # Skip when a semicolon breaks the negation scope before the alias.
                 if ";" in scope_before_term:
                     continue
 
+                # Ignore negations that flip meaning with contrastive connectors.
                 if _CLAUSE_CONTRAST_PATTERN.search(scope_before_term):
                     continue
 
+                # Treat new coordinated clauses as outside the negated region.
                 if _scope_has_coordinate_break(scope_before_term):
                     continue
 
+                # Subordinate boundaries end the negated clause as well.
                 if _scope_has_subordinate_break(scope_before_term):
                     continue
 
+                # Require a nearby decision verb so descriptive negatives do not spill over.
                 if not prior_decision and not DECISION_VERB_PATTERN.search(scope_before_term):
                     continue
 
                 suffix_window = _suffix_window(sentence, term_end)
                 combined_prefix = clause_prefix + scope_before_term
 
+                # Intensifier idioms ("can't recommend ... enough") stay positive.
                 if _contains_intensifier(combined_prefix, suffix_window):
                     continue
 
@@ -327,7 +333,7 @@ def _sentence_positive_endorsements(sentence: str) -> list[tuple[int, str]]:
     if not sentence:
         return matches
 
-    for verb in ENDORSEMENT_VERB_PATTERN.finditer(sentence):
+    for verb in DECISION_VERB_PATTERN.finditer(sentence):
         clause_prefix, clause_offset = _clause_prefix(sentence, verb.start())
 
         search_start = verb.end()
@@ -339,6 +345,13 @@ def _sentence_positive_endorsements(sentence: str) -> list[tuple[int, str]]:
             between = remainder[: term_match.start()]
             if _alias_in_subordinate_clause(between):
                 continue
+            if _SUBORDINATE_BOUNDARY_PATTERN.search(between):
+                alias_slice = remainder[term_match.start() : term_match.end()]
+                clause_after = remainder[term_match.end() :]
+                if _SUBORDINATE_BOUNDARY_PATTERN.search(alias_slice):
+                    continue
+                if _SUBORDINATE_BOUNDARY_PATTERN.search(clause_after):
+                    break
             if _negation_targets_path(between, path):
                 continue
             if _has_sentence_boundary(between):
@@ -405,6 +418,17 @@ def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int
 
     for pattern in patterns[1:]:
         for match in pattern.finditer(sentence):
+            segment = sentence[match.start() : match.end()]
+            boundary = _SUBORDINATE_BOUNDARY_PATTERN.search(segment)
+            if boundary:
+                tail = segment[boundary.end() :]
+                other_path = any(
+                    _PATH_TERM_TO_LABEL[path_match.group(0)] != path
+                    for path_match in _PATH_TERM_PATTERN.finditer(tail)
+                )
+                if other_path:
+                    continue
+
             positions.append(match.start())
 
     return positions
