@@ -270,17 +270,23 @@ def _alias_followed_by_not(sentence: str, term_end: int, path: str) -> bool:
 
     remainder = suffix[match.end() :]
     trimmed = re.sub(r"^[\s,;:()\-\u2014'\"]+", "", remainder)
+    trimmed_lower = trimmed.lower()
     if not trimmed:
         return True
 
-    if trimmed.startswith("only"):
+    if trimmed_lower.startswith("only"):
         return False
+
+    explanatory_prefixes = ("because", "that", "since")
+    for prefix in explanatory_prefixes:
+        if trimmed_lower.startswith(prefix + " "):
+            return False
 
     other_path = "path_2" if path == "path_1" else "path_1"
     other_patterns = _PATH_FALLBACK_PATTERN_MAP[other_path]
-    limited_span = trimmed[:40]
+    limited_span = trimmed_lower[:40]
     for pattern in other_patterns:
-        if pattern.match(trimmed) or pattern.search(limited_span):
+        if pattern.match(trimmed_lower) or pattern.search(limited_span):
             return False
 
     return True
