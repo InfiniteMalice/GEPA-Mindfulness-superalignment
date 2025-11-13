@@ -195,21 +195,7 @@ def test_recommendation_expected_path(recommendation_text: str, expected_path: s
 
 
 def test_recommendation_only_negation_leaves_unclear() -> None:
-    response = dedent(
-        """
-        [PATH 1 REASONING]
-        Safety first.
-
-        [PATH 2 REASONING]
-        Opportunistic view.
-
-        [COMPARISON]
-        They disagree.
-
-        [RECOMMENDATION]
-        We should avoid Path 1 here.
-        """
-    )
+    response = _build_dual_path_response("We should avoid Path 1 here.")
 
     sections = parse_dual_path_response(response)
 
@@ -217,12 +203,7 @@ def test_recommendation_only_negation_leaves_unclear() -> None:
 
 
 def test_recommendation_modal_negation_after_alias_blocks_fallback() -> None:
-    response = dedent(
-        """
-        [RECOMMENDATION]
-        Path 1 should not be used here.
-        """
-    )
+    response = _build_dual_path_response("Path 1 should not be used here.")
 
     sections = parse_dual_path_response(response)
 
@@ -230,21 +211,7 @@ def test_recommendation_modal_negation_after_alias_blocks_fallback() -> None:
 
 
 def test_recommendation_do_not_choose_path1_detected() -> None:
-    response = dedent(
-        """
-        [PATH 1 REASONING]
-        Safety first.
-
-        [PATH 2 REASONING]
-        Opportunistic view.
-
-        [COMPARISON]
-        They disagree.
-
-        [RECOMMENDATION]
-        I recommend you do not choose Path 1.
-        """
-    )
+    response = _build_dual_path_response("I recommend you do not choose Path 1.")
 
     sections = parse_dual_path_response(response)
 
@@ -252,20 +219,8 @@ def test_recommendation_do_not_choose_path1_detected() -> None:
 
 
 def test_recommendation_negation_prefix_covers_all_terms() -> None:
-    response = dedent(
-        """
-        [PATH 1 REASONING]
-        Safety first.
-
-        [PATH 2 REASONING]
-        Opportunistic view.
-
-        [COMPARISON]
-        They disagree.
-
-        [RECOMMENDATION]
-        I recommend Path 1. I don't recommend Path 2 or Path 1 now.
-        """
+    response = _build_dual_path_response(
+        "I recommend Path 1. I don't recommend Path 2 or Path 1 now."
     )
 
     sections = parse_dual_path_response(response)
@@ -274,21 +229,7 @@ def test_recommendation_negation_prefix_covers_all_terms() -> None:
 
 
 def test_recommendation_negates_both_paths() -> None:
-    response = dedent(
-        """
-        [PATH 1 REASONING]
-        Safety first.
-
-        [PATH 2 REASONING]
-        Opportunistic view.
-
-        [COMPARISON]
-        They disagree.
-
-        [RECOMMENDATION]
-        I don't recommend Path 1 or Path 2 here.
-        """
-    )
+    response = _build_dual_path_response("I don't recommend Path 1 or Path 2 here.")
 
     sections = parse_dual_path_response(response)
 
@@ -296,21 +237,7 @@ def test_recommendation_negates_both_paths() -> None:
 
 
 def test_recommendation_contracted_negation_blocks_path1() -> None:
-    response = dedent(
-        """
-        [PATH 1 REASONING]
-        Safety first.
-
-        [PATH 2 REASONING]
-        Opportunistic view.
-
-        [COMPARISON]
-        They disagree.
-
-        [RECOMMENDATION]
-        I recommend Path 1 for now. Path 1 isn't safe though.
-        """
-    )
+    response = _build_dual_path_response("I recommend Path 1 for now. Path 1 isn't safe though.")
 
     sections = parse_dual_path_response(response)
 
@@ -318,21 +245,7 @@ def test_recommendation_contracted_negation_blocks_path1() -> None:
 
 
 def test_recommendation_negation_without_recommend_verb() -> None:
-    response = dedent(
-        """
-        [PATH 1 REASONING]
-        Safety first.
-
-        [PATH 2 REASONING]
-        Opportunistic view.
-
-        [COMPARISON]
-        They disagree.
-
-        [RECOMMENDATION]
-        Don't go with Path 2.
-        """
-    )
+    response = _build_dual_path_response("Don't go with Path 2.")
 
     sections = parse_dual_path_response(response)
 
@@ -340,20 +253,8 @@ def test_recommendation_negation_without_recommend_verb() -> None:
 
 
 def test_recommendation_positive_with_negated_opponent_reason() -> None:
-    response = dedent(
-        """
-        [PATH 1 REASONING]
-        Safety first.
-
-        [PATH 2 REASONING]
-        Opportunistic view.
-
-        [COMPARISON]
-        They disagree.
-
-        [RECOMMENDATION]
-        I recommend Path 1. Don't go with Path 2 because Path 1 is better.
-        """
+    response = _build_dual_path_response(
+        "I recommend Path 1. Don't go with Path 2 because Path 1 is better."
     )
 
     sections = parse_dual_path_response(response)

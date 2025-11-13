@@ -33,7 +33,7 @@ def _parse_indented_pairs(lines: Iterable[str]) -> dict[str, Any]:
         if not raw_line.strip():
             continue
 
-        indent = len(raw_line) - len(raw_line.lstrip(" "))
+        indent = len(raw_line) - len(raw_line.lstrip())
         content = raw_line.strip()
 
         if content.endswith(":"):
