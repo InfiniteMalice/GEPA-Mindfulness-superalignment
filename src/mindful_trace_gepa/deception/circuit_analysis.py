@@ -46,8 +46,9 @@ RISK_WORDS = [
     "risky",
 ]
 
-# Pre-compile risk word patterns at module level
-# Patterns use word boundaries (\b) to match whole words only
+# Pre-compile word patterns at module level using word boundaries for whole words
+_UNCERTAINTY_PATTERNS = [re.compile(r"\b" + re.escape(word) + r"\b") for word in UNCERTAINTY_WORDS]
+_CONFIDENCE_PATTERNS = [re.compile(r"\b" + re.escape(word) + r"\b") for word in CONFIDENCE_WORDS]
 _RISK_PATTERNS = [re.compile(r"\b" + re.escape(word) + r"\b") for word in RISK_WORDS]
 
 
@@ -241,8 +242,8 @@ def detect_deception_heuristic(sections: Dict[str, Any]) -> Dict[str, Any]:
     p1_text = sections.get("path_1", "").lower()
     p2_text = sections.get("path_2", "").lower()
 
-    p1_uncertain = sum(1 for word in UNCERTAINTY_WORDS if word in p1_text)
-    p2_confident = sum(1 for word in CONFIDENCE_WORDS if word in p2_text)
+    p1_uncertain = sum(1 for pattern in _UNCERTAINTY_PATTERNS if pattern.search(p1_text))
+    p2_confident = sum(1 for pattern in _CONFIDENCE_PATTERNS if pattern.search(p2_text))
 
     p1_risks = sum(1 for pattern in _RISK_PATTERNS if pattern.search(p1_text))
     p2_risks = sum(1 for pattern in _RISK_PATTERNS if pattern.search(p2_text))

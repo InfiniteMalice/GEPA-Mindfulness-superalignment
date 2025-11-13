@@ -56,3 +56,12 @@ root:
 
     assert parsed["root"]["first"]["value"] == 1
     assert parsed["root"]["second"]["nested"]["enabled"] is True
+
+
+def test_fallback_handles_tab_indentation() -> None:
+    """Tabs should expand to spaces so nested blocks remain structured."""
+    text = "root:\n\tchild:\n\t\tvalue: 1"
+
+    parsed = parse_summary_block(text)
+
+    assert parsed == {"root": {"child": {"value": 1}}}

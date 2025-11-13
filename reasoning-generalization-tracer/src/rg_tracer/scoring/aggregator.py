@@ -33,7 +33,7 @@ def _parse_indented_pairs(lines: Iterable[str]) -> dict[str, Any]:
         if not raw_line.strip():
             continue
 
-        indent = len(raw_line) - len(raw_line.lstrip())
+        indent = _indent_width(raw_line)
         content = raw_line.strip()
 
         if content.endswith(":"):
@@ -42,7 +42,7 @@ def _parse_indented_pairs(lines: Iterable[str]) -> dict[str, Any]:
             parent = stack[-1][1]
             new_container: dict[str, Any] = {}
             parent[key] = new_container
-            stack.append((indent + 1, new_container))
+            stack.append((indent, new_container))
             continue
 
         if ":" not in content:
@@ -57,15 +57,21 @@ def _parse_indented_pairs(lines: Iterable[str]) -> dict[str, Any]:
 
 
 def _pop_for_container(stack: list[tuple[int, dict[str, Any]]], indent: int) -> None:
-    """Pop stack frames so the parent indent is lower than the new container."""
+    """Pop stack frames until the parent indent is below the new container."""
     while len(stack) > 1 and indent <= stack[-1][0]:
         stack.pop()
 
 
 def _pop_for_value(stack: list[tuple[int, dict[str, Any]]], indent: int) -> None:
     """Trim stack frames until the parent indent is below the value line."""
-    while len(stack) > 1 and indent < stack[-1][0]:
+    while len(stack) > 1 and indent <= stack[-1][0]:
         stack.pop()
+
+
+def _indent_width(raw_line: str) -> int:
+    """Return the indentation width treating tabs as four spaces."""
+    expanded = raw_line.expandtabs(4)
+    return len(expanded) - len(expanded.lstrip(" "))
 
 
 def _split_key_value(content: str) -> tuple[str, str]:
