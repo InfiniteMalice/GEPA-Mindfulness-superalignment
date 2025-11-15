@@ -2,6 +2,26 @@
 
 import re
 
+DECISION_VERB_PARTS = (
+    r"recommend(?:ed|s|ing)?",
+    r"prefer(?:red|s|ring)?",
+    r"endorse(?:d|s|ing)?",
+    r"choos(?:e|es|ing)",
+    r"chose",
+    r"chosen",
+    r"pick(?:s|ed|ing)?",
+    r"select(?:s|ed|ing)?",
+    r"follow(?:s|ed|ing)?",
+    r"favor(?:s|ed|ing)?",
+    r"favour(?:s|ed|ing)?",
+    r"take(?:s|n|ing)?",
+    r"took",
+    r"go(?:es|ing)?\s+with",
+    r"gone\s+with",
+    r"went\s+with",
+    r"opt(?:s|ed|ing)?(?:\s+for)?",
+)
+
 PATH_1_SCRATCHPAD_ALIASES = [
     "PATH 1 SCRATCHPAD",
     "PATH 1 ANALYSIS",
@@ -45,11 +65,7 @@ _NEGATION_PREFIX = (
     r")"
 )
 
-ENDORSEMENT_VERB_PATTERN = re.compile(r"\b(?:recommend|prefer|endorse)\b")
-DECISION_VERB_PATTERN = re.compile(
-    r"\b(?:recommend|prefer|endorse|choose|pick|select|follow|favor|take|"
-    r"go\s+with|opt(?:\s+for)?)\b"
-)
+DECISION_VERB_PATTERN = re.compile(r"\b(?:" + "|".join(DECISION_VERB_PARTS) + r")\b")
 _NEGATION_PREFIX_PATTERN = re.compile(_NEGATION_PREFIX)
 _NEGATION_SPAN_PATTERN = re.compile(
     r"\b(?:not|never|avoid|avoiding|against|reject|decline|skip|eschew)\b"
@@ -66,7 +82,7 @@ _PATH_TERM_PATTERN = re.compile(
 )
 _CLAUSE_CONTRAST_PATTERN = re.compile(r"\b(?:but|however|though|although|yet|instead)\b")
 _COORDINATE_BOUNDARY_PATTERN = re.compile(r"\b(?:and|or|nor|plus|also|then|as well as)\b")
-_SUBORDINATE_BOUNDARY_PATTERN = re.compile(r"\b(?:because|since|as|given that|due to)\b")
+_SUBORDINATE_BOUNDARY_PATTERN = re.compile(r"\b(?:because|since|as|given that|due to|while)\b")
 _INTENSIFIER_PREFIX_TERMS = (
     "can't recommend",
     "cannot recommend",
@@ -206,6 +222,21 @@ def _alias_in_subordinate_clause(between: str) -> bool:
     last_match = matches[-1]
     clause_tail = between[last_match.end() :]
     if re.search(r"[,;:\)]", clause_tail):
+        return False
+
+    return True
+
+
+def _prefix_alias_in_subordinate_clause(clause_prefix: str, term_end: int) -> bool:
+    """Return True when the prefix keeps the alias inside a subordinate clause."""
+
+    segment = clause_prefix[:term_end]
+    matches = list(_SUBORDINATE_BOUNDARY_PATTERN.finditer(segment))
+    if not matches:
+        return False
+
+    tail = segment[matches[-1].end() :]
+    if re.search(r"[,;:\)]", tail):
         return False
 
     return True
@@ -374,6 +405,39 @@ def _sentence_positive_endorsements(sentence: str) -> list[tuple[int, str]]:
 
     for verb in DECISION_VERB_PATTERN.finditer(sentence):
         clause_prefix, clause_offset = _clause_prefix(sentence, verb.start())
+
+        for term_match in _PATH_TERM_PATTERN.finditer(clause_prefix):
+            term = term_match.group(0)
+            path = _PATH_TERM_TO_LABEL[term]
+            if _prefix_alias_in_subordinate_clause(clause_prefix, term_match.end()):
+                continue
+
+            between_prefix = clause_prefix[term_match.end() :]
+            if _negation_targets_path(between_prefix, path):
+                continue
+            if _has_sentence_boundary(between_prefix):
+                continue
+
+            absolute_idx = clause_offset + term_match.start()
+            if _term_preceded_by_not(sentence, absolute_idx):
+                continue
+
+            term_end = clause_offset + term_match.end()
+            if _path_is_negated(
+                sentence,
+                clause_prefix,
+                clause_offset,
+                term_end,
+                path,
+            ):
+                continue
+
+            for idx, (_, existing_path) in enumerate(matches):
+                if existing_path == path:
+                    matches.pop(idx)
+                    break
+
+            matches.append((absolute_idx, path))
 
         search_start = verb.end()
         remainder = sentence[search_start:]

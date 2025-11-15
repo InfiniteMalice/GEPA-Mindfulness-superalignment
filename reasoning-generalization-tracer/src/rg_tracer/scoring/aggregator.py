@@ -83,10 +83,11 @@ def _coerce_value(text: str) -> Any:
     if lower in {"null", "none"}:
         return None
 
+    if text.startswith("0") and text != "0" and text.isdigit():
+        # Preserve leading-zero identifiers as strings instead of coercing.
+        return text
+
     try:
-        # Reject leading zeros (e.g., "007") to preserve identifiers as strings.
-        if text.startswith("0") and text != "0":
-            raise ValueError
         return int(text)
     except ValueError:
         pass

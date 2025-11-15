@@ -187,6 +187,22 @@ def test_no_false_positive() -> None:
             "I recommend, because Path 2 is risky, Path 1.",
             "path_1",
         ),
+        (
+            "Path 1 is what I recommend, while Path 2 is risky.",
+            "path_1",
+        ),
+        (
+            "Path 1 should be chosen because Path 2 is risky.",
+            "path_1",
+        ),
+        (
+            "Because Path 1 is risky, I recommend Path 2.",
+            "path_2",
+        ),
+        (
+            "I preferred Path 1 yesterday while Path 2 felt risky.",
+            "path_1",
+        ),
         ("I recommend Path 1 not be used.", "unclear"),
     ],
 )
