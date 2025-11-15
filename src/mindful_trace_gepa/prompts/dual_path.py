@@ -247,7 +247,7 @@ def _scope_has_coordinate_break(scope: str) -> bool:
 
     for conj_match in _COORDINATE_BOUNDARY_PATTERN.finditer(scope):
         conj_text = conj_match.group(0).strip()
-        if conj_text in {"or", "nor"}:
+        if conj_text in {"or", "nor", "and", "plus", "also", "as well as"}:
             continue
         return True
 
@@ -545,15 +545,18 @@ def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int
     return positions
 
 
-PATH_1_SCRATCHPAD_PATTERN = r"\[PATH 1 SCRATCHPAD[^\]]*\](.*?)(?=\[PATH 1 ANSWER|$)"
+PATH_1_SCRATCHPAD_PATTERN = r"^[ \t]*\[PATH 1 SCRATCHPAD[^\]]*\](.*?)(?=^[ \t]*\[PATH 1 ANSWER|\Z)"
 PATH_1_ANSWER_PATTERN = (
-    r"\[PATH 1 ANSWER[^\]]*\](.*?)"
-    r"(?=\[PATH 2 SCRATCHPAD|\[PATH 2 ANSWER|\[COMPARISON|\[RECOMMENDATION|$)"
+    r"^[ \t]*\[PATH 1 ANSWER[^\]]*\](.*?)"
+    r"(?=^[ \t]*\[PATH 2 SCRATCHPAD|^[ \t]*\[PATH 2 ANSWER|"
+    r"^[ \t]*\[COMPARISON|^[ \t]*\[RECOMMENDATION|\Z)"
 )
-PATH_2_SCRATCHPAD_PATTERN = r"\[PATH 2 SCRATCHPAD[^\]]*\](.*?)(?=\[PATH 2 ANSWER|$)"
-PATH_2_ANSWER_PATTERN = r"\[PATH 2 ANSWER[^\]]*\](.*?)(?=\[COMPARISON|\[RECOMMENDATION|$)"
-COMPARISON_PATTERN = r"\[COMPARISON[^\]]*\](.*?)(?=\[RECOMMENDATION|$)"
-RECOMMENDATION_PATTERN = r"\[RECOMMENDATION[^\]]*\](.*?)$"
+PATH_2_SCRATCHPAD_PATTERN = r"^[ \t]*\[PATH 2 SCRATCHPAD[^\]]*\](.*?)(?=^[ \t]*\[PATH 2 ANSWER|\Z)"
+PATH_2_ANSWER_PATTERN = (
+    r"^[ \t]*\[PATH 2 ANSWER[^\]]*\](.*?)(?=^[ \t]*\[COMPARISON|^[ \t]*\[RECOMMENDATION|\Z)"
+)
+COMPARISON_PATTERN = r"^[ \t]*\[COMPARISON[^\]]*\](.*?)(?=^[ \t]*\[RECOMMENDATION|\Z)"
+RECOMMENDATION_PATTERN = r"^[ \t]*\[RECOMMENDATION[^\]]*\](.*?)\Z"
 
 
 DUAL_PATH_TEMPLATE = (
@@ -757,12 +760,12 @@ def _compile_stop_pattern(*alias_groups: list[str]) -> str:
     stop_patterns = []
     for group in alias_groups:
         for label in group:
-            stop_patterns.append(r"\[" + re.escape(label) + r"[^\]]*\]")
+            stop_patterns.append(r"^[ \t]*\[" + re.escape(label) + r"[^\]]*\]")
 
     if not stop_patterns:
         return ""
 
-    return "(?=" + "|".join(stop_patterns) + "|$)"
+    return "(?=" + "|".join(stop_patterns) + "|\Z)"
 
 
 def _extract_section(
@@ -773,12 +776,12 @@ def _extract_section(
     stop_pattern = _compile_stop_pattern(*stop_groups)
 
     for label in alias_group:
-        pattern = r"\[" + re.escape(label) + r"[^\]]*\]"
+        pattern = r"^[ \t]*\[" + re.escape(label) + r"[^\]]*\]"
         if stop_pattern:
             pattern += r"(.*?)" + stop_pattern
         else:
             pattern += r"(.*)"
-        match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
+        match = re.search(pattern, response, re.DOTALL | re.IGNORECASE | re.MULTILINE)
         if match:
             return match.group(1).strip(), match.span(1)
 
@@ -786,7 +789,7 @@ def _extract_section(
 
 
 def _fallback_section(response: str, pattern: str) -> tuple[str, tuple[int, int]]:
-    match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
+    match = re.search(pattern, response, re.DOTALL | re.IGNORECASE | re.MULTILINE)
     if match:
         return match.group(1).strip(), match.span(1)
     return "", (0, 0)
