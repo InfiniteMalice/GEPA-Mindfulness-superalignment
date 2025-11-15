@@ -182,13 +182,15 @@ def _contains_intensifier(prefix: str, suffix: str) -> bool:
 
     prefix_lower = prefix.lower().replace("’", "'")
     suffix_lower = suffix.lower().replace("’", "'")
+    prefix_norm = re.sub(r"\s+", " ", prefix_lower).strip()
+    suffix_norm = re.sub(r"\s+", " ", suffix_lower).strip()
 
-    if _NOT_ONLY_PATTERN.search(prefix_lower) or _NOT_ONLY_PATTERN.search(suffix_lower):
+    if _NOT_ONLY_PATTERN.search(prefix_norm) or _NOT_ONLY_PATTERN.search(suffix_norm):
         return True
 
-    if "enough" in suffix_lower:
+    if "enough" in suffix_norm:
         for term in _INTENSIFIER_PREFIX_TERMS:
-            if term in prefix_lower:
+            if term in prefix_norm:
                 return True
 
     return False

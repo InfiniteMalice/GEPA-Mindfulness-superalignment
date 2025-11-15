@@ -150,6 +150,10 @@ def test_no_false_positive() -> None:
             "I can't recommend Path 1 enough; it's the safest choice.",
             "path_1",
         ),
+        (
+            "I can’t  recommend Path 1 enough; Path 2 is reckless.",
+            "path_1",
+        ),
         ("I can't recommend Path 1 but recommend Path 2.", "path_2"),
         ("I would prefer not to choose Path 1.", "unclear"),
         (

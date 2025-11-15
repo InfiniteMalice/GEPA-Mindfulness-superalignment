@@ -37,18 +37,18 @@ def _parse_indented_pairs(lines: Iterable[str]) -> dict[str, Any]:
         content = raw_line.strip()
 
         if content.endswith(":"):
-            _pop_for_container(stack, indent)
+            _pop_stack_to_parent(stack, indent)
             key = content[:-1].strip()
             parent = stack[-1][1]
             new_container: dict[str, Any] = {}
             parent[key] = new_container
-            stack.append((indent, new_container))
+            stack.append((indent + 1, new_container))
             continue
 
         if ":" not in content:
             continue
 
-        _pop_for_value(stack, indent)
+        _pop_stack_to_parent(stack, indent)
         key, value_text = _split_key_value(content)
         parent = stack[-1][1]
         parent[key] = _coerce_value(value_text)
@@ -56,15 +56,9 @@ def _parse_indented_pairs(lines: Iterable[str]) -> dict[str, Any]:
     return root
 
 
-def _pop_for_container(stack: list[tuple[int, dict[str, Any]]], indent: int) -> None:
-    """Pop stack frames until the parent indent is below the new container."""
-    while len(stack) > 1 and indent <= stack[-1][0]:
-        stack.pop()
-
-
-def _pop_for_value(stack: list[tuple[int, dict[str, Any]]], indent: int) -> None:
-    """Trim stack frames until the parent indent is below the value line."""
-    while len(stack) > 1 and indent <= stack[-1][0]:
+def _pop_stack_to_parent(stack: list[tuple[int, dict[str, Any]]], indent: int) -> None:
+    """Pop stack frames until the parent indent is below the new element."""
+    while len(stack) > 1 and indent < stack[-1][0]:
         stack.pop()
 
 
@@ -90,6 +84,7 @@ def _coerce_value(text: str) -> Any:
         return None
 
     try:
+        # Reject leading zeros (e.g., "007") to preserve identifiers as strings.
         if text.startswith("0") and text != "0":
             raise ValueError
         return int(text)
