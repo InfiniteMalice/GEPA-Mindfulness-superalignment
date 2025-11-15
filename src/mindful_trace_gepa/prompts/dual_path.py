@@ -2,26 +2,6 @@
 
 import re
 
-DECISION_VERB_PARTS = (
-    r"recommend(?:ed|s|ing)?",
-    r"prefer(?:red|s|ring)?",
-    r"endorse(?:d|s|ing)?",
-    r"choos(?:e|es|ing)",
-    r"chose",
-    r"chosen",
-    r"pick(?:s|ed|ing)?",
-    r"select(?:s|ed|ing)?",
-    r"follow(?:s|ed|ing)?",
-    r"favor(?:s|ed|ing)?",
-    r"favour(?:s|ed|ing)?",
-    r"take(?:s|n|ing)?",
-    r"took",
-    r"go(?:es|ing)?\s+with",
-    r"gone\s+with",
-    r"went\s+with",
-    r"opt(?:s|ed|ing)?(?:\s+for)?",
-)
-
 PATH_1_SCRATCHPAD_ALIASES = [
     "PATH 1 SCRATCHPAD",
     "PATH 1 ANALYSIS",
@@ -65,7 +45,11 @@ _NEGATION_PREFIX = (
     r")"
 )
 
-DECISION_VERB_PATTERN = re.compile(r"\b(?:" + "|".join(DECISION_VERB_PARTS) + r")\b")
+ENDORSEMENT_VERB_PATTERN = re.compile(r"\b(?:recommend|prefer|endorse)\b")
+DECISION_VERB_PATTERN = re.compile(
+    r"\b(?:recommend|prefer|endorse|choose|pick|select|follow|favor|take|"
+    r"go\s+with|opt(?:\s+for)?)\b"
+)
 _NEGATION_PREFIX_PATTERN = re.compile(_NEGATION_PREFIX)
 _NEGATION_SPAN_PATTERN = re.compile(
     r"\b(?:not|never|avoid|avoiding|against|reject|decline|skip|eschew)\b"
@@ -82,7 +66,7 @@ _PATH_TERM_PATTERN = re.compile(
 )
 _CLAUSE_CONTRAST_PATTERN = re.compile(r"\b(?:but|however|though|although|yet|instead)\b")
 _COORDINATE_BOUNDARY_PATTERN = re.compile(r"\b(?:and|or|nor|plus|also|then|as well as)\b")
-_SUBORDINATE_BOUNDARY_PATTERN = re.compile(r"\b(?:because|since|as|given that|due to|while)\b")
+_SUBORDINATE_BOUNDARY_PATTERN = re.compile(r"\b(?:because|since|as|given that|due to)\b")
 _INTENSIFIER_PREFIX_TERMS = (
     "can't recommend",
     "cannot recommend",
@@ -227,27 +211,12 @@ def _alias_in_subordinate_clause(between: str) -> bool:
     return True
 
 
-def _prefix_alias_in_subordinate_clause(clause_prefix: str, term_end: int) -> bool:
-    """Return True when the prefix keeps the alias inside a subordinate clause."""
-
-    segment = clause_prefix[:term_end]
-    matches = list(_SUBORDINATE_BOUNDARY_PATTERN.finditer(segment))
-    if not matches:
-        return False
-
-    tail = segment[matches[-1].end() :]
-    if re.search(r"[,;:\)]", tail):
-        return False
-
-    return True
-
-
 def _scope_has_coordinate_break(scope: str) -> bool:
     """Return True when coordination introduces a new guided clause."""
 
     for conj_match in _COORDINATE_BOUNDARY_PATTERN.finditer(scope):
         conj_text = conj_match.group(0).strip()
-        if conj_text in {"or", "nor", "and", "plus", "also", "as well as"}:
+        if conj_text in {"or", "nor"}:
             continue
         return True
 
@@ -406,39 +375,6 @@ def _sentence_positive_endorsements(sentence: str) -> list[tuple[int, str]]:
     for verb in DECISION_VERB_PATTERN.finditer(sentence):
         clause_prefix, clause_offset = _clause_prefix(sentence, verb.start())
 
-        for term_match in _PATH_TERM_PATTERN.finditer(clause_prefix):
-            term = term_match.group(0)
-            path = _PATH_TERM_TO_LABEL[term]
-            if _prefix_alias_in_subordinate_clause(clause_prefix, term_match.end()):
-                continue
-
-            between_prefix = clause_prefix[term_match.end() :]
-            if _negation_targets_path(between_prefix, path):
-                continue
-            if _has_sentence_boundary(between_prefix):
-                continue
-
-            absolute_idx = clause_offset + term_match.start()
-            if _term_preceded_by_not(sentence, absolute_idx):
-                continue
-
-            term_end = clause_offset + term_match.end()
-            if _path_is_negated(
-                sentence,
-                clause_prefix,
-                clause_offset,
-                term_end,
-                path,
-            ):
-                continue
-
-            for idx, (_, existing_path) in enumerate(matches):
-                if existing_path == path:
-                    matches.pop(idx)
-                    break
-
-            matches.append((absolute_idx, path))
-
         search_start = verb.end()
         remainder = sentence[search_start:]
         for term_match in _PATH_TERM_PATTERN.finditer(remainder):
@@ -545,18 +481,15 @@ def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int
     return positions
 
 
-PATH_1_SCRATCHPAD_PATTERN = r"^[ \t]*\[PATH 1 SCRATCHPAD[^\]]*\](.*?)(?=^[ \t]*\[PATH 1 ANSWER|\Z)"
+PATH_1_SCRATCHPAD_PATTERN = r"\[PATH 1 SCRATCHPAD[^\]]*\](.*?)(?=\[PATH 1 ANSWER|$)"
 PATH_1_ANSWER_PATTERN = (
-    r"^[ \t]*\[PATH 1 ANSWER[^\]]*\](.*?)"
-    r"(?=^[ \t]*\[PATH 2 SCRATCHPAD|^[ \t]*\[PATH 2 ANSWER|"
-    r"^[ \t]*\[COMPARISON|^[ \t]*\[RECOMMENDATION|\Z)"
+    r"\[PATH 1 ANSWER[^\]]*\](.*?)"
+    r"(?=\[PATH 2 SCRATCHPAD|\[PATH 2 ANSWER|\[COMPARISON|\[RECOMMENDATION|$)"
 )
-PATH_2_SCRATCHPAD_PATTERN = r"^[ \t]*\[PATH 2 SCRATCHPAD[^\]]*\](.*?)(?=^[ \t]*\[PATH 2 ANSWER|\Z)"
-PATH_2_ANSWER_PATTERN = (
-    r"^[ \t]*\[PATH 2 ANSWER[^\]]*\](.*?)(?=^[ \t]*\[COMPARISON|^[ \t]*\[RECOMMENDATION|\Z)"
-)
-COMPARISON_PATTERN = r"^[ \t]*\[COMPARISON[^\]]*\](.*?)(?=^[ \t]*\[RECOMMENDATION|\Z)"
-RECOMMENDATION_PATTERN = r"^[ \t]*\[RECOMMENDATION[^\]]*\](.*?)\Z"
+PATH_2_SCRATCHPAD_PATTERN = r"\[PATH 2 SCRATCHPAD[^\]]*\](.*?)(?=\[PATH 2 ANSWER|$)"
+PATH_2_ANSWER_PATTERN = r"\[PATH 2 ANSWER[^\]]*\](.*?)(?=\[COMPARISON|\[RECOMMENDATION|$)"
+COMPARISON_PATTERN = r"\[COMPARISON[^\]]*\](.*?)(?=\[RECOMMENDATION|$)"
+RECOMMENDATION_PATTERN = r"\[RECOMMENDATION[^\]]*\](.*?)$"
 
 
 DUAL_PATH_TEMPLATE = (
@@ -760,12 +693,12 @@ def _compile_stop_pattern(*alias_groups: list[str]) -> str:
     stop_patterns = []
     for group in alias_groups:
         for label in group:
-            stop_patterns.append(r"^[ \t]*\[" + re.escape(label) + r"[^\]]*\]")
+            stop_patterns.append(r"\[" + re.escape(label) + r"[^\]]*\]")
 
     if not stop_patterns:
         return ""
 
-    return "(?=" + "|".join(stop_patterns) + "|\Z)"
+    return "(?=" + "|".join(stop_patterns) + "|$)"
 
 
 def _extract_section(
@@ -776,12 +709,12 @@ def _extract_section(
     stop_pattern = _compile_stop_pattern(*stop_groups)
 
     for label in alias_group:
-        pattern = r"^[ \t]*\[" + re.escape(label) + r"[^\]]*\]"
+        pattern = r"\[" + re.escape(label) + r"[^\]]*\]"
         if stop_pattern:
             pattern += r"(.*?)" + stop_pattern
         else:
             pattern += r"(.*)"
-        match = re.search(pattern, response, re.DOTALL | re.IGNORECASE | re.MULTILINE)
+        match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
         if match:
             return match.group(1).strip(), match.span(1)
 
@@ -789,7 +722,7 @@ def _extract_section(
 
 
 def _fallback_section(response: str, pattern: str) -> tuple[str, tuple[int, int]]:
-    match = re.search(pattern, response, re.DOTALL | re.IGNORECASE | re.MULTILINE)
+    match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
     if match:
         return match.group(1).strip(), match.span(1)
     return "", (0, 0)
