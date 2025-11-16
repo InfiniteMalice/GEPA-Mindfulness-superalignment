@@ -2,6 +2,8 @@
 
 import re
 
+from typing import Dict, Tuple
+
 DECISION_VERB_PARTS = (
     r"recommend(?:ed|s|ing)?",
     r"prefer(?:red|s|ring)?",
@@ -224,6 +226,22 @@ def _contains_intensifier(prefix: str, suffix: str) -> bool:
     return False
 
 
+def _following_clause_has_verb(following: str) -> bool:
+    """Return True when the text after an alias contains a clause verb."""
+
+    if not following:
+        return False
+
+    trimmed = following.lstrip()
+    alias_match = _PATH_TERM_PATTERN.match(trimmed)
+    if alias_match:
+        trimmed = trimmed[alias_match.end() :]
+
+    trimmed = trimmed.lstrip(",;: \t")
+    snippet = trimmed[:80]
+    return bool(_CLAUSE_VERB_PATTERN.search(snippet))
+
+
 def _alias_in_subordinate_clause(between: str) -> bool:
     """Return True when the alias lies inside a subordinate explanation."""
 
@@ -254,7 +272,7 @@ def _prefix_alias_in_subordinate_clause(clause_prefix: str, term_end: int) -> bo
     return True
 
 
-def _scope_has_coordinate_break(scope: str) -> bool:
+def _scope_has_coordinate_break(scope: str, following: str = "") -> bool:
     """Return True when coordination introduces a new guided clause."""
 
     for conj_match in _COORDINATE_BOUNDARY_PATTERN.finditer(scope):
@@ -268,6 +286,8 @@ def _scope_has_coordinate_break(scope: str) -> bool:
 
             suffix = scope[conj_match.end() :]
             if _CLAUSE_VERB_PATTERN.search(suffix):
+                return True
+            if following and _following_clause_has_verb(following):
                 return True
             continue
         return True
@@ -309,7 +329,13 @@ def _negation_targets_path(segment: str, path: str) -> bool:
         return False
 
     boundary = _NEGATION_SCOPE_BOUNDARY.search(neg_tail)
-    scoped_tail = neg_tail if not boundary else neg_tail[: boundary.start()]
+    subordinate_boundary = _SUBORDINATE_BOUNDARY_PATTERN.search(neg_tail)
+    stop_idx = len(neg_tail)
+    for candidate in (boundary, subordinate_boundary):
+        if candidate and candidate.start() < stop_idx:
+            stop_idx = candidate.start()
+
+    scoped_tail = neg_tail[:stop_idx]
 
     path_mentions = [
         _PATH_TERM_TO_LABEL[match.group(0)] for match in _PATH_TERM_PATTERN.finditer(scoped_tail)
@@ -386,7 +412,8 @@ def _prefix_negates_path(
                     continue
 
                 # Treat new coordinated clauses as outside the negated region.
-                if _scope_has_coordinate_break(scope_before_term):
+                following_segment = sentence[absolute_term_start:]
+                if _scope_has_coordinate_break(scope_before_term, following_segment):
                     continue
 
                 # Subordinate boundaries end the negated clause as well.
@@ -526,7 +553,8 @@ def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int
                 break
             if ";" in before_term:
                 break
-            if _scope_has_coordinate_break(before_term):
+            following_segment = sentence[neg_match.end() + path_match.start() :]
+            if _scope_has_coordinate_break(before_term, following_segment):
                 continue
             if _scope_has_subordinate_break(before_term):
                 continue

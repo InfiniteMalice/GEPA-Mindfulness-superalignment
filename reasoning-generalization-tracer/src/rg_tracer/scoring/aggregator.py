@@ -80,8 +80,21 @@ def _split_key_value(content: str) -> tuple[str, str]:
     return key.strip(), value.strip()
 
 
+def _has_leading_zero_token(text: str) -> bool:
+    """Return True for zero-padded identifiers (including signed forms)."""
+
+    if len(text) <= 1:
+        return False
+
+    if text[0] == "-":
+        return len(text) > 2 and text[1] == "0" and text[2].isdigit()
+
+    return text[0] == "0" and text[1].isdigit()
+
+
 def _coerce_value(text: str) -> Any:
     """Convert string tokens into native Python scalars when possible."""
+
     lower = text.lower()
     if lower in {"true", "false"}:
         return lower == "true"
@@ -89,7 +102,7 @@ def _coerce_value(text: str) -> Any:
     if lower in {"null", "none"}:
         return None
 
-    if len(text) > 1 and text[0] == "0" and text[1].isdigit():
+    if _has_leading_zero_token(text):
         # Preserve leading-zero identifiers as strings instead of coercing.
         return text
 

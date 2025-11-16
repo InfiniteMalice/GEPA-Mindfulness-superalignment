@@ -1,7 +1,6 @@
-"""Tests for the reasoning generalization tracer aggregation parser."""
-
 from __future__ import annotations
 
+import pytest
 from rg_tracer.scoring.aggregator import parse_summary_block
 
 
@@ -71,3 +70,35 @@ normal: 123
     assert parsed["id"] == "001"
     assert parsed["code"] == "0123"
     assert parsed["normal"] == 123
+
+
+def test_fallback_preserves_negative_leading_zero_identifiers() -> None:
+    """Signed identifiers like "-01" should remain strings as well."""
+    text = "id: -01"
+
+    parsed = parse_summary_block(text)
+
+    assert parsed["id"] == "-01"
+
+
+def test_parse_summary_block_json_object() -> None:
+    """The parser should favor JSON decoding when the input is valid."""
+    text = '{"key": "value", "nested": {"count": 42}}'
+
+    parsed = parse_summary_block(text)
+
+    assert parsed == {"key": "value", "nested": {"count": 42}}
+
+
+def test_parse_summary_block_empty_input_returns_empty_dict() -> None:
+    """Whitespace-only blocks should produce empty dictionaries."""
+
+    assert parse_summary_block("") == {}
+    assert parse_summary_block("  \n   ") == {}
+
+
+def test_parse_summary_block_json_non_object_raises() -> None:
+    """Non-object JSON inputs should raise to signal malformed traces."""
+
+    with pytest.raises(ValueError, match="must be an object"):
+        parse_summary_block('["not", "an", "object"]')
