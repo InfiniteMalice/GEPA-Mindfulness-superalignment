@@ -169,7 +169,7 @@ _PATH_NEGATIVE_PATTERN_MAP = {
 }
 
 
-def _phrase_to_pattern(phrase: str) -> re.Pattern:
+def _phrase_to_compiled_pattern(phrase: str) -> re.Pattern:
     """Return a whitespace-tolerant regex for a lower-cased phrase."""
 
     parts = [re.escape(chunk) for chunk in phrase.split() if chunk]
@@ -180,8 +180,8 @@ def _phrase_to_pattern(phrase: str) -> re.Pattern:
     return re.compile(r"\b" + fragment + r"\b")
 
 
-_PATH1_FALLBACK_PATTERNS = [_phrase_to_pattern(term) for term in PATH1_FALLBACK_TERMS]
-_PATH2_FALLBACK_PATTERNS = [_phrase_to_pattern(term) for term in PATH2_ENDORSEMENT_TERMS]
+_PATH1_FALLBACK_PATTERNS = [_phrase_to_compiled_pattern(term) for term in PATH1_FALLBACK_TERMS]
+_PATH2_FALLBACK_PATTERNS = [_phrase_to_compiled_pattern(term) for term in PATH2_ENDORSEMENT_TERMS]
 _PATH_FALLBACK_PATTERN_MAP = {
     "path_1": _PATH1_FALLBACK_PATTERNS,
     "path_2": _PATH2_FALLBACK_PATTERNS,
