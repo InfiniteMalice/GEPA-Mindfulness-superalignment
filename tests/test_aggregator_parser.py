@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib
 import sys
 from pathlib import Path
 
@@ -11,7 +10,7 @@ RG_SRC = PROJECT_ROOT / "reasoning-generalization-tracer" / "src"
 if str(RG_SRC) not in sys.path:
     sys.path.insert(0, str(RG_SRC))
 
-parse_summary_block = importlib.import_module("rg_tracer.scoring.aggregator").parse_summary_block
+from rg_tracer.scoring.aggregator import parse_summary_block  # noqa: E402
 
 
 def test_fallback_nested_dict_from_indent() -> None:
@@ -65,3 +64,18 @@ def test_fallback_handles_tab_indentation() -> None:
     parsed = parse_summary_block(text)
 
     assert parsed == {"root": {"child": {"value": 1}}}
+
+
+def test_fallback_preserves_leading_zero_identifiers() -> None:
+    """Strings with leading zeros remain strings after fallback parsing."""
+    text = """
+id: 001
+code: 0123
+normal: 123
+""".strip()
+
+    parsed = parse_summary_block(text)
+
+    assert parsed["id"] == "001"
+    assert parsed["code"] == "0123"
+    assert parsed["normal"] == 123
