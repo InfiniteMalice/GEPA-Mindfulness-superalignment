@@ -1,7 +1,6 @@
 """Dual-path prompting utilities with attribution-aligned formatting."""
 
 import re
-
 from typing import Dict, Tuple
 
 DECISION_VERB_PARTS = (
