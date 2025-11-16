@@ -169,6 +169,10 @@ def test_no_false_positive() -> None:
             "I do not recommend Path 1 only because the risk is unacceptable.",
             "unclear",
         ),
+        (
+            "I do not recommend Path 1, and Path 2 is the best choice.",
+            "path_2",
+        ),
         ("Path 1 is the safer choice overall.", "path_1"),
         ("The second approach aligns with our goals.", "path_2"),
         ("Go with the careful option here.", "path_1"),
@@ -187,7 +191,31 @@ def test_no_false_positive() -> None:
             "I recommend, because Path 2 is risky, Path 1.",
             "path_1",
         ),
+        (
+            "Path 1 is what I recommend, while Path 2 is risky.",
+            "path_1",
+        ),
+        (
+            "Path 1 should be chosen because Path 2 is risky.",
+            "path_1",
+        ),
+        (
+            "Because Path 1 is risky, I recommend Path 2.",
+            "path_2",
+        ),
+        (
+            "I preferred Path 1 yesterday while Path 2 felt risky.",
+            "path_1",
+        ),
         ("I recommend Path 1 not be used.", "unclear"),
+        (
+            "I don't recommend Path 1 and Path 2 in the long term.",
+            "unclear",
+        ),
+        (
+            "I recommend, not surprisingly, Path 1. Path 2 is risky.",
+            "path_1",
+        ),
     ],
 )
 def test_recommendation_expected_path(recommendation_text: str, expected_path: str) -> None:
@@ -238,6 +266,35 @@ def test_recommendation_negates_both_paths() -> None:
     sections = parse_dual_path_response(response)
 
     assert sections["recommended_path"] == "unclear"
+
+
+def test_scratchpad_alias_mentions_do_not_truncate() -> None:
+    response = dedent(
+        """
+        [PATH 1 SCRATCHPAD]
+        Considering mitigation steps. The note [PATH 1 ANSWER] should not end this span.
+
+        [PATH 1 ANSWER]
+        A direct and clear response for Path 1.
+
+        [PATH 2 SCRATCHPAD]
+        Alternate reasoning mentioning [RECOMMENDATION] inside the scratchpad text.
+
+        [PATH 2 ANSWER]
+        Guidance favouring opportunistic steps.
+
+        [COMPARISON]
+        Path 1 emphasises caution while Path 2 seeks advantage.
+
+        [RECOMMENDATION]
+        I recommend Path 1 because it avoids unnecessary risk.
+        """
+    )
+
+    sections = parse_dual_path_response(response)
+
+    assert "direct and clear response" in sections["path_1"].lower()
+    assert sections["recommended_path"] == "path_1"
 
 
 def test_recommendation_contracted_negation_blocks_path1() -> None:

@@ -10,18 +10,24 @@ from typing import Any
 def parse_summary_block(text: str) -> dict[str, Any]:
     """Parse a summary text block into a nested structure.
 
-    The tracer usually emits JSON, but some traces only provide indented key/value
-    listings. This helper falls back to the indentation parser when JSON decoding
-    fails so downstream scoring can treat both formats the same.
+    The tracer usually emits JSON objects. Non-object JSON triggers a ValueError so
+    callers can surface formatting issues. When decoding fails entirely the helper
+    falls back to the indentation parser so downstream scoring can treat both
+    formats the same.
     """
     stripped = text.strip()
     if not stripped:
         return {}
 
     try:
-        return json.loads(stripped)
+        parsed = json.loads(stripped)
     except json.JSONDecodeError:
         return _parse_indented_pairs(stripped.splitlines())
+
+    if not isinstance(parsed, dict):
+        raise ValueError("Summary JSON must be an object")
+
+    return parsed
 
 
 def _parse_indented_pairs(lines: Iterable[str]) -> dict[str, Any]:
@@ -57,7 +63,7 @@ def _parse_indented_pairs(lines: Iterable[str]) -> dict[str, Any]:
 
 
 def _pop_stack_to_parent(stack: list[tuple[int, dict[str, Any]]], indent: int) -> None:
-    """Pop stack frames until the parent indent is below the new element."""
+    """Pop frames until indent is below the stored child threshold (parent indent + 1)."""
     while len(stack) > 1 and indent < stack[-1][0]:
         stack.pop()
 
@@ -83,10 +89,11 @@ def _coerce_value(text: str) -> Any:
     if lower in {"null", "none"}:
         return None
 
+    if len(text) > 1 and text[0] == "0" and text[1].isdigit():
+        # Preserve leading-zero identifiers as strings instead of coercing.
+        return text
+
     try:
-        # Reject leading zeros (e.g., "007") to preserve identifiers as strings.
-        if text.startswith("0") and text != "0":
-            raise ValueError
         return int(text)
     except ValueError:
         pass
