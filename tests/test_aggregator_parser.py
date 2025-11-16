@@ -2,15 +2,7 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-RG_SRC = PROJECT_ROOT / "reasoning-generalization-tracer" / "src"
-if str(RG_SRC) not in sys.path:
-    sys.path.insert(0, str(RG_SRC))
-
-from rg_tracer.scoring.aggregator import parse_summary_block  # noqa: E402
+from rg_tracer.scoring.aggregator import parse_summary_block
 
 
 def test_fallback_nested_dict_from_indent() -> None:

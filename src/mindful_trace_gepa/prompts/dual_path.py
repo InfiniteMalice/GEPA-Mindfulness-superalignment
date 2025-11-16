@@ -83,6 +83,18 @@ _PATH_TERM_PATTERN = re.compile(
 _CLAUSE_CONTRAST_PATTERN = re.compile(r"\b(?:but|however|though|although|yet|instead)\b")
 _COORDINATE_BOUNDARY_PATTERN = re.compile(r"\b(?:and|or|nor|plus|also|then|as well as)\b")
 _SUBORDINATE_BOUNDARY_PATTERN = re.compile(r"\b(?:because|since|as|given that|due to|while)\b")
+_CLAUSE_VERB_PATTERN = re.compile(
+    r"\b(?:"
+    r"is|are|was|were|be|being|been|has|have|had|should|would|could|can|may|"
+    r"might|must|shall|will|recommend(?:ed|s|ing)?|prefer(?:red|s|ring)?|"
+    r"endorse(?:d|s|ing)?|choos(?:e|es|ing)|chose|chosen|pick(?:s|ed|ing)?|"
+    r"select(?:s|ed|ing)?|follow(?:s|ed|ing)?|favor(?:s|ed|ing)?|"
+    r"favour(?:s|ed|ing)?|take(?:s|n|ing)?|took|go(?:es|ing)?|went|gone|"
+    r"opt(?:s|ed|ing)?(?:\s+for)?)\b",
+    re.IGNORECASE,
+)
+_INCIDENTAL_NEGATION_WORDS = ("surprisingly", "surprising", "necessarily")
+_NEGATION_SCOPE_BOUNDARY = re.compile(r"[,;:\-\u2014]")
 _INTENSIFIER_PREFIX_TERMS = (
     "can't recommend",
     "cannot recommend",
@@ -253,6 +265,10 @@ def _scope_has_coordinate_break(scope: str) -> bool:
         if conj_text in {"and", "plus", "also", "as well as"}:
             if re.search(r",\s*$", prefix):
                 return True
+
+            suffix = scope[conj_match.end() :]
+            if _CLAUSE_VERB_PATTERN.search(suffix):
+                return True
             continue
         return True
 
@@ -283,11 +299,20 @@ def _negation_targets_path(segment: str, path: str) -> bool:
         return False
 
     neg_tail = segment[neg_span.start() :]
+    after_neg = segment[neg_span.end() :]
+
+    incidental = re.match(r"\s*(\w+)", after_neg)
+    if incidental and incidental.group(1).lower() in _INCIDENTAL_NEGATION_WORDS:
+        return False
+
     if _CLAUSE_CONTRAST_PATTERN.search(neg_tail):
         return False
 
+    boundary = _NEGATION_SCOPE_BOUNDARY.search(neg_tail)
+    scoped_tail = neg_tail if not boundary else neg_tail[: boundary.start()]
+
     path_mentions = [
-        _PATH_TERM_TO_LABEL[match.group(0)] for match in _PATH_TERM_PATTERN.finditer(neg_tail)
+        _PATH_TERM_TO_LABEL[match.group(0)] for match in _PATH_TERM_PATTERN.finditer(scoped_tail)
     ]
     if not path_mentions:
         return False
