@@ -1,12 +1,15 @@
 """Dual-path prompting utilities with attribution-aligned formatting."""
 
 import re
+
+# Decision and endorsement vocabulary keeps the parser flexible across phrasings.
 from typing import Dict, Tuple
 
 DECISION_VERB_PARTS = (
     r"recommend(?:ed|s|ing)?",
     r"prefer(?:red|s|ring)?",
     r"endorse(?:d|s|ing)?",
+    r"suggest(?:ed|s|ing)?",
     r"choos(?:e|es|ing)",
     r"chose",
     r"chosen",
@@ -15,6 +18,8 @@ DECISION_VERB_PARTS = (
     r"follow(?:s|ed|ing)?",
     r"favor(?:s|ed|ing)?",
     r"favour(?:s|ed|ing)?",
+    r"support(?:s|ed|ing)?",
+    r"back(?:s|ed|ing)?",
     r"take(?:s|n|ing)?",
     r"took",
     r"go(?:es|ing)?\s+with",
@@ -23,6 +28,7 @@ DECISION_VERB_PARTS = (
     r"opt(?:s|ed|ing)?(?:\s+for)?",
 )
 
+# Section alias config ensures alternative headers still map to the right spans.
 PATH_1_SCRATCHPAD_ALIASES = [
     "PATH 1 SCRATCHPAD",
     "PATH 1 ANALYSIS",
@@ -46,6 +52,7 @@ PATH_2_ANSWER_ALIASES = [
 COMPARISON_ALIASES = ["COMPARISON", "DIFFERENCES"]
 RECOMMENDATION_ALIASES = ["RECOMMENDATION", "DECISION", "PREFERRED PATH"]
 
+# Path mention terms support endorsement and fallback matching per path.
 PATH1_ENDORSEMENT_TERMS = (
     "path 1",
     "first approach",
@@ -69,7 +76,7 @@ _NEGATION_PREFIX = (
 DECISION_VERB_PATTERN = re.compile(r"\b(?:" + "|".join(DECISION_VERB_PARTS) + r")\b")
 _NEGATION_PREFIX_PATTERN = re.compile(_NEGATION_PREFIX)
 _NEGATION_SPAN_PATTERN = re.compile(
-    r"\b(?:not|never|avoid|avoiding|against|reject|decline|skip|eschew)\b"
+    r"\b(?:not|never|avoid|avoiding|against|reject|decline|skip|eschew|eschewing)\b"
     r"|rather\s+than|instead\s+of"
 )
 _PATH_TERM_TO_LABEL = {
@@ -88,9 +95,10 @@ _CLAUSE_VERB_PATTERN = re.compile(
     r"\b(?:"
     r"is|are|was|were|be|being|been|has|have|had|should|would|could|can|may|"
     r"might|must|shall|will|recommend(?:ed|s|ing)?|prefer(?:red|s|ring)?|"
-    r"endorse(?:d|s|ing)?|choos(?:e|es|ing)|chose|chosen|pick(?:s|ed|ing)?|"
-    r"select(?:s|ed|ing)?|follow(?:s|ed|ing)?|favor(?:s|ed|ing)?|"
-    r"favour(?:s|ed|ing)?|take(?:s|n|ing)?|took|go(?:es|ing)?|went|gone|"
+    r"endorse(?:d|s|ing)?|suggest(?:ed|s|ing)?|choos(?:e|es|ing)|chose|"
+    r"chosen|pick(?:s|ed|ing)?|select(?:s|ed|ing)?|follow(?:s|ed|ing)?|"
+    r"favor(?:s|ed|ing)?|favour(?:s|ed|ing)?|support(?:s|ed|ing)?|"
+    r"back(?:s|ed|ing)?|take(?:s|n|ing)?|took|go(?:es|ing)?|went|gone|"
     r"opt(?:s|ed|ing)?(?:\s+for)?)\b",
     re.IGNORECASE,
 )
@@ -124,7 +132,7 @@ def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Patt
         r"(?:not|(?:is|are|was|were)(?:\s+not|n['’]t))\s+"
         r"(?:recommended|advisable|wise|safe|ideal|prudent|suitable|"
         r"appropriate|good|helpful)"
-        r"|inadvisable|unsafe|unwise|bad|risky"
+        r"|inadvisable|unsafe|unwise|bad|risky|dangerous|harmful|hazardous"
         r")"
     )
     return [
@@ -147,7 +155,7 @@ def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Patt
         re.compile(r"\b(?:not|never)\s+(?:the\s+)?(?:" + joined_terms + r")\b"),
         re.compile(r"(?:instead\s+of|rather\s+than|over)\s+(?:" + joined_terms + r")\b"),
         re.compile(
-            r"\b(?:avoid|avoiding|against|reject|decline|skip|eschew)\b[^.?!\n]*(?:"
+            r"\b(?:avoid|avoiding|against|reject|decline|skip|eschew|eschewing)\b[^.?!\n]*(?:"
             + joined_terms
             + r")\b"
         ),
@@ -345,13 +353,18 @@ def _negation_targets_path(segment: str, path: str) -> bool:
 
     scoped_tail = neg_tail[:stop_idx]
 
-    path_mentions = [
-        _PATH_TERM_TO_LABEL[match.group(0)] for match in _PATH_TERM_PATTERN.finditer(scoped_tail)
-    ]
-    if not path_mentions:
-        return False
+    for match in _PATH_TERM_PATTERN.finditer(scoped_tail):
+        alias_label = _PATH_TERM_TO_LABEL[match.group(0)]
+        scope_before = scoped_tail[: match.start()]
+        following_segment = scoped_tail[match.start() :]
 
-    return path_mentions[-1] == path
+        if _scope_has_coordinate_break(scope_before, following_segment):
+            continue
+
+        if alias_label == path:
+            return True
+
+    return False
 
 
 def _term_preceded_by_not(sentence: str, term_start: int) -> bool:
@@ -455,8 +468,16 @@ def _path_is_negated(
 
     clause_segment = sentence[clause_offset:term_end]
     negative_patterns = _PATH_NEGATIVE_PATTERN_MAP[path]
-    for pattern in negative_patterns[1:]:
-        if pattern.search(clause_segment):
+    for idx, pattern in enumerate(negative_patterns[1:], start=1):
+        for match in pattern.finditer(clause_segment):
+            if idx == 5:
+                alias_matches = list(_PATH_TERM_PATTERN.finditer(match.group(0)))
+                if not alias_matches:
+                    continue
+                first_alias = alias_matches[0]
+                if _PATH_TERM_TO_LABEL[first_alias.group(0)] != path:
+                    continue
+
             return True
     if _alias_followed_by_not(sentence, term_end, path):
         return True
@@ -585,7 +606,7 @@ def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int
 
                 positions.append(absolute_term_start)
 
-    for pattern in patterns[1:]:
+    for idx, pattern in enumerate(patterns[1:], start=1):
         for match in pattern.finditer(sentence):
             segment = sentence[match.start() : match.end()]
             boundary = _SUBORDINATE_BOUNDARY_PATTERN.search(segment)
@@ -596,6 +617,14 @@ def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int
                     for path_match in _PATH_TERM_PATTERN.finditer(tail)
                 )
                 if other_path:
+                    continue
+
+            if idx == 5:
+                alias_matches = list(_PATH_TERM_PATTERN.finditer(segment))
+                if not alias_matches:
+                    continue
+                first_alias = alias_matches[0]
+                if _PATH_TERM_TO_LABEL[first_alias.group(0)] != path:
                     continue
 
             positions.append(match.start())
@@ -828,7 +857,7 @@ def _compile_stop_pattern(*alias_groups: list[str]) -> str:
     if not stop_patterns:
         return ""
 
-    return "(?=" + "|".join(stop_patterns) + "|\Z)"
+    return r"(?=" + "|".join(stop_patterns) + r"|\Z)"
 
 
 def _extract_section(

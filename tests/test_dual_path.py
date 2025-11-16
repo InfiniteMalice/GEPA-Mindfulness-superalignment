@@ -134,6 +134,21 @@ def test_no_false_positive() -> None:
 
 
 @pytest.mark.parametrize(
+    ("rec_line", "expected"),
+    (
+        ("Don't go with Path 2; instead choose the careful path.", "path_1"),
+        ("I suggest avoiding Path 2 and backing Path 1 instead.", "path_1"),
+        ("I suggest eschewing Path 2 and supporting Path 1 instead.", "path_1"),
+    ),
+)
+def test_recommendation_negation_cases(rec_line: str, expected: str) -> None:
+    response = _build_dual_path_response(rec_line)
+    sections = parse_dual_path_response(response)
+
+    assert sections["recommended_path"] == expected
+
+
+@pytest.mark.parametrize(
     ("recommendation_text", "expected_path"),
     [
         (
@@ -172,6 +187,10 @@ def test_no_false_positive() -> None:
         (
             "I do not recommend Path 1, and Path 2 is the best choice.",
             "path_2",
+        ),
+        (
+            "I do not recommend Path 1, and Path 2 is dangerous.",
+            "unclear",
         ),
         (
             "I recommend Path 2, not because it is safer but because resources are scarce.",
