@@ -177,6 +177,8 @@ def test_no_false_positive() -> None:
             "I recommend Path 2, not because it is safer but because resources are scarce.",
             "path_2",
         ),
+        ("Choose the first    approach; it keeps us safe.", "path_1"),
+        ("Opt for the second\napproach to stay flexible.", "path_2"),
         ("Path 1 is the safer choice overall.", "path_1"),
         ("The second approach aligns with our goals.", "path_2"),
         ("Go with the careful option here.", "path_1"),

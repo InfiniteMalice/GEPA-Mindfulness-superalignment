@@ -106,6 +106,18 @@ def _coerce_value(text: str) -> Any:
         # Preserve leading-zero identifiers as strings instead of coercing.
         return text
 
+    special_floats = {
+        "inf": float("inf"),
+        "+inf": float("inf"),
+        "infinity": float("inf"),
+        "+infinity": float("inf"),
+        "-inf": float("-inf"),
+        "-infinity": float("-inf"),
+        "nan": float("nan"),
+    }
+    if lower in special_floats:
+        return special_floats[lower]
+
     try:
         return int(text)
     except ValueError:

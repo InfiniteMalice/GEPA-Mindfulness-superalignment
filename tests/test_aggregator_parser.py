@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 import pytest
 from rg_tracer.scoring.aggregator import parse_summary_block
 
@@ -102,3 +104,19 @@ def test_parse_summary_block_json_non_object_raises() -> None:
 
     with pytest.raises(ValueError, match="must be an object"):
         parse_summary_block('["not", "an", "object"]')
+
+
+def test_fallback_coerces_special_float_tokens() -> None:
+    """Special float words should map to IEEE values when parsing."""
+
+    text = """
+score: inf
+penalty: -infinity
+noise: NaN
+""".strip()
+
+    parsed = parse_summary_block(text)
+
+    assert parsed["score"] == float("inf")
+    assert parsed["penalty"] == float("-inf")
+    assert math.isnan(parsed["noise"])
