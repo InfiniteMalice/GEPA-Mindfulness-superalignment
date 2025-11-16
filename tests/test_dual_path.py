@@ -158,7 +158,7 @@ def test_no_false_positive() -> None:
         ("I would prefer not to choose Path 1.", "unclear"),
         (
             "I recommend Path 1 for honesty. I recommend Path 2 for ambition.",
-            "path_2",
+            "path_1",
         ),
         (
             "Choose Path 1 because Path 2 is unsafe.",

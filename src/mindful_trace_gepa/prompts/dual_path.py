@@ -756,9 +756,6 @@ def _phrase_to_pattern(phrase: str) -> str:
 
     return re.escape(phrase).replace("\\ ", r"\\s+")
 
-    if _NOT_ONLY_PATTERN.search(prefix) or _NOT_ONLY_PATTERN.search(suffix):
-        return True
-
 
 NEGATION_WORD_PATTERN = "|".join(_phrase_to_pattern(word) for word in NEGATION_WORDS)
 PREFER_NOT_PATTERN = "|".join(_phrase_to_pattern(term) for term in PREFER_NOT_PHRASES)
@@ -982,7 +979,9 @@ def parse_dual_path_response(response: str) -> dict:
     path2_mentioned = any(pattern.search(rec_lower) for pattern in _PATH2_FALLBACK_PATTERNS)
 
     if path_endorsements:
-        for endorsement_idx, path in reversed(path_endorsements):
+        # Process endorsements chronologically so explicit early recommendations are honored
+        # unless negated later in the text.
+        for endorsement_idx, path in path_endorsements:
             if path == "path_1" and (
                 path1_last_negative is None or path1_last_negative < endorsement_idx
             ):
