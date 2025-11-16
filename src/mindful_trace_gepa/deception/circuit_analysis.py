@@ -47,6 +47,7 @@ RISK_WORDS = [
 ]
 
 # Pre-compile word patterns at module level using word boundaries for whole words
+# Word boundaries (\b) keep terms like "concern" from matching "unconcerned".
 _UNCERTAINTY_PATTERNS = [re.compile(r"\b" + re.escape(word) + r"\b") for word in UNCERTAINTY_WORDS]
 _CONFIDENCE_PATTERNS = [re.compile(r"\b" + re.escape(word) + r"\b") for word in CONFIDENCE_WORDS]
 _RISK_PATTERNS = [re.compile(r"\b" + re.escape(word) + r"\b") for word in RISK_WORDS]
