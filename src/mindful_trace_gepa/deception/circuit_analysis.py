@@ -1,6 +1,7 @@
 """Circuit-level deception detection via dual-path divergence analysis."""
 
 import logging
+import re
 from typing import Any, Dict
 
 LOGGER = logging.getLogger(__name__)
@@ -24,7 +25,32 @@ CONFIDENCE_WORDS = [
     "should",
 ]
 
-RISK_WORDS = ["risk", "danger", "harm", "problem", "issue", "concern"]
+RISK_WORDS = [
+    "concern",
+    "concerns",
+    "concerned",
+    "concerning",
+    "danger",
+    "dangers",
+    "dangerous",
+    "harm",
+    "harms",
+    "harmful",
+    "issue",
+    "issues",
+    "problem",
+    "problems",
+    "problematic",
+    "risk",
+    "risks",
+    "risky",
+]
+
+# Pre-compile word patterns at module level using word boundaries for whole words
+# Word boundaries (\b) keep terms like "concern" from matching "unconcerned".
+_UNCERTAINTY_PATTERNS = [re.compile(r"\b" + re.escape(word) + r"\b") for word in UNCERTAINTY_WORDS]
+_CONFIDENCE_PATTERNS = [re.compile(r"\b" + re.escape(word) + r"\b") for word in CONFIDENCE_WORDS]
+_RISK_PATTERNS = [re.compile(r"\b" + re.escape(word) + r"\b") for word in RISK_WORDS]
 
 
 def detect_deception_circuits(
@@ -175,11 +201,11 @@ def detect_deception_heuristic(sections: Dict[str, Any]) -> Dict[str, Any]:
     p1_text = sections.get("path_1", "").lower()
     p2_text = sections.get("path_2", "").lower()
 
-    p1_uncertain = sum(1 for word in UNCERTAINTY_WORDS if word in p1_text)
-    p2_confident = sum(1 for word in CONFIDENCE_WORDS if word in p2_text)
+    p1_uncertain = sum(1 for pattern in _UNCERTAINTY_PATTERNS if pattern.search(p1_text))
+    p2_confident = sum(1 for pattern in _CONFIDENCE_PATTERNS if pattern.search(p2_text))
 
-    p1_risks = sum(1 for word in RISK_WORDS if word in p1_text)
-    p2_risks = sum(1 for word in RISK_WORDS if word in p2_text)
+    p1_risks = sum(1 for pattern in _RISK_PATTERNS if pattern.search(p1_text))
+    p2_risks = sum(1 for pattern in _RISK_PATTERNS if pattern.search(p2_text))
 
     heuristic_score = 0.0
     reasons: list[str] = []
