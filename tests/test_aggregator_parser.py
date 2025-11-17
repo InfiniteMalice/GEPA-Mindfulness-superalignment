@@ -59,6 +59,15 @@ def test_fallback_handles_tab_indentation() -> None:
     assert parsed == {"root": {"child": {"value": 1}}}
 
 
+def test_fallback_dedents_uniform_indent_block() -> None:
+    """Uniform indentation offsets should not break fallback parsing."""
+    text = "    root:\n" "        child:\n" "            value: 2\n"
+
+    parsed = parse_summary_block(text)
+
+    assert parsed == {"root": {"child": {"value": 2}}}
+
+
 def test_fallback_preserves_leading_zero_identifiers() -> None:
     """Strings with leading zeros remain strings after fallback parsing."""
     text = """

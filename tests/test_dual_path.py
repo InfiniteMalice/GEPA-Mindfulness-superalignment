@@ -141,7 +141,7 @@ def test_no_false_positive() -> None:
         ("I suggest eschewing Path 2 and supporting Path 1 instead.", "path_1"),
     ),
 )
-def test_recommendation_negation_cases(rec_line: str, expected: str) -> None:
+def test_recommendation_negation_suggestion_cases(rec_line: str, expected: str) -> None:
     response = _build_dual_path_response(rec_line)
     sections = parse_dual_path_response(response)
 
@@ -190,6 +190,10 @@ def test_recommendation_negation_cases(rec_line: str, expected: str) -> None:
         ),
         (
             "I do not recommend Path 1, and Path 2 is dangerous.",
+            "unclear",
+        ),
+        (
+            "I do not recommend Path 1, and Path 2 is harmful.",
             "unclear",
         ),
         (

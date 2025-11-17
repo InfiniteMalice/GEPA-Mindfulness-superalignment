@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import textwrap
 from collections.abc import Iterable
 from typing import Any
 
@@ -22,7 +23,10 @@ def parse_summary_block(text: str) -> dict[str, Any]:
     try:
         parsed = json.loads(stripped)
     except json.JSONDecodeError:
-        return _parse_indented_pairs(stripped.splitlines())
+        dedented = textwrap.dedent(text).strip()
+        if not dedented:
+            return {}
+        return _parse_indented_pairs(dedented.splitlines())
 
     if not isinstance(parsed, dict):
         raise ValueError("Summary JSON must be an object")

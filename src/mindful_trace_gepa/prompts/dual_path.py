@@ -1,9 +1,8 @@
 """Dual-path prompting utilities with attribution-aligned formatting."""
 
 import re
-
-# Decision and endorsement vocabulary keeps the parser flexible across phrasings.
 from typing import Dict, Tuple
+# Decision and endorsement vocabulary keeps the parser flexible across phrasings.
 
 DECISION_VERB_PARTS = (
     r"recommend(?:ed|s|ing)?",
@@ -112,6 +111,15 @@ _INTENSIFIER_PREFIX_TERMS = (
     "could not recommend",
 )
 _NOT_ONLY_PATTERN = re.compile(r"\bnot\s+only\b", re.IGNORECASE)
+RISK_QUALITY_TERMS = (
+    "dangerous",
+    "harmful",
+    "hazardous",
+    "perilous",
+    "risky",
+    "threatening",
+    "unsafe",
+)
 
 
 def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Pattern]:
@@ -127,13 +135,13 @@ def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Patt
         7. Quality judgments, e.g. "Path 1 is not advisable".
     """
     joined_terms = "|".join(re.escape(term) for term in terms)
+    risk_quality = "|".join(RISK_QUALITY_TERMS)
     quality_negation = (
         r"(?:"
         r"(?:not|(?:is|are|was|were)(?:\s+not|n['’]t))\s+"
         r"(?:recommended|advisable|wise|safe|ideal|prudent|suitable|"
         r"appropriate|good|helpful)"
-        r"|inadvisable|unsafe|unwise|bad|risky|dangerous|harmful|hazardous"
-        r")"
+        r"|inadvisable|unwise|bad|" + risk_quality + r")"
     )
     return [
         re.compile(
