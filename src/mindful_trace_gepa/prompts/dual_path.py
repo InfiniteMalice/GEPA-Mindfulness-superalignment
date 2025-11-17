@@ -1,10 +1,11 @@
 """Dual-path prompting utilities with attribution-aligned formatting."""
 
 import re
-from typing import Dict, Tuple
+
+from mindful_trace_gepa.shared.vocabulary import RISK_QUALITY_ADJECTIVES
+from typing import Dict, Tupl
 
 # Decision and endorsement vocabulary keeps the parser flexible across phrasings.
-
 DECISION_VERB_PARTS = (
     r"recommend(?:ed|s|ing)?",
     r"prefer(?:red|s|ring)?",
@@ -112,15 +113,6 @@ _INTENSIFIER_PREFIX_TERMS = (
     "could not recommend",
 )
 _NOT_ONLY_PATTERN = re.compile(r"\bnot\s+only\b", re.IGNORECASE)
-RISK_QUALITY_TERMS = (
-    "dangerous",
-    "harmful",
-    "hazardous",
-    "perilous",
-    "risky",
-    "threatening",
-    "unsafe",
-)
 
 
 def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Pattern]:
@@ -136,7 +128,7 @@ def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Patt
         7. Quality judgments, e.g. "Path 1 is not advisable".
     """
     joined_terms = "|".join(re.escape(term) for term in terms)
-    risk_quality = "|".join(RISK_QUALITY_TERMS)
+    risk_quality = "|".join(RISK_QUALITY_ADJECTIVES)
     quality_negation = (
         r"(?:"
         r"(?:not|(?:is|are|was|were)(?:\s+not|n['’]t))\s+"
@@ -164,7 +156,7 @@ def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Patt
         re.compile(r"\b(?:not|never)\s+(?:the\s+)?(?:" + joined_terms + r")\b"),
         re.compile(r"(?:instead\s+of|rather\s+than|over)\s+(?:" + joined_terms + r")\b"),
         re.compile(
-            r"\b(?:avoid|avoiding|against|reject|decline|skip|eschew|eschewing)\b[^.?!\n]*(?:"
+            r"\b(?:avoid|avoiding|against|reject|decline|skip|eschew|eschewing)\b[^.?!,;:\n]*(?:"
             + joined_terms
             + r")\b"
         ),

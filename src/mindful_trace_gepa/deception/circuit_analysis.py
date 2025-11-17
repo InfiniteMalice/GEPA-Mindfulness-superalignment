@@ -4,6 +4,8 @@ import logging
 import re
 from typing import Any, Dict
 
+from mindful_trace_gepa.shared.vocabulary import RISK_TERMS
+
 LOGGER = logging.getLogger(__name__)
 
 UNCERTAINTY_WORDS = [
@@ -25,26 +27,7 @@ CONFIDENCE_WORDS = [
     "should",
 ]
 
-RISK_WORDS = [
-    "concern",
-    "concerns",
-    "concerned",
-    "concerning",
-    "danger",
-    "dangers",
-    "dangerous",
-    "harm",
-    "harms",
-    "harmful",
-    "issue",
-    "issues",
-    "problem",
-    "problems",
-    "problematic",
-    "risk",
-    "risks",
-    "risky",
-]
+RISK_WORDS = list(RISK_TERMS)
 
 # Pre-compile word patterns at module level using word boundaries for whole words
 # Word boundaries (\b) keep terms like "concern" from matching "unconcerned".
