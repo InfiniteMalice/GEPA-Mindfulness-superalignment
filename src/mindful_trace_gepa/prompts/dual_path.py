@@ -1,8 +1,9 @@
 """Dual-path prompting utilities with attribution-aligned formatting."""
 
 import re
-from mindful_trace_gepa.shared.vocabulary import RISK_QUALITY_ADJECTIVES
 from typing import Dict, Tuple
+
+from mindful_trace_gepa.shared.vocabulary import RISK_QUALITY_ADJECTIVES
 
 # Decision and endorsement vocabulary keeps the parser flexible across phrasings.
 DECISION_VERB_PARTS = (
