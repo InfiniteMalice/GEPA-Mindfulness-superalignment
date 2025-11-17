@@ -2,6 +2,7 @@
 
 import re
 from typing import Dict, Tuple
+
 # Decision and endorsement vocabulary keeps the parser flexible across phrasings.
 
 DECISION_VERB_PARTS = (
