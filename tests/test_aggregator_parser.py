@@ -92,6 +92,16 @@ def test_fallback_preserves_negative_leading_zero_identifiers() -> None:
     assert parsed["id"] == "-01"
 
 
+def test_fallback_preserves_positive_signed_leading_zero_identifiers() -> None:
+    """A "+012" style identifier should remain a string token."""
+
+    text = "code: +0123"
+
+    parsed = parse_summary_block(text)
+
+    assert parsed["code"] == "+0123"
+
+
 def test_parse_summary_block_json_object() -> None:
     """The parser should favor JSON decoding when the input is valid."""
     text = '{"key": "value", "nested": {"count": 42}}'

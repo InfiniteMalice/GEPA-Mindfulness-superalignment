@@ -21,7 +21,7 @@ DECISION_VERB_PARTS = (
     r"favour(?:s|ed|ing)?",
     r"support(?:s|ed|ing)?",
     r"back(?:s|ed|ing)?",
-    r"take(?:s|n|ing)?",
+    r"tak(?:e|es|en|ing)",
     r"took",
     r"go(?:es|ing)?\s+with",
     r"gone\s+with",
@@ -99,7 +99,7 @@ _CLAUSE_VERB_PATTERN = re.compile(
     r"endorse(?:d|s|ing)?|suggest(?:ed|s|ing)?|choos(?:e|es|ing)|chose|"
     r"chosen|pick(?:s|ed|ing)?|select(?:s|ed|ing)?|follow(?:s|ed|ing)?|"
     r"favor(?:s|ed|ing)?|favour(?:s|ed|ing)?|support(?:s|ed|ing)?|"
-    r"back(?:s|ed|ing)?|take(?:s|n|ing)?|took|go(?:es|ing)?|went|gone|"
+    r"back(?:s|ed|ing)?|tak(?:e|es|en|ing)|took|go(?:es|ing)?|went|gone|"
     r"opt(?:s|ed|ing)?(?:\s+for)?)\b",
     re.IGNORECASE,
 )
@@ -113,6 +113,7 @@ _INTENSIFIER_PREFIX_TERMS = (
     "could not recommend",
 )
 _NOT_ONLY_PATTERN = re.compile(r"\bnot\s+only\b", re.IGNORECASE)
+_BY_PREPOSITION_PATTERN = re.compile(r"\bby\b", re.IGNORECASE)
 
 
 def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Pattern]:
@@ -128,7 +129,7 @@ def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Patt
         7. Quality judgments, e.g. "Path 1 is not advisable".
     """
     joined_terms = "|".join(re.escape(term) for term in terms)
-    risk_quality = "|".join(RISK_QUALITY_ADJECTIVES)
+    risk_quality = "|".join(re.escape(adj) for adj in RISK_QUALITY_ADJECTIVES)
     quality_negation = (
         r"(?:"
         r"(?:not|(?:is|are|was|were)(?:\s+not|n['’]t))\s+"
@@ -156,9 +157,8 @@ def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Patt
         re.compile(r"\b(?:not|never)\s+(?:the\s+)?(?:" + joined_terms + r")\b"),
         re.compile(r"(?:instead\s+of|rather\s+than|over)\s+(?:" + joined_terms + r")\b"),
         re.compile(
-            r"\b(?:avoid|avoiding|against|reject|decline|skip|eschew|eschewing)\b[^.?!,;:\n]*(?:"
-            + joined_terms
-            + r")\b"
+            r"\b(?:avoid|avoiding|against|reject|decline|skip|eschew|eschewing)\b"
+            r"(?:\s+\w+){0,3}\s+(?:" + joined_terms + r")\b"
         ),
         re.compile(
             r"(?:"
@@ -478,6 +478,10 @@ def _path_is_negated(
                 first_alias = alias_matches[0]
                 if _PATH_TERM_TO_LABEL[first_alias.group(0)] != path:
                     continue
+                segment = match.group(0)
+                before_alias = segment[: first_alias.start()]
+                if _BY_PREPOSITION_PATTERN.search(before_alias):
+                    continue
 
             return True
     if _alias_followed_by_not(sentence, term_end, path):
@@ -626,6 +630,9 @@ def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int
                     continue
                 first_alias = alias_matches[0]
                 if _PATH_TERM_TO_LABEL[first_alias.group(0)] != path:
+                    continue
+                before_alias = segment[: first_alias.start()]
+                if _BY_PREPOSITION_PATTERN.search(before_alias):
                     continue
 
             positions.append(match.start())

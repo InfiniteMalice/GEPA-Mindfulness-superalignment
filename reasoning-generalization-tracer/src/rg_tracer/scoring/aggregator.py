@@ -90,7 +90,7 @@ def _has_leading_zero_token(text: str) -> bool:
     if len(text) <= 1:
         return False
 
-    if text[0] == "-":
+    if text[0] in {"-", "+"}:
         return len(text) > 2 and text[1] == "0" and text[2].isdigit()
 
     return text[0] == "0" and text[1].isdigit()

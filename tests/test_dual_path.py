@@ -149,6 +149,22 @@ def test_recommendation_negation_suggestion_cases(rec_line: str, expected: str) 
 
 
 @pytest.mark.parametrize(
+    ("rec_line", "expected"),
+    (
+        ("To avoid confusion, I recommend Path 1 because it is safer.", "path_1"),
+        ("To avoid delay, choose Path 1 while declining Path 2's rush.", "path_1"),
+        ("We should avoid confusion by choosing Path 1.", "path_1"),
+        ("We avoid additional risk by selecting Path 2.", "path_2"),
+    ),
+)
+def test_recommendation_avoidance_context_positive(rec_line: str, expected: str) -> None:
+    response = _build_dual_path_response(rec_line)
+    sections = parse_dual_path_response(response)
+
+    assert sections["recommended_path"] == expected
+
+
+@pytest.mark.parametrize(
     ("recommendation_text", "expected_path"),
     [
         (
