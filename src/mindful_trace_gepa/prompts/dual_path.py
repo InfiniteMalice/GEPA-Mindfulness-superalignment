@@ -846,7 +846,7 @@ AVOIDANCE_VERBS_LOWER = tuple(verb.lower() for verb in AVOIDANCE_VERBS)
 NEGATION_QUALITIES_LOWER = tuple(quality.lower() for quality in NEGATION_QUALITIES)
 NEGATION_COMPLETION_LOWER = tuple(term.lower() for term in NEGATION_COMPLETION_TERMS)
 
-PATH_SYNONYMS: Dict[str, Tuple[str, ...]] = {
+PATH_SYNONYMS: dict[str, tuple[str, ...]] = {
     "path_1": (
         "path 1",
         "first approach",
@@ -1064,8 +1064,8 @@ def parse_dual_path_response(response: str) -> dict[str, Any]:
 
 
 def _resolve_recommendation(rec_text: str) -> str:
-    path_last_positive: Dict[str, int] = {}
-    path_last_negative: Dict[str, int] = {}
+    path_last_positive: dict[str, int] = {}
+    path_last_negative: dict[str, int] = {}
 
     for path_name, aliases in PATH_SYNONYMS.items():
         for alias in aliases:
