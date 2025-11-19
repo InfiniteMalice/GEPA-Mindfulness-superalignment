@@ -83,13 +83,28 @@ _NEGATION_SPAN_PATTERN = re.compile(
     r"\b(?:not|never|avoid|avoiding|against|reject|decline|skip|eschew|eschewing)\b"
     r"|rather\s+than|instead\s+of"
 )
+
+
+def _normalize_alias(term: str) -> str:
+    return " ".join(term.split())
+
+
 _PATH_TERM_TO_LABEL: dict[str, str] = {
-    **{term: "path_1" for term in PATH1_ENDORSEMENT_TERMS},
-    **{term: "path_2" for term in PATH2_ENDORSEMENT_TERMS},
+    **{_normalize_alias(term): "path_1" for term in PATH1_ENDORSEMENT_TERMS},
+    **{_normalize_alias(term): "path_2" for term in PATH2_ENDORSEMENT_TERMS},
 }
+
+
+def _alias_fragment(term: str) -> str:
+    parts = [re.escape(chunk) for chunk in term.split() if chunk]
+    if not parts:
+        return re.escape(term)
+    return r"\s+".join(parts)
+
+
 _PATH_TERM_PATTERN = re.compile(
     r"\b(?:"
-    + "|".join(re.escape(term) for term in sorted(_PATH_TERM_TO_LABEL, key=len, reverse=True))
+    + "|".join(_alias_fragment(term) for term in sorted(_PATH_TERM_TO_LABEL, key=len, reverse=True))
     + r")\b"
 )
 _CLAUSE_CONTRAST_PATTERN = re.compile(r"\b(?:but|however|though|although|yet|instead)\b")
@@ -374,7 +389,7 @@ def _negation_targets_path(segment: str, path: str) -> bool:
     scoped_tail = neg_tail[:stop_idx]
 
     for match in _PATH_TERM_PATTERN.finditer(scoped_tail):
-        alias_label = _PATH_TERM_TO_LABEL[match.group(0)]
+        alias_label = _PATH_TERM_TO_LABEL[_normalize_alias(match.group(0))]
         scope_before = scoped_tail[: match.start()]
         following_segment = scoped_tail[match.start() :]
 
@@ -435,7 +450,7 @@ def _prefix_negates_path(
         neg_scope_start = clause_offset + neg_match.end()
         neg_scope = sentence[neg_scope_start:term_end]
         for path_match in _PATH_TERM_PATTERN.finditer(neg_scope):
-            if _PATH_TERM_TO_LABEL[path_match.group(0)] == path:
+            if _PATH_TERM_TO_LABEL[_normalize_alias(path_match.group(0))] == path:
                 absolute_term_start = neg_scope_start + path_match.start()
                 absolute_term_end = neg_scope_start + path_match.end()
 
@@ -490,12 +505,12 @@ def _path_is_negated(
     negative_patterns = _PATH_NEGATIVE_PATTERN_MAP[path]
     for idx, pattern in enumerate(negative_patterns[1:], start=1):
         for match in pattern.finditer(clause_segment):
-            if idx == 5:
+            if idx == _AVOIDANCE_PATTERN_INDEX:
                 alias_matches = list(_PATH_TERM_PATTERN.finditer(match.group(0)))
                 if not alias_matches:
                     continue
                 first_alias = alias_matches[0]
-                if _PATH_TERM_TO_LABEL[first_alias.group(0)] != path:
+                if _PATH_TERM_TO_LABEL[_normalize_alias(first_alias.group(0))] != path:
                     continue
                 segment = match.group(0)
                 before_alias = segment[: first_alias.start()]
@@ -518,7 +533,7 @@ def _sentence_positive_endorsements(sentence: str) -> list[tuple[int, str]]:
 
         for term_match in _PATH_TERM_PATTERN.finditer(clause_prefix):
             term = term_match.group(0)
-            path = _PATH_TERM_TO_LABEL[term]
+            path = _PATH_TERM_TO_LABEL[_normalize_alias(term)]
             if _prefix_alias_in_subordinate_clause(clause_prefix, term_match.end()):
                 continue
 
@@ -553,7 +568,7 @@ def _sentence_positive_endorsements(sentence: str) -> list[tuple[int, str]]:
         remainder = sentence[search_start:]
         for term_match in _PATH_TERM_PATTERN.finditer(remainder):
             term = term_match.group(0)
-            path = _PATH_TERM_TO_LABEL[term]
+            path = _PATH_TERM_TO_LABEL[_normalize_alias(term)]
 
             between = remainder[: term_match.start()]
             if _alias_in_subordinate_clause(between):
@@ -611,7 +626,7 @@ def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int
                 continue
             if _scope_has_subordinate_break(before_term):
                 continue
-            if _PATH_TERM_TO_LABEL[path_match.group(0)] == path:
+            if _PATH_TERM_TO_LABEL[_normalize_alias(path_match.group(0))] == path:
                 absolute_term_start = neg_match.end() + path_match.start()
                 absolute_term_end = neg_match.end() + path_match.end()
                 scope_before_term = sentence[neg_match.end() : absolute_term_start]
@@ -638,12 +653,14 @@ def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int
                 tail = segment[boundary.end() :]
                 tail_matches = list(_PATH_TERM_PATTERN.finditer(tail))
                 other_path = any(
-                    _PATH_TERM_TO_LABEL[path_match.group(0)] != path for path_match in tail_matches
+                    _PATH_TERM_TO_LABEL[_normalize_alias(path_match.group(0))] != path
+                    for path_match in tail_matches
                 )
                 if other_path:
                     continue
                 same_path_tail = any(
-                    _PATH_TERM_TO_LABEL[path_match.group(0)] == path for path_match in tail_matches
+                    _PATH_TERM_TO_LABEL[_normalize_alias(path_match.group(0))] == path
+                    for path_match in tail_matches
                 )
                 if idx == _POSTFIX_MODAL_PATTERN_INDEX and not same_path_tail:
                     continue
@@ -666,7 +683,7 @@ def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int
                 if not alias_matches:
                     continue
                 first_alias = alias_matches[0]
-                if _PATH_TERM_TO_LABEL[first_alias.group(0)] != path:
+                if _PATH_TERM_TO_LABEL[_normalize_alias(first_alias.group(0))] != path:
                     continue
                 before_alias = segment[: first_alias.start()]
                 if _BY_PREPOSITION_PATTERN.search(before_alias):
@@ -675,7 +692,7 @@ def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int
             positions.append(match.start())
 
     for path_match in _PATH_TERM_PATTERN.finditer(sentence):
-        if _PATH_TERM_TO_LABEL[path_match.group(0)] != path:
+        if _PATH_TERM_TO_LABEL[_normalize_alias(path_match.group(0))] != path:
             continue
 
         term_end = path_match.end()
