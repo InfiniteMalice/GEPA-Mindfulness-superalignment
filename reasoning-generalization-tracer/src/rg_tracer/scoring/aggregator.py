@@ -7,6 +7,16 @@ import textwrap
 from collections.abc import Iterable
 from typing import Any
 
+_SPECIAL_FLOATS = {
+    "inf": float("inf"),
+    "+inf": float("inf"),
+    "infinity": float("inf"),
+    "+infinity": float("inf"),
+    "-inf": float("-inf"),
+    "-infinity": float("-inf"),
+    "nan": float("nan"),
+}
+
 
 def parse_summary_block(text: str) -> dict[str, Any]:
     """Parse a summary text block into a nested structure.
@@ -38,6 +48,8 @@ def _parse_indented_pairs(lines: Iterable[str]) -> dict[str, Any]:
     """Parse indented key/value lines into nested dictionaries."""
     root: dict[str, Any] = {}
     stack: list[tuple[int, dict[str, Any]]] = [(-1, root)]
+    # Each stack entry stores (parent_indent + 1, container) so any indent that stays at or
+    # above the threshold remains attached to the same parent.
 
     for raw_line in lines:
         if not raw_line.strip():
@@ -110,17 +122,8 @@ def _coerce_value(text: str) -> Any:
         # Preserve leading-zero identifiers as strings instead of coercing.
         return text
 
-    special_floats = {
-        "inf": float("inf"),
-        "+inf": float("inf"),
-        "infinity": float("inf"),
-        "+infinity": float("inf"),
-        "-inf": float("-inf"),
-        "-infinity": float("-inf"),
-        "nan": float("nan"),
-    }
-    if lower in special_floats:
-        return special_floats[lower]
+    if lower in _SPECIAL_FLOATS:
+        return _SPECIAL_FLOATS[lower]
 
     try:
         return int(text)

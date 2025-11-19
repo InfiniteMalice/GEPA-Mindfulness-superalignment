@@ -1,7 +1,7 @@
 """Dual-path prompting utilities with attribution-aligned formatting."""
 
 import re
-from typing import Dict, Tuple
+from typing import Any
 
 from mindful_trace_gepa.shared.vocabulary import RISK_QUALITY_ADJECTIVES
 
@@ -80,7 +80,7 @@ _NEGATION_SPAN_PATTERN = re.compile(
     r"\b(?:not|never|avoid|avoiding|against|reject|decline|skip|eschew|eschewing)\b"
     r"|rather\s+than|instead\s+of"
 )
-_PATH_TERM_TO_LABEL = {
+_PATH_TERM_TO_LABEL: dict[str, str] = {
     **{term: "path_1" for term in PATH1_ENDORSEMENT_TERMS},
     **{term: "path_2" for term in PATH2_ENDORSEMENT_TERMS},
 }
@@ -129,14 +129,20 @@ def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Patt
         7. Quality judgments, e.g. "Path 1 is not advisable".
     """
     joined_terms = "|".join(re.escape(term) for term in terms)
+    quality_terms = [
+        (
+            r"(?:not|(?:is|are|was|were)(?:\s+not|n['’]t))\s+"
+            r"(?:recommended|advisable|wise|safe|ideal|prudent|suitable|"
+            r"appropriate|good|helpful)"
+        ),
+        "inadvisable",
+        "unwise",
+        "bad",
+    ]
     risk_quality = "|".join(re.escape(adj) for adj in RISK_QUALITY_ADJECTIVES)
-    quality_negation = (
-        r"(?:"
-        r"(?:not|(?:is|are|was|were)(?:\s+not|n['’]t))\s+"
-        r"(?:recommended|advisable|wise|safe|ideal|prudent|suitable|"
-        r"appropriate|good|helpful)"
-        r"|inadvisable|unwise|bad|" + risk_quality + r")"
-    )
+    if risk_quality:
+        quality_terms.append(r"(?:" + risk_quality + r")")
+    quality_negation = r"(?:" + "|".join(quality_terms) + r")"
     return [
         re.compile(
             _NEGATION_PREFIX
@@ -158,7 +164,7 @@ def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Patt
         re.compile(r"(?:instead\s+of|rather\s+than|over)\s+(?:" + joined_terms + r")\b"),
         re.compile(
             r"\b(?:avoid|avoiding|against|reject|decline|skip|eschew|eschewing)\b"
-            r"(?:\s+\w+){0,3}\s+(?:" + joined_terms + r")\b"
+            r"(?:\s+\w+){0,2}\s+(?:" + joined_terms + r")\b"
         ),
         re.compile(
             r"(?:"
@@ -189,9 +195,13 @@ def _phrase_to_compiled_pattern(phrase: str) -> re.Pattern:
     return re.compile(r"\b" + fragment + r"\b")
 
 
-_PATH1_FALLBACK_PATTERNS = [_phrase_to_compiled_pattern(term) for term in PATH1_FALLBACK_TERMS]
-_PATH2_FALLBACK_PATTERNS = [_phrase_to_compiled_pattern(term) for term in PATH2_ENDORSEMENT_TERMS]
-_PATH_FALLBACK_PATTERN_MAP = {
+_PATH1_FALLBACK_PATTERNS: list[re.Pattern] = [
+    _phrase_to_compiled_pattern(term) for term in PATH1_FALLBACK_TERMS
+]
+_PATH2_FALLBACK_PATTERNS: list[re.Pattern] = [
+    _phrase_to_compiled_pattern(term) for term in PATH2_ENDORSEMENT_TERMS
+]
+_PATH_FALLBACK_PATTERN_MAP: dict[str, list[re.Pattern]] = {
     "path_1": _PATH1_FALLBACK_PATTERNS,
     "path_2": _PATH2_FALLBACK_PATTERNS,
 }
@@ -617,11 +627,16 @@ def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int
             boundary = _SUBORDINATE_BOUNDARY_PATTERN.search(segment)
             if boundary:
                 tail = segment[boundary.end() :]
+                tail_matches = list(_PATH_TERM_PATTERN.finditer(tail))
                 other_path = any(
-                    _PATH_TERM_TO_LABEL[path_match.group(0)] != path
-                    for path_match in _PATH_TERM_PATTERN.finditer(tail)
+                    _PATH_TERM_TO_LABEL[path_match.group(0)] != path for path_match in tail_matches
                 )
                 if other_path:
+                    continue
+                same_path_tail = any(
+                    _PATH_TERM_TO_LABEL[path_match.group(0)] == path for path_match in tail_matches
+                )
+                if idx == 2 and not same_path_tail:
                     continue
 
             if idx == 5:
@@ -895,7 +910,7 @@ def _fallback_section(response: str, pattern: str) -> tuple[str, tuple[int, int]
     return "", (0, 0)
 
 
-def parse_dual_path_response(response: str) -> dict:
+def parse_dual_path_response(response: str) -> dict[str, Any]:
     """Parse model response into structured dual-path sections."""
 
     sections = {
