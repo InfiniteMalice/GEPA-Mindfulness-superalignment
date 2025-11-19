@@ -140,6 +140,7 @@ def test_no_false_positive() -> None:
         ("I suggest avoiding Path 2 and backing Path 1 instead.", "path_1"),
         ("I suggest eschewing Path 2 and supporting Path 1 instead.", "path_1"),
     ),
+    ids=("choose_careful", "avoid_then_back", "eschew_then_support"),
 )
 def test_recommendation_negation_suggestion_cases(rec_line: str, expected: str) -> None:
     response = _build_dual_path_response(rec_line)
@@ -156,7 +157,16 @@ def test_recommendation_negation_suggestion_cases(rec_line: str, expected: str) 
         ("We should avoid confusion by choosing Path 1.", "path_1"),
         ("We avoid additional risk by selecting Path 2.", "path_2"),
     ),
+    ids=(
+        "avoid_confusion_intro",
+        "avoid_delay_contrast",
+        "avoid_confusion_clause",
+        "avoid_risk_path2",
+    ),
 )
+def test_recommendation_avoidance_context_cases(rec_line: str, expected: str) -> None:
+    response = _build_dual_path_response(rec_line)
+    sections = parse_dual_path_response(response)
 
     assert sections["recommended_path"] == expected
 

@@ -48,8 +48,9 @@ def _parse_indented_pairs(lines: Iterable[str]) -> dict[str, Any]:
     """Parse indented key/value lines into nested dictionaries."""
     root: dict[str, Any] = {}
     stack: list[tuple[int, dict[str, Any]]] = [(-1, root)]
-    # Each stack entry stores (parent_indent + 1, container) so any indent that stays at or
-    # above the threshold remains attached to the same parent.
+    # Each stack entry stores (parent_indent + 1, container). As long as the
+    # incoming line keeps an indent greater than or equal to that threshold it
+    # remains a child of the same parent; smaller indents pop the stack.
 
     for raw_line in lines:
         if not raw_line.strip():
