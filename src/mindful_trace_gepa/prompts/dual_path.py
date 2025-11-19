@@ -75,6 +75,9 @@ _NEGATION_PREFIX = (
 )
 
 DECISION_VERB_PATTERN = re.compile(r"\b(?:" + "|".join(DECISION_VERB_PARTS) + r")\b")
+_MODAL_VERB_PATTERN = re.compile(
+    r"\b(?:do|does|did|would|should|could|can|will|may|might|must|shall)\b"
+)
 _NEGATION_PREFIX_PATTERN = re.compile(_NEGATION_PREFIX)
 _NEGATION_SPAN_PATTERN = re.compile(
     r"\b(?:not|never|avoid|avoiding|against|reject|decline|skip|eschew|eschewing)\b"
@@ -91,7 +94,10 @@ _PATH_TERM_PATTERN = re.compile(
 )
 _CLAUSE_CONTRAST_PATTERN = re.compile(r"\b(?:but|however|though|although|yet|instead)\b")
 _COORDINATE_BOUNDARY_PATTERN = re.compile(r"\b(?:and|or|nor|plus|also|then|as well as)\b")
-_SUBORDINATE_BOUNDARY_PATTERN = re.compile(r"\b(?:because|since|as|given that|due to|while)\b")
+_SUBORDINATE_BOUNDARY_PATTERN = re.compile(
+    r"\b(?:because|since|as|given that|due to|while)\b",
+    re.IGNORECASE,
+)
 _CLAUSE_VERB_PATTERN = re.compile(
     r"\b(?:"
     r"is|are|was|were|be|being|been|has|have|had|should|would|could|can|may|"
@@ -114,6 +120,9 @@ _INTENSIFIER_PREFIX_TERMS = (
 )
 _NOT_ONLY_PATTERN = re.compile(r"\bnot\s+only\b", re.IGNORECASE)
 _BY_PREPOSITION_PATTERN = re.compile(r"\bby\b", re.IGNORECASE)
+_INCIDENTAL_SUBJECT_PATTERN = re.compile(r"\b(?:i|we|you|they|someone|somebody)\b")
+_POSTFIX_MODAL_PATTERN_INDEX = 2
+_AVOIDANCE_PATTERN_INDEX = 5
 
 
 def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Pattern]:
@@ -636,10 +645,23 @@ def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int
                 same_path_tail = any(
                     _PATH_TERM_TO_LABEL[path_match.group(0)] == path for path_match in tail_matches
                 )
-                if idx == 2 and not same_path_tail:
+                if idx == _POSTFIX_MODAL_PATTERN_INDEX and not same_path_tail:
                     continue
 
-            if idx == 5:
+            if idx == _POSTFIX_MODAL_PATTERN_INDEX:
+                alias_match = _PATH_TERM_PATTERN.search(segment)
+                if not alias_match:
+                    continue
+                modal_match = _MODAL_VERB_PATTERN.search(segment, alias_match.end())
+                if not modal_match:
+                    continue
+                between = segment[alias_match.end() : modal_match.start()]
+                if _SUBORDINATE_BOUNDARY_PATTERN.search(between):
+                    continue
+                if _INCIDENTAL_SUBJECT_PATTERN.search(between):
+                    continue
+
+            if idx == _AVOIDANCE_PATTERN_INDEX:
                 alias_matches = list(_PATH_TERM_PATTERN.finditer(segment))
                 if not alias_matches:
                     continue

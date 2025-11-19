@@ -242,6 +242,10 @@ def test_recommendation_negation_suggestion_cases(rec_line: str, expected: str) 
             "path_1",
         ),
         (
+            "I recommend Path 1 because we shouldn't avoid confusion.",
+            "path_1",
+        ),
+        (
             "Because Path 1 is risky, I recommend Path 2.",
             "path_2",
         ),
