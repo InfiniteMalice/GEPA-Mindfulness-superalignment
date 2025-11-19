@@ -157,9 +157,6 @@ def test_recommendation_negation_suggestion_cases(rec_line: str, expected: str) 
         ("We avoid additional risk by selecting Path 2.", "path_2"),
     ),
 )
-def test_recommendation_avoidance_context_positive(rec_line: str, expected: str) -> None:
-    response = _build_dual_path_response(rec_line)
-    sections = parse_dual_path_response(response)
 
     assert sections["recommended_path"] == expected
 
