@@ -140,11 +140,11 @@ _INTENSIFIER_PREFIX_TERMS = (
 _NOT_ONLY_PATTERN = re.compile(r"\bnot\s+only\b", re.IGNORECASE)
 _BY_PREPOSITION_PATTERN = re.compile(r"\bby\b", re.IGNORECASE)
 _INCIDENTAL_SUBJECT_PATTERN = re.compile(r"\b(?:i|we|you|they|someone|somebody)\b")
-_POSTFIX_MODAL_PATTERN_INDEX = 2
-_AVOIDANCE_PATTERN_INDEX = 5
+POSTFIX_MODAL_ROLE = "postfix_modal"
+AVOIDANCE_ROLE = "avoidance"
 
 
-def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Pattern]:
+def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[tuple[str, re.Pattern]]:
     """Build patterns that detect negative references to path aliases.
 
     Pattern types:
@@ -172,34 +172,55 @@ def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Patt
         quality_terms.append(r"(?:" + risk_quality + r")")
     quality_negation = r"(?:" + "|".join(quality_terms) + r")"
     return [
-        re.compile(
-            _NEGATION_PREFIX
-            + r"(?:\s+\w+){0,2}\s*(?:recommend|prefer|endorse)\b[^.?!\n]*(?:"
-            + joined_terms
-            + r")\b"
+        (
+            "modal_prefix",
+            re.compile(
+                _NEGATION_PREFIX
+                + r"(?:\s+\w+){0,2}\s*(?:recommend|prefer|endorse)\b[^.?!\n]*(?:"
+                + joined_terms
+                + r")\b"
+            ),
         ),
-        re.compile(
-            r"\b(?:would|should|could|might|may|will|can|do|does|did)?\s*"
-            r"prefer\s+not(?:\s+to)?(?:\s+\w+){0,2}\s*(?:" + joined_terms + r")\b"
+        (
+            "prefer_not",
+            re.compile(
+                r"\b(?:would|should|could|might|may|will|can|do|does|did)?\s*"
+                r"prefer\s+not(?:\s+to)?(?:\s+\w+){0,2}\s*(?:" + joined_terms + r")\b"
+            ),
         ),
-        re.compile(
-            r"(?:"
-            + joined_terms
-            + r")\b[^.?!;\n]*?(?:do|does|did|would|should|could|can|will|may|might|must|shall)"
-            + r"(?:\s+(?:not|never)|n['’]t)\b(?!\s+only\b)"
+        (
+            POSTFIX_MODAL_ROLE,
+            re.compile(
+                r"(?:"
+                + joined_terms
+                + r")\b[^.?!;\n]*?(?:do|does|did|would|should|could|can|will|may|"
+                r"might|must|shall)" + r"(?:\s+(?:not|never)|n['’]t)\b(?!\s+only\b)"
+            ),
         ),
-        re.compile(r"\b(?:not|never)\s+(?:the\s+)?(?:" + joined_terms + r")\b"),
-        re.compile(r"(?:instead\s+of|rather\s+than|over)\s+(?:" + joined_terms + r")\b"),
-        re.compile(
-            r"\b(?:avoid|avoiding|against|reject|decline|skip|eschew|eschewing)\b"
-            r"(?:\s+\w+){0,2}\s+(?:" + joined_terms + r")\b"
+        (
+            "direct_not",
+            re.compile(r"\b(?:not|never)\s+(?:the\s+)?(?:" + joined_terms + r")\b"),
         ),
-        re.compile(
-            r"(?:"
-            + joined_terms
-            + r")\b[^.?!;\n]*(?:is|seems|appears|looks)?\s*"
-            + quality_negation
-            + r"\b"
+        (
+            "comparative",
+            re.compile(r"(?:instead\s+of|rather\s+than|over)\s+(?:" + joined_terms + r")\b"),
+        ),
+        (
+            AVOIDANCE_ROLE,
+            re.compile(
+                r"\b(?:avoid|avoiding|against|reject|decline|skip|eschew|eschewing)\b"
+                r"(?:\s+\w+){0,2}\s+(?:" + joined_terms + r")\b"
+            ),
+        ),
+        (
+            "quality",
+            re.compile(
+                r"(?:"
+                + joined_terms
+                + r")\b[^.?!;\n]*(?:is|seems|appears|looks)?\s*"
+                + quality_negation
+                + r"\b"
+            ),
         ),
     ]
 
@@ -507,9 +528,11 @@ def _path_is_negated(
 
     clause_segment = sentence[clause_offset:term_end]
     negative_patterns = _PATH_NEGATIVE_PATTERN_MAP[path]
-    for idx, pattern in enumerate(negative_patterns[1:], start=1):
+    for role, pattern in negative_patterns:
+        if role == "modal_prefix":
+            continue
         for match in pattern.finditer(clause_segment):
-            if idx == _AVOIDANCE_PATTERN_INDEX:
+            if role == AVOIDANCE_ROLE:
                 alias_matches = list(_PATH_TERM_PATTERN.finditer(match.group(0)))
                 if not alias_matches:
                     continue
@@ -649,7 +672,9 @@ def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int
 
                 positions.append(absolute_term_start)
 
-    for idx, pattern in enumerate(patterns[1:], start=1):
+    for role, pattern in patterns:
+        if role == "modal_prefix":
+            continue
         for match in pattern.finditer(sentence):
             segment = sentence[match.start() : match.end()]
             boundary = _SUBORDINATE_BOUNDARY_PATTERN.search(segment)
@@ -666,10 +691,10 @@ def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int
                     _PATH_TERM_TO_LABEL[_normalize_alias(path_match.group(0))] == path
                     for path_match in tail_matches
                 )
-                if idx == _POSTFIX_MODAL_PATTERN_INDEX and not same_path_tail:
+                if role == POSTFIX_MODAL_ROLE and not same_path_tail:
                     continue
 
-            if idx == _POSTFIX_MODAL_PATTERN_INDEX:
+            if role == POSTFIX_MODAL_ROLE:
                 alias_match = _PATH_TERM_PATTERN.search(segment)
                 if not alias_match:
                     continue
@@ -682,7 +707,7 @@ def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int
                 if _INCIDENTAL_SUBJECT_PATTERN.search(between):
                     continue
 
-            if idx == _AVOIDANCE_PATTERN_INDEX:
+            if role == AVOIDANCE_ROLE:
                 alias_matches = list(_PATH_TERM_PATTERN.finditer(segment))
                 if not alias_matches:
                     continue
