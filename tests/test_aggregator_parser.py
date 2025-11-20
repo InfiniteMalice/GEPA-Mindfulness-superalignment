@@ -155,3 +155,13 @@ feature: false
     assert parsed["missing"] is None
     assert parsed["alias"] is None
     assert parsed["feature"] is False
+
+
+def test_fallback_preserves_value_with_colon() -> None:
+    """Only the first colon should split key and value text."""
+
+    text = "note: reason: with extra detail"
+
+    parsed = parse_summary_block(text)
+
+    assert parsed["note"] == "reason: with extra detail"

@@ -140,8 +140,10 @@ _INTENSIFIER_PREFIX_TERMS = (
 _NOT_ONLY_PATTERN = re.compile(r"\bnot\s+only\b", re.IGNORECASE)
 _BY_PREPOSITION_PATTERN = re.compile(r"\bby\b", re.IGNORECASE)
 _INCIDENTAL_SUBJECT_PATTERN = re.compile(r"\b(?:i|we|you|they|someone|somebody)\b")
+MODAL_PREFIX_ROLE = "modal_prefix"
 POSTFIX_MODAL_ROLE = "postfix_modal"
 AVOIDANCE_ROLE = "avoidance"
+RECOMMEND_NOT_ROLE = "recommend_not"
 
 
 def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[tuple[str, re.Pattern]]:
@@ -173,7 +175,7 @@ def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[tuple[s
     quality_negation = r"(?:" + "|".join(quality_terms) + r")"
     return [
         (
-            "modal_prefix",
+            MODAL_PREFIX_ROLE,
             re.compile(
                 _NEGATION_PREFIX
                 + r"(?:\s+\w+){0,2}\s*(?:recommend|prefer|endorse)\b[^.?!\n]*(?:"
@@ -186,6 +188,13 @@ def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[tuple[s
             re.compile(
                 r"\b(?:would|should|could|might|may|will|can|do|does|did)?\s*"
                 r"prefer\s+not(?:\s+to)?(?:\s+\w+){0,2}\s*(?:" + joined_terms + r")\b"
+            ),
+        ),
+        (
+            RECOMMEND_NOT_ROLE,
+            re.compile(
+                r"\brecommend(?:ed|s|ing)?\b(?:\s+\w+){0,2}\s+not"
+                r"(?:\s+\w+){0,3}\s+(?:" + joined_terms + r")\b"
             ),
         ),
         (
@@ -529,9 +538,23 @@ def _path_is_negated(
     clause_segment = sentence[clause_offset:term_end]
     negative_patterns = _PATH_NEGATIVE_PATTERN_MAP[path]
     for role, pattern in negative_patterns:
-        if role == "modal_prefix":
+        if role == MODAL_PREFIX_ROLE:
             continue
         for match in pattern.finditer(clause_segment):
+            if role == RECOMMEND_NOT_ROLE:
+                not_idx = clause_segment.find("not")
+                if not_idx == -1:
+                    continue
+                alias_hits = [
+                    alias_match
+                    for alias_match in _PATH_TERM_PATTERN.finditer(match.group(0))
+                    if _PATH_TERM_TO_LABEL[_normalize_alias(alias_match.group(0))] == path
+                ]
+                if not alias_hits:
+                    continue
+                between = clause_segment[not_idx : alias_hits[0].start()]
+                if _CLAUSE_CONTRAST_PATTERN.search(between):
+                    continue
             if role == AVOIDANCE_ROLE:
                 alias_matches = list(_PATH_TERM_PATTERN.finditer(match.group(0)))
                 if not alias_matches:
@@ -673,7 +696,7 @@ def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int
                 positions.append(absolute_term_start)
 
     for role, pattern in patterns:
-        if role == "modal_prefix":
+        if role == MODAL_PREFIX_ROLE:
             continue
         for match in pattern.finditer(sentence):
             segment = sentence[match.start() : match.end()]
@@ -702,6 +725,8 @@ def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int
                 if not modal_match:
                     continue
                 between = segment[alias_match.end() : modal_match.start()]
+                # Keep modal negations local to the alias clause and ignore incidental
+                # subjects that separate the modal from the path reference.
                 if _SUBORDINATE_BOUNDARY_PATTERN.search(between):
                     continue
                 if _INCIDENTAL_SUBJECT_PATTERN.search(between):
@@ -716,6 +741,20 @@ def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int
                     continue
                 before_alias = segment[: first_alias.start()]
                 if _BY_PREPOSITION_PATTERN.search(before_alias):
+                    continue
+            if role == RECOMMEND_NOT_ROLE:
+                not_idx = segment.find("not")
+                if not_idx == -1:
+                    continue
+                alias_hits = [
+                    alias_match
+                    for alias_match in _PATH_TERM_PATTERN.finditer(segment)
+                    if _PATH_TERM_TO_LABEL[_normalize_alias(alias_match.group(0))] == path
+                ]
+                if not alias_hits:
+                    continue
+                between = segment[not_idx : alias_hits[0].start()]
+                if _CLAUSE_CONTRAST_PATTERN.search(between):
                     continue
 
             positions.append(match.start())
@@ -978,7 +1017,7 @@ def _fallback_section(response: str, pattern: str) -> tuple[str, tuple[int, int]
     return "", (0, 0)
 
 
-def parse_dual_path_response(response: str) -> dict[str, Any]:
+def parse_dual_path_response(response: str) -> dict[str, object]:
     """Parse model response into structured dual-path sections."""
 
     sections = {
@@ -1112,6 +1151,21 @@ def parse_dual_path_response(response: str) -> dict[str, Any]:
             ):
                 sections["recommended_path"] = path
                 break
+
+    if (
+        sections["recommended_path"] == "unclear"
+        and path1_last_negative is not None
+        and path2_mentioned
+        and path2_last_negative is None
+    ):
+        sections["recommended_path"] = "path_2"
+    elif (
+        sections["recommended_path"] == "unclear"
+        and path2_last_negative is not None
+        and path1_mentioned
+        and path1_last_negative is None
+    ):
+        sections["recommended_path"] = "path_1"
 
     if (
         sections["recommended_path"] == "unclear"
