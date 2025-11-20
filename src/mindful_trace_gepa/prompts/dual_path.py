@@ -1,7 +1,6 @@
 """Dual-path prompting utilities with attribution-aligned formatting."""
 
 import re
-from typing import Any
 
 from mindful_trace_gepa.shared.vocabulary import RISK_QUALITY_ADJECTIVES
 
