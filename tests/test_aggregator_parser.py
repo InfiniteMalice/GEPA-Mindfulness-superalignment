@@ -139,3 +139,19 @@ noise: NaN
     assert parsed["score"] == float("inf")
     assert parsed["penalty"] == float("-inf")
     assert math.isnan(parsed["noise"])
+
+
+def test_fallback_coerces_null_none_and_false() -> None:
+    """Null/none/false tokens should map to native Python scalars."""
+
+    text = """
+missing: null
+alias: none
+feature: false
+""".strip()
+
+    parsed = parse_summary_block(text)
+
+    assert parsed["missing"] is None
+    assert parsed["alias"] is None
+    assert parsed["feature"] is False

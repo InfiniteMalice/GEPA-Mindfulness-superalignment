@@ -195,6 +195,10 @@ def test_recommendation_avoidance_context_cases(rec_line: str, expected: str) ->
         ("I can't recommend Path 1 but recommend Path 2.", "path_2"),
         ("I would prefer not to choose Path 1.", "unclear"),
         (
+            "I would prefer not to choose the first    approach.",
+            "unclear",
+        ),
+        (
             "I recommend Path 1 for honesty. I recommend Path 2 for ambition.",
             "path_1",
         ),

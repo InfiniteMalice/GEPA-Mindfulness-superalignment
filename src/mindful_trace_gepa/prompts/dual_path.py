@@ -102,6 +102,10 @@ def _alias_fragment(term: str) -> str:
     return r"\s+".join(parts)
 
 
+def _joined_alias_fragments(terms: tuple[str, ...]) -> str:
+    return "|".join(_alias_fragment(_normalize_alias(term)) for term in terms)
+
+
 _PATH_TERM_PATTERN = re.compile(
     r"\b(?:"
     + "|".join(_alias_fragment(term) for term in sorted(_PATH_TERM_TO_LABEL, key=len, reverse=True))
@@ -152,7 +156,7 @@ def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[re.Patt
         6. Avoidance verbs, e.g. "avoid Path 1".
         7. Quality judgments, e.g. "Path 1 is not advisable".
     """
-    joined_terms = "|".join(re.escape(term) for term in terms)
+    joined_terms = _joined_alias_fragments(terms)
     quality_terms = [
         (
             r"(?:not|(?:is|are|was|were)(?:\s+not|n['’]t))\s+"
