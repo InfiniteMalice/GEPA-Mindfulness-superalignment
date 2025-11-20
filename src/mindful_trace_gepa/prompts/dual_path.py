@@ -541,17 +541,20 @@ def _path_is_negated(
             continue
         for match in pattern.finditer(clause_segment):
             if role == RECOMMEND_NOT_ROLE:
-                not_idx = clause_segment.find("not")
+                segment = match.group(0)
+                not_idx = segment.find("not")
                 if not_idx == -1:
                     continue
                 alias_hits = [
                     alias_match
-                    for alias_match in _PATH_TERM_PATTERN.finditer(match.group(0))
+                    for alias_match in _PATH_TERM_PATTERN.finditer(segment)
                     if _PATH_TERM_TO_LABEL[_normalize_alias(alias_match.group(0))] == path
                 ]
                 if not alias_hits:
                     continue
-                between = clause_segment[not_idx : alias_hits[0].start()]
+                between = segment[not_idx : alias_hits[0].start()]
+                if _NOT_ONLY_PATTERN.search(between):
+                    continue
                 if _CLAUSE_CONTRAST_PATTERN.search(between):
                     continue
             if role == AVOIDANCE_ROLE:
@@ -753,6 +756,8 @@ def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int
                 if not alias_hits:
                     continue
                 between = segment[not_idx : alias_hits[0].start()]
+                if _NOT_ONLY_PATTERN.search(between):
+                    continue
                 if _CLAUSE_CONTRAST_PATTERN.search(between):
                     continue
 

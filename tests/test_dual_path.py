@@ -277,6 +277,10 @@ def test_recommendation_avoidance_context_cases(rec_line: str, expected: str) ->
             "I recommend, not surprisingly, Path 1. Path 2 is risky.",
             "path_1",
         ),
+        (
+            "I recommend not only Path 1 but also Path 2.",
+            "path_1",
+        ),
     ],
     ids=[
         "p2_after_p1_neg",
@@ -316,6 +320,7 @@ def test_recommendation_avoidance_context_cases(rec_line: str, expected: str) ->
         "p1_not_be_used",
         "both_paths_neg",
         "not_surprisingly_p1",
+        "not_only_both_paths",
     ],
 )
 def test_recommendation_expected_path(recommendation_text: str, expected_path: str) -> None:
