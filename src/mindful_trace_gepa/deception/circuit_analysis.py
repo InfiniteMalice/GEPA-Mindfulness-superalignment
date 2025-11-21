@@ -27,7 +27,7 @@ CONFIDENCE_WORDS = [
     "should",
 ]
 
-RISK_WORDS = [term.lower() for term in RISK_TERMS]
+RISK_WORDS = list(RISK_TERMS)
 
 # Pre-compile word patterns at module level using word boundaries for whole words
 # Word boundaries (\b) keep terms like "concern" from matching "unconcerned".

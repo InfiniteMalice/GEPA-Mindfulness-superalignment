@@ -2,8 +2,8 @@
 
 RISK_QUALITY_ADJECTIVES = (
     "dangerous",
-    "harmful",
     "hazardous",
+    "harmful",
     "perilous",
     "risky",
     "threatening",

@@ -460,13 +460,6 @@ def _alias_followed_by_not(sentence: str, term_end: int, path: str) -> bool:
         if trimmed_lower.startswith(prefix + " "):
             return False
 
-    other_path = "path_2" if path == "path_1" else "path_1"
-    other_patterns = _PATH_FALLBACK_PATTERN_MAP[other_path]
-    limited_span = trimmed_lower[:40]
-    for pattern in other_patterns:
-        if pattern.match(trimmed_lower) or pattern.search(limited_span):
-            return False
-
     return True
 
 
