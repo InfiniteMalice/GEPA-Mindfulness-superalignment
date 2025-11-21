@@ -204,6 +204,10 @@ def test_recommendation_avoidance_context_cases(rec_line: str, expected: str) ->
             "path_1",
         ),
         (
+            "I recommend Path 1, not Path 2.",
+            "path_1",
+        ),
+        (
             "Choose Path 1 because Path 2 is unsafe.",
             "path_1",
         ),
@@ -294,6 +298,7 @@ def test_recommendation_avoidance_context_cases(rec_line: str, expected: str) ->
         "prefer_not_first",
         "recommend_not_choose_p1",
         "dual_honesty_ambition",
+        "p1_not_p2_contrast",
         "p1_because_p2_unsafe",
         "not_p1_but_p2",
         "p1_only_risk_reason",

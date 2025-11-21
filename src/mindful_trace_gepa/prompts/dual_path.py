@@ -452,6 +452,12 @@ def _alias_followed_by_not(sentence: str, term_end: int, path: str) -> bool:
     if not trimmed:
         return True
 
+    alias_match = _PATH_TERM_PATTERN.match(trimmed_lower)
+    if alias_match:
+        alias_label = _PATH_TERM_TO_LABEL[_normalize_alias(alias_match.group(0))]
+        if alias_label != path:
+            return False
+
     if trimmed_lower.startswith("only"):
         return False
 
