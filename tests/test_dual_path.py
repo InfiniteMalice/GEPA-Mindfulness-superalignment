@@ -14,8 +14,8 @@ from mindful_trace_gepa.prompts.dual_path import (
 def _build_dual_path_response(recommendation: str) -> str:
     """Return a dual-path response populated with the provided recommendation clause."""
 
-    return dedent(
-        f"""
+    template = dedent(
+        """
         [PATH 1 REASONING]
         Safety first.
 
@@ -29,6 +29,8 @@ def _build_dual_path_response(recommendation: str) -> str:
         {recommendation}
         """
     )
+
+    return template.format(recommendation=recommendation)
 
 
 def test_dual_path_prompt_structure() -> None:
