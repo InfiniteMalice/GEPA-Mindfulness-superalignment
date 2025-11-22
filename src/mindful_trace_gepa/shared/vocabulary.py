@@ -2,8 +2,8 @@
 
 RISK_QUALITY_ADJECTIVES = (
     "dangerous",
-    "hazardous",
     "harmful",
+    "hazardous",
     "perilous",
     "risky",
     "threatening",
@@ -22,8 +22,8 @@ RISK_CONCERN_TERMS = (
     "issue",
     "issues",
     "problem",
-    "problems",
     "problematic",
+    "problems",
     "risk",
     "risks",
 )
