@@ -264,7 +264,7 @@ _PATH_FALLBACK_PATTERN_MAP: dict[str, list[re.Pattern]] = {
 }
 _SENTENCE_SPLIT_PATTERN = re.compile(r"[.!?\n]+")
 _SUFFIX_WINDOW_LIMIT = 50  # Typical clause length for intensifier scans.
-_NOT_SUFFIX_PATTERN = re.compile(r"^[\s,;:()\-\u2014'\"]*not\b")
+_NOT_SUFFIX_PATTERN = re.compile(r"^[\s,;:()\-\u2014'’\"]*not\b")
 
 
 def _clause_prefix(sentence: str, verb_start: int) -> tuple[str, int]:
