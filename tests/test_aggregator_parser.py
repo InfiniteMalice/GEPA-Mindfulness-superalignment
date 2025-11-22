@@ -141,6 +141,16 @@ noise: NaN
     assert math.isnan(parsed["noise"])
 
 
+def test_fallback_preserves_text_after_first_colon() -> None:
+    """Only the first colon should split key/value pairs in fallback parsing."""
+
+    text = "note: reason: with extra detail"
+
+    parsed = parse_summary_block(text)
+
+    assert parsed["note"] == "reason: with extra detail"
+
+
 def test_fallback_coerces_null_none_and_false() -> None:
     """Null/none/false tokens should map to native Python scalars."""
 

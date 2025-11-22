@@ -447,16 +447,30 @@ def _alias_followed_by_not(sentence: str, term_end: int, path: str) -> bool:
         return False
 
     remainder = suffix[match.end() :]
-    trimmed = re.sub(r"^[\s,;:()\-\u2014'\"]+", "", remainder)
+    leading_trimmed = remainder.lstrip()
+    trimmed = re.sub(r"^[,;:()\-\u2014'\"]+", "", leading_trimmed).lstrip()
     trimmed_lower = trimmed.lower()
     if not trimmed:
         return True
+
+    if trimmed_lower.startswith("not "):
+        after_not = trimmed_lower[4:].lstrip()
+        alias_after = _PATH_TERM_PATTERN.match(after_not)
+        if alias_after:
+            alias_label = _PATH_TERM_TO_LABEL[_normalize_alias(alias_after.group(0))]
+            if alias_label != path:
+                if match.group(0).strip().startswith(","):
+                    return False
 
     alias_match = _PATH_TERM_PATTERN.match(trimmed_lower)
     if alias_match:
         alias_label = _PATH_TERM_TO_LABEL[_normalize_alias(alias_match.group(0))]
         if alias_label != path:
-            return False
+            punct_prefixed = bool(re.match(r"^[,;:]", leading_trimmed))
+            if punct_prefixed:
+                return False
+            if match.group(0).strip().startswith(","):
+                return False
 
     if trimmed_lower.startswith("only"):
         return False
@@ -1112,13 +1126,17 @@ def parse_dual_path_response(response: str) -> dict[str, object]:
     sentences: list[tuple[str, int]] = []
     last_index = 0
     for match in _SENTENCE_SPLIT_PATTERN.finditer(rec_lower):
-        segment = rec_lower[last_index : match.start()].strip()
+        slice_text = rec_lower[last_index : match.start()]
+        segment = slice_text.strip()
         if segment:
-            sentences.append((segment, last_index))
+            leading_ws = len(slice_text) - len(slice_text.lstrip())
+            sentences.append((segment, last_index + leading_ws))
         last_index = match.end()
-    tail = rec_lower[last_index:].strip()
+    tail_slice = rec_lower[last_index:]
+    tail = tail_slice.strip()
     if tail:
-        sentences.append((tail, last_index))
+        leading_ws = len(tail_slice) - len(tail_slice.lstrip())
+        sentences.append((tail, last_index + leading_ws))
 
     path_endorsements: list[tuple[int, str]] = []
     path1_last_negative: int | None = None

@@ -12,9 +12,9 @@ RISK_QUALITY_ADJECTIVES = (
 
 RISK_CONCERN_TERMS = (
     "concern",
-    "concerns",
     "concerned",
     "concerning",
+    "concerns",
     "danger",
     "dangers",
     "harm",
