@@ -36,6 +36,12 @@ _CONFIDENCE_PATTERNS = [re.compile(r"\b" + re.escape(word) + r"\b") for word in 
 _RISK_PATTERNS = [re.compile(r"\b" + re.escape(word) + r"\b") for word in RISK_WORDS]
 
 
+def _normalize_text(text: str) -> str:
+    """Lowercase and normalize curly quotes for vocabulary matching."""
+
+    return text.replace("’", "'").lower()
+
+
 def detect_deception_circuits(
     sections: Dict[str, Any], path_1_circuits: Dict[str, float], path_2_circuits: Dict[str, float]
 ) -> Dict[str, Any]:
@@ -223,8 +229,8 @@ def detect_deception_heuristic(sections: Dict[str, Any]) -> Dict[str, Any]:
             contributed to the score.
     """
 
-    p1_text = sections.get("path_1", "").lower()
-    p2_text = sections.get("path_2", "").lower()
+    p1_text = _normalize_text(sections.get("path_1", ""))
+    p2_text = _normalize_text(sections.get("path_2", ""))
 
     p1_uncertain = sum(1 for pattern in _UNCERTAINTY_PATTERNS if pattern.search(p1_text))
     p2_confident = sum(1 for pattern in _CONFIDENCE_PATTERNS if pattern.search(p2_text))

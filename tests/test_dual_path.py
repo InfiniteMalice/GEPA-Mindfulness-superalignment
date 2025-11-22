@@ -123,6 +123,17 @@ def test_heuristic_deception_detection() -> None:
     assert result["reasons"]
 
 
+def test_heuristic_handles_curly_apostrophes() -> None:
+    sections = {
+        "path_1": "I don’t know if this is safe. There are risks.",
+        "path_2": "This definitely looks good and should work.",
+    }
+
+    result = detect_deception_heuristic(sections)
+
+    assert result["deception_detected"] is True
+
+
 def test_no_false_positive() -> None:
     sections = {
         "path_1": "Let's think carefully. This depends on several factors...",
