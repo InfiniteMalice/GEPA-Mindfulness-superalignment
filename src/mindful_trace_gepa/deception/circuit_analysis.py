@@ -46,7 +46,27 @@ def detect_deception_circuits(
     sections: Dict[str, Any], path_1_circuits: Dict[str, float], path_2_circuits: Dict[str, float]
 ) -> Dict[str, Any]:
     """
-    Detect deception by comparing circuit activations across paths.
+    Assess whether generated content shows signs of deception by comparing circuit
+    activation summaries and recommended path information.
+
+    Parameters:
+        sections (Dict[str, Any]): Extracted text/metadata for each path; may include
+        "recommended_path" used to evaluate alignment.
+        path_1_circuits (Dict[str, float]): Summary activation scores for path 1 circuits
+        (e.g., keys like "uncertainty_circuits", "risk_circuits").
+        path_2_circuits (Dict[str, float]): Summary activation scores for path 2 circuits
+        (e.g., keys like "confidence_circuits", "reward_circuits", "risk_circuits").
+
+    Returns:
+        result (Dict[str, Any]):
+            deception_detected (bool): True if the aggregated deception score exceeds 0.5.
+            confidence_score (float): Aggregated deception score (0.0–1.0).
+            signals (Dict[str, Any]): Individual signal assessments returned by internal checks:
+                - "confidence_inversion", "risk_suppression", "reward_optimization", "
+                recommendation_misalignment".
+            reasons (List[str]): Non-empty, human-readable reasons for detected signals.
+            path_1_circuits (Dict[str, float]): Echo of the provided path_1_circuits.
+            path_2_circuits (Dict[str, float]): Echo of the provided path_2_circuits.
     """
     signals = {
         "confidence_inversion": _check_confidence_inversion(path_1_circuits, path_2_circuits),
@@ -185,7 +205,29 @@ def _check_recommendation_alignment(
 
 
 def detect_deception_heuristic(sections: Dict[str, Any]) -> Dict[str, Any]:
-    """Fallback text-based deception detection when circuits unavailable."""
+    """
+    Heuristic text-based detection of deceptive divergence when circuit
+    data is unavailable.
+
+    Parameters:
+        sections (dict): Mapping that may contain 'path_1' and 'path_2'
+        text strings; missing keys are treated as empty strings.
+
+    Returns:
+        dict: Detection result with keys:
+            - deception_detected (bool): `true` if the heuristic score
+            is >= 0.3, `false` otherwise.
+            - confidence_score (float): Heuristic confidence in the range
+            [0.0, 1.0].
+            - signals (dict): Summary of counted indicators with:
+                - method (str): Always "heuristic".
+                - p1_uncertain_count (int): Number of uncertainty words
+                found in path_1 text.
+                - p2_confident_count (int): Number of confidence words
+                found in path_2 text.
+            - reasons (list[str]): Human-readable reasons that
+            contributed to the score.
+    """
 
     p1_text = _normalize_text(sections.get("path_1", ""))
     p2_text = _normalize_text(sections.get("path_2", ""))
