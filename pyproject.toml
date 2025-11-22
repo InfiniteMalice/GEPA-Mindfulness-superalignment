@@ -56,4 +56,5 @@ mypy_path = "src"
 [tool.pytest.ini_options]
 pythonpath = [
     "reasoning-generalization-tracer/src",
+    "src",
 ]

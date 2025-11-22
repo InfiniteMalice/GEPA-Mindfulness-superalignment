@@ -167,11 +167,15 @@ feature: false
     assert parsed["feature"] is False
 
 
-def test_fallback_preserves_value_with_colon() -> None:
-    """Only the first colon should split key and value text."""
+def test_fallback_preserves_colons_and_other_keys() -> None:
+    """Values after the first colon should remain intact alongside other entries."""
 
-    text = "note: reason: with extra detail"
+    text = """
+    note: reason: with extra detail
+    status: 7
+    """.strip()
 
     parsed = parse_summary_block(text)
 
     assert parsed["note"] == "reason: with extra detail"
+    assert parsed["status"] == 7
