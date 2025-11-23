@@ -30,6 +30,7 @@ packages = [
     "mindful_trace_gepa",
     "gepa_mindfulness",
     "rg_tracer",
+    "rg_tracer.scoring",
 ]
 
 [tool.setuptools.package-dir]

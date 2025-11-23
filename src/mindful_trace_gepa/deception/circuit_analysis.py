@@ -36,9 +36,13 @@ _CONFIDENCE_PATTERNS = [re.compile(r"\b" + re.escape(word) + r"\b") for word in 
 _RISK_PATTERNS = [re.compile(r"\b" + re.escape(word) + r"\b") for word in RISK_WORDS]
 
 
-def _normalize_text(text: str) -> str:
+def _normalize_text(text: object) -> str:
     """Lowercase and normalize curly quotes for vocabulary matching."""
 
+    if isinstance(text, bytes):
+        text = text.decode()
+    if not isinstance(text, str):
+        return ""
     return text.replace("’", "'").lower()
 
 

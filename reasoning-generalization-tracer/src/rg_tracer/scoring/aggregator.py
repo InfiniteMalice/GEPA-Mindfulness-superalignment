@@ -32,7 +32,11 @@ def parse_summary_block(text: str) -> dict[str, Any]:
 
     try:
         parsed = json.loads(stripped)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as exc:
+        leading = stripped.lstrip()
+        if leading.startswith(("{", "[")):
+            raise exc
+
         dedented = textwrap.dedent(text).strip()
         if not dedented:
             return {}

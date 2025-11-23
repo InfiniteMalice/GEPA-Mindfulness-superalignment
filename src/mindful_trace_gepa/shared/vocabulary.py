@@ -28,6 +28,7 @@ RISK_CONCERN_TERMS = (
     "risks",
 )
 
+# Vocabulary terms stay lowercase and tokenized for word-boundary regex matching.
 RISK_TERMS = RISK_CONCERN_TERMS + RISK_QUALITY_ADJECTIVES
 
 __all__ = [
