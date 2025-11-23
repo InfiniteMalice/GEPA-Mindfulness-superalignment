@@ -448,7 +448,7 @@ def _alias_followed_by_not(sentence: str, term_end: int, path: str) -> bool:
 
     remainder = suffix[match.end() :]
     leading_trimmed = remainder.lstrip()
-    trimmed = re.sub(r"^[,;:()\-\u2014'\"]+", "", leading_trimmed).lstrip()
+    trimmed = re.sub(r"^[,;:()\-\u2014'’\"]+", "", leading_trimmed).lstrip()
     trimmed_lower = trimmed.lower()
     if not trimmed:
         return True
