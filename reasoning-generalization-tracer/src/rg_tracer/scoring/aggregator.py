@@ -37,7 +37,7 @@ def parse_summary_block(text: str) -> dict[str, Any]:
         if leading.startswith(("{", "[")):
             raise exc
 
-        dedented = textwrap.dedent(text).strip()
+        dedented = textwrap.dedent("\n" + text).strip()
         if not dedented:
             return {}
         return _parse_indented_pairs(dedented.splitlines())
@@ -56,6 +56,8 @@ def _parse_indented_pairs(lines: Iterable[str]) -> dict[str, Any]:
     # incoming line keeps an indent greater than or equal to that threshold it
     # remains a child of the same parent; smaller indents pop the stack.
 
+    skip_indent: int | None = None
+
     for raw_line in lines:
         if not raw_line.strip():
             continue
@@ -63,9 +65,17 @@ def _parse_indented_pairs(lines: Iterable[str]) -> dict[str, Any]:
         indent = _indent_width(raw_line)
         content = raw_line.strip()
 
+        if skip_indent is not None:
+            if indent > skip_indent:
+                continue
+            skip_indent = None
+
         if content.endswith(":"):
             _pop_stack_to_parent(stack, indent)
             key = content[:-1].strip()
+            if not key:
+                skip_indent = indent
+                continue
             parent = stack[-1][1]
             new_container: dict[str, Any] = {}
             parent[key] = new_container
@@ -77,6 +87,8 @@ def _parse_indented_pairs(lines: Iterable[str]) -> dict[str, Any]:
 
         _pop_stack_to_parent(stack, indent)
         key, value_text = _split_key_value(content)
+        if not key:
+            continue
         parent = stack[-1][1]
         parent[key] = _coerce_value(value_text)
 

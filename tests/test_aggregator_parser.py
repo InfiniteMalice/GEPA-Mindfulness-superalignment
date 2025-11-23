@@ -4,7 +4,7 @@ import json
 import math
 
 import pytest
-from rg_tracer.scoring.aggregator import parse_summary_block
+from rg_tracer.scoring import parse_summary_block
 
 
 def test_fallback_nested_dict_from_indent() -> None:
@@ -180,6 +180,21 @@ def test_fallback_preserves_colons_and_other_keys() -> None:
 
     assert parsed["note"] == "reason: with extra detail"
     assert parsed["status"] == 7
+
+
+def test_fallback_skips_empty_keys() -> None:
+    """Lines without a key should be ignored rather than inserted as empty strings."""
+
+    text = """
+    : orphaned
+    valid: entry
+    :
+        child: value
+    """.strip()
+
+    parsed = parse_summary_block(text)
+
+    assert parsed == {"valid": "entry"}
 
 
 def test_json_like_invalid_input_raises() -> None:
