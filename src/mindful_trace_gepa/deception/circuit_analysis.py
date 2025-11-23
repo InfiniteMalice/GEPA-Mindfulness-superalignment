@@ -40,7 +40,7 @@ def _normalize_text(text: object) -> str:
     """Lowercase and normalize curly quotes for vocabulary matching."""
 
     if isinstance(text, bytes):
-        text = text.decode()
+        text = text.decode(errors="ignore")
     if not isinstance(text, str):
         return ""
     return text.replace("’", "'").lower()

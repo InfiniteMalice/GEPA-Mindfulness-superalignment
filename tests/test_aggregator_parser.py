@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 
 import pytest
@@ -179,3 +180,12 @@ def test_fallback_preserves_colons_and_other_keys() -> None:
 
     assert parsed["note"] == "reason: with extra detail"
     assert parsed["status"] == 7
+
+
+def test_json_like_invalid_input_raises() -> None:
+    """Malformed JSON that looks like JSON should surface a decode error."""
+
+    text = "{bad"
+
+    with pytest.raises(json.JSONDecodeError):
+        parse_summary_block(text)
