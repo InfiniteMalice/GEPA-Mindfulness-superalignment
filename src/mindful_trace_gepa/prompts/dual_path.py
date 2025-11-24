@@ -59,7 +59,7 @@ PATH1_ENDORSEMENT_TERMS = (
     "first approach",
     "careful approach",
     "careful path",
-    "careful",
+    "careful option",
 )
 # Alias retained so fallback logic can evolve separately if needed.
 PATH1_FALLBACK_TERMS = PATH1_ENDORSEMENT_TERMS
@@ -169,7 +169,7 @@ def _compile_negative_reference_patterns(terms: tuple[str, ...]) -> list[tuple[s
         "unwise",
         "bad",
     ]
-    risk_quality = "|".join(re.escape(adj) for adj in RISK_QUALITY_ADJECTIVES)
+    risk_quality = "|".join(re.escape(adj.lower()) for adj in RISK_QUALITY_ADJECTIVES)
     if risk_quality:
         quality_terms.append(r"(?:" + risk_quality + r")")
     quality_negation = r"(?:" + "|".join(quality_terms) + r")"
