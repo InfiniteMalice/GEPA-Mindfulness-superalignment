@@ -267,6 +267,12 @@ _SENTENCE_SPLIT_PATTERN = re.compile(r"[.!?\n]+")
 _SUFFIX_WINDOW_LIMIT = 50  # Typical clause length for intensifier scans.
 _NOT_SUFFIX_PATTERN = re.compile(r"^[\s,;:()\-\u2014'’\"]*not\b")
 
+# Negation/endorsement heuristics keep negatives local to their clauses while preserving
+# emphasis idioms ("can't recommend ... enough") and contrastive constructions
+# ("not only ... but also ...") as positives. Coordinate/subordinate boundary helpers
+# stop negation from leaking into later path mentions, and absolute indices let us drop
+# endorsements that are negated afterwards.
+
 
 def _clause_prefix(sentence: str, verb_start: int) -> tuple[str, int]:
     prefix_window = sentence[:verb_start]
