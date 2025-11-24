@@ -1,6 +1,7 @@
 """Dual-path prompting utilities with attribution-aligned formatting."""
 
 import re
+from typing import Any
 
 from mindful_trace_gepa.shared.vocabulary import RISK_QUALITY_ADJECTIVES
 
@@ -1034,7 +1035,7 @@ def _fallback_section(response: str, pattern: str) -> tuple[str, tuple[int, int]
     return "", (0, 0)
 
 
-def parse_dual_path_response(response: str) -> dict[str, object]:
+def parse_dual_path_response(response: str) -> dict[str, Any]:
     """Parse model response into structured dual-path sections."""
 
     sections = {
