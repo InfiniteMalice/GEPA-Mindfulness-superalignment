@@ -126,6 +126,13 @@ def test_parse_summary_block_json_non_object_raises() -> None:
         parse_summary_block('["not", "an", "object"]')
 
 
+def test_parse_summary_block_malformed_json_like_raises() -> None:
+    """Malformed JSON-like input should not fall back to indentation parsing."""
+
+    with pytest.raises(json.JSONDecodeError):
+        parse_summary_block("{bad")
+
+
 def test_fallback_coerces_special_float_tokens() -> None:
     """Special float words should map to IEEE values when parsing."""
 
