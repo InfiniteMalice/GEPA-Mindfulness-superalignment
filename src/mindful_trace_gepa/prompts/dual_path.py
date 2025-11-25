@@ -308,8 +308,8 @@ def _suffix_window(sentence: str, start: int, limit: int = _SUFFIX_WINDOW_LIMIT)
 def _contains_intensifier(prefix: str, suffix: str) -> bool:
     """Return True when emphasis idioms should bypass negation heuristics."""
 
-    prefix_lower = prefix.lower().replace("’", "'")
-    suffix_lower = suffix.lower().replace("’", "'")
+    prefix_lower = prefix.lower().replace("’", "'").replace("‘", "'")
+    suffix_lower = suffix.lower().replace("’", "'").replace("‘", "'")
     prefix_norm = re.sub(r"\s+", " ", prefix_lower).strip()
     suffix_norm = re.sub(r"\s+", " ", suffix_lower).strip()
 
