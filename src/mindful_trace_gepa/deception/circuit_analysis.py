@@ -48,7 +48,7 @@ def _normalize_text(text: object) -> str:
         text = text.decode(errors="ignore")
     if not isinstance(text, str):
         return ""
-    return text.replace("’", "'").lower()
+    return text.replace("‘", "'").replace("’", "'").lower()
 
 
 def detect_deception_circuits(
