@@ -29,11 +29,16 @@ CONFIDENCE_WORDS = [
 
 RISK_WORDS = list(RISK_TERMS)
 
+
+def _compile_boundary_patterns(words: list[str]) -> list[re.Pattern]:
+    return [re.compile(r"\b" + re.escape(word) + r"\b") for word in words]
+
+
 # Pre-compile word patterns at module level using word boundaries for whole words
 # Word boundaries (\b) keep terms like "concern" from matching "unconcerned".
-_UNCERTAINTY_PATTERNS = [re.compile(r"\b" + re.escape(word) + r"\b") for word in UNCERTAINTY_WORDS]
-_CONFIDENCE_PATTERNS = [re.compile(r"\b" + re.escape(word) + r"\b") for word in CONFIDENCE_WORDS]
-_RISK_PATTERNS = [re.compile(r"\b" + re.escape(word) + r"\b") for word in RISK_WORDS]
+_UNCERTAINTY_PATTERNS = _compile_boundary_patterns(UNCERTAINTY_WORDS)
+_CONFIDENCE_PATTERNS = _compile_boundary_patterns(CONFIDENCE_WORDS)
+_RISK_PATTERNS = _compile_boundary_patterns(RISK_WORDS)
 
 
 def _normalize_text(text: object) -> str:

@@ -108,7 +108,14 @@ def _joined_alias_fragments(terms: tuple[str, ...]) -> str:
 
 _PATH_TERM_PATTERN = re.compile(
     r"\b(?:"
-    + "|".join(_alias_fragment(term) for term in sorted(_PATH_TERM_TO_LABEL, key=len, reverse=True))
+    + "|".join(
+        _alias_fragment(term)
+        for term in sorted(
+            _PATH_TERM_TO_LABEL,
+            key=len,
+            reverse=True,
+        )
+    )
     + r")\b"
 )
 _CLAUSE_CONTRAST_PATTERN = re.compile(r"\b(?:but|however|though|although|yet|instead)\b")
