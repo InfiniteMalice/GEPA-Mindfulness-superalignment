@@ -25,12 +25,28 @@ dspy = ["dspy-ai>=2.5"]
 gepa = "mindful_trace_gepa.cli:main"
 
 [tool.setuptools]
-include-package-data = true
-packages = ["mindful_trace_gepa", "gepa_mindfulness"]
-package-dir = { "mindful_trace_gepa" = "src/mindful_trace_gepa", "gepa_mindfulness" = "gepa_mindfulness" }
+"include-package-data" = true
+packages = [
+    "mindful_trace_gepa",
+    "gepa_mindfulness",
+    "rg_tracer",
+    "rg_tracer.scoring",
+]
+
+[tool.setuptools.package-dir]
+mindful_trace_gepa = "src/mindful_trace_gepa"
+gepa_mindfulness = "gepa_mindfulness"
+rg_tracer = "reasoning-generalization-tracer/src/rg_tracer"
 
 [tool.setuptools.package-data]
-mindful_trace_gepa = ["viewer/*.html", "viewer/*.css", "viewer/*.js", "viewer/*.html.new", "viewer/*.css.new", "viewer/*.js.new"]
+mindful_trace_gepa = [
+    "viewer/*.html",
+    "viewer/*.css",
+    "viewer/*.js",
+    "viewer/*.html.new",
+    "viewer/*.css.new",
+    "viewer/*.js.new",
+]
 
 [tool.black]
 line-length = 100
@@ -51,4 +67,10 @@ ignore = ["E203"]
 python_version = "3.10"
 warn_unused_ignores = true
 ignore_missing_imports = true
-mypy_path = "src"
+mypy_path = "src:reasoning-generalization-tracer/src"
+
+[tool.pytest.ini_options]
+pythonpath = [
+    "reasoning-generalization-tracer/src",
+    "src",
+]
