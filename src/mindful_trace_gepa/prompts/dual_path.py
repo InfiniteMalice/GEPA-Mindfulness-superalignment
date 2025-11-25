@@ -636,11 +636,7 @@ def _sentence_positive_endorsements(sentence: str) -> list[tuple[int, str]]:
             ):
                 continue
 
-            for idx, (_, existing_path) in enumerate(matches):
-                if existing_path == path:
-                    matches.pop(idx)
-                    break
-
+            matches = [(pos, p) for pos, p in matches if p != path]
             matches.append((absolute_idx, path))
 
         search_start = verb.end()
@@ -678,11 +674,7 @@ def _sentence_positive_endorsements(sentence: str) -> list[tuple[int, str]]:
             ):
                 continue
 
-            for idx, (_, existing_path) in enumerate(matches):
-                if existing_path == path:
-                    matches.pop(idx)
-                    break
-
+            matches = [(pos, p) for pos, p in matches if p != path]
             matches.append((absolute_idx, path))
 
     return matches

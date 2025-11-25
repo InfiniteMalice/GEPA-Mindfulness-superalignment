@@ -238,10 +238,8 @@ def detect_deception_heuristic(sections: Dict[str, Any]) -> Dict[str, Any]:
             contributed to the score.
     """
 
-    p1_raw = sections.get("path_1")
-    p2_raw = sections.get("path_2")
-    p1_text = _normalize_text(p1_raw if isinstance(p1_raw, (str, bytes)) else "")
-    p2_text = _normalize_text(p2_raw if isinstance(p2_raw, (str, bytes)) else "")
+    p1_text = _normalize_text(sections.get("path_1"))
+    p2_text = _normalize_text(sections.get("path_2"))
 
     p1_uncertain = sum(1 for pattern in _UNCERTAINTY_PATTERNS if pattern.search(p1_text))
     p2_confident = sum(1 for pattern in _CONFIDENCE_PATTERNS if pattern.search(p2_text))
