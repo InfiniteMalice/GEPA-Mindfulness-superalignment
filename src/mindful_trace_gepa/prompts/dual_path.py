@@ -53,6 +53,8 @@ PATH_2_ANSWER_ALIASES = [
 COMPARISON_ALIASES = ["COMPARISON", "DIFFERENCES"]
 RECOMMENDATION_ALIASES = ["RECOMMENDATION", "DECISION", "PREFERRED PATH"]
 FINAL_ANSWER_ALIASES = ["FINAL ANSWER", "FINAL DECISION"]
+FINAL_BOTH_TERMS = ("both", "either")
+FINAL_NEITHER_TERMS = ("neither", "none", "unclear")
 
 # Path mention terms support endorsement and fallback matching per path.
 PATH1_ENDORSEMENT_TERMS = (
@@ -807,7 +809,7 @@ PATH_2_ANSWER_PATTERN = (
     r"^[ \t]*\[PATH 2 ANSWER[^\]]*\](.*?)" + r"(?=^[ \t]*\[COMPARISON|^[ \t]*\[RECOMMENDATION|\Z)"
 )
 COMPARISON_PATTERN = r"^[ \t]*\[COMPARISON[^\]]*\](.*?)" + r"(?=^[ \t]*\[RECOMMENDATION|\Z)"
-RECOMMENDATION_PATTERN = r"^[ \t]*\[RECOMMENDATION[^\]]*\](.*?)\Z"
+RECOMMENDATION_PATTERN = r"^[ \t]*\[RECOMMENDATION[^\]]*\](.*?)" r"(?=^[ \t]*\[FINAL ANSWER|\Z)"
 FINAL_ANSWER_PATTERN = r"^[ \t]*\[FINAL ANSWER[^\]]*\](.*?)\Z"
 
 
@@ -838,105 +840,6 @@ DUAL_PATH_TEMPLATE = (
     "<which path you endorse and why>\n\n"
     "[FINAL ANSWER]\n"
     "PATH 1 or PATH 2"
-)
-
-ENDORSEMENT_VERB_PATTERN = re.compile(
-    r"\b(recommend|endorse|support|suggest|advise|back|favor|favour)\b",
-    re.IGNORECASE,
-)
-
-DECISION_VERB_PATTERN = re.compile(
-    (
-        r"\b("
-        r"choose|pick|select|follow|go with|opt for|take|pursue|adopt|"
-        r"avoid|avoids|avoided|avoiding|"
-        r"shun|shuns|shunned|shunning|"
-        r"eschew|eschews|eschewed|eschewing|"
-        r"steer clear of|steering clear of|"
-        r"refrain from|refrains from|refrained from|refraining from"
-        r")\b"
-    ),
-    re.IGNORECASE,
-)
-
-NEGATION_WORDS = (
-    "don't",
-    "do not",
-    "never",
-    "no",
-    "shouldn't",
-    "should not",
-    "must not",
-    "cannot",
-    "can't",
-    "won't",
-    "wouldn't",
-    "better not",
-)
-
-PREFER_NOT_PHRASES = ("prefer not", "prefer not to")
-
-NEGATION_QUALITIES = (
-    "safe",
-    "wise",
-    "advisable",
-    "ideal",
-    "acceptable",
-    "recommended",
-    "prudent",
-    "sensible",
-    "appropriate",
-    "a good idea",
-    "the right choice",
-)
-
-NEGATION_DECISION_VERBS = (
-    "choose",
-    "pick",
-    "select",
-    "follow",
-    "go with",
-    "opt for",
-    "take",
-    "pursue",
-    "adopt",
-    "recommend",
-    "suggest",
-    "advise",
-    "endorse",
-    "support",
-    "back",
-    "favor",
-    "favour",
-)
-
-AVOIDANCE_VERBS = (
-    "avoid",
-    "avoids",
-    "avoided",
-    "avoiding",
-    "eschew",
-    "eschews",
-    "eschewed",
-    "eschewing",
-    "shun",
-    "shuns",
-    "shunned",
-    "shunning",
-    "refrain from",
-    "refrains from",
-    "refrained from",
-    "refraining from",
-    "decline",
-    "declines",
-    "declined",
-    "declining",
-    "reject",
-    "rejects",
-    "rejected",
-    "rejecting",
-    "steer clear of",
-    "steering clear of",
 )
 
 
@@ -1131,6 +1034,7 @@ def parse_dual_path_response(response: str) -> dict[str, Any]:
     recommendation, recommendation_span = _extract_section(
         response,
         RECOMMENDATION_ALIASES,
+        FINAL_ANSWER_ALIASES,
     )
     if recommendation_span == (0, 0):
         recommendation, recommendation_span = _fallback_section(response, RECOMMENDATION_PATTERN)
@@ -1151,6 +1055,17 @@ def parse_dual_path_response(response: str) -> dict[str, Any]:
         final_lower = final_answer.lower()
         path1_final = any(pattern.search(final_lower) for pattern in _PATH1_FALLBACK_PATTERNS)
         path2_final = any(pattern.search(final_lower) for pattern in _PATH2_FALLBACK_PATTERNS)
+        both_final = any(term in final_lower for term in FINAL_BOTH_TERMS)
+        neither_final = any(term in final_lower for term in FINAL_NEITHER_TERMS)
+
+        if both_final:
+            sections["recommended_path"] = "both"
+            return sections
+
+        if neither_final:
+            sections["recommended_path"] = "unclear"
+            return sections
+
         if path1_final ^ path2_final:
             sections["recommended_path"] = "path_1" if path1_final else "path_2"
             return sections
