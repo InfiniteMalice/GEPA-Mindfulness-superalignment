@@ -603,9 +603,9 @@ def _path_is_negated(
 
 
 def _sentence_positive_endorsements(sentence: str) -> list[tuple[int, str]]:
-    matches: list[tuple[int, str]] = []
+    endorsements: dict[str, int] = {}
     if not sentence:
-        return matches
+        return []
 
     for verb in DECISION_VERB_PATTERN.finditer(sentence):
         clause_prefix, clause_offset = _clause_prefix(sentence, verb.start())
@@ -636,8 +636,7 @@ def _sentence_positive_endorsements(sentence: str) -> list[tuple[int, str]]:
             ):
                 continue
 
-            matches = [(pos, p) for pos, p in matches if p != path]
-            matches.append((absolute_idx, path))
+            endorsements[path] = absolute_idx
 
         search_start = verb.end()
         remainder = sentence[search_start:]
@@ -674,10 +673,9 @@ def _sentence_positive_endorsements(sentence: str) -> list[tuple[int, str]]:
             ):
                 continue
 
-            matches = [(pos, p) for pos, p in matches if p != path]
-            matches.append((absolute_idx, path))
+            endorsements[path] = absolute_idx
 
-    return matches
+    return sorted(((pos, path) for path, pos in endorsements.items()), key=lambda item: item[0])
 
 
 def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int]:
@@ -793,17 +791,21 @@ def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int
     return positions
 
 
-PATH_1_SCRATCHPAD_PATTERN = r"^[ \t]*\[PATH 1 SCRATCHPAD[^\]]*\](.*?)(?=^[ \t]*\[PATH 1 ANSWER|\Z)"
+PATH_1_SCRATCHPAD_PATTERN = (
+    r"^[ \t]*\[PATH 1 SCRATCHPAD[^\]]*\]" + r"(.*?)(?=^[ \t]*\[PATH 1 ANSWER|\Z)"
+)
 PATH_1_ANSWER_PATTERN = (
     r"^[ \t]*\[PATH 1 ANSWER[^\]]*\](.*?)"
     r"(?=^[ \t]*\[PATH 2 SCRATCHPAD|^[ \t]*\[PATH 2 ANSWER|"
     r"^[ \t]*\[COMPARISON|^[ \t]*\[RECOMMENDATION|\Z)"
 )
-PATH_2_SCRATCHPAD_PATTERN = r"^[ \t]*\[PATH 2 SCRATCHPAD[^\]]*\](.*?)(?=^[ \t]*\[PATH 2 ANSWER|\Z)"
-PATH_2_ANSWER_PATTERN = (
-    r"^[ \t]*\[PATH 2 ANSWER[^\]]*\](.*?)(?=^[ \t]*\[COMPARISON|^[ \t]*\[RECOMMENDATION|\Z)"
+PATH_2_SCRATCHPAD_PATTERN = (
+    r"^[ \t]*\[PATH 2 SCRATCHPAD[^\]]*\]" + r"(.*?)(?=^[ \t]*\[PATH 2 ANSWER|\Z)"
 )
-COMPARISON_PATTERN = r"^[ \t]*\[COMPARISON[^\]]*\](.*?)(?=^[ \t]*\[RECOMMENDATION|\Z)"
+PATH_2_ANSWER_PATTERN = (
+    r"^[ \t]*\[PATH 2 ANSWER[^\]]*\](.*?)" + r"(?=^[ \t]*\[COMPARISON|^[ \t]*\[RECOMMENDATION|\Z)"
+)
+COMPARISON_PATTERN = r"^[ \t]*\[COMPARISON[^\]]*\](.*?)" + r"(?=^[ \t]*\[RECOMMENDATION|\Z)"
 RECOMMENDATION_PATTERN = r"^[ \t]*\[RECOMMENDATION[^\]]*\](.*?)\Z"
 
 
