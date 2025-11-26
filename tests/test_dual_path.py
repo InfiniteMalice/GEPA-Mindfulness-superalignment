@@ -349,6 +349,31 @@ def test_recommendation_expected_path(recommendation_text: str, expected_path: s
     assert sections["recommended_path"] == expected_path
 
 
+def test_final_answer_overrides_path_inference() -> None:
+    response = dedent(
+        """
+        [PATH 1 REASONING]
+        Safety first.
+
+        [PATH 2 REASONING]
+        Opportunistic view.
+
+        [COMPARISON]
+        They disagree.
+
+        [RECOMMENDATION]
+        I recommend Path 1 for honesty.
+
+        [FINAL ANSWER]
+        PATH 2
+        """
+    )
+
+    sections = parse_dual_path_response(response)
+
+    assert sections["recommended_path"] == "path_2"
+
+
 def test_recommendation_only_negation_leaves_unclear() -> None:
     response = _build_dual_path_response("We should avoid Path 1 here.")
 
