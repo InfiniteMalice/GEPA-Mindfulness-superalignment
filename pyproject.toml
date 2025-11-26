@@ -25,7 +25,7 @@ dspy = ["dspy-ai>=2.5"]
 gepa = "mindful_trace_gepa.cli:main"
 
 [tool.setuptools]
-include-package-data = true
+"include-package-data" = true
 packages = [
     "mindful_trace_gepa",
     "gepa_mindfulness",

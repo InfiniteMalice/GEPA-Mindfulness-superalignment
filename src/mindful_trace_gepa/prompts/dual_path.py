@@ -793,21 +793,17 @@ def _sentence_negative_reference_positions(sentence: str, path: str) -> list[int
     return positions
 
 
-PATH_1_SCRATCHPAD_PATTERN = (
-    r"^[ \t]*\[PATH 1 SCRATCHPAD[^\]]*\]" + r"(.*?)(?=^[ \t]*\[PATH 1 ANSWER|\Z)"
-)
+PATH_1_SCRATCHPAD_PATTERN = r"^[ \t]*\[PATH 1 SCRATCHPAD[^\]]*\](.*?)(?=^[ \t]*\[PATH 1 ANSWER|\Z)"
 PATH_1_ANSWER_PATTERN = (
     r"^[ \t]*\[PATH 1 ANSWER[^\]]*\](.*?)"
     r"(?=^[ \t]*\[PATH 2 SCRATCHPAD|^[ \t]*\[PATH 2 ANSWER|"
     r"^[ \t]*\[COMPARISON|^[ \t]*\[RECOMMENDATION|\Z)"
 )
-PATH_2_SCRATCHPAD_PATTERN = (
-    r"^[ \t]*\[PATH 2 SCRATCHPAD[^\]]*\]" + r"(.*?)(?=^[ \t]*\[PATH 2 ANSWER|\Z)"
-)
+PATH_2_SCRATCHPAD_PATTERN = r"^[ \t]*\[PATH 2 SCRATCHPAD[^\]]*\](.*?)(?=^[ \t]*\[PATH 2 ANSWER|\Z)"
 PATH_2_ANSWER_PATTERN = (
-    r"^[ \t]*\[PATH 2 ANSWER[^\]]*\](.*?)" + r"(?=^[ \t]*\[COMPARISON|^[ \t]*\[RECOMMENDATION|\Z)"
+    r"^[ \t]*\[PATH 2 ANSWER[^\]]*\](.*?)(?=^[ \t]*\[COMPARISON|^[ \t]*\[RECOMMENDATION|\Z)"
 )
-COMPARISON_PATTERN = r"^[ \t]*\[COMPARISON[^\]]*\](.*?)" + r"(?=^[ \t]*\[RECOMMENDATION|\Z)"
+COMPARISON_PATTERN = r"^[ \t]*\[COMPARISON[^\]]*\](.*?)(?=^[ \t]*\[RECOMMENDATION|\Z)"
 RECOMMENDATION_PATTERN = r"^[ \t]*\[RECOMMENDATION[^\]]*\](.*?)\Z"
 
 
