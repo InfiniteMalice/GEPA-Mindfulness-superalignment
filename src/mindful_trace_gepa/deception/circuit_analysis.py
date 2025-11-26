@@ -1,8 +1,10 @@
 """Circuit-level deception detection via dual-path divergence analysis."""
 
+# ruff: noqa: I001
+
+from collections.abc import Iterable
 import logging
 import re
-from collections.abc import Iterable
 from typing import Any, Dict
 
 from mindful_trace_gepa.shared.vocabulary import RISK_TERMS
