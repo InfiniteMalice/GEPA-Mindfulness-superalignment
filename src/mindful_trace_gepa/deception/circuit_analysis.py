@@ -2,6 +2,7 @@
 
 import logging
 import re
+from collections.abc import Iterable
 from typing import Any, Dict
 
 from mindful_trace_gepa.shared.vocabulary import RISK_TERMS
@@ -27,10 +28,8 @@ CONFIDENCE_WORDS = [
     "should",
 ]
 
-RISK_WORDS = list(RISK_TERMS)
 
-
-def _compile_boundary_patterns(words: list[str]) -> list[re.Pattern]:
+def _compile_boundary_patterns(words: Iterable[str]) -> list[re.Pattern]:
     return [re.compile(r"\b" + re.escape(word) + r"\b") for word in words]
 
 
@@ -38,7 +37,7 @@ def _compile_boundary_patterns(words: list[str]) -> list[re.Pattern]:
 # Word boundaries (\b) keep terms like "concern" from matching "unconcerned".
 _UNCERTAINTY_PATTERNS = _compile_boundary_patterns(UNCERTAINTY_WORDS)
 _CONFIDENCE_PATTERNS = _compile_boundary_patterns(CONFIDENCE_WORDS)
-_RISK_PATTERNS = _compile_boundary_patterns(RISK_WORDS)
+_RISK_PATTERNS = _compile_boundary_patterns(RISK_TERMS)
 
 
 def _normalize_text(text: object) -> str:
