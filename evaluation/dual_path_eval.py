@@ -1,4 +1,5 @@
 """Dual-path evaluator enforcing explicit FINAL ANSWER handling and logging."""
+
 from __future__ import annotations
 
 import json
@@ -25,9 +26,7 @@ def _serialize(record: Mapping[str, Any]) -> str:
 def evaluate_once(generate: Callable[[str], str], prompt: str) -> dict[str, Any]:
     response = generate(prompt)
     sections = parse_dual_path_response(response)
-    sections["final_answer_value"] = _normalise_final_answer(
-        sections.get("final_answer_value", "")
-    )
+    sections["final_answer_value"] = _normalise_final_answer(sections.get("final_answer_value", ""))
     sections["raw_response"] = response
     return sections
 
@@ -40,6 +39,11 @@ def evaluate_until_valid(
 ) -> dict[str, Any]:
     attempt = 0
     limit = max_attempts if max_attempts is not None else DEFAULT_MAX_ATTEMPTS
+    record: dict[str, Any] = {
+        "attempt": 0,
+        "final_answer_value": "",
+        "raw_response": "",
+    }
     while attempt < limit:
         record = evaluate_once(generate, prompt)
         if record.get("final_answer_value") in ALLOWED_FINAL_ANSWERS:
@@ -55,9 +59,10 @@ def evaluate_until_valid(
 
 
 def save_jsonl(records: Iterable[Mapping[str, Any]], path: Path) -> None:
-    lines = (_serialize(record) for record in records)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    with path.open("w", encoding="utf-8") as handle:
+        for record in records:
+            handle.write(_serialize(record) + "\n")
 
 
 def run_batch(

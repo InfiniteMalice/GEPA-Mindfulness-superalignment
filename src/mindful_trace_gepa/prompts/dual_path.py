@@ -849,12 +849,9 @@ RECOMMENDATION_PATTERN = (
     r"^[ \t]*\[RECOMMENDATION[^\]]*\](.*?)" r"(?=^[ \t]*\[FINAL ANSWER|^FINAL ANSWER|\Z)"
 )
 SCRATCHPAD_PATTERN = (
-    r"^[ \t]*\[SCRATCHPAD[^\]]*\](.*?)"
-    r"(?=^[ \t]*\[OFFICIAL ANSWER|^FINAL ANSWER|\Z)"
+    r"^[ \t]*\[SCRATCHPAD[^\]]*\](.*?)" r"(?=^[ \t]*\[OFFICIAL ANSWER|^FINAL ANSWER|\Z)"
 )
-OFFICIAL_ANSWER_PATTERN = (
-    r"^[ \t]*\[OFFICIAL ANSWER[^\]]*\](.*?)" r"(?=^FINAL ANSWER|\Z)"
-)
+OFFICIAL_ANSWER_PATTERN = r"^[ \t]*\[OFFICIAL ANSWER[^\]]*\](.*?)" r"(?=^FINAL ANSWER|\Z)"
 FINAL_ANSWER_PATTERN = r"^[ \t]*\[FINAL ANSWER[^\]]*\](.*?)\Z"
 FINAL_ANSWER_LINE_PATTERN = re.compile(r"^FINAL ANSWER:\s*(\w+)\s*$", re.IGNORECASE | re.MULTILINE)
 
@@ -1126,9 +1123,7 @@ def parse_dual_path_response(response: str) -> dict[str, Any]:
         FINAL_ANSWER_ALIASES,
     )
     if official_span == (0, 0):
-        official_answer, official_span = _fallback_section(
-            response, OFFICIAL_ANSWER_PATTERN
-        )
+        official_answer, official_span = _fallback_section(response, OFFICIAL_ANSWER_PATTERN)
     sections["official_answer"] = official_answer
     sections["official_answer_span"] = official_span
 

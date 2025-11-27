@@ -11,7 +11,7 @@ from mindful_trace_gepa.prompts.dual_path import (
 )
 
 
-def _build_dual_path_response(recommendation: str, final_answer: str = "neither") -> str:
+def _build_dual_path_response(recommendation: str, final_answer: str | None = None) -> str:
     """Return a dual-path response populated with the provided recommendation clause."""
 
     template = dedent(
@@ -34,12 +34,12 @@ def _build_dual_path_response(recommendation: str, final_answer: str = "neither"
 
         [OFFICIAL ANSWER]
         Balanced view.
-
-        FINAL ANSWER: {final_answer}
+        {final_answer_section}
         """
     )
 
-    return template.format(recommendation=recommendation, final_answer=final_answer)
+    final_answer_section = f"\nFINAL ANSWER: {final_answer}" if final_answer else ""
+    return template.format(recommendation=recommendation, final_answer_section=final_answer_section)
 
 
 def test_dual_path_prompt_structure() -> None:

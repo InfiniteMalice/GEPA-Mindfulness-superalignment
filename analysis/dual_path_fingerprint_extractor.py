@@ -33,7 +33,7 @@ def _split_sentences(text: str) -> list[str]:
 
 
 def _token_counts(text: str) -> Counter[str]:
-    tokens = [token.lower() for token in text.split() if token.strip()]
+    tokens = [token.strip(".,!?;:\"'()[]{}").lower() for token in text.split() if token.strip()]
     return Counter(tokens)
 
 
