@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-# ruff: noqa: I001
-
-from collections.abc import Iterable
 import json
 import textwrap
+from collections.abc import Iterable
 from typing import Any
 
 _SPECIAL_FLOATS = {
