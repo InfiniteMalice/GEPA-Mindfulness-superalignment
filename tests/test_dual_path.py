@@ -11,7 +11,7 @@ from mindful_trace_gepa.prompts.dual_path import (
 )
 
 
-def _build_dual_path_response(recommendation: str) -> str:
+def _build_dual_path_response(recommendation: str, final_answer: str = "neither") -> str:
     """Return a dual-path response populated with the provided recommendation clause."""
 
     template = dedent(
@@ -27,10 +27,19 @@ def _build_dual_path_response(recommendation: str) -> str:
 
         [RECOMMENDATION]
         {recommendation}
+
+        [SCRATCHPAD]
+        Path 1 trace.
+        Path 2 trace.
+
+        [OFFICIAL ANSWER]
+        Balanced view.
+
+        FINAL ANSWER: {final_answer}
         """
     )
 
-    return template.format(recommendation=recommendation)
+    return template.format(recommendation=recommendation, final_answer=final_answer)
 
 
 def test_dual_path_prompt_structure() -> None:
@@ -59,6 +68,15 @@ Path 1 is cautious, Path 2 is confident.
 
 [RECOMMENDATION]
 I recommend Path 2 because it's more helpful.
+
+[SCRATCHPAD]
+Path 1 trace.
+Path 2 trace.
+
+[OFFICIAL ANSWER]
+Balanced view of both.
+
+FINAL ANSWER: 2
 """
     sections = parse_dual_path_response(response)
 
@@ -85,7 +103,7 @@ I recommend Path 2 because it's more helpful.
     ),
 )
 def test_recommendation_negation_cases(rec_line: str, expected: str) -> None:
-    response = _build_dual_path_response(rec_line)
+    response = _build_dual_path_response(rec_line, final_answer="1")
     sections = parse_dual_path_response(response)
 
     assert sections["recommended_path"] == expected
@@ -99,7 +117,7 @@ def test_recommendation_negation_cases(rec_line: str, expected: str) -> None:
     ),
 )
 def test_recommendation_avoidance_context_positive(rec_line: str) -> None:
-    response = _build_dual_path_response(rec_line)
+    response = _build_dual_path_response(rec_line, final_answer="1")
     sections = parse_dual_path_response(response)
 
     assert sections["recommended_path"] == "path_1"
@@ -156,7 +174,7 @@ def test_no_false_positive() -> None:
     ids=("choose_careful", "avoid_then_back", "eschew_then_support"),
 )
 def test_recommendation_negation_suggestion_cases(rec_line: str, expected: str) -> None:
-    response = _build_dual_path_response(rec_line)
+    response = _build_dual_path_response(rec_line, final_answer="1")
     sections = parse_dual_path_response(response)
 
     assert sections["recommended_path"] == expected
@@ -178,7 +196,8 @@ def test_recommendation_negation_suggestion_cases(rec_line: str, expected: str) 
     ),
 )
 def test_recommendation_avoidance_context_cases(rec_line: str, expected: str) -> None:
-    response = _build_dual_path_response(rec_line)
+    final_answer = "1" if expected == "path_1" else "2"
+    response = _build_dual_path_response(rec_line, final_answer=final_answer)
     sections = parse_dual_path_response(response)
 
     assert sections["recommended_path"] == expected
@@ -342,7 +361,15 @@ def test_recommendation_avoidance_context_cases(rec_line: str, expected: str) ->
     ],
 )
 def test_recommendation_expected_path(recommendation_text: str, expected_path: str) -> None:
-    response = _build_dual_path_response(recommendation_text)
+    final_map = {
+        "path_1": "1",
+        "path_2": "2",
+        "both": "both",
+        "unclear": "neither",
+    }
+    response = _build_dual_path_response(
+        recommendation_text, final_answer=final_map.get(expected_path, "neither")
+    )
 
     sections = parse_dual_path_response(response)
 
@@ -364,8 +391,13 @@ def test_final_answer_overrides_recommendation() -> None:
         [RECOMMENDATION]
         I cautiously lean to Path 1.
 
-        [FINAL ANSWER]
-        PATH 2
+        [SCRATCHPAD]
+        Path notes.
+
+        [OFFICIAL ANSWER]
+        Clear summary.
+
+        FINAL ANSWER: 2
         """
     )
 
@@ -390,8 +422,13 @@ def test_final_answer_overrides_path_inference() -> None:
         [RECOMMENDATION]
         I recommend Path 1 for honesty.
 
-        [FINAL ANSWER]
-        PATH 2
+        [SCRATCHPAD]
+        Path notes.
+
+        [OFFICIAL ANSWER]
+        Clear summary.
+
+        FINAL ANSWER: 2
         """
     )
 
@@ -489,7 +526,8 @@ def test_recommendation_negation_without_recommend_verb() -> None:
 
 def test_recommendation_positive_with_negated_opponent_reason() -> None:
     response = _build_dual_path_response(
-        "I recommend Path 1. Don't go with Path 2 because Path 1 is better."
+        "I recommend Path 1. Don't go with Path 2 because Path 1 is better.",
+        final_answer="1",
     )
 
     sections = parse_dual_path_response(response)
