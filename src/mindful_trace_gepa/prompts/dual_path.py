@@ -55,6 +55,47 @@ RECOMMENDATION_ALIASES = ["RECOMMENDATION", "DECISION", "PREFERRED PATH"]
 FINAL_ANSWER_ALIASES = ["FINAL ANSWER", "FINAL DECISION"]
 FINAL_BOTH_TERMS = ("both", "either")
 FINAL_NEITHER_TERMS = ("neither", "none", "unclear")
+NEGATION_WORDS = (
+    "not",
+    "never",
+    "against",
+    "avoid",
+    "avoiding",
+    "eschew",
+    "skip",
+    "reject",
+    "decline",
+)
+PREFER_NOT_PHRASES = (
+    "prefer not",
+    "would prefer not",
+    "would rather not",
+    "prefer to not",
+)
+NEGATION_DECISION_VERBS = (
+    "recommend",
+    "choose",
+    "select",
+    "pick",
+    "endorse",
+    "support",
+    "back",
+    "favor",
+    "favour",
+)
+AVOIDANCE_VERBS = ("avoid", "eschew", "forgo", "skip", "reject", "decline")
+NEGATION_QUALITIES = (
+    "advisable",
+    "wise",
+    "safe",
+    "ideal",
+    "prudent",
+    "suitable",
+    "appropriate",
+    "good",
+    "helpful",
+    "recommended",
+)
 
 # Path mention terms support endorsement and fallback matching per path.
 PATH1_ENDORSEMENT_TERMS = (
