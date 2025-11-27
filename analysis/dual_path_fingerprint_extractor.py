@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections import Counter
 from pathlib import Path
@@ -47,9 +48,13 @@ def _contrastive_terms(path_1: Counter[str], path_2: Counter[str]) -> list[str]:
 
 
 def _ablation_targets(tokens: list[str]) -> dict[str, list[str]]:
-    neurons = [f"neuron_{hash(token) % 128}" for token in tokens]
-    attention_heads = [f"head_{hash(token) % 64}" for token in tokens]
-    mlp_blocks = [f"mlp_{hash(token) % 32}" for token in tokens]
+    def _stable_bucket(token: str, modulus: int) -> int:
+        digest = hashlib.sha256(token.encode("utf-8")).digest()
+        return int.from_bytes(digest, "big") % modulus
+
+    neurons = [f"neuron_{_stable_bucket(token, 128)}" for token in tokens]
+    attention_heads = [f"head_{_stable_bucket(token, 64)}" for token in tokens]
+    mlp_blocks = [f"mlp_{_stable_bucket(token, 32)}" for token in tokens]
     return {
         "feature_sets": tokens,
         "neurons": neurons,

@@ -1300,7 +1300,7 @@ def _gather_context(rec_text: str, start: int, end: int) -> str:
 
 
 def _has_decision_language(snippet: str) -> bool:
-    return bool(ENDORSEMENT_VERB_PATTERN.search(snippet) or DECISION_VERB_PATTERN.search(snippet))
+    return bool(DECISION_VERB_PATTERN.search(snippet))
 
 
 def _alias_is_negated(alias: str, snippet: str) -> bool:
