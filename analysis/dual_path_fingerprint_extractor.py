@@ -43,7 +43,8 @@ def _contrastive_terms(path_1: Counter[str], path_2: Counter[str]) -> list[str]:
         scores[token] = scores.get(token, 0) + count
     for token, count in path_2.items():
         scores[token] = scores.get(token, 0) - count
-    ranked = sorted(scores.items(), key=lambda item: abs(item[1]), reverse=True)
+    non_zero = ((token, delta) for token, delta in scores.items() if delta != 0)
+    ranked = sorted(non_zero, key=lambda item: abs(item[1]), reverse=True)
     return [token for token, _ in ranked[:10]]
 
 

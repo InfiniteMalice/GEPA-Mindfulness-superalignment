@@ -1122,7 +1122,7 @@ def parse_dual_path_response(response: str) -> dict[str, Any]:
         OFFICIAL_ANSWER_ALIASES,
         FINAL_ANSWER_ALIASES,
     )
-    if official_span == (0, 0):
+    if official_span == (0, 0) or "FINAL ANSWER:" in official_answer:
         official_answer, official_span = _fallback_section(response, OFFICIAL_ANSWER_PATTERN)
     sections["official_answer"] = official_answer
     sections["official_answer_span"] = official_span
