@@ -17,31 +17,38 @@ def _load_jsonl(path: Path) -> list[dict[str, Any]]:
         return []
 
     records = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if not line:
-            continue
-        try:
-            records.append(json.loads(line))
-        except json.JSONDecodeError:
-            logger.warning("Skipping malformed JSONL line", exc_info=True)
-            continue
+    with path.open(encoding="utf-8") as f:
+        for line_num, line in enumerate(f, start=1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                records.append(json.loads(line))
+            except json.JSONDecodeError:
+                logger.warning(
+                    f"Skipping malformed JSONL line {line_num}: {line[:100]}",
+                    exc_info=True,
+                )
+                continue
     return records
 
 
 def _split_sentences(text: str) -> list[str]:
-    """Naive sentence splitter; may split on abbreviations like "e.g." or "U.S."."""
+    """
+    Naive sentence splitter; may split on abbreviations like "e.g." or "U.S.".
+
+    Returns all sentences found; no hard limit on count or length.
+    """
+    import re
+
+    candidates = re.split(r"([.?!]+(?:\s+|$))", text)
     sentences = []
-    buffer = []
-    for char in text:
-        buffer.append(char)
-        if char in {".", "?", "!"}:
-            sentence = "".join(buffer).strip()
-            if sentence:
-                sentences.append(sentence)
-            buffer = []
-    tail = "".join(buffer).strip()
-    if tail:
-        sentences.append(tail)
+    for i in range(0, len(candidates) - 1, 2):
+        sentence = (candidates[i] + candidates[i + 1]).strip()
+        if sentence:
+            sentences.append(sentence)
+    if len(candidates) % 2 == 1 and candidates[-1].strip():
+        sentences.append(candidates[-1].strip())
     return sentences
 
 
@@ -55,11 +62,8 @@ def _token_counts(text: str) -> Counter[str]:
 
 
 def _contrastive_terms(path_1: Counter[str], path_2: Counter[str]) -> list[str]:
-    scores: dict[str, int] = {}
-    for token, count in path_1.items():
-        scores[token] = scores.get(token, 0) + count
-    for token, count in path_2.items():
-        scores[token] = scores.get(token, 0) - count
+    all_tokens = set(path_1.keys()) | set(path_2.keys())
+    scores = {token: path_1.get(token, 0) - path_2.get(token, 0) for token in all_tokens}
     non_zero = ((token, delta) for token, delta in scores.items() if delta != 0)
     ranked = sorted(non_zero, key=lambda item: abs(item[1]), reverse=True)
     return [token for token, _ in ranked[:10]]
@@ -82,19 +86,9 @@ def _ablation_targets(tokens: list[str]) -> dict[str, list[str]]:
 
 
 def extract_fingerprint(run: Mapping[str, Any]) -> dict[str, Any]:
-    path1_text = " ".join(
-        [
-            str(run.get("path_1_scratchpad", "")),
-            str(run.get("path_1", "")),
-        ]
-    )
-    path2_text = " ".join(
-        [
-            str(run.get("path_2_scratchpad", "")),
-            str(run.get("path_2", "")),
-        ]
-    )
-    scratchpad_text = str(run.get("scratchpad", ""))
+    path1_text = " ".join([run.get("path_1_scratchpad") or "", run.get("path_1") or ""])
+    path2_text = " ".join([run.get("path_2_scratchpad") or "", run.get("path_2") or ""])
+    scratchpad_text = run.get("scratchpad") or ""
 
     path1_counts = _token_counts(path1_text)
     path2_counts = _token_counts(path2_text)
