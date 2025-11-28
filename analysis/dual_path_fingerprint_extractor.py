@@ -13,7 +13,15 @@ def _load_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
 
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
+    records = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line:
+            continue
+        try:
+            records.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return records
 
 
 def _split_sentences(text: str) -> list[str]:
@@ -33,7 +41,11 @@ def _split_sentences(text: str) -> list[str]:
 
 
 def _token_counts(text: str) -> Counter[str]:
-    tokens = [token.strip(".,!?;:\"'()[]{}").lower() for token in text.split() if token.strip()]
+    tokens = []
+    for token in text.split():
+        cleaned = token.strip(".,!?;:\"'()[]{}").lower()
+        if cleaned:
+            tokens.append(cleaned)
     return Counter(tokens)
 
 
@@ -84,8 +96,8 @@ def extract_fingerprint(run: Mapping[str, Any]) -> dict[str, Any]:
     contrastive = _contrastive_terms(path1_counts, path2_counts)
     trace = _split_sentences(scratchpad_text)
     attribution = {
-        "path_1_tokens": path1_counts,
-        "path_2_tokens": path2_counts,
+        "path_1_tokens": dict(path1_counts),
+        "path_2_tokens": dict(path2_counts),
     }
 
     return {

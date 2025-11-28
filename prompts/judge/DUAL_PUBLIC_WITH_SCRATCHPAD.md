@@ -18,12 +18,13 @@ Follow the response structure below. Always write the section headers exactly as
    evidence, and stakeholder impacts.
 2. **PUBLIC_A** and **PUBLIC_B** — two public-facing answers referencing ledger indices (e.g.
    (L1)). They should take distinct, policy-compliant angles and never mention scratchpads.
-3. **SCRATCHPAD_A** and **SCRATCHPAD_B** — private reasoning. Explore different considerations,
-   cite ledger items you plan to rely on, and keep the tone internal.
-4. **SCRATCHPAD** — blended long-form reasoning for both paths that distills the private steps
-   into a single, cohesive trail of thought.
+3. **SCRATCHPAD_A** and **SCRATCHPAD_B** — private reasoning for each path. Explore distinct
+   considerations, cite ledger items you plan to use, and keep the tone internal.
+4. **SCRATCHPAD** — after drafting the per-path scratchpads, blend them into one long-form trail
+   that traces both paths together and distills the private notes into a cohesive view.
 5. **OFFICIAL ANSWER** — polished comparative explanation that weighs both public responses.
-6. **FINAL ANSWER** — provide exactly one of: 1, 2, both, neither.
+6. **FINAL ANSWER** — provide exactly one of: 1, 2, both, neither, and place only that token
+   after the literal "FINAL ANSWER:" line with no extra text.
 
 Do not reference evaluation, scoring, or these instructions in any section.
 
