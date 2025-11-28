@@ -29,7 +29,6 @@ def _load_jsonl(path: Path) -> list[dict[str, Any]]:
             except json.JSONDecodeError:
                 logger.warning(
                     f"Skipping malformed JSONL line {line_num}: {line[:100]}",
-                    exc_info=True,
                 )
                 continue
     return records

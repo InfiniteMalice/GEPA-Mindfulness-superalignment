@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping
 
@@ -12,6 +13,7 @@ from mindful_trace_gepa.prompts.dual_path import (
 )
 
 DEFAULT_MAX_ATTEMPTS = 10
+logger = logging.getLogger(__name__)
 
 
 def _serialize(record: Mapping[str, Any]) -> str:
@@ -67,8 +69,14 @@ def run_batch(
         for prompt in prompts:
             try:
                 record = evaluate_until_valid(generate, prompt)
-            except Exception:
-                record = {"prompt": prompt, "error": True, "attempt": 0}
+            except Exception as exc:
+                logger.exception("Dual-path evaluation failed for prompt")
+                record = {
+                    "prompt": prompt,
+                    "error": True,
+                    "attempt": 0,
+                    "error_message": str(exc),
+                }
             results.append(record)
             handle.write(_serialize(record) + "\n")
     return results
