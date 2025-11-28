@@ -43,10 +43,11 @@ def evaluate_until_valid(
         attempt += 1
         if record.get("final_answer_value") in ALLOWED_FINAL_ANSWERS:
             record["attempt"] = attempt
+            record["final_answer_valid"] = True
             return record
 
     record["attempt"] = attempt
-    record["final_answer_value"] = ""
+    record["final_answer_valid"] = False
     return record
 
 
@@ -64,7 +65,10 @@ def run_batch(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8") as handle:
         for prompt in prompts:
-            record = evaluate_until_valid(generate, prompt)
+            try:
+                record = evaluate_until_valid(generate, prompt)
+            except Exception:
+                record = {"prompt": prompt, "error": True, "attempt": 0}
             results.append(record)
             handle.write(_serialize(record) + "\n")
     return results

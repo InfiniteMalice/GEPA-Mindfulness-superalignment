@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 def _load_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
+        logger.debug("JSONL file not found: %s", path)
         return []
 
     records = []
@@ -39,8 +41,6 @@ def _split_sentences(text: str) -> list[str]:
 
     Returns all sentences found; no hard limit on count or length.
     """
-    import re
-
     candidates = re.split(r"([.?!]+(?:\s+|$))", text)
     sentences = []
     for i in range(0, len(candidates) - 1, 2):
