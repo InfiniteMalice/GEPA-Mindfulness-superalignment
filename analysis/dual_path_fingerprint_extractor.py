@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable, Mapping
+
+logger = logging.getLogger(__name__)
 
 
 def _load_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -20,11 +23,13 @@ def _load_jsonl(path: Path) -> list[dict[str, Any]]:
         try:
             records.append(json.loads(line))
         except json.JSONDecodeError:
+            logger.warning("Skipping malformed JSONL line", exc_info=True)
             continue
     return records
 
 
 def _split_sentences(text: str) -> list[str]:
+    """Naive sentence splitter; may split on abbreviations like "e.g." or "U.S."."""
     sentences = []
     buffer = []
     for char in text:
@@ -69,7 +74,7 @@ def _ablation_targets(tokens: list[str]) -> dict[str, list[str]]:
     attention_heads = [f"head_{_stable_bucket(token, 64)}" for token in tokens]
     mlp_blocks = [f"mlp_{_stable_bucket(token, 32)}" for token in tokens]
     return {
-        "feature_sets": tokens,
+        "contrastive_tokens": tokens,
         "neurons": neurons,
         "attention_heads": attention_heads,
         "mlp_blocks": mlp_blocks,

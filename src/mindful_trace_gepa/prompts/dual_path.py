@@ -853,7 +853,10 @@ SCRATCHPAD_PATTERN = (
 )
 OFFICIAL_ANSWER_PATTERN = r"^[ \t]*\[OFFICIAL ANSWER[^\]]*\](.*?)" r"(?=^FINAL ANSWER|\Z)"
 FINAL_ANSWER_PATTERN = r"^[ \t]*\[FINAL ANSWER[^\]]*\](.*?)\Z"
-FINAL_ANSWER_LINE_PATTERN = re.compile(r"^FINAL ANSWER:\s*(\w+)\s*$", re.IGNORECASE | re.MULTILINE)
+FINAL_ANSWER_LINE_PATTERN = re.compile(
+    r"^FINAL ANSWER:\s*(1|2|both|neither)\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
 
 
 DUAL_PATH_TEMPLATE = (

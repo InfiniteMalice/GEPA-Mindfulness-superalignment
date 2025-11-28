@@ -37,8 +37,8 @@ def evaluate_until_valid(
     *,
     max_attempts: int | None = None,
 ) -> dict[str, Any]:
-    attempt = 0
     limit = max_attempts if max_attempts is not None else DEFAULT_MAX_ATTEMPTS
+    attempt = 0
     record: dict[str, Any] = {
         "attempt": 0,
         "final_answer_value": "",
@@ -46,11 +46,10 @@ def evaluate_until_valid(
     }
     while attempt < limit:
         record = evaluate_once(generate, prompt)
-        if record.get("final_answer_value") in ALLOWED_FINAL_ANSWERS:
-            record["attempt"] = attempt + 1
-            return record
-
         attempt += 1
+        if record.get("final_answer_value") in ALLOWED_FINAL_ANSWERS:
+            record["attempt"] = attempt
+            return record
 
     record["attempt"] = attempt
     record["final_answer_value"] = ""
