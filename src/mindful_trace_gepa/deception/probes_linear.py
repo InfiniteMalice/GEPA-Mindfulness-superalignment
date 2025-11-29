@@ -20,6 +20,7 @@ from typing import (
     cast,
 )
 
+from ..train.grn import GRNSettings, build_grn
 from ..utils.imports import optional_import
 
 logger = logging.getLogger(__name__)
@@ -58,6 +59,28 @@ def _dot(vec: Sequence[float], weights: Sequence[float]) -> float:
 
 def _ensure_float_list(values: Iterable[Any]) -> List[float]:
     return [float(v) for v in values]
+
+
+def _normalise_tokens(
+    tokens: Sequence[Sequence[float]],
+    grn_settings: GRNSettings,
+    module: Any | None = None,
+) -> List[List[float]]:
+    if not tokens:
+        return []
+    if not grn_settings.enabled:
+        return [list(token) for token in tokens]
+    if torch_module is None:
+        logger.warning("GRN requested for probes but torch is unavailable; skipping")
+        return [list(token) for token in tokens]
+    if module is None:
+        return [list(token) for token in tokens]
+    with torch_module.no_grad():
+        tensor = torch_module.tensor(tokens, dtype=torch_module.float32)
+        normalised = module(tensor)
+    return [
+        _ensure_float_list(row.tolist()) for row in normalised.detach().cpu().unbind(dim=0)
+    ]
 
 
 def extract_hidden_states(
@@ -463,6 +486,7 @@ def infer_probe(
     pooling: str = "mean",
     threshold_config: Optional[Mapping[str, Any]] = None,
     labels: Optional[Sequence[Any]] = None,
+    grn_config: Mapping[str, Any] | None = None,
 ) -> Dict[str, Any]:
     """Run probe inference on activations and compute metrics."""
 
@@ -482,6 +506,8 @@ def infer_probe(
         }
 
     labels_vec = _coerce_labels(labels)
+    grn_settings = GRNSettings.from_mapping(grn_config)
+    grn_module = build_grn(grn_settings)
     layers = activations.get("layers", {})
     token_scores: List[Tuple[int, float]] = []
     per_token_payload: List[Dict[str, Any]] = []
@@ -490,7 +516,7 @@ def infer_probe(
     for layer_name, payload in layers.items():
         if not isinstance(payload, Mapping):
             continue
-        tokens = payload.get("tokens", [])
+        tokens = _normalise_tokens(payload.get("tokens", []), grn_settings, grn_module)
         token_to_step = payload.get("token_to_step")
         for token_idx, token in enumerate(tokens):
             if len(token) != probe.dimension:
