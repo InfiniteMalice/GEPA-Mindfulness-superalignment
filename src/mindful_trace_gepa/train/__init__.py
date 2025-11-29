@@ -9,6 +9,7 @@ if _dist is not None:
     wrap_model_optimizer = _dist.wrap_model_optimizer
     save_sharded = _dist.save_sharded
 else:  # pragma: no cover - fallback when torch/accelerate are missing
+
     def _missing(*_args: object, **_kwargs: object) -> None:
         raise ImportError("mindful_trace_gepa.train.dist requires torch and accelerate")
 
