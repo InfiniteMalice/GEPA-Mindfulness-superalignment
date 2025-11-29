@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import itertools
+from dataclasses import asdict
 from typing import Any, Dict, Final, Mapping, Sequence
 
 from ..train.grn import GRNSettings, build_grn, torch  # torch is optional_import result
@@ -20,7 +21,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "abstention_thresholds": dict(DEFAULT_THRESHOLDS),
     "disagreement_penalty": DEFAULT_DISAGREEMENT_PENALTY,
     "escalate_if_any_below": DEFAULT_ESCALATE_FLOOR,
-    "confidence_grn": vars(GRNSettings()),
+    "confidence_grn": asdict(GRNSettings()),
 }
 
 
@@ -95,7 +96,7 @@ def build_config(overrides: Mapping[str, Any] | None = None) -> Dict[str, Any]:
         DEFAULT_CONFIG["escalate_if_any_below"],
     )
 
-    cfg["confidence_grn"] = vars(GRNSettings.from_mapping(cfg.get("confidence_grn")))
+    cfg["confidence_grn"] = asdict(GRNSettings.from_mapping(cfg.get("confidence_grn")))
 
     return cfg
 

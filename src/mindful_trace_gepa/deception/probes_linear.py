@@ -20,8 +20,7 @@ from typing import (
     cast,
 )
 
-from mindful_trace_gepa.train.grn import GRNSettings, build_grn
-
+from ..train.grn import GRNSettings, build_grn
 from ..utils.imports import optional_import
 
 logger = logging.getLogger(__name__)
@@ -79,7 +78,9 @@ def _normalise_tokens(
     with torch_module.no_grad():
         tensor = torch_module.tensor(tokens, dtype=torch_module.float32)
         normalised = module(tensor)
-    return [_ensure_float_list(row.tolist()) for row in normalised.detach().cpu().unbind(dim=0)]
+    return [
+        _ensure_float_list(row.tolist()) for row in normalised.detach().cpu().unbind(dim=0)
+    ]
 
 
 def extract_hidden_states(
@@ -506,7 +507,7 @@ def infer_probe(
 
     labels_vec = _coerce_labels(labels)
     grn_settings = GRNSettings.from_mapping(grn_config)
-    grn_module = build_grn(grn_settings) if grn_settings.enabled else None
+    grn_module = build_grn(grn_settings)
     layers = activations.get("layers", {})
     token_scores: List[Tuple[int, float]] = []
     per_token_payload: List[Dict[str, Any]] = []
