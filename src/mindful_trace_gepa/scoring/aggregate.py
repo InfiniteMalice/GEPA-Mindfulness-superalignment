@@ -95,11 +95,7 @@ def build_config(overrides: Mapping[str, Any] | None = None) -> Dict[str, Any]:
         DEFAULT_CONFIG["escalate_if_any_below"],
     )
 
-    cfg["confidence_grn"] = vars(
-        GRNSettings.from_mapping(cfg.get("confidence_grn"))
-        if cfg.get("confidence_grn") is not None
-        else GRNSettings()
-    )
+    cfg["confidence_grn"] = vars(GRNSettings.from_mapping(cfg.get("confidence_grn")))
 
     return cfg
 

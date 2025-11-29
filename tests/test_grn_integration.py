@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-torch = pytest.importorskip("torch")
-
 from mindful_trace_gepa.deception.probes_linear import ProbeWeights, infer_probe
 from mindful_trace_gepa.scoring.aggregate import aggregate_tiers
 from mindful_trace_gepa.scoring.schema import DIMENSIONS, TierScores
 from mindful_trace_gepa.train.grn import GlobalResponseNorm
+
+torch = pytest.importorskip("torch")
 
 
 def test_global_response_norm_shapes() -> None:
@@ -50,7 +50,7 @@ def test_probe_normalisation_toggle() -> None:
     activations = {
         "layers": {
             "0": {
-                "tokens": [[1.0, 0.0], [0.0, 1.0]],
+                "tokens": [[2.0, -1.0], [0.5, 1.5]],
                 "token_to_step": [0, 1],
             }
         }

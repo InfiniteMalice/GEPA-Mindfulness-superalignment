@@ -20,6 +20,7 @@ from typing import (
     cast,
 )
 
+from mindful_trace_gepa.train.grn import GRNSettings, build_grn
 from ..utils.imports import optional_import
 from mindful_trace_gepa.train.grn import GRNSettings, build_grn
 
@@ -62,7 +63,9 @@ def _ensure_float_list(values: Iterable[Any]) -> List[float]:
 
 
 def _normalise_tokens(
-    tokens: Sequence[Sequence[float]], grn_settings: GRNSettings
+    tokens: Sequence[Sequence[float]],
+    grn_settings: GRNSettings,
+    module: Any | None = None,
 ) -> List[List[float]]:
     if not tokens:
         return []
@@ -71,7 +74,6 @@ def _normalise_tokens(
     if torch_module is None:
         logger.warning("GRN requested for probes but torch is unavailable; skipping")
         return [list(token) for token in tokens]
-    module = build_grn(grn_settings)
     if module is None:
         return [list(token) for token in tokens]
     with torch_module.no_grad():
@@ -506,6 +508,7 @@ def infer_probe(
 
     labels_vec = _coerce_labels(labels)
     grn_settings = GRNSettings.from_mapping(grn_config)
+    grn_module = build_grn(grn_settings) if grn_settings.enabled else None
     layers = activations.get("layers", {})
     token_scores: List[Tuple[int, float]] = []
     per_token_payload: List[Dict[str, Any]] = []
@@ -514,7 +517,7 @@ def infer_probe(
     for layer_name, payload in layers.items():
         if not isinstance(payload, Mapping):
             continue
-        tokens = _normalise_tokens(payload.get("tokens", []), grn_settings)
+        tokens = _normalise_tokens(payload.get("tokens", []), grn_settings, grn_module)
         token_to_step = payload.get("token_to_step")
         for token_idx, token in enumerate(tokens):
             if len(token) != probe.dimension:

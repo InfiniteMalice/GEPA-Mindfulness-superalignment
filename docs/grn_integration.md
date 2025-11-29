@@ -41,7 +41,7 @@ computing token probabilities. Configure this via `policy_grn` in
 
 ## Deception probes
 
-Probe activations can be normalised with GRN prior to per-token and pooled
+Probe activations can be normalised with GRN before per-token and pooled
 scores. Add an `activation_grn` block to the probe config (default disabled and
 non-learnable) to activate this path. CLI runs automatically forward the block
 from `configs/deception/probes_linear.yaml`.
