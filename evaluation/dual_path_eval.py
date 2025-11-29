@@ -52,6 +52,9 @@ def evaluate_until_valid(
     record["attempt"] = attempt
     record["final_answer_valid"] = False
     record["prompt"] = prompt
+    logger.warning(
+        "Exhausted %d attempts without valid FINAL ANSWER for prompt: %s", attempt, prompt
+    )
     return record
 
 
