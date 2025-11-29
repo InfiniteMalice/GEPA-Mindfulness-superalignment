@@ -81,11 +81,7 @@ def run_batch(
                     "error": True,
                     "attempt": 0,
                     "error_message": str(exc),
-                    "final_answer_valid": False,
-                    "final_answer_value": "",
-                    "raw_response": "",
                 }
-            record["prompt"] = prompt
             results.append(record)
             handle.write(_serialize(record) + "\n")
     return results
