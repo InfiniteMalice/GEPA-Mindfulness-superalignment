@@ -51,7 +51,7 @@ class GlobalResponseNorm(BaseModule):
         super().__init__()
         self.dim = dim
         self.eps = eps
-        gamma = torch.ones(1)
+        gamma = torch.zeros(1)
         beta = torch.zeros(1)
         if learnable:
             self.gamma = nn_module.Parameter(gamma)
@@ -65,9 +65,9 @@ class GlobalResponseNorm(BaseModule):
             raise ImportError("torch is required to execute GlobalResponseNorm")
         if inputs.dim() not in (2, 3):
             raise ValueError("GlobalResponseNorm expects 2D or 3D inputs")
-        norm = inputs.norm(p=2, dim=self.dim, keepdim=True)
-        scaled = inputs / (norm + self.eps)
-        return inputs * (self.gamma * scaled + self.beta)
+        gx = inputs.norm(p=2, dim=self.dim, keepdim=True)
+        nx = gx / (gx.mean(dim=self.dim, keepdim=True) + self.eps)
+        return self.gamma * (inputs * nx) + self.beta + inputs
 
 
 def build_grn(settings: GRNSettings | Mapping[str, Any] | None) -> GlobalResponseNorm | None:
