@@ -74,7 +74,9 @@ def run_batch(
             try:
                 record = evaluate_until_valid(generate, prompt)
             except Exception as exc:
-                logger.exception("Dual-path evaluation failed for prompt: %s", prompt)
+                logger.exception(
+                    "Dual-path evaluation failed for prompt (redacted)"
+                )
                 record = {
                     "prompt": prompt,
                     "error": True,
