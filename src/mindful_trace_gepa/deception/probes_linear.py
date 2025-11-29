@@ -22,6 +22,7 @@ from typing import (
 
 from mindful_trace_gepa.train.grn import GRNSettings, build_grn
 from ..utils.imports import optional_import
+from mindful_trace_gepa.train.grn import GRNSettings, build_grn
 
 logger = logging.getLogger(__name__)
 
