@@ -46,10 +46,12 @@ def evaluate_until_valid(
         if record.get("final_answer_value") in ALLOWED_FINAL_ANSWERS:
             record["attempt"] = attempt
             record["final_answer_valid"] = True
+            record["prompt"] = prompt
             return record
 
     record["attempt"] = attempt
     record["final_answer_valid"] = False
+    record["prompt"] = prompt
     return record
 
 
@@ -77,7 +79,6 @@ def run_batch(
                     "attempt": 0,
                     "error_message": str(exc),
                 }
-            record["prompt"] = prompt
             results.append(record)
             handle.write(_serialize(record) + "\n")
     return results
