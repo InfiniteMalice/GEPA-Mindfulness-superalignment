@@ -8,6 +8,7 @@ from typing import Sequence
 
 from mindful_trace_gepa.train.grn import build_grn
 from mindful_trace_gepa.utils.imports import optional_import
+
 from .base_trainer import BaseTrainer, GeneratedResponse
 from .config import PPOConfig
 from .dataloader import DatasetExample
