@@ -27,9 +27,7 @@ def _load_jsonl(path: Path) -> list[dict[str, Any]]:
             try:
                 records.append(json.loads(line))
             except json.JSONDecodeError:
-                logger.warning(
-                    "Skipping malformed JSONL line %d: %s", line_num, line[:100]
-                )
+                logger.warning("Skipping malformed JSONL line %d: %s", line_num, line[:100])
                 continue
     return records
 
