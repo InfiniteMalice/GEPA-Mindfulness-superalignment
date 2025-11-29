@@ -78,12 +78,13 @@ def run_batch(
             except Exception as exc:
                 logger.exception("Dual-path evaluation failed for prompt: %s", prompt)
                 record = {
-                    +"error": True,
-                    +"attempt": 0,
-                    +"error_message": str(exc),
-                    +"final_answer_valid": False,
-                    +"final_answer_value": "",
-                    +"raw_response": "",
+                    "prompt": prompt,
+                    "error": True,
+                    "attempt": 0,
+                    "error_message": str(exc),
+                    "final_answer_valid": False,
+                    "final_answer_value": "",
+                    "raw_response": "",
                 }
             results.append(record)
             handle.write(_serialize(record) + "\n")

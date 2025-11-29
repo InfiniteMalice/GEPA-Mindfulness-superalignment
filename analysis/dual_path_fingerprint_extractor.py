@@ -20,14 +20,14 @@ def _load_jsonl(path: Path) -> list[dict[str, Any]]:
 
     records = []
     with path.open(encoding="utf-8") as f:
-        for line_num, line in enumerate(f, start=1):
-            line = line.strip()
-            if not line:
+        for line_num, raw_line in enumerate(f, start=1):
+            stripped = raw_line.strip()
+            if not stripped:
                 continue
             try:
-                records.append(json.loads(line))
+                records.append(json.loads(stripped))
             except json.JSONDecodeError:
-                logger.warning("Skipping malformed JSONL line %d: %s", line_num, line[:100])
+                logger.warning("Skipping malformed JSONL at line %d", line_num)
                 continue
     return records
 
