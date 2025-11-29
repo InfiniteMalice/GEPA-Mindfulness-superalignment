@@ -59,6 +59,7 @@ def evaluate_until_valid(
 
 
 def save_jsonl(records: Iterable[Mapping[str, Any]], path: Path) -> None:
+    """Write records to a JSONL file, overwriting any existing file."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as handle:
         for record in records:
