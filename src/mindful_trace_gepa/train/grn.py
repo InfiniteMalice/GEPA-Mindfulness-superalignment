@@ -66,8 +66,7 @@ class GlobalResponseNorm(BaseModule):
         if inputs.dim() not in (2, 3):
             raise ValueError("GlobalResponseNorm expects 2D or 3D inputs")
         gx = inputs.norm(p=2, dim=self.dim, keepdim=True)
-        channel_dim = 1
-        nx = gx / (gx.mean(dim=channel_dim, keepdim=True) + self.eps)
+        nx = gx / (gx.mean(dim=self.dim, keepdim=True) + self.eps)
         return self.gamma * (inputs * nx) + self.beta + inputs
 
 
