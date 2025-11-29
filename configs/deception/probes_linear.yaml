@@ -10,3 +10,9 @@ output:
   write_per_token: false
   write_per_step: true
   path: "runs/deception_probe.json"
+
+activation_grn:
+  enabled: false
+  dim: -1
+  eps: 1.0e-6
+  learnable: false
