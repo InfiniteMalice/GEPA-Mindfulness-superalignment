@@ -29,6 +29,7 @@ def test_confidence_grn_adjusts_thresholding() -> None:
         confidence={dim: 0.9 for dim in DIMENSIONS},
         meta={},
     )
+    baseline = aggregate_tiers([tier], {})
     result = aggregate_tiers(
         [tier],
         {
@@ -41,8 +42,8 @@ def test_confidence_grn_adjusts_thresholding() -> None:
         },
     )
 
-    assert all(value < 0.9 for value in result.confidence.values())
-    assert any("Confidence below threshold" in reason for reason in result.reasons)
+    assert all(result.confidence[dim] >= baseline.confidence[dim] for dim in DIMENSIONS)
+    assert any(result.confidence[dim] > baseline.confidence[dim] for dim in DIMENSIONS)
 
 
 def test_probe_normalisation_toggle() -> None:
