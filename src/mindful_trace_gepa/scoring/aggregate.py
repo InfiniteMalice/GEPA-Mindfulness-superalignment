@@ -3,7 +3,7 @@ from __future__ import annotations
 import itertools
 from typing import Any, Dict, Final, Mapping, Sequence
 
-from ..train.grn import GRNSettings, build_grn, torch
+from ..train.grn import GRNSettings, build_grn, torch  # torch is optional_import result
 from .schema import DIMENSIONS, AggregateScores, TierScores
 
 DEFAULT_WEIGHTS: Final[Dict[str, float]] = {

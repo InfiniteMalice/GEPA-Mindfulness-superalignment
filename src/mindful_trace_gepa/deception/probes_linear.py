@@ -21,7 +21,6 @@ from typing import (
 )
 
 from mindful_trace_gepa.train.grn import GRNSettings, build_grn
-
 from ..utils.imports import optional_import
 
 logger = logging.getLogger(__name__)
@@ -79,7 +78,9 @@ def _normalise_tokens(
     with torch_module.no_grad():
         tensor = torch_module.tensor(tokens, dtype=torch_module.float32)
         normalised = module(tensor)
-    return [_ensure_float_list(row.tolist()) for row in normalised.detach().cpu().unbind(dim=0)]
+    return [
+        _ensure_float_list(row.tolist()) for row in normalised.detach().cpu().unbind(dim=0)
+    ]
 
 
 def extract_hidden_states(

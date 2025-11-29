@@ -45,7 +45,7 @@ class GRNSettings:
 class GlobalResponseNorm(BaseModule):
     """Applies global response normalisation across the specified dimensions."""
 
-    def __init__(self, dim: int | tuple[int, ...] = -1, eps: float = 1e-6, learnable: bool = True):
+    def __init__(self, dim: int | tuple[int, ...] = -1, eps: float = 1e-6, learnable: bool = False):
         if torch is None or nn_module is None:
             raise ImportError("torch is required to construct GlobalResponseNorm")
         super().__init__()
