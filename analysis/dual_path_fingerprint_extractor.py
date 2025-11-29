@@ -28,7 +28,7 @@ def _load_jsonl(path: Path) -> list[dict[str, Any]]:
                 records.append(json.loads(line))
             except json.JSONDecodeError:
                 logger.warning(
-                    f"Skipping malformed JSONL line {line_num}: {line[:100]}",
+                    "Skipping malformed JSONL line %d: %s", line_num, line[:100]
                 )
                 continue
     return records
@@ -100,7 +100,7 @@ def extract_fingerprint(run: Mapping[str, Any]) -> dict[str, Any]:
 
     return {
         "id": run.get("id"),
-        "final_answer": run.get("final_answer_value"),
+        "final_answer_value": run.get("final_answer_value"),
         "contrastive_tokens": contrastive,
         "thought_trace": trace,
         "attribution_map": attribution,
