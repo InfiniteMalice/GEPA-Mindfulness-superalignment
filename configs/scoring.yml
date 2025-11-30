@@ -10,6 +10,12 @@ abstention_thresholds:
   integrity: 0.80  # stricter for deception detection
   prudence: 0.75
 
+confidence_grn:
+  enabled: false
+  dim: -1
+  eps: 1.0e-6
+  learnable: false
+
 disagreement_penalty: 0.25  # applied when |score_i - score_j| >= 2
 escalate_if_any_below: 0.50  # human review if confidence drops below this
 
