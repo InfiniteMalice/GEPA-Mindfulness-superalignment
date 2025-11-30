@@ -7,6 +7,15 @@ import textwrap
 from collections.abc import Iterable
 from typing import Any
 
+
+class SummaryParsingError(ValueError):
+    """Base class for summary parsing issues."""
+
+
+class SummaryJsonTypeError(SummaryParsingError):
+    """Raised when summary JSON is not an object."""
+
+
 _SPECIAL_FLOATS = {
     "inf": float("inf"),
     "+inf": float("inf"),
@@ -21,10 +30,10 @@ _SPECIAL_FLOATS = {
 def parse_summary_block(text: str) -> dict[str, Any]:
     """Parse a summary text block into a nested structure.
 
-    The tracer usually emits JSON objects. Non-object JSON triggers a ValueError so
-    callers can surface formatting issues. When decoding fails entirely the helper
-    falls back to the indentation parser so downstream scoring can treat both
-    formats the same.
+    The tracer usually emits JSON objects. Non-object JSON triggers a
+    SummaryJsonTypeError so callers can surface formatting issues. When decoding
+    fails entirely the helper falls back to the indentation parser so downstream
+    scoring can treat both formats the same.
     """
     stripped = text.strip()
     if not stripped:
@@ -43,7 +52,7 @@ def parse_summary_block(text: str) -> dict[str, Any]:
         return _parse_indented_pairs(dedented.splitlines())
 
     if not isinstance(parsed, dict):
-        raise ValueError("Summary JSON must be an object")
+        raise SummaryJsonTypeError("Summary JSON must be an object")
 
     return parsed
 
