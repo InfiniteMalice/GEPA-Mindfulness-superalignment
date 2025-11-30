@@ -176,7 +176,7 @@ def aggregate_tiers(
             )
             normalised = grn_module(conf_tensor).squeeze(0).clamp(0.0, 1.0)
         final_confidence = {
-            dim: float(value) for dim, value in zip(DIMENSIONS, normalised.tolist())
+            dim: float(normalised[idx].item()) for idx, dim in enumerate(DIMENSIONS)
         }
     else:
         final_confidence = dict(raw_confidence)
