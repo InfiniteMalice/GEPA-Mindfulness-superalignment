@@ -43,7 +43,10 @@ def test_confidence_grn_adjusts_thresholding() -> None:
     )
 
     assert result.final == baseline.final
-    assert any(abs(result.confidence[dim] - baseline.confidence[dim]) > 1e-6 for dim in DIMENSIONS)
+    differences = (
+        abs(result.confidence[dim] - baseline.confidence[dim]) > 1e-6 for dim in DIMENSIONS
+    )
+    assert any(differences)
 
 
 def test_probe_normalisation_toggle() -> None:

@@ -4,8 +4,11 @@ import itertools
 from dataclasses import asdict
 from typing import Any, Dict, Final, Mapping, Sequence
 
-from ..train.grn import GRNSettings, build_grn, torch  # torch is optional_import result
+from ..train.grn import GRNSettings, build_grn
+from ..utils.imports import optional_import
 from .schema import DIMENSIONS, AggregateScores, TierScores
+
+torch = optional_import("torch")
 
 DEFAULT_WEIGHTS: Final[Dict[str, float]] = {
     "heuristic": 0.2,

@@ -11,7 +11,7 @@ if _dist is not None:
 else:  # pragma: no cover - fallback when torch/accelerate are missing
 
     def _missing(*_args: object, **_kwargs: object) -> None:
-        """Stub raised when torch/accelerate dependencies are missing."""
+        """Raise ImportError when torch/accelerate dependencies are missing."""
 
         raise ImportError("mindful_trace_gepa.train.dist requires torch and accelerate")
 

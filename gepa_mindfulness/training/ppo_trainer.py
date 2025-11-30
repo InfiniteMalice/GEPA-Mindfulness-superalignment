@@ -142,8 +142,8 @@ class PPOTrainer(BaseTrainer):
             return logit
         with torch.no_grad():
             tensor = torch.tensor([[logit]], dtype=torch.float32)
-            normalised = self.policy_grn(tensor).squeeze(0)
-        return float(normalised.item())
+            normalised = self.policy_grn(tensor)
+        return float(normalised.squeeze().item())
 
 
 __all__ = ["PPOTrainer"]
