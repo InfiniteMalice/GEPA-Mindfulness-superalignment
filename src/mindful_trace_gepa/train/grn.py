@@ -53,8 +53,8 @@ class GlobalResponseNorm(BaseModule):
         super().__init__()
         self.dim = dim
         self.eps = eps
-        gamma = torch.ones(1)
-        beta = torch.zeros(1)
+        gamma = torch.ones(1, dtype=torch.float32)
+        beta = torch.zeros(1, dtype=torch.float32)
         if learnable:
             self.gamma = nn_module.Parameter(gamma)
             self.beta = nn_module.Parameter(beta)

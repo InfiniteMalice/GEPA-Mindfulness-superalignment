@@ -30,6 +30,7 @@ class PPOTrainer(BaseTrainer):
         self._value_estimates: dict[str, float] = {}
         self._random = random.Random(0)
         self.policy_grn: GlobalResponseNorm | None = build_grn(config.policy_grn)
+        # GRN is applied inference-only; parameters are not part of optimisation.
 
     def train(self) -> None:
         for step in range(self.config.max_steps):

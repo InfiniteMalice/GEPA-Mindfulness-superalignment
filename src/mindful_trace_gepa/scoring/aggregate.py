@@ -203,4 +203,4 @@ def aggregate_tiers(
     )
 
 
-__all__ = ["build_config", "aggregate_tiers", "DEFAULT_CONFIG"]
+__all__ = ["DEFAULT_CONFIG", "aggregate_tiers", "build_config"]

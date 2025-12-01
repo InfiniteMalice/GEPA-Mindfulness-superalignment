@@ -243,9 +243,9 @@ __all__ = [
     "BaseTrainerConfig",
     "CircuitTracerConfig",
     "GRPOConfig",
+    "HallucinationPenaltyConfig",
     "PPOConfig",
     "RewardWeightsConfig",
-    "HallucinationPenaltyConfig",
-    "load_trainer_config",
     "load_config_dict",
+    "load_trainer_config",
 ]
