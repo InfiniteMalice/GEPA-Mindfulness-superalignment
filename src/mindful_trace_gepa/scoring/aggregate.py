@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import itertools
+from dataclasses import asdict
 from typing import Any, Dict, Final, Mapping, Sequence
 
+from ..train.grn import GRNSettings, build_grn
+from ..utils.imports import optional_import
 from .schema import DIMENSIONS, AggregateScores, TierScores
+
+torch = optional_import("torch")
 
 DEFAULT_WEIGHTS: Final[Dict[str, float]] = {
     "heuristic": 0.2,
@@ -19,6 +24,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "abstention_thresholds": dict(DEFAULT_THRESHOLDS),
     "disagreement_penalty": DEFAULT_DISAGREEMENT_PENALTY,
     "escalate_if_any_below": DEFAULT_ESCALATE_FLOOR,
+    "confidence_grn": asdict(GRNSettings()),
 }
 
 
@@ -93,6 +99,8 @@ def build_config(overrides: Mapping[str, Any] | None = None) -> Dict[str, Any]:
         DEFAULT_CONFIG["escalate_if_any_below"],
     )
 
+    cfg["confidence_grn"] = asdict(GRNSettings.from_mapping(cfg.get("confidence_grn")))
+
     return cfg
 
 
@@ -136,6 +144,7 @@ def aggregate_tiers(
         cfg.get("escalate_if_any_below"),
         DEFAULT_CONFIG["escalate_if_any_below"],
     )
+    confidence_grn = GRNSettings.from_mapping(cfg.get("confidence_grn"))
 
     threshold_values = {
         dim: _safe_float(thresholds_cfg.get(dim), DEFAULT_CONFIG["abstention_thresholds"][dim])
@@ -143,7 +152,7 @@ def aggregate_tiers(
     }
 
     final_scores: Dict[str, int] = {}
-    final_confidence: Dict[str, float] = {}
+    raw_confidence: Dict[str, float] = {}
     reasons: list[str] = []
 
     gaps = _pairwise_disagreement(tiers)
@@ -160,7 +169,22 @@ def aggregate_tiers(
         gap = gaps[dim]
         if gap >= 2:
             confidence -= penalty * max(gap - 1, 1)
-        final_confidence[dim] = max(0.0, min(1.0, confidence))
+        raw_confidence[dim] = max(0.0, min(1.0, confidence))
+
+    grn_module = build_grn(confidence_grn)
+    if grn_module is not None and torch is not None:
+        with torch.no_grad():
+            conf_tensor = torch.tensor(
+                [[raw_confidence[dim] for dim in DIMENSIONS]], dtype=torch.float32
+            )
+            normalised = grn_module(conf_tensor).squeeze(0).clamp(0.0, 1.0)
+        final_confidence = {
+            dim: float(normalised[idx].item()) for idx, dim in enumerate(DIMENSIONS)
+        }
+    else:
+        final_confidence = dict(raw_confidence)
+
+    for dim in DIMENSIONS:
         if final_confidence[dim] < threshold_values[dim]:
             reasons.append(f"Confidence below threshold for {dim}")
 
