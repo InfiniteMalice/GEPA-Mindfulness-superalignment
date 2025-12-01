@@ -22,7 +22,7 @@ def test_global_response_norm_shapes() -> None:
     assert output_3d.shape == inputs_3d.shape
 
 
-def test_confidence_grn_adjusts_thresholding() -> None:
+def test_confidence_grn_modifies_values() -> None:
     tier = TierScores(
         tier="judge",
         scores={dim: 3 for dim in DIMENSIONS},

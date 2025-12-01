@@ -34,9 +34,11 @@ class GRNSettings:
         dim_value = payload.get("dim", -1)
         if isinstance(dim_value, list):
             dim_value = tuple(int(item) for item in dim_value)
+        elif not isinstance(dim_value, (int, tuple)):
+            raise ValueError(f"Invalid type for 'dim': {type(dim_value).__name__}")
         return cls(
             enabled=bool(payload.get("enabled", False)),
-            dim=dim_value if isinstance(dim_value, (int, tuple)) else -1,
+            dim=dim_value,
             eps=float(payload.get("eps", 1e-6)),
             learnable=bool(payload.get("learnable", False)),
         )
@@ -73,10 +75,7 @@ class GlobalResponseNorm(BaseModule):
         if torch is None:
             raise ImportError("torch is required to execute GlobalResponseNorm")
         if inputs.dim() not in (2, 3):
-            raise ValueError(
-                "GlobalResponseNorm expects 2D (batch, features) or 3D (batch, seq, features)"
-                " inputs"
-            )
+            raise ValueError("GRN expects 2D (batch, feat) or 3D (batch, seq, feat) inputs")
         gx = inputs.norm(p=2, dim=self.dim, keepdim=True)
         nx = gx / (gx.mean(dim=self.dim, keepdim=True) + self.eps)
         # Apply GRN normalization with learnable scale/bias and residual connection
