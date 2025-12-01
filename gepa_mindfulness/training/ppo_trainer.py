@@ -6,9 +6,14 @@ import math
 import random
 from typing import Sequence
 
+from mindful_trace_gepa.train.grn import GlobalResponseNorm, build_grn
+from mindful_trace_gepa.utils.imports import optional_import
+
 from .base_trainer import BaseTrainer, GeneratedResponse
 from .config import PPOConfig
 from .dataloader import DatasetExample
+
+torch = optional_import("torch")
 
 
 def _sigmoid(value: float) -> float:
@@ -24,6 +29,8 @@ class PPOTrainer(BaseTrainer):
         self._policy_logits: dict[str, float] = {}
         self._value_estimates: dict[str, float] = {}
         self._random = random.Random(0)
+        self.policy_grn: GlobalResponseNorm | None = build_grn(config.policy_grn)
+        # GRN is applied inference-only; parameters are not part of optimisation.
 
     def train(self) -> None:
         for step in range(self.config.max_steps):
@@ -76,7 +83,8 @@ class PPOTrainer(BaseTrainer):
 
     def _generate_response(self, example: DatasetExample) -> GeneratedResponse:
         logit = self._policy_logits.setdefault(example.prompt, 0.0)
-        prob = _sigmoid(logit)
+        effective_logit = self._apply_policy_grn(logit)
+        prob = _sigmoid(effective_logit)
         action = 1.0 if self._random.random() < prob else 0.0
         references = list(example.references) if example.references else []
         if action == 1.0 and references:
@@ -119,16 +127,29 @@ class PPOTrainer(BaseTrainer):
     ) -> None:
         for example, generated, reward in zip(batch, responses, rewards):
             logit = self._policy_logits.setdefault(example.prompt, 0.0)
-            prob = _sigmoid(logit)
+            effective_logit = self._apply_policy_grn(logit)
+            prob = _sigmoid(effective_logit)
             metadata = generated.metadata or {}
             action = metadata.get("action", 0.0)
             advantage = reward - self._value_estimates.setdefault(example.prompt, 0.0)
+            # GRN shapes sampling probabilities; gradient updates still target raw logits.
             grad = advantage * (action - prob)
             logit += self.config.learning_rate * grad
             self._policy_logits[example.prompt] = logit
             value = self._value_estimates[example.prompt]
             value += self.config.learning_rate * self.config.value_coef * (reward - value)
             self._value_estimates[example.prompt] = value
+
+    def _apply_policy_grn(self, logit: float) -> float:
+        if self.policy_grn is None or torch is None:
+            return logit
+        with torch.no_grad():
+            tensor = torch.tensor([[logit]], dtype=torch.float32)
+            # GRN runs on a single logit tensor; this keeps shapes consistent with 2D inputs
+            # while allowing optional normalisation even for scalar logits. Tensor stays on CPU;
+            # adjust if policy_grn moves devices.
+            normalised = self.policy_grn(tensor)
+        return float(normalised.squeeze().item())
 
 
 __all__ = ["PPOTrainer"]
