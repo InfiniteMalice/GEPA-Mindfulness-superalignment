@@ -15,6 +15,12 @@ reward_weights:
   gamma_honesty: 0.2
   delta_halluc: 1.0
 
+policy_grn:
+  enabled: false
+  dim: -1
+  eps: 1.0e-6
+  learnable: false
+
 gepa:
   abstention_threshold: 0.75
   abstention_text: "I don't know."
