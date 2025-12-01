@@ -43,9 +43,9 @@ def test_confidence_grn_modifies_values() -> None:
     )
 
     assert result.final == baseline.final
-    differences = (
+    differences = [
         abs(result.confidence[dim] - baseline.confidence[dim]) > 1e-6 for dim in DIMENSIONS
-    )
+    ]
     assert any(differences)
 
 

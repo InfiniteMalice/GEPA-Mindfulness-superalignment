@@ -77,7 +77,16 @@ class GlobalResponseNorm(BaseModule):
         if inputs.dim() not in (2, 3):
             raise ValueError("GRN expects 2D (batch, feat) or 3D (batch, seq, feat) inputs")
         gx = inputs.norm(p=2, dim=self.dim, keepdim=True)
-        nx = gx / (gx.mean(dim=self.dim, keepdim=True) + self.eps)
+        dim_indices = (self.dim,) if isinstance(self.dim, int) else tuple(self.dim)
+        total_dims = inputs.dim()
+        canonical_dims = {dim if dim >= 0 else total_dims + dim for dim in dim_indices}
+        reduced = []
+        for idx in range(total_dims):
+            canonical = idx if idx >= 0 else total_dims + idx
+            if canonical not in canonical_dims:
+                reduced.append(idx)
+        denom = gx.mean(dim=reduced, keepdim=True) if reduced else gx
+        nx = gx / (denom + self.eps)
         # Apply GRN normalization with learnable scale/bias and residual connection
         return self.gamma * (inputs * nx) + self.beta + inputs
 

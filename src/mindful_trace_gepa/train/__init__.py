@@ -1,6 +1,6 @@
 """Training utilities for Mindful Trace GEPA."""
 
-from typing import NoReturn
+from typing import TYPE_CHECKING, NoReturn
 
 from ..utils.imports import optional_import
 
@@ -23,5 +23,10 @@ else:  # pragma: no cover - fallback when torch/accelerate are missing
     get_accelerator = _missing
     wrap_model_optimizer = _missing
     save_sharded = _missing
+
+if TYPE_CHECKING:
+    from .dist import get_accelerator as get_accelerator
+    from .dist import save_sharded as save_sharded
+    from .dist import wrap_model_optimizer as wrap_model_optimizer
 
 __all__ = ["get_accelerator", "wrap_model_optimizer", "save_sharded"]
