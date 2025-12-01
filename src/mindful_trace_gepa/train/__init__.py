@@ -13,11 +13,11 @@ if _dist is not None:
 else:  # pragma: no cover - fallback when torch/accelerate are missing
 
     def _missing(*_args: object, **_kwargs: object) -> NoReturn:
-        """Raise ImportError when training distribution helpers are unavailable."""
+        """Raise ImportError when torch or accelerate dependencies are unavailable."""
 
         raise ImportError(
-            "mindful_trace_gepa.train.dist is unavailable; check optional dependencies or import"
-            " failures"
+            "mindful_trace_gepa.train.dist requires torch and accelerate; install with"
+            " 'pip install torch accelerate' or check for import failures"
         )
 
     get_accelerator = _missing

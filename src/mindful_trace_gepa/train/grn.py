@@ -61,12 +61,25 @@ class GlobalResponseNorm(BaseModule):
             self.register_buffer("beta", beta)
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:  # type: ignore[override]
+        """Apply GRN with residual connection.
+
+        Args:
+            inputs: 2D (batch, features) or 3D (batch, seq, features) tensor
+
+        Returns:
+            Normalized tensor with residual connection
+        """
+
         if torch is None:
             raise ImportError("torch is required to execute GlobalResponseNorm")
         if inputs.dim() not in (2, 3):
-            raise ValueError("GlobalResponseNorm expects 2D or 3D inputs")
+            raise ValueError(
+                "GlobalResponseNorm expects 2D (batch, features) or 3D (batch, seq, features)"
+                " inputs"
+            )
         gx = inputs.norm(p=2, dim=self.dim, keepdim=True)
         nx = gx / (gx.mean(dim=self.dim, keepdim=True) + self.eps)
+        # Apply GRN normalization with learnable scale/bias and residual connection
         return self.gamma * (inputs * nx) + self.beta + inputs
 
 
