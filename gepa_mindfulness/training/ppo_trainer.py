@@ -142,6 +142,8 @@ class PPOTrainer(BaseTrainer):
             return logit
         with torch.no_grad():
             tensor = torch.tensor([[logit]], dtype=torch.float32)
+            # GRN runs on a single logit tensor; this keeps shapes consistent with 2D inputs
+            # while allowing optional normalisation even for scalar logits.
             normalised = self.policy_grn(tensor)
         return float(normalised.squeeze().item())
 
