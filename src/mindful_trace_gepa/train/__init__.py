@@ -25,8 +25,6 @@ else:  # pragma: no cover - fallback when torch/accelerate are missing
     save_sharded = _missing
 
 if TYPE_CHECKING:
-    from .dist import get_accelerator as get_accelerator
-    from .dist import save_sharded as save_sharded
-    from .dist import wrap_model_optimizer as wrap_model_optimizer
+    from .dist import get_accelerator, save_sharded, wrap_model_optimizer
 
 __all__ = ["get_accelerator", "wrap_model_optimizer", "save_sharded"]

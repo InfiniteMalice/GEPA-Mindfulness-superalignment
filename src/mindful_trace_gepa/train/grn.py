@@ -82,7 +82,7 @@ class GlobalResponseNorm(BaseModule):
         canonical_dims = {dim if dim >= 0 else total_dims + dim for dim in dim_indices}
         reduced = []
         for idx in range(total_dims):
-            canonical = idx if idx >= 0 else total_dims + idx
+            canonical = idx
             if canonical not in canonical_dims:
                 reduced.append(idx)
         denom = gx.mean(dim=reduced, keepdim=True) if reduced else gx
