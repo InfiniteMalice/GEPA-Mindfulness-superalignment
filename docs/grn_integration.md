@@ -8,8 +8,9 @@ avoid changing existing behaviour.
 
 The shared `GlobalResponseNorm` layer supports 2D or 3D inputs and normalises
 values along a configurable dimension before applying a learnable (or fixed)
-scale/shift. The default configuration keeps parameters frozen and uses
-`dim=-1` with `eps=1e-6`.
+scale/shift. A residual connection keeps the original inputs in the output, so
+values do not collapse when GRN is enabled. The default configuration keeps
+parameters frozen and uses `dim=-1` with `eps=1e-6`.
 
 ```python
 from mindful_trace_gepa.train.grn import GlobalResponseNorm
@@ -22,8 +23,8 @@ output = grn(inputs)
 
 `src/mindful_trace_gepa/scoring/aggregate.py` accepts a `confidence_grn`
 section. When enabled, GEPA dimension confidences are normalised before the
-0.75 abstention cutoff is applied. Confidence values are clamped to `[0,1]`
-after GRN.
+abstention thresholds from `configs/scoring.yml` are applied. Confidence values
+are clamped to `[0,1]` after GRN.
 
 ```yaml
 confidence_grn:

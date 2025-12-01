@@ -74,6 +74,7 @@ def _normalise_tokens(
         logger.warning("GRN requested for probes but torch is unavailable; skipping")
         return [list(token) for token in tokens]
     if module is None:
+        logger.debug("GRN module unavailable; returning tokens unchanged")
         return [list(token) for token in tokens]
     with torch_module.no_grad():
         # Shape: [num_tokens, hidden_dim] expected by GlobalResponseNorm
