@@ -4,6 +4,7 @@ import json
 import math
 
 import pytest
+
 from rg_tracer.scoring import parse_summary_block
 
 
