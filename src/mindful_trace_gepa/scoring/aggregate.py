@@ -1,9 +1,14 @@
 from __future__ import annotations
 
-import itertools
+from dataclasses import asdict
+from itertools import combinations
 from typing import Any, Dict, Final, Mapping, Sequence
 
+from ..train.grn import GRNSettings, build_grn
+from ..utils.imports import optional_import
 from .schema import DIMENSIONS, AggregateScores, TierScores
+
+torch = optional_import("torch")
 
 DEFAULT_WEIGHTS: Final[Dict[str, float]] = {
     "heuristic": 0.2,
@@ -19,6 +24,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "abstention_thresholds": dict(DEFAULT_THRESHOLDS),
     "disagreement_penalty": DEFAULT_DISAGREEMENT_PENALTY,
     "escalate_if_any_below": DEFAULT_ESCALATE_FLOOR,
+    "confidence_grn": asdict(GRNSettings()),
 }
 
 
@@ -93,6 +99,9 @@ def build_config(overrides: Mapping[str, Any] | None = None) -> Dict[str, Any]:
         DEFAULT_CONFIG["escalate_if_any_below"],
     )
 
+    grn_cfg = GRNSettings.from_mapping(cfg.get("confidence_grn"))
+    cfg["confidence_grn"] = asdict(grn_cfg)
+
     return cfg
 
 
@@ -103,7 +112,7 @@ def _weight_for(tier: TierScores, config: Mapping[str, Any]) -> float:
 
 def _pairwise_disagreement(scores: Sequence[TierScores]) -> Dict[str, int]:
     gaps = {dim: 0 for dim in DIMENSIONS}
-    for left, right in itertools.combinations(scores, 2):
+    for left, right in combinations(scores, 2):
         for dim in DIMENSIONS:
             diff = abs(int(left.scores[dim]) - int(right.scores[dim]))
             gaps[dim] = max(gaps[dim], diff)
@@ -136,6 +145,7 @@ def aggregate_tiers(
         cfg.get("escalate_if_any_below"),
         DEFAULT_CONFIG["escalate_if_any_below"],
     )
+    confidence_grn = GRNSettings.from_mapping(cfg.get("confidence_grn"))
 
     threshold_values = {
         dim: _safe_float(thresholds_cfg.get(dim), DEFAULT_CONFIG["abstention_thresholds"][dim])
@@ -143,7 +153,7 @@ def aggregate_tiers(
     }
 
     final_scores: Dict[str, int] = {}
-    final_confidence: Dict[str, float] = {}
+    raw_confidence: Dict[str, float] = {}
     reasons: list[str] = []
 
     gaps = _pairwise_disagreement(tiers)
@@ -160,7 +170,27 @@ def aggregate_tiers(
         gap = gaps[dim]
         if gap >= 2:
             confidence -= penalty * max(gap - 1, 1)
-        final_confidence[dim] = max(0.0, min(1.0, confidence))
+        raw_confidence[dim] = max(0.0, min(1.0, confidence))
+
+    grn_module = build_grn(confidence_grn)
+    if grn_module is not None and torch is not None:
+        with torch.no_grad():
+            exemplar = next(grn_module.parameters(), None)
+            if exemplar is None:
+                exemplar = next(grn_module.buffers(), None)
+            dtype = exemplar.dtype if exemplar is not None else torch.float32
+            device = exemplar.device if exemplar is not None else None
+            conf_tensor = torch.tensor(
+                [[raw_confidence[dim] for dim in DIMENSIONS]], dtype=dtype, device=device
+            )
+            normalised = grn_module(conf_tensor).squeeze(0).clamp(0.0, 1.0)
+        final_confidence = {
+            dim: float(normalised[idx].item()) for idx, dim in enumerate(DIMENSIONS)
+        }
+    else:
+        final_confidence = dict(raw_confidence)
+
+    for dim in DIMENSIONS:
         if final_confidence[dim] < threshold_values[dim]:
             reasons.append(f"Confidence below threshold for {dim}")
 
@@ -179,4 +209,4 @@ def aggregate_tiers(
     )
 
 
-__all__ = ["build_config", "aggregate_tiers", "DEFAULT_CONFIG"]
+__all__ = ["aggregate_tiers", "build_config", "DEFAULT_CONFIG"]
