@@ -619,12 +619,12 @@ def infer_probe(
 
 
 __all__ = [
-    "ProbeWeights",
     "auprc",
     "auroc",
     "extract_hidden_states",
     "fpr_at_tpr",
     "infer_probe",
     "load_probe",
+    "ProbeWeights",
     "threshold_at_fpr",
 ]

@@ -52,7 +52,7 @@ def test_confidence_grn_modifies_values() -> None:
 def test_confidence_grn_rejects_non_mapping() -> None:
     tier = TierScores(
         tier="judge",
-        scores={dim: 1.0 for dim in DIMENSIONS},
+        scores={dim: 1 for dim in DIMENSIONS},
         confidence={dim: 0.5 for dim in DIMENSIONS},
         meta={},
     )
