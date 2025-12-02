@@ -79,7 +79,17 @@ def _normalise_tokens(
         return [list(token) for token in tokens]
     with torch_module.no_grad():
         # Shape: [num_tokens, hidden_dim] expected by GlobalResponseNorm
-        tensor = torch_module.tensor(tokens, dtype=torch_module.float32)
+        param = next(module.parameters(), None)
+        buffer = next(module.buffers(), None)
+        target_dtype = (
+            param.dtype
+            if param is not None
+            else buffer.dtype if buffer is not None else torch_module.float32
+        )
+        target_device = (
+            param.device if param is not None else buffer.device if buffer is not None else None
+        )
+        tensor = torch_module.tensor(tokens, dtype=target_dtype, device=target_device)
         normalised = module(tensor)
     return [_ensure_float_list(row.tolist()) for row in normalised.detach().cpu().unbind(dim=0)]
 
