@@ -63,6 +63,9 @@ extend-exclude = ["notebooks"]
 select = ["E", "F", "I"]
 ignore = ["E203"]
 
+[tool.ruff.lint.isort]
+known-first-party = ["mindful_trace_gepa", "gepa_mindfulness", "rg_tracer"]
+
 [tool.mypy]
 python_version = "3.10"
 warn_unused_ignores = true
