@@ -175,8 +175,13 @@ def aggregate_tiers(
     grn_module = build_grn(confidence_grn)
     if grn_module is not None and torch is not None:
         with torch.no_grad():
+            exemplar = next(grn_module.parameters(), None)
+            if exemplar is None:
+                exemplar = next(grn_module.buffers(), None)
+            dtype = exemplar.dtype if exemplar is not None else torch.float32
+            device = exemplar.device if exemplar is not None else None
             conf_tensor = torch.tensor(
-                [[raw_confidence[dim] for dim in DIMENSIONS]], dtype=torch.float32
+                [[raw_confidence[dim] for dim in DIMENSIONS]], dtype=dtype, device=device
             )
             normalised = grn_module(conf_tensor).squeeze(0).clamp(0.0, 1.0)
         final_confidence = {
