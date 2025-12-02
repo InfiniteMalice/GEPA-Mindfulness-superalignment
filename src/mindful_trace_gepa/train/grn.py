@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import dataclasses
 import logging
-from dataclasses import dataclass
 from typing import Any, Mapping
 
 from ..utils.imports import optional_import
@@ -19,7 +19,7 @@ else:
     BaseModule = object
 
 
-@dataclass
+@dataclasses.dataclass
 class GRNSettings:
     """Configuration container for :class:`GlobalResponseNorm`."""
 

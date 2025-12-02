@@ -186,7 +186,7 @@ def handle_deception_probes(args: argparse.Namespace) -> None:
     layers = config.get("model_layer_indices") or []
     pooling = config.get("pooling", "mean")
     threshold_config = config.get("threshold") or {}
-    grn_config = config.get("activation_grn") or {}
+    grn_config = config.get("activation_grn")
 
     try:
         grn_settings = GRNSettings.from_mapping(grn_config)

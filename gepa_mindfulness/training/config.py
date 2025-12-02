@@ -248,8 +248,8 @@ __all__ = [
     "CircuitTracerConfig",
     "GRPOConfig",
     "HallucinationPenaltyConfig",
-    "PPOConfig",
-    "RewardWeightsConfig",
     "load_config_dict",
     "load_trainer_config",
+    "PPOConfig",
+    "RewardWeightsConfig",
 ]
