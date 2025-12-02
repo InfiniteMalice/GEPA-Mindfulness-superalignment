@@ -13,6 +13,7 @@ from .base_trainer import BaseTrainer, GeneratedResponse
 from .config import PPOConfig
 from .dataloader import DatasetExample
 
+# Keep optional torch import adjacent to other imports for consistent grouping.
 torch = optional_import("torch")
 
 
