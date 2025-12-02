@@ -155,9 +155,7 @@ class PPOTrainer(BaseTrainer):
             device = (
                 param.device if param is not None else buffer.device if buffer is not None else None
             )
-            tensor = torch.tensor([[logit]], dtype=dtype)
-            if device is not None:
-                tensor = tensor.to(device)
+            tensor = torch.tensor([[logit]], dtype=dtype, device=device)
             # GRN runs on a single logit tensor; this keeps shapes consistent with 2D inputs
             # while allowing optional normalisation even for scalar logits. Device follows the
             # GRN parameters to avoid mismatches when policy_grn moves off-CPU.
