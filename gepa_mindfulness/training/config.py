@@ -10,7 +10,12 @@ from typing import Any, Dict, Literal
 
 import yaml
 
-from ..core.rewards import GEPARewardCalculator, HallucinationConfig, RewardWeights
+from gepa_mindfulness.core.rewards import (
+    GEPARewardCalculator,
+    HallucinationConfig,
+    RewardWeights,
+)
+from mindful_trace_gepa.train.grn import GRNSettings
 
 
 def _clamp(value: float, minimum: float, maximum: float) -> float:
@@ -166,6 +171,7 @@ class PPOConfig(BaseTrainerConfig):
     vf_clip_range: float = 0.2
     gae_lambda: float = 0.95
     target_kl: float = 0.01
+    policy_grn: GRNSettings = field(default_factory=GRNSettings)
 
     @classmethod
     def from_mapping(cls, payload: Dict[str, Any]) -> "PPOConfig":
@@ -177,6 +183,7 @@ class PPOConfig(BaseTrainerConfig):
                 "vf_clip_range": float(payload.get("vf_clip_range", 0.2)),
                 "gae_lambda": float(payload.get("gae_lambda", 0.95)),
                 "target_kl": float(payload.get("target_kl", 0.01)),
+                "policy_grn": GRNSettings.from_mapping(payload.get("policy_grn")),
             }
         )
         return cls(**base_kwargs)
@@ -240,9 +247,9 @@ __all__ = [
     "BaseTrainerConfig",
     "CircuitTracerConfig",
     "GRPOConfig",
+    "HallucinationPenaltyConfig",
     "PPOConfig",
     "RewardWeightsConfig",
-    "HallucinationPenaltyConfig",
-    "load_trainer_config",
     "load_config_dict",
+    "load_trainer_config",
 ]
