@@ -37,9 +37,9 @@ class GRNSettings:
                 f"Expected mapping or None for GRNSettings, got {type(payload).__name__}"
             )
         dim_value = payload.get("dim", -1)
-        if isinstance(dim_value, list):
+        if isinstance(dim_value, (list, tuple)):
             dim_value = tuple(int(item) for item in dim_value)
-        elif not isinstance(dim_value, (int, tuple)):
+        elif not isinstance(dim_value, int):
             raise ValueError(f"Invalid type for 'dim': {type(dim_value).__name__}")
         return cls(
             enabled=bool(payload.get("enabled", False)),
@@ -52,7 +52,12 @@ class GRNSettings:
 class GlobalResponseNorm(BaseModule):
     """Applies global response normalisation across the specified dimensions."""
 
-    def __init__(self, dim: int | tuple[int, ...] = -1, eps: float = 1e-6, learnable: bool = False):
+    def __init__(
+        self,
+        dim: int | tuple[int, ...] = -1,
+        eps: float = 1e-6,
+        learnable: bool = False,
+    ):
         if torch is None or nn_module is None:
             raise ImportError("torch is required to construct GlobalResponseNorm")
         super().__init__()
@@ -99,9 +104,16 @@ class GlobalResponseNorm(BaseModule):
 def build_grn(settings: GRNSettings | Mapping[str, Any] | None) -> GlobalResponseNorm | None:
     """Instantiate a :class:`GlobalResponseNorm` if ``enabled`` is set."""
 
-    parsed = settings
-    if isinstance(settings, Mapping):
+    if settings is None:
+        parsed: GRNSettings | None = None
+    elif isinstance(settings, Mapping):
         parsed = GRNSettings.from_mapping(settings)
+    elif isinstance(settings, GRNSettings):
+        parsed = settings
+    else:
+        raise TypeError(
+            f"settings must be GRNSettings, a mapping, or None, got {type(settings).__name__}"
+        )
     if parsed is None or not parsed.enabled:
         return None
     if torch is None or nn_module is None:
