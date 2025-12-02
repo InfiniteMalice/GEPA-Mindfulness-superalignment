@@ -88,6 +88,7 @@ class GlobalResponseNorm(BaseModule):
         gx = inputs.norm(p=2, dim=self.dim, keepdim=True)
         dim_indices = (self.dim,) if isinstance(self.dim, int) else tuple(self.dim)
         total_dims = inputs.dim()
+        # Canonicalise normalised dims (support negative indexing) to identify axes kept in gx
         canonical_dims = {dim if dim >= 0 else total_dims + dim for dim in dim_indices}
         reduced = []
         for idx in range(total_dims):
