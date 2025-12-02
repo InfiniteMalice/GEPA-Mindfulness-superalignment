@@ -68,6 +68,7 @@ class GlobalResponseNorm(BaseModule):
             self.gamma = nn_module.Parameter(gamma)
             self.beta = nn_module.Parameter(beta)
         else:
+            # Keep fixed parameters aligned with module device/dtype via registered buffers.
             self.register_buffer("gamma", gamma)
             self.register_buffer("beta", beta)
 
