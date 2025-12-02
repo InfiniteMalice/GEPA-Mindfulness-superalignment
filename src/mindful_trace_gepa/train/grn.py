@@ -33,9 +33,8 @@ class GRNSettings:
         if payload is None:
             payload = {}
         if not isinstance(payload, Mapping):
-            raise ValueError(
-                f"Expected mapping or None for GRNSettings, got {type(payload).__name__}"
-            )
+            message = "Expected mapping or None for GRNSettings, got " f"{type(payload).__name__}"
+            raise ValueError(message)
         dim_value = payload.get("dim", -1)
         if isinstance(dim_value, (list, tuple)):
             dim_value = tuple(int(item) for item in dim_value)
@@ -111,9 +110,10 @@ def build_grn(settings: GRNSettings | Mapping[str, Any] | None) -> GlobalRespons
     elif isinstance(settings, GRNSettings):
         parsed = settings
     else:
-        raise TypeError(
-            f"settings must be GRNSettings, a mapping, or None, got {type(settings).__name__}"
+        message = (
+            "settings must be GRNSettings, a mapping, or None; got " f"{type(settings).__name__}"
         )
+        raise TypeError(message)
     if parsed is None or not parsed.enabled:
         return None
     if torch is None or nn_module is None:

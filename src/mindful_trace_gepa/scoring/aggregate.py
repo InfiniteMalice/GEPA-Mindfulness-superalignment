@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import dataclasses
-import itertools
 from dataclasses import asdict
+from itertools import combinations
 from typing import Any, Dict, Final, Mapping, Sequence
 
 from ..train.grn import GRNSettings, build_grn
@@ -25,7 +24,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "abstention_thresholds": dict(DEFAULT_THRESHOLDS),
     "disagreement_penalty": DEFAULT_DISAGREEMENT_PENALTY,
     "escalate_if_any_below": DEFAULT_ESCALATE_FLOOR,
-    "confidence_grn": dataclasses.asdict(GRNSettings()),
+    "confidence_grn": asdict(GRNSettings()),
 }
 
 
@@ -100,7 +99,8 @@ def build_config(overrides: Mapping[str, Any] | None = None) -> Dict[str, Any]:
         DEFAULT_CONFIG["escalate_if_any_below"],
     )
 
-    cfg["confidence_grn"] = dataclasses.asdict(GRNSettings.from_mapping(cfg.get("confidence_grn")))
+    grn_cfg = GRNSettings.from_mapping(cfg.get("confidence_grn"))
+    cfg["confidence_grn"] = asdict(grn_cfg)
 
     return cfg
 
@@ -112,7 +112,7 @@ def _weight_for(tier: TierScores, config: Mapping[str, Any]) -> float:
 
 def _pairwise_disagreement(scores: Sequence[TierScores]) -> Dict[str, int]:
     gaps = {dim: 0 for dim in DIMENSIONS}
-    for left, right in itertools.combinations(scores, 2):
+    for left, right in combinations(scores, 2):
         for dim in DIMENSIONS:
             diff = abs(int(left.scores[dim]) - int(right.scores[dim]))
             gaps[dim] = max(gaps[dim], diff)

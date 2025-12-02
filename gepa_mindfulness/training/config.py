@@ -183,10 +183,17 @@ class PPOConfig(BaseTrainerConfig):
                 "vf_clip_range": float(payload.get("vf_clip_range", 0.2)),
                 "gae_lambda": float(payload.get("gae_lambda", 0.95)),
                 "target_kl": float(payload.get("target_kl", 0.01)),
-                "policy_grn": GRNSettings.from_mapping(payload.get("policy_grn")),
+                "policy_grn": cls._parse_policy_grn(payload),
             }
         )
         return cls(**base_kwargs)
+
+    @staticmethod
+    def _parse_policy_grn(payload: Dict[str, Any]) -> GRNSettings:
+        try:
+            return GRNSettings.from_mapping(payload.get("policy_grn"))
+        except ValueError as exc:
+            raise ValueError("Invalid policy_grn configuration") from exc
 
 
 @dataclass

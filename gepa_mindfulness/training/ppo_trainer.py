@@ -146,9 +146,11 @@ class PPOTrainer(BaseTrainer):
             return logit
         with torch.no_grad():
             tensor = torch.tensor([[logit]], dtype=torch.float32)
+            if hasattr(self.policy_grn, "gamma"):
+                tensor = tensor.to(self.policy_grn.gamma.device)
             # GRN runs on a single logit tensor; this keeps shapes consistent with 2D inputs
-            # while allowing optional normalisation even for scalar logits. Tensor stays on CPU;
-            # adjust if policy_grn moves devices.
+            # while allowing optional normalisation even for scalar logits. Device follows the
+            # GRN parameters to avoid mismatches when policy_grn moves off-CPU.
             normalised = self.policy_grn(tensor)
         return float(normalised.squeeze().item())
 
