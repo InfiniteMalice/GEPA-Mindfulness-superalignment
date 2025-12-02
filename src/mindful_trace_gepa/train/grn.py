@@ -110,4 +110,4 @@ def build_grn(settings: GRNSettings | Mapping[str, Any] | None) -> GlobalRespons
     return GlobalResponseNorm(dim=parsed.dim, eps=parsed.eps, learnable=parsed.learnable)
 
 
-__all__ = ["GRNSettings", "GlobalResponseNorm", "build_grn"]
+__all__ = ["build_grn", "GlobalResponseNorm", "GRNSettings"]
