@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import itertools
+from dataclasses import asdict
 from typing import Any, Dict, Final, Mapping, Sequence
 
 from ..train.grn import GRNSettings, build_grn
