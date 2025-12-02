@@ -14,6 +14,7 @@ from .configuration import dump_json
 from .deception.probes_linear import ProbeWeights, infer_probe, load_probe
 from .deception.score import summarize_deception_sources
 from .storage.jsonl_store import load_jsonl
+from .train.grn import GRNSettings
 from .utils.imports import optional_import
 
 yaml = optional_import("yaml")
@@ -187,20 +188,22 @@ def handle_deception_probes(args: argparse.Namespace) -> None:
     threshold_config = config.get("threshold") or {}
     grn_config = config.get("activation_grn") or {}
 
-    activations_bundle = _prepare_activations(trace_events, layers, probe)
-    labels = _collect_labels(trace_events)
     try:
-        result = infer_probe(
-            activations_bundle.activations,
-            probe,
-            pooling=pooling,
-            threshold_config=threshold_config,
-            labels=labels,
-            grn_config=grn_config,
-        )
+        grn_settings = GRNSettings.from_mapping(grn_config)
     except ValueError as exc:
         LOGGER.error("Invalid activation_grn config: %s", exc)
         raise SystemExit(1) from exc
+
+    activations_bundle = _prepare_activations(trace_events, layers, probe)
+    labels = _collect_labels(trace_events)
+    result = infer_probe(
+        activations_bundle.activations,
+        probe,
+        pooling=pooling,
+        threshold_config=threshold_config,
+        labels=labels,
+        grn_config=grn_settings,
+    )
 
     output = dict(result)
     output.update(

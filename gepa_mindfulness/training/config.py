@@ -10,7 +10,11 @@ from typing import Any, Dict, Literal
 
 import yaml
 
-from gepa_mindfulness.core.rewards import GEPARewardCalculator, HallucinationConfig, RewardWeights
+from gepa_mindfulness.core.rewards import (
+    GEPARewardCalculator,
+    HallucinationConfig,
+    RewardWeights,
+)
 from mindful_trace_gepa.train.grn import GRNSettings
 
 

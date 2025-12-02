@@ -487,7 +487,7 @@ def infer_probe(
     pooling: str = "mean",
     threshold_config: Optional[Mapping[str, Any]] = None,
     labels: Optional[Sequence[Any]] = None,
-    grn_config: Mapping[str, Any] | None = None,
+    grn_config: GRNSettings | Mapping[str, Any] | None = None,
 ) -> Dict[str, Any]:
     """Run probe inference on activations and compute metrics."""
 
@@ -507,7 +507,9 @@ def infer_probe(
         }
 
     labels_vec = _coerce_labels(labels)
-    grn_settings = GRNSettings.from_mapping(grn_config)
+    grn_settings = (
+        grn_config if isinstance(grn_config, GRNSettings) else GRNSettings.from_mapping(grn_config)
+    )
     grn_module = build_grn(grn_settings)
     layers = activations.get("layers", {})
     token_scores: List[Tuple[int, float]] = []
