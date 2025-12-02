@@ -49,6 +49,18 @@ def test_confidence_grn_modifies_values() -> None:
     assert any(differences)
 
 
+def test_confidence_grn_rejects_non_mapping() -> None:
+    tier = TierScores(
+        tier="judge",
+        scores={dim: 1.0 for dim in DIMENSIONS},
+        confidence={dim: 0.5 for dim in DIMENSIONS},
+        meta={},
+    )
+
+    with pytest.raises(ValueError):
+        aggregate_tiers([tier], {"confidence_grn": True})
+
+
 def test_probe_normalisation_toggle() -> None:
     probe = ProbeWeights(weights=[0.5, -0.25], bias=0.1)
     activations = {
