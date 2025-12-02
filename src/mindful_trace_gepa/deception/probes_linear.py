@@ -66,6 +66,7 @@ def _normalise_tokens(
     grn_settings: GRNSettings,
     module: Any | None = None,
 ) -> List[List[float]]:
+    """Apply GRN normalisation to token vectors when available."""
     if not tokens:
         return []
     if not grn_settings.enabled:

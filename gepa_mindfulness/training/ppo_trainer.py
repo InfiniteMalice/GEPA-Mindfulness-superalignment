@@ -132,7 +132,7 @@ class PPOTrainer(BaseTrainer):
             metadata = generated.metadata or {}
             action = metadata.get("action", 0.0)
             advantage = reward - self._value_estimates.setdefault(example.prompt, 0.0)
-            # GRN shapes sampling probabilities; gradient updates still target raw logits.
+            # Probabilities use GRN-transformed logits; gradient updates still target raw logits.
             grad = advantage * (action - prob)
             logit += self.config.learning_rate * grad
             self._policy_logits[example.prompt] = logit
