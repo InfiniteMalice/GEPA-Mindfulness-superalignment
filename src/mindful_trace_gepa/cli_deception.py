@@ -185,16 +185,22 @@ def handle_deception_probes(args: argparse.Namespace) -> None:
     layers = config.get("model_layer_indices") or []
     pooling = config.get("pooling", "mean")
     threshold_config = config.get("threshold") or {}
+    grn_config = config.get("activation_grn") or {}
 
     activations_bundle = _prepare_activations(trace_events, layers, probe)
     labels = _collect_labels(trace_events)
-    result = infer_probe(
-        activations_bundle.activations,
-        probe,
-        pooling=pooling,
-        threshold_config=threshold_config,
-        labels=labels,
-    )
+    try:
+        result = infer_probe(
+            activations_bundle.activations,
+            probe,
+            pooling=pooling,
+            threshold_config=threshold_config,
+            labels=labels,
+            grn_config=grn_config,
+        )
+    except ValueError as exc:
+        LOGGER.error("Invalid activation_grn config: %s", exc)
+        raise SystemExit(1) from exc
 
     output = dict(result)
     output.update(
