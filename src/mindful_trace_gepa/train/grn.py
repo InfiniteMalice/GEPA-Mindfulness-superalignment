@@ -30,7 +30,12 @@ class GRNSettings:
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any] | None) -> "GRNSettings":
-        payload = payload or {}
+        if payload is None:
+            payload = {}
+        if not isinstance(payload, Mapping):
+            raise ValueError(
+                f"Expected mapping or None for GRNSettings, got {type(payload).__name__}"
+            )
         dim_value = payload.get("dim", -1)
         if isinstance(dim_value, list):
             dim_value = tuple(int(item) for item in dim_value)

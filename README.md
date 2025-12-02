@@ -53,8 +53,8 @@ notebooks/                      Unsloth/PEFT fine-tuning notebooks
 Every subdirectory that contains runnable components includes its own README for
 more detail.
 
-See `docs/grn_integration.md` for configurable Global Response Normalization
-usage across scoring, PPO training, and probe evaluation.
+See [`docs/grn_integration.md`](docs/grn_integration.md) for configurable Global
+Response Normalization usage across scoring, PPO training, and probe evaluation.
 
 ## Requirements
 

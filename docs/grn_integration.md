@@ -37,8 +37,9 @@ confidence_grn:
 ## PPO policy head
 
 `gepa_mindfulness/training/ppo_trainer.py` can apply GRN to policy logits before
-computing token probabilities. Configure this via `policy_grn` in
-`configs/ppo/ppo_default.yaml` (disabled by default).
+computing token probabilities. Gradients continue to update the underlying raw
+logits, so GRN acts as an inference-time calibration layer only. Configure this
+via `policy_grn` in `configs/ppo/ppo_default.yaml` (disabled by default).
 
 ## Deception probes
 
