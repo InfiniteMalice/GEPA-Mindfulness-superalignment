@@ -4,9 +4,14 @@ You are coding for the GEPA-Mindfulness-superalignment repository. Follow these 
 
 ## BEADS USAGE
 
-- Repository instructions are mirrored in `beads/README.md` so beads can ingest them directly.
-- Install beads when network access allows with
-  `curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash`.
+- Repository instructions are canonical here; beads reads them via `beads/README.md`.
+- See `beads/README.md` for beads setup and ingestion notes.
+- Install beads when network access allows:
+```bash
+curl -fsSL \
+  https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh \
+  | bash
+```
 
 ## CRITICAL RULES (ALL CODE MUST FOLLOW)
 
@@ -25,7 +30,7 @@ import os
 import sys
 from typing import Any, Dict
 
-# Third-party  
+# Third-party
 import numpy as np
 import torch
 
@@ -60,7 +65,7 @@ When Black wants >100 chars:
 def calculate_mindfulness_superalignment_coefficient(x, y):
     pass
 
-# After  
+# After
 def calc_mindful_super_coef(x, y):
     pass
 ```
@@ -121,11 +126,11 @@ def short_func_name(
     arg2: int = 0,
 ) -> Dict[str, Any]:
     """Brief description.
-    
+
     Args:
         arg1: Description
         arg2: Description
-        
+
     Returns:
         Description
     """
