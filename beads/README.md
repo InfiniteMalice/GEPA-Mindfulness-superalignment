@@ -8,9 +8,15 @@ This README focuses on beads-specific setup and ingestion notes.
 Beads has been manually enabled for this repository. Run `bd onboard` from the repository root
 to fetch integration instructions and confirm ingestion is configured.
 
-If `bd` is not found, ensure the beads CLI is installed and on your PATH before retrying the
-onboarding command. Reach out to the maintainer of the manual install for the expected binary
-location if the CLI remains unavailable.
+If `bd` is not found, ensure the beads CLI is on your PATH before retrying the onboarding
+command. Reach out to the maintainer of the manual install for the expected binary location if
+the CLI remains unavailable.
+
+## Workflow expectations
+
+- Keep `AGENTS.md` as the canonical source of repository rules; beads monitors that file.
+- Run `bd status` before committing to verify the repository link and ingestion state.
+- After updating `AGENTS.md`, rerun `bd onboard` if beads requests refreshed instructions.
 
 ## BEADS USAGE
 
