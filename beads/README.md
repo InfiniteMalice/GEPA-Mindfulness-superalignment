@@ -3,22 +3,14 @@
 See [AGENTS.md](../AGENTS.md) for the canonical coding rules that beads will track.
 This README focuses on beads-specific setup and ingestion notes.
 
-## Installation
+## Onboarding
 
-Run the beads installer from the repository root when network access allows:
+Beads has been manually enabled for this repository. Run `bd onboard` from the repository root
+to fetch integration instructions and confirm ingestion is configured.
 
-```bash
-curl -fsSL \
-  https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh \
-  | bash
-```
-
-If installation fails with a 403 error while fetching the script, retry the command once network
-access is restored.
-
-If the beads CLI is available, run `bd onboard` from the repository root to receive integration
-instructions. The CLI is currently unavailable here because the installer cannot be fetched due to
-the network 403, so onboarding must wait until the installer can be downloaded and executed.
+If `bd` is not found, ensure the beads CLI is installed and on your PATH before retrying the
+onboarding command. Reach out to the maintainer of the manual install for the expected binary
+location if the CLI remains unavailable.
 
 ## BEADS USAGE
 
