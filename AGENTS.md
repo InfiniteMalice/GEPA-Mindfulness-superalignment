@@ -126,21 +126,21 @@ AI assistants often create planning and design documents during development:
 - DESIGN.md, CODEBASE_SUMMARY.md, INTEGRATION_PLAN.md
 - TESTING_GUIDE.md, TECHNICAL_DESIGN.md, and similar files
 
-**Best Practice: Use a dedicated directory for these ephemeral files**
+#### Best Practice: Use a dedicated directory for these ephemeral files
 
-**Recommended approach:**
+#### Recommended approach
 - Create a `history/` directory in the project root.
 - Store ALL AI-generated planning/design docs in `history/`.
 - Keep the repository root clean and focused on permanent project files.
 - Only access `history/` when explicitly asked to review past planning.
 
-**Example .gitignore entry (optional):**
-```
+#### Example .gitignore entry (optional)
+```gitignore
 # AI planning documents (ephemeral)
 history/
 ```
 
-**Benefits:**
+#### Benefits
 - ✅ Clean repository root
 - ✅ Clear separation between ephemeral and permanent documentation
 - ✅ Easy to exclude from version control if desired
