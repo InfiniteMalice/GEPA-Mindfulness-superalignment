@@ -1,12 +1,16 @@
+# Beads instructions
+
+This file mirrors the repository's AGENTS.md instructions so beads can ingest them directly.
+Installation of beads could not complete here because access to the install script was blocked
+with a 403 response. When network access allows, run the command below from the repository root
+before using beads:
+
+curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash
+
+The rest of this file contains the instructions copied from AGENTS.md for beads to track.
 # Codex Prompt: GEPA-Mindfulness-superalignment
 
 You are coding for the GEPA-Mindfulness-superalignment repository. Follow these rules strictly.
-
-## BEADS USAGE
-
-- Repository instructions are mirrored in `beads/README.md` so beads can ingest them directly.
-- Install beads when network access allows with
-  `curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash`.
 
 ## CRITICAL RULES (ALL CODE MUST FOLLOW)
 
