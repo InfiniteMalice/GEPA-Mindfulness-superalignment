@@ -86,7 +86,12 @@ def decompose_gepa_score(
         feature_vector = apply_grn_vector(deep_list + shallow_list)
         expected_len = len(deep_list) + len(shallow_list)
         if len(feature_vector) != expected_len:
-            raise ValueError(f"GRN output length {len(feature_vector)} != expected {expected_len}")
+            logger.warning(
+                "GRN output len %d != expected %d; using raw features",
+                len(feature_vector),
+                expected_len,
+            )
+            feature_vector = deep_list + shallow_list
         split = len(deep_list)
         deep_list = feature_vector[:split]
         shallow_list = feature_vector[split:]

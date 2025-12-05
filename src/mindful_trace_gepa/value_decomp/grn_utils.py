@@ -28,12 +28,14 @@ def apply_grn_vector(vector: List[float]) -> List[float]:
 
     grn_module = _cached_grn_module
     if grn_module is None:
-        _cached_grn = None
+        if _cached_grn is _UNSET:
+            _cached_grn = None
         return vector
 
     build_grn = getattr(grn_module, "build_grn", None)
     if build_grn is None:
-        _cached_grn = None
+        if _cached_grn is _UNSET:
+            _cached_grn = None
         return vector
 
     if _cached_grn is _UNSET:

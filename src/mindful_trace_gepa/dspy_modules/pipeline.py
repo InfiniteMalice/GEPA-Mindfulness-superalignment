@@ -14,6 +14,15 @@ except ImportError:  # pragma: no cover
     dspy = None  # type: ignore
 
 try:  # pragma: no cover - optional dependency during tests
+    from mindful_trace_gepa.value_decomp.user_value_parser import (
+        parse_user_deep_values,
+        parse_user_shallow_prefs,
+    )
+except ImportError:  # pragma: no cover - value decomposition optional
+    parse_user_deep_values = None  # type: ignore
+    parse_user_shallow_prefs = None  # type: ignore
+
+try:  # pragma: no cover - optional dependency during tests
     from gepa_mindfulness.core.tracing import CircuitTracerLogger, ThoughtTrace
 except ImportError:  # pragma: no cover - fallback shim
 
@@ -163,12 +172,7 @@ class GEPAChain:
         }
         user_deep = None
         user_shallow = None
-        if self.config.enable_value_decomposition:
-            from mindful_trace_gepa.value_decomp.user_value_parser import (
-                parse_user_deep_values,
-                parse_user_shallow_prefs,
-            )
-
+        if self.config.enable_value_decomposition and parse_user_deep_values is not None:
             user_deep = parse_user_deep_values(inquiry)
             user_shallow = parse_user_shallow_prefs(inquiry)
         module_results: List[ModuleResult] = []
