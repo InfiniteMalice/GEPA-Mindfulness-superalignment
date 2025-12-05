@@ -3,7 +3,6 @@ from __future__ import annotations
 import pytest
 
 from mindful_trace_gepa.configuration import DSPyConfig
-from mindful_trace_gepa.dspy_modules.pipeline import GEPAChain
 from mindful_trace_gepa.value_decomp.deep_value_spaces import (
     DeepValueVector,
     ShallowPreferenceVector,
@@ -78,6 +77,13 @@ def test_gepa_decomposition_with_probe() -> None:
 
 
 def test_gepa_chain_integration_value_decomp() -> None:
+    pipeline = pytest.importorskip(
+        "mindful_trace_gepa.dspy_modules.pipeline", reason="DSPy pipeline is optional"
+    )
+    GEPAChain = getattr(pipeline, "GEPAChain", None)
+    if GEPAChain is None:
+        pytest.skip("GEPAChain unavailable")
+
     config = DSPyConfig(enable_value_decomposition=True, enable_dvgr_eval=True)
     chain = GEPAChain(config=config)
     result = chain.run("Provide honest, safe advice", context="formal tone")

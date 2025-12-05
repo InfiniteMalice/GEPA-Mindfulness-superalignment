@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 from argparse import BooleanOptionalAction
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from importlib import import_module
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional
@@ -210,13 +210,13 @@ def handle_dspy_run(args: argparse.Namespace) -> None:
                     }
                 )
                 writer.append(payload)
-            if result.value_decomposition:
+            if result.value_decomposition is not None:
                 writer.append(
                     {
                         "stage": "value_decomposition",
                         "module": "value_decomposition",
                         "content": "value decomposition",
-                        "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                         "value_decomposition": result.value_decomposition,
                         "context": context,
                     }

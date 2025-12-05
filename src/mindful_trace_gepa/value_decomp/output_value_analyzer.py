@@ -6,15 +6,8 @@ import logging
 import re
 from typing import Any, Mapping, Optional
 
-from ..utils.imports import optional_import
-from .deep_value_spaces import (
-    DeepValueVector,
-    ShallowPreferenceVector,
-    _to_float_list,
-    _to_tensor,
-)
+from .deep_value_spaces import DeepValueVector, ShallowPreferenceVector, _to_float_list
 
-torch = optional_import("torch")
 logger = logging.getLogger(__name__)
 
 
@@ -107,27 +100,6 @@ def analyze_output_shallow_features(output_text: str) -> ShallowPreferenceVector
         deference=deference,
         assertiveness=assertiveness,
     )
-
-
-def _maybe_apply_grn(vector: list[float]) -> list[float]:
-    if torch is None:
-        return vector
-    grn_builder = optional_import("mindful_trace_gepa.train.grn")
-    if grn_builder is None:
-        return vector
-    build_grn = getattr(grn_builder, "build_grn", None)
-    if build_grn is None:
-        return vector
-    grn = build_grn({"enabled": True, "dim": -1})
-    tensor = _to_tensor(vector)
-    if callable(grn):
-        try:
-            normalised = grn(tensor)  # type: ignore[operator]
-            return _to_float_list(normalised)
-        except Exception:
-            logger.debug("GRN application failed in output analyzer", exc_info=True)
-            return vector
-    return vector
 
 
 __all__ = [
