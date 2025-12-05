@@ -6,7 +6,7 @@ import logging
 import re
 from typing import Any, Mapping, Optional
 
-from .deep_value_spaces import DeepValueVector, ShallowPreferenceVector, _to_float_list
+from .deep_value_spaces import DeepValueVector, ShallowPreferenceVector, to_float_list
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ def _extract_imperatives(gepa_scores: Any) -> list[float]:
                 extras.append(float(value))
         return scores + extras
     try:
-        return _to_float_list(gepa_scores)
+        return to_float_list(gepa_scores)
     except (TypeError, ValueError):
         return []
 

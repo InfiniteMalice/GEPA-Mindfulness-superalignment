@@ -58,7 +58,7 @@ def parse_user_shallow_prefs(prompt: str) -> ShallowPreferenceVector:
         verbosity_score = 0.3
     if "long" in lowered or "detailed" in lowered:
         verbosity_score = max(verbosity_score, 0.7)
-    scores["verbosity"] = verbosity_score or scores.get("verbosity", 0.0)
+    scores["verbosity"] = verbosity_score
 
     return ShallowPreferenceVector(**scores)
 

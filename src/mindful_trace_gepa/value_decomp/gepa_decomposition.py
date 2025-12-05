@@ -35,6 +35,12 @@ class LinearValueProbe:
     ) -> tuple[float, float]:
         deep = list(deep_values)
         shallow = list(shallow_values)
+        if len(deep) != len(self.alpha) or len(shallow) != len(self.beta):
+            raise ValueError(
+                "Probe length mismatch: "
+                f"deep={len(deep)} vs alpha={len(self.alpha)}, "
+                f"shallow={len(shallow)} vs beta={len(self.beta)}",
+            )
         deep_score = sum(a * b for a, b in zip(deep, self.alpha))
         shallow_score = sum(a * b for a, b in zip(shallow, self.beta))
         return deep_score, shallow_score
@@ -55,6 +61,7 @@ def _flatten_feature_vector(
 
 
 def _reduce_scalar(values: Iterable[float]) -> float:
+    """Compute mean of values; returns 0.0 when values is empty."""
     total = 0.0
     count = 0
     for value in values:
@@ -81,9 +88,13 @@ def decompose_gepa_score(
     shallow_list = shallow_prefs.to_list()
 
     if use_grn:
-        feature_vector = apply_grn_vector(_flatten_feature_vector(deep_values, shallow_prefs))
-        deep_list = feature_vector[: len(deep_values.ORDER)]
-        shallow_list = feature_vector[len(deep_values.ORDER) :]
+        feature_vector = apply_grn_vector(deep_list + shallow_list)
+        expected_len = len(deep_list) + len(shallow_list)
+        if len(feature_vector) != expected_len:
+            raise ValueError(f"GRN output length {len(feature_vector)} != expected {expected_len}")
+        split = len(deep_list)
+        deep_list = feature_vector[:split]
+        shallow_list = feature_vector[split:]
 
     deep_contrib, shallow_contrib = probe.apply(deep_list, shallow_list)
     gepa_scalar = _reduce_scalar(gepa_vector)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, List, Sequence
+from typing import ClassVar, Iterable, List, Sequence
 
 from ..utils.imports import optional_import
 
@@ -13,7 +13,7 @@ torch = optional_import("torch")
 FloatList = List[float]
 
 
-def _to_tensor(values: Sequence[float]):  # type: ignore[override]
+def to_tensor(values: Sequence[float]):
     if torch is None:
         return list(values)
     dtype = getattr(torch, "float", None) or getattr(torch, "float32", None)
@@ -22,7 +22,7 @@ def _to_tensor(values: Sequence[float]):  # type: ignore[override]
     return torch.tensor(list(values))
 
 
-def _to_float_list(values: Iterable[float]) -> FloatList:
+def to_float_list(values: Iterable[float]) -> FloatList:
     result: FloatList = []
     if torch is not None and hasattr(values, "detach"):
         try:
@@ -47,7 +47,7 @@ class DeepValueVector:
     perspective: float = 0.0
     agency: float = 0.0
 
-    ORDER: tuple[str, ...] = (
+    ORDER: ClassVar[tuple[str, ...]] = (
         "reduce_suffering",
         "increase_prosperity",
         "advance_knowledge",
@@ -60,12 +60,12 @@ class DeepValueVector:
     def to_list(self) -> FloatList:
         return [float(getattr(self, key)) for key in self.ORDER]
 
-    def to_tensor(self):  # type: ignore[override]
-        return _to_tensor(self.to_list())
+    def to_tensor(self):
+        return to_tensor(self.to_list())
 
     @classmethod
-    def from_tensor(cls, values: Sequence[float]) -> "DeepValueVector":  # type: ignore[override]
-        floats = _to_float_list(values)
+    def from_tensor(cls, values: Sequence[float]) -> "DeepValueVector":
+        floats = to_float_list(values)
         padded = list(floats) + [0.0] * (len(cls.ORDER) - len(floats))
         kwargs = {name: padded[idx] for idx, name in enumerate(cls.ORDER)}
         return cls(**kwargs)
@@ -87,7 +87,7 @@ class ShallowPreferenceVector:
     deference: float = 0.0
     assertiveness: float = 0.0
 
-    ORDER: tuple[str, ...] = (
+    ORDER: ClassVar[tuple[str, ...]] = (
         "tone_formal",
         "tone_casual",
         "tone_therapeutic",
@@ -101,14 +101,12 @@ class ShallowPreferenceVector:
     def to_list(self) -> FloatList:
         return [float(getattr(self, key)) for key in self.ORDER]
 
-    def to_tensor(self):  # type: ignore[override]
-        return _to_tensor(self.to_list())
+    def to_tensor(self):
+        return to_tensor(self.to_list())
 
     @classmethod
-    def from_tensor(
-        cls, values: Sequence[float]
-    ) -> "ShallowPreferenceVector":  # type: ignore[override]
-        floats = _to_float_list(values)
+    def from_tensor(cls, values: Sequence[float]) -> "ShallowPreferenceVector":
+        floats = to_float_list(values)
         padded = list(floats) + [0.0] * (len(cls.ORDER) - len(floats))
         kwargs = {name: padded[idx] for idx, name in enumerate(cls.ORDER)}
         return cls(**kwargs)
@@ -120,6 +118,6 @@ class ShallowPreferenceVector:
 __all__ = [
     "DeepValueVector",
     "ShallowPreferenceVector",
-    "_to_tensor",
-    "_to_float_list",
+    "to_tensor",
+    "to_float_list",
 ]

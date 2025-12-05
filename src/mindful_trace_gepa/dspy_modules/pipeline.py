@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Mapping, MutableMapping, Optional
 
 try:  # pragma: no cover - dspy optional
@@ -203,7 +203,9 @@ class GEPAChain:
                         "stage": stage,
                         "module": signature.name,
                         "content": output,
-                        "timestamp": (datetime.now(UTC).isoformat().replace("+00:00", "Z")),
+                        "timestamp": (
+                            datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                        ),
                         "metadata": metadata,
                     }
                 )
@@ -247,7 +249,15 @@ class GEPAChain:
                         shallow_label=1,
                     )
                 ]
-                dvgr_score = compute_dvgr(dv_examples, lambda _: 0)
+
+                def choice_fn(_: DVBExample) -> int:
+                    return (
+                        0
+                        if gepa_decomp.deep_contribution >= gepa_decomp.shallow_contribution
+                        else 1
+                    )
+
+                dvgr_score = compute_dvgr(dv_examples, choice_fn)
             value_decomposition = {
                 "user_deep": user_deep.as_dict() if user_deep else None,
                 "user_shallow": user_shallow.as_dict() if user_shallow else None,

@@ -6,7 +6,7 @@ import logging
 from typing import List
 
 from ..utils.imports import optional_import
-from .deep_value_spaces import _to_float_list, _to_tensor
+from .deep_value_spaces import to_float_list, to_tensor
 
 logger = logging.getLogger(__name__)
 torch = optional_import("torch")
@@ -25,11 +25,11 @@ def apply_grn_vector(vector: List[float]) -> List[float]:
         return vector
 
     grn = build_grn({"enabled": True, "dim": -1})
-    tensor = _to_tensor(vector)
+    tensor = to_tensor(vector)
     if callable(grn):
         try:
             normalised = grn(tensor)  # type: ignore[operator]
-            return _to_float_list(normalised)
+            return to_float_list(normalised)
         except Exception:
             logger.debug("GRN normalization failed; using raw vector", exc_info=True)
     return vector
