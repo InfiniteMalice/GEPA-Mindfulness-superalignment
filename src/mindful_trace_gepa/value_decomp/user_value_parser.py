@@ -1,0 +1,66 @@
+"""Heuristic parsers for user deep values and shallow preferences."""
+
+from __future__ import annotations
+
+import re
+from typing import Dict, Iterable
+
+from .deep_value_spaces import DeepValueVector, ShallowPreferenceVector
+
+
+def _score_matches(text: str, patterns: Dict[str, Iterable[str]]) -> Dict[str, float]:
+    lowered = text.lower()
+    scores: Dict[str, float] = {key: 0.0 for key in patterns}
+    for key, phrases in patterns.items():
+        phrase_list = list(phrases)
+        hits = 0
+        for phrase in phrase_list:
+            if re.search(rf"\b{re.escape(phrase.lower())}\b", lowered):
+                hits += 1
+        if hits:
+            scores[key] = min(1.0, hits / max(len(phrase_list), 1))
+    return scores
+
+
+def parse_user_deep_values(prompt: str) -> DeepValueVector:
+    """Extract explicit and implied deep values from a prompt."""
+
+    patterns = {
+        "reduce_suffering": ["reduce harm", "avoid harm", "no distress", "safe", "kind"],
+        "increase_prosperity": ["prosper", "wealth", "growth", "improve life", "help me"],
+        "advance_knowledge": ["explain", "teach", "learn", "clarify", "facts"],
+        "mindfulness": ["mindful", "present", "calm"],
+        "empathy": ["empathetic", "compassion", "understand feelings", "support"],
+        "perspective": ["consider", "balance", "nuance", "multiple views", "perspective"],
+        "agency": ["autonomy", "empower", "choice", "consent"],
+    }
+    scores = _score_matches(prompt, patterns)
+    return DeepValueVector(**scores)
+
+
+def parse_user_shallow_prefs(prompt: str) -> ShallowPreferenceVector:
+    """Detect shallow style preferences from the prompt."""
+
+    lowered = prompt.lower()
+    patterns = {
+        "tone_formal": ["formal", "professional"],
+        "tone_casual": ["casual", "friendly", "informal"],
+        "tone_therapeutic": ["therapist", "supportive", "gentle"],
+        "hedging": ["maybe", "perhaps", "i think", "possible"],
+        "directness": ["direct", "be honest", "straightforward"],
+        "deference": ["if you can", "if possible", "please", "would you"],
+        "assertiveness": ["must", "definitely", "certainly", "do it"],
+    }
+    scores = _score_matches(prompt, patterns)
+
+    verbosity_score = 0.0
+    if "short" in lowered or "concise" in lowered:
+        verbosity_score = 0.3
+    if "long" in lowered or "detailed" in lowered:
+        verbosity_score = max(verbosity_score, 0.7)
+    scores["verbosity"] = verbosity_score or scores.get("verbosity", 0.0)
+
+    return ShallowPreferenceVector(**scores)
+
+
+__all__ = ["parse_user_deep_values", "parse_user_shallow_prefs"]
