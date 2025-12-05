@@ -9,7 +9,7 @@ This repository already ships a minimal Global Response Normalization (GRN) util
 - `build_grn(settings)`: helper that parses a `GRNSettings` instance or mapping and returns a
   configured module when `enabled=True`, otherwise `None`.
 
-### Usage patterns
+## Usage patterns
 
 - Confidence heads: pass a `GRNSettings(enabled=True, dim=-1)` into `build_grn` and apply the
   resulting module to logits or scalar confidence vectors prior to computing calibration losses.

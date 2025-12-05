@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import dataclasses
+import math
 from typing import Sequence
 
 from ..utils.imports import optional_import
-
 
 torch = optional_import("torch")
 
@@ -63,13 +63,15 @@ def build_markov_operator(
 
     if torch is None:
         raise ImportError("torch is required for MDT operations")
+    if not math.isfinite(sigma) or sigma <= 0:
+        raise ValueError("sigma must be a positive finite number")
     if view_features.dim() != 2:
         raise ValueError("view_features must be 2D (candidates, features)")
     if view_features.numel() == 0:
         raise ValueError("view_features is empty")
     diffs = view_features.unsqueeze(1) - view_features.unsqueeze(0)
     sq_dists = (diffs * diffs).sum(dim=-1)
-    kernel = torch.exp(-sq_dists / (sigma ** 2))
+    kernel = torch.exp(-sq_dists / (sigma**2))
     if knn is not None and knn > 0:
         values, indices = torch.topk(kernel, k=min(knn, kernel.size(1)), dim=1)
         mask = torch.zeros_like(kernel)
@@ -93,6 +95,8 @@ def build_mdt_operator(
         raise ValueError("trajectories and weights must share length")
     if not trajectories:
         raise ValueError("At least one trajectory required to build MDT operator")
+    if not view_operators:
+        raise ValueError("view_operators must not be empty")
     norm = sum(weights)
     if norm <= 0:
         raise ValueError("weights must sum to a positive value")

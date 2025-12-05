@@ -6,8 +6,13 @@ import dataclasses
 import logging
 from typing import Any, Callable, Mapping
 
-from ..geometry import MDTTrajectory, MultiViewDatasetView, build_markov_operator
-from ..geometry import build_mdt_operator, mdt_embedding
+from ..geometry import (
+    MDTTrajectory,
+    MultiViewDatasetView,
+    build_markov_operator,
+    build_mdt_operator,
+    mdt_embedding,
+)
 from ..train.grn import GRNSettings, build_grn
 from ..utils.imports import optional_import
 
@@ -88,7 +93,7 @@ class EGGROLLMDTTrainer:
 
     def _sample_perturbation(self) -> tuple["torch.Tensor", "torch.Tensor"]:
         z = torch.randn(self.config.rank, device=self.device)
-        perturb = self.low_rank @ z
+        perturb = self.config.sigma * (self.low_rank @ z)
         return perturb, z
 
     def _apply_grn_if_needed(self, tensor: "torch.Tensor", module: Any | None) -> "torch.Tensor":

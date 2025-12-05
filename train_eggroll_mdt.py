@@ -6,11 +6,12 @@ import argparse
 import logging
 from typing import Any, Mapping
 
-import torch
-
 from mindful_trace_gepa.train.eggroll_mdt_trainer import EGGROLLConfig, EGGROLLMDTTrainer
+from mindful_trace_gepa.utils.imports import optional_import
 
 LOGGER = logging.getLogger(__name__)
+
+torch = optional_import("torch")
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -39,6 +40,8 @@ def dummy_eval_fn(model: Any, candidate_id: int) -> Mapping[str, Any]:
 def main() -> None:
     parser = build_arg_parser()
     args = parser.parse_args()
+    if torch is None:
+        raise ImportError("torch is required to run the EGGROLL + MDT entrypoint")
     config = EGGROLLConfig(
         generations=args.generations,
         population_size=args.population,
@@ -51,7 +54,8 @@ def main() -> None:
     LOGGER.info("Initialising EGGROLL + MDT trainer with config: %s", config)
     model = torch.nn.Linear(2, 1)
     trainer = EGGROLLMDTTrainer(model=model, eval_fn=dummy_eval_fn, config=config)
-    trainer.run()
+    result = trainer.run()
+    LOGGER.info("Training complete. Generations logged: %d", len(result["logs"]))
 
 
 if __name__ == "__main__":
