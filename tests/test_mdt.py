@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-torch = pytest.importorskip("torch")
-
 from mindful_trace_gepa.geometry import (
     MDTTrajectory,
     MultiViewDatasetView,
@@ -13,6 +11,8 @@ from mindful_trace_gepa.geometry import (
     build_mdt_operator,
     mdt_embedding,
 )
+
+torch = pytest.importorskip("torch")
 
 
 def test_markov_operator_row_stochastic() -> None:

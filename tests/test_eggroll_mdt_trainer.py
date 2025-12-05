@@ -6,9 +6,9 @@ from typing import Any, Mapping
 
 import pytest
 
-torch = pytest.importorskip("torch")
-
 from mindful_trace_gepa.train.eggroll_mdt_trainer import EGGROLLConfig, EGGROLLMDTTrainer
+
+torch = pytest.importorskip("torch")
 
 
 class TinyModel(torch.nn.Module):
