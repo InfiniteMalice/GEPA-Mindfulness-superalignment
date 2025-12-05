@@ -11,6 +11,7 @@ from .deep_value_spaces import to_float_list, to_tensor
 logger = logging.getLogger(__name__)
 torch = optional_import("torch")
 _UNSET = object()
+_cached_grn_module: object = _UNSET
 _cached_grn: object = _UNSET
 # Cache is not synchronised; concurrent init may build multiple GRN instances.
 
@@ -20,19 +21,27 @@ def apply_grn_vector(vector: List[float]) -> List[float]:
 
     if torch is None:
         return vector
-    grn_module = optional_import("mindful_trace_gepa.train.grn")
+
+    global _cached_grn_module, _cached_grn
+    if _cached_grn_module is _UNSET:
+        _cached_grn_module = optional_import("mindful_trace_gepa.train.grn")
+
+    grn_module = _cached_grn_module
     if grn_module is None:
-        return vector
-    build_grn = getattr(grn_module, "build_grn", None)
-    if build_grn is None:
+        _cached_grn = None
         return vector
 
-    global _cached_grn
+    build_grn = getattr(grn_module, "build_grn", None)
+    if build_grn is None:
+        _cached_grn = None
+        return vector
+
     if _cached_grn is _UNSET:
         _cached_grn = build_grn({"enabled": True, "dim": -1})
-    grn = _cached_grn
-    if grn is None:
+
+    if _cached_grn is None:
         return vector
+    grn = _cached_grn
     tensor = to_tensor(vector)
     if callable(grn):
         try:
