@@ -211,13 +211,14 @@ def handle_dspy_run(args: argparse.Namespace) -> None:
                 )
                 writer.append(payload)
             if result.value_decomposition is not None:
+                timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
                 writer.append(
                     {
                         "stage": "value_decomposition",
                         "module": "value_decomposition",
                         "content": "value decomposition",
                         # Convert to ISO 8601 with Z suffix (RFC 3339 format)
-                        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                        "timestamp": timestamp,
                         "value_decomposition": result.value_decomposition,
                         "context": context,
                     }

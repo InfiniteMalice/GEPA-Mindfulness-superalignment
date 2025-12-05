@@ -7,6 +7,7 @@ from .gepa_decomposition import (
     LinearValueProbe,
     decompose_gepa_score,
     register_default_probe,
+    reset_default_probe,
 )
 from .output_value_analyzer import (
     analyze_output_deep_values,
@@ -22,6 +23,7 @@ __all__ = [
     "GepaDecomposition",
     "LinearValueProbe",
     "decompose_gepa_score",
+    "reset_default_probe",
     "register_default_probe",
     "analyze_output_deep_values",
     "analyze_output_shallow_features",

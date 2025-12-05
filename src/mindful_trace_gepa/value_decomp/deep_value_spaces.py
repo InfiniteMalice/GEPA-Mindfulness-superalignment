@@ -66,6 +66,8 @@ class DeepValueVector:
     @classmethod
     def from_tensor(cls, values: Sequence[float]) -> "DeepValueVector":
         floats = to_float_list(values)
+        if len(floats) > len(cls.ORDER):
+            floats = floats[: len(cls.ORDER)]
         padded = list(floats) + [0.0] * (len(cls.ORDER) - len(floats))
         kwargs = {name: padded[idx] for idx, name in enumerate(cls.ORDER)}
         return cls(**kwargs)
@@ -107,6 +109,8 @@ class ShallowPreferenceVector:
     @classmethod
     def from_tensor(cls, values: Sequence[float]) -> "ShallowPreferenceVector":
         floats = to_float_list(values)
+        if len(floats) > len(cls.ORDER):
+            floats = floats[: len(cls.ORDER)]
         padded = list(floats) + [0.0] * (len(cls.ORDER) - len(floats))
         kwargs = {name: padded[idx] for idx, name in enumerate(cls.ORDER)}
         return cls(**kwargs)

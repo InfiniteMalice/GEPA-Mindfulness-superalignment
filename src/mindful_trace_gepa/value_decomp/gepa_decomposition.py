@@ -54,6 +54,13 @@ def register_default_probe(probe: Optional[LinearValueProbe]) -> None:
     _DEFAULT_PROBE = probe
 
 
+def reset_default_probe() -> None:
+    """Reset the global default probe (useful for tests)."""
+
+    global _DEFAULT_PROBE
+    _DEFAULT_PROBE = None
+
+
 def _reduce_scalar(values: Iterable[float]) -> float:
     """Compute mean of values; returns 0.0 when values is empty."""
     total = 0.0
@@ -111,4 +118,5 @@ __all__ = [
     "decompose_gepa_score",
     "LinearValueProbe",
     "register_default_probe",
+    "reset_default_probe",
 ]

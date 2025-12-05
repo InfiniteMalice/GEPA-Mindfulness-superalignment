@@ -12,6 +12,7 @@ from mindful_trace_gepa.value_decomp.gepa_decomposition import (
     GepaDecomposition,
     LinearValueProbe,
     decompose_gepa_score,
+    reset_default_probe,
 )
 from mindful_trace_gepa.value_decomp.output_value_analyzer import (
     analyze_output_deep_values,
@@ -46,6 +47,13 @@ def test_parse_user_values() -> None:
     assert shallow.deference > 0
 
 
+def test_parse_user_values_empty_prompt() -> None:
+    deep = parse_user_deep_values("")
+    shallow = parse_user_shallow_prefs("")
+    assert all(value == 0.0 for value in deep.as_dict().values())
+    assert all(value == 0.0 for value in shallow.as_dict().values())
+
+
 def test_analyze_output_features() -> None:
     output = "I'm here to help. Maybe we should consider options carefully!"
     deep_vec = analyze_output_deep_values(
@@ -55,6 +63,13 @@ def test_analyze_output_features() -> None:
     assert deep_vec.reduce_suffering >= 0.8
     assert shallow_vec.hedging > 0
     assert shallow_vec.tone_therapeutic > 0
+
+
+def test_analyze_output_features_empty() -> None:
+    deep_vec = analyze_output_deep_values("", {})
+    shallow_vec = analyze_output_shallow_features("")
+    assert all(value == 0.0 for value in deep_vec.as_dict().values())
+    assert all(value == 0.0 for value in shallow_vec.as_dict().values())
 
 
 def test_compute_dvgr_metric() -> None:
@@ -74,6 +89,16 @@ def test_gepa_decomposition_with_probe() -> None:
     decomp = decompose_gepa_score([0.8, 0.7, 0.9], deep, shallow, probe=probe)
     assert isinstance(decomp, GepaDecomposition)
     assert decomp.deep_contribution > decomp.shallow_contribution
+
+
+def test_gepa_decomposition_edge_cases() -> None:
+    reset_default_probe()
+    deep = DeepValueVector()
+    shallow = ShallowPreferenceVector()
+    decomp = decompose_gepa_score([], deep, shallow)
+    assert isinstance(decomp, GepaDecomposition)
+    assert decomp.deep_contribution == 0.0
+    assert decomp.shallow_contribution == 0.0
 
 
 def test_gepa_chain_integration_value_decomp() -> None:
