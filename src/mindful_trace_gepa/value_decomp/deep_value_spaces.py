@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import ClassVar, Iterable, List, Sequence
+from typing import Any, ClassVar, Iterable, List, Sequence
 
 from ..utils.imports import optional_import
 
@@ -13,7 +13,7 @@ torch = optional_import("torch")
 FloatList = List[float]
 
 
-def to_tensor(values: Sequence[float]):
+def to_tensor(values: Sequence[float]) -> Any:
     if torch is None:
         return list(values)
     dtype = getattr(torch, "float", None) or getattr(torch, "float32", None)

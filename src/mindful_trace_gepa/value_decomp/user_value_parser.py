@@ -53,6 +53,7 @@ def parse_user_shallow_prefs(prompt: str) -> ShallowPreferenceVector:
     }
     scores = _score_matches(prompt, patterns)
 
+    # Verbosity: 0.3 (prefer concise) < 0.5 (neutral) < 0.7 (prefer detailed)
     verbosity_score = 0.0
     if "short" in lowered or "concise" in lowered:
         verbosity_score = 0.3

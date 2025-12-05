@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import logging
-from typing import List
+from typing import List, Optional
 
 from ..utils.imports import optional_import
 from .deep_value_spaces import to_float_list, to_tensor
 
 logger = logging.getLogger(__name__)
 torch = optional_import("torch")
+_cached_grn: Optional[object] = None
 
 
 def apply_grn_vector(vector: List[float]) -> List[float]:
@@ -24,7 +25,10 @@ def apply_grn_vector(vector: List[float]) -> List[float]:
     if build_grn is None:
         return vector
 
-    grn = build_grn({"enabled": True, "dim": -1})
+    global _cached_grn
+    if _cached_grn is None:
+        _cached_grn = build_grn({"enabled": True, "dim": -1})
+    grn = _cached_grn
     tensor = to_tensor(vector)
     if callable(grn):
         try:

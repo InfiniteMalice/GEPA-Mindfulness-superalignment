@@ -216,6 +216,7 @@ def handle_dspy_run(args: argparse.Namespace) -> None:
                         "stage": "value_decomposition",
                         "module": "value_decomposition",
                         "content": "value decomposition",
+                        # Convert to ISO 8601 with Z suffix (RFC 3339 format)
                         "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                         "value_decomposition": result.value_decomposition,
                         "context": context,

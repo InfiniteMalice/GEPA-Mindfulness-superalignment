@@ -79,6 +79,7 @@ def decompose_gepa_score(
 ) -> GepaDecomposition:
     """Estimate deep vs shallow contributions to a GEPA scalar."""
 
+    # Probe selection: explicit > global default > auto-generated from sizes
     probe = (
         probe
         or _DEFAULT_PROBE
