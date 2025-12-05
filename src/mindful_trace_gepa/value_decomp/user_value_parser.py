@@ -12,12 +12,13 @@ def _score_matches(text: str, patterns: Dict[str, Iterable[str]]) -> Dict[str, f
     lowered = text.lower()
     scores: Dict[str, float] = {key: 0.0 for key in patterns}
     for key, phrases in patterns.items():
+        phrase_list = list(phrases)
         hits = 0
-        for phrase in phrases:
+        for phrase in phrase_list:
             if re.search(rf"\b{re.escape(phrase.lower())}\b", lowered):
                 hits += 1
         if hits:
-            scores[key] = min(1.0, hits / max(len(list(patterns[key])), 1))
+            scores[key] = min(1.0, hits / max(len(phrase_list), 1))
     return scores
 
 
@@ -45,7 +46,6 @@ def parse_user_shallow_prefs(prompt: str) -> ShallowPreferenceVector:
         "tone_formal": ["formal", "professional"],
         "tone_casual": ["casual", "friendly", "informal"],
         "tone_therapeutic": ["therapist", "supportive", "gentle"],
-        "verbosity": ["short", "concise", "brief", "long", "detailed"],
         "hedging": ["maybe", "perhaps", "i think", "possible"],
         "directness": ["direct", "be honest", "straightforward"],
         "deference": ["if you can", "if possible", "please", "would you"],

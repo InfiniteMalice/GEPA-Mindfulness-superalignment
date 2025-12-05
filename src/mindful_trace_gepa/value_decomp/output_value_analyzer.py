@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Mapping
+from typing import Any, Mapping, Optional
 
+from ..utils.imports import optional_import
 from .deep_value_spaces import (
     DeepValueVector,
     ShallowPreferenceVector,
     _to_float_list,
     _to_tensor,
 )
-from ..utils.imports import optional_import
 
 torch = optional_import("torch")
 
@@ -20,25 +20,23 @@ def _extract_imperatives(gepa_scores: Any) -> list[float]:
     if gepa_scores is None:
         return []
     if isinstance(gepa_scores, Mapping):
-        scores: list[float] = []
+        scores: list[float] = [0.0, 0.0, 0.0]
+        extras: list[float] = []
+        key_map = {"suffering": 0, "prosper": 1, "knowledge": 2, "science": 2}
         for key, value in gepa_scores.items():
             lowered = str(key).lower()
-            if "suffering" in lowered:
-                scores.insert(0, float(value))
-            elif "prosper" in lowered:
-                if len(scores) < 1:
+            target_idx: Optional[int] = None
+            for marker, idx in key_map.items():
+                if marker in lowered:
+                    target_idx = idx
+                    break
+            if target_idx is not None:
+                while len(scores) <= target_idx:
                     scores.append(0.0)
-                if len(scores) < 2:
-                    scores.append(float(value))
-                else:
-                    scores[1] = float(value)
-            elif "knowledge" in lowered or "science" in lowered:
-                while len(scores) < 3:
-                    scores.append(0.0)
-                scores[2] = float(value)
+                scores[target_idx] = float(value)
             else:
-                scores.append(float(value))
-        return scores
+                extras.append(float(value))
+        return scores + extras
     try:
         return _to_float_list(gepa_scores)
     except Exception:
@@ -49,7 +47,7 @@ def analyze_output_deep_values(output_text: str, gepa_scores: Any) -> DeepValueV
     """Blend GEPA head scores with textual heuristics."""
 
     scores = _extract_imperatives(gepa_scores)
-    padded = list(scores) + [0.0] * (3 - len(scores))
+    padded = (list(scores) + [0.0, 0.0, 0.0])[:3]
     keywords = {
         "mindfulness": ["mindful", "present"],
         "empathy": ["care", "empathy", "understand"],
@@ -63,9 +61,9 @@ def analyze_output_deep_values(output_text: str, gepa_scores: Any) -> DeepValueV
         if any(phrase in lowered for phrase in phrases):
             stance_scores[key] = 0.6
     return DeepValueVector(
-        reduce_suffering=padded[0] if padded else 0.0,
-        increase_prosperity=padded[1] if len(padded) > 1 else 0.0,
-        advance_knowledge=padded[2] if len(padded) > 2 else 0.0,
+        reduce_suffering=padded[0],
+        increase_prosperity=padded[1],
+        advance_knowledge=padded[2],
         mindfulness=stance_scores["mindfulness"],
         empathy=stance_scores["empathy"],
         perspective=stance_scores["perspective"],
@@ -76,39 +74,31 @@ def analyze_output_deep_values(output_text: str, gepa_scores: Any) -> DeepValueV
 def analyze_output_shallow_features(output_text: str) -> ShallowPreferenceVector:
     """Estimate shallow style preferences from text features."""
 
-    words = output_text.split()
+    normalised_text = output_text.replace("’", "'").replace("“", '"').replace("”", '"')
+    words = normalised_text.split()
     length = len(words)
     verbosity = min(1.0, length / 120.0)
     hedging_phrases = ["maybe", "possibly", "could", "might", "perhaps"]
     hedging_tokens = (token.lower().strip(".,") for token in words)
     hedging = 0.3 if any(token in hedging_phrases for token in hedging_tokens) else 0.0
     directness = 0.0
-    if re.search(r"\bwill\b", output_text.lower()):
+    lowered_text = normalised_text.lower()
+    if re.search(r"\bwill\b", lowered_text):
         directness = 0.5
-    if "!" in output_text:
+    if "!" in normalised_text:
         directness = max(directness, 0.7)
 
-    sentiment = 0.0
-    positive_tokens = {"great", "good", "glad", "helpful"}
-    negative_tokens = {"sorry", "unfortunately", "cannot", "won't"}
-    for token in words:
-        norm = token.lower().strip(",.!")
-        if norm in positive_tokens:
-            sentiment += 0.1
-        if norm in negative_tokens:
-            sentiment -= 0.1
-    sentiment = max(min(sentiment, 1.0), -1.0)
-    tone_therapeutic = 0.4 if "I'm here to help" in output_text else 0.0
+    tone_therapeutic = 0.4 if "i'm here to help" in lowered_text else 0.0
 
-    hedging = max(hedging, 0.2 if """i'm not sure""" in output_text.lower() else 0.0)
-    directness = max(directness, 0.5 if "here's" in output_text.lower() else directness)
+    hedging = max(hedging, 0.2 if "i'm not sure" in lowered_text else 0.0)
+    directness = max(directness, 0.5 if "here's" in lowered_text else directness)
 
-    deference = 0.2 if "please" in output_text.lower() else 0.0
-    assertiveness = 0.2 if "must" in output_text.lower() else 0.0
+    deference = 0.2 if "please" in lowered_text else 0.0
+    assertiveness = 0.2 if "must" in lowered_text else 0.0
 
     return ShallowPreferenceVector(
-        tone_formal=0.5 if "sir" in output_text.lower() else 0.0,
-        tone_casual=0.4 if "hey" in output_text.lower() else 0.0,
+        tone_formal=0.5 if "sir" in lowered_text else 0.0,
+        tone_casual=0.4 if "hey" in lowered_text else 0.0,
         tone_therapeutic=tone_therapeutic,
         verbosity=verbosity,
         hedging=hedging,
@@ -118,7 +108,7 @@ def analyze_output_shallow_features(output_text: str) -> ShallowPreferenceVector
     )
 
 
-def maybe_apply_grn(vector: list[float]):
+def maybe_apply_grn(vector: list[float]) -> list[float]:
     if torch is None:
         return vector
     grn_builder = optional_import("mindful_trace_gepa.train.grn")

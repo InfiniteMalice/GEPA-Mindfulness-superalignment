@@ -1,5 +1,4 @@
 from __future__ import annotations
-from pathlib import Path
 
 import pytest
 
@@ -78,7 +77,7 @@ def test_gepa_decomposition_with_probe() -> None:
     assert decomp.deep_contribution > decomp.shallow_contribution
 
 
-def test_gepa_chain_integration_value_decomp(tmp_path: Path) -> None:
+def test_gepa_chain_integration_value_decomp() -> None:
     config = DSPyConfig(enable_value_decomposition=True, enable_dvgr_eval=True)
     chain = GEPAChain(config=config)
     result = chain.run("Provide honest, safe advice", context="formal tone")

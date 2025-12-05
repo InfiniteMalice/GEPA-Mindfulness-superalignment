@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Iterable, List, Optional, Sequence
 
-from .deep_value_spaces import DeepValueVector, ShallowPreferenceVector, _to_float_list, _to_tensor
 from ..utils.imports import optional_import
+from .deep_value_spaces import (
+    DeepValueVector,
+    ShallowPreferenceVector,
+    _to_float_list,
+    _to_tensor,
+)
 
-
+logger = logging.getLogger(__name__)
 torch = optional_import("torch")
 
 
@@ -79,9 +85,9 @@ def decompose_gepa_score(
     )
     deep_list = deep_values.to_list()
     shallow_list = shallow_prefs.to_list()
-    feature_vector = _flatten_feature_vector(deep_values, shallow_prefs)
 
     if use_grn:
+        feature_vector = _flatten_feature_vector(deep_values, shallow_prefs)
         grn_module = optional_import("mindful_trace_gepa.train.grn")
         if grn_module is not None and hasattr(grn_module, "build_grn") and torch is not None:
             grn = grn_module.build_grn({"enabled": True, "dim": -1})
@@ -92,7 +98,7 @@ def decompose_gepa_score(
                 deep_list = feature_vector[: len(deep_values.ORDER)]
                 shallow_list = feature_vector[len(deep_values.ORDER) :]
             except Exception:
-                pass
+                logger.debug("GRN normalization failed, using raw features", exc_info=True)
 
     deep_contrib, shallow_contrib = probe.apply(deep_list, shallow_list)
     gepa_scalar = _reduce_scalar(gepa_vector)
