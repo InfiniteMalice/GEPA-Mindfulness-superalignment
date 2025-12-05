@@ -16,7 +16,10 @@ FloatList = List[float]
 def _to_tensor(values: Sequence[float]):  # type: ignore[override]
     if torch is None:
         return list(values)
-    return torch.tensor(list(values), dtype=torch.float)
+    dtype = getattr(torch, "float", None) or getattr(torch, "float32", None)
+    if dtype is not None:
+        return torch.tensor(list(values), dtype=dtype)
+    return torch.tensor(list(values))
 
 
 def _to_float_list(values: Iterable[float]) -> FloatList:

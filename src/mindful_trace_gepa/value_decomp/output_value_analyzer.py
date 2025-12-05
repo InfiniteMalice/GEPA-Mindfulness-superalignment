@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any, Mapping, Optional
 
@@ -14,6 +15,7 @@ from .deep_value_spaces import (
 )
 
 torch = optional_import("torch")
+logger = logging.getLogger(__name__)
 
 
 def _extract_imperatives(gepa_scores: Any) -> list[float]:
@@ -31,15 +33,13 @@ def _extract_imperatives(gepa_scores: Any) -> list[float]:
                     target_idx = idx
                     break
             if target_idx is not None:
-                while len(scores) <= target_idx:
-                    scores.append(0.0)
                 scores[target_idx] = float(value)
             else:
                 extras.append(float(value))
         return scores + extras
     try:
         return _to_float_list(gepa_scores)
-    except Exception:
+    except (TypeError, ValueError):
         return []
 
 
@@ -91,7 +91,8 @@ def analyze_output_shallow_features(output_text: str) -> ShallowPreferenceVector
     tone_therapeutic = 0.4 if "i'm here to help" in lowered_text else 0.0
 
     hedging = max(hedging, 0.2 if "i'm not sure" in lowered_text else 0.0)
-    directness = max(directness, 0.5 if "here's" in lowered_text else directness)
+    if "here's" in lowered_text:
+        directness = max(directness, 0.5)
 
     deference = 0.2 if "please" in lowered_text else 0.0
     assertiveness = 0.2 if "must" in lowered_text else 0.0
@@ -108,7 +109,7 @@ def analyze_output_shallow_features(output_text: str) -> ShallowPreferenceVector
     )
 
 
-def maybe_apply_grn(vector: list[float]) -> list[float]:
+def _maybe_apply_grn(vector: list[float]) -> list[float]:
     if torch is None:
         return vector
     grn_builder = optional_import("mindful_trace_gepa.train.grn")
@@ -119,11 +120,12 @@ def maybe_apply_grn(vector: list[float]) -> list[float]:
         return vector
     grn = build_grn({"enabled": True, "dim": -1})
     tensor = _to_tensor(vector)
-    if hasattr(grn, "__call__") and torch is not None:
+    if callable(grn):
         try:
             normalised = grn(tensor)  # type: ignore[operator]
             return _to_float_list(normalised)
         except Exception:
+            logger.debug("GRN application failed in output analyzer", exc_info=True)
             return vector
     return vector
 
@@ -131,5 +133,4 @@ def maybe_apply_grn(vector: list[float]) -> list[float]:
 __all__ = [
     "analyze_output_deep_values",
     "analyze_output_shallow_features",
-    "maybe_apply_grn",
 ]
