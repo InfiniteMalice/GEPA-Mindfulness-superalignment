@@ -240,24 +240,29 @@ class GEPAChain:
                     compute_dvgr,
                 )
 
-                dv_examples = [
-                    DVBExample(
-                        prompt=inquiry,
-                        option_deep_then_shallow=final_answer,
-                        option_shallow_then_deep=context or "",
-                        deep_label=0,
-                        shallow_label=1,
-                    )
-                ]
-
-                def choice_fn(_: DVBExample) -> int:
-                    return (
-                        0
-                        if gepa_decomp.deep_contribution >= gepa_decomp.shallow_contribution
-                        else 1
+                dv_examples: list[DVBExample] = []
+                if context:
+                    dv_examples.append(
+                        DVBExample(
+                            prompt=inquiry,
+                            option_deep_then_shallow=final_answer,
+                            option_shallow_then_deep=context,
+                            deep_label=0,
+                            shallow_label=1,
+                        )
                     )
 
-                dvgr_score = compute_dvgr(dv_examples, choice_fn)
+                if dv_examples:
+                    # Placeholder: prefer the option with higher deep contribution while a
+                    # contrasted model choice function is wired in a future iteration.
+                    def choice_fn(_: DVBExample) -> int:
+                        return (
+                            0
+                            if gepa_decomp.deep_contribution >= gepa_decomp.shallow_contribution
+                            else 1
+                        )
+
+                    dvgr_score = compute_dvgr(dv_examples, choice_fn)
             value_decomposition = {
                 "user_deep": user_deep.as_dict() if user_deep else None,
                 "user_shallow": user_shallow.as_dict() if user_shallow else None,

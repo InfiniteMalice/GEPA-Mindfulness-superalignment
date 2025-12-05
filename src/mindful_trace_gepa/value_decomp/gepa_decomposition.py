@@ -54,12 +54,6 @@ def register_default_probe(probe: Optional[LinearValueProbe]) -> None:
     _DEFAULT_PROBE = probe
 
 
-def _flatten_feature_vector(
-    deep_values: DeepValueVector, shallow_prefs: ShallowPreferenceVector
-) -> List[float]:
-    return deep_values.to_list() + shallow_prefs.to_list()
-
-
 def _reduce_scalar(values: Iterable[float]) -> float:
     """Compute mean of values; returns 0.0 when values is empty."""
     total = 0.0
