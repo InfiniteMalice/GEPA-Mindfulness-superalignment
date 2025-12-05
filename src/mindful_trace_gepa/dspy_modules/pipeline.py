@@ -5,13 +5,22 @@ from __future__ import annotations
 import logging
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
-from typing import Any, Dict, List, Mapping, MutableMapping
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Mapping, MutableMapping, Optional
 
 try:  # pragma: no cover - dspy optional
     import dspy  # type: ignore
 except ImportError:  # pragma: no cover
     dspy = None  # type: ignore
+
+try:  # pragma: no cover - optional dependency during tests
+    from mindful_trace_gepa.value_decomp.user_value_parser import (
+        parse_user_deep_values,
+        parse_user_shallow_prefs,
+    )
+except ImportError:  # pragma: no cover - value decomposition optional
+    parse_user_deep_values = None  # type: ignore
+    parse_user_shallow_prefs = None  # type: ignore
 
 try:  # pragma: no cover - optional dependency during tests
     from gepa_mindfulness.core.tracing import CircuitTracerLogger, ThoughtTrace
@@ -92,6 +101,7 @@ class GEPAChainResult:
     principle_scores: Dict[str, float]
     imperative_scores: Dict[str, float]
     final_answer: str
+    value_decomposition: Optional[Dict[str, Any]] = None
 
 
 class GEPAChain:
@@ -160,6 +170,11 @@ class GEPAChain:
             "context": context or "",
             "history": history or "",
         }
+        user_deep = None
+        user_shallow = None
+        if self.config.enable_value_decomposition and parse_user_deep_values is not None:
+            user_deep = parse_user_deep_values(inquiry)
+            user_shallow = parse_user_shallow_prefs(inquiry)
         module_results: List[ModuleResult] = []
         checkpoints: List[Dict[str, Any]] = []
         gepa_hits: List[str] = []
@@ -192,7 +207,9 @@ class GEPAChain:
                         "stage": stage,
                         "module": signature.name,
                         "content": output,
-                        "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                        "timestamp": (
+                            datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                        ),
                         "metadata": metadata,
                     }
                 )
@@ -202,6 +219,66 @@ class GEPAChain:
         principle_scores = self._mock_principle_scores(summary)
         imperative_scores = self._mock_imperative_scores(summary)
         gepa_hits = [name for name, value in principle_scores.items() if value >= 0.75]
+        value_decomposition: Dict[str, Any] | None = None
+        if self.config.enable_value_decomposition:
+            from mindful_trace_gepa.value_decomp.gepa_decomposition import (
+                decompose_gepa_score,
+            )
+            from mindful_trace_gepa.value_decomp.output_value_analyzer import (
+                analyze_output_deep_values,
+                analyze_output_shallow_features,
+            )
+
+            output_deep = analyze_output_deep_values(final_answer, imperative_scores)
+            output_shallow = analyze_output_shallow_features(final_answer)
+            gepa_decomp = decompose_gepa_score(
+                imperative_scores.values(),
+                output_deep,
+                output_shallow,
+                use_grn=self.config.use_grn_for_value_decomp,
+            )
+            dvgr_score = None
+            if self.config.enable_dvgr_eval:
+                from mindful_trace_gepa.value_decomp.dvb_eval import (
+                    DVBExample,
+                    compute_dvgr,
+                )
+
+                dv_examples: list[DVBExample] = []
+                if context:
+                    dv_examples.append(
+                        DVBExample(
+                            prompt=inquiry,
+                            option_deep_then_shallow=final_answer,
+                            option_shallow_then_deep=context,
+                            deep_label=0,
+                            shallow_label=1,
+                        )
+                    )
+
+                if dv_examples:
+                    # Placeholder: prefer the option with higher deep contribution while a
+                    # contrasted model choice function is wired in a future iteration.
+                    def choice_fn(_: DVBExample) -> int:
+                        return (
+                            0
+                            if gepa_decomp.deep_contribution >= gepa_decomp.shallow_contribution
+                            else 1
+                        )
+
+                    dvgr_score = compute_dvgr(dv_examples, choice_fn)
+            value_decomposition = {
+                "user_deep": user_deep.as_dict() if user_deep else None,
+                "user_shallow": user_shallow.as_dict() if user_shallow else None,
+                "output_deep": output_deep.as_dict(),
+                "output_shallow": output_shallow.as_dict(),
+                "gepa_decomposition": {
+                    "deep_contribution": gepa_decomp.deep_contribution,
+                    "shallow_contribution": gepa_decomp.shallow_contribution,
+                    "residual": gepa_decomp.residual,
+                },
+                "dvgr": dvgr_score,
+            }
         return GEPAChainResult(
             modules=module_results,
             checkpoints=checkpoints,
@@ -209,6 +286,7 @@ class GEPAChain:
             principle_scores=principle_scores,
             imperative_scores=imperative_scores,
             final_answer=final_answer,
+            value_decomposition=value_decomposition,
         )
 
     # ------------------------------------------------------------------
