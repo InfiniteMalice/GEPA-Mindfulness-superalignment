@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import logging
-from typing import List, Optional
+from typing import List
 
 from ..utils.imports import optional_import
 from .deep_value_spaces import to_float_list, to_tensor
 
 logger = logging.getLogger(__name__)
 torch = optional_import("torch")
-_cached_grn: Optional[object] = None
+_UNSET = object()
+_cached_grn: object = _UNSET
+# Cache is not synchronised; concurrent init may build multiple GRN instances.
 
 
 def apply_grn_vector(vector: List[float]) -> List[float]:
@@ -26,9 +28,11 @@ def apply_grn_vector(vector: List[float]) -> List[float]:
         return vector
 
     global _cached_grn
-    if _cached_grn is None:
+    if _cached_grn is _UNSET:
         _cached_grn = build_grn({"enabled": True, "dim": -1})
     grn = _cached_grn
+    if grn is None:
+        return vector
     tensor = to_tensor(vector)
     if callable(grn):
         try:

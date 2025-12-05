@@ -28,8 +28,8 @@ def to_float_list(values: Iterable[float]) -> FloatList:
         try:
             tensor = values.detach().cpu().view(-1)
             return [float(x) for x in tensor.tolist()]
-        except Exception:
-            pass
+        except (AttributeError, RuntimeError, TypeError):
+            pass  # Fallback to regular iteration for non-tensor iterables
     for value in values:
         result.append(float(value))
     return result
