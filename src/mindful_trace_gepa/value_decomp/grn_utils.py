@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 torch = optional_import("torch")
 
 
-@lru_cache(maxsize=1)
-def _get_grn_instance():
+@lru_cache(maxsize=None)
+def _get_grn_instance(dim: int = -1):
     if torch is None:
         return None
     grn_module = optional_import("mindful_trace_gepa.train.grn")
@@ -23,16 +23,16 @@ def _get_grn_instance():
     build_grn = getattr(grn_module, "build_grn", None)
     if build_grn is None:
         return None
-    return build_grn({"enabled": True, "dim": -1})
+    return build_grn({"enabled": True, "dim": dim})
 
 
-def apply_grn_vector(vector: List[float]) -> List[float]:
+def apply_grn_vector(vector: List[float], *, dim: int = -1) -> List[float]:
     """Apply optional GRN normalization to a flat feature vector."""
 
     if torch is None:
         return vector
 
-    grn = _get_grn_instance()
+    grn = _get_grn_instance(dim)
     if grn is None:
         return vector
 

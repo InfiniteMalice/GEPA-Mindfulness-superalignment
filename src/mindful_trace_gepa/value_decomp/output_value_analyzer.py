@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import string
 from typing import Any, Mapping
 
 from .deep_value_spaces import DeepValueVector, ShallowPreferenceVector, to_float_list
@@ -69,7 +70,7 @@ def analyze_output_shallow_features(output_text: str) -> ShallowPreferenceVector
     length = len(words)
     verbosity = min(1.0, length / 120.0)
     hedging_phrases = ["maybe", "possibly", "could", "might", "perhaps"]
-    hedging_tokens = [token.lower().strip(".,") for token in words]
+    hedging_tokens = [token.lower().strip(string.punctuation) for token in words]
     hedging = 0.3 if any(token in hedging_phrases for token in hedging_tokens) else 0.0
     directness = 0.0
     lowered_text = normalised_text.lower()

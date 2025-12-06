@@ -53,7 +53,7 @@ def parse_user_shallow_prefs(prompt: str) -> ShallowPreferenceVector:
     scores = _score_matches(prompt, patterns)
 
     # Verbosity: 0.3 (prefer concise) < 0.5 (neutral) < 0.7 (prefer detailed)
-    verbosity_score = 0.0
+    verbosity_score = 0.5
     lowered = prompt.lower()
     concise_match = re.search(r"\b(short|concise)\b", lowered)
     detailed_match = re.search(r"\b(long|detailed)\b", lowered)
@@ -61,6 +61,8 @@ def parse_user_shallow_prefs(prompt: str) -> ShallowPreferenceVector:
         verbosity_score = 0.3
     elif detailed_match and not concise_match:
         verbosity_score = 0.7
+    elif concise_match and detailed_match:
+        verbosity_score = 0.5
     scores["verbosity"] = verbosity_score
 
     return ShallowPreferenceVector(**scores)

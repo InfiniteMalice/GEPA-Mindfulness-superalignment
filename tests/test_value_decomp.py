@@ -51,7 +51,9 @@ def test_parse_user_values_empty_prompt() -> None:
     deep = parse_user_deep_values("")
     shallow = parse_user_shallow_prefs("")
     assert all(value == 0.0 for value in deep.as_dict().values())
-    assert all(value == 0.0 for value in shallow.as_dict().values())
+    shallow_dict = shallow.as_dict()
+    assert all(shallow_dict[key] == 0.0 for key in shallow_dict if key != "verbosity")
+    assert shallow_dict["verbosity"] == pytest.approx(0.5)
 
 
 def test_analyze_output_features() -> None:
