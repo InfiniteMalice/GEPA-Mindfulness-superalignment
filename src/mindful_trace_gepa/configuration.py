@@ -20,6 +20,9 @@ class DSPyConfig:
     allow_optimizations: bool = False
     forbidden_phrases: tuple[str, ...] = tuple()
     max_variants_per_module: int = 1
+    enable_value_decomposition: bool = False
+    enable_dvgr_eval: bool = False
+    use_grn_for_value_decomp: bool = False
 
     @classmethod
     def from_mapping(cls, payload: Dict[str, Any]) -> "DSPyConfig":
@@ -28,6 +31,9 @@ class DSPyConfig:
             allow_optimizations=bool(payload.get("allow_optimizations", False)),
             forbidden_phrases=tuple(payload.get("forbidden_phrases", []) or []),
             max_variants_per_module=int(payload.get("max_variants_per_module", 1)),
+            enable_value_decomposition=bool(payload.get("enable_value_decomposition", False)),
+            enable_dvgr_eval=bool(payload.get("enable_dvgr_eval", False)),
+            use_grn_for_value_decomp=bool(payload.get("use_grn_for_value_decomp", False)),
         )
 
 
