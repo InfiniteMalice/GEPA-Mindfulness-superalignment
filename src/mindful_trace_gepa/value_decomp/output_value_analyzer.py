@@ -7,6 +7,7 @@ import string
 from typing import Any, Mapping
 
 from .deep_value_spaces import DeepValueVector, ShallowPreferenceVector, to_float_list
+from .user_value_parser import _normalize_quotes
 
 
 def _extract_imperatives(gepa_scores: Any) -> list[float]:
@@ -65,7 +66,7 @@ def analyze_output_deep_values(output_text: str, gepa_scores: Any) -> DeepValueV
 def analyze_output_shallow_features(output_text: str) -> ShallowPreferenceVector:
     """Estimate shallow style preferences from text features."""
 
-    normalised_text = output_text.replace("’", "'").replace("“", '"').replace("”", '"')
+    normalised_text = _normalize_quotes(output_text)
     words = normalised_text.split()
     length = len(words)
     verbosity = min(1.0, length / 120.0)

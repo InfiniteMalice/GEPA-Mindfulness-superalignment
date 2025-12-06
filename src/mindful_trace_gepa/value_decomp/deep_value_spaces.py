@@ -62,7 +62,7 @@ class BaseValueVector:
                 cls.__name__,
                 padding,
             )
-        padded = list(floats) + [0.0] * padding
+        padded = floats + [0.0] * padding
         kwargs = {name: padded[idx] for idx, name in enumerate(cls.ORDER)}
         return cls(**kwargs)
 

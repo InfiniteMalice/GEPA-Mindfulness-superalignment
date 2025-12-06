@@ -14,6 +14,17 @@ except ImportError:  # pragma: no cover
     dspy = None  # type: ignore
 
 try:  # pragma: no cover - optional dependency during tests
+    from mindful_trace_gepa.value_decomp.gepa_decomposition import decompose_gepa_score
+    from mindful_trace_gepa.value_decomp.output_value_analyzer import (
+        analyze_output_deep_values,
+        analyze_output_shallow_features,
+    )
+except ImportError:  # pragma: no cover - value decomposition optional
+    decompose_gepa_score = None  # type: ignore
+    analyze_output_deep_values = None  # type: ignore
+    analyze_output_shallow_features = None  # type: ignore
+
+try:  # pragma: no cover - optional dependency during tests
     from mindful_trace_gepa.value_decomp.user_value_parser import (
         parse_user_deep_values,
         parse_user_shallow_prefs,
@@ -222,15 +233,12 @@ class GEPAChain:
         imperative_scores = self._mock_imperative_scores(summary)
         gepa_hits = [name for name, value in principle_scores.items() if value >= 0.75]
         value_decomposition: Dict[str, Any] | None = None
-        if self.config.enable_value_decomposition:
-            from mindful_trace_gepa.value_decomp.gepa_decomposition import (
-                decompose_gepa_score,
-            )
-            from mindful_trace_gepa.value_decomp.output_value_analyzer import (
-                analyze_output_deep_values,
-                analyze_output_shallow_features,
-            )
-
+        if (
+            self.config.enable_value_decomposition
+            and decompose_gepa_score is not None
+            and analyze_output_deep_values is not None
+            and analyze_output_shallow_features is not None
+        ):
             output_deep = analyze_output_deep_values(final_answer, imperative_scores)
             output_shallow = analyze_output_shallow_features(final_answer)
             gepa_decomp = decompose_gepa_score(

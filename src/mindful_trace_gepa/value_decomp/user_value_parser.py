@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Dict, Iterable
+from collections.abc import Iterable
 
 from .deep_value_spaces import DeepValueVector, ShallowPreferenceVector
 
@@ -14,9 +14,9 @@ def _normalize_quotes(text: str) -> str:
     return text.replace("’", "'").replace("‘", "'").replace("“", '"').replace("”", '"')
 
 
-def _score_matches(text: str, patterns: Dict[str, Iterable[str]]) -> Dict[str, float]:
+def _score_matches(text: str, patterns: dict[str, Iterable[str]]) -> dict[str, float]:
     lowered = text.lower()
-    scores: Dict[str, float] = {key: 0.0 for key in patterns}
+    scores: dict[str, float] = {key: 0.0 for key in patterns}
     for key, phrases in patterns.items():
         phrase_list = list(phrases)
         hits = 0

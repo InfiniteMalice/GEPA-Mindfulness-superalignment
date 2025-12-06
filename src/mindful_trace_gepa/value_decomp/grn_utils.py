@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 torch = optional_import("torch")
 
 
-@lru_cache(maxsize=None)
+@lru_cache(maxsize=8)
 def _get_grn_instance(dim: int = -1) -> Any:
     if torch is None:
         return None
