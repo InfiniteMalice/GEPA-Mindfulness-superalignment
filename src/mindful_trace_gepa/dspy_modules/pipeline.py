@@ -13,6 +13,30 @@ try:  # pragma: no cover - dspy optional
 except ImportError:  # pragma: no cover
     dspy = None  # type: ignore
 
+
+try:  # pragma: no cover - optional dependency during tests
+    from ..value_decomp.dvb_eval import DVBExample, compute_dvgr
+    from ..value_decomp.gepa_decomposition import decompose_gepa_score
+    from ..value_decomp.output_value_analyzer import (
+        analyze_output_deep_values,
+        analyze_output_shallow_features,
+    )
+except ImportError:  # pragma: no cover - value decomposition optional
+    decompose_gepa_score = None  # type: ignore
+    analyze_output_deep_values = None  # type: ignore
+    analyze_output_shallow_features = None  # type: ignore
+    DVBExample = None  # type: ignore
+    compute_dvgr = None  # type: ignore
+
+try:  # pragma: no cover - optional dependency during tests
+    from ..value_decomp.user_value_parser import (
+        parse_user_deep_values,
+        parse_user_shallow_prefs,
+    )
+except ImportError:  # pragma: no cover - value decomposition optional
+    parse_user_deep_values = None  # type: ignore
+    parse_user_shallow_prefs = None  # type: ignore
+
 try:  # pragma: no cover - optional dependency during tests
     from ..value_decomp.dvb_eval import DVBExample, compute_dvgr
     from ..value_decomp.gepa_decomposition import decompose_gepa_score
@@ -72,8 +96,8 @@ except ImportError:  # pragma: no cover - fallback shim
 
     ThoughtTrace = _ShimTrace  # type: ignore
 
-from ..configuration import DSPyConfig, load_dspy_config
-from .signatures import (
+from ..configuration import DSPyConfig, load_dspy_config  # noqa: E402
+from .signatures import (  # noqa: E402
     ALL_SIGNATURES,
     Decision,
     Evidence,
@@ -255,8 +279,8 @@ class GEPAChain:
                 dv_examples: List[DVBExample] = []
                 if context:
                     # NOTE: Using raw context as placeholder for shallow-first option; replace
-                    # with contrasted outputs when available. Metric may not be meaningful until
-                    # contrasted generations are wired in.
+                    # with contrasted outputs when available. Metric may not be meaningful
+                    # until contrasted generations are wired in.
                     dv_examples.append(
                         DVBExample(
                             prompt=inquiry,
@@ -268,6 +292,11 @@ class GEPAChain:
                     )
 
                 if dv_examples:
+                    LOGGER.warning(
+                        "DVGR metric computed with placeholder data; results may not be "
+                        "meaningful until contrasted outputs are available"
+                    )
+
                     # TODO: implement per-example model choice for DVGR once contrasted
                     # outputs are available. Placeholder prefers higher deep contribution.
                     def choice_fn(_: DVBExample) -> int:

@@ -7,7 +7,7 @@ import string
 from typing import Any, Mapping
 
 from .deep_value_spaces import DeepValueVector, ShallowPreferenceVector, to_float_list
-from .user_value_parser import _normalize_quotes
+from .user_value_parser import normalize_quotes
 
 _STANCE_SCORE_THRESHOLD = 0.6
 _VERBOSITY_WORD_THRESHOLD = 120.0
@@ -42,7 +42,7 @@ def analyze_output_deep_values(output_text: str, gepa_scores: Any) -> DeepValueV
     """Blend GEPA head scores with textual heuristics."""
 
     scores = _extract_imperatives(gepa_scores)
-    padded = (list(scores) + [0.0, 0.0, 0.0])[:3]
+    padded = (scores + [0.0, 0.0, 0.0])[:3]
     keywords = {
         "mindfulness": ["mindful", "present"],
         "empathy": ["care", "empathy", "understand"],
@@ -69,7 +69,7 @@ def analyze_output_deep_values(output_text: str, gepa_scores: Any) -> DeepValueV
 def analyze_output_shallow_features(output_text: str) -> ShallowPreferenceVector:
     """Estimate shallow style preferences from text features."""
 
-    normalized_text = _normalize_quotes(output_text)
+    normalized_text = normalize_quotes(output_text)
     words = normalized_text.split()
     length = len(words)
     verbosity = min(1.0, length / _VERBOSITY_WORD_THRESHOLD)

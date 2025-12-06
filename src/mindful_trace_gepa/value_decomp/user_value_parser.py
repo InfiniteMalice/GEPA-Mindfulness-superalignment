@@ -8,7 +8,7 @@ from collections.abc import Iterable
 from .deep_value_spaces import DeepValueVector, ShallowPreferenceVector
 
 
-def _normalize_quotes(text: str) -> str:
+def normalize_quotes(text: str) -> str:
     """Normalize smart quotes to ASCII equivalents for matching."""
 
     return text.replace("’", "'").replace("‘", "'").replace("“", '"').replace("”", '"')
@@ -40,7 +40,7 @@ def parse_user_deep_values(prompt: str) -> DeepValueVector:
         "perspective": ["consider", "balance", "nuance", "multiple views", "perspective"],
         "agency": ["autonomy", "empower", "choice", "consent"],
     }
-    normalized_prompt = _normalize_quotes(prompt)
+    normalized_prompt = normalize_quotes(prompt)
     scores = _score_matches(normalized_prompt, patterns)
     return DeepValueVector(**scores)
 
@@ -57,7 +57,7 @@ def parse_user_shallow_prefs(prompt: str) -> ShallowPreferenceVector:
         "deference": ["if you can", "if possible", "please", "would you"],
         "assertiveness": ["must", "definitely", "certainly", "do it"],
     }
-    normalized_prompt = _normalize_quotes(prompt)
+    normalized_prompt = normalize_quotes(prompt)
     scores = _score_matches(normalized_prompt, patterns)
 
     # Verbosity: 0.3 (prefer concise) < 0.5 (neutral) < 0.7 (prefer detailed)
@@ -75,4 +75,4 @@ def parse_user_shallow_prefs(prompt: str) -> ShallowPreferenceVector:
     return ShallowPreferenceVector(**scores)
 
 
-__all__ = ["parse_user_deep_values", "parse_user_shallow_prefs"]
+__all__ = ["parse_user_deep_values", "parse_user_shallow_prefs", "normalize_quotes"]
