@@ -51,7 +51,8 @@ def analyze_output_deep_values(output_text: str, gepa_scores: Any) -> DeepValueV
     }
     stance_keys = ["mindfulness", "empathy", "perspective", "agency"]
     stance_scores = {key: 0.0 for key in stance_keys}
-    lowered = output_text.lower()
+    normalized = normalize_quotes(output_text)
+    lowered = normalized.lower()
     for key, phrases in keywords.items():
         if any(re.search(rf"\b{re.escape(phrase)}\b", lowered) for phrase in phrases):
             stance_scores[key] = _STANCE_SCORE_THRESHOLD

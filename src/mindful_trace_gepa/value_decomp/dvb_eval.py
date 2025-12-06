@@ -46,4 +46,4 @@ def compute_dvgr(
     return correct / len(examples)
 
 
-__all__ = ["DVBExample", "compute_dvgr"]
+__all__ = ["DVBExample", "LabelType", "compute_dvgr"]

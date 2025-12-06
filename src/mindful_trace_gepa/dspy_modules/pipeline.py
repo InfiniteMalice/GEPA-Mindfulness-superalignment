@@ -191,6 +191,8 @@ class GEPAChain:
         ):
             user_deep = parse_user_deep_values(inquiry)
             user_shallow = parse_user_shallow_prefs(inquiry)
+        elif self.config.enable_value_decomposition:
+            LOGGER.debug("Value decomposition enabled but parsers unavailable")
         module_results: List[ModuleResult] = []
         checkpoints: List[Dict[str, Any]] = []
         gepa_hits: List[str] = []
