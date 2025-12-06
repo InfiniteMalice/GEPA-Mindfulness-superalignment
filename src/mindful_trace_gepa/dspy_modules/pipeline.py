@@ -207,9 +207,7 @@ class GEPAChain:
                         "stage": stage,
                         "module": signature.name,
                         "content": output,
-                        "timestamp": (
-                            datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-                        ),
+                        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                         "metadata": metadata,
                     }
                 )
@@ -260,11 +258,10 @@ class GEPAChain:
                     # Placeholder: prefer the option with higher deep contribution while a
                     # contrasted model choice function is wired in a future iteration.
                     def choice_fn(_: DVBExample) -> int:
-                        return (
-                            0
-                            if gepa_decomp.deep_contribution >= gepa_decomp.shallow_contribution
-                            else 1
+                        deep_first = (
+                            gepa_decomp.deep_contribution >= gepa_decomp.shallow_contribution
                         )
+                        return 0 if deep_first else 1
 
                     dvgr_score = compute_dvgr(dv_examples, choice_fn)
             value_decomposition = {

@@ -41,7 +41,6 @@ def parse_user_deep_values(prompt: str) -> DeepValueVector:
 def parse_user_shallow_prefs(prompt: str) -> ShallowPreferenceVector:
     """Detect shallow style preferences from the prompt."""
 
-    lowered = prompt.lower()
     patterns = {
         "tone_formal": ["formal", "professional"],
         "tone_casual": ["casual", "friendly", "informal"],
@@ -55,6 +54,7 @@ def parse_user_shallow_prefs(prompt: str) -> ShallowPreferenceVector:
 
     # Verbosity: 0.3 (prefer concise) < 0.5 (neutral) < 0.7 (prefer detailed)
     verbosity_score = 0.0
+    lowered = prompt.lower()
     if re.search(r"\b(short|concise)\b", lowered):
         verbosity_score = 0.3
     if re.search(r"\b(long|detailed)\b", lowered):

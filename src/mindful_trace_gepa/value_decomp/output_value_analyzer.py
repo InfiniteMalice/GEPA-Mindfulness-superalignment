@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-import logging
 import re
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping
 
 from .deep_value_spaces import DeepValueVector, ShallowPreferenceVector, to_float_list
-
-logger = logging.getLogger(__name__)
 
 
 def _extract_imperatives(gepa_scores: Any) -> list[float]:
@@ -20,7 +17,7 @@ def _extract_imperatives(gepa_scores: Any) -> list[float]:
         key_map = {"suffering": 0, "prosper": 1, "knowledge": 2, "science": 2}
         for key, value in gepa_scores.items():
             lowered = str(key).lower()
-            target_idx: Optional[int] = None
+            target_idx: int | None = None
             for marker, idx in key_map.items():
                 if marker in lowered:
                     target_idx = idx
