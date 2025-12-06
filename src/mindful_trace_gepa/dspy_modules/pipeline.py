@@ -14,9 +14,9 @@ except ImportError:  # pragma: no cover
     dspy = None  # type: ignore
 
 try:  # pragma: no cover - optional dependency during tests
-    from mindful_trace_gepa.value_decomp.dvb_eval import DVBExample, compute_dvgr
-    from mindful_trace_gepa.value_decomp.gepa_decomposition import decompose_gepa_score
-    from mindful_trace_gepa.value_decomp.output_value_analyzer import (
+    from ..value_decomp.dvb_eval import DVBExample, compute_dvgr
+    from ..value_decomp.gepa_decomposition import decompose_gepa_score
+    from ..value_decomp.output_value_analyzer import (
         analyze_output_deep_values,
         analyze_output_shallow_features,
     )
@@ -28,7 +28,7 @@ except ImportError:  # pragma: no cover - value decomposition optional
     compute_dvgr = None  # type: ignore
 
 try:  # pragma: no cover - optional dependency during tests
-    from mindful_trace_gepa.value_decomp.user_value_parser import (
+    from ..value_decomp.user_value_parser import (
         parse_user_deep_values,
         parse_user_shallow_prefs,
     )
