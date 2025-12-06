@@ -41,8 +41,6 @@ class BaseValueVector(ABC):
 
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()
-        if cls is BaseValueVector:
-            return
         if not getattr(cls, "ORDER", None):
             raise TypeError(f"{cls.__name__} must define a non-empty ORDER tuple")
 
