@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from abc import ABC
 from dataclasses import dataclass
 from typing import Any, ClassVar, Iterable, List, Sequence, TypeVar
 
@@ -35,8 +36,15 @@ def to_float_list(values: Iterable[float]) -> FloatList:
     return result
 
 
-class BaseValueVector:
+class BaseValueVector(ABC):
     ORDER: ClassVar[tuple[str, ...]]
+
+    def __init_subclass__(cls) -> None:
+        super().__init_subclass__()
+        if cls is BaseValueVector:
+            return
+        if not getattr(cls, "ORDER", None):
+            raise TypeError(f"{cls.__name__} must define a non-empty ORDER tuple")
 
     def to_list(self) -> FloatList:
         if not getattr(self, "ORDER", None):

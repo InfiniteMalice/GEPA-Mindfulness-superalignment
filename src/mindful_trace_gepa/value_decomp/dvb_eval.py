@@ -27,7 +27,7 @@ def compute_dvgr(
     shallow preferences conflict. Returns ``0.0`` when no examples are supplied.
     """
 
-    if not isinstance(examples, Sequence):
+    if not isinstance(examples, Sequence) or isinstance(examples, str):
         raise TypeError("examples must be a Sequence of DVBExample")
     if not examples:
         return 0.0

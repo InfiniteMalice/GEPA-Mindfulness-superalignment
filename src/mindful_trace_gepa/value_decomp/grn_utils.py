@@ -25,8 +25,12 @@ def _get_grn_instance(dim: int = -1) -> Any:
         return None
     try:
         return build_grn({"enabled": True, "dim": dim})
-    except Exception:
-        logger.debug("Failed to build GRN instance; falling back to raw features", exc_info=True)
+    except Exception as exc:
+        logger.debug(
+            "Failed to build GRN instance (%s); falling back to raw features",
+            type(exc).__name__,
+            exc_info=True,
+        )
         return None
 
 

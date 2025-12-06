@@ -255,7 +255,8 @@ class GEPAChain:
                 dv_examples: List[DVBExample] = []
                 if context:
                     # NOTE: Using raw context as placeholder for shallow-first option; replace
-                    # with contrasted outputs when available.
+                    # with contrasted outputs when available. Metric may not be meaningful until
+                    # contrasted generations are wired in.
                     dv_examples.append(
                         DVBExample(
                             prompt=inquiry,

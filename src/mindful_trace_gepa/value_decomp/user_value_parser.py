@@ -17,16 +17,11 @@ def _normalize_quotes(text: str) -> str:
 def _score_matches(text: str, patterns: dict[str, Iterable[str]]) -> dict[str, float]:
     """Return per-key scores as hit-count / phrase-count, capped at 1.0."""
     lowered = text.lower()
-    scores: dict[str, float] = {key: 0.0 for key in patterns}
-    for key, phrases in patterns.items():
-        phrase_list = list(phrases)
+    pattern_lists = {key: tuple(phrases) for key, phrases in patterns.items()}
+    scores: dict[str, float] = {key: 0.0 for key in pattern_lists}
+    for key, phrase_list in pattern_lists.items():
         hits = sum(
-            1
-            for phrase in phrase_list
-            if re.search(
-                rf"\b{re.escape(phrase.lower())}\b",
-                lowered,
-            )
+            1 for phrase in phrase_list if re.search(rf"\b{re.escape(phrase.lower())}\b", lowered)
         )
         if hits:
             scores[key] = min(1.0, hits / max(len(phrase_list), 1))
