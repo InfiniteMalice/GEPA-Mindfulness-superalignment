@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, ClassVar, Iterable, List, Sequence
+from typing import Any, ClassVar, Iterable, List, Sequence, TypeVar
 
 from ..utils.imports import optional_import
 
@@ -11,6 +11,7 @@ torch = optional_import("torch")
 
 
 FloatList = List[float]
+VectorType = TypeVar("VectorType", bound="BaseValueVector")
 
 
 def to_tensor(values: Sequence[float]) -> Any:
@@ -32,8 +33,30 @@ def to_float_list(values: Iterable[float]) -> FloatList:
     return result
 
 
+class BaseValueVector:
+    ORDER: ClassVar[tuple[str, ...]]
+
+    def to_list(self) -> FloatList:
+        return [float(getattr(self, key)) for key in self.ORDER]
+
+    def to_tensor(self):
+        return to_tensor(self.to_list())
+
+    @classmethod
+    def from_tensor(cls: type[VectorType], values: Sequence[float]) -> VectorType:
+        floats = to_float_list(values)
+        if len(floats) > len(cls.ORDER):
+            floats = floats[: len(cls.ORDER)]
+        padded = list(floats) + [0.0] * (len(cls.ORDER) - len(floats))
+        kwargs = {name: padded[idx] for idx, name in enumerate(cls.ORDER)}
+        return cls(**kwargs)
+
+    def as_dict(self) -> dict[str, float]:
+        return {name: float(getattr(self, name)) for name in self.ORDER}
+
+
 @dataclass
-class DeepValueVector:
+class DeepValueVector(BaseValueVector):
     """Container for GEPA deep values and contemplative stances."""
 
     reduce_suffering: float = 0.0
@@ -54,27 +77,9 @@ class DeepValueVector:
         "agency",
     )
 
-    def to_list(self) -> FloatList:
-        return [float(getattr(self, key)) for key in self.ORDER]
-
-    def to_tensor(self):
-        return to_tensor(self.to_list())
-
-    @classmethod
-    def from_tensor(cls, values: Sequence[float]) -> "DeepValueVector":
-        floats = to_float_list(values)
-        if len(floats) > len(cls.ORDER):
-            floats = floats[: len(cls.ORDER)]
-        padded = list(floats) + [0.0] * (len(cls.ORDER) - len(floats))
-        kwargs = {name: padded[idx] for idx, name in enumerate(cls.ORDER)}
-        return cls(**kwargs)
-
-    def as_dict(self) -> dict[str, float]:
-        return {name: float(getattr(self, name)) for name in self.ORDER}
-
 
 @dataclass
-class ShallowPreferenceVector:
+class ShallowPreferenceVector(BaseValueVector):
     """Container for shallow, stylistic preferences."""
 
     tone_formal: float = 0.0
@@ -97,26 +102,9 @@ class ShallowPreferenceVector:
         "assertiveness",
     )
 
-    def to_list(self) -> FloatList:
-        return [float(getattr(self, key)) for key in self.ORDER]
-
-    def to_tensor(self):
-        return to_tensor(self.to_list())
-
-    @classmethod
-    def from_tensor(cls, values: Sequence[float]) -> "ShallowPreferenceVector":
-        floats = to_float_list(values)
-        if len(floats) > len(cls.ORDER):
-            floats = floats[: len(cls.ORDER)]
-        padded = list(floats) + [0.0] * (len(cls.ORDER) - len(floats))
-        kwargs = {name: padded[idx] for idx, name in enumerate(cls.ORDER)}
-        return cls(**kwargs)
-
-    def as_dict(self) -> dict[str, float]:
-        return {name: float(getattr(self, name)) for name in self.ORDER}
-
 
 __all__ = [
+    "BaseValueVector",
     "DeepValueVector",
     "ShallowPreferenceVector",
     "to_tensor",

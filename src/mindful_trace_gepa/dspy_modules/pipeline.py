@@ -172,7 +172,11 @@ class GEPAChain:
         }
         user_deep = None
         user_shallow = None
-        if self.config.enable_value_decomposition and parse_user_deep_values is not None:
+        if (
+            self.config.enable_value_decomposition
+            and parse_user_deep_values is not None
+            and parse_user_shallow_prefs is not None
+        ):
             user_deep = parse_user_deep_values(inquiry)
             user_shallow = parse_user_shallow_prefs(inquiry)
         module_results: List[ModuleResult] = []

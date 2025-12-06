@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from functools import lru_cache
 from typing import List
 
 from ..utils.imports import optional_import
@@ -10,10 +11,19 @@ from .deep_value_spaces import to_float_list, to_tensor
 
 logger = logging.getLogger(__name__)
 torch = optional_import("torch")
-_UNSET = object()
-_cached_grn_module: object = _UNSET
-_cached_grn: object = _UNSET
-# Cache is not synchronised; concurrent init may build multiple GRN instances.
+
+
+@lru_cache(maxsize=1)
+def _get_grn_instance():
+    if torch is None:
+        return None
+    grn_module = optional_import("mindful_trace_gepa.train.grn")
+    if grn_module is None:
+        return None
+    build_grn = getattr(grn_module, "build_grn", None)
+    if build_grn is None:
+        return None
+    return build_grn({"enabled": True, "dim": -1})
 
 
 def apply_grn_vector(vector: List[float]) -> List[float]:
@@ -22,28 +32,10 @@ def apply_grn_vector(vector: List[float]) -> List[float]:
     if torch is None:
         return vector
 
-    global _cached_grn_module, _cached_grn
-    if _cached_grn_module is _UNSET:
-        _cached_grn_module = optional_import("mindful_trace_gepa.train.grn")
-
-    grn_module = _cached_grn_module
-    if grn_module is None:
-        if _cached_grn is _UNSET:
-            _cached_grn = None
+    grn = _get_grn_instance()
+    if grn is None:
         return vector
 
-    build_grn = getattr(grn_module, "build_grn", None)
-    if build_grn is None:
-        if _cached_grn is _UNSET:
-            _cached_grn = None
-        return vector
-
-    if _cached_grn is _UNSET:
-        _cached_grn = build_grn({"enabled": True, "dim": -1})
-
-    if _cached_grn is None:
-        return vector
-    grn = _cached_grn
     tensor = to_tensor(vector)
     if callable(grn):
         try:
