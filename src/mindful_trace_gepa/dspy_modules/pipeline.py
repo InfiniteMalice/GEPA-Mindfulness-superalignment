@@ -259,8 +259,8 @@ class GEPAChain:
                     )
 
                 if dv_examples:
-                    # Placeholder: prefer the option with higher deep contribution while a
-                    # contrasted model choice function is wired in a future iteration.
+                    # TODO: implement per-example model choice for DVGR once contrasted
+                    # outputs are available. Placeholder prefers higher deep contribution.
                     def choice_fn(_: DVBExample) -> int:
                         deep_first = (
                             gepa_decomp.deep_contribution >= gepa_decomp.shallow_contribution

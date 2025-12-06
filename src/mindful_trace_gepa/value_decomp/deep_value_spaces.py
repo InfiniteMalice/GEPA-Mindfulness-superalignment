@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any, ClassVar, Iterable, List, Sequence, TypeVar
 
@@ -12,6 +13,7 @@ torch = optional_import("torch")
 
 FloatList = List[float]
 VectorType = TypeVar("VectorType", bound="BaseValueVector")
+logger = logging.getLogger(__name__)
 
 
 def to_tensor(values: Sequence[float]) -> Any:
@@ -46,8 +48,21 @@ class BaseValueVector:
     def from_tensor(cls: type[VectorType], values: Sequence[float]) -> VectorType:
         floats = to_float_list(values)
         if len(floats) > len(cls.ORDER):
+            logger.debug(
+                "Truncating %d values to %d for %s",
+                len(floats),
+                len(cls.ORDER),
+                cls.__name__,
+            )
             floats = floats[: len(cls.ORDER)]
-        padded = list(floats) + [0.0] * (len(cls.ORDER) - len(floats))
+        padding = len(cls.ORDER) - len(floats)
+        if padding > 0:
+            logger.debug(
+                "Padding %s with %d zeros to match ORDER length",
+                cls.__name__,
+                padding,
+            )
+        padded = list(floats) + [0.0] * padding
         kwargs = {name: padded[idx] for idx, name in enumerate(cls.ORDER)}
         return cls(**kwargs)
 
