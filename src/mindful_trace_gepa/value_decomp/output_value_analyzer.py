@@ -49,7 +49,7 @@ def analyze_output_deep_values(output_text: str, gepa_scores: Any) -> DeepValueV
     stance_scores = {key: 0.0 for key in stance_keys}
     lowered = output_text.lower()
     for key, phrases in keywords.items():
-        if any(phrase in lowered for phrase in phrases):
+        if any(re.search(rf"\b{re.escape(phrase)}\b", lowered) for phrase in phrases):
             stance_scores[key] = 0.6
     return DeepValueVector(
         reduce_suffering=padded[0],

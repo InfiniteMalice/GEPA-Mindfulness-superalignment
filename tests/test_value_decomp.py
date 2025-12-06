@@ -84,6 +84,18 @@ def test_compute_dvgr_metric() -> None:
     assert dvgr == pytest.approx(1.0)
 
 
+def test_compute_dvgr_partial_alignment() -> None:
+    examples = [
+        DVBExample("p1", "a", "b", deep_label=0, shallow_label=1),
+        DVBExample("p2", "a", "b", deep_label=1, shallow_label=0),
+    ]
+    dvgr = compute_dvgr(
+        examples,
+        lambda ex: ex.deep_label if ex.prompt == "p1" else ex.shallow_label,
+    )
+    assert dvgr == pytest.approx(0.5)
+
+
 def test_gepa_decomposition_with_probe() -> None:
     deep = DeepValueVector(1.0, 0.5, 0.2, 0.1, 0.1, 0.1, 0.1)
     shallow = ShallowPreferenceVector(verbosity=0.5, hedging=0.2)
