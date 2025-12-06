@@ -14,6 +14,7 @@ except ImportError:  # pragma: no cover
     dspy = None  # type: ignore
 
 try:  # pragma: no cover - optional dependency during tests
+    from mindful_trace_gepa.value_decomp.dvb_eval import DVBExample, compute_dvgr
     from mindful_trace_gepa.value_decomp.gepa_decomposition import decompose_gepa_score
     from mindful_trace_gepa.value_decomp.output_value_analyzer import (
         analyze_output_deep_values,
@@ -23,6 +24,8 @@ except ImportError:  # pragma: no cover - value decomposition optional
     decompose_gepa_score = None  # type: ignore
     analyze_output_deep_values = None  # type: ignore
     analyze_output_shallow_features = None  # type: ignore
+    DVBExample = None  # type: ignore
+    compute_dvgr = None  # type: ignore
 
 try:  # pragma: no cover - optional dependency during tests
     from mindful_trace_gepa.value_decomp.user_value_parser import (
@@ -248,12 +251,7 @@ class GEPAChain:
                 use_grn=self.config.use_grn_for_value_decomp,
             )
             dvgr_score = None
-            if self.config.enable_dvgr_eval:
-                from mindful_trace_gepa.value_decomp.dvb_eval import (
-                    DVBExample,
-                    compute_dvgr,
-                )
-
+            if self.config.enable_dvgr_eval and DVBExample is not None and compute_dvgr is not None:
                 dv_examples: List[DVBExample] = []
                 if context:
                     # NOTE: Using raw context as placeholder for shallow-first option; replace

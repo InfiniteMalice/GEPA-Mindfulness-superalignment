@@ -9,6 +9,8 @@ from typing import Any, Mapping
 from .deep_value_spaces import DeepValueVector, ShallowPreferenceVector, to_float_list
 from .user_value_parser import _normalize_quotes
 
+_STANCE_SCORE_THRESHOLD = 0.6
+
 
 def _extract_imperatives(gepa_scores: Any) -> list[float]:
     if gepa_scores is None:
@@ -51,7 +53,7 @@ def analyze_output_deep_values(output_text: str, gepa_scores: Any) -> DeepValueV
     lowered = output_text.lower()
     for key, phrases in keywords.items():
         if any(re.search(rf"\b{re.escape(phrase)}\b", lowered) for phrase in phrases):
-            stance_scores[key] = 0.6
+            stance_scores[key] = _STANCE_SCORE_THRESHOLD
     return DeepValueVector(
         reduce_suffering=padded[0],
         increase_prosperity=padded[1],
