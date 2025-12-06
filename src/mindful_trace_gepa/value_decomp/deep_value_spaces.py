@@ -39,7 +39,7 @@ class BaseValueVector:
     def to_list(self) -> FloatList:
         return [float(getattr(self, key)) for key in self.ORDER]
 
-    def to_tensor(self):
+    def to_tensor(self) -> Any:
         return to_tensor(self.to_list())
 
     @classmethod

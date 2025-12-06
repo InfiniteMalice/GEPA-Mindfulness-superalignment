@@ -26,11 +26,7 @@ def compute_dvgr(
 
     if not examples:
         return 0.0
-    correct = 0
-    for example in examples:
-        choice = model_choice_fn(example)
-        if choice == example.deep_label:
-            correct += 1
+    correct = sum(1 for example in examples if model_choice_fn(example) == example.deep_label)
     return correct / len(examples)
 
 
