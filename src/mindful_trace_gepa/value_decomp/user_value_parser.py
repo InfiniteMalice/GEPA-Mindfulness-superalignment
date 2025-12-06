@@ -21,7 +21,12 @@ def _score_matches(text: str, patterns: dict[str, Iterable[str]]) -> dict[str, f
     for key, phrases in patterns.items():
         phrase_list = list(phrases)
         hits = sum(
-            1 for phrase in phrase_list if re.search(rf"\b{re.escape(phrase.lower())}\b", lowered)
+            1
+            for phrase in phrase_list
+            if re.search(
+                rf"\b{re.escape(phrase.lower())}\b",
+                lowered,
+            )
         )
         if hits:
             scores[key] = min(1.0, hits / max(len(phrase_list), 1))

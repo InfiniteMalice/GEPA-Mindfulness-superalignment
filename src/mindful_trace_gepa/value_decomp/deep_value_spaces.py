@@ -48,6 +48,8 @@ class BaseValueVector:
 
     @classmethod
     def from_tensor(cls: type[VectorType], values: Sequence[float]) -> VectorType:
+        if not getattr(cls, "ORDER", None):
+            raise NotImplementedError(f"{cls.__name__} must define a non-empty ORDER tuple")
         floats = to_float_list(values)
         if len(floats) > len(cls.ORDER):
             logger.debug(
@@ -69,6 +71,8 @@ class BaseValueVector:
         return cls(**kwargs)
 
     def as_dict(self) -> dict[str, float]:
+        if not getattr(self, "ORDER", None):
+            raise NotImplementedError(f"{type(self).__name__} must define a non-empty ORDER tuple")
         return {name: float(getattr(self, name)) for name in self.ORDER}
 
 
