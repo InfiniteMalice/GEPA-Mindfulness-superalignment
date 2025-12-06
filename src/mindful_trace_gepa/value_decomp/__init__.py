@@ -9,6 +9,7 @@ from .gepa_decomposition import (
     register_default_probe,
     reset_default_probe,
 )
+from .grn_utils import apply_grn_vector
 from .output_value_analyzer import (
     analyze_output_deep_values,
     analyze_output_shallow_features,
@@ -25,6 +26,7 @@ __all__ = [
     "decompose_gepa_score",
     "reset_default_probe",
     "register_default_probe",
+    "apply_grn_vector",
     "analyze_output_deep_values",
     "analyze_output_shallow_features",
     "parse_user_deep_values",

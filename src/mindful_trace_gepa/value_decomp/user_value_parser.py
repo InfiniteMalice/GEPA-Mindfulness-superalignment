@@ -8,6 +8,12 @@ from typing import Dict, Iterable
 from .deep_value_spaces import DeepValueVector, ShallowPreferenceVector
 
 
+def _normalize_quotes(text: str) -> str:
+    """Normalize smart quotes to ASCII equivalents for matching."""
+
+    return text.replace("’", "'").replace("‘", "'").replace("“", '"').replace("”", '"')
+
+
 def _score_matches(text: str, patterns: Dict[str, Iterable[str]]) -> Dict[str, float]:
     lowered = text.lower()
     scores: Dict[str, float] = {key: 0.0 for key in patterns}
@@ -34,7 +40,8 @@ def parse_user_deep_values(prompt: str) -> DeepValueVector:
         "perspective": ["consider", "balance", "nuance", "multiple views", "perspective"],
         "agency": ["autonomy", "empower", "choice", "consent"],
     }
-    scores = _score_matches(prompt, patterns)
+    normalized_prompt = _normalize_quotes(prompt)
+    scores = _score_matches(normalized_prompt, patterns)
     return DeepValueVector(**scores)
 
 
@@ -50,11 +57,12 @@ def parse_user_shallow_prefs(prompt: str) -> ShallowPreferenceVector:
         "deference": ["if you can", "if possible", "please", "would you"],
         "assertiveness": ["must", "definitely", "certainly", "do it"],
     }
-    scores = _score_matches(prompt, patterns)
+    normalized_prompt = _normalize_quotes(prompt)
+    scores = _score_matches(normalized_prompt, patterns)
 
     # Verbosity: 0.3 (prefer concise) < 0.5 (neutral) < 0.7 (prefer detailed)
     verbosity_score = 0.5
-    lowered = prompt.lower()
+    lowered = normalized_prompt.lower()
     concise_match = re.search(r"\b(short|concise)\b", lowered)
     detailed_match = re.search(r"\b(long|detailed)\b", lowered)
     if concise_match and not detailed_match:
