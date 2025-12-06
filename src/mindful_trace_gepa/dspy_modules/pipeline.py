@@ -26,60 +26,13 @@ try:  # pragma: no cover - optional dependency during tests
         parse_user_shallow_prefs,
     )
 except ImportError:  # pragma: no cover - value decomposition optional
-    decompose_gepa_score = None
-    analyze_output_deep_values = None
-    analyze_output_shallow_features = None
-    parse_user_deep_values = None
-    parse_user_shallow_prefs = None
-    DVBExample = None
-    compute_dvgr = None
-
-
-try:  # pragma: no cover - optional dependency during tests
-    from ..value_decomp.dvb_eval import DVBExample, compute_dvgr
-    from ..value_decomp.gepa_decomposition import decompose_gepa_score
-    from ..value_decomp.output_value_analyzer import (
-        analyze_output_deep_values,
-        analyze_output_shallow_features,
-    )
-except ImportError:  # pragma: no cover - value decomposition optional
     decompose_gepa_score = None  # type: ignore
     analyze_output_deep_values = None  # type: ignore
     analyze_output_shallow_features = None  # type: ignore
-    DVBExample = None  # type: ignore
-    compute_dvgr = None  # type: ignore
-
-try:  # pragma: no cover - optional dependency during tests
-    from ..value_decomp.user_value_parser import (
-        parse_user_deep_values,
-        parse_user_shallow_prefs,
-    )
-except ImportError:  # pragma: no cover - value decomposition optional
     parse_user_deep_values = None  # type: ignore
     parse_user_shallow_prefs = None  # type: ignore
-
-try:  # pragma: no cover - optional dependency during tests
-    from ..value_decomp.dvb_eval import DVBExample, compute_dvgr
-    from ..value_decomp.gepa_decomposition import decompose_gepa_score
-    from ..value_decomp.output_value_analyzer import (
-        analyze_output_deep_values,
-        analyze_output_shallow_features,
-    )
-except ImportError:  # pragma: no cover - value decomposition optional
-    decompose_gepa_score = None  # type: ignore
-    analyze_output_deep_values = None  # type: ignore
-    analyze_output_shallow_features = None  # type: ignore
     DVBExample = None  # type: ignore
     compute_dvgr = None  # type: ignore
-
-try:  # pragma: no cover - optional dependency during tests
-    from ..value_decomp.user_value_parser import (
-        parse_user_deep_values,
-        parse_user_shallow_prefs,
-    )
-except ImportError:  # pragma: no cover - value decomposition optional
-    parse_user_deep_values = None  # type: ignore
-    parse_user_shallow_prefs = None  # type: ignore
 
 try:  # pragma: no cover - optional dependency during tests
     from gepa_mindfulness.core.tracing import CircuitTracerLogger, ThoughtTrace

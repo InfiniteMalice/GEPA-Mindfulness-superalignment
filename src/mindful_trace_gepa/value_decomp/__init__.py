@@ -1,6 +1,6 @@
 """Value decomposition utilities for GEPA and Mindful Trace."""
 
-from .deep_value_spaces import DeepValueVector, ShallowPreferenceVector
+from .deep_value_spaces import BaseValueVector, DeepValueVector, ShallowPreferenceVector
 from .dvb_eval import DVBExample, compute_dvgr
 from .gepa_decomposition import (
     GepaDecomposition,
@@ -21,6 +21,7 @@ from .user_value_parser import (
 )
 
 __all__ = [
+    "BaseValueVector",
     "DeepValueVector",
     "ShallowPreferenceVector",
     "DVBExample",

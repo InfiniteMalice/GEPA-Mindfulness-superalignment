@@ -216,7 +216,7 @@ def handle_dspy_run(args: argparse.Namespace) -> None:
                     {
                         "stage": "value_decomposition",
                         "module": "value_decomposition",
-                        "content": "value decomposition",
+                        "content": "value decomposition results",
                         "timestamp": timestamp,
                         "value_decomposition": result.value_decomposition,
                         "context": context,
