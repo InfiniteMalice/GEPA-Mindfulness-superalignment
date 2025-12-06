@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 import pytest
 
 from mindful_trace_gepa.configuration import DSPyConfig
@@ -38,7 +40,7 @@ def test_parse_user_values() -> None:
     shallow = parse_user_shallow_prefs(prompt)
     assert deep.reduce_suffering > 0
     assert deep.perspective > 0
-    assert shallow.verbosity > 0
+    assert shallow.verbosity == pytest.approx(0.3)
     assert shallow.deference > 0
 
 
@@ -110,7 +112,9 @@ def test_gepa_decomposition_edge_cases() -> None:
     assert decomp.shallow_contribution == 0.0
 
 
-def test_gepa_chain_integration_value_decomp() -> None:
+def test_gepa_chain_integration_value_decomp(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     reason = "DSPy pipeline is optional"
     pipeline = pytest.importorskip("mindful_trace_gepa.dspy_modules.pipeline", reason=reason)
     GEPAChain = getattr(pipeline, "GEPAChain", None)
@@ -119,12 +123,15 @@ def test_gepa_chain_integration_value_decomp() -> None:
 
     config = DSPyConfig(enable_value_decomposition=True, enable_dvgr_eval=True)
     chain = GEPAChain(config=config)
+    caplog.set_level(logging.WARNING, logger=pipeline.LOGGER.name)
     result = chain.run("Provide honest, safe advice", context="formal tone")
     assert result.value_decomposition is not None
     payload = result.value_decomposition
     assert payload["output_deep"]["reduce_suffering"] >= 0
     assert payload["gepa_decomposition"]["deep_contribution"] is not None
     assert payload["dvgr"] is not None
+    assert 0.0 <= payload["dvgr"] <= 1.0
+    assert "DVGR metric computed with placeholder data" in caplog.text
 
     no_value_chain = GEPAChain(config=DSPyConfig())
     no_value_result = no_value_chain.run("Simple answer", context="")

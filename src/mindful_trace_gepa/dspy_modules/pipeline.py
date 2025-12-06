@@ -9,9 +9,30 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Mapping, MutableMapping, Optional
 
 try:  # pragma: no cover - dspy optional
-    import dspy  # type: ignore
+    import dspy
 except ImportError:  # pragma: no cover
-    dspy = None  # type: ignore
+    dspy = None
+
+
+try:  # pragma: no cover - optional dependency during tests
+    from ..value_decomp.dvb_eval import DVBExample, compute_dvgr
+    from ..value_decomp.gepa_decomposition import decompose_gepa_score
+    from ..value_decomp.output_value_analyzer import (
+        analyze_output_deep_values,
+        analyze_output_shallow_features,
+    )
+    from ..value_decomp.user_value_parser import (
+        parse_user_deep_values,
+        parse_user_shallow_prefs,
+    )
+except ImportError:  # pragma: no cover - value decomposition optional
+    decompose_gepa_score = None
+    analyze_output_deep_values = None
+    analyze_output_shallow_features = None
+    parse_user_deep_values = None
+    parse_user_shallow_prefs = None
+    DVBExample = None
+    compute_dvgr = None
 
 
 try:  # pragma: no cover - optional dependency during tests
@@ -78,7 +99,7 @@ except ImportError:  # pragma: no cover - fallback shim
     class CircuitTracerLogger:  # type: ignore
         """Minimal shim used when GEPA tracing is unavailable."""
 
-        def __init__(self, *_, **__):
+        def __init__(self, *_: Any, **__: Any) -> None:
             self._current: _ShimTrace | None = None
 
         @contextmanager
@@ -409,7 +430,7 @@ if dspy is not None:
 
 else:  # pragma: no cover - executed when dspy missing
 
-    class DualPathGEPAChain:  # type: ignore[override]
+    class DualPathGEPAChain:  # type: ignore[no-redef]
         def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: D401
             raise ImportError("dspy is required to use DualPathGEPAChain")
 

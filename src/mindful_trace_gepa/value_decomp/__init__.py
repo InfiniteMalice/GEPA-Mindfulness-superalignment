@@ -14,7 +14,11 @@ from .output_value_analyzer import (
     analyze_output_deep_values,
     analyze_output_shallow_features,
 )
-from .user_value_parser import parse_user_deep_values, parse_user_shallow_prefs
+from .user_value_parser import (
+    normalize_quotes,
+    parse_user_deep_values,
+    parse_user_shallow_prefs,
+)
 
 __all__ = [
     "DeepValueVector",
@@ -29,6 +33,7 @@ __all__ = [
     "apply_grn_vector",
     "analyze_output_deep_values",
     "analyze_output_shallow_features",
+    "normalize_quotes",
     "parse_user_deep_values",
     "parse_user_shallow_prefs",
 ]

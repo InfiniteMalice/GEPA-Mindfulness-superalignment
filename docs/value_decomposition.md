@@ -14,6 +14,10 @@ Benchmark (DVB) style evaluations. All features are disabled by default and can 
   residual.
 - **DVBExample / DVGR**: utilities to run DVB-style deep-vs-shallow evaluations.
 
+DVGR is currently a placeholder diagnostic: the pipeline constructs a single contrasted pair using
+the provided context as a shallow-first stand-in and emits a warning that results are not yet
+meaningful until contrasted generations are available.
+
 ## Logging additions
 
 When `enable_value_decomposition` is set, traces can contain optional fields:

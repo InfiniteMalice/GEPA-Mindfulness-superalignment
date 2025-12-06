@@ -14,14 +14,18 @@ def normalize_quotes(text: str) -> str:
     return text.replace("’", "'").replace("‘", "'").replace("“", '"').replace("”", '"')
 
 
-def _score_matches(text: str, patterns: dict[str, Iterable[str]]) -> dict[str, float]:
+def _score_matches(
+    text: str, patterns: dict[str, Iterable[str]], lowered: str | None = None
+) -> dict[str, float]:
     """Return per-key scores as hit-count / phrase-count, capped at 1.0."""
-    lowered = text.lower()
+    lowered_text = lowered if lowered is not None else text.lower()
     pattern_lists = {key: tuple(phrases) for key, phrases in patterns.items()}
     scores: dict[str, float] = {key: 0.0 for key in pattern_lists}
     for key, phrase_list in pattern_lists.items():
         hits = sum(
-            1 for phrase in phrase_list if re.search(rf"\b{re.escape(phrase.lower())}\b", lowered)
+            1
+            for phrase in phrase_list
+            if re.search(rf"\b{re.escape(phrase.lower())}\b", lowered_text)
         )
         if hits:
             scores[key] = min(1.0, hits / max(len(phrase_list), 1))
@@ -41,7 +45,8 @@ def parse_user_deep_values(prompt: str) -> DeepValueVector:
         "agency": ["autonomy", "empower", "choice", "consent"],
     }
     normalized_prompt = normalize_quotes(prompt)
-    scores = _score_matches(normalized_prompt, patterns)
+    lowered_prompt = normalized_prompt.lower()
+    scores = _score_matches(normalized_prompt, patterns, lowered_prompt)
     return DeepValueVector(**scores)
 
 
@@ -58,13 +63,13 @@ def parse_user_shallow_prefs(prompt: str) -> ShallowPreferenceVector:
         "assertiveness": ["must", "definitely", "certainly", "do it"],
     }
     normalized_prompt = normalize_quotes(prompt)
-    scores = _score_matches(normalized_prompt, patterns)
+    lowered_prompt = normalized_prompt.lower()
+    scores = _score_matches(normalized_prompt, patterns, lowered_prompt)
 
     # Verbosity: 0.3 (prefer concise) < 0.5 (neutral) < 0.7 (prefer detailed)
     verbosity_score = 0.5
-    lowered = normalized_prompt.lower()
-    concise_match = re.search(r"\b(short|concise)\b", lowered)
-    detailed_match = re.search(r"\b(long|detailed)\b", lowered)
+    concise_match = re.search(r"\b(short|concise)\b", lowered_prompt)
+    detailed_match = re.search(r"\b(long|detailed)\b", lowered_prompt)
     if concise_match and not detailed_match:
         verbosity_score = 0.3
     elif detailed_match and not concise_match:
