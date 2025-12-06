@@ -28,6 +28,7 @@ gepa = "mindful_trace_gepa.cli:main"
 include-package-data = true
 packages = [
     "mindful_trace_gepa",
+    "mindful_trace_gepa.value_decomp",
     "gepa_mindfulness",
     "rg_tracer",
     "rg_tracer.scoring",
