@@ -82,9 +82,9 @@ def analyze_output_shallow_features(output_text: str) -> ShallowPreferenceVector
     if "!" in normalized_text:
         directness = max(directness, 0.7)
 
-    tone_therapeutic = 0.4 if "i'm here to help" in lowered_text else 0.0
+    tone_therapeutic = 0.4 if re.search(r"\bi'm here to help\b", lowered_text) else 0.0
 
-    hedging = max(hedging, 0.2 if "i'm not sure" in lowered_text else 0.0)
+    hedging = max(hedging, 0.2 if re.search(r"\bi'm not sure\b", lowered_text) else 0.0)
     if "here's" in lowered_text:
         directness = max(directness, 0.5)
 
