@@ -23,7 +23,11 @@ def _get_grn_instance(dim: int = -1) -> Any:
     build_grn = getattr(grn_module, "build_grn", None)
     if build_grn is None:
         return None
-    return build_grn({"enabled": True, "dim": dim})
+    try:
+        return build_grn({"enabled": True, "dim": dim})
+    except Exception:
+        logger.debug("Failed to build GRN instance; falling back to raw features", exc_info=True)
+        return None
 
 
 def apply_grn_vector(vector: List[float], *, dim: int = -1) -> List[float]:
@@ -36,7 +40,11 @@ def apply_grn_vector(vector: List[float], *, dim: int = -1) -> List[float]:
     if grn is None:
         return vector
 
-    tensor = to_tensor(vector)
+    try:
+        tensor = to_tensor(vector)
+    except Exception:
+        logger.debug("Failed to convert vector for GRN; returning raw vector", exc_info=True)
+        return vector
     if callable(grn):
         try:
             if hasattr(tensor, "dim") and tensor.dim() == 1:  # type: ignore[operator]

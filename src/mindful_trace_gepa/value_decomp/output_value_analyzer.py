@@ -10,6 +10,7 @@ from .deep_value_spaces import DeepValueVector, ShallowPreferenceVector, to_floa
 from .user_value_parser import _normalize_quotes
 
 _STANCE_SCORE_THRESHOLD = 0.6
+_VERBOSITY_WORD_THRESHOLD = 120.0
 
 
 def _extract_imperatives(gepa_scores: Any) -> list[float]:
@@ -71,7 +72,7 @@ def analyze_output_shallow_features(output_text: str) -> ShallowPreferenceVector
     normalized_text = _normalize_quotes(output_text)
     words = normalized_text.split()
     length = len(words)
-    verbosity = min(1.0, length / 120.0)
+    verbosity = min(1.0, length / _VERBOSITY_WORD_THRESHOLD)
     hedging_phrases = ["maybe", "possibly", "could", "might", "perhaps"]
     hedging_tokens = [token.lower().strip(string.punctuation) for token in words]
     hedging = 0.3 if any(token in hedging_phrases for token in hedging_tokens) else 0.0
@@ -85,7 +86,7 @@ def analyze_output_shallow_features(output_text: str) -> ShallowPreferenceVector
     tone_therapeutic = 0.4 if re.search(r"\bi'm here to help\b", lowered_text) else 0.0
 
     hedging = max(hedging, 0.2 if re.search(r"\bi'm not sure\b", lowered_text) else 0.0)
-    if "here's" in lowered_text:
+    if re.search(r"\bhere's\b", lowered_text):
         directness = max(directness, 0.5)
 
     deference = 0.2 if re.search(r"\bplease\b", lowered_text) else 0.0

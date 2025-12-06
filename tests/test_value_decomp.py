@@ -116,9 +116,8 @@ def test_gepa_decomposition_edge_cases() -> None:
 
 
 def test_gepa_chain_integration_value_decomp() -> None:
-    pipeline = pytest.importorskip(
-        "mindful_trace_gepa.dspy_modules.pipeline", reason="DSPy pipeline is optional"
-    )
+    reason = "DSPy pipeline is optional"
+    pipeline = pytest.importorskip("mindful_trace_gepa.dspy_modules.pipeline", reason=reason)
     GEPAChain = getattr(pipeline, "GEPAChain", None)
     if GEPAChain is None:
         pytest.skip("GEPAChain unavailable")
