@@ -212,11 +212,15 @@ def handle_dspy_run(args: argparse.Namespace) -> None:
                 writer.append(payload)
             if result.value_decomposition is not None:
                 timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                content = "value decomposition results"
+                dvgr_value = result.value_decomposition.get("dvgr")
+                if isinstance(dvgr_value, (int, float)):
+                    content = f"value decomposition results (dvgr={dvgr_value:.3f})"
                 writer.append(
                     {
                         "stage": "value_decomposition",
                         "module": "value_decomposition",
-                        "content": "value decomposition results",
+                        "content": content,
                         "timestamp": timestamp,
                         "value_decomposition": result.value_decomposition,
                         "context": context,
