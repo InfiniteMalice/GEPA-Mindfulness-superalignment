@@ -30,12 +30,13 @@ def compute_dvgr(
     if not examples:
         return 0.0
     valid_labels = {0, 1}
-    correct = 0
     for example in examples:
         if example.deep_label not in valid_labels:
             raise ValueError("deep_label must be 0 or 1")
         if example.shallow_label not in valid_labels:
             raise ValueError("shallow_label must be 0 or 1")
+    correct = 0
+    for example in examples:
         choice = model_choice_fn(example)
         if choice not in valid_labels:
             raise ValueError("model_choice_fn must return 0 or 1")

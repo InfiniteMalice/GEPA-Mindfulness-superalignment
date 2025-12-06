@@ -39,6 +39,8 @@ class BaseValueVector:
     ORDER: ClassVar[tuple[str, ...]]
 
     def to_list(self) -> FloatList:
+        if not getattr(self, "ORDER", None):
+            raise NotImplementedError(f"{type(self).__name__} must define a non-empty ORDER tuple")
         return [float(getattr(self, key)) for key in self.ORDER]
 
     def to_tensor(self) -> Any:
