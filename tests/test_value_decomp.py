@@ -3,24 +3,19 @@ from __future__ import annotations
 import pytest
 
 from mindful_trace_gepa.configuration import DSPyConfig
-from mindful_trace_gepa.value_decomp.deep_value_spaces import (
+from mindful_trace_gepa.value_decomp import (
     DeepValueVector,
-    ShallowPreferenceVector,
-)
-from mindful_trace_gepa.value_decomp.dvb_eval import DVBExample, compute_dvgr
-from mindful_trace_gepa.value_decomp.gepa_decomposition import (
+    DVBExample,
     GepaDecomposition,
     LinearValueProbe,
-    decompose_gepa_score,
-    reset_default_probe,
-)
-from mindful_trace_gepa.value_decomp.output_value_analyzer import (
+    ShallowPreferenceVector,
     analyze_output_deep_values,
     analyze_output_shallow_features,
-)
-from mindful_trace_gepa.value_decomp.user_value_parser import (
+    compute_dvgr,
+    decompose_gepa_score,
     parse_user_deep_values,
     parse_user_shallow_prefs,
+    reset_default_probe,
 )
 
 
