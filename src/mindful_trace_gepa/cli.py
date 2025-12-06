@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 from argparse import BooleanOptionalAction
+from datetime import datetime, timezone
 from importlib import import_module
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional
@@ -149,6 +150,12 @@ def handle_dspy_run(args: argparse.Namespace) -> None:
     if GEPA_CHAIN_CLS is None and DUAL_PATH_CHAIN_CLS is None:
         _raise_dspy_import_error("pipeline", _DSPY_PIPELINE_ERROR)
     config = load_dspy_config()
+    if getattr(args, "enable_value_decomp", False):
+        config.enable_value_decomposition = True
+    if getattr(args, "enable_dvgr", False):
+        config.enable_dvgr_eval = True
+    if getattr(args, "use_grn_value_decomp", False):
+        config.use_grn_for_value_decomp = True
     chain_factory = (
         DUAL_PATH_CHAIN_CLS
         if dual_path_flag and DUAL_PATH_CHAIN_CLS is not None
@@ -203,6 +210,22 @@ def handle_dspy_run(args: argparse.Namespace) -> None:
                     }
                 )
                 writer.append(payload)
+            if result.value_decomposition is not None:
+                timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                content = "value decomposition results"
+                dvgr_value = result.value_decomposition.get("dvgr")
+                if isinstance(dvgr_value, (int, float)):
+                    content = f"value decomposition results (dvgr={dvgr_value:.3f})"
+                writer.append(
+                    {
+                        "stage": "value_decomposition",
+                        "module": "value_decomposition",
+                        "content": content,
+                        "timestamp": timestamp,
+                        "value_decomposition": result.value_decomposition,
+                        "context": context,
+                    }
+                )
             deception_payload = {
                 "honest_chain": result.checkpoints,
                 "deceptive_chain": [],
@@ -588,6 +611,21 @@ def build_parser() -> argparse.ArgumentParser:
     dspy_run.add_argument(
         "--shard-threshold", type=int, default=10_000, help="Events per shard before splitting"
     )
+    dspy_run.add_argument(
+        "--enable-value-decomp",
+        action="store_true",
+        help="Enable deep vs shallow value decomposition",
+    )
+    dspy_run.add_argument(
+        "--enable-dvgr",
+        action="store_true",
+        help="Enable DVGR metric logging",
+    )
+    dspy_run.add_argument(
+        "--use-grn-value-decomp",
+        action="store_true",
+        help="Apply GRN when projecting value vectors",
+    )
     dspy_run.set_defaults(func=handle_dspy_run)
 
     dspy_compile = dspy_sub.add_parser("compile", help="Compile guarded DSPy prompts")
@@ -659,6 +697,9 @@ def dspy_cli() -> None:
 @click.option("--model", default="", help="Model identifier")
 @click.option("--enable-optim", is_flag=True, help="Enable optimisation features")
 @click.option("--dual-path", is_flag=True, help="Use dual-path pipeline")
+@click.option("--enable-value-decomp", is_flag=True, help="Enable value decomposition")
+@click.option("--enable-dvgr", is_flag=True, help="Enable DVGR logging")
+@click.option("--use-grn-value-decomp", is_flag=True, help="Apply GRN when decomposing values")
 def click_dspy_run(
     input_path: str,
     trace_path: str,
@@ -666,6 +707,9 @@ def click_dspy_run(
     model: str,
     enable_optim: bool,
     dual_path: bool,
+    enable_value_decomp: bool,
+    enable_dvgr: bool,
+    use_grn_value_decomp: bool,
 ) -> None:
     namespace = argparse.Namespace(
         input=input_path,
@@ -679,6 +723,9 @@ def click_dspy_run(
         log_every=16,
         long_context=False,
         shard_threshold=10_000,
+        enable_value_decomp=enable_value_decomp,
+        enable_dvgr=enable_dvgr,
+        use_grn_value_decomp=use_grn_value_decomp,
     )
     handle_dspy_run(namespace)
 
