@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from functools import lru_cache
-from typing import Any, List
+from typing import Any
 
 from ..utils.imports import optional_import
 from .deep_value_spaces import to_float_list, to_tensor
@@ -30,7 +30,7 @@ def _get_grn_instance(dim: int = -1) -> Any:
         return None
 
 
-def apply_grn_vector(vector: List[float], *, dim: int = -1) -> List[float]:
+def apply_grn_vector(vector: list[float], *, dim: int = -1) -> list[float]:
     """Apply optional GRN normalization to a flat feature vector."""
 
     if torch is None:
