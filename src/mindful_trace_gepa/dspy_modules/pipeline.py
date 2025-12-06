@@ -246,7 +246,7 @@ class GEPAChain:
                     compute_dvgr,
                 )
 
-                dv_examples: list[DVBExample] = []
+                dv_examples: List[DVBExample] = []
                 if context:
                     # NOTE: Using raw context as placeholder for shallow-first option; replace
                     # with contrasted outputs when available.

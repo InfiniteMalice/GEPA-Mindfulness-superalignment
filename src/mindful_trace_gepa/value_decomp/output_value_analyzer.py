@@ -85,12 +85,12 @@ def analyze_output_shallow_features(output_text: str) -> ShallowPreferenceVector
     if "here's" in lowered_text:
         directness = max(directness, 0.5)
 
-    deference = 0.2 if "please" in lowered_text else 0.0
-    assertiveness = 0.2 if "must" in lowered_text else 0.0
+    deference = 0.2 if re.search(r"\bplease\b", lowered_text) else 0.0
+    assertiveness = 0.2 if re.search(r"\bmust\b", lowered_text) else 0.0
 
     return ShallowPreferenceVector(
-        tone_formal=0.5 if "sir" in lowered_text else 0.0,
-        tone_casual=0.4 if "hey" in lowered_text else 0.0,
+        tone_formal=0.5 if re.search(r"\bsir\b", lowered_text) else 0.0,
+        tone_casual=0.4 if re.search(r"\bhey\b", lowered_text) else 0.0,
         tone_therapeutic=tone_therapeutic,
         verbosity=verbosity,
         hedging=hedging,
