@@ -15,6 +15,7 @@ def _normalize_quotes(text: str) -> str:
 
 
 def _score_matches(text: str, patterns: dict[str, Iterable[str]]) -> dict[str, float]:
+    """Return per-key scores as hit-count / phrase-count, capped at 1.0."""
     lowered = text.lower()
     scores: dict[str, float] = {key: 0.0 for key in patterns}
     for key, phrases in patterns.items():

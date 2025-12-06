@@ -68,18 +68,18 @@ def analyze_output_deep_values(output_text: str, gepa_scores: Any) -> DeepValueV
 def analyze_output_shallow_features(output_text: str) -> ShallowPreferenceVector:
     """Estimate shallow style preferences from text features."""
 
-    normalised_text = _normalize_quotes(output_text)
-    words = normalised_text.split()
+    normalized_text = _normalize_quotes(output_text)
+    words = normalized_text.split()
     length = len(words)
     verbosity = min(1.0, length / 120.0)
     hedging_phrases = ["maybe", "possibly", "could", "might", "perhaps"]
     hedging_tokens = [token.lower().strip(string.punctuation) for token in words]
     hedging = 0.3 if any(token in hedging_phrases for token in hedging_tokens) else 0.0
     directness = 0.0
-    lowered_text = normalised_text.lower()
+    lowered_text = normalized_text.lower()
     if re.search(r"\bwill\b", lowered_text):
         directness = 0.5
-    if "!" in normalised_text:
+    if "!" in normalized_text:
         directness = max(directness, 0.7)
 
     tone_therapeutic = 0.4 if "i'm here to help" in lowered_text else 0.0
