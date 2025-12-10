@@ -7,6 +7,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 
+from gepa_mindfulness.core.abstention_rewards import (
+    AbstentionRewardWeights,
+    compute_abstention_reward,
+)
+from gepa_mindfulness.core.thought_alignment import classify_thought_alignment
+
 from .configs import TrainingConfig
 
 
@@ -30,6 +36,9 @@ class TrainingOrchestrator:
         self._last_prompt: str = ""
         self._last_path_1_circuits: Mapping[str, float] | None = None
         self._last_path_2_circuits: Mapping[str, float] | None = None
+        self._last_trace_text: str = ""
+        self._last_reference_answers: list[str] | None = None
+        self._last_reward_debug: Mapping[str, object] = {}
 
     def _honesty_bonus(self, confidence: float) -> float:
         bonus = 0.0
@@ -65,6 +74,34 @@ class TrainingOrchestrator:
     ) -> float:
         base = sum(gepa_scores.values()) / max(len(gepa_scores), 1)
         reward = base + self._honesty_bonus(confidence)
+
+        if self.config.abstention.enabled:
+            thought_align, s_match, s_epistemic = classify_thought_alignment(
+                self._last_trace_text,
+                self._last_response_text,
+                self._last_prompt,
+            )
+            weights = AbstentionRewardWeights(
+                **self.config.abstention.reward_weights.dict()
+            )
+            abstention_reward = compute_abstention_reward(
+                response=self._last_response_text,
+                reference_answers=self._last_reference_answers,
+                confidence=confidence,
+                thought_align=thought_align,
+                threshold=self.config.abstention.threshold,
+                weights=weights,
+            )
+            reward += abstention_reward.total
+            self._last_reward_debug = {
+                "case_id": abstention_reward.case_id,
+                "s_match": s_match,
+                "s_epistemic": s_epistemic,
+                "thought_align": thought_align,
+                "components": dict(abstention_reward.components),
+            }
+        else:
+            self._last_reward_debug = {}
         if deception_signals.get("deception_detected"):
             if self.config.deception.detect or self.config.deception.log_fingerprints:
                 self._write_fingerprint(deception_signals)
