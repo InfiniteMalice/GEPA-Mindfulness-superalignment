@@ -37,7 +37,8 @@ def _normalise_references(reference_answers: Sequence[str] | str | None) -> tupl
 
 def _is_abstention_response(response: str) -> bool:
     lowered = response.strip().lower()
-    return lowered in {"", "idk", "i don't know", ABSTAIN_OUTPUT.lower()}
+    trimmed = lowered.rstrip(" .,!?:;")
+    return trimmed in {"", "idk", "i don't know", ABSTAIN_OUTPUT.lower()}
 
 
 def compute_abstention_reward(

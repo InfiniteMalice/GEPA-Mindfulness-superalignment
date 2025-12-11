@@ -156,3 +156,16 @@ def test_lazy_idk_penalized() -> None:
     )
     assert reward.case_id == 8
     assert reward.components["abstention"] < 0.0
+
+
+def test_punctuated_abstention_detected() -> None:
+    reward = compute_abstention_reward(
+        response="I don't know.",
+        reference_answers=["paris"],
+        confidence=0.4,
+        thought_align=True,
+        threshold=THRESHOLD,
+        weights=DEFAULT_WEIGHTS,
+    )
+    assert reward.abstained is True
+    assert reward.case_id == 10

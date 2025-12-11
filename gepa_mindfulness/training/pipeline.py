@@ -10,9 +10,6 @@ from typing import Mapping, Sequence
 from gepa_mindfulness.core.abstention_rewards import compute_abstention_reward
 from gepa_mindfulness.core.thought_alignment import classify_thought_alignment
 
-from gepa_mindfulness.core.abstention_rewards import compute_abstention_reward
-from gepa_mindfulness.core.thought_alignment import classify_thought_alignment
-
 from .configs import TrainingConfig
 
 
