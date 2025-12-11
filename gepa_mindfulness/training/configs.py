@@ -210,9 +210,7 @@ class ThoughtAlignmentConfig:
     theta_epistemic: float = 0.5
 
     @classmethod
-    def from_mapping(
-        cls, payload: Mapping[str, Any] | None
-    ) -> "ThoughtAlignmentConfig":
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "ThoughtAlignmentConfig":
         payload = payload or {}
         return cls(
             theta_match=_to_float(payload.get("theta_match"), 0.8),
@@ -232,9 +230,7 @@ class AbstentionRewardWeightsConfig:
     K_miscal: float = 2.0
 
     @classmethod
-    def from_mapping(
-        cls, payload: Mapping[str, Any] | None
-    ) -> "AbstentionRewardWeightsConfig":
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "AbstentionRewardWeightsConfig":
         payload = payload or {}
         return cls(
             H=_to_float(payload.get("H"), 1.0),
@@ -267,9 +263,11 @@ class AbstentionConfig:
         )
 
     def dict(self) -> dict[str, Any]:
-        payload = asdict(self)
-        payload["reward_weights"] = self.reward_weights.dict()
-        return payload
+        return {
+            "enabled": self.enabled,
+            "threshold": self.threshold,
+            "reward_weights": self.reward_weights.dict(),
+        }
 
 
 @dataclass
@@ -389,9 +387,7 @@ class TrainingConfig:
     confidence_threshold: float = 0.75
     use_dual_path: bool = False
     abstention: AbstentionConfig = field(default_factory=AbstentionConfig)
-    thought_alignment: ThoughtAlignmentConfig = field(
-        default_factory=ThoughtAlignmentConfig
-    )
+    thought_alignment: ThoughtAlignmentConfig = field(default_factory=ThoughtAlignmentConfig)
     honesty: HonestyConfig = field(default_factory=HonestyConfig)
     deception: DeceptionConfig = field(default_factory=DeceptionConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
@@ -443,9 +439,7 @@ class TrainingConfig:
                 training_section.get("use_dual_path", payload.get("use_dual_path", False))
             ),
             abstention=AbstentionConfig.from_mapping(payload.get("abstention")),
-            thought_alignment=ThoughtAlignmentConfig.from_mapping(
-                payload.get("thought_alignment")
-            ),
+            thought_alignment=ThoughtAlignmentConfig.from_mapping(payload.get("thought_alignment")),
             honesty=HonestyConfig.from_mapping(payload.get("honesty")),
             deception=DeceptionConfig.from_mapping(payload.get("deception")),
             output=OutputConfig.from_mapping(payload.get("output")),

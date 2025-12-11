@@ -4,7 +4,6 @@ from gepa_mindfulness.core.abstention_rewards import (
     compute_abstention_reward,
 )
 
-
 DEFAULT_WEIGHTS = AbstentionRewardWeights()
 THRESHOLD = 0.75
 

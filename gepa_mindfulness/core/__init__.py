@@ -1,6 +1,11 @@
 """Core GEPA logic exports."""
 
 from .abstention import ABSTAIN_OUTPUT, ConfidenceDecision, enforce_abstention
+from .abstention_rewards import (
+    AbstentionReward,
+    AbstentionRewardWeights,
+    compute_abstention_reward,
+)
 from .adversarial import AdversarialScenario, iterate_adversarial_pool, sample_adversarial_batch
 from .contemplative_principles import ContemplativePrinciple, GEPAPrinciples, GEPAPrincipleScore
 from .imperatives import AlignmentImperative, ImperativeEvaluator, ImperativeSignal
