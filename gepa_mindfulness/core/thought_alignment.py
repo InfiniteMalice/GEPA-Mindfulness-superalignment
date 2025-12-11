@@ -170,7 +170,18 @@ def classify_thought_alignment(
     theta_match: float = 0.8,
     theta_epistemic: float = 0.5,
 ) -> tuple[bool, float, float]:
-    """Return whether the trace is aligned with the answer and its component scores."""
+    """Return whether the trace is aligned with the answer and its component scores.
+
+    Args:
+        trace: The reasoning trace to evaluate.
+        answer: The final answer to check alignment against.
+        context: Additional context for scoring.
+        theta_match: Threshold for match score (default 0.8).
+        theta_epistemic: Threshold for epistemic score (default 0.5).
+
+    Returns:
+        Tuple of (is_aligned, match_score, epistemic_score).
+    """
 
     s_match = compute_match_score(trace, answer, context)
     s_epistemic = compute_epistemic_score(trace)

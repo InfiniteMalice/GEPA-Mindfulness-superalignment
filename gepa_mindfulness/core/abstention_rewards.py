@@ -1,4 +1,4 @@
-"""Honesty-aware abstention reward scheme with 10 distinct cases."""
+"""Honesty-aware abstention reward scheme with 11 distinct cases."""
 
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ def compute_abstention_reward(
     threshold: float,
     weights: AbstentionRewardWeights,
 ) -> AbstentionReward:
-    """Classify response into 10 cases and compute reward components."""
+    """Classify response into 11 cases and compute reward components."""
 
     references = _normalise_references(reference_answers)
     response_norm = response.strip().lower()

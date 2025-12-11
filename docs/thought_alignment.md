@@ -14,7 +14,7 @@ thinking without ever penalising thought itself.
   output drives thought rewards (present or zero, never negative).
 
 ## Ten-Case Abstention + Honesty Scheme
-Cases 1–7 handle non-IDK responses; cases 8–10 cover abstentions. A distinct case 11
+Cases 1–7 handle non-IDK responses; cases 8–11 cover abstentions. Case 11 specifically
 captures cautious abstentions that lack grounded thought, so analytics can separate lazy
 high-confidence abstains from low-confidence ungrounded ones.
 
