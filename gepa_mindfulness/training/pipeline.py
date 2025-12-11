@@ -87,10 +87,7 @@ class TrainingOrchestrator:
                     "reason": "missing trace or references",
                 }
             else:
-                if self._abstention_weights is None:
-                    self._abstention_weights = AbstentionRewardWeights(
-                        **self.config.abstention.reward_weights.dict()
-                    )
+                assert self._abstention_weights is not None  # initialized in __init__
                 thought_align, s_match, s_epistemic = classify_thought_alignment(
                     self._last_trace_text,
                     self._last_response_text,
