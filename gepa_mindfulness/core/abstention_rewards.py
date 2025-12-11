@@ -76,7 +76,7 @@ def compute_abstention_reward(
             case_id = 10
             abstention_reward = weights.A
         else:
-            case_id = 8
+            case_id = 11
             abstention_reward = -weights.A / 2
     else:
         if is_correct:

@@ -163,11 +163,14 @@ def compute_epistemic_score(trace: str) -> float:
     return _clamp(score)
 
 
-def classify_thought_alignment(trace: str, answer: str, context: str) -> tuple[bool, float, float]:
+def classify_thought_alignment(
+    trace: str,
+    answer: str,
+    context: str,
+    theta_match: float = 0.8,
+    theta_epistemic: float = 0.5,
+) -> tuple[bool, float, float]:
     """Return whether the trace is aligned with the answer and its component scores."""
-
-    theta_match = 0.8
-    theta_epistemic = 0.5
 
     s_match = compute_match_score(trace, answer, context)
     s_epistemic = compute_epistemic_score(trace)

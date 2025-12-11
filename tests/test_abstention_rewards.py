@@ -91,9 +91,17 @@ def test_reward_cases_cover_all_labels() -> None:
             threshold=THRESHOLD,
             weights=DEFAULT_WEIGHTS,
         ),
+        compute_abstention_reward(
+            response=ABSTAIN_OUTPUT,
+            reference_answers=refs,
+            confidence=0.4,
+            thought_align=False,
+            threshold=THRESHOLD,
+            weights=DEFAULT_WEIGHTS,
+        ),
     ]
 
-    assert sorted(reward.case_id for reward in cases) == list(range(1, 11))
+    assert sorted(reward.case_id for reward in cases) == list(range(1, 12))
     for reward in cases:
         thought_component = reward.components["thought"]
         assert thought_component in {0.0, DEFAULT_WEIGHTS.H}

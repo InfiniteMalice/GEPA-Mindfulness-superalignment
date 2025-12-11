@@ -9,6 +9,8 @@ from typing import Any, Mapping
 
 import yaml
 
+from gepa_mindfulness.core.abstention_rewards import AbstentionRewardWeights
+
 
 def _to_float(value: Any, default: float) -> float:
     if value is None:
@@ -242,6 +244,17 @@ class AbstentionRewardWeightsConfig:
 
     def dict(self) -> dict[str, float]:
         return asdict(self)
+
+    def to_core_weights(self) -> AbstentionRewardWeights:
+        """Convert to the core AbstentionRewardWeights for reward computation."""
+
+        return AbstentionRewardWeights(
+            H=self.H,
+            A=self.A,
+            K_high=self.K_high,
+            K_low=self.K_low,
+            K_miscal=self.K_miscal,
+        )
 
 
 @dataclass

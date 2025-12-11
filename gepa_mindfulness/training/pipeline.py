@@ -7,10 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 
-from gepa_mindfulness.core.abstention_rewards import (
-    AbstentionRewardWeights,
-    compute_abstention_reward,
-)
+from gepa_mindfulness.core.abstention_rewards import compute_abstention_reward
 from gepa_mindfulness.core.thought_alignment import classify_thought_alignment
 
 from .configs import TrainingConfig
@@ -40,10 +37,12 @@ class TrainingOrchestrator:
         self._last_reference_answers: list[str] | None = None
         self._last_reward_debug: Mapping[str, object] = {}
         self._abstention_weights = (
-            AbstentionRewardWeights(**self.config.abstention.reward_weights.dict())
+            self.config.abstention.reward_weights.to_core_weights()
             if self.config.abstention.enabled
             else None
         )
+        self._theta_match = self.config.thought_alignment.theta_match
+        self._theta_epistemic = self.config.thought_alignment.theta_epistemic
 
     def _honesty_bonus(self, confidence: float) -> float:
         bonus = 0.0
@@ -92,6 +91,8 @@ class TrainingOrchestrator:
                     self._last_trace_text,
                     self._last_response_text,
                     self._last_prompt,
+                    theta_match=self._theta_match,
+                    theta_epistemic=self._theta_epistemic,
                 )
                 abstention_reward = compute_abstention_reward(
                     response=self._last_response_text,
