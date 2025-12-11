@@ -119,6 +119,20 @@ def test_confidence_push_for_aligned_low_confidence() -> None:
     assert reward.components["calibration"] > 0.0
 
 
+def test_punctuated_correct_answer_counts_as_correct() -> None:
+    reward = compute_abstention_reward(
+        response="Paris.",
+        reference_answers=["paris"],
+        confidence=0.9,
+        thought_align=True,
+        threshold=THRESHOLD,
+        weights=DEFAULT_WEIGHTS,
+    )
+    assert reward.is_correct is True
+    assert reward.case_id == 1
+    assert reward.components["knowledge"] > 0.0
+
+
 def test_lucky_guess_does_not_push_confidence() -> None:
     reward = compute_abstention_reward(
         response="paris",

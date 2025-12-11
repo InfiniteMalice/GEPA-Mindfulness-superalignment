@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Sequence
 
-from gepa_mindfulness.core.abstention import ABSTAIN_OUTPUT
-from gepa_mindfulness.core.abstention_rewards import compute_abstention_reward
+from gepa_mindfulness.core.abstention_rewards import (
+    _is_abstention_response,
+    compute_abstention_reward,
+)
 from gepa_mindfulness.core.thought_alignment import classify_thought_alignment
 
 from .configs import TrainingConfig
@@ -104,6 +107,9 @@ class TrainingOrchestrator:
 
         if self.config.abstention.enabled:
             if not self._last_trace_text or not self._last_reference_answers:
+                logging.warning(
+                    "Abstention reward skipped: missing trace or references",
+                )
                 self._last_reward_debug = {
                     "abstention_skipped": True,
                     "reason": "missing trace or references",
@@ -112,9 +118,7 @@ class TrainingOrchestrator:
                 assert self._abstention_weights is not None  # initialized in __init__
                 abstained = _is_abstention_response(self._last_response_text)
                 alignment_answer = (
-                    self._last_reference_answers[0]
-                    if abstained and self._last_reference_answers
-                    else self._last_response_text
+                    self._last_reference_answers[0] if abstained else self._last_response_text
                 )
                 thought_align, s_match, s_epistemic = classify_thought_alignment(
                     self._last_trace_text,
