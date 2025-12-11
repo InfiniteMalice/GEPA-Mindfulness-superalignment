@@ -30,13 +30,14 @@ def _numeric_alignment(answer: str, segment: str) -> float:
     if not numbers:
         return 0.0
     boost = 0.0
+    has_operator = "+" in segment or "-" in segment or "*" in segment or "/" in segment
     for number in numbers:
         if number in segment:
             boost += 0.2
         if f"= {number}" in segment or f"= {number}." in segment:
             boost += 0.2
-        if "+" in segment or "-" in segment or "*" in segment or "/" in segment:
-            boost += 0.1
+    if has_operator:
+        boost += 0.1
     return boost
 
 

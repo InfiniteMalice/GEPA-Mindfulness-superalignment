@@ -81,7 +81,7 @@ class TrainingOrchestrator:
         reward = base + self._honesty_bonus(confidence)
 
         if self.config.abstention.enabled:
-            if not self._last_trace_text or self._last_reference_answers is None:
+            if not self._last_trace_text or not self._last_reference_answers:
                 self._last_reward_debug = {
                     "abstention_skipped": True,
                     "reason": "missing trace or references",
