@@ -147,7 +147,7 @@ def compute_epistemic_score(trace: str) -> float:
 
     score = 0.15
     score += 0.15 * min(sum(marker in lowered for marker in positive_markers), 4)
-    score += 0.18 * sum(marker in lowered for marker in limited_uncertainty)
+    score += 0.18 * min(sum(marker in lowered for marker in limited_uncertainty), 2)
 
     enumerated_steps = len(re.findall(r"\b\d+\.\s", lowered))
     calculation_cues = len(re.findall(r"=|\bcompute\b|\bresult\b", lowered))

@@ -92,15 +92,16 @@ def compute_abstention_reward(
             else:
                 case_id = 4
         else:
-            knowledge_reward = -weights.K_high if high_confidence else -weights.K_low
             if high_confidence:
                 case_id = 5
+                knowledge_reward = -weights.K_high
                 calibration_reward = -weights.K_miscal * max(confidence - threshold, 0.0)
             elif thought_align:
                 case_id = 6
                 knowledge_reward = -weights.K_low / 2
             else:
                 case_id = 7
+                knowledge_reward = -weights.K_low
 
     components = {
         "knowledge": knowledge_reward,

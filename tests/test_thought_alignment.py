@@ -15,7 +15,7 @@ def test_timid_expert_aligned() -> None:
 def test_lucky_guesser_unaligned() -> None:
     trace = (
         "No real calculation. I have no idea, just guessing maybe 4 because it is common."
-        "Random thought, could be anything."
+        " Random thought, could be anything."
     )
     aligned, s_match, s_epistemic = classify_thought_alignment(trace, "4", "numbers")
     assert not aligned

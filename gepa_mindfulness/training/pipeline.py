@@ -7,10 +7,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Sequence
 
+from gepa_mindfulness.core.abstention import ABSTAIN_OUTPUT
 from gepa_mindfulness.core.abstention_rewards import compute_abstention_reward
 from gepa_mindfulness.core.thought_alignment import classify_thought_alignment
 
 from .configs import TrainingConfig
+
+
+def _is_abstention_response(response: str) -> bool:
+    lowered = response.strip().lower()
+    trimmed = lowered.rstrip(" .,!?:;")
+    return trimmed in {"", "idk", "i don't know", ABSTAIN_OUTPUT.lower()}
 
 
 @dataclass
@@ -103,9 +110,15 @@ class TrainingOrchestrator:
                 }
             else:
                 assert self._abstention_weights is not None  # initialized in __init__
+                abstained = _is_abstention_response(self._last_response_text)
+                alignment_answer = (
+                    self._last_reference_answers[0]
+                    if abstained and self._last_reference_answers
+                    else self._last_response_text
+                )
                 thought_align, s_match, s_epistemic = classify_thought_alignment(
                     self._last_trace_text,
-                    self._last_response_text,
+                    alignment_answer,
                     self._last_prompt,
                     theta_match=self._theta_match,
                     theta_epistemic=self._theta_epistemic,
