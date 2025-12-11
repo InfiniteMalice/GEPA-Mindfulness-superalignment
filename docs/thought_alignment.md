@@ -13,7 +13,7 @@ thinking without ever penalising thought itself.
 - **Classification:** a trace is aligned when match ≥ 0.8 and epistemic ≥ 0.5. The boolean
   output drives thought rewards (present or zero, never negative).
 
-## Ten-Case Abstention + Honesty Scheme
+## Eleven-Case Abstention + Honesty Scheme
 Cases 1–7 handle non-IDK responses; cases 8–11 cover abstentions. Case 11 specifically
 captures cautious abstentions that lack grounded thought, so analytics can separate lazy
 high-confidence abstains from low-confidence ungrounded ones.

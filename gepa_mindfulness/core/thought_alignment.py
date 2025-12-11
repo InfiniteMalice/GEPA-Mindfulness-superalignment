@@ -32,7 +32,7 @@ def _numeric_alignment(answer: str, segment: str) -> float:
     boost = 0.0
     has_operator = "+" in segment or "-" in segment or "*" in segment or "/" in segment
     for number in numbers:
-        if number in segment:
+        if re.search(rf"\b{re.escape(number)}\b", segment):
             boost += 0.2
         if f"= {number}" in segment or f"= {number}." in segment:
             boost += 0.2
@@ -146,7 +146,7 @@ def compute_epistemic_score(trace: str) -> float:
     contradiction_markers = ("but then", "changed my mind", "contradict", "however, maybe")
 
     score = 0.15
-    score += 0.15 * sum(marker in lowered for marker in positive_markers)
+    score += 0.15 * min(sum(marker in lowered for marker in positive_markers), 4)
     score += 0.18 * sum(marker in lowered for marker in limited_uncertainty)
 
     enumerated_steps = len(re.findall(r"\b\d+\.\s", lowered))
