@@ -10,10 +10,19 @@ def _clamp(value: float) -> float:
     return max(0.0, min(1.0, value))
 
 
+def _normalize_phrase(phrase: str) -> str:
+    trimmed = (phrase or "").strip().lower()
+    trimmed = trimmed.strip("()[]{}\"'" + ".,!?:;")
+    return trimmed
+
+
 def _has_phrase(text: str, phrase: str) -> bool:
-    if not phrase:
+    normalized_phrase = _normalize_phrase(phrase)
+    if not normalized_phrase:
         return False
-    return bool(re.search(rf"\b{re.escape(phrase)}\b", text))
+    normalized_text = (text or "").lower()
+    pattern = rf"(?<!\w){re.escape(normalized_phrase)}(?!\w)"
+    return bool(re.search(pattern, normalized_text))
 
 
 def _split_segments(trace: str) -> list[str]:
@@ -70,8 +79,8 @@ def compute_match_score(trace: str, answer: str, context: str) -> float:
         return 0.0
 
     trace_lower = trace.lower()
-    answer_lower = (answer or "").strip().lower()
-    context_lower = (context or "").lower()
+    answer_clean = _normalize_phrase(answer)
+    context_clean = (context or "").lower()
 
     segments = _split_segments(trace_lower)
     if not segments:
@@ -84,26 +93,28 @@ def compute_match_score(trace: str, answer: str, context: str) -> float:
 
     for segment, weight in zip(segments, weights):
         local = 0.0
-        if answer_lower and _has_phrase(segment, answer_lower):
+        if answer_clean and _has_phrase(segment, answer_clean):
             local += 0.7
         if any(_has_phrase(segment, marker) for marker in conclusion_markers):
             local += 0.15
-        local += _numeric_alignment(answer_lower, segment)
+        local += _numeric_alignment(answer_clean, segment)
 
-        if context_lower:
-            overlap = set(context_lower.split()) & set(segment.split())
+        if context_clean:
+            overlap = set(context_clean.split()) & set(segment.split())
             if overlap:
                 local += min(0.1, 0.02 * len(overlap))
 
         local = min(local, 1.0)
         score += local * weight
 
-    if segments and answer_lower and _has_phrase(segments[-1], answer_lower):
+    if segments and answer_clean and _has_phrase(segments[-1], answer_clean):
         score += 0.1
     if segments and any(_has_phrase(segments[-1], marker) for marker in conclusion_markers):
         score += 0.05
-    if answer_lower and len(re.findall(rf"\b{re.escape(answer_lower)}\b", trace_lower)) > 1:
-        score += 0.1
+    if answer_clean:
+        occurrences = len(re.findall(rf"(?<!\w){re.escape(answer_clean)}(?!\w)", trace_lower))
+        if occurrences > 1:
+            score += 0.1
 
     score -= _conflict_penalty(trace_lower)
     return _clamp(score)
@@ -152,8 +163,11 @@ def compute_epistemic_score(trace: str) -> float:
     contradiction_markers = ("but then", "changed my mind", "contradict", "however, maybe")
 
     score = 0.15
-    score += 0.15 * min(sum(_has_phrase(lowered, marker) for marker in positive_markers), 4)
-    score += 0.18 * min(sum(_has_phrase(lowered, marker) for marker in limited_uncertainty), 2)
+    positive_count = sum(_has_phrase(lowered, marker) for marker in positive_markers)
+    score += 0.15 * min(positive_count, 4)
+
+    limited_uncertainty_count = sum(_has_phrase(lowered, marker) for marker in limited_uncertainty)
+    score += 0.18 * min(limited_uncertainty_count, 2)
 
     enumerated_steps = len(re.findall(r"\b\d+\.\s", lowered))
     calculation_cues = len(re.findall(r"=|\bcompute\b|\bresult\b", lowered))
@@ -165,17 +179,17 @@ def compute_epistemic_score(trace: str) -> float:
 
     has_i_have_no_idea = _has_phrase(lowered, "i have no idea")
     has_no_idea = _has_phrase(lowered, "no idea") and not has_i_have_no_idea
-    neg_hits = (
-        sum(
-            _has_phrase(lowered, marker)
-            for marker in negative_markers
-            if marker not in {"no idea", "i have no idea"}
-        )
-        + has_i_have_no_idea
-        + has_no_idea
+    neg_hits = sum(
+        _has_phrase(lowered, marker)
+        for marker in negative_markers
+        if marker not in {"no idea", "i have no idea"}
     )
+    neg_hits += has_i_have_no_idea
+    neg_hits += has_no_idea
     score -= 0.18 * neg_hits
-    score -= 0.1 * sum(_has_phrase(lowered, marker) for marker in contradiction_markers)
+
+    contradiction_hits = sum(_has_phrase(lowered, marker) for marker in contradiction_markers)
+    score -= 0.1 * contradiction_hits
 
     return _clamp(score)
 

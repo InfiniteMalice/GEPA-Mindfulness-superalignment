@@ -1,4 +1,4 @@
-from gepa_mindfulness.core.thought_alignment import classify_thought_alignment
+from gepa_mindfulness.core import classify_thought_alignment
 
 
 def test_timid_expert_aligned() -> None:
@@ -33,11 +33,21 @@ def test_confident_correct_alignment() -> None:
     assert s_epistemic >= 0.5
 
 
+def test_punctuated_answer_alignment() -> None:
+    trace = (
+        "The capital of France is Paris because it has been the seat of government for "
+        "centuries, therefore the answer is Paris. This implies Paris is correct."
+    )
+    aligned, s_match, s_epistemic = classify_thought_alignment(trace, "paris.", "France capital")
+    assert aligned
+    assert s_match >= 0.8
+    assert s_epistemic >= 0.5
+
+
 def test_honest_uncertainty_aligned() -> None:
     trace = (
         "The measurement was 9.8 m/s^2; assuming Earth's gravity, that implies g is about 9.8."
-        " Not sure about rounding,"
-        " but this implies the answer remains 9.8."
+        " Not sure about rounding, but this implies the answer remains 9.8."
     )
     aligned, s_match, s_epistemic = classify_thought_alignment(trace, "9.8", "gravity")
     assert aligned

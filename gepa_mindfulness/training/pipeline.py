@@ -126,7 +126,8 @@ class TrainingOrchestrator:
                     "reason": "missing trace or references",
                 }
             else:
-                assert self._abstention_weights is not None  # initialized in __init__
+                if self._abstention_weights is None:
+                    raise RuntimeError("Abstention weights not initialized")
                 abstained = is_abstention_response(self._last_response_text)
                 alignment_answer = (
                     self._last_reference_answers[0] if abstained else self._last_response_text

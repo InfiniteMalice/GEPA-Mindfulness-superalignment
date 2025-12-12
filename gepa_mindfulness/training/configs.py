@@ -211,6 +211,12 @@ class ThoughtAlignmentConfig:
     theta_match: float = 0.8
     theta_epistemic: float = 0.5
 
+    def __post_init__(self) -> None:
+        if not (0.0 <= self.theta_match <= 1.0):
+            raise ValueError("theta_match must be in [0, 1]")
+        if not (0.0 <= self.theta_epistemic <= 1.0):
+            raise ValueError("theta_epistemic must be in [0, 1]")
+
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any] | None) -> "ThoughtAlignmentConfig":
         payload = payload or {}
@@ -267,6 +273,10 @@ class AbstentionConfig:
     reward_weights: AbstentionRewardWeightsConfig = field(
         default_factory=AbstentionRewardWeightsConfig
     )
+
+    def __post_init__(self) -> None:
+        if not (0.0 <= self.threshold <= 1.0):
+            raise ValueError("threshold must be in [0, 1]")
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any] | None) -> "AbstentionConfig":

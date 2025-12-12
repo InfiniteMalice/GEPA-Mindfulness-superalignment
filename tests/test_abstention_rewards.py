@@ -1,7 +1,7 @@
 import pytest
 
-from gepa_mindfulness.core.abstention import ABSTAIN_OUTPUT
-from gepa_mindfulness.core.abstention_rewards import (
+from gepa_mindfulness.core import (
+    ABSTAIN_OUTPUT,
     AbstentionRewardWeights,
     compute_abstention_reward,
 )
