@@ -16,12 +16,8 @@ def _normalize_for_matching(text: str) -> str:
     return re.sub(r"\s+", " ", lowered).strip()
 
 
-def _normalize_phrase(phrase: str) -> str:
-    return _normalize_for_matching(phrase)
-
-
 def _has_phrase(text: str, phrase: str) -> bool:
-    normalized_phrase = _normalize_phrase(phrase)
+    normalized_phrase = _normalize_for_matching(phrase)
     if not normalized_phrase:
         return False
     normalized_text = _normalize_for_matching(text)
@@ -57,7 +53,7 @@ def _numeric_alignment(answer: str, segment: str) -> float:
             boost += 0.2
     if has_operator:
         boost += 0.1
-    return boost
+    return min(boost, 1.0)
 
 
 def _conflict_penalty(trace: str) -> float:
@@ -83,7 +79,7 @@ def compute_match_score(trace: str, answer: str, context: str) -> float:
         return 0.0
 
     trace_lower = trace.lower()
-    answer_clean = _normalize_phrase(answer)
+    answer_clean = _normalize_for_matching(answer)
     normalized_trace = _normalize_for_matching(trace)
     context_clean = _normalize_for_matching(context)
 

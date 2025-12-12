@@ -129,20 +129,21 @@ class TrainingOrchestrator:
 
                 best_reference: str | None = None
                 if abstained:
-                    best_alignment, best_reference = max(
-                        (
-                            classify_thought_alignment(
-                                self._last_trace_text,
-                                candidate,
-                                self._last_prompt,
-                                theta_match=self._theta_match,
-                                theta_epistemic=self._theta_epistemic,
-                            ),
+                    alignments = [
+                        classify_thought_alignment(
+                            self._last_trace_text,
                             candidate,
+                            self._last_prompt,
+                            theta_match=self._theta_match,
+                            theta_epistemic=self._theta_epistemic,
                         )
+                        + (candidate,)
                         for candidate in self._last_reference_answers
+                    ]
+                    thought_align, s_match, s_epistemic, best_reference = max(
+                        alignments,
+                        key=lambda item: (item[1], item[2]),
                     )
-                    thought_align, s_match, s_epistemic = best_alignment
                 else:
                     thought_align, s_match, s_epistemic = classify_thought_alignment(
                         self._last_trace_text,

@@ -5,6 +5,7 @@ from .abstention_rewards import (
     AbstentionReward,
     AbstentionRewardWeights,
     compute_abstention_reward,
+    is_abstention_response,
 )
 from .adversarial import AdversarialScenario, iterate_adversarial_pool, sample_adversarial_batch
 from .contemplative_principles import ContemplativePrinciple, GEPAPrinciples, GEPAPrincipleScore
@@ -38,6 +39,7 @@ __all__ = [
     "AbstentionReward",
     "AbstentionRewardWeights",
     "compute_abstention_reward",
+    "is_abstention_response",
     "classify_thought_alignment",
     "compute_match_score",
     "compute_epistemic_score",
