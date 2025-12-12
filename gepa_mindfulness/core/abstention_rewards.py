@@ -68,7 +68,7 @@ def compute_abstention_reward(
 
     references = _normalize_references(reference_answers)
     response_norm = _normalize_response_text(response)
-    abstained = response_norm in {"", "idk", "i don't know", ABSTAIN_OUTPUT.lower()}
+    abstained = is_abstention_response(response)
     is_correct = any(response_norm == ref for ref in references)
 
     high_confidence = confidence >= threshold

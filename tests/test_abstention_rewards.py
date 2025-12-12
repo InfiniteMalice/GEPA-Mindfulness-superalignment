@@ -1,3 +1,5 @@
+import pytest
+
 from gepa_mindfulness.core.abstention import ABSTAIN_OUTPUT
 from gepa_mindfulness.core.abstention_rewards import (
     AbstentionRewardWeights,
@@ -183,3 +185,27 @@ def test_punctuated_abstention_detected() -> None:
     )
     assert reward.abstained is True
     assert reward.case_id == 10
+
+
+def test_invalid_confidence_raises() -> None:
+    with pytest.raises(ValueError):
+        compute_abstention_reward(
+            response="paris",
+            reference_answers=["paris"],
+            confidence=1.1,
+            thought_align=True,
+            threshold=THRESHOLD,
+            weights=DEFAULT_WEIGHTS,
+        )
+
+
+def test_invalid_threshold_raises() -> None:
+    with pytest.raises(ValueError):
+        compute_abstention_reward(
+            response="paris",
+            reference_answers=["paris"],
+            confidence=0.9,
+            thought_align=True,
+            threshold=-0.1,
+            weights=DEFAULT_WEIGHTS,
+        )

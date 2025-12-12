@@ -10,6 +10,12 @@ def _clamp(value: float) -> float:
     return max(0.0, min(1.0, value))
 
 
+def _has_phrase(text: str, phrase: str) -> bool:
+    if not phrase:
+        return False
+    return bool(re.search(rf"\b{re.escape(phrase)}\b", text))
+
+
 def _split_segments(trace: str) -> list[str]:
     candidates = re.split(r"(?:\n+|(?<=[.!?])\s+)", trace)
     return [candidate.strip() for candidate in candidates if candidate.strip()]
@@ -78,9 +84,9 @@ def compute_match_score(trace: str, answer: str, context: str) -> float:
 
     for segment, weight in zip(segments, weights):
         local = 0.0
-        if answer_lower and answer_lower in segment:
+        if answer_lower and _has_phrase(segment, answer_lower):
             local += 0.7
-        if any(marker in segment for marker in conclusion_markers):
+        if any(_has_phrase(segment, marker) for marker in conclusion_markers):
             local += 0.15
         local += _numeric_alignment(answer_lower, segment)
 
@@ -92,11 +98,11 @@ def compute_match_score(trace: str, answer: str, context: str) -> float:
         local = min(local, 1.0)
         score += local * weight
 
-    if segments and answer_lower and answer_lower in segments[-1]:
+    if segments and answer_lower and _has_phrase(segments[-1], answer_lower):
         score += 0.1
-    if segments and any(marker in segments[-1] for marker in conclusion_markers):
+    if segments and any(_has_phrase(segments[-1], marker) for marker in conclusion_markers):
         score += 0.05
-    if answer_lower and trace_lower.count(answer_lower) > 1:
+    if answer_lower and len(re.findall(rf"\b{re.escape(answer_lower)}\b", trace_lower)) > 1:
         score += 0.1
 
     score -= _conflict_penalty(trace_lower)
@@ -146,8 +152,8 @@ def compute_epistemic_score(trace: str) -> float:
     contradiction_markers = ("but then", "changed my mind", "contradict", "however, maybe")
 
     score = 0.15
-    score += 0.15 * min(sum(marker in lowered for marker in positive_markers), 4)
-    score += 0.18 * min(sum(marker in lowered for marker in limited_uncertainty), 2)
+    score += 0.15 * min(sum(_has_phrase(lowered, marker) for marker in positive_markers), 4)
+    score += 0.18 * min(sum(_has_phrase(lowered, marker) for marker in limited_uncertainty), 2)
 
     enumerated_steps = len(re.findall(r"\b\d+\.\s", lowered))
     calculation_cues = len(re.findall(r"=|\bcompute\b|\bresult\b", lowered))
@@ -157,8 +163,19 @@ def compute_epistemic_score(trace: str) -> float:
     arithmetic_chains = len(re.findall(r"\d+\s*[+\-/*]\s*\d+", lowered))
     score += 0.06 * min(arithmetic_chains, 3)
 
-    score -= 0.18 * sum(marker in lowered for marker in negative_markers)
-    score -= 0.1 * sum(marker in lowered for marker in contradiction_markers)
+    has_i_have_no_idea = _has_phrase(lowered, "i have no idea")
+    has_no_idea = _has_phrase(lowered, "no idea") and not has_i_have_no_idea
+    neg_hits = (
+        sum(
+            _has_phrase(lowered, marker)
+            for marker in negative_markers
+            if marker not in {"no idea", "i have no idea"}
+        )
+        + has_i_have_no_idea
+        + has_no_idea
+    )
+    score -= 0.18 * neg_hits
+    score -= 0.1 * sum(_has_phrase(lowered, marker) for marker in contradiction_markers)
 
     return _clamp(score)
 

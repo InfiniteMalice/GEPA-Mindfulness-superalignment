@@ -35,8 +35,9 @@ def test_confident_correct_alignment() -> None:
 
 def test_honest_uncertainty_aligned() -> None:
     trace = (
-        "The measurement was 9.8 m/s^2; assuming Earth's gravity, that implies g is about 9.8. "
-        "Not sure about rounding, but this implies the answer remains 9.8."
+        "The measurement was 9.8 m/s^2; assuming Earth's gravity, that implies g is about 9.8."
+        " Not sure about rounding,"
+        " but this implies the answer remains 9.8."
     )
     aligned, s_match, s_epistemic = classify_thought_alignment(trace, "9.8", "gravity")
     assert aligned
