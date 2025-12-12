@@ -3,9 +3,16 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
+from typing import Mapping, Sequence
+
+from gepa_mindfulness.core.abstention_rewards import (
+    compute_abstention_reward,
+    is_abstention_response,
+)
+from gepa_mindfulness.core.thought_alignment import classify_thought_alignment
 
 from .configs import TrainingConfig
 
@@ -30,6 +37,16 @@ class TrainingOrchestrator:
         self._last_prompt: str = ""
         self._last_path_1_circuits: Mapping[str, float] | None = None
         self._last_path_2_circuits: Mapping[str, float] | None = None
+        self._last_trace_text: str = ""
+        self._last_reference_answers: list[str] | None = None
+        self._last_reward_debug: Mapping[str, object] = {}
+        self._abstention_weights = (
+            self.config.abstention.reward_weights.to_core_weights()
+            if self.config.abstention.enabled
+            else None
+        )
+        self._theta_match = self.config.thought_alignment.theta_match
+        self._theta_epistemic = self.config.thought_alignment.theta_epistemic
 
     def _honesty_bonus(self, confidence: float) -> float:
         bonus = 0.0
@@ -62,9 +79,77 @@ class TrainingOrchestrator:
         *,
         confidence: float,
         deception_signals: Mapping[str, object],
+        trace_text: str | None = None,
+        reference_answers: Sequence[str] | str | None = None,
+        response_text: str | None = None,
+        prompt: str | None = None,
     ) -> float:
+        if trace_text is not None:
+            self._last_trace_text = trace_text
+        else:
+            self._last_trace_text = ""
+
+        if reference_answers is not None:
+            if isinstance(reference_answers, str):
+                self._last_reference_answers = [reference_answers]
+            else:
+                self._last_reference_answers = list(reference_answers)
+        else:
+            self._last_reference_answers = None
+
+        if response_text is not None:
+            self._last_response_text = response_text
+        else:
+            self._last_response_text = ""
+
+        if prompt is not None:
+            self._last_prompt = prompt
+        else:
+            self._last_prompt = ""
+
         base = sum(gepa_scores.values()) / max(len(gepa_scores), 1)
         reward = base + self._honesty_bonus(confidence)
+
+        if self.config.abstention.enabled:
+            if not self._last_trace_text or not self._last_reference_answers:
+                logging.warning(
+                    "Abstention reward skipped: missing trace or references",
+                )
+                self._last_reward_debug = {
+                    "abstention_skipped": True,
+                    "reason": "missing trace or references",
+                }
+            else:
+                assert self._abstention_weights is not None  # initialized in __init__
+                abstained = is_abstention_response(self._last_response_text)
+                alignment_answer = (
+                    self._last_reference_answers[0] if abstained else self._last_response_text
+                )
+                thought_align, s_match, s_epistemic = classify_thought_alignment(
+                    self._last_trace_text,
+                    alignment_answer,
+                    self._last_prompt,
+                    theta_match=self._theta_match,
+                    theta_epistemic=self._theta_epistemic,
+                )
+                abstention_reward = compute_abstention_reward(
+                    response=self._last_response_text,
+                    reference_answers=self._last_reference_answers,
+                    confidence=confidence,
+                    thought_align=thought_align,
+                    threshold=self.config.abstention.threshold,
+                    weights=self._abstention_weights,
+                )
+                reward += abstention_reward.total
+                self._last_reward_debug = {
+                    "case_id": abstention_reward.case_id,
+                    "s_match": s_match,
+                    "s_epistemic": s_epistemic,
+                    "thought_align": thought_align,
+                    "components": dict(abstention_reward.components),
+                }
+        else:
+            self._last_reward_debug = {}
         if deception_signals.get("deception_detected"):
             if self.config.deception.detect or self.config.deception.log_fingerprints:
                 self._write_fingerprint(deception_signals)
@@ -78,13 +163,18 @@ class TrainingOrchestrator:
 
         results: list[RolloutResult] = []
         for prompt in prompts:
-            self._last_prompt = prompt
-            self._last_response_text = "Dual-path evaluation not available in stub."
+            stub_response = f"Dual-path evaluation placeholder for: {prompt}"
+            stub_trace = f"Explaining response '{stub_response}' for prompt: {prompt}"
+            stub_references = [stub_response]
             self._last_sections = {}
             reward = self._compute_reward(
                 {"aggregate": 0.0},
                 confidence=0.5,
                 deception_signals={"deception_detected": False},
+                trace_text=stub_trace,
+                reference_answers=stub_references,
+                response_text=stub_response,
+                prompt=prompt,
             )
             results.append(
                 RolloutResult(
