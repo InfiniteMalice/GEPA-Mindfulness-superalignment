@@ -17,6 +17,12 @@ from gepa_mindfulness.core.thought_alignment import classify_thought_alignment
 from .configs import TrainingConfig
 
 
+def _is_abstention_response(response: str) -> bool:
+    lowered = response.strip().lower()
+    trimmed = lowered.rstrip(" .,!?:;")
+    return trimmed in {"", "idk", "i don't know", ABSTAIN_OUTPUT.lower()}
+
+
 @dataclass
 class RolloutResult:
     prompt: str
