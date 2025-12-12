@@ -32,7 +32,7 @@ def _normalize_response_text(text: str) -> str:
     return lowered.rstrip(" .,!?:;")
 
 
-def _normalise_references(reference_answers: Sequence[str] | str | None) -> tuple[str, ...]:
+def _normalize_references(reference_answers: Sequence[str] | str | None) -> tuple[str, ...]:
     if reference_answers is None:
         return ()
     if isinstance(reference_answers, str):
@@ -40,9 +40,13 @@ def _normalise_references(reference_answers: Sequence[str] | str | None) -> tupl
     return tuple(reference_answers)
 
 
-def _is_abstention_response(response: str) -> bool:
+def is_abstention_response(response: str) -> bool:
     normalised = _normalize_response_text(response)
     return normalised in {"", "idk", "i don't know", ABSTAIN_OUTPUT.lower()}
+
+
+# Backward compatibility for prior underscore-prefixed import
+_is_abstention_response = is_abstention_response
 
 
 def compute_abstention_reward(
@@ -56,9 +60,9 @@ def compute_abstention_reward(
 ) -> AbstentionReward:
     """Classify response into 11 cases and compute reward components."""
 
-    references = _normalise_references(reference_answers)
+    references = _normalize_references(reference_answers)
     response_norm = _normalize_response_text(response)
-    abstained = _is_abstention_response(response)
+    abstained = is_abstention_response(response)
     is_correct = any(response_norm == _normalize_response_text(ref) for ref in references)
 
     high_confidence = confidence >= threshold
@@ -128,5 +132,5 @@ __all__ = [
     "AbstentionReward",
     "AbstentionRewardWeights",
     "compute_abstention_reward",
-    "_is_abstention_response",
+    "is_abstention_response",
 ]

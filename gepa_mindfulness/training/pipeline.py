@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import Mapping, Sequence
 
 from gepa_mindfulness.core.abstention_rewards import (
-    _is_abstention_response,
     compute_abstention_reward,
+    is_abstention_response,
 )
 from gepa_mindfulness.core.thought_alignment import classify_thought_alignment
 
@@ -92,15 +92,26 @@ class TrainingOrchestrator:
     ) -> float:
         if trace_text is not None:
             self._last_trace_text = trace_text
+        else:
+            self._last_trace_text = ""
+
         if reference_answers is not None:
             if isinstance(reference_answers, str):
                 self._last_reference_answers = [reference_answers]
             else:
                 self._last_reference_answers = list(reference_answers)
+        else:
+            self._last_reference_answers = None
+
         if response_text is not None:
             self._last_response_text = response_text
+        else:
+            self._last_response_text = ""
+
         if prompt is not None:
             self._last_prompt = prompt
+        else:
+            self._last_prompt = ""
 
         base = sum(gepa_scores.values()) / max(len(gepa_scores), 1)
         reward = base + self._honesty_bonus(confidence)
@@ -116,7 +127,7 @@ class TrainingOrchestrator:
                 }
             else:
                 assert self._abstention_weights is not None  # initialized in __init__
-                abstained = _is_abstention_response(self._last_response_text)
+                abstained = is_abstention_response(self._last_response_text)
                 alignment_answer = (
                     self._last_reference_answers[0] if abstained else self._last_response_text
                 )
