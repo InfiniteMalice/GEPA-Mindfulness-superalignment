@@ -10,17 +10,21 @@ def _clamp(value: float) -> float:
     return max(0.0, min(1.0, value))
 
 
+def _normalize_for_matching(text: str) -> str:
+    lowered = (text or "").strip().lower()
+    lowered = re.sub(r"[\W_]+", " ", lowered)
+    return re.sub(r"\s+", " ", lowered).strip()
+
+
 def _normalize_phrase(phrase: str) -> str:
-    trimmed = (phrase or "").strip().lower()
-    trimmed = trimmed.strip("()[]{}\"'" + ".,!?:;")
-    return trimmed
+    return _normalize_for_matching(phrase)
 
 
 def _has_phrase(text: str, phrase: str) -> bool:
     normalized_phrase = _normalize_phrase(phrase)
     if not normalized_phrase:
         return False
-    normalized_text = (text or "").lower()
+    normalized_text = _normalize_for_matching(text)
     pattern = rf"(?<!\w){re.escape(normalized_phrase)}(?!\w)"
     return bool(re.search(pattern, normalized_text))
 
@@ -80,7 +84,8 @@ def compute_match_score(trace: str, answer: str, context: str) -> float:
 
     trace_lower = trace.lower()
     answer_clean = _normalize_phrase(answer)
-    context_clean = (context or "").lower()
+    normalized_trace = _normalize_for_matching(trace)
+    context_clean = _normalize_for_matching(context)
 
     segments = _split_segments(trace_lower)
     if not segments:
@@ -100,7 +105,7 @@ def compute_match_score(trace: str, answer: str, context: str) -> float:
         local += _numeric_alignment(answer_clean, segment)
 
         if context_clean:
-            overlap = set(context_clean.split()) & set(segment.split())
+            overlap = set(context_clean.split()) & set(_normalize_for_matching(segment).split())
             if overlap:
                 local += min(0.1, 0.02 * len(overlap))
 
@@ -111,8 +116,10 @@ def compute_match_score(trace: str, answer: str, context: str) -> float:
         score += 0.1
     if segments and any(_has_phrase(segments[-1], marker) for marker in conclusion_markers):
         score += 0.05
+    if answer_clean and any(_has_phrase(segment, "answer") for segment in segments):
+        score += 0.1
     if answer_clean:
-        occurrences = len(re.findall(rf"(?<!\w){re.escape(answer_clean)}(?!\w)", trace_lower))
+        occurrences = len(re.findall(rf"(?<!\w){re.escape(answer_clean)}(?!\w)", normalized_trace))
         if occurrences > 1:
             score += 0.1
 
@@ -160,7 +167,18 @@ def compute_epistemic_score(trace: str) -> float:
         "flip a coin",
         "i have no idea",
     )
-    contradiction_markers = ("but then", "changed my mind", "contradict", "however, maybe")
+    contradiction_markers = (
+        "but then",
+        "changed my mind",
+        "contradict",
+        "however, maybe",
+    )
+    answer_markers = (
+        "answer is",
+        "answer should",
+        "the answer",
+        "final answer",
+    )
 
     score = 0.15
     positive_count = sum(_has_phrase(lowered, marker) for marker in positive_markers)
@@ -188,6 +206,9 @@ def compute_epistemic_score(trace: str) -> float:
     neg_hits += has_no_idea
     score -= 0.18 * neg_hits
 
+    answer_cues = sum(_has_phrase(lowered, marker) for marker in answer_markers)
+    score += 0.2 * min(answer_cues, 2)
+
     contradiction_hits = sum(_has_phrase(lowered, marker) for marker in contradiction_markers)
     score -= 0.1 * contradiction_hits
 
@@ -213,6 +234,11 @@ def classify_thought_alignment(
     Returns:
         Tuple of (is_aligned, match_score, epistemic_score).
     """
+
+    if not (0.0 <= theta_match <= 1.0):
+        raise ValueError("theta_match must be in [0, 1]")
+    if not (0.0 <= theta_epistemic <= 1.0):
+        raise ValueError("theta_epistemic must be in [0, 1]")
 
     s_match = compute_match_score(trace, answer, context)
     s_epistemic = compute_epistemic_score(trace)

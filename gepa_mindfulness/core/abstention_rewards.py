@@ -43,7 +43,8 @@ def _normalize_references(reference_answers: Sequence[str] | str | None) -> tupl
 
 def is_abstention_response(response: str) -> bool:
     normalised = _normalize_response_text(response)
-    return normalised in {"", "idk", "i don't know", ABSTAIN_OUTPUT.lower()}
+    abstain_token = _normalize_response_text(ABSTAIN_OUTPUT)
+    return normalised in {"", "idk", "i don't know", abstain_token}
 
 
 # Backward compatibility for prior underscore-prefixed import
@@ -57,10 +58,12 @@ def compute_abstention_reward(
     confidence: float,
     thought_align: bool,
     threshold: float,
-    weights: AbstentionRewardWeights,
+    weights: AbstentionRewardWeights | None = None,
 ) -> AbstentionReward:
     """Classify response into 11 cases and compute reward components."""
 
+    if weights is None:
+        weights = AbstentionRewardWeights()
     if not (0.0 <= confidence <= 1.0):
         raise ValueError(f"confidence must be in [0, 1], got {confidence}")
     if not (0.0 <= threshold <= 1.0):

@@ -16,6 +16,8 @@ from gepa_mindfulness.core.thought_alignment import classify_thought_alignment
 
 from .configs import TrainingConfig
 
+LOGGER = logging.getLogger(__name__)
+
 
 def _is_abstention_response(response: str) -> bool:
     lowered = response.strip().lower()
@@ -118,7 +120,7 @@ class TrainingOrchestrator:
 
         if self.config.abstention.enabled:
             if not self._last_trace_text or not self._last_reference_answers:
-                logging.warning(
+                LOGGER.warning(
                     "Abstention reward skipped: missing trace or references",
                 )
                 self._last_reward_debug = {
@@ -129,16 +131,32 @@ class TrainingOrchestrator:
                 if self._abstention_weights is None:
                     raise RuntimeError("Abstention weights not initialized")
                 abstained = is_abstention_response(self._last_response_text)
-                alignment_answer = (
-                    self._last_reference_answers[0] if abstained else self._last_response_text
-                )
-                thought_align, s_match, s_epistemic = classify_thought_alignment(
-                    self._last_trace_text,
-                    alignment_answer,
-                    self._last_prompt,
-                    theta_match=self._theta_match,
-                    theta_epistemic=self._theta_epistemic,
-                )
+
+                if abstained:
+                    best_alignment = (False, 0.0, 0.0)
+                    for candidate in self._last_reference_answers:
+                        candidate_align = classify_thought_alignment(
+                            self._last_trace_text,
+                            candidate,
+                            self._last_prompt,
+                            theta_match=self._theta_match,
+                            theta_epistemic=self._theta_epistemic,
+                        )
+                        _, candidate_match, candidate_epistemic = candidate_align
+                        if candidate_match > best_alignment[1] or (
+                            candidate_match == best_alignment[1]
+                            and candidate_epistemic > best_alignment[2]
+                        ):
+                            best_alignment = candidate_align
+                    thought_align, s_match, s_epistemic = best_alignment
+                else:
+                    thought_align, s_match, s_epistemic = classify_thought_alignment(
+                        self._last_trace_text,
+                        self._last_response_text,
+                        self._last_prompt,
+                        theta_match=self._theta_match,
+                        theta_epistemic=self._theta_epistemic,
+                    )
                 abstention_reward = compute_abstention_reward(
                     response=self._last_response_text,
                     reference_answers=self._last_reference_answers,
