@@ -10,11 +10,6 @@ from .adversarial import AdversarialScenario, iterate_adversarial_pool, sample_a
 from .contemplative_principles import ContemplativePrinciple, GEPAPrinciples, GEPAPrincipleScore
 from .imperatives import AlignmentImperative, ImperativeEvaluator, ImperativeSignal
 from .paraconsistent import ParaconsistentTruthValue, dialetheic_and
-from .abstention_rewards import (
-    AbstentionReward,
-    AbstentionRewardWeights,
-    compute_abstention_reward,
-)
 from .rewards import RewardSignal, RewardWeights
 from .thought_alignment import (
     classify_thought_alignment,
