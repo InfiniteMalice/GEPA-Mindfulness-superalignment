@@ -232,7 +232,10 @@ class AbstentionRewardWeightsConfig:
     K_miscal: float = 2.0
 
     @classmethod
-    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "AbstentionRewardWeightsConfig":
+    def from_mapping(
+        cls,
+        payload: Mapping[str, Any] | None,
+    ) -> "AbstentionRewardWeightsConfig":
         payload = payload or {}
         return cls(
             H=_to_float(payload.get("H"), 1.0),
