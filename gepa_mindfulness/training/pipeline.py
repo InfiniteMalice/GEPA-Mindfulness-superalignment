@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Mapping, Sequence
 
 from gepa_mindfulness.core.abstention_rewards import (
+    AbstentionRewardWeights,
     compute_abstention_reward,
     is_abstention_response,
 )
@@ -17,12 +18,6 @@ from gepa_mindfulness.core.thought_alignment import classify_thought_alignment
 from .configs import TrainingConfig
 
 LOGGER = logging.getLogger(__name__)
-
-
-def _is_abstention_response(response: str) -> bool:
-    lowered = response.strip().lower()
-    trimmed = lowered.rstrip(" .,!?:;")
-    return trimmed in {"", "idk", "i don't know", ABSTAIN_OUTPUT.lower()}
 
 
 @dataclass
@@ -48,13 +43,13 @@ class TrainingOrchestrator:
         self._last_trace_text: str = ""
         self._last_reference_answers: list[str] | None = None
         self._last_reward_debug: Mapping[str, object] = {}
-        self._abstention_weights = (
+        self._abstention_weights: AbstentionRewardWeights | None = (
             self.config.abstention.reward_weights.to_core_weights()
             if self.config.abstention.enabled
             else None
         )
-        self._theta_match = self.config.thought_alignment.theta_match
-        self._theta_epistemic = self.config.thought_alignment.theta_epistemic
+        self._theta_match: float = self.config.thought_alignment.theta_match
+        self._theta_epistemic: float = self.config.thought_alignment.theta_epistemic
 
     def _honesty_bonus(self, confidence: float) -> float:
         bonus = 0.0
@@ -132,22 +127,21 @@ class TrainingOrchestrator:
                     raise RuntimeError("Abstention weights not initialized")
                 abstained = is_abstention_response(self._last_response_text)
 
+                best_reference: str | None = None
                 if abstained:
-                    best_alignment = (False, 0.0, 0.0)
-                    for candidate in self._last_reference_answers:
-                        candidate_align = classify_thought_alignment(
-                            self._last_trace_text,
+                    best_alignment, best_reference = max(
+                        (
+                            classify_thought_alignment(
+                                self._last_trace_text,
+                                candidate,
+                                self._last_prompt,
+                                theta_match=self._theta_match,
+                                theta_epistemic=self._theta_epistemic,
+                            ),
                             candidate,
-                            self._last_prompt,
-                            theta_match=self._theta_match,
-                            theta_epistemic=self._theta_epistemic,
                         )
-                        _, candidate_match, candidate_epistemic = candidate_align
-                        if candidate_match > best_alignment[1] or (
-                            candidate_match == best_alignment[1]
-                            and candidate_epistemic > best_alignment[2]
-                        ):
-                            best_alignment = candidate_align
+                        for candidate in self._last_reference_answers
+                    )
                     thought_align, s_match, s_epistemic = best_alignment
                 else:
                     thought_align, s_match, s_epistemic = classify_thought_alignment(
@@ -171,6 +165,7 @@ class TrainingOrchestrator:
                     "s_match": s_match,
                     "s_epistemic": s_epistemic,
                     "thought_align": thought_align,
+                    "best_reference": best_reference if abstained else None,
                     "components": dict(abstention_reward.components),
                 }
         else:

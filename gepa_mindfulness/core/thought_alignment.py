@@ -105,7 +105,8 @@ def compute_match_score(trace: str, answer: str, context: str) -> float:
         local += _numeric_alignment(answer_clean, segment)
 
         if context_clean:
-            overlap = set(context_clean.split()) & set(_normalize_for_matching(segment).split())
+            segment_words = set(_normalize_for_matching(segment).split())
+            overlap = set(context_clean.split()) & segment_words
             if overlap:
                 local += min(0.1, 0.02 * len(overlap))
 
@@ -119,7 +120,8 @@ def compute_match_score(trace: str, answer: str, context: str) -> float:
     if answer_clean and any(_has_phrase(segment, "answer") for segment in segments):
         score += 0.1
     if answer_clean:
-        occurrences = len(re.findall(rf"(?<!\w){re.escape(answer_clean)}(?!\w)", normalized_trace))
+        pattern = rf"(?<!\w){re.escape(answer_clean)}(?!\w)"
+        occurrences = len(re.findall(pattern, normalized_trace))
         if occurrences > 1:
             score += 0.1
 
