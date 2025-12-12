@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import Mapping, Sequence
 
 from .abstention import ABSTAIN_OUTPUT
@@ -17,7 +18,7 @@ class AbstentionRewardWeights:
     K_miscal: float = 2.0
 
 
-@dataclass
+@dataclass(frozen=True)
 class AbstentionReward:
     total: float
     case_id: int
@@ -36,8 +37,8 @@ def _normalize_references(reference_answers: Sequence[str] | str | None) -> tupl
     if reference_answers is None:
         return ()
     if isinstance(reference_answers, str):
-        return (reference_answers,)
-    return tuple(reference_answers)
+        return (_normalize_response_text(reference_answers),)
+    return tuple(_normalize_response_text(ref) for ref in reference_answers)
 
 
 def is_abstention_response(response: str) -> bool:
@@ -60,10 +61,15 @@ def compute_abstention_reward(
 ) -> AbstentionReward:
     """Classify response into 11 cases and compute reward components."""
 
+    if not (0.0 <= confidence <= 1.0):
+        raise ValueError(f"confidence must be in [0, 1], got {confidence}")
+    if not (0.0 <= threshold <= 1.0):
+        raise ValueError(f"threshold must be in [0, 1], got {threshold}")
+
     references = _normalize_references(reference_answers)
     response_norm = _normalize_response_text(response)
-    abstained = is_abstention_response(response)
-    is_correct = any(response_norm == _normalize_response_text(ref) for ref in references)
+    abstained = response_norm in {"", "idk", "i don't know", ABSTAIN_OUTPUT.lower()}
+    is_correct = any(response_norm == ref for ref in references)
 
     high_confidence = confidence >= threshold
 
@@ -111,12 +117,14 @@ def compute_abstention_reward(
                 case_id = 7
                 knowledge_reward = -weights.K_low
 
-    components = {
-        "knowledge": knowledge_reward,
-        "abstention": abstention_reward,
-        "calibration": calibration_reward,
-        "thought": thought_reward,
-    }
+    components = MappingProxyType(
+        {
+            "knowledge": knowledge_reward,
+            "abstention": abstention_reward,
+            "calibration": calibration_reward,
+            "thought": thought_reward,
+        }
+    )
     total = sum(components.values())
     return AbstentionReward(
         total=total,
