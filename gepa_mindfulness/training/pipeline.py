@@ -8,12 +8,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Sequence
 
-from gepa_mindfulness.core.abstention_rewards import (
+from gepa_mindfulness.core import (
     AbstentionRewardWeights,
+    classify_thought_alignment,
     compute_abstention_reward,
     is_abstention_response,
 )
-from gepa_mindfulness.core.thought_alignment import classify_thought_alignment
 
 from .configs import TrainingConfig
 
