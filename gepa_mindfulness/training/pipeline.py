@@ -128,17 +128,20 @@ class TrainingOrchestrator:
                 abstained = is_abstention_response(self._last_response_text)
 
                 best_reference: str | None = None
+
+                def _score_candidate(candidate: str) -> tuple[bool, float, float, str]:
+                    aligned, s_m, s_e = classify_thought_alignment(
+                        self._last_trace_text,
+                        candidate,
+                        self._last_prompt,
+                        theta_match=self._theta_match,
+                        theta_epistemic=self._theta_epistemic,
+                    )
+                    return aligned, s_m, s_e, candidate
+
                 if abstained:
                     alignments = [
-                        classify_thought_alignment(
-                            self._last_trace_text,
-                            candidate,
-                            self._last_prompt,
-                            theta_match=self._theta_match,
-                            theta_epistemic=self._theta_epistemic,
-                        )
-                        + (candidate,)
-                        for candidate in self._last_reference_answers
+                        _score_candidate(candidate) for candidate in self._last_reference_answers
                     ]
                     thought_align, s_match, s_epistemic, best_reference = max(
                         alignments,

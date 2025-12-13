@@ -219,7 +219,10 @@ class ThoughtAlignmentConfig:
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any] | None) -> "ThoughtAlignmentConfig":
-        payload = payload or {}
+        if payload is None:
+            payload = {}
+        elif not isinstance(payload, Mapping):
+            raise TypeError("payload must be Mapping[str, Any] | None")
         return cls(
             theta_match=_to_float(payload.get("theta_match"), 0.8),
             theta_epistemic=_to_float(payload.get("theta_epistemic"), 0.5),
@@ -240,6 +243,11 @@ class AbstentionRewardWeightsConfig:
     def __post_init__(self) -> None:
         for name in ("H", "A", "K_high", "K_low", "K_miscal"):
             value = getattr(self, name)
+            try:
+                value = float(value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"{name} must be float-compatible") from exc
+            setattr(self, name, value)
             if not math.isfinite(value):
                 raise ValueError(f"{name} must be finite")
             if value < 0.0:
@@ -286,6 +294,10 @@ class AbstentionConfig:
     )
 
     def __post_init__(self) -> None:
+        try:
+            self.threshold = float(self.threshold)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("threshold must be float-compatible") from exc
         if not (0.0 <= self.threshold <= 1.0):
             raise ValueError("threshold must be in [0, 1]")
 
@@ -478,8 +490,12 @@ class TrainingConfig:
             use_dual_path=bool(
                 training_section.get("use_dual_path", payload.get("use_dual_path", False))
             ),
-            abstention=AbstentionConfig.from_mapping(payload.get("abstention")),
-            thought_alignment=ThoughtAlignmentConfig.from_mapping(payload.get("thought_alignment")),
+            abstention=AbstentionConfig.from_mapping(
+                training_section.get("abstention", payload.get("abstention"))
+            ),
+            thought_alignment=ThoughtAlignmentConfig.from_mapping(
+                training_section.get("thought_alignment", payload.get("thought_alignment"))
+            ),
             honesty=HonestyConfig.from_mapping(payload.get("honesty")),
             deception=DeceptionConfig.from_mapping(payload.get("deception")),
             output=OutputConfig.from_mapping(payload.get("output")),
