@@ -187,6 +187,34 @@ def test_punctuated_abstention_detected() -> None:
     assert reward.case_id == 10
 
 
+def test_abstention_with_no_references_still_scores() -> None:
+    reward = compute_abstention_reward(
+        response=ABSTAIN_OUTPUT,
+        reference_answers=None,
+        confidence=0.4,
+        thought_align=True,
+        threshold=THRESHOLD,
+        weights=DEFAULT_WEIGHTS,
+    )
+    assert reward.is_correct is False
+    assert reward.abstained is True
+    assert reward.case_id == 10
+
+
+def test_non_abstain_with_empty_references_is_incorrect() -> None:
+    reward = compute_abstention_reward(
+        response="paris",
+        reference_answers=[],
+        confidence=0.9,
+        thought_align=True,
+        threshold=THRESHOLD,
+        weights=DEFAULT_WEIGHTS,
+    )
+    assert reward.is_correct is False
+    assert reward.abstained is False
+    assert reward.case_id == 5
+
+
 def test_invalid_confidence_raises() -> None:
     with pytest.raises(ValueError, match=r"confidence must be in \[0, 1\]"):
         compute_abstention_reward(

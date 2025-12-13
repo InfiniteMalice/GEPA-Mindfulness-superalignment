@@ -11,6 +11,16 @@ from .abstention import ABSTAIN_OUTPUT
 
 @dataclass(frozen=True)
 class AbstentionRewardWeights:
+    """Weights controlling the abstention reward scheme.
+
+    Attributes:
+        H: Thought bonus for aligned reasoning traces.
+        A: Abstention bonus or penalty magnitude.
+        K_high: Knowledge reward/penalty at high confidence.
+        K_low: Knowledge reward/penalty at low confidence.
+        K_miscal: Calibration reward/penalty for miscalibration gaps.
+    """
+
     H: float = 1.0
     A: float = 0.25
     K_high: float = 2.0
@@ -60,7 +70,19 @@ def compute_abstention_reward(
     threshold: float,
     weights: AbstentionRewardWeights | None = None,
 ) -> AbstentionReward:
-    """Classify response into 11 cases and compute reward components."""
+    """Classify a response into 11 reward cases and compute component scores.
+
+    Args:
+        response: Model output to score.
+        reference_answers: Canonical answers used for correctness; may be None/empty.
+        confidence: Model-reported confidence in [0, 1].
+        thought_align: Whether reasoning is epistemically grounded.
+        threshold: Confidence threshold separating high vs. low confidence.
+        weights: Optional custom reward weights; defaults are applied when None.
+
+    Returns:
+        AbstentionReward containing the total, case_id, component breakdown, and flags.
+    """
 
     if weights is None:
         weights = AbstentionRewardWeights()
