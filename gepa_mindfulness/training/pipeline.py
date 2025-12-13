@@ -51,6 +51,16 @@ class TrainingOrchestrator:
         self._theta_match: float = self.config.thought_alignment.theta_match
         self._theta_epistemic: float = self.config.thought_alignment.theta_epistemic
 
+    def _score_alignment_candidate(self, candidate: str) -> tuple[bool, float, float, str]:
+        aligned, s_m, s_e = classify_thought_alignment(
+            self._last_trace_text,
+            candidate,
+            self._last_prompt,
+            theta_match=self._theta_match,
+            theta_epistemic=self._theta_epistemic,
+        )
+        return aligned, s_m, s_e, candidate
+
     def _honesty_bonus(self, confidence: float) -> float:
         bonus = 0.0
         if confidence < self.config.honesty.uncertainty_threshold:
@@ -135,21 +145,9 @@ class TrainingOrchestrator:
 
                 best_reference: str | None = None
                 if abstained:
-
-                    def _score_candidate(
-                        candidate: str,
-                    ) -> tuple[bool, float, float, str]:
-                        aligned, s_m, s_e = classify_thought_alignment(
-                            self._last_trace_text,
-                            candidate,
-                            self._last_prompt,
-                            theta_match=self._theta_match,
-                            theta_epistemic=self._theta_epistemic,
-                        )
-                        return aligned, s_m, s_e, candidate
-
                     alignments = [
-                        _score_candidate(candidate) for candidate in self._last_reference_answers
+                        self._score_alignment_candidate(candidate)
+                        for candidate in self._last_reference_answers
                     ]
                     thought_align, s_match, s_epistemic, best_ref = max(
                         alignments,

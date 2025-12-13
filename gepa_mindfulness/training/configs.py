@@ -222,7 +222,7 @@ class ThoughtAlignmentConfig:
         if payload is None:
             payload = {}
         elif not isinstance(payload, Mapping):
-            raise ValueError("payload must be Mapping[str, Any] | None")
+            raise ValueError("payload must be a mapping or None")
         return cls(
             theta_match=_to_float(payload.get("theta_match"), 0.8),
             theta_epistemic=_to_float(payload.get("theta_epistemic"), 0.5),
