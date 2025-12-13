@@ -250,7 +250,10 @@ class AbstentionRewardWeightsConfig:
         cls,
         payload: Mapping[str, Any] | None,
     ) -> "AbstentionRewardWeightsConfig":
-        payload = payload or {}
+        if payload is None:
+            payload = {}
+        elif not isinstance(payload, Mapping):
+            raise ValueError("payload must be a mapping or None")
         return cls(
             H=_to_float(payload.get("H"), 1.0),
             A=_to_float(payload.get("A"), 0.25),
@@ -288,7 +291,10 @@ class AbstentionConfig:
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any] | None) -> "AbstentionConfig":
-        payload = payload or {}
+        if payload is None:
+            payload = {}
+        elif not isinstance(payload, Mapping):
+            raise ValueError("payload must be a mapping or None")
         weights = AbstentionRewardWeightsConfig.from_mapping(payload.get("reward_weights"))
         return cls(
             enabled=bool(payload.get("enabled", False)),

@@ -9,7 +9,8 @@ thinking without ever penalising thought itself.
   carry more weight, favouring conclusions over early brainstorming. Conflicting unresolved
   candidates reduce the score.
 - **Epistemic score:** boosts justified reasoning, stepwise logic, and limited uncertainty.
-  It penalises randomness, "just guessing" language, and unresolved contradictions.
+  It down-weights randomness, "just guessing" language, and unresolved contradictions while
+  preserving the rule that thought rewards are never negative.
 - **Classification:** a trace is aligned when match ≥ 0.8 and epistemic ≥ 0.5. The boolean
   output drives thought rewards (present or zero, never negative).
 
