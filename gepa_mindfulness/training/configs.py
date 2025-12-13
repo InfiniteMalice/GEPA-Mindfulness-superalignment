@@ -9,6 +9,8 @@ from typing import Any, Mapping
 
 import yaml
 
+from gepa_mindfulness.core.abstention_rewards import AbstentionRewardWeights
+
 
 def _to_float(value: Any, default: float) -> float:
     if value is None:
@@ -205,6 +207,110 @@ class HallucinationPenaltyConfig:
 
 
 @dataclass
+class ThoughtAlignmentConfig:
+    theta_match: float = 0.8
+    theta_epistemic: float = 0.5
+
+    def __post_init__(self) -> None:
+        if not (0.0 <= self.theta_match <= 1.0):
+            raise ValueError("theta_match must be in [0, 1]")
+        if not (0.0 <= self.theta_epistemic <= 1.0):
+            raise ValueError("theta_epistemic must be in [0, 1]")
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "ThoughtAlignmentConfig":
+        payload = payload or {}
+        return cls(
+            theta_match=_to_float(payload.get("theta_match"), 0.8),
+            theta_epistemic=_to_float(payload.get("theta_epistemic"), 0.5),
+        )
+
+    def dict(self) -> dict[str, float]:
+        return asdict(self)
+
+
+@dataclass
+class AbstentionRewardWeightsConfig:
+    H: float = 1.0
+    A: float = 0.25
+    K_high: float = 2.0
+    K_low: float = 1.0
+    K_miscal: float = 2.0
+
+    def __post_init__(self) -> None:
+        for name in ("H", "A", "K_high", "K_low", "K_miscal"):
+            value = getattr(self, name)
+            if not math.isfinite(value):
+                raise ValueError(f"{name} must be finite")
+            if value < 0.0:
+                raise ValueError(f"{name} must be non-negative")
+
+    @classmethod
+    def from_mapping(
+        cls,
+        payload: Mapping[str, Any] | None,
+    ) -> "AbstentionRewardWeightsConfig":
+        if payload is None:
+            payload = {}
+        elif not isinstance(payload, Mapping):
+            raise ValueError("payload must be a mapping or None")
+        return cls(
+            H=_to_float(payload.get("H"), 1.0),
+            A=_to_float(payload.get("A"), 0.25),
+            K_high=_to_float(payload.get("K_high"), 2.0),
+            K_low=_to_float(payload.get("K_low"), 1.0),
+            K_miscal=_to_float(payload.get("K_miscal"), 2.0),
+        )
+
+    def dict(self) -> dict[str, float]:
+        return asdict(self)
+
+    def to_core_weights(self) -> AbstentionRewardWeights:
+        """Convert to the core AbstentionRewardWeights for reward computation."""
+
+        return AbstentionRewardWeights(
+            H=self.H,
+            A=self.A,
+            K_high=self.K_high,
+            K_low=self.K_low,
+            K_miscal=self.K_miscal,
+        )
+
+
+@dataclass
+class AbstentionConfig:
+    enabled: bool = False
+    threshold: float = 0.75
+    reward_weights: AbstentionRewardWeightsConfig = field(
+        default_factory=AbstentionRewardWeightsConfig
+    )
+
+    def __post_init__(self) -> None:
+        if not (0.0 <= self.threshold <= 1.0):
+            raise ValueError("threshold must be in [0, 1]")
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "AbstentionConfig":
+        if payload is None:
+            payload = {}
+        elif not isinstance(payload, Mapping):
+            raise ValueError("payload must be a mapping or None")
+        weights = AbstentionRewardWeightsConfig.from_mapping(payload.get("reward_weights"))
+        return cls(
+            enabled=bool(payload.get("enabled", False)),
+            threshold=_to_float(payload.get("threshold"), 0.75),
+            reward_weights=weights,
+        )
+
+    def dict(self) -> dict[str, Any]:
+        return {
+            "enabled": self.enabled,
+            "threshold": self.threshold,
+            "reward_weights": self.reward_weights.dict(),
+        }
+
+
+@dataclass
 class PPOConfig:
     learning_rate: float = 1e-5
     batch_size: int = 1
@@ -320,6 +426,8 @@ class TrainingConfig:
     adversarial_batch: int = 2
     confidence_threshold: float = 0.75
     use_dual_path: bool = False
+    abstention: AbstentionConfig = field(default_factory=AbstentionConfig)
+    thought_alignment: ThoughtAlignmentConfig = field(default_factory=ThoughtAlignmentConfig)
     honesty: HonestyConfig = field(default_factory=HonestyConfig)
     deception: DeceptionConfig = field(default_factory=DeceptionConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
@@ -370,6 +478,8 @@ class TrainingConfig:
             use_dual_path=bool(
                 training_section.get("use_dual_path", payload.get("use_dual_path", False))
             ),
+            abstention=AbstentionConfig.from_mapping(payload.get("abstention")),
+            thought_alignment=ThoughtAlignmentConfig.from_mapping(payload.get("thought_alignment")),
             honesty=HonestyConfig.from_mapping(payload.get("honesty")),
             deception=DeceptionConfig.from_mapping(payload.get("deception")),
             output=OutputConfig.from_mapping(payload.get("output")),
@@ -382,6 +492,8 @@ class TrainingConfig:
         payload["grpo"] = self.grpo.dict()
         payload["model"] = self.model.dict()
         payload["dataset"] = self.dataset.dict()
+        payload["abstention"] = self.abstention.dict()
+        payload["thought_alignment"] = self.thought_alignment.dict()
         payload["honesty"] = self.honesty.dict()
         payload["deception"] = self.deception.dict()
         payload["output"] = self.output.dict()
@@ -398,16 +510,19 @@ def load_training_config(path: str | Path) -> TrainingConfig:
 
 
 __all__ = [
-    "RewardWeightsConfig",
-    "PPOConfig",
+    "AbstentionConfig",
+    "AbstentionRewardWeightsConfig",
     "CircuitTracerSamplingConfig",
-    "HallucinationPenaltyConfig",
-    "GRPOConfig",
-    "ModelConfig",
-    "TrainingConfig",
-    "HonestyConfig",
-    "DeceptionConfig",
-    "OutputConfig",
     "DatasetConfig",
+    "DeceptionConfig",
+    "GRPOConfig",
+    "HallucinationPenaltyConfig",
+    "HonestyConfig",
+    "ModelConfig",
+    "OutputConfig",
+    "PPOConfig",
+    "RewardWeightsConfig",
+    "ThoughtAlignmentConfig",
+    "TrainingConfig",
     "load_training_config",
 ]
