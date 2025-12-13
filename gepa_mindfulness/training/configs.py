@@ -243,11 +243,6 @@ class AbstentionRewardWeightsConfig:
     def __post_init__(self) -> None:
         for name in ("H", "A", "K_high", "K_low", "K_miscal"):
             value = getattr(self, name)
-            try:
-                value = float(value)
-            except (TypeError, ValueError) as exc:
-                raise ValueError(f"{name} must be float-compatible") from exc
-            setattr(self, name, value)
             if not math.isfinite(value):
                 raise ValueError(f"{name} must be finite")
             if value < 0.0:

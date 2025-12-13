@@ -30,6 +30,17 @@ class AbstentionRewardWeights:
 
 @dataclass(frozen=True)
 class AbstentionReward:
+    """Result of abstention reward computation.
+
+    Attributes:
+        total: Sum of all component rewards.
+        case_id: Reward case identifier (1-11).
+        components: Breakdown by category (knowledge, abstention, calibration, thought).
+        thought_align: Whether reasoning was epistemically grounded.
+        is_correct: Whether response matched reference answers.
+        abstained: Whether response was an abstention.
+    """
+
     total: float
     case_id: int
     components: Mapping[str, float]
