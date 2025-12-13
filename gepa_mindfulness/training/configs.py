@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import math
 from dataclasses import asdict, dataclass, field
+from math import isclose, isfinite
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -71,7 +71,7 @@ class RewardWeightsConfig:
 
     def normalized(self) -> "RewardWeightsConfig":
         total = self.alpha + self.beta + self.gamma + self.delta
-        if math.isclose(total, 1.0, rel_tol=1e-6):
+        if isclose(total, 1.0, rel_tol=1e-6):
             return self
         return RewardWeightsConfig(
             alpha=self.alpha / total,
@@ -243,7 +243,7 @@ class AbstentionRewardWeightsConfig:
     def __post_init__(self) -> None:
         for name in ("H", "A", "K_high", "K_low", "K_miscal"):
             value = getattr(self, name)
-            if not math.isfinite(value):
+            if not isfinite(value):
                 raise ValueError(f"{name} must be finite")
             if value < 0.0:
                 raise ValueError(f"{name} must be non-negative")
