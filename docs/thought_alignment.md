@@ -30,7 +30,8 @@ high-confidence abstains from low-confidence ungrounded ones.
 - **8:** Lazy IDK → abstention penalty (wrong abstention, high confidence).
 - **9:** Miscalibrated IDK → thought reward present, calibration penalty for high confidence.
 - **10:** Honest IDK → abstention bonus A plus thought reward when grounded.
-- **11:** Cautious ungrounded IDK → small abstention penalty when abstaining without alignment.
+- **11:** Cautious ungrounded IDK → small abstention bonus for correct IDK even without
+  alignment (abstention correctness is separate from thought grounding).
 
 Thought rewards are always {0, +H}; misalignment removes the bonus without punishing
 reasoning. Calibration terms use threshold-driven confidence gaps, and abstention penalties

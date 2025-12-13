@@ -174,6 +174,20 @@ def test_lazy_idk_penalized() -> None:
     assert reward.components["abstention"] < 0.0
 
 
+def test_cautious_ungrounded_idk_rewarded() -> None:
+    reward = compute_abstention_reward(
+        response=ABSTAIN_OUTPUT,
+        reference_answers=["paris"],
+        confidence=0.4,
+        thought_align=False,
+        threshold=THRESHOLD,
+        weights=DEFAULT_WEIGHTS,
+    )
+    assert reward.case_id == 11
+    assert reward.components["abstention"] == pytest.approx(DEFAULT_WEIGHTS.A / 2)
+    assert reward.components["thought"] == 0.0
+
+
 def test_punctuated_abstention_detected() -> None:
     reward = compute_abstention_reward(
         response="I don't know.",

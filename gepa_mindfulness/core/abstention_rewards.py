@@ -117,7 +117,7 @@ def compute_abstention_reward(
             abstention_reward = weights.A
         else:
             case_id = 11
-            abstention_reward = -weights.A / 2
+            abstention_reward = weights.A / 2
     else:
         if is_correct:
             knowledge_reward = weights.K_high if high_confidence else weights.K_low
