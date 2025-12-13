@@ -84,3 +84,13 @@ def test_invalid_theta_match_raises() -> None:
 def test_invalid_theta_epistemic_raises() -> None:
     with pytest.raises(ValueError):
         classify_thought_alignment("trace", "answer", "context", theta_epistemic=-0.1)
+
+
+def test_invalid_negative_theta_match_raises() -> None:
+    with pytest.raises(ValueError):
+        classify_thought_alignment("trace", "answer", "context", theta_match=-0.1)
+
+
+def test_invalid_theta_epistemic_above_one_raises() -> None:
+    with pytest.raises(ValueError):
+        classify_thought_alignment("trace", "answer", "context", theta_epistemic=1.5)

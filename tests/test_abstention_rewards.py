@@ -221,3 +221,15 @@ def test_invalid_threshold_raises() -> None:
             threshold=-0.1,
             weights=DEFAULT_WEIGHTS,
         )
+
+
+def test_invalid_threshold_above_one_raises() -> None:
+    with pytest.raises(ValueError):
+        compute_abstention_reward(
+            response="paris",
+            reference_answers=["paris"],
+            confidence=0.9,
+            thought_align=True,
+            threshold=1.5,
+            weights=DEFAULT_WEIGHTS,
+        )
