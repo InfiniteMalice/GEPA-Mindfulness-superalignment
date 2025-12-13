@@ -199,6 +199,18 @@ def test_invalid_confidence_raises() -> None:
         )
 
 
+def test_invalid_negative_confidence_raises() -> None:
+    with pytest.raises(ValueError):
+        compute_abstention_reward(
+            response="paris",
+            reference_answers=["paris"],
+            confidence=-0.1,
+            thought_align=True,
+            threshold=THRESHOLD,
+            weights=DEFAULT_WEIGHTS,
+        )
+
+
 def test_invalid_threshold_raises() -> None:
     with pytest.raises(ValueError):
         compute_abstention_reward(

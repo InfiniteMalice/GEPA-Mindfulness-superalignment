@@ -1,3 +1,5 @@
+import pytest
+
 from gepa_mindfulness.core import classify_thought_alignment
 
 
@@ -72,3 +74,13 @@ def test_punctuated_answer_tokens_match() -> None:
     assert aligned
     assert s_match >= 0.8
     assert s_epistemic >= 0.5
+
+
+def test_invalid_theta_match_raises() -> None:
+    with pytest.raises(ValueError):
+        classify_thought_alignment("trace", "answer", "context", theta_match=1.5)
+
+
+def test_invalid_theta_epistemic_raises() -> None:
+    with pytest.raises(ValueError):
+        classify_thought_alignment("trace", "answer", "context", theta_epistemic=-0.1)
