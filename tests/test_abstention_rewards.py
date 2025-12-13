@@ -188,7 +188,7 @@ def test_punctuated_abstention_detected() -> None:
 
 
 def test_invalid_confidence_raises() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"confidence must be in \[0, 1\]"):
         compute_abstention_reward(
             response="paris",
             reference_answers=["paris"],
@@ -200,7 +200,7 @@ def test_invalid_confidence_raises() -> None:
 
 
 def test_invalid_negative_confidence_raises() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"confidence must be in \[0, 1\]"):
         compute_abstention_reward(
             response="paris",
             reference_answers=["paris"],
@@ -212,7 +212,7 @@ def test_invalid_negative_confidence_raises() -> None:
 
 
 def test_invalid_threshold_raises() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"threshold must be in \[0, 1\]"):
         compute_abstention_reward(
             response="paris",
             reference_answers=["paris"],
@@ -224,7 +224,7 @@ def test_invalid_threshold_raises() -> None:
 
 
 def test_invalid_threshold_above_one_raises() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"threshold must be in \[0, 1\]"):
         compute_abstention_reward(
             response="paris",
             reference_answers=["paris"],

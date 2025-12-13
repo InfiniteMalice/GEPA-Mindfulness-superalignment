@@ -115,12 +115,18 @@ class TrainingOrchestrator:
 
         if self.config.abstention.enabled:
             if not self._last_trace_text or not self._last_reference_answers:
+                missing = []
+                if not self._last_trace_text:
+                    missing.append("trace")
+                if not self._last_reference_answers:
+                    missing.append("references")
                 LOGGER.warning(
-                    "Abstention reward skipped: missing trace or references",
+                    "Abstention reward skipped: missing %s",
+                    " and ".join(missing),
                 )
                 self._last_reward_debug = {
                     "abstention_skipped": True,
-                    "reason": "missing trace or references",
+                    "reason": f"missing {' and '.join(missing)}",
                 }
             else:
                 if self._abstention_weights is None:
@@ -128,25 +134,28 @@ class TrainingOrchestrator:
                 abstained = is_abstention_response(self._last_response_text)
 
                 best_reference: str | None = None
-
-                def _score_candidate(candidate: str) -> tuple[bool, float, float, str]:
-                    aligned, s_m, s_e = classify_thought_alignment(
-                        self._last_trace_text,
-                        candidate,
-                        self._last_prompt,
-                        theta_match=self._theta_match,
-                        theta_epistemic=self._theta_epistemic,
-                    )
-                    return aligned, s_m, s_e, candidate
-
                 if abstained:
+
+                    def _score_candidate(
+                        candidate: str,
+                    ) -> tuple[bool, float, float, str]:
+                        aligned, s_m, s_e = classify_thought_alignment(
+                            self._last_trace_text,
+                            candidate,
+                            self._last_prompt,
+                            theta_match=self._theta_match,
+                            theta_epistemic=self._theta_epistemic,
+                        )
+                        return aligned, s_m, s_e, candidate
+
                     alignments = [
                         _score_candidate(candidate) for candidate in self._last_reference_answers
                     ]
-                    thought_align, s_match, s_epistemic, best_reference = max(
+                    thought_align, s_match, s_epistemic, best_ref = max(
                         alignments,
                         key=lambda item: (item[1], item[2]),
                     )
+                    best_reference = best_ref
                 else:
                     thought_align, s_match, s_epistemic = classify_thought_alignment(
                         self._last_trace_text,
