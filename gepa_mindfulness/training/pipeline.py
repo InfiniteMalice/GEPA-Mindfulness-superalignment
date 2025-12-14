@@ -151,7 +151,7 @@ class TrainingOrchestrator:
                     ]
                     thought_align, s_match, s_epistemic, best_ref = max(
                         alignments,
-                        key=lambda item: (item[1], item[2]),
+                        key=lambda item: (int(item[0]), item[1], item[2]),
                     )
                     best_reference = best_ref
                 else:

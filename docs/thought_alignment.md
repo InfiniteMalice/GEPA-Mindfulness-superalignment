@@ -4,6 +4,13 @@ This module scores traces for whether they are epistemically grounded and aligne
 final answer. It complements the honesty-aware abstention rewards by rewarding grounded
 thinking without ever penalising thought itself.
 
+**Definitions:**
+- *Aligned* / *epistemically grounded* traces meet the match and epistemic thresholds.
+- *Thought reward* is a non-negative bonus (+H when aligned, otherwise 0) and never a
+  penalty.
+- Thresholds default to match ≥ 0.8 and epistemic ≥ 0.5, but they are configurable via
+  `TrainingConfig.thought_alignment` in `gepa_mindfulness/training/configs.py`.
+
 ## Thought Alignment Signals
 - **Match score:** emphasises explicit derivations of the final answer. Later trace segments
   carry more weight, favouring conclusions over early brainstorming. Conflicting unresolved
@@ -11,8 +18,9 @@ thinking without ever penalising thought itself.
 - **Epistemic score:** boosts justified reasoning, stepwise logic, and limited uncertainty.
   It down-weights randomness, "just guessing" language, and unresolved contradictions while
   preserving the rule that thought rewards are never negative.
-- **Classification:** a trace is aligned when match ≥ 0.8 and epistemic ≥ 0.5. The boolean
-  output drives thought rewards (present or zero, never negative).
+- **Classification:** a trace is aligned when match ≥ 0.8 and epistemic ≥ 0.5 by default.
+  These defaults can be overridden in configuration (`TrainingConfig.thought_alignment`).
+  The boolean output drives thought rewards (present or zero, never negative).
 
 ## Eleven-Case Abstention + Honesty Scheme
 Cases 1–7 handle non-IDK responses; cases 8–11 cover abstentions. Case 11 specifically

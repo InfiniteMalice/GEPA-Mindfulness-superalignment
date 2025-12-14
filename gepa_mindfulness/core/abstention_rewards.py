@@ -27,6 +27,14 @@ class AbstentionRewardWeights:
     K_low: float = 1.0
     K_miscal: float = 2.0
 
+    def __post_init__(self) -> None:
+        for name in ("H", "A", "K_high", "K_low", "K_miscal"):
+            value = getattr(self, name)
+            if not isinstance(value, (int, float)) or value != value:
+                raise ValueError(f"{name} must be finite")
+            if value < 0.0:
+                raise ValueError(f"{name} must be non-negative")
+
 
 @dataclass(frozen=True)
 class AbstentionReward:

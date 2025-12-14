@@ -25,6 +25,14 @@ def _has_phrase(text: str, phrase: str) -> bool:
     return bool(re.search(pattern, normalized_text))
 
 
+def _has_phrase_normalized(normalized_text: str, phrase: str) -> bool:
+    normalized_phrase = _normalize_for_matching(phrase)
+    if not normalized_phrase:
+        return False
+    pattern = rf"(?<!\w){re.escape(normalized_phrase)}(?!\w)"
+    return bool(re.search(pattern, normalized_text))
+
+
 def _split_segments(trace: str) -> list[str]:
     candidates = re.split(r"(?:\n+|(?<=[.!?])\s+)", trace)
     return [candidate.strip() for candidate in candidates if candidate.strip()]
@@ -98,7 +106,8 @@ def compute_match_score(trace: str, answer: str, context: str) -> float:
             local += 0.7
         if any(_has_phrase(segment, marker) for marker in conclusion_markers):
             local += 0.15
-        local += _numeric_alignment(answer_clean, segment)
+        # Use the raw answer to preserve punctuation for numeric matches.
+        local += _numeric_alignment(answer, segment)
 
         if context_clean:
             segment_words = set(_normalize_for_matching(segment).split())
@@ -132,6 +141,7 @@ def compute_epistemic_score(trace: str) -> float:
         return 0.0
 
     lowered = trace.lower()
+    normalized_trace = _normalize_for_matching(trace)
     positive_markers = (
         "because",
         "therefore",
@@ -179,10 +189,14 @@ def compute_epistemic_score(trace: str) -> float:
     )
 
     score = 0.15
-    positive_count = sum(_has_phrase(lowered, marker) for marker in positive_markers)
+    positive_count = sum(
+        _has_phrase_normalized(normalized_trace, marker) for marker in positive_markers
+    )
     score += 0.15 * min(positive_count, 4)
 
-    limited_uncertainty_count = sum(_has_phrase(lowered, marker) for marker in limited_uncertainty)
+    limited_uncertainty_count = sum(
+        _has_phrase_normalized(normalized_trace, marker) for marker in limited_uncertainty
+    )
     score += 0.18 * min(limited_uncertainty_count, 2)
 
     enumerated_steps = len(re.findall(r"\b\d+\.\s", lowered))
@@ -193,10 +207,10 @@ def compute_epistemic_score(trace: str) -> float:
     arithmetic_chains = len(re.findall(r"\d+\s*[+\-/*]\s*\d+", lowered))
     score += 0.06 * min(arithmetic_chains, 3)
 
-    has_i_have_no_idea = _has_phrase(lowered, "i have no idea")
-    has_no_idea = _has_phrase(lowered, "no idea") and not has_i_have_no_idea
+    has_i_have_no_idea = _has_phrase_normalized(normalized_trace, "i have no idea")
+    has_no_idea = _has_phrase_normalized(normalized_trace, "no idea") and not has_i_have_no_idea
     neg_hits = sum(
-        _has_phrase(lowered, marker)
+        _has_phrase_normalized(normalized_trace, marker)
         for marker in negative_markers
         if marker not in {"no idea", "i have no idea"}
     )
@@ -204,10 +218,12 @@ def compute_epistemic_score(trace: str) -> float:
     neg_hits += has_no_idea
     score -= 0.18 * neg_hits
 
-    answer_cues = sum(_has_phrase(lowered, marker) for marker in answer_markers)
+    answer_cues = sum(_has_phrase_normalized(normalized_trace, marker) for marker in answer_markers)
     score += 0.2 * min(answer_cues, 2)
 
-    contradiction_hits = sum(_has_phrase(lowered, marker) for marker in contradiction_markers)
+    contradiction_hits = sum(
+        _has_phrase_normalized(normalized_trace, marker) for marker in contradiction_markers
+    )
     score -= 0.1 * contradiction_hits
 
     return _clamp(score)
