@@ -214,6 +214,14 @@ class ThoughtAlignmentConfig:
     theta_epistemic: float = 0.5
 
     def __post_init__(self) -> None:
+        try:
+            self.theta_match = float(self.theta_match)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("theta_match must be float-compatible") from exc
+        try:
+            self.theta_epistemic = float(self.theta_epistemic)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("theta_epistemic must be float-compatible") from exc
         if not (0.0 <= self.theta_match <= 1.0):
             raise ValueError("theta_match must be in [0, 1]")
         if not (0.0 <= self.theta_epistemic <= 1.0):
@@ -245,6 +253,11 @@ class AbstentionRewardWeightsConfig:
     def __post_init__(self) -> None:
         for name in ("H", "A", "K_high", "K_low", "K_miscal"):
             value = getattr(self, name)
+            try:
+                value = float(value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"{name} must be float-compatible") from exc
+            setattr(self, name, value)
             if not isfinite(value):
                 raise ValueError(f"{name} must be finite")
             if value < 0.0:

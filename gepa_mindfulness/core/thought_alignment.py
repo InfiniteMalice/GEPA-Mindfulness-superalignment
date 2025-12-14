@@ -53,7 +53,7 @@ def _numeric_alignment(answer: str, segment: str) -> float:
     if not numbers:
         return 0.0
     boost = 0.0
-    has_operator = "+" in segment or "-" in segment or "*" in segment or "/" in segment
+    has_operator = bool(re.search(r"\d\s*[+\-/*]\s*\d", segment))
     for raw_number in numbers:
         variants = {raw_number}
         if "." in raw_number:
@@ -61,9 +61,9 @@ def _numeric_alignment(answer: str, segment: str) -> float:
             if trimmed:
                 variants.add(trimmed)
         for number in variants:
-            if re.search(rf"\b{re.escape(number)}\b", segment):
+            if re.search(rf"(?<!\w){re.escape(number)}(?!\w)", segment):
                 boost += 0.2
-            if re.search(rf"=\s*{re.escape(number)}(?!\S)", segment):
+            if re.search(rf"=\s*{re.escape(number)}(?=(?:\s|$|[.,;:!?]))", segment):
                 boost += 0.2
     if has_operator:
         boost += 0.1

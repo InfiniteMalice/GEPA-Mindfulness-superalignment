@@ -125,8 +125,9 @@ class TrainingOrchestrator:
             missing = []
             if not self._last_trace_text:
                 missing.append("trace")
-            if abstained and not self._last_reference_answers:
-                missing.append("references")
+            if not self._last_reference_answers:
+                label = "references" if abstained else "references (correctness unknown)"
+                missing.append(label)
             if missing:
                 LOGGER.warning(
                     "Abstention reward skipped: missing %s",
