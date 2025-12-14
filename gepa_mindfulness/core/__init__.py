@@ -46,4 +46,13 @@ __all__ = [
     "sample_adversarial_batch",
     "ThoughtTrace",
     "TraceEvent",
+    "classify_thought_alignment",
+    "compute_abstention_reward",
+    "compute_epistemic_score",
+    "compute_match_score",
+    "dialetheic_and",
+    "enforce_abstention",
+    "is_abstention_response",
+    "iterate_adversarial_pool",
+    "sample_adversarial_batch",
 ]
