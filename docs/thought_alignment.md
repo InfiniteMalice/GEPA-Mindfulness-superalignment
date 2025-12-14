@@ -2,12 +2,13 @@
 
 This module scores traces for whether they are epistemically grounded and aligned with the
 final answer. It complements the honesty-aware abstention rewards by rewarding grounded
-thinking without ever penalising thought itself.
+thinking without ever penalizing thought itself.
 
 **Definitions:**
-- *Aligned* / *epistemically grounded* traces meet the match and epistemic thresholds.
+- *Aligned* / *epistemically grounded* refer to traces meeting the match and epistemic
+  thresholds.
 - *Thought reward* is a non-negative bonus (+H when aligned, otherwise 0) and never a
-  penalty.
+  penalty; lower scores reduce the bonus rather than introduce punishment.
 - Thresholds default to match ≥ 0.8 and epistemic ≥ 0.5, but they are configurable via
   `TrainingConfig.thought_alignment` in `gepa_mindfulness/training/configs.py`.
 

@@ -54,11 +54,17 @@ def _numeric_alignment(answer: str, segment: str) -> float:
         return 0.0
     boost = 0.0
     has_operator = "+" in segment or "-" in segment or "*" in segment or "/" in segment
-    for number in numbers:
-        if re.search(rf"\b{re.escape(number)}\b", segment):
-            boost += 0.2
-        if f"= {number}" in segment or f"= {number}." in segment:
-            boost += 0.2
+    for raw_number in numbers:
+        variants = {raw_number}
+        if "." in raw_number:
+            trimmed = raw_number.rstrip("0").rstrip(".")
+            if trimmed:
+                variants.add(trimmed)
+        for number in variants:
+            if re.search(rf"\b{re.escape(number)}\b", segment):
+                boost += 0.2
+            if re.search(rf"=\s*{re.escape(number)}(?!\S)", segment):
+                boost += 0.2
     if has_operator:
         boost += 0.1
     return min(boost, 1.0)
@@ -91,7 +97,7 @@ def compute_match_score(trace: str, answer: str, context: str) -> float:
     normalized_trace = _normalize_for_matching(trace)
     context_clean = _normalize_for_matching(context)
 
-    segments = _split_segments(trace_lower)
+    segments = _split_segments(trace)
     if not segments:
         return 0.0
 
@@ -101,16 +107,17 @@ def compute_match_score(trace: str, answer: str, context: str) -> float:
     conclusion_markers: Iterable[str] = ("therefore", "so", "thus", "implies", "hence")
 
     for segment, weight in zip(segments, weights):
+        segment_norm = _normalize_for_matching(segment)
         local = 0.0
-        if answer_clean and _has_phrase(segment, answer_clean):
+        if answer_clean and _has_phrase_normalized(segment_norm, answer):
             local += 0.7
-        if any(_has_phrase(segment, marker) for marker in conclusion_markers):
+        if any(_has_phrase_normalized(segment_norm, marker) for marker in conclusion_markers):
             local += 0.15
         # Use the raw answer to preserve punctuation for numeric matches.
         local += _numeric_alignment(answer, segment)
 
         if context_clean:
-            segment_words = set(_normalize_for_matching(segment).split())
+            segment_words = set(segment_norm.split())
             overlap = set(context_clean.split()) & segment_words
             if overlap:
                 local += min(0.1, 0.02 * len(overlap))
@@ -118,11 +125,15 @@ def compute_match_score(trace: str, answer: str, context: str) -> float:
         local = min(local, 1.0)
         score += local * weight
 
-    if segments and answer_clean and _has_phrase(segments[-1], answer_clean):
-        score += 0.1
-    if segments and any(_has_phrase(segments[-1], marker) for marker in conclusion_markers):
-        score += 0.05
-    if answer_clean and any(_has_phrase(segment, "answer") for segment in segments):
+    if segments:
+        last_segment_norm = _normalize_for_matching(segments[-1])
+        if answer_clean and _has_phrase_normalized(last_segment_norm, answer):
+            score += 0.1
+        if any(_has_phrase_normalized(last_segment_norm, marker) for marker in conclusion_markers):
+            score += 0.05
+    if answer_clean and any(
+        _has_phrase_normalized(_normalize_for_matching(segment), "answer") for segment in segments
+    ):
         score += 0.1
     if answer_clean:
         pattern = rf"(?<!\w){re.escape(answer_clean)}(?!\w)"

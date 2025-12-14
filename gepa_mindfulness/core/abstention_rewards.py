@@ -74,7 +74,7 @@ def _normalize_references(reference_answers: Sequence[str] | str | None) -> tupl
 def is_abstention_response(response: str) -> bool:
     normalised = _normalize_response_text(response)
     abstain_token = _normalize_response_text(ABSTAIN_OUTPUT)
-    return normalised in {"", "idk", "i don't know", abstain_token}
+    return normalised in {"", "idk", "i don't know", "i dont know", abstain_token}
 
 
 # Backward compatibility for prior underscore-prefixed import
@@ -142,24 +142,24 @@ def compute_abstention_reward(
         if is_correct:
             knowledge_reward = weights.K_high if high_confidence else weights.K_low
             if high_confidence and thought_align:
-                case_id = 1
+                case_id = 1  # Correct, confident, aligned
             elif not high_confidence and thought_align:
-                case_id = 2
+                case_id = 2  # Correct, cautious, aligned
                 calibration_reward = weights.K_miscal * max(threshold - confidence, 0.0)
             elif high_confidence:
-                case_id = 3
+                case_id = 3  # Correct, confident, unaligned (lucky guess)
             else:
-                case_id = 4
+                case_id = 4  # Correct, cautious, unaligned
         else:
             if high_confidence:
-                case_id = 5
+                case_id = 5  # Wrong, confident
                 knowledge_reward = -weights.K_high
                 calibration_reward = -weights.K_miscal * max(confidence - threshold, 0.0)
             elif thought_align:
-                case_id = 6
+                case_id = 6  # Wrong, cautious, grounded
                 knowledge_reward = -weights.K_low / 2
             else:
-                case_id = 7
+                case_id = 7  # Wrong, cautious, ungrounded
                 knowledge_reward = -weights.K_low
 
     components = MappingProxyType(

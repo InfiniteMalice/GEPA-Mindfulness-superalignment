@@ -11,6 +11,8 @@ import yaml
 
 from gepa_mindfulness.core.abstention_rewards import AbstentionRewardWeights
 
+_CORE_WEIGHTS = AbstentionRewardWeights()
+
 
 def _to_float(value: Any, default: float) -> float:
     if value is None:
@@ -234,11 +236,11 @@ class ThoughtAlignmentConfig:
 
 @dataclass
 class AbstentionRewardWeightsConfig:
-    H: float = 1.0
-    A: float = 0.25
-    K_high: float = 2.0
-    K_low: float = 1.0
-    K_miscal: float = 2.0
+    H: float = _CORE_WEIGHTS.H
+    A: float = _CORE_WEIGHTS.A
+    K_high: float = _CORE_WEIGHTS.K_high
+    K_low: float = _CORE_WEIGHTS.K_low
+    K_miscal: float = _CORE_WEIGHTS.K_miscal
 
     def __post_init__(self) -> None:
         for name in ("H", "A", "K_high", "K_low", "K_miscal"):
@@ -258,11 +260,11 @@ class AbstentionRewardWeightsConfig:
         elif not isinstance(payload, Mapping):
             raise ValueError("payload must be a mapping or None")
         return cls(
-            H=_to_float(payload.get("H"), 1.0),
-            A=_to_float(payload.get("A"), 0.25),
-            K_high=_to_float(payload.get("K_high"), 2.0),
-            K_low=_to_float(payload.get("K_low"), 1.0),
-            K_miscal=_to_float(payload.get("K_miscal"), 2.0),
+            H=_to_float(payload.get("H"), _CORE_WEIGHTS.H),
+            A=_to_float(payload.get("A"), _CORE_WEIGHTS.A),
+            K_high=_to_float(payload.get("K_high"), _CORE_WEIGHTS.K_high),
+            K_low=_to_float(payload.get("K_low"), _CORE_WEIGHTS.K_low),
+            K_miscal=_to_float(payload.get("K_miscal"), _CORE_WEIGHTS.K_miscal),
         )
 
     def dict(self) -> dict[str, float]:

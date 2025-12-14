@@ -1,6 +1,6 @@
 import pytest
 
-from gepa_mindfulness.core import classify_thought_alignment
+from gepa_mindfulness.core import classify_thought_alignment, compute_match_score
 
 
 def test_timid_expert_aligned() -> None:
@@ -58,6 +58,16 @@ def test_honest_uncertainty_aligned() -> None:
     assert s_epistemic >= 0.5
 
 
+def test_decimal_format_alignment_variant() -> None:
+    trace = (
+        "Standard gravity is about 9.80665, so rounding gives 9.8 m/s^2; therefore using"
+        " 9.80 is equivalent for practical purposes."
+    )
+    aligned, s_match, s_epistemic = classify_thought_alignment(trace, "9.80", "gravity")
+    assert s_match >= 0.8
+    assert s_epistemic > 0.3
+
+
 def test_random_guessing_unaligned() -> None:
     trace = "Monroe? Adams? Madison? Flip a coin between them."
     aligned, s_match, s_epistemic = classify_thought_alignment(trace, "madison", "president")
@@ -76,21 +86,23 @@ def test_punctuated_answer_tokens_match() -> None:
     assert s_epistemic >= 0.5
 
 
-def test_invalid_theta_match_raises() -> None:
-    with pytest.raises(ValueError, match=r"theta_match must be in \[0, 1\]"):
-        classify_thought_alignment("trace", "answer", "context", theta_match=1.5)
+def test_match_score_ranks_aligned_higher() -> None:
+    strong_trace = "Therefore the answer is 5 after adding 2 + 3 = 5."
+    weak_trace = "Maybe 5 or 7 without any calculation."
+    assert compute_match_score(strong_trace, "5", "math") > compute_match_score(
+        weak_trace, "5", "math"
+    )
 
 
-def test_invalid_theta_epistemic_raises() -> None:
-    with pytest.raises(ValueError, match=r"theta_epistemic must be in \[0, 1\]"):
-        classify_thought_alignment("trace", "answer", "context", theta_epistemic=-0.1)
-
-
-def test_invalid_negative_theta_match_raises() -> None:
-    with pytest.raises(ValueError, match=r"theta_match must be in \[0, 1\]"):
-        classify_thought_alignment("trace", "answer", "context", theta_match=-0.1)
-
-
-def test_invalid_theta_epistemic_above_one_raises() -> None:
-    with pytest.raises(ValueError, match=r"theta_epistemic must be in \[0, 1\]"):
-        classify_thought_alignment("trace", "answer", "context", theta_epistemic=1.5)
+@pytest.mark.parametrize(
+    "kwargs, message",
+    [
+        ({"theta_match": 1.5}, r"theta_match must be in \[0, 1\]"),
+        ({"theta_epistemic": -0.1}, r"theta_epistemic must be in \[0, 1\]"),
+        ({"theta_match": -0.1}, r"theta_match must be in \[0, 1\]"),
+        ({"theta_epistemic": 1.5}, r"theta_epistemic must be in \[0, 1\]"),
+    ],
+)
+def test_invalid_theta_values_raise(kwargs: dict[str, float], message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        classify_thought_alignment("trace", "answer", "context", **kwargs)

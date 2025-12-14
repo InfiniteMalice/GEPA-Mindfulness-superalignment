@@ -201,6 +201,19 @@ def test_punctuated_abstention_detected() -> None:
     assert reward.case_id == 10
 
 
+def test_typo_abstention_detected() -> None:
+    reward = compute_abstention_reward(
+        response="I dont know",
+        reference_answers=["paris"],
+        confidence=0.4,
+        thought_align=False,
+        threshold=THRESHOLD,
+        weights=DEFAULT_WEIGHTS,
+    )
+    assert reward.abstained is True
+    assert reward.case_id == 11
+
+
 def test_abstention_with_no_references_still_scores() -> None:
     reward = compute_abstention_reward(
         response=ABSTAIN_OUTPUT,

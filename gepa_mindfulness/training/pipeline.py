@@ -43,11 +43,7 @@ class TrainingOrchestrator:
         self._last_trace_text: str = ""
         self._last_reference_answers: list[str] | None = None
         self._last_reward_debug: Mapping[str, object] = {}
-        self._abstention_weights: AbstentionRewardWeights | None = (
-            self.config.abstention.reward_weights.to_core_weights()
-            if self.config.abstention.enabled
-            else None
-        )
+        self._abstention_weights: AbstentionRewardWeights | None = None
         self._theta_match: float = self.config.thought_alignment.theta_match
         self._theta_epistemic: float = self.config.thought_alignment.theta_epistemic
 
@@ -124,12 +120,14 @@ class TrainingOrchestrator:
         reward = base + self._honesty_bonus(confidence)
 
         if self.config.abstention.enabled:
-            if not self._last_trace_text or not self._last_reference_answers:
-                missing = []
-                if not self._last_trace_text:
-                    missing.append("trace")
-                if not self._last_reference_answers:
-                    missing.append("references")
+            self._abstention_weights = self.config.abstention.reward_weights.to_core_weights()
+            abstained = is_abstention_response(self._last_response_text)
+            missing = []
+            if not self._last_trace_text:
+                missing.append("trace")
+            if abstained and not self._last_reference_answers:
+                missing.append("references")
+            if missing:
                 LOGGER.warning(
                     "Abstention reward skipped: missing %s",
                     " and ".join(missing),
@@ -139,12 +137,8 @@ class TrainingOrchestrator:
                     "reason": f"missing {' and '.join(missing)}",
                 }
             else:
-                if self._abstention_weights is None:
-                    raise RuntimeError("Abstention weights not initialized")
-                abstained = is_abstention_response(self._last_response_text)
-
                 best_reference: str | None = None
-                if abstained:
+                if abstained and self._last_reference_answers:
                     alignments = [
                         self._score_alignment_candidate(candidate)
                         for candidate in self._last_reference_answers
