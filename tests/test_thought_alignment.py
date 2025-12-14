@@ -60,12 +60,13 @@ def test_honest_uncertainty_aligned() -> None:
 
 def test_decimal_format_alignment_variant() -> None:
     trace = (
-        "Standard gravity is about 9.80665, so rounding gives 9.8 m/s^2; therefore using"
-        " 9.80 is equivalent for practical purposes."
+        "Standard gravity is about 9.80665; because rounding yields 9.8 m/s^2, using 9.80"
+        " is equivalent and therefore the answer is 9.80."
     )
     aligned, s_match, s_epistemic = classify_thought_alignment(trace, "9.80", "gravity")
+    assert aligned
     assert s_match >= 0.8
-    assert s_epistemic > 0.3
+    assert s_epistemic >= 0.5
 
 
 def test_random_guessing_unaligned() -> None:

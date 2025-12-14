@@ -43,7 +43,11 @@ class TrainingOrchestrator:
         self._last_trace_text: str = ""
         self._last_reference_answers: list[str] | None = None
         self._last_reward_debug: Mapping[str, object] = {}
-        self._abstention_weights: AbstentionRewardWeights | None = None
+        self._abstention_weights: AbstentionRewardWeights | None = (
+            config.abstention.reward_weights.to_core_weights()
+            if config.abstention.enabled
+            else None
+        )
         self._theta_match: float = self.config.thought_alignment.theta_match
         self._theta_epistemic: float = self.config.thought_alignment.theta_epistemic
 
@@ -120,7 +124,6 @@ class TrainingOrchestrator:
         reward = base + self._honesty_bonus(confidence)
 
         if self.config.abstention.enabled:
-            self._abstention_weights = self.config.abstention.reward_weights.to_core_weights()
             abstained = is_abstention_response(self._last_response_text)
             missing = []
             if not self._last_trace_text:
