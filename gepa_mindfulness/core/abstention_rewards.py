@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Mapping, Sequence
@@ -30,7 +31,7 @@ class AbstentionRewardWeights:
     def __post_init__(self) -> None:
         for name in ("H", "A", "K_high", "K_low", "K_miscal"):
             value = getattr(self, name)
-            if not isinstance(value, (int, float)) or value != value:
+            if not isinstance(value, (int, float)) or not math.isfinite(value):
                 raise ValueError(f"{name} must be finite")
             if value < 0.0:
                 raise ValueError(f"{name} must be non-negative")
@@ -125,17 +126,17 @@ def compute_abstention_reward(
 
     if abstained:
         if high_confidence and not thought_align:
-            case_id = 8
+            case_id = 8  # High-confidence ungrounded abstention (lazy IDK)
             abstention_reward = -weights.A
             calibration_reward = -weights.K_low * max(confidence - threshold, 0.0)
         elif high_confidence and thought_align:
-            case_id = 9
+            case_id = 9  # High-confidence grounded abstention (miscalibrated)
             calibration_reward = -weights.K_miscal * max(confidence - threshold, 0.0)
         elif thought_align:
-            case_id = 10
+            case_id = 10  # Low-confidence grounded abstention (honest)
             abstention_reward = weights.A
         else:
-            case_id = 11
+            case_id = 11  # Low-confidence ungrounded abstention (cautious IDK)
             abstention_reward = weights.A / 2
     else:
         if is_correct:
