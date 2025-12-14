@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
+import dataclasses
 import math
-from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Mapping, Sequence
 
 from .abstention import ABSTAIN_OUTPUT
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class AbstentionRewardWeights:
     """Weights controlling the abstention reward scheme.
 
@@ -37,7 +37,7 @@ class AbstentionRewardWeights:
                 raise ValueError(f"{name} must be non-negative")
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class AbstentionReward:
     """Result of abstention reward computation.
 

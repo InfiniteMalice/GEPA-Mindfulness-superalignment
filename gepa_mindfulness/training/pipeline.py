@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Sequence
 
@@ -20,7 +20,7 @@ from .configs import TrainingConfig
 LOGGER = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclasses.dataclass
 class RolloutResult:
     prompt: str
     response: str
