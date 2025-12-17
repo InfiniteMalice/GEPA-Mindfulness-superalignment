@@ -309,6 +309,11 @@ def handle_dspy_compile(args: argparse.Namespace) -> None:
 
 
 def run_dual_path_contrastive(data: Path, out: Path, context: str) -> None:
+    """Run a deterministic baseline dual-path analysis for pipeline testing.
+
+    This placeholder emits the same canned dual-path response for every record. Replace with a
+    model-backed implementation when available.
+    """
     out.mkdir(parents=True, exist_ok=True)
     examples = read_jsonl(data)
     results: List[Dict[str, Any]] = []
@@ -354,7 +359,11 @@ def run_dual_path_contrastive(data: Path, out: Path, context: str) -> None:
 
 
 def handle_dspy_contrastive(args: argparse.Namespace) -> None:
-    run_dual_path_contrastive(Path(args.data), Path(args.out), getattr(args, "context", "general"))
+    run_dual_path_contrastive(
+        _resolve_cli_path(args.data),
+        _resolve_cli_path(args.out, require_exists=False),
+        getattr(args, "context", "general"),
+    )
 
 
 # ---------------------------------------------------------------------------
