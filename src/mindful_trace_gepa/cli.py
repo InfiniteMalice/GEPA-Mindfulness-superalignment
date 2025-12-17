@@ -356,6 +356,12 @@ def run_dual_path_contrastive(data: Path, out: Path, context: str) -> None:
     (out / "summary.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
 
 
+def handle_dspy_contrastive(args: argparse.Namespace) -> None:
+    run_dual_path_contrastive(
+        Path(args.data), Path(args.out), getattr(args, "context", "general")
+    )
+
+
 # ---------------------------------------------------------------------------
 # Viewer
 # ---------------------------------------------------------------------------
@@ -642,6 +648,18 @@ def build_parser() -> argparse.ArgumentParser:
         "--enable-optim", action="store_true", help="Allow safe prompt augmentation"
     )
     dspy_compile.set_defaults(func=handle_dspy_compile)
+
+    dspy_contrastive = dspy_sub.add_parser(
+        "contrastive-run", help="Run contrastive dual-path baseline without DSPy"
+    )
+    dspy_contrastive.add_argument("--data", required=True, help="Dual-path dataset JSONL")
+    dspy_contrastive.add_argument(
+        "--out", required=True, help="Output directory for contrastive run artifacts"
+    )
+    dspy_contrastive.add_argument(
+        "--context", default="general", help="Context profile for prompt construction"
+    )
+    dspy_contrastive.set_defaults(func=handle_dspy_contrastive)
 
     view_parser = subparsers.add_parser("view", help="Build offline trace viewer")
     view_parser.add_argument("--trace", required=True, help="Trace JSONL path")
