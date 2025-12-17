@@ -15,7 +15,9 @@ import click
 from .cli_deception import register_cli as register_deception_cli
 from .cli_scoring import register_cli as register_scoring_cli
 from .configuration import dump_json, load_dspy_config
+from .deception.circuit_analysis import detect_deception_heuristic
 from .deception.score import score_deception
+from .prompts.dual_path import make_dual_path_prompt, parse_dual_path_response
 from .storage import TraceArchiveWriter, iter_jsonl, load_jsonl, read_jsonl
 from .tokens import TokenRecorder
 from .utils.imports import optional_import
@@ -307,13 +309,13 @@ def handle_dspy_compile(args: argparse.Namespace) -> None:
 
 
 def run_dual_path_contrastive(data: Path, out: Path, context: str) -> None:
-    from .deception.circuit_analysis import detect_deception_heuristic
-    from .prompts.dual_path import make_dual_path_prompt, parse_dual_path_response
-    from .storage.jsonl_store import JSONLStore
+    """Run a deterministic baseline dual-path analysis for pipeline testing.
 
+    This placeholder emits the same canned dual-path response for every record. Replace with a
+    model-backed implementation when available.
+    """
     out.mkdir(parents=True, exist_ok=True)
-    store = JSONLStore(str(data))
-    examples = list(store.read())
+    examples = read_jsonl(data)
     results: List[Dict[str, Any]] = []
 
     for record in examples:
@@ -354,6 +356,14 @@ def run_dual_path_contrastive(data: Path, out: Path, context: str) -> None:
         )
 
     (out / "summary.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
+
+
+def handle_dspy_contrastive(args: argparse.Namespace) -> None:
+    run_dual_path_contrastive(
+        _resolve_cli_path(args.data),
+        _resolve_cli_path(args.out, require_exists=False),
+        getattr(args, "context", "general"),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -643,6 +653,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     dspy_compile.set_defaults(func=handle_dspy_compile)
 
+    dspy_contrastive = dspy_sub.add_parser(
+        "contrastive-run", help="Run contrastive dual-path baseline without DSPy"
+    )
+    dspy_contrastive.add_argument("--data", required=True, help="Dual-path dataset JSONL")
+    dspy_contrastive.add_argument(
+        "--out", required=True, help="Output directory for contrastive run artifacts"
+    )
+    dspy_contrastive.add_argument(
+        "--context", default="general", help="Context profile for prompt construction"
+    )
+    dspy_contrastive.set_defaults(func=handle_dspy_contrastive)
+
     view_parser = subparsers.add_parser("view", help="Build offline trace viewer")
     view_parser.add_argument("--trace", required=True, help="Trace JSONL path")
     view_parser.add_argument("--tokens", required=True, help="Token JSONL path")
@@ -750,7 +772,11 @@ def click_dspy_compile(out: str, config: str, dataset: str, enable_optim: bool) 
 @click.option("--out", "out_dir", required=True, help="Output directory")
 @click.option("--context", default="general", help="Context profile")
 def click_dspy_contrastive(data_path: str, out_dir: str, context: str) -> None:
-    run_dual_path_contrastive(Path(data_path), Path(out_dir), context)
+    run_dual_path_contrastive(
+        _resolve_cli_path(data_path),
+        _resolve_cli_path(out_dir, require_exists=False),
+        context,
+    )
 
 
 def main(argv: List[str] | None = None) -> None:
