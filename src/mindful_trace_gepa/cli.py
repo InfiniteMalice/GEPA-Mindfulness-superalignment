@@ -772,7 +772,11 @@ def click_dspy_compile(out: str, config: str, dataset: str, enable_optim: bool) 
 @click.option("--out", "out_dir", required=True, help="Output directory")
 @click.option("--context", default="general", help="Context profile")
 def click_dspy_contrastive(data_path: str, out_dir: str, context: str) -> None:
-    run_dual_path_contrastive(Path(data_path), Path(out_dir), context)
+    run_dual_path_contrastive(
+        _resolve_cli_path(data_path),
+        _resolve_cli_path(out_dir, require_exists=False),
+        context,
+    )
 
 
 def main(argv: List[str] | None = None) -> None:
