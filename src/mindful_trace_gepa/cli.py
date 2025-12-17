@@ -603,6 +603,7 @@ def build_parser() -> argparse.ArgumentParser:
     dspy_run.add_argument(
         "--enable-optim", action="store_true", help="Opt-in to optimisation features"
     )
+    dspy_run.add_argument("--dual-path", action="store_true", help="Use dual-path pipeline")
     dspy_run.add_argument(
         "--with-logprobs",
         action=BooleanOptionalAction,
