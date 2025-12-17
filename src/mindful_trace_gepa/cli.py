@@ -15,7 +15,9 @@ import click
 from .cli_deception import register_cli as register_deception_cli
 from .cli_scoring import register_cli as register_scoring_cli
 from .configuration import dump_json, load_dspy_config
+from .deception.circuit_analysis import detect_deception_heuristic
 from .deception.score import score_deception
+from .prompts.dual_path import make_dual_path_prompt, parse_dual_path_response
 from .storage import TraceArchiveWriter, iter_jsonl, load_jsonl, read_jsonl
 from .tokens import TokenRecorder
 from .utils.imports import optional_import
@@ -307,13 +309,8 @@ def handle_dspy_compile(args: argparse.Namespace) -> None:
 
 
 def run_dual_path_contrastive(data: Path, out: Path, context: str) -> None:
-    from .deception.circuit_analysis import detect_deception_heuristic
-    from .prompts.dual_path import make_dual_path_prompt, parse_dual_path_response
-    from .storage.jsonl_store import JSONLStore
-
     out.mkdir(parents=True, exist_ok=True)
-    store = JSONLStore(str(data))
-    examples = list(store.read())
+    examples = read_jsonl(data)
     results: List[Dict[str, Any]] = []
 
     for record in examples:
@@ -357,7 +354,9 @@ def run_dual_path_contrastive(data: Path, out: Path, context: str) -> None:
 
 
 def handle_dspy_contrastive(args: argparse.Namespace) -> None:
-    run_dual_path_contrastive(Path(args.data), Path(args.out), getattr(args, "context", "general"))
+    run_dual_path_contrastive(
+        Path(args.data), Path(args.out), getattr(args, "context", "general")
+    )
 
 
 # ---------------------------------------------------------------------------
