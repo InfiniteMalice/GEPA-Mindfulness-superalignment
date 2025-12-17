@@ -357,9 +357,7 @@ def run_dual_path_contrastive(data: Path, out: Path, context: str) -> None:
 
 
 def handle_dspy_contrastive(args: argparse.Namespace) -> None:
-    run_dual_path_contrastive(
-        Path(args.data), Path(args.out), getattr(args, "context", "general")
-    )
+    run_dual_path_contrastive(Path(args.data), Path(args.out), getattr(args, "context", "general"))
 
 
 # ---------------------------------------------------------------------------
