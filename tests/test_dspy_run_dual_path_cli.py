@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import pytest
 
 from mindful_trace_gepa import cli
 
 
-def test_dspy_run_accepts_dual_path_flag(monkeypatch: pytest.MonkeyPatch):
+def test_dspy_run_accepts_dual_path_flag(monkeypatch: pytest.MonkeyPatch) -> None:
     called = {}
 
     def fake_handler(args):
