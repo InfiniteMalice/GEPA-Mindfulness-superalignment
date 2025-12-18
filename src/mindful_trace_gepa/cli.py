@@ -422,7 +422,7 @@ def handle_dspy_contrastive(args: argparse.Namespace) -> None:
         _resolve_cli_path(args.out, require_exists=False),
         getattr(args, "context", "general"),
         probes_path=(
-            _resolve_cli_path(getattr(args, "probes", None), require_exists=False)
+            _resolve_cli_path(str(getattr(args, "probes")), require_exists=False)
             if getattr(args, "probes", None)
             else None
         ),
