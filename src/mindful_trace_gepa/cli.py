@@ -382,7 +382,7 @@ def run_dual_path_contrastive(
         )
         collector.add(fingerprint)
 
-        result_id = record.get("id") or (f"record_{idx}" if idx else "example")
+        result_id = record.get("id") or f"record_{idx}"
         result = {
             "id": result_id,
             "query": query,
@@ -417,15 +417,16 @@ def run_dual_path_contrastive(
 
 
 def handle_dspy_contrastive(args: argparse.Namespace) -> None:
+    probes_arg = getattr(args, "probes", None)
+    resolved_probes = _resolve_cli_path(probes_arg, require_exists=False) if probes_arg else None
+    if probes_arg and resolved_probes and not resolved_probes.exists():
+        raise FileNotFoundError(f"Probes file not found: {resolved_probes}")
+
     run_dual_path_contrastive(
         _resolve_cli_path(args.data),
         _resolve_cli_path(args.out, require_exists=False),
         getattr(args, "context", "general"),
-        probes_path=(
-            _resolve_cli_path(str(getattr(args, "probes")), require_exists=False)
-            if getattr(args, "probes", None)
-            else None
-        ),
+        probes_path=resolved_probes,
     )
 
 
@@ -842,7 +843,9 @@ def click_dspy_compile(out: str, config: str, dataset: str, enable_optim: bool) 
 def click_dspy_contrastive(
     data_path: str, out_dir: str, context: str, probes_path: str | None
 ) -> None:
-    resolved_probes = _resolve_cli_path(probes_path) if probes_path else None
+    resolved_probes = _resolve_cli_path(probes_path, require_exists=False) if probes_path else None
+    if probes_path and resolved_probes and not resolved_probes.exists():
+        raise FileNotFoundError(f"Probes file not found: {resolved_probes}")
     run_dual_path_contrastive(
         _resolve_cli_path(data_path),
         _resolve_cli_path(out_dir, require_exists=False),
