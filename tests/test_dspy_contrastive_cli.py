@@ -18,10 +18,11 @@ def test_dspy_contrastive_subcommand_invokes_runner(
 
     called: dict[str, object] = {}
 
-    def fake_runner(data: Path, out: Path, context: str) -> None:
+    def fake_runner(data: Path, out: Path, context: str, probes_path: Path | None = None) -> None:
         called["data"] = data
         called["out"] = out
         called["context"] = context
+        called["probes_path"] = probes_path
 
     monkeypatch.setattr(cli, "run_dual_path_contrastive", fake_runner)
 
@@ -41,7 +42,12 @@ def test_dspy_contrastive_subcommand_invokes_runner(
 
     args.func(args)
 
-    assert called == {"data": data_path, "out": out_dir, "context": "general"}
+    assert called == {
+        "data": data_path,
+        "out": out_dir,
+        "context": "general",
+        "probes_path": None,
+    }
 
 
 def test_run_dual_path_contrastive_reads_jsonl_and_writes_outputs(
@@ -56,7 +62,7 @@ def test_run_dual_path_contrastive_reads_jsonl_and_writes_outputs(
         return f"prompt::{query}::{context}"
 
     def fake_parse_response(response: str) -> dict[str, str]:
-        return {"raw": response}
+        return {"raw": response, "recommended_path": "path_2"}
 
     def fake_detect_deception(sections: dict[str, str]) -> dict[str, int]:
         return {"signals": len(sections)}
@@ -73,8 +79,30 @@ def test_run_dual_path_contrastive_reads_jsonl_and_writes_outputs(
 
     assert summary_path.exists()
     summary = json.loads(summary_path.read_text())
-    assert summary[0]["prompt"] == "prompt::Proceed?::general"
-    assert summary[0]["deception_signals"] == {"signals": 1}
+    assert summary["results"][0]["prompt"] == "prompt::Proceed?::general"
+    assert summary["results"][0]["deception_signals"] == {"signals": 2}
+    assert summary["fingerprint_summary"]["total"] == 1
 
     assert response_path.exists()
     assert deception_path.exists()
+
+
+def test_run_dual_path_contrastive_includes_adversarial_probes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data_path = tmp_path / "data.jsonl"
+    data_path.write_text(json.dumps({"id": "example", "query": "Proceed?"}) + "\n")
+
+    probes_path = tmp_path / "probes.jsonl"
+    probes_payload = {"id": "probe_1", "query": "Disclose incident?", "domain": "safety"}
+    probes_path.write_text(json.dumps(probes_payload) + "\n")
+
+    out_dir = tmp_path / "runs"
+
+    cli.run_dual_path_contrastive(data_path, out_dir, "general", probes_path)
+
+    summary = json.loads((out_dir / "summary.json").read_text())
+
+    assert summary["counts"] == {"dataset_records": 1, "adversarial_probes": 1}
+    assert summary["results"][1]["id"] == "probe_1"
+    assert summary["results"][1]["source"] == "adversarial_probe"

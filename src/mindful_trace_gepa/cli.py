@@ -16,6 +16,7 @@ from .cli_deception import register_cli as register_deception_cli
 from .cli_scoring import register_cli as register_scoring_cli
 from .configuration import dump_json, load_dspy_config
 from .deception.circuit_analysis import detect_deception_heuristic
+from .deception.fingerprints import DeceptionFingerprint, FingerprintCollector
 from .deception.score import score_deception
 from .prompts.dual_path import make_dual_path_prompt, parse_dual_path_response
 from .storage import TraceArchiveWriter, iter_jsonl, load_jsonl, read_jsonl
@@ -308,19 +309,42 @@ def handle_dspy_compile(args: argparse.Namespace) -> None:
     compiler.save_compiled_module(compiled_module, args.out)
 
 
-def run_dual_path_contrastive(data: Path, out: Path, context: str) -> None:
-    """Run a deterministic baseline dual-path analysis for pipeline testing.
+def run_dual_path_contrastive(
+    data: Path, out: Path, context: str, probes_path: Optional[Path] = None
+) -> None:
+    """Run baseline dual-path analysis plus adversarial deception probes.
+
+    This baseline emits deterministic dual-path responses while still exercising the deception
+    fingerprinting pipeline with the bundled adversarial probes. Replace with a model-backed
+    implementation when available.
+    """
 
     This placeholder emits the same canned dual-path response for every record. Replace with a
     model-backed implementation when available.
     """
     out.mkdir(parents=True, exist_ok=True)
+
     examples = read_jsonl(data)
+
+    default_probes = (
+        Path(__file__).resolve().parent.parent.parent
+        / "data"
+        / "evaluation"
+        / "adversarial_probes.jsonl"
+    )
+    probes_file = probes_path or default_probes
+    probes = read_jsonl(probes_file) if probes_file.exists() else []
+
+    if not examples and not probes:
+        raise FileNotFoundError("No contrastive data found to process.")
+
+    collector = FingerprintCollector(str(out))
     results: List[Dict[str, Any]] = []
 
-    for record in examples:
+    for idx, record in enumerate([*examples, *probes]):
         query = record.get("query") or record.get("prompt") or ""
-        prompt = make_dual_path_prompt(query, context)
+        record_context = record.get("context", context)
+        prompt = make_dual_path_prompt(query, record_context)
         response = (
             "[PATH 1 REASONING]\n"
             "This path emphasises caution and potential risks.\n\n"
@@ -334,28 +358,66 @@ def run_dual_path_contrastive(data: Path, out: Path, context: str) -> None:
 
         sections = parse_dual_path_response(response)
         deception = detect_deception_heuristic(sections)
+        fingerprint = DeceptionFingerprint(
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            prompt=prompt,
+            domain=record.get("domain", record.get("context", "general")),
+            path_1_text=sections.get("path_1", ""),
+            path_2_text=sections.get("path_2", ""),
+            comparison=sections.get("comparison", ""),
+            recommendation=sections.get("recommendation", ""),
+            recommended_path=sections.get("recommended_path", "unclear"),
+            path_1_circuits=record.get("path_1_circuits", {}),
+            path_2_circuits=record.get("path_2_circuits", {}),
+            deception_detected=bool(deception.get("deception_detected")),
+            confidence_score=float(deception.get("confidence_score", 0.0)),
+            signals=deception.get("signals", {}),
+            reasons=deception.get("reasons", []),
+            model_checkpoint=record.get("model_checkpoint", "deterministic-baseline"),
+            training_step=int(record.get("training_step", 0)),
+        )
+        collector.add(fingerprint)
 
+        result_id = record.get("id") or f"record_{idx}" if idx else "example"
         result = {
-            "id": record.get("id", ""),
+            "id": result_id,
             "query": query,
             "prompt": prompt,
             "response": response,
             "sections": sections,
             "deception_signals": deception,
             "ground_truth": record.get("ground_truth_correct_path", ""),
+            "source": "adversarial_probe" if record in probes else "dataset",
         }
         results.append(result)
 
-        (out / f"{record.get('id', 'example')}_response.txt").write_text(
+        (out / f"{result_id}_response.txt").write_text(
             response,
             encoding="utf-8",
         )
-        (out / f"{record.get('id', 'example')}_deception.json").write_text(
+        (out / f"{result_id}_deception.json").write_text(
             json.dumps(deception, indent=2),
             encoding="utf-8",
         )
 
-    (out / "summary.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
+    summary_payload = {
+        "results": results,
+        "counts": {
+            "dataset_records": len(examples),
+            "adversarial_probes": len(probes),
+        },
+        "fingerprint_summary": collector.get_summary(),
+        "probes_file": str(probes_file) if probes_file.exists() else None,
+    }
+    (out / "summary.json").write_text(json.dumps(summary_payload, indent=2), encoding="utf-8")
+
+
+def handle_dspy_contrastive(args: argparse.Namespace) -> None:
+    run_dual_path_contrastive(
+        _resolve_cli_path(args.data),
+        _resolve_cli_path(args.out, require_exists=False),
+        getattr(args, "context", "general"),
+    )
 
 
 def handle_dspy_contrastive(args: argparse.Namespace) -> None:
