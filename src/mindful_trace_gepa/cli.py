@@ -47,7 +47,7 @@ def _raise_dspy_import_error(component: str, detail: str) -> None:
 
 yaml = optional_import("yaml")
 
-_DSPY_PIPELINE_IMPORT_ERROR: Exception | None = None
+_DSPY_PIPELINE_IMPORT_ERROR: Optional[Exception] = None
 try:  # pragma: no cover - optional dependency may fail
     _dspy_pipeline = import_module("mindful_trace_gepa.dspy_modules.pipeline")
 except Exception as exc:  # pragma: no cover - surface later when needed
@@ -61,7 +61,7 @@ else:  # pragma: no cover - optional dependency missing
     GEPA_CHAIN_CLS = None
     DUAL_PATH_CHAIN_CLS = None
 
-_DSPY_COMPILE_IMPORT_ERROR: Exception | None = None
+_DSPY_COMPILE_IMPORT_ERROR: Optional[Exception] = None
 try:  # pragma: no cover - optional dependency may fail
     _dspy_compile = import_module("mindful_trace_gepa.dspy_modules.compile")
 except Exception as exc:  # pragma: no cover - surface later when needed
@@ -130,7 +130,13 @@ def _resolve_cli_path(path_str: str, *, require_exists: bool = True) -> Path:
     raise FileNotFoundError(candidate)
 
 
-def _resolve_probes_path(probes_arg: str | None) -> Path | None:
+def _resolve_probes_path(probes_arg: Optional[str]) -> Optional[Path]:
+    """Resolve an optional probes path, returning ``None`` when omitted.
+
+    When a value is supplied the path is resolved and must exist, otherwise a
+    ``FileNotFoundError`` is raised.
+    """
+
     if not probes_arg:
         return None
 
@@ -154,12 +160,41 @@ def _write_jsonl(path: Path, rows: Iterable[Dict[str, Any]]) -> None:
 
 
 def _sanitize_result_id(raw_id: str, fallback: str) -> str:
+    """Sanitize a result identifier for safe use in filenames.
+
+    Replaces non-alphanumeric characters (except _, ., -) with underscores,
+    strips leading/trailing punctuation, and truncates to 100 characters.
+
+    Args:
+        raw_id: Raw identifier to sanitize.
+        fallback: Fallback identifier if sanitization produces empty string.
+
+    Returns:
+        Sanitized identifier safe for filesystem use.
+    """
+
     sanitized = re.sub(r"[^A-Za-z0-9_.-]", "_", raw_id)
     sanitized = sanitized.strip("._-")[:100]
     return sanitized or fallback
 
 
 def _ensure_within_dir(base_dir: Path, candidate: Path) -> Path:
+    """Ensure that a candidate path is within a base directory.
+
+    Resolves both paths and verifies the candidate is contained within
+    the base directory, preventing path traversal attacks.
+
+    Args:
+        base_dir: Base directory that should contain the candidate.
+        candidate: Path to validate.
+
+    Returns:
+        Resolved candidate path.
+
+    Raises:
+        ValueError: If candidate escapes the base directory.
+    """
+
     resolved_base = base_dir.resolve()
     resolved_candidate = candidate.resolve()
     try:
@@ -874,7 +909,7 @@ def click_dspy_compile(out: str, config: str, dataset: str, enable_optim: bool) 
 @click.option("--context", default="general", help="Context profile")
 @click.option("--probes", "probes_path", default=None, help="Optional adversarial probes JSONL")
 def click_dspy_contrastive(
-    data_path: str, out_dir: str, context: str, probes_path: str | None
+    data_path: str, out_dir: str, context: str, probes_path: Optional[str]
 ) -> None:
     resolved_probes = _resolve_probes_path(probes_path)
     run_dual_path_contrastive(
@@ -885,10 +920,10 @@ def click_dspy_contrastive(
     )
 
 
-def main(argv: List[str] | None = None) -> None:
+def main(argv: Optional[List[str]] = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
-    handler: Callable[[argparse.Namespace], None] | None = getattr(args, "func", None)
+    handler: Optional[Callable[[argparse.Namespace], None]] = getattr(args, "func", None)
     if handler is None:
         parser.print_help()
         return
