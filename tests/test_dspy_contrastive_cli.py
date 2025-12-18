@@ -106,3 +106,44 @@ def test_run_dual_path_contrastive_includes_adversarial_probes(
     assert summary["counts"] == {"dataset_records": 1, "adversarial_probes": 1}
     assert summary["results"][1]["id"] == "probe_1"
     assert summary["results"][1]["source"] == "adversarial_probe"
+
+
+def test_run_dual_path_contrastive_sanitizes_result_ids(tmp_path: Path) -> None:
+    data_path = tmp_path / "data.jsonl"
+    data_path.write_text(json.dumps({"id": "../escape", "query": "Proceed?"}) + "\n")
+    out_dir = tmp_path / "runs"
+
+    cli.run_dual_path_contrastive(data_path, out_dir, "general")
+
+    sanitized_id = "escape"
+    response_path = out_dir / f"{sanitized_id}_response.txt"
+    deception_path = out_dir / f"{sanitized_id}_deception.json"
+    summary = json.loads((out_dir / "summary.json").read_text())
+
+    assert response_path.exists()
+    assert deception_path.exists()
+    assert summary["results"][0]["id"] == sanitized_id
+
+
+def test_contrastive_parser_rejects_missing_probes(tmp_path: Path) -> None:
+    data_path = tmp_path / "data.jsonl"
+    data_path.write_text(json.dumps({"id": "example", "query": "Proceed?"}) + "\n")
+    out_dir = tmp_path / "runs"
+    missing_probes = tmp_path / "missing.jsonl"
+
+    parser = cli.build_parser()
+    args = parser.parse_args(
+        [
+            "dspy",
+            "contrastive-run",
+            "--data",
+            str(data_path),
+            "--out",
+            str(out_dir),
+            "--probes",
+            str(missing_probes),
+        ]
+    )
+
+    with pytest.raises(FileNotFoundError):
+        args.func(args)
