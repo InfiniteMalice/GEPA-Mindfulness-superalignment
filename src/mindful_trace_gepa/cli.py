@@ -383,8 +383,10 @@ def run_dual_path_contrastive(
     This baseline emits deterministic dual-path responses while still exercising the deception
     fingerprinting pipeline with the bundled adversarial probes. Replace with a model-backed
     implementation when available.
-    """
 
+    This placeholder emits the same canned dual-path response for every record. Replace with a
+    model-backed implementation when available.
+    """
     out.mkdir(parents=True, exist_ok=True)
     out_dir = out.resolve()
 
