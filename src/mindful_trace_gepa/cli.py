@@ -920,7 +920,8 @@ def click_dspy_contrastive(
     )
 
 
-def main(argv: Optional[List[str]] = None) -> None:
+def main(argv: List[str] | None = None) -> None:
+    """Parse CLI arguments and dispatch to the selected handler."""
     parser = build_parser()
     args = parser.parse_args(argv)
     handler: Optional[Callable[[argparse.Namespace], None]] = getattr(args, "func", None)
