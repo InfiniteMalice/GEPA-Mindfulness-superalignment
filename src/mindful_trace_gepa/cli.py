@@ -925,7 +925,7 @@ def main(argv: List[str] | None = None) -> None:
     """
     parser = build_parser()
     args = parser.parse_args(argv)
-    handler: Callable[[argparse.Namespace], None] | None = getattr(args, "func", None)
+    handler: Callable[[argparse.Namespace], None] | None 
     if handler is None:
         parser.print_help()
         return
