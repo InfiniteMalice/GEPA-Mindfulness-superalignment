@@ -319,6 +319,9 @@ def run_dual_path_contrastive(
     implementation when available.
     """
 
+    This placeholder emits the same canned dual-path response for every record. Replace with a
+    model-backed implementation when available.
+    """
     out.mkdir(parents=True, exist_ok=True)
 
     examples = read_jsonl(data)
@@ -407,6 +410,14 @@ def run_dual_path_contrastive(
         "probes_file": str(probes_file) if probes_file.exists() else None,
     }
     (out / "summary.json").write_text(json.dumps(summary_payload, indent=2), encoding="utf-8")
+
+
+def handle_dspy_contrastive(args: argparse.Namespace) -> None:
+    run_dual_path_contrastive(
+        _resolve_cli_path(args.data),
+        _resolve_cli_path(args.out, require_exists=False),
+        getattr(args, "context", "general"),
+    )
 
 
 def handle_dspy_contrastive(args: argparse.Namespace) -> None:
