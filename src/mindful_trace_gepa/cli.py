@@ -317,7 +317,6 @@ def run_dual_path_contrastive(
     This baseline emits deterministic dual-path responses while still exercising the deception
     fingerprinting pipeline with the bundled adversarial probes. Replace with a model-backed
     implementation when available.
-    """
 
     This placeholder emits the same canned dual-path response for every record. Replace with a
     model-backed implementation when available.
@@ -341,7 +340,12 @@ def run_dual_path_contrastive(
     collector = FingerprintCollector(str(out))
     results: List[Dict[str, Any]] = []
 
-    for idx, record in enumerate([*examples, *probes]):
+    ordered_records = [
+        *((record, "dataset") for record in examples),
+        *((record, "adversarial_probe") for record in probes),
+    ]
+
+    for idx, (record, source) in enumerate(ordered_records):
         query = record.get("query") or record.get("prompt") or ""
         record_context = record.get("context", context)
         prompt = make_dual_path_prompt(query, record_context)
@@ -378,7 +382,7 @@ def run_dual_path_contrastive(
         )
         collector.add(fingerprint)
 
-        result_id = record.get("id") or f"record_{idx}" if idx else "example"
+        result_id = record.get("id") or (f"record_{idx}" if idx else "example")
         result = {
             "id": result_id,
             "query": query,
@@ -387,7 +391,7 @@ def run_dual_path_contrastive(
             "sections": sections,
             "deception_signals": deception,
             "ground_truth": record.get("ground_truth_correct_path", ""),
-            "source": "adversarial_probe" if record in probes else "dataset",
+            "source": source,
         }
         results.append(result)
 
@@ -417,14 +421,11 @@ def handle_dspy_contrastive(args: argparse.Namespace) -> None:
         _resolve_cli_path(args.data),
         _resolve_cli_path(args.out, require_exists=False),
         getattr(args, "context", "general"),
-    )
-
-
-def handle_dspy_contrastive(args: argparse.Namespace) -> None:
-    run_dual_path_contrastive(
-        _resolve_cli_path(args.data),
-        _resolve_cli_path(args.out, require_exists=False),
-        getattr(args, "context", "general"),
+        probes_path=(
+            _resolve_cli_path(str(getattr(args, "probes")), require_exists=False)
+            if getattr(args, "probes", None)
+            else None
+        ),
     )
 
 
@@ -726,6 +727,9 @@ def build_parser() -> argparse.ArgumentParser:
     dspy_contrastive.add_argument(
         "--context", default="general", help="Context profile for prompt construction"
     )
+    dspy_contrastive.add_argument(
+        "--probes", default=None, help="Optional adversarial probes JSONL override"
+    )
     dspy_contrastive.set_defaults(func=handle_dspy_contrastive)
 
     view_parser = subparsers.add_parser("view", help="Build offline trace viewer")
@@ -834,11 +838,16 @@ def click_dspy_compile(out: str, config: str, dataset: str, enable_optim: bool) 
 @click.option("--data", "data_path", required=True, help="Dual-path dataset JSONL")
 @click.option("--out", "out_dir", required=True, help="Output directory")
 @click.option("--context", default="general", help="Context profile")
-def click_dspy_contrastive(data_path: str, out_dir: str, context: str) -> None:
+@click.option("--probes", "probes_path", default=None, help="Optional adversarial probes JSONL")
+def click_dspy_contrastive(
+    data_path: str, out_dir: str, context: str, probes_path: str | None
+) -> None:
+    resolved_probes = _resolve_cli_path(probes_path) if probes_path else None
     run_dual_path_contrastive(
         _resolve_cli_path(data_path),
         _resolve_cli_path(out_dir, require_exists=False),
         context,
+        probes_path=resolved_probes,
     )
 
 
