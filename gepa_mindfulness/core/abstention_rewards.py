@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import dataclasses
+import logging
 import math
 from types import MappingProxyType
 from typing import Mapping, Sequence
 
 from .abstention import ABSTAIN_OUTPUT
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -207,6 +210,9 @@ def compute_abstention_reward(
             abstained=abstained,
         )
     except Exception:
+        _logger.exception(
+            "Unexpected error in compute_abstention_reward; returning fallback.",
+        )
         return _fallback_reward()
 
 
