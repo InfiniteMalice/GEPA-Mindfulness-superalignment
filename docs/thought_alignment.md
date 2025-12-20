@@ -40,7 +40,7 @@ ones.
 - **7:** Wrong, cautious, aligned → smaller penalty (knowledge damped) plus thought reward H.
 - **8:** Wrong, cautious, unaligned → mild penalty via K_low.
 - **9:** Lazy/sandbagging IDK (high confidence, aligned, has references) → abstention
-  penalty (wrong abstention).
+  penalty (wrong abstention), no thought reward.
 - **10:** Miscalibrated grounded IDK (high confidence, aligned, no references) → thought
   reward H, calibration penalty for high confidence.
 - **11:** Miscalibrated ungrounded IDK (high confidence, unaligned) → calibration penalty,

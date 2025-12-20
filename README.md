@@ -39,10 +39,10 @@ PPO + GRN) share a **13-case behavioral schema plus a null fallback (case 0)**.
 
 Each case describes a unique combination of:
 
-* Whether the model answers or abstains with `"I don't know"`.
-* Whether a non-IDK answer is correct or incorrect.
-* Whether confidence is high (≥ τ, default 0.75) or low.
-* Whether the thought trace is epistemically aligned with the surface behavior.
+* The model's choice: answer or abstain with `"I don't know"`.
+* Correctness of non-IDK answers.
+* Confidence level: high (≥ τ, default 0.75) or low.
+* Epistemic alignment of the thought trace with surface behavior.
 * For IDK, whether the model is lazy, miscalibrated, or honestly unsure.
 
 Rewards are decomposed into:

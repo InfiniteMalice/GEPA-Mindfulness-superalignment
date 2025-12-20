@@ -193,7 +193,8 @@ def compute_abstention_reward(
                     case_id = 8  # Incorrect, cautious, ungrounded
                     knowledge_reward = -weights.K_low
 
-        assert case_id != 0, "Unclassified abstention reward case."
+        if case_id == 0:
+            raise ValueError("Unclassified abstention reward case.")
 
         eligible_for_thought = {1, 3, 5, 7, 10, 12}
         if case_id in eligible_for_thought and thought_align:
@@ -218,6 +219,10 @@ def compute_abstention_reward(
             is_correct=is_correct,
             abstained=abstained,
         )
+    except ValueError:
+        raise
+    except AssertionError:
+        raise
     except Exception:
         _logger.exception(
             "Unexpected error in compute_abstention_reward; returning fallback.",

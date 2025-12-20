@@ -343,3 +343,24 @@ def test_invalid_threshold_above_one_raises() -> None:
             threshold=1.5,
             weights=DEFAULT_WEIGHTS,
         )
+
+
+def test_fallback_on_unexpected_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    def raise_error(_: str) -> str:
+        raise RuntimeError("Simulated internal error")
+
+    monkeypatch.setattr(
+        "gepa_mindfulness.core.abstention_rewards._normalize_response_text",
+        raise_error,
+    )
+    reward = compute_abstention_reward(
+        response="paris",
+        reference_answers=["paris"],
+        confidence=0.9,
+        thought_align=True,
+        threshold=THRESHOLD,
+        weights=DEFAULT_WEIGHTS,
+    )
+    assert reward.case_id == 0
+    assert reward.total == 0.0
+    assert reward.components["thought"] == 0.0
