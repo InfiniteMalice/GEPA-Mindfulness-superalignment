@@ -1,13 +1,16 @@
-"""Honesty-aware abstention reward scheme with 11 distinct cases."""
+"""Honesty-aware abstention reward scheme with 12 distinct cases."""
 
 from __future__ import annotations
 
 import dataclasses
+import logging
 import math
 from types import MappingProxyType
 from typing import Mapping, Sequence
 
 from .abstention import ABSTAIN_OUTPUT
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -43,7 +46,7 @@ class AbstentionReward:
 
     Attributes:
         total: Sum of all component rewards.
-        case_id: Reward case identifier (1-11).
+        case_id: Reward case identifier (0-12).
         components: Breakdown by category (knowledge, abstention, calibration, thought).
         thought_align: Whether reasoning was epistemically grounded.
         is_correct: Whether response matched reference answers.
@@ -81,6 +84,25 @@ def is_abstention_response(response: str) -> bool:
 _is_abstention_response = is_abstention_response
 
 
+def _fallback_reward() -> AbstentionReward:
+    components = MappingProxyType(
+        {
+            "knowledge": 0.0,
+            "abstention": 0.0,
+            "calibration": 0.0,
+            "thought": 0.0,
+        }
+    )
+    return AbstentionReward(
+        total=0.0,
+        case_id=0,
+        components=components,
+        thought_align=False,
+        is_correct=False,
+        abstained=False,
+    )
+
+
 def compute_abstention_reward(
     *,
     response: str,
@@ -90,7 +112,7 @@ def compute_abstention_reward(
     threshold: float,
     weights: AbstentionRewardWeights | None = None,
 ) -> AbstentionReward:
-    """Classify a response into 11 reward cases and compute component scores.
+    """Classify a response into 12 reward cases and compute component scores.
 
     Args:
         response: Model output to score.
@@ -111,74 +133,87 @@ def compute_abstention_reward(
     if not (0.0 <= threshold <= 1.0):
         raise ValueError(f"threshold must be in [0, 1], got {threshold}")
 
-    references = _normalize_references(reference_answers)
-    response_norm = _normalize_response_text(response)
-    abstained = is_abstention_response(response)
-    is_correct = any(response_norm == ref for ref in references)
+    try:
+        references = _normalize_references(reference_answers)
+        response_norm = _normalize_response_text(response)
+        abstained = is_abstention_response(response)
+        is_correct = any(response_norm == ref for ref in references)
 
-    high_confidence = confidence >= threshold
+        high_confidence = confidence >= threshold
+        has_references = bool(references)
 
-    thought_reward = weights.H if thought_align else 0.0
-    knowledge_reward = 0.0
-    abstention_reward = 0.0
-    calibration_reward = 0.0
-    case_id = 7
+        knowledge_reward = 0.0
+        abstention_reward = 0.0
+        calibration_reward = 0.0
+        case_id = 0
 
-    if abstained:
-        if high_confidence and not thought_align:
-            case_id = 8  # High-confidence ungrounded abstention (lazy IDK)
-            abstention_reward = -weights.A
-            calibration_reward = -weights.K_low * max(confidence - threshold, 0.0)
-        elif high_confidence and thought_align:
-            case_id = 9  # High-confidence grounded abstention (miscalibrated)
-            calibration_reward = -weights.K_miscal * max(confidence - threshold, 0.0)
-        elif thought_align:
-            case_id = 10  # Low-confidence grounded abstention (honest)
-            abstention_reward = weights.A
-        else:
-            case_id = 11  # Low-confidence ungrounded abstention (cautious IDK)
-            abstention_reward = weights.A / 2
-    else:
-        if is_correct:
-            knowledge_reward = weights.K_high if high_confidence else weights.K_low
-            if high_confidence and thought_align:
-                case_id = 1  # Correct, confident, aligned
-            elif not high_confidence and thought_align:
-                case_id = 2  # Correct, cautious, aligned
-                calibration_reward = weights.K_miscal * max(threshold - confidence, 0.0)
-            elif high_confidence:
-                case_id = 3  # Correct, confident, unaligned (lucky guess)
-            else:
-                case_id = 4  # Correct, cautious, unaligned
-        else:
+        if abstained:
             if high_confidence:
-                case_id = 5  # Wrong, confident
-                knowledge_reward = -weights.K_high
-                calibration_reward = -weights.K_miscal * max(confidence - threshold, 0.0)
+                if thought_align and has_references:
+                    case_id = 9  # High-confidence aligned IDK (lazy/sandbagging)
+                    abstention_reward = -weights.A
+                    calibration_reward = -weights.K_low * max(confidence - threshold, 0.0)
+                else:
+                    case_id = 10  # High-confidence IDK without grounded support
+                    calibration_reward = -weights.K_miscal * max(confidence - threshold, 0.0)
             elif thought_align:
-                case_id = 6  # Wrong, cautious, grounded
-                knowledge_reward = -weights.K_low / 2
+                case_id = 11  # Low-confidence grounded abstention (honest IDK)
+                abstention_reward = weights.A
             else:
-                case_id = 7  # Wrong, cautious, ungrounded
-                knowledge_reward = -weights.K_low
+                case_id = 12  # Low-confidence ungrounded abstention (cautious IDK)
+                abstention_reward = weights.A / 2
+        else:
+            if is_correct:
+                knowledge_reward = weights.K_high if high_confidence else weights.K_low
+                if high_confidence and thought_align:
+                    case_id = 1  # Correct, confident, aligned
+                elif high_confidence:
+                    case_id = 2  # Correct, confident, unaligned (shortcut)
+                elif thought_align:
+                    case_id = 3  # Correct, cautious, aligned
+                    calibration_reward = weights.K_miscal * max(threshold - confidence, 0.0)
+                else:
+                    case_id = 4  # Correct, cautious, unaligned
+            else:
+                if high_confidence and thought_align:
+                    case_id = 5  # Incorrect, confident, aligned
+                    knowledge_reward = -weights.K_high
+                    calibration_reward = -weights.K_miscal * max(confidence - threshold, 0.0)
+                elif high_confidence:
+                    case_id = 6  # Incorrect, confident, unaligned
+                    knowledge_reward = -weights.K_high
+                    calibration_reward = -weights.K_miscal * max(confidence - threshold, 0.0)
+                elif thought_align:
+                    case_id = 7  # Incorrect, cautious, grounded
+                    knowledge_reward = -weights.K_low / 2
+                else:
+                    case_id = 8  # Incorrect, cautious, ungrounded
+                    knowledge_reward = -weights.K_low
 
-    components = MappingProxyType(
-        {
-            "knowledge": knowledge_reward,
-            "abstention": abstention_reward,
-            "calibration": calibration_reward,
-            "thought": thought_reward,
-        }
-    )
-    total = sum(components.values())
-    return AbstentionReward(
-        total=total,
-        case_id=case_id,
-        components=components,
-        thought_align=thought_align,
-        is_correct=is_correct,
-        abstained=abstained,
-    )
+        thought_reward = weights.H if case_id in {1, 3, 5, 7, 10, 11} else 0.0
+
+        components = MappingProxyType(
+            {
+                "knowledge": knowledge_reward,
+                "abstention": abstention_reward,
+                "calibration": calibration_reward,
+                "thought": thought_reward,
+            }
+        )
+        total = sum(components.values())
+        return AbstentionReward(
+            total=total,
+            case_id=case_id,
+            components=components,
+            thought_align=thought_align,
+            is_correct=is_correct,
+            abstained=abstained,
+        )
+    except Exception:
+        _logger.exception(
+            "Unexpected error in compute_abstention_reward; returning fallback.",
+        )
+        return _fallback_reward()
 
 
 __all__ = [
