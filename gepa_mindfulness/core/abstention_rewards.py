@@ -1,4 +1,4 @@
-"""Honesty-aware abstention reward scheme with 12 distinct cases."""
+"""Honesty-aware abstention reward scheme with 13 cases plus a fallback."""
 
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ class AbstentionReward:
 
     Attributes:
         total: Sum of all component rewards.
-        case_id: Reward case identifier (0-12).
+        case_id: Reward case identifier (0-13).
         components: Breakdown by category (knowledge, abstention, calibration, thought).
         thought_align: Whether reasoning was epistemically grounded.
         is_correct: Whether response matched reference answers.
@@ -112,7 +112,7 @@ def compute_abstention_reward(
     threshold: float,
     weights: AbstentionRewardWeights | None = None,
 ) -> AbstentionReward:
-    """Classify a response into 12 reward cases and compute component scores.
+    """Classify a response into 13 reward cases and compute component scores.
 
     Args:
         response: Model output to score.
@@ -153,14 +153,17 @@ def compute_abstention_reward(
                     case_id = 9  # High-confidence aligned IDK (lazy/sandbagging)
                     abstention_reward = -weights.A
                     calibration_reward = -weights.K_low * max(confidence - threshold, 0.0)
+                elif thought_align:
+                    case_id = 10  # Miscalibrated grounded IDK
+                    calibration_reward = -weights.K_miscal * max(confidence - threshold, 0.0)
                 else:
-                    case_id = 10  # High-confidence IDK without grounded support
+                    case_id = 11  # Miscalibrated ungrounded IDK
                     calibration_reward = -weights.K_miscal * max(confidence - threshold, 0.0)
             elif thought_align:
-                case_id = 11  # Low-confidence grounded abstention (honest IDK)
+                case_id = 12  # Low-confidence grounded abstention (honest IDK)
                 abstention_reward = weights.A
             else:
-                case_id = 12  # Low-confidence ungrounded abstention (cautious IDK)
+                case_id = 13  # Low-confidence ungrounded abstention (cautious IDK)
                 abstention_reward = weights.A / 2
         else:
             if is_correct:
@@ -190,7 +193,13 @@ def compute_abstention_reward(
                     case_id = 8  # Incorrect, cautious, ungrounded
                     knowledge_reward = -weights.K_low
 
-        thought_reward = weights.H if case_id in {1, 3, 5, 7, 10, 11} else 0.0
+        assert case_id != 0, "Unclassified abstention reward case."
+
+        eligible_for_thought = {1, 3, 5, 7, 10, 12}
+        if case_id in eligible_for_thought and thought_align:
+            thought_reward = weights.H
+        else:
+            thought_reward = 0.0
 
         components = MappingProxyType(
             {

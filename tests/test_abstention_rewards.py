@@ -109,9 +109,17 @@ def test_reward_cases_cover_all_labels() -> None:
             threshold=THRESHOLD,
             weights=DEFAULT_WEIGHTS,
         ),
+        compute_abstention_reward(
+            response=ABSTAIN_OUTPUT,
+            reference_answers=None,
+            confidence=0.9,
+            thought_align=True,
+            threshold=THRESHOLD,
+            weights=DEFAULT_WEIGHTS,
+        ),
     ]
 
-    assert sorted(reward.case_id for reward in cases) == list(range(1, 13))
+    assert sorted(reward.case_id for reward in cases) == list(range(1, 14))
     for reward in cases:
         thought_component = reward.components["thought"]
         assert thought_component in {0.0, DEFAULT_WEIGHTS.H}
@@ -169,6 +177,19 @@ def test_miscalibrated_idk_penalizes_calibration() -> None:
     assert reward.components["thought"] == DEFAULT_WEIGHTS.H
 
 
+def test_miscalibrated_ungrounded_idk_gets_no_thought_bonus() -> None:
+    reward = compute_abstention_reward(
+        response=ABSTAIN_OUTPUT,
+        reference_answers=None,
+        confidence=0.9,
+        thought_align=False,
+        threshold=THRESHOLD,
+        weights=DEFAULT_WEIGHTS,
+    )
+    assert reward.case_id == 11
+    assert reward.components["thought"] == 0.0
+
+
 def test_lazy_idk_penalized() -> None:
     reward = compute_abstention_reward(
         response=ABSTAIN_OUTPUT,
@@ -191,7 +212,7 @@ def test_cautious_ungrounded_idk_rewarded() -> None:
         threshold=THRESHOLD,
         weights=DEFAULT_WEIGHTS,
     )
-    assert reward.case_id == 12
+    assert reward.case_id == 13
     assert reward.components["abstention"] == pytest.approx(DEFAULT_WEIGHTS.A / 2)
     assert reward.components["thought"] == 0.0
 
@@ -206,7 +227,7 @@ def test_punctuated_abstention_detected() -> None:
         weights=DEFAULT_WEIGHTS,
     )
     assert reward.abstained is True
-    assert reward.case_id == 11
+    assert reward.case_id == 12
 
 
 def test_typo_abstention_detected() -> None:
@@ -219,7 +240,7 @@ def test_typo_abstention_detected() -> None:
         weights=DEFAULT_WEIGHTS,
     )
     assert reward.abstained is True
-    assert reward.case_id == 12
+    assert reward.case_id == 13
 
 
 def test_abstention_with_no_references_still_scores() -> None:
@@ -233,7 +254,33 @@ def test_abstention_with_no_references_still_scores() -> None:
     )
     assert reward.is_correct is False
     assert reward.abstained is True
-    assert reward.case_id == 11
+    assert reward.case_id == 12
+
+
+def test_grounded_low_confidence_idk_gets_thought_bonus() -> None:
+    reward = compute_abstention_reward(
+        response=ABSTAIN_OUTPUT,
+        reference_answers=["paris"],
+        confidence=0.4,
+        thought_align=True,
+        threshold=THRESHOLD,
+        weights=DEFAULT_WEIGHTS,
+    )
+    assert reward.case_id == 12
+    assert reward.components["thought"] == DEFAULT_WEIGHTS.H
+
+
+def test_ungrounded_low_confidence_idk_gets_no_thought_bonus() -> None:
+    reward = compute_abstention_reward(
+        response=ABSTAIN_OUTPUT,
+        reference_answers=["paris"],
+        confidence=0.4,
+        thought_align=False,
+        threshold=THRESHOLD,
+        weights=DEFAULT_WEIGHTS,
+    )
+    assert reward.case_id == 13
+    assert reward.components["thought"] == 0.0
 
 
 def test_non_abstain_with_empty_references_is_incorrect() -> None:
