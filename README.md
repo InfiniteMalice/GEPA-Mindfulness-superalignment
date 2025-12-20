@@ -32,6 +32,85 @@ The project targets Python 3.10+.
   anti-scheming probes, and dual-path reasoning scenarios. The full bundle is
   also provided as `gepa_datasets.zip` for distribution.
 
+## Abstention, hallucination control, and thought-trace rewards
+
+All training modes in this repo (GEPA-from-scratch, GRPO with GEPA scoring, and
+PPO + GRN) share a **13-case behavioral schema plus a null fallback (case 0)**.
+
+Each case describes a unique combination of:
+
+* Whether the model answers or abstains with `"I don't know"`.
+* Whether a non-IDK answer is correct or incorrect.
+* Whether confidence is high (≥ τ, default 0.75) or low.
+* Whether the thought trace is epistemically aligned with the surface behavior.
+* For IDK, whether the model is lazy, miscalibrated, or honestly unsure.
+
+Rewards are decomposed into:
+
+* **R_token** – surface answer correctness.
+* **R_confidence** – calibration push toward or away from the abstention
+  threshold.
+* **R_thought** – binary honesty bonus; either H or 0, never negative.
+* **R_abstain** – reward/penalty for choosing `"I don't know"` when it is (or
+  is not) the safe action.
+
+Case 0 is reserved for internal errors or unclassified situations and uses a
+neutral fallback reward.
+
+### 13+0 case schema
+
+**Answer cases (no IDK):**
+
+| Case | Output | Conditions | Description | R_token | R_conf | R_thought | R_abst |
+|------|--------|------------|-------------|---------|--------|-----------|--------|
+| 1 | Answer | Correct, High, Aligned | Knows answer, calibrated | + | Keep high | H | 0 |
+| 2 | Answer | Correct, High, Unaligned | Correct, shortcut | + | Keep high | 0 | 0 |
+| 3 | Answer | Correct, Low, Aligned | Timid expert | + | Push to τ | H | 0 |
+| 4 | Answer | Correct, Low, Unaligned | Lucky guess | Pos (red) | Small ↑ | 0 | 0 |
+| 5 | Answer | Incorrect, High, Aligned | Honest but wrong | -- | Strong ↓ | H | 0 |
+| 6 | Answer | Incorrect, High, Unaligned | Confident BS | -- | Strong ↓ | 0 | 0 |
+| 7 | Answer | Incorrect, Low, Aligned | Wrong, tentative | - | Mild ↓ | H | 0 |
+| 8 | Answer | Incorrect, Low, Unaligned | Noisy guess | - | Mild ↓ | 0 | 0 |
+
+**IDK cases (`"I don't know"`):**
+
+Here `p_ans` is the model's internal confidence that a concrete answer is
+correct.
+
+| Case | Output | Conditions | Description | R_token | R_conf | R_thought | R_abst |
+|------|--------|------------|-------------|---------|--------|-----------|--------|
+| 9 | IDK | `p_ans ≥ τ`, hidden correct | Lazy / sandbagging | - | Reduce p_idk | 0 | -- |
+| 10 | IDK | `p_ans ≥ τ`, no hidden, aligned | Miscalibrated grounded | 0 | Push down | H | 0 |
+| 11 | IDK | `p_ans ≥ τ`, no hidden, unaligned | Miscalibrated ungrounded | 0 | Push down | 0 | 0 |
+| 12 | IDK | `p_ans < τ`, grounded | Honest IDK | 0 | Keep low | H | + |
+| 13 | IDK | `p_ans < τ`, ungrounded | Cautious IDK | 0 | Keep low | 0 | +/2 |
+
+**Null case (0):**
+
+* **Case 0 – Null / fallback**
+  * Used when inputs violate invariants or no case applies.
+  * Reward: neutral or near-neutral, with assertions/logging in debug builds.
+  * Intention: catch implementation errors, not a real training state.
+
+### Invariants
+
+The implementation and this schema enforce a small set of invariants:
+
+* **Thought rewards are only paid when `thought_align=True`.**
+  * `R_thought = H` iff the trace is epistemically aligned with surface behavior.
+* **Abstention is never punished when it reduces hallucination risk.**
+  * High-`p_ans` lazy IDK (case 9) is penalized.
+  * Low-`p_ans` IDK (cases 12–13) is neutral or rewarded.
+* **Hallucinations and confident errors are strongly discouraged.**
+  * High-confidence wrong answers (cases 5–6) incur strong negative token reward
+    and strong confidence reduction.
+* **Honest uncertainty is explicitly rewarded.**
+  * Grounded IDK (cases 10 and 12) receives the thought bonus; case 12 also gets
+    a small abstention bonus.
+
+This 13+0 schema is applied on top of any optimizer (PPO, GRPO, supervised) and
+is the behavioral backbone for all experiments in this repository.
+
 ## Repository layout
 
 ```

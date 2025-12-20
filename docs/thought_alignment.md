@@ -23,24 +23,32 @@ thinking without ever penalizing thought itself.
   These defaults can be overridden in configuration (`TrainingConfig.thought_alignment`).
   The boolean output drives thought rewards (present or zero, never negative).
 
-## Eleven-Case Abstention + Honesty Scheme
-Cases 1–7 handle non-IDK responses; cases 8–11 cover abstentions. Case 11 specifically
-captures cautious abstentions that lack grounded thought, so analytics can separate lazy
-high-confidence abstains from low-confidence ungrounded ones.
+## Thirteen-Case Abstention + Honesty Scheme
+Case 0 is a null fallback for error handling. Cases 1–8 handle non-IDK responses; cases
+9–13 cover abstentions. Case 13 captures cautious abstentions that lack grounded thought,
+so analytics can separate lazy high-confidence abstains from low-confidence ungrounded
+ones.
 
+- **0:** Null fallback → zeroed rewards, used on errors.
 - **1:** Correct, confident, aligned → knowledge reward K_high + thought reward H.
-- **2:** Correct, low confidence, aligned → knowledge K_low plus positive calibration to
+- **2:** Correct, confident, unaligned (shortcut) → knowledge only.
+- **3:** Correct, low confidence, aligned → knowledge K_low plus positive calibration to
   encourage confidence.
-- **3:** Correct, confident, unaligned (lucky guess) → knowledge only.
 - **4:** Correct, low confidence, unaligned → modest knowledge reward.
-- **5:** Wrong, confident → penalty scaled by K_high and calibration penalty.
-- **6:** Wrong, cautious but grounded → smaller penalty (knowledge damped).
-- **7:** Wrong, cautious, unaligned → mild penalty via K_low.
-- **8:** Lazy IDK → abstention penalty (wrong abstention, high confidence).
-- **9:** Miscalibrated IDK → thought reward present, calibration penalty for high confidence.
-- **10:** Honest IDK → abstention bonus A plus thought reward when grounded.
-- **11:** Cautious ungrounded IDK → small abstention bonus for correct IDK even without
-  alignment (abstention correctness is separate from thought grounding).
+- **5:** Wrong, confident, aligned → penalty scaled by K_high plus thought reward H.
+- **6:** Wrong, confident, unaligned → penalty scaled by K_high.
+- **7:** Wrong, cautious, aligned → smaller penalty (knowledge damped) plus thought reward H.
+- **8:** Wrong, cautious, unaligned → mild penalty via K_low.
+- **9:** Lazy/sandbagging IDK (high confidence, aligned, has references) → abstention
+  penalty (wrong abstention).
+- **10:** Miscalibrated grounded IDK (high confidence, aligned, no references) → thought
+  reward H, calibration penalty for high confidence.
+- **11:** Miscalibrated ungrounded IDK (high confidence, unaligned) → calibration penalty,
+  no thought reward.
+- **12:** Honest grounded IDK (low confidence, grounded) → abstention bonus A plus thought
+  reward H.
+- **13:** Cautious ungrounded IDK (low confidence, ungrounded) → abstention bonus A/2, no
+  thought reward.
 
 Thought rewards are always {0, +H}; misalignment removes the bonus without punishing
 reasoning. Calibration terms use threshold-driven confidence gaps, and abstention penalties
