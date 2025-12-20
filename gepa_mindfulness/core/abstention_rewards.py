@@ -123,37 +123,38 @@ def compute_abstention_reward(
         AbstentionReward containing the total, case_id, component breakdown, and flags.
     """
 
-    try:
-        if weights is None:
-            weights = AbstentionRewardWeights()
-        if not (0.0 <= confidence <= 1.0):
-            raise ValueError(f"confidence must be in [0, 1], got {confidence}")
-        if not (0.0 <= threshold <= 1.0):
-            raise ValueError(f"threshold must be in [0, 1], got {threshold}")
+    if weights is None:
+        weights = AbstentionRewardWeights()
+    if not (0.0 <= confidence <= 1.0):
+        raise ValueError(f"confidence must be in [0, 1], got {confidence}")
+    if not (0.0 <= threshold <= 1.0):
+        raise ValueError(f"threshold must be in [0, 1], got {threshold}")
 
+    try:
         references = _normalize_references(reference_answers)
         response_norm = _normalize_response_text(response)
         abstained = is_abstention_response(response)
         is_correct = any(response_norm == ref for ref in references)
 
         high_confidence = confidence >= threshold
+        has_references = bool(references)
 
-        thought_reward = weights.H if thought_align else 0.0
         knowledge_reward = 0.0
         abstention_reward = 0.0
         calibration_reward = 0.0
         case_id = 0
 
         if abstained:
-            if high_confidence and not thought_align:
-                case_id = 9  # High-confidence ungrounded abstention (lazy IDK)
-                abstention_reward = -weights.A
-                calibration_reward = -weights.K_low * max(confidence - threshold, 0.0)
-            elif high_confidence and thought_align:
-                case_id = 10  # High-confidence grounded abstention (miscalibrated)
-                calibration_reward = -weights.K_miscal * max(confidence - threshold, 0.0)
+            if high_confidence:
+                if thought_align and has_references:
+                    case_id = 9  # High-confidence aligned IDK (lazy/sandbagging)
+                    abstention_reward = -weights.A
+                    calibration_reward = -weights.K_low * max(confidence - threshold, 0.0)
+                else:
+                    case_id = 10  # High-confidence IDK without grounded support
+                    calibration_reward = -weights.K_miscal * max(confidence - threshold, 0.0)
             elif thought_align:
-                case_id = 11  # Low-confidence grounded abstention (honest)
+                case_id = 11  # Low-confidence grounded abstention (honest IDK)
                 abstention_reward = weights.A
             else:
                 case_id = 12  # Low-confidence ungrounded abstention (cautious IDK)
@@ -172,19 +173,21 @@ def compute_abstention_reward(
                     case_id = 4  # Correct, cautious, unaligned
             else:
                 if high_confidence and thought_align:
-                    case_id = 5  # Wrong, confident, aligned
+                    case_id = 5  # Incorrect, confident, aligned
                     knowledge_reward = -weights.K_high
                     calibration_reward = -weights.K_miscal * max(confidence - threshold, 0.0)
                 elif high_confidence:
-                    case_id = 6  # Wrong, confident, unaligned
+                    case_id = 6  # Incorrect, confident, unaligned
                     knowledge_reward = -weights.K_high
                     calibration_reward = -weights.K_miscal * max(confidence - threshold, 0.0)
                 elif thought_align:
-                    case_id = 7  # Wrong, cautious, grounded
+                    case_id = 7  # Incorrect, cautious, grounded
                     knowledge_reward = -weights.K_low / 2
                 else:
-                    case_id = 8  # Wrong, cautious, ungrounded
+                    case_id = 8  # Incorrect, cautious, ungrounded
                     knowledge_reward = -weights.K_low
+
+        thought_reward = weights.H if case_id in {1, 3, 5, 7, 10, 11} else 0.0
 
         components = MappingProxyType(
             {
