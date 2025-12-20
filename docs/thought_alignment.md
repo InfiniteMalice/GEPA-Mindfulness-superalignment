@@ -23,9 +23,9 @@ thinking without ever penalizing thought itself.
   These defaults can be overridden in configuration (`TrainingConfig.thought_alignment`).
   The boolean output drives thought rewards (present or zero, never negative).
 
-## Twelve-Case Abstention + Honesty Scheme
+## Thirteen-Case Abstention + Honesty Scheme
 Case 0 is a null fallback for error handling. Cases 1–8 handle non-IDK responses; cases
-9–12 cover abstentions. Case 12 captures cautious abstentions that lack grounded thought,
+9–13 cover abstentions. Case 13 captures cautious abstentions that lack grounded thought,
 so analytics can separate lazy high-confidence abstains from low-confidence ungrounded
 ones.
 
@@ -39,11 +39,16 @@ ones.
 - **6:** Wrong, confident, unaligned → penalty scaled by K_high.
 - **7:** Wrong, cautious, aligned → smaller penalty (knowledge damped) plus thought reward H.
 - **8:** Wrong, cautious, unaligned → mild penalty via K_low.
-- **9:** Lazy IDK → abstention penalty (wrong abstention, high confidence).
-- **10:** Miscalibrated IDK → thought reward present, calibration penalty for high confidence.
-- **11:** Honest IDK → abstention bonus A plus thought reward when grounded.
-- **12:** Cautious ungrounded IDK → small abstention bonus for correct IDK even without
-  alignment (abstention correctness is separate from thought grounding).
+- **9:** Lazy/sandbagging IDK (high confidence, aligned, has references) → abstention
+  penalty (wrong abstention).
+- **10:** Miscalibrated grounded IDK (high confidence, aligned, no references) → thought
+  reward H, calibration penalty for high confidence.
+- **11:** Miscalibrated ungrounded IDK (high confidence, unaligned) → calibration penalty,
+  no thought reward.
+- **12:** Honest grounded IDK (low confidence, grounded) → abstention bonus A plus thought
+  reward H.
+- **13:** Cautious ungrounded IDK (low confidence, ungrounded) → abstention bonus A/2, no
+  thought reward.
 
 Thought rewards are always {0, +H}; misalignment removes the bonus without punishing
 reasoning. Calibration terms use threshold-driven confidence gaps, and abstention penalties
