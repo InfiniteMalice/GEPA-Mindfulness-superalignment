@@ -48,7 +48,7 @@ def build_dual_path_command(
 ) -> CommandRequest:
     argv: List[str] = [
         "python",
-        "src/adversarial_evaluator.py",
+        "src/dual_path_evaluator.py",
         "--scenarios",
         dataset_path,
         "--run",
@@ -65,7 +65,7 @@ def build_dual_path_command(
 
 
 def build_tracer_command(run_dir: str, tokenizer: str, apply_ablation: bool) -> CommandRequest:
-    argv: List[str] = ["python", "src/adversarial_circuit_tracer.py", run_dir]
+    argv: List[str] = ["python", "src/dual_path_circuit_tracer.py", run_dir]
     if tokenizer:
         argv.extend(["--tokenizer", tokenizer])
     if apply_ablation:

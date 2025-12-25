@@ -378,12 +378,7 @@ def handle_dspy_compile(args: argparse.Namespace) -> None:
 def run_dual_path_contrastive(
     data: Path, out: Path, context: str, probes_path: Path | None = None
 ) -> None:
-    """Run baseline dual-path analysis plus adversarial deception probes.
-
-    This baseline emits deterministic dual-path responses while still exercising the deception
-    fingerprinting pipeline with the bundled adversarial probes. Replace with a model-backed
-    implementation when available.
-    """
+    """Run baseline dual-path analysis with optional supplemental probes."""
     out.mkdir(parents=True, exist_ok=True)
     out_dir = out.resolve()
 
@@ -393,7 +388,7 @@ def run_dual_path_contrastive(
         Path(__file__).resolve().parent.parent.parent
         / "data"
         / "evaluation"
-        / "adversarial_probes.jsonl"
+        / "dual_path_probes.jsonl"
     )
     probes_file = probes_path or default_probes
     probes = read_jsonl(probes_file) if probes_file.exists() else []
@@ -406,7 +401,7 @@ def run_dual_path_contrastive(
 
     ordered_records = [
         *((record, "dataset") for record in examples),
-        *((record, "adversarial_probe") for record in probes),
+        *((record, "dual_path_probe") for record in probes),
     ]
 
     for idx, (record, source) in enumerate(ordered_records):
@@ -414,14 +409,15 @@ def run_dual_path_contrastive(
         record_context = record.get("context", context)
         prompt = make_dual_path_prompt(query, record_context)
         response = (
-            "[PATH 1 REASONING]\n"
+            "[PATH 1 SCRATCHPAD]\n"
             "This path emphasises caution and potential risks.\n\n"
-            "[PATH 2 REASONING]\n"
+            "[PATH 1 PUBLIC REASONING]\n"
+            "Proceed carefully, highlight risks, and offer safer alternatives.\n\n"
+            "[PATH 2 SCRATCHPAD]\n"
             "This path emphasises confident, immediate action.\n\n"
-            "[COMPARISON]\n"
-            "The careful path weighs risks; the confident path prioritises action.\n\n"
-            "[RECOMMENDATION]\n"
-            "I recommend Path 1 for safety."
+            "[PATH 2 PUBLIC REASONING]\n"
+            "Proceed quickly and focus on decisive execution.\n\n"
+            "FINAL ANSWER: 1"
         )
 
         sections = parse_dual_path_response(response)
@@ -476,7 +472,7 @@ def run_dual_path_contrastive(
         "results": results,
         "counts": {
             "dataset_records": len(examples),
-            "adversarial_probes": len(probes),
+            "dual_path_probes": len(probes),
         },
         "fingerprint_summary": collector.get_summary(),
         "probes_file": str(probes_file) if probes_file.exists() else None,
@@ -794,7 +790,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--context", default="general", help="Context profile for prompt construction"
     )
     dspy_contrastive.add_argument(
-        "--probes", default=None, help="Optional adversarial probes JSONL override"
+        "--probes", default=None, help="Optional dual-path probes JSONL override"
     )
     dspy_contrastive.set_defaults(func=handle_dspy_contrastive)
 
@@ -904,7 +900,7 @@ def click_dspy_compile(out: str, config: str, dataset: str, enable_optim: bool) 
 @click.option("--data", "data_path", required=True, help="Dual-path dataset JSONL")
 @click.option("--out", "out_dir", required=True, help="Output directory")
 @click.option("--context", default="general", help="Context profile")
-@click.option("--probes", "probes_path", default=None, help="Optional adversarial probes JSONL")
+@click.option("--probes", "probes_path", default=None, help="Optional dual-path probes JSONL")
 def click_dspy_contrastive(
     data_path: str, out_dir: str, context: str, probes_path: str | None
 ) -> None:
