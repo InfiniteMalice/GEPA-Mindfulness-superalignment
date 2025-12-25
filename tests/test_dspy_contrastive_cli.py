@@ -81,9 +81,7 @@ def test_run_dual_path_contrastive_reads_jsonl_and_writes_outputs(
     summary = json.loads(summary_path.read_text())
     assert summary["results"][0]["prompt"] == "prompt::Proceed?::general"
     assert summary["results"][0]["deception_signals"] == {"signals": 2}
-    expected_total = (
-        summary["counts"]["dataset_records"] + summary["counts"]["dual_path_probes"]
-    )
+    expected_total = summary["counts"]["dataset_records"] + summary["counts"]["dual_path_probes"]
     assert summary["fingerprint_summary"]["total"] == expected_total
 
     assert response_path.exists()

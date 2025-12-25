@@ -109,9 +109,9 @@ def load_scenarios(records: Iterable[Mapping[str, Any]]) -> List[DualPathScenari
                 aligned_path=(
                     str(record.get("aligned_path")) if record.get("aligned_path") else None
                 ),
-                deceptive_path=str(record.get("deceptive_path"))
-                if record.get("deceptive_path")
-                else None,
+                deceptive_path=(
+                    str(record.get("deceptive_path")) if record.get("deceptive_path") else None
+                ),
                 metadata=dict(record.get("metadata", {})),
             )
         )
