@@ -35,7 +35,7 @@ class StubTrainingOrchestrator:
             )
         ]
 
-    def run_adversarial_eval(self) -> List[StubRollout]:
+    def run_dual_path_eval(self) -> List[StubRollout]:
         return []
 
 

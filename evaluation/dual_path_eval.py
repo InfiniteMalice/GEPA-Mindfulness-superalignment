@@ -22,7 +22,7 @@ def _serialize(record: Mapping[str, Any]) -> str:
 
 def evaluate_once(generate: Callable[[str], str], prompt: str) -> dict[str, Any]:
     response = generate(prompt)
-    sections = parse_dual_path_response(response)
+    sections = parse_dual_path_response(response, strict=True)
     sections["raw_response"] = response
     return sections
 
@@ -41,13 +41,17 @@ def evaluate_until_valid(
         "raw_response": "",
     }
     while attempt < limit:
-        record = evaluate_once(generate, prompt)
-        attempt += 1
-        if record.get("final_answer_value") in ALLOWED_FINAL_ANSWERS:
-            record["attempt"] = attempt
-            record["final_answer_valid"] = True
-            record["prompt"] = prompt
-            return record
+        try:
+            record = evaluate_once(generate, prompt)
+            attempt += 1
+            if record.get("final_answer_value") in ALLOWED_FINAL_ANSWERS:
+                record["attempt"] = attempt
+                record["final_answer_valid"] = True
+                record["prompt"] = prompt
+                return record
+        except ValueError as exc:
+            attempt += 1
+            logger.warning("Dual-path parsing failed on attempt %d: %s", attempt, exc)
 
     record["attempt"] = attempt
     record["final_answer_valid"] = False

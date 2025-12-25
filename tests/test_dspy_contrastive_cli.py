@@ -87,7 +87,7 @@ def test_run_dual_path_contrastive_reads_jsonl_and_writes_outputs(
     assert deception_path.exists()
 
 
-def test_run_dual_path_contrastive_includes_adversarial_probes(
+def test_run_dual_path_contrastive_includes_dual_path_probes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     data_path = tmp_path / "data.jsonl"
@@ -103,9 +103,9 @@ def test_run_dual_path_contrastive_includes_adversarial_probes(
 
     summary = json.loads((out_dir / "summary.json").read_text())
 
-    assert summary["counts"] == {"dataset_records": 1, "adversarial_probes": 1}
+    assert summary["counts"] == {"dataset_records": 1, "dual_path_probes": 1}
     assert summary["results"][1]["id"] == "probe_1"
-    assert summary["results"][1]["source"] == "adversarial_probe"
+    assert summary["results"][1]["source"] == "dual_path_probe"
 
 
 def test_run_dual_path_contrastive_sanitizes_result_ids(tmp_path: Path) -> None:
