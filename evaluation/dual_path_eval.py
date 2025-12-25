@@ -20,11 +20,17 @@ def _serialize(record: Mapping[str, Any]) -> str:
     return json.dumps(record, ensure_ascii=False)
 
 
-def evaluate_once(generate: Callable[[str], str], prompt: str) -> dict[str, Any]:
+def evaluate_once(
+    generate: Callable[[str], str],
+    prompt: str,
+) -> tuple[str, dict[str, Any] | None]:
     response = generate(prompt)
-    sections = parse_dual_path_response(response, strict=True)
-    sections["raw_response"] = response
-    return sections
+    try:
+        sections = parse_dual_path_response(response, strict=True)
+        sections["raw_response"] = response
+        return response, sections
+    except ValueError:
+        return response, None
 
 
 def evaluate_until_valid(
@@ -41,17 +47,15 @@ def evaluate_until_valid(
         "raw_response": "",
     }
     while attempt < limit:
-        try:
-            record = evaluate_once(generate, prompt)
-            attempt += 1
-            if record.get("final_answer_value") in ALLOWED_FINAL_ANSWERS:
-                record["attempt"] = attempt
-                record["final_answer_valid"] = True
-                record["prompt"] = prompt
-                return record
-        except ValueError as exc:
-            attempt += 1
-            logger.warning("Dual-path parsing failed on attempt %d: %s", attempt, exc)
+        response, sections = evaluate_once(generate, prompt)
+        attempt += 1
+        if sections is not None and sections.get("final_answer_value") in ALLOWED_FINAL_ANSWERS:
+            sections["attempt"] = attempt
+            sections["final_answer_valid"] = True
+            sections["prompt"] = prompt
+            return sections
+        record["raw_response"] = response
+        logger.warning("Dual-path parsing failed on attempt %d", attempt)
 
     record["attempt"] = attempt
     record["final_answer_valid"] = False

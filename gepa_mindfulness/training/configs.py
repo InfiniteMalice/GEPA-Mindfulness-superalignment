@@ -490,13 +490,10 @@ class TrainingConfig:
             model=ModelConfig.from_mapping(model_section),
             dataset=DatasetConfig.from_mapping(payload.get("dataset")),
             dual_path_batch=_to_int(
-                training_section.get(
-                    "dual_path_batch",
-                    training_section.get(
-                        "adversarial_batch",
-                        payload.get("dual_path_batch", payload.get("adversarial_batch")),
-                    ),
-                ),
+                training_section.get("dual_path_batch")
+                or training_section.get("adversarial_batch")
+                or payload.get("dual_path_batch")
+                or payload.get("adversarial_batch"),
                 2,
             ),
             confidence_threshold=_to_float(

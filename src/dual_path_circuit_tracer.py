@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -30,11 +30,18 @@ def _load_traces(trace_path: Path) -> list[dict[str, Any]]:
 
 def _write_trace_report(trace_dir: Path, total: int) -> None:
     report = {
-        "generated_at": datetime.now(UTC).isoformat(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "traces_processed": total,
         "circuits_identified": 0,
     }
     (trace_dir / "trace_report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+
+
+def _safe_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def run_tracing(run_dir: Path) -> None:
@@ -51,7 +58,7 @@ def run_tracing(run_dir: Path) -> None:
         }
         deception = detect_deception_heuristic(sections)
         fingerprint = DeceptionFingerprint(
-            timestamp=datetime.now(UTC).isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             prompt=str(trace.get("prompt", "")),
             domain=str(trace.get("metadata", {}).get("domain", "general")),
             path_1_text=str(sections.get("path_1", "")),
@@ -66,7 +73,7 @@ def run_tracing(run_dir: Path) -> None:
             signals=dict(deception.get("signals", {})),
             reasons=list(deception.get("reasons", [])),
             model_checkpoint=str(trace.get("metadata", {}).get("model_id", "unknown")),
-            training_step=int(trace.get("metadata", {}).get("training_step", 0)),
+            training_step=_safe_int(trace.get("metadata", {}).get("training_step", 0)),
         )
         collector.add(fingerprint)
     _write_trace_report(run_dir, len(traces))
@@ -80,11 +87,12 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> None:
+def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
     run_tracing(Path(args.run_dir))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

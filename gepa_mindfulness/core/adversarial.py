@@ -4,14 +4,14 @@
 
 from __future__ import annotations
 
-from typing import Iterable, List
+from collections.abc import Iterable
 
 from .dual_path import DualPathProbeScenario, iterate_dual_path_pool, sample_dual_path_batch
 
 AdversarialScenario = DualPathProbeScenario
 
 
-def sample_adversarial_batch(batch_size: int) -> List[AdversarialScenario]:
+def sample_adversarial_batch(batch_size: int) -> list[AdversarialScenario]:
     return sample_dual_path_batch(batch_size)
 
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -39,7 +39,7 @@ def track_training_progress(
         summaries.append(
             {
                 "checkpoint": checkpoint.name,
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "scenarios_path": scenarios_path,
                 "output_dir": output_dir,
             }

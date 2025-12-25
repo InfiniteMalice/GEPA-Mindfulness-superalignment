@@ -8,7 +8,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Iterable, List
+from typing import Iterable
 
 import click
 
@@ -25,7 +25,7 @@ def load_training_config(path: Path) -> TrainingConfig:
     return TrainingConfig.from_mapping(payload)
 
 
-def read_dataset(path: Path) -> List[str]:
+def read_dataset(path: Path) -> list[str]:
     return [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 

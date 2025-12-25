@@ -4,11 +4,7 @@
 
 from __future__ import annotations
 
-import sys
-
-from dual_path_evaluator import main
-
 from .dual_path_evaluator import main
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

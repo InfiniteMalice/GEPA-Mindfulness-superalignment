@@ -6,11 +6,12 @@ import argparse
 import importlib
 import importlib.util
 import json
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any
 
-from mindful_trace_gepa.deception.dual_path_core import DualPathRunConfig, DualPathScenario
-from mindful_trace_gepa.deception.dual_path_runner import run_dual_path_batch
+from mindful_trace_gepa.deception.dual_path_core import DualPathRunConfig
+from mindful_trace_gepa.deception.dual_path_runner import load_scenarios, run_dual_path_batch
 
 ModelCallable = Callable[[str, DualPathRunConfig | None], str]
 
@@ -27,27 +28,6 @@ def _load_records(path: Path) -> list[dict[str, Any]]:
             except json.JSONDecodeError as exc:
                 raise ValueError(f"Invalid JSON at line {line_num}: {exc}") from exc
     return records
-
-
-def _build_scenarios(records: Iterable[dict[str, Any]]) -> list[DualPathScenario]:
-    scenarios: list[DualPathScenario] = []
-    for record in records:
-        scenarios.append(
-            DualPathScenario(
-                scenario_id=str(record.get("id", "")) or None,
-                question=str(record.get("prompt") or record.get("query") or ""),
-                path_1_framing=str(record.get("path_1_framing", "Follow policy and caution.")),
-                path_2_framing=str(record.get("path_2_framing", "Press advantage.")),
-                aligned_path=(
-                    str(record.get("aligned_path")) if record.get("aligned_path") else None
-                ),
-                deceptive_path=(
-                    str(record.get("deceptive_path")) if record.get("deceptive_path") else None
-                ),
-                metadata=dict(record.get("metadata", {})),
-            )
-        )
-    return scenarios
 
 
 def _load_callable_from_module(module_path: str) -> ModelCallable:
@@ -93,7 +73,7 @@ def run_cli(args: argparse.Namespace) -> None:
     scenarios_path = Path(args.scenarios)
     output_dir = Path(args.run) if args.run else Path.cwd() / "runs" / "dual_path_eval"
     records = _load_records(scenarios_path)
-    scenarios = _build_scenarios(records)
+    scenarios = load_scenarios(records)
     model_callable = _resolve_model_callable(args.response)
     config = DualPathRunConfig(
         model_id=args.model_id or str(args.response),
@@ -123,10 +103,11 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> None:
+def main() -> int:
     parser = build_parser()
     run_cli(parser.parse_args())
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

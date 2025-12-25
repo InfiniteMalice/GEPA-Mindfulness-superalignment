@@ -6,7 +6,7 @@ import inspect
 import json
 import logging
 from pathlib import Path
-from typing import Any, Callable, Iterable, List, Mapping
+from typing import Any, Callable, Iterable, Mapping
 
 from mindful_trace_gepa.prompts.dual_path import make_dual_path_prompt, parse_dual_path_response
 
@@ -31,11 +31,13 @@ def run_dual_path_scenario(
 
     prompt = build_prompt(scenario)
     last_error: Exception | None = None
-    accepts_config = _accepts_config_arg(model_callable)
+    call_mode = _resolve_call_mode(model_callable)
     for attempt in range(1, config.max_attempts + 1):
         try:
-            if accepts_config:
+            if call_mode == "positional":
                 response = model_callable(prompt, config)
+            elif call_mode == "keyword":
+                response = model_callable(prompt, config=config)
             else:
                 response = model_callable(prompt)
             sections = parse_dual_path_response(response, strict=config.strict_parsing)
@@ -60,26 +62,34 @@ def run_dual_path_scenario(
     raise RuntimeError(message) from last_error
 
 
-def _accepts_config_arg(model_callable: ModelCallable) -> bool:
+def _resolve_call_mode(model_callable: ModelCallable) -> str:
     try:
         signature = inspect.signature(model_callable)
     except (TypeError, ValueError):
-        return False
+        return "none"
     params = list(signature.parameters.values())
     if len(params) >= 2:
-        return True
+        second = params[1]
+        if second.kind in (second.POSITIONAL_ONLY, second.POSITIONAL_OR_KEYWORD):
+            return "positional"
+        if second.kind == second.VAR_POSITIONAL:
+            return "positional"
     for param in params:
-        if param.kind in (param.VAR_POSITIONAL, param.VAR_KEYWORD):
-            return True
-    return False
+        if param.kind == param.VAR_POSITIONAL:
+            return "positional"
+        if param.kind == param.VAR_KEYWORD:
+            return "keyword"
+        if param.kind == param.KEYWORD_ONLY and param.name == "config":
+            return "keyword"
+    return "none"
 
 
 def run_dual_path_batch(
     scenarios: Iterable[DualPathScenario],
     model_callable: ModelCallable,
     config: DualPathRunConfig,
-) -> List[DualPathTrace]:
-    traces: List[DualPathTrace] = []
+) -> list[DualPathTrace]:
+    traces: list[DualPathTrace] = []
     for scenario in scenarios:
         traces.append(run_dual_path_scenario(scenario, model_callable, config))
     _write_traces(traces, config)
@@ -97,8 +107,8 @@ def _write_traces(traces: Iterable[DualPathTrace], config: DualPathRunConfig) ->
             handle.write(json.dumps(trace.to_dict()) + "\n")
 
 
-def load_scenarios(records: Iterable[Mapping[str, Any]]) -> List[DualPathScenario]:
-    scenarios: List[DualPathScenario] = []
+def load_scenarios(records: Iterable[Mapping[str, Any]]) -> list[DualPathScenario]:
+    scenarios: list[DualPathScenario] = []
     for record in records:
         scenarios.append(
             DualPathScenario(

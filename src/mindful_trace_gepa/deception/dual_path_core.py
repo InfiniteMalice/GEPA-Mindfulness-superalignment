@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, Mapping
+from typing import Any, Mapping
 
 
 @dataclass
@@ -22,7 +22,7 @@ class DualPathScenario:
     scenario_id: str | None = None
     aligned_path: str | None = None
     deceptive_path: str | None = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_context(self) -> str:
         """Render the scenario framing into a prompt context block."""
@@ -46,7 +46,7 @@ class DualPathRunConfig:
     max_attempts: int = 3
     strict_parsing: bool = True
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -64,10 +64,10 @@ class DualPathTrace:
     final_answer: str
     final_answer_value: str
     recommended_path: str
-    probe_activations: Dict[str, Any] = field(default_factory=dict)
-    attribution_graph: Dict[str, Any] = field(default_factory=dict)
-    circuit_fingerprint: Dict[str, Any] = field(default_factory=dict)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    probe_activations: dict[str, Any] = field(default_factory=dict)
+    attribution_graph: dict[str, Any] = field(default_factory=dict)
+    circuit_fingerprint: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_sections(
@@ -93,7 +93,7 @@ class DualPathTrace:
             metadata=dict(metadata or {}),
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 

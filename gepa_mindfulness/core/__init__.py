@@ -44,9 +44,6 @@ __all__ = [
     "compute_abstention_reward",
     "compute_epistemic_score",
     "compute_match_score",
-    "dialetheic_and",
-    "enforce_abstention",
-    "is_abstention_response",
     "iterate_dual_path_pool",
     "sample_dual_path_batch",
 ]

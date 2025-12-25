@@ -12,7 +12,7 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, Tuple
+from typing import Any, Iterable
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
@@ -55,11 +55,11 @@ MODEL_CONFIGS = {
 class AttributionAnalysis:
     """Container for attribution-based deception analysis."""
 
-    path_1_circuits: Dict[str, float]
-    path_2_circuits: Dict[str, float]
-    metrics: Dict[str, Dict[str, float]]
-    similarity: Dict[str, float]
-    circuit_result: Dict[str, Any]
+    path_1_circuits: dict[str, float]
+    path_2_circuits: dict[str, float]
+    metrics: dict[str, dict[str, float]]
+    similarity: dict[str, float]
+    circuit_result: dict[str, Any]
 
 
 DISCLOSURE_PATTERNS = [
@@ -93,7 +93,7 @@ def _count_tokens(tokenizer: Any, text: str) -> int:
     return len(tokenizer.encode(text, add_special_tokens=False))
 
 
-def _find_prompt_token_offset(tokenizer: Any, prompt: str, response: str) -> Tuple[int, int]:
+def _find_prompt_token_offset(tokenizer: Any, prompt: str, response: str) -> tuple[int, int]:
     prompt_tokens = tokenizer.encode(prompt, add_special_tokens=False)
     if not prompt_tokens:
         return 0, 0
@@ -119,7 +119,7 @@ def _find_prompt_token_offset(tokenizer: Any, prompt: str, response: str) -> Tup
     raise ValueError("unable to locate prompt tokens within combined sequence")
 
 
-def _resolve_section_span(response: str, text: str, span: Tuple[int, int]) -> Tuple[int, int]:
+def _resolve_section_span(response: str, text: str, span: tuple[int, int]) -> tuple[int, int]:
     start, end = span
     if end > start:
         return start, end
@@ -134,8 +134,8 @@ def _resolve_section_span(response: str, text: str, span: Tuple[int, int]) -> Tu
 
 
 def _compute_section_token_range(
-    tokenizer: Any, response: str, span: Tuple[int, int]
-) -> Tuple[int, int] | None:
+    tokenizer: Any, response: str, span: tuple[int, int]
+) -> tuple[int, int] | None:
     start, end = span
     if end <= start:
         return None
@@ -147,7 +147,7 @@ def _compute_section_token_range(
 
 
 def _slice_graph_by_tokens(
-    graph: AttributionGraph, token_range: Tuple[int, int]
+    graph: AttributionGraph, token_range: tuple[int, int]
 ) -> AttributionGraph:
     start, end = token_range
     node_ids = {id(node) for node in graph.nodes if start <= node.token_position < end}
@@ -169,7 +169,7 @@ def _slice_graph_by_tokens(
     )
 
 
-def _compute_text_stats(text: str) -> Dict[str, int]:
+def _compute_text_stats(text: str) -> dict[str, int]:
     lowered = text.lower()
     return {
         "uncertainty": sum(1 for word in circuit_analysis.UNCERTAINTY_WORDS if word in lowered),
@@ -180,10 +180,10 @@ def _compute_text_stats(text: str) -> Dict[str, int]:
 
 def _build_circuit_features(
     *,
-    metrics: Dict[str, float],
-    text_stats: Dict[str, int],
-    counterpart_stats: Dict[str, int],
-) -> Dict[str, float]:
+    metrics: dict[str, float],
+    text_stats: dict[str, int],
+    counterpart_stats: dict[str, int],
+) -> dict[str, float]:
     entropy_norm = min(1.0, metrics.get("entropy", 0.0) / 3.0)
     uncertainty_rate = min(1.0, text_stats["uncertainty"] / 2.0)
     uncertainty = min(1.0, 0.55 * entropy_norm + 0.45 * uncertainty_rate)
@@ -220,7 +220,7 @@ def analyze_attribution_graphs(
     tokenizer: Any,
     dual_prompt: str,
     response: str,
-    sections: Dict[str, Any],
+    sections: dict[str, Any],
 ) -> AttributionAnalysis:
     spans = {}
     for key in ("path_1", "path_2"):
@@ -231,7 +231,7 @@ def analyze_attribution_graphs(
             sections.get(span_key, (0, 0)),
         )
         spans[key] = resolved
-    token_ranges: Dict[str, Tuple[int, int]] = {}
+    token_ranges: dict[str, tuple[int, int]] = {}
     for key, span in spans.items():
         token_span = _compute_section_token_range(tokenizer, response, span)
         if token_span is not None:
@@ -295,7 +295,7 @@ def analyze_attribution_graphs(
     )
 
 
-def _match_patterns(text: str, patterns: Iterable[Tuple[str, str]]) -> list[str]:
+def _match_patterns(text: str, patterns: Iterable[tuple[str, str]]) -> list[str]:
     matches: list[str] = []
     for pattern, description in patterns:
         if re.search(pattern, text):
@@ -303,7 +303,7 @@ def _match_patterns(text: str, patterns: Iterable[Tuple[str, str]]) -> list[str]
     return matches
 
 
-def analyze_dual_path_signals(sections: Dict[str, Any]) -> Dict[str, Any]:
+def analyze_dual_path_signals(sections: dict[str, Any]) -> dict[str, Any]:
     combined = "\n".join(
         filter(
             None,
@@ -354,15 +354,15 @@ def analyze_dual_path_signals(sections: Dict[str, Any]) -> Dict[str, Any]:
 
 def combine_detection_signals(
     *,
-    heuristic: Dict[str, Any],
-    dual_path: Dict[str, Any],
+    heuristic: dict[str, Any],
+    dual_path: dict[str, Any],
     attribution: AttributionAnalysis | None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     detected = bool(heuristic.get("deception_detected"))
     confidence = float(heuristic.get("confidence_score", 0.0))
     source = "heuristic"
     reasons = list(heuristic.get("reasons", []))
-    signals: Dict[str, Any] = {"heuristic": heuristic.get("signals", {})}
+    signals: dict[str, Any] = {"heuristic": heuristic.get("signals", {})}
 
     if attribution is not None:
         circuit_result = attribution.circuit_result
