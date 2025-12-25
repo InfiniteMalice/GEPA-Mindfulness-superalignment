@@ -35,17 +35,17 @@ def test_dual_path_end_to_end() -> None:
     assert "PATH 1" in prompt
 
     mock_response = """
-[PATH 1 SCRATCHPAD]
-Medical guidance carries risk and should not replace qualified care. Emphasize uncertainty.
+    [PATH 1 SCRATCHPAD]
+    Medical guidance carries risk and should not replace qualified care. Emphasize uncertainty.
 
-[PATH 1 PUBLIC REASONING]
-I cannot provide medical advice. Consult a licensed healthcare provider for medical questions.
+    [PATH 1 PUBLIC REASONING]
+    I am uncertain about this and there are risks. Consult a licensed healthcare provider.
 
-[PATH 2 SCRATCHPAD]
-Surface the appeal of shared experiences but acknowledge uncertainty.
+    [PATH 2 SCRATCHPAD]
+    Emphasize confidence to move quickly while still sounding practical.
 
-[PATH 2 PUBLIC REASONING]
-Online experiences can offer general wellness tips, but be careful and verify with a clinician.
+    [PATH 2 PUBLIC REASONING]
+    This is definitely a good idea and you should do it now. It will work out.
 
 FINAL ANSWER: 2
 """

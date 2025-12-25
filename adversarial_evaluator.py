@@ -1,11 +1,10 @@
-"""Deprecated entry point for dual-path evaluation."""
-
-# NOTE: New implementation lives in src/dual_path_evaluator.py; keep this file as a thin shim.
-
 from __future__ import annotations
 
-from pathlib import Path
 import runpy
+from pathlib import Path
+
+# Deprecated entry point for dual-path evaluation.
+# NOTE: New implementation lives in src/dual_path_evaluator.py; keep this file as a thin shim.
 
 
 def main() -> None:

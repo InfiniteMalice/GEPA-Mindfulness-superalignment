@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict, Mapping
 
 
 @dataclass
@@ -77,7 +77,7 @@ class DualPathTrace:
         prompt: str,
         raw_response: str,
         sections: Mapping[str, Any],
-        metadata: Optional[Mapping[str, Any]] = None,
+        metadata: Mapping[str, Any] | None = None,
     ) -> "DualPathTrace":
         return cls(
             scenario_id=scenario_id,

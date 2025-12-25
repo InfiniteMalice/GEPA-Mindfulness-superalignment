@@ -5,8 +5,8 @@ import sys
 from pathlib import Path
 
 STUB_MODULE = """
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable, List
 
 
 @dataclass
@@ -22,7 +22,7 @@ class StubTrainingOrchestrator:
     def __init__(self, config) -> None:
         self.config = config
 
-    def run(self, prompts: Iterable[str]) -> List[StubRollout]:
+    def run(self, prompts: Iterable[str]) -> list[StubRollout]:
         prompts_list = list(prompts)
         prompt = prompts_list[0] if prompts_list else ""
         return [
@@ -35,7 +35,7 @@ class StubTrainingOrchestrator:
             )
         ]
 
-    def run_dual_path_eval(self) -> List[StubRollout]:
+    def run_dual_path_eval(self) -> list[StubRollout]:
         return []
 
 

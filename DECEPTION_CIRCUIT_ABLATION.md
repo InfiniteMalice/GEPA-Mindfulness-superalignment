@@ -9,7 +9,7 @@ that correlate with deceptive selections, not a separate adversarial pipeline.
 
 ## The workflow
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │  1. DUAL-PATH ELICITATION                                        │
 │  Collect traces with Path 1 + Path 2 scratchpads and reasoning.  │

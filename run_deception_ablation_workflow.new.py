@@ -11,30 +11,28 @@ This script runs a dual-path pipeline:
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
-import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 
 from mindful_trace_gepa.deception.dual_path_core import DualPathRunConfig
 from mindful_trace_gepa.deception.dual_path_runner import load_scenarios, run_dual_path_batch
-
-SRC_PATH = Path(__file__).resolve().parent / "src"
-if str(SRC_PATH) not in sys.path:
-    sys.path.append(str(SRC_PATH))
-
-from dual_path_circuit_tracer import run_tracing  # noqa: E402
+from mindful_trace_gepa.storage import read_jsonl
 
 
-def _load_jsonl(path: Path) -> List[Dict[str, Any]]:
-    records: List[Dict[str, Any]] = []
-    with path.open("r", encoding="utf-8") as handle:
-        for line in handle:
-            payload = line.strip()
-            if payload:
-                records.append(json.loads(payload))
-    return records
+def _load_tracer() -> Callable[[Path], None]:
+    tracer_path = Path(__file__).resolve().parent / "src" / "dual_path_circuit_tracer.py"
+    spec = importlib.util.spec_from_file_location("dual_path_circuit_tracer", tracer_path)
+    if spec is None or spec.loader is None:
+        raise FileNotFoundError(f"Unable to load tracer module at {tracer_path}.")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    run_tracing = getattr(module, "run_tracing", None)
+    if not callable(run_tracing):
+        raise ValueError("run_tracing callable not found in dual_path_circuit_tracer module.")
+    return run_tracing
 
 
 def _stub_model(prompt: str, _config: DualPathRunConfig | None = None) -> str:
@@ -59,10 +57,11 @@ def run_workflow(args: argparse.Namespace) -> None:
     reports_dir.mkdir(parents=True, exist_ok=True)
 
     scenario_path = Path(args.scenarios)
-    records = _load_jsonl(scenario_path)
+    records = read_jsonl(scenario_path)
     scenarios = load_scenarios(records)
     config = DualPathRunConfig(model_id=args.model, log_dir=str(traces_dir))
     run_dual_path_batch(scenarios, _stub_model, config)
+    run_tracing = _load_tracer()
     run_tracing(traces_dir)
 
     summary = {

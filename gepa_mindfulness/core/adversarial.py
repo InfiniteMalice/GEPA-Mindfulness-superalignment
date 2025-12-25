@@ -6,10 +6,10 @@ from __future__ import annotations
 
 from typing import Iterable, List
 
-from .dual_path import DualPathScenario, iterate_dual_path_pool, sample_dual_path_batch
+from .dual_path import DualPathProbeScenario, iterate_dual_path_pool, sample_dual_path_batch
 
 
-AdversarialScenario = DualPathScenario
+AdversarialScenario = DualPathProbeScenario
 
 
 def sample_adversarial_batch(batch_size: int) -> List[AdversarialScenario]:

@@ -12,7 +12,7 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, Optional, Tuple
+from typing import Any, Dict, Iterable, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
@@ -135,7 +135,7 @@ def _resolve_section_span(response: str, text: str, span: Tuple[int, int]) -> Tu
 
 def _compute_section_token_range(
     tokenizer: Any, response: str, span: Tuple[int, int]
-) -> Optional[Tuple[int, int]]:
+) -> Tuple[int, int] | None:
     start, end = span
     if end <= start:
         return None
@@ -356,7 +356,7 @@ def combine_detection_signals(
     *,
     heuristic: Dict[str, Any],
     dual_path: Dict[str, Any],
-    attribution: Optional[AttributionAnalysis],
+    attribution: AttributionAnalysis | None,
 ) -> Dict[str, Any]:
     detected = bool(heuristic.get("deception_detected"))
     confidence = float(heuristic.get("confidence_score", 0.0))
@@ -594,7 +594,7 @@ def main() -> int:
     fingerprint_dir = output_dir / "fingerprints"
     fingerprint_collector = FingerprintCollector(str(fingerprint_dir))
 
-    attribution_extractor: Optional[AttributionGraphExtractor]
+    attribution_extractor: AttributionGraphExtractor | None
     try:
         attribution_extractor = AttributionGraphExtractor(
             model=model,
@@ -663,7 +663,7 @@ def main() -> int:
             heuristic = circuit_analysis.detect_deception_heuristic(sections)
             dual_path = analyze_dual_path_signals(sections)
 
-            attr_analysis: Optional[AttributionAnalysis] = None
+            attr_analysis: AttributionAnalysis | None = None
             if attribution_extractor is not None:
                 try:
                     attr_analysis = analyze_attribution_graphs(

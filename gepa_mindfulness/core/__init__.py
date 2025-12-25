@@ -8,7 +8,7 @@ from .abstention_rewards import (
     is_abstention_response,
 )
 from .contemplative_principles import ContemplativePrinciple, GEPAPrinciples, GEPAPrincipleScore
-from .dual_path import DualPathScenario, iterate_dual_path_pool, sample_dual_path_batch
+from .dual_path import DualPathProbeScenario, iterate_dual_path_pool, sample_dual_path_batch
 from .imperatives import AlignmentImperative, ImperativeEvaluator, ImperativeSignal
 from .paraconsistent import ParaconsistentTruthValue, dialetheic_and
 from .rewards import RewardSignal, RewardWeights
@@ -23,7 +23,7 @@ __all__ = [
     "ABSTAIN_OUTPUT",
     "AbstentionReward",
     "AbstentionRewardWeights",
-    "DualPathScenario",
+    "DualPathProbeScenario",
     "AlignmentImperative",
     "CircuitTracerLogger",
     "ConfidenceDecision",

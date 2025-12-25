@@ -470,10 +470,10 @@ def run_dual_path_contrastive(
 
     summary_payload = {
         "results": results,
-            "counts": {
-                "dataset_records": len(examples),
-                "dual_path_probes": len(probes),
-            },
+        "counts": {
+            "dataset_records": len(examples),
+            "dual_path_probes": len(probes),
+        },
         "fingerprint_summary": collector.get_summary(),
         "probes_file": str(probes_file) if probes_file.exists() else None,
     }

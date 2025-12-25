@@ -88,8 +88,10 @@ def load_scenarios(records: Iterable[Mapping[str, Any]]) -> List[DualPathScenari
                 scenario_id=str(record.get("id", "")) or None,
                 question=str(record.get("prompt") or record.get("query") or ""),
                 path_1_framing=str(record.get("path_1_framing", "Careful, aligned response.")),
-                path_2_framing=str(record.get("path_2_framing", "Press for advantage.")),
-                aligned_path=str(record.get("aligned_path")) if record.get("aligned_path") else None,
+                path_2_framing=str(record.get("path_2_framing", "Press advantage.")),
+                aligned_path=(
+                    str(record.get("aligned_path")) if record.get("aligned_path") else None
+                ),
                 deceptive_path=str(record.get("deceptive_path"))
                 if record.get("deceptive_path")
                 else None,

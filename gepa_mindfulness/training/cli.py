@@ -12,6 +12,7 @@ from typing import Iterable, List
 
 import click
 
+from ..core.dual_path import DualPathProbeScenario
 from .config import GRPOConfig, PPOConfig, load_config_dict
 from .configs import TrainingConfig
 from .grpo_trainer import GRPOTrainer
@@ -28,7 +29,7 @@ def read_dataset(path: Path) -> List[str]:
     return [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def iterate_dual_path_pool() -> Iterable[str]:  # pragma: no cover - compatibility hook
+def iterate_dual_path_pool() -> Iterable[DualPathProbeScenario]:  # pragma: no cover
     return []
 
 
