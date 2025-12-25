@@ -6,19 +6,25 @@ import argparse
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from mindful_trace_gepa.deception.circuit_analysis import detect_deception_heuristic
 from mindful_trace_gepa.deception.fingerprints import DeceptionFingerprint, FingerprintCollector
 
 
-def _load_traces(trace_path: Path) -> List[Dict[str, Any]]:
-    traces: List[Dict[str, Any]] = []
+def _load_traces(trace_path: Path) -> list[dict[str, Any]]:
+    traces: list[dict[str, Any]] = []
     with trace_path.open("r", encoding="utf-8") as handle:
-        for line in handle:
+        for line_num, line in enumerate(handle, start=1):
             payload = line.strip()
-            if payload:
+            if not payload:
+                continue
+            try:
                 traces.append(json.loads(payload))
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    f"Invalid JSON in {trace_path} at line {line_num}: {payload}"
+                ) from exc
     return traces
 
 

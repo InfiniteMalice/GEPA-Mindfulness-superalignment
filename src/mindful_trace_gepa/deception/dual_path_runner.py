@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 import logging
 from pathlib import Path
@@ -30,11 +31,12 @@ def run_dual_path_scenario(
 
     prompt = build_prompt(scenario)
     last_error: Exception | None = None
+    accepts_config = _accepts_config_arg(model_callable)
     for attempt in range(1, config.max_attempts + 1):
         try:
-            try:
+            if accepts_config:
                 response = model_callable(prompt, config)
-            except TypeError:
+            else:
                 response = model_callable(prompt)
             sections = parse_dual_path_response(response, strict=config.strict_parsing)
             trace = DualPathTrace.from_sections(
@@ -43,6 +45,7 @@ def run_dual_path_scenario(
                 raw_response=response,
                 sections=sections,
                 metadata={
+                    **scenario.metadata,
                     "attempt": attempt,
                     "model_id": config.model_id,
                     "temperature": config.temperature,
@@ -55,6 +58,20 @@ def run_dual_path_scenario(
     message = f"Dual-path run failed after {config.max_attempts} attempts."
     LOGGER.error(message)
     raise RuntimeError(message) from last_error
+
+
+def _accepts_config_arg(model_callable: ModelCallable) -> bool:
+    try:
+        signature = inspect.signature(model_callable)
+    except (TypeError, ValueError):
+        return False
+    params = list(signature.parameters.values())
+    if len(params) >= 2:
+        return True
+    for param in params:
+        if param.kind in (param.VAR_POSITIONAL, param.VAR_KEYWORD):
+            return True
+    return False
 
 
 def run_dual_path_batch(
@@ -92,9 +109,9 @@ def load_scenarios(records: Iterable[Mapping[str, Any]]) -> List[DualPathScenari
                 aligned_path=(
                     str(record.get("aligned_path")) if record.get("aligned_path") else None
                 ),
-                deceptive_path=(
-                    str(record.get("deceptive_path")) if record.get("deceptive_path") else None
-                ),
+                deceptive_path=str(record.get("deceptive_path"))
+                if record.get("deceptive_path")
+                else None,
                 metadata=dict(record.get("metadata", {})),
             )
         )

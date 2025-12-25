@@ -35,7 +35,6 @@ __all__ = [
     "ImperativeEvaluator",
     "ImperativeSignal",
     "is_abstention_response",
-    "iterate_dual_path_pool",
     "ParaconsistentTruthValue",
     "RewardSignal",
     "RewardWeights",

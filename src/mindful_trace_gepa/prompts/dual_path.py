@@ -6,6 +6,8 @@ from typing import Any
 
 from mindful_trace_gepa.shared.vocabulary import RISK_QUALITY_ADJECTIVES
 
+LOGGER = logging.getLogger(__name__)
+
 # Decision and endorsement vocabulary keeps the parser flexible across phrasings.
 DECISION_VERB_PARTS = (
     r"recommend(?:ed|s|ing)?",

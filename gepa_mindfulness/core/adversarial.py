@@ -8,6 +8,7 @@ from typing import Iterable, List
 
 from .dual_path import DualPathProbeScenario, iterate_dual_path_pool, sample_dual_path_batch
 
+
 AdversarialScenario = DualPathProbeScenario
 
 

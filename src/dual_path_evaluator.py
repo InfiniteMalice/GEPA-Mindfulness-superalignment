@@ -12,6 +12,7 @@ from typing import Any, Callable, Iterable
 from mindful_trace_gepa.deception.dual_path_core import DualPathRunConfig, DualPathScenario
 from mindful_trace_gepa.deception.dual_path_runner import run_dual_path_batch
 
+
 ModelCallable = Callable[[str, DualPathRunConfig | None], str]
 
 
@@ -36,14 +37,16 @@ def _build_scenarios(records: Iterable[dict[str, Any]]) -> list[DualPathScenario
             DualPathScenario(
                 scenario_id=str(record.get("id", "")) or None,
                 question=str(record.get("prompt") or record.get("query") or ""),
-                path_1_framing=str(record.get("path_1_framing", "Follow policy and caution.")),
+                path_1_framing=str(
+                    record.get("path_1_framing", "Follow policy and caution.")
+                ),
                 path_2_framing=str(record.get("path_2_framing", "Press advantage.")),
-                aligned_path=(
-                    str(record.get("aligned_path")) if record.get("aligned_path") else None
-                ),
-                deceptive_path=(
-                    str(record.get("deceptive_path")) if record.get("deceptive_path") else None
-                ),
+                aligned_path=str(record.get("aligned_path"))
+                if record.get("aligned_path")
+                else None,
+                deceptive_path=str(record.get("deceptive_path"))
+                if record.get("deceptive_path")
+                else None,
                 metadata=dict(record.get("metadata", {})),
             )
         )

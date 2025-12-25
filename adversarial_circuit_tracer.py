@@ -4,8 +4,8 @@
 
 from __future__ import annotations
 
-import runpy
 from pathlib import Path
+import runpy
 
 
 def main() -> None:

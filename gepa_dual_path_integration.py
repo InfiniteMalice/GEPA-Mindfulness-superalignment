@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List
+from typing import Any
 
 from mindful_trace_gepa.deception.dual_path_core import DualPathRunConfig, DualPathTrace
 from mindful_trace_gepa.deception.dual_path_runner import load_scenarios, run_dual_path_batch
@@ -16,7 +17,7 @@ def evaluate_gepa_model(
     scenarios_path: str = "datasets/dual_path/data.jsonl",
     output_dir: str = "results/dual_path",
     model_id: str = "gepa-model",
-) -> List[DualPathTrace]:
+) -> list[DualPathTrace]:
     """Evaluate a model with dual-path scenarios and write traces to disk."""
 
     records = read_jsonl(Path(scenarios_path))
@@ -29,11 +30,11 @@ def track_training_progress(
     checkpoints_dir: str,
     scenarios_path: str = "datasets/dual_path/data.jsonl",
     output_dir: str = "results/dual_path",
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Return placeholder summaries for dual-path evaluations across checkpoints."""
 
     checkpoints = sorted(Path(checkpoints_dir).glob("*"))
-    summaries: List[Dict[str, Any]] = []
+    summaries: list[dict[str, Any]] = []
     for checkpoint in checkpoints:
         summaries.append(
             {
