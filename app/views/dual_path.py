@@ -25,7 +25,7 @@ class DualPathView(Container):
         )
         yield Horizontal(
             Label("Scenario dataset"),
-            Input(placeholder="adversarial_scenarios.jsonl", id="dataset-path"),
+            Input(placeholder="datasets/dual_path/data.jsonl", id="dataset-path"),
         )
         yield Horizontal(
             Label("Run directory"),
@@ -46,7 +46,7 @@ class DualPathView(Container):
         model_path = self.query_one("#model-path", Input).value
         config_path = self.query_one("#config-path", Input).value
         dataset_widget = self.query_one("#dataset-path", Input)
-        dataset_path = dataset_widget.value or "adversarial_scenarios.jsonl"
+        dataset_path = dataset_widget.value or "datasets/dual_path/data.jsonl"
         run_path = self.query_one("#run-path", Input).value or "runs/latest"
         scratchpad = self.query_one("#scratchpad-toggle", Switch).value
         dspy = self.query_one("#dspy-toggle", Switch).value
