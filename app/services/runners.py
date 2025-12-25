@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, List, Sequence
 
 
 @dataclass
@@ -16,7 +16,7 @@ class CommandRequest:
     cwd: Path | None = None
 
 
-async def run_command(request: CommandRequest, log: List[str] | Callable[[str], None]) -> int:
+async def run_command(request: CommandRequest, log: list[str] | Callable[[str], None]) -> int:
     """Run a subprocess and stream output to the provided log sink."""
 
     argv = list(request.argv)
@@ -46,26 +46,23 @@ def build_dual_path_command(
     scratchpad: bool,
     dspy: bool,
 ) -> CommandRequest:
-    argv: List[str] = [
+    argv: list[str] = [
         "python",
-        "src/adversarial_evaluator.py",
+        "src/dual_path_evaluator.py",
         "--scenarios",
         dataset_path,
         "--run",
         run_dir,
     ]
-    if scratchpad:
+    if scratchpad or dspy:
         argv.extend(["--mode", "dual_public_with_scratchpad"])
     if model_path:
         argv.extend(["--response", model_path])
-    if dspy:
-        argv.append("--mode")
-        argv.append("dual_public_with_scratchpad")
     return CommandRequest(argv=argv)
 
 
 def build_tracer_command(run_dir: str, tokenizer: str, apply_ablation: bool) -> CommandRequest:
-    argv: List[str] = ["python", "src/adversarial_circuit_tracer.py", run_dir]
+    argv: list[str] = ["python", "src/dual_path_circuit_tracer.py", run_dir]
     if tokenizer:
         argv.extend(["--tokenizer", tokenizer])
     if apply_ablation:
@@ -78,7 +75,7 @@ def build_merge_command(run_dir: str) -> CommandRequest:
 
 
 def build_finetune_command(config_path: str) -> CommandRequest:
-    argv: List[str] = ["python", "train_model.py"]
+    argv: list[str] = ["python", "train_model.py"]
     if config_path:
         argv.extend(["--config", config_path])
     return CommandRequest(argv=argv)
