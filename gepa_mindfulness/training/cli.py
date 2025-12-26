@@ -12,6 +12,7 @@ from pathlib import Path
 
 import click
 
+from ..core.dual_path import DualPathProbeScenario
 from .config import GRPOConfig, PPOConfig, load_config_dict
 from .configs import TrainingConfig
 from .grpo_trainer import GRPOTrainer
