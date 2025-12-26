@@ -130,14 +130,14 @@ class _StubOrchestrator:
     def __init__(self, results: list[RolloutResult]):
         self._results = results
         self.run_calls: list[list[str]] = []
-        self.adversarial_calls = 0
+        self.dual_path_calls = 0
 
     def run(self, prompts: list[str]) -> list[RolloutResult]:
         self.run_calls.append(list(prompts))
         return self._results
 
-    def run_adversarial_eval(self) -> list[RolloutResult]:
-        self.adversarial_calls += 1
+    def run_dual_path_eval(self) -> list[RolloutResult]:
+        self.dual_path_calls += 1
         return self._results
 
 
@@ -176,7 +176,6 @@ def test_training_cli_writes_logs(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(cli, "load_training_config", lambda _: object())
     monkeypatch.setattr(cli, "TrainingOrchestrator", lambda config: orchestrator, raising=False)
     monkeypatch.setattr(cli, "_resolve_orchestrator_factory", lambda: lambda config: orchestrator)
-    monkeypatch.setattr(cli, "iterate_adversarial_pool", lambda: [])
     monkeypatch.setattr(
         sys,
         "argv",
@@ -221,7 +220,6 @@ def test_training_cli_prompts_for_log_dir(tmp_path: Path, monkeypatch: pytest.Mo
     monkeypatch.setattr(cli, "load_training_config", lambda _: object())
     monkeypatch.setattr(cli, "TrainingOrchestrator", lambda config: orchestrator, raising=False)
     monkeypatch.setattr(cli, "_resolve_orchestrator_factory", lambda: lambda config: orchestrator)
-    monkeypatch.setattr(cli, "iterate_adversarial_pool", lambda: [])
     monkeypatch.setattr(
         sys,
         "argv",
@@ -262,7 +260,6 @@ def test_training_cli_uses_default_log_dir_when_non_interactive(
     monkeypatch.setattr(cli, "load_training_config", lambda _: object())
     monkeypatch.setattr(cli, "TrainingOrchestrator", lambda config: orchestrator, raising=False)
     monkeypatch.setattr(cli, "_resolve_orchestrator_factory", lambda: lambda config: orchestrator)
-    monkeypatch.setattr(cli, "iterate_adversarial_pool", lambda: [])
     monkeypatch.setattr(
         sys,
         "argv",
