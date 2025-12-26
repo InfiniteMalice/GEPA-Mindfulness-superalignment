@@ -96,8 +96,11 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
-    run_tracing(Path(args.run_dir))
-    return 0
+    try:
+        run_tracing(Path(args.run_dir))
+        return 0
+    except (FileNotFoundError, ValueError) as exc:
+        parser.error(str(exc))
 
 
 if __name__ == "__main__":

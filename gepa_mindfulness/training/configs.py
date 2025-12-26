@@ -53,8 +53,12 @@ def _select_dual_path_batch(
         payload.get("adversarial_batch"),
     ]
     for value in candidates:
-        if value is not None:
-            return int(value)
+        if value is None:
+            continue
+        try:
+            return _to_int(value, 0)
+        except ValueError:
+            continue
     return None
 
 

@@ -40,6 +40,14 @@ def evaluate_until_valid(
     *,
     max_attempts: int | None = None,
 ) -> dict[str, Any]:
+    """Evaluate until a valid FINAL ANSWER appears or attempts are exhausted.
+
+    Returns:
+        On success, returns parsed sections with ``attempt``, ``final_answer_valid``,
+        and ``prompt`` fields. On failure, returns a summary record containing
+        ``attempt``, ``final_answer_valid``, ``prompt``, ``final_answer_value``,
+        and ``raw_response``.
+    """
     limit = max_attempts if max_attempts is not None else DEFAULT_MAX_ATTEMPTS
     attempt = 0
     record: dict[str, Any] = {
@@ -50,7 +58,8 @@ def evaluate_until_valid(
     while attempt < limit:
         response, sections = evaluate_once(generate, prompt)
         attempt += 1
-        if sections is not None and sections.get("final_answer_value") in ALLOWED_FINAL_ANSWERS:
+        final_answer_value = sections.get("final_answer_value") if sections else None
+        if sections is not None and final_answer_value in ALLOWED_FINAL_ANSWERS:
             sections["attempt"] = attempt
             sections["final_answer_valid"] = True
             sections["prompt"] = prompt

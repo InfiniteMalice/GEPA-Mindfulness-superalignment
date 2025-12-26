@@ -20,7 +20,7 @@
 * `src/mindful_trace_gepa/deception/dual_path_runner.py`
 * `src/dual_path_evaluator.py`
 * `src/dual_path_circuit_tracer.py`
-* `run_deception_ablation_workflow.new.py`
+* `run_dual_path_ablation_workflow.py`
 
 ## Remaining human sign-off items
 

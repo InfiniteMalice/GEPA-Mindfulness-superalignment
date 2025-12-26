@@ -763,7 +763,8 @@ def main() -> int:
 
     fingerprints_path = fingerprint_dir / "fingerprints.jsonl"
     analyze_cmd = (
-        "python scripts/analyze_deception_fingerprints.py " f"--fingerprints {fingerprints_path}"
+        "python scripts/analyze_deception_fingerprints.py "
+        f"--fingerprints {fingerprints_path}"
     )
     validate_cmd = (
         "python scripts/validate_ablation.py "

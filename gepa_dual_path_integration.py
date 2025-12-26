@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -40,6 +41,11 @@ def enumerate_checkpoint_metadata(
     if not ckpt_path.exists():
         raise FileNotFoundError(f"Checkpoints directory not found: {checkpoints_dir}")
     checkpoints = sorted(path for path in ckpt_path.iterdir() if path.is_dir())
+    if not checkpoints:
+        logging.getLogger(__name__).warning(
+            "No checkpoint subdirectories found in %s",
+            ckpt_path,
+        )
     summaries: list[dict[str, Any]] = []
     run_timestamp = datetime.now(timezone.utc).isoformat()
     for checkpoint in checkpoints:
