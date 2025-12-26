@@ -13,10 +13,12 @@ def main() -> int:
         raise FileNotFoundError(f"Dual-path evaluator not found at {target}")
     module_globals = runpy.run_path(str(target), run_name="__main__")
     entrypoint = module_globals.get("main")
-    if callable(entrypoint):
-        result = entrypoint()
-        return result if isinstance(result, int) else 0
-    return 0
+    if not callable(entrypoint):
+        raise SystemExit(f"Dual-path evaluator missing callable main in {target}")
+    result = entrypoint()
+    if not isinstance(result, int):
+        raise SystemExit("Dual-path evaluator returned non-integer exit code")
+    return result
 
 
 if __name__ == "__main__":

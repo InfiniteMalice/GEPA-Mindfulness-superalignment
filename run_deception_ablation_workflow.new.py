@@ -11,7 +11,6 @@ This script runs a dual-path pipeline:
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 from collections.abc import Callable
 from datetime import datetime, timezone
@@ -23,15 +22,8 @@ from mindful_trace_gepa.storage import read_jsonl
 
 
 def _load_tracer() -> Callable[[Path], None]:
-    tracer_path = Path(__file__).resolve().parent / "src" / "dual_path_circuit_tracer.py"
-    spec = importlib.util.spec_from_file_location("dual_path_circuit_tracer", tracer_path)
-    if spec is None or spec.loader is None:
-        raise FileNotFoundError(f"Unable to load tracer module at {tracer_path}.")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    run_tracing = getattr(module, "run_tracing", None)
-    if not callable(run_tracing):
-        raise ValueError("run_tracing callable not found in dual_path_circuit_tracer module.")
+    from src.dual_path_circuit_tracer import run_tracing
+
     return run_tracing
 
 
@@ -96,10 +88,11 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> None:
+def main() -> int:
     parser = build_parser()
     run_workflow(parser.parse_args())
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -7,11 +7,10 @@
 from __future__ import annotations
 
 import runpy
-import sys
 from pathlib import Path
 
 
-def main() -> None:
+def main() -> int:
     target = Path(__file__).resolve().parent / "run_deception_ablation_workflow.new.py"
     if not target.exists():
         raise FileNotFoundError(f"Dual-path ablation workflow not found at {target}")
@@ -23,8 +22,8 @@ def main() -> None:
         result = entrypoint()
     except SystemExit as exc:
         raise SystemExit(exc.code) from exc
-    sys.exit(result if isinstance(result, int) else 0)
+    return result if isinstance(result, int) else 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

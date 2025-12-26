@@ -109,7 +109,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     parser = build_parser()
-    run_cli(parser.parse_args())
+    try:
+        run_cli(parser.parse_args())
+    except (FileNotFoundError, ValueError) as exc:
+        parser.error(str(exc))
     return 0
 
 

@@ -40,11 +40,8 @@ async def run_command(request: CommandRequest, log: list[str] | Callable[[str], 
 
 def build_dual_path_command(
     model_path: str,
-    config_path: str,
     dataset_path: str,
     run_dir: str,
-    scratchpad: bool,
-    dspy: bool,
 ) -> CommandRequest:
     argv: list[str] = [
         "python",
@@ -54,8 +51,6 @@ def build_dual_path_command(
         "--run",
         run_dir,
     ]
-    if scratchpad or dspy:
-        argv.extend(["--mode", "dual_public_with_scratchpad"])
     if model_path:
         argv.extend(["--response", model_path])
     return CommandRequest(argv=argv)
