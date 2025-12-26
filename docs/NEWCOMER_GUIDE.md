@@ -1,79 +1,95 @@
 # GEPA Mindfulness: Newcomer Guide
 
-This guide summarizes the current codebase so you can orient yourself quickly and decide where to contribute next.
+This guide summarizes the current codebase so you can orient yourself quickly.
 
 ## High-Level Layout
 
-| Area | Purpose |
-| ---- | ------- |
-| [`gepa_mindfulness/core/`](../gepa_mindfulness/core) | GEPA contemplative principles, paraconsistent imperatives, reward shaping, abstention, Circuit Tracer integration, and adversarial probes that power the alignment logic. |
-| [`gepa_mindfulness/training/`](../gepa_mindfulness/training) | Configuration models, GRPO and legacy PPO orchestration, CLI entry points, and
-reporting helpers for alignment training loops. |
-| [`gepa_mindfulness/examples/`](../gepa_mindfulness/examples) | Runnable CPU and vLLM demos that show the pipeline end-to-end. |
-| [`gepa_datasets/`](../gepa_datasets) | JSONL datasets for ethical QA, OOD stress testing, anti-scheming probes, abstention calibration, and thought-trace templates. |
-| [`gepa_mindfulness/configs/`](../gepa_mindfulness/configs) | YAML presets exposing reward weights (α, β, γ, δ), model choices, and runtime parameters. |
-| [`gepa_mindfulness/metrics.py`](../gepa_mindfulness/metrics.py) | Data structures and aggregation utilities for GEPA practice session analytics. |
-| [`scripts/`](../scripts) | Shell helpers that validate configs, run demos, and trigger adversarial sweeps. |
-| [`tests/`](../tests) | Pytest coverage for the GEPA metrics module, ensuring edge cases are handled correctly. |
+- `gepa_mindfulness/core/` – contemplative principles, imperatives, reward shaping,
+  abstention, Circuit Tracer integration, and dual-path probe scaffolding.
+- `gepa_mindfulness/training/` – configuration models, GRPO + PPO orchestration,
+  CLI entry points, and reporting helpers for training loops.
+- `gepa_mindfulness/examples/` – runnable CPU and vLLM demos.
+- `gepa_datasets/` – JSONL datasets for ethical QA, OOD stress testing, abstention
+  calibration, and thought-trace templates.
+- `gepa_mindfulness/configs/` – YAML presets with reward weights and runtime settings.
+- `gepa_mindfulness/metrics.py` – aggregation utilities for GEPA practice metrics.
+- `scripts/` – shell helpers for demos and dual-path sweeps.
+- `tests/` – Pytest coverage for metrics and training utilities.
 
 ## Core Alignment Logic
 
-The `core` package implements the conceptual building blocks of GEPA mindfulness alignment:
+The `core` package implements the conceptual building blocks of GEPA alignment:
 
-* **Contemplative principles** – `contemplative_principles.py` models the Mindfulness, Empathy, Perspective, and Agency axes, providing aggregation utilities and rationale summaries for each rollout.【F:gepa_mindfulness/core/contemplative_principles.py†L1-L41】
-* **Imperatives & paraconsistency** – `imperatives.py` and `paraconsistent.py` combine signals for the Reduce Suffering, Increase Prosperity, and Increase Knowledge imperatives using dialetheic conjunction to tolerate conflicting evidence.【F:gepa_mindfulness/core/imperatives.py†L1-L55】【F:gepa_mindfulness/core/paraconsistent.py†L1-L44】
-* **Abstention & honesty rewards** – `abstention.py` enforces confidence-aware abstention and computes honesty rewards driven by mindfulness and emptiness cues.【F:gepa_mindfulness/core/abstention.py†L1-L45】
-* **Reward shaping** – `rewards.py` fuses task success, GEPA scores, honesty traces, hallucination penalties, and paraconsistent truth into a single PPO scalar.【F:gepa_mindfulness/core/rewards.py†L1-L36】
-* **Circuit tracing & adversarial probes** – `tracing.py` wraps the optional Circuit Tracer dependency while gracefully degrading when unavailable; `adversarial.py` offers scheming-inspired OOD scenarios.【F:gepa_mindfulness/core/tracing.py†L1-L141】【F:gepa_mindfulness/core/adversarial.py†L1-L45】
+The dual-path architecture compares two candidate responses for the same prompt.
+It replaces legacy adversarial probes with a unified path-by-path trace and
+selection workflow to surface alignment trade-offs and deception signals.
 
-These components are re-exported via `gepa_mindfulness.core.__init__` for convenient imports across the project.【F:gepa_mindfulness/core/__init__.py†L1-L22】
+- **Contemplative principles** – `contemplative_principles.py` models the Mindfulness,
+  Empathy, Perspective, and Agency axes.
+- **Imperatives & paraconsistency** – `imperatives.py` and `paraconsistent.py`
+  combine Reduce Suffering, Increase Prosperity, and Increase Knowledge signals.
+- **Abstention & honesty rewards** – `abstention.py` enforces confidence-aware
+  abstention and computes honesty rewards.
+- **Reward shaping** – `rewards.py` fuses task success, GEPA scores, honesty traces,
+  hallucination penalties, and paraconsistent truth into a PPO scalar.
+- **Circuit tracing & dual-path probes** – `tracing.py` wraps the optional Circuit
+  Tracer dependency; `dual_path.py` offers dual-path probe scaffolding.
+
+These components are re-exported via `gepa_mindfulness.core.__init__` for convenient
+imports across the project.
 
 ## Training Pipeline
 
-The `training` package turns the alignment primitives into GRPO and PPO workflows:
+The `training` package turns alignment primitives into GRPO and PPO workflows:
 
-* **Configuration** – `configs.py` defines dataclasses for PPO and GRPO hyperparameters, reward weights, model
-  selection, and adversarial thresholds, plus YAML loaders for presets.【F:gepa_mindfulness/training/configs.py†L1-L187】
-* **Orchestration** – `grpo_trainer.py` implements Group Relative Policy Optimisation with GEPA rewards, while
-  `pipeline.py` maintains the legacy PPO path for comparison.【F:gepa_mindfulness/training/grpo_trainer.py†L1-L207】【F:gepa_mindfulness/training/pipeline.py†L1-L147】
-* **CLI tooling** – `train.py` selects between GRPO and PPO modes; `cli.py` stays available for backwards-compatible
-  PPO runs.【F:gepa_mindfulness/training/train.py†L1-L96】【F:gepa_mindfulness/training/cli.py†L1-L67】
+- **Configuration** – `configs.py` defines dataclasses for PPO and GRPO
+  hyperparameters, reward weights, model selection, and dual-path thresholds.
+- **Orchestration** – `grpo_trainer.py` implements GRPO with GEPA rewards, while
+  `pipeline.py` maintains the legacy PPO path for comparison.
+- **CLI tooling** – `train.py` selects between GRPO and PPO modes; `cli.py` stays
+  available for backwards-compatible PPO runs.
 
 ## Integration Adapters
 
-Adapters decouple the core logic from specific backends:
+- `policy_adapter.py` exposes a `TextGenerator` protocol with Hugging Face and
+  vLLM implementations.
+- `tracing_adapter.py` turns detailed `ThoughtTrace` events into compact checkpoints
+  for downstream logging or reward shaping.
 
-* `policy_adapter.py` exposes a `TextGenerator` protocol with concrete Hugging Face and vLLM implementations, letting you swap generation backends without touching training logic.【F:gepa_mindfulness/adapters/policy_adapter.py†L1-L41】
-* `tracing_adapter.py` turns detailed `ThoughtTrace` events into compact checkpoints for logging or reward shaping downstream.【F:gepa_mindfulness/adapters/tracing_adapter.py†L1-L33】
-
-Exports live in `gepa_mindfulness.adapters.__init__`.【F:gepa_mindfulness/adapters/__init__.py†L1-L11】
+Exports live in `gepa_mindfulness.adapters.__init__`.
 
 ## Configurations & Examples
 
-YAML presets now live under `configs/ppo/`, `configs/grpo/`, and `configs/comparison/` so PPO and GRPO share aligned hyperparameters. Launch a run directly from the CLI:
+YAML presets live under `configs/ppo/`, `configs/grpo/`, and `configs/comparison/`.
+There are two CLI entry points. The recommended path is the Click-based CLI
+(`gepa_mindfulness.training.cli`). The legacy entry point
+(`gepa_mindfulness.training.train`) uses `--mode` and is kept for compatibility.
 
 ```bash
-python -m gepa_mindfulness.training.train --mode grpo \"
+python -m gepa_mindfulness.training.cli \
   --config gepa_mindfulness/configs/default.yaml \
   --dataset path/to/prompts.txt
 ```
 
-To see the system in action, run the example scripts:
+Example scripts:
 
-* `examples/cpu_demo/run_cpu_demo.py --trainer grpo` executes a short CPU-friendly GRPO loop; swap to `--trainer ppo` for the PPO baseline.【F:gepa_mindfulness/examples/cpu_demo/run_cpu_demo.py†L1-L54】
-* `examples/vllm_demo/run_vllm_demo.py` targets a vLLM endpoint defined in `configs/vllm.yaml` for remote inference.【F:gepa_mindfulness/examples/vllm_demo/run_vllm_demo.py†L1-L27】
+- `examples/cpu_demo/run_cpu_demo.py --trainer grpo` executes a short CPU-friendly
+  GRPO loop; swap to `--trainer ppo` for the PPO baseline.
+- `examples/vllm_demo/run_vllm_demo.py` targets a vLLM endpoint defined in
+  `configs/vllm.yaml` for remote inference.
 
-The `scripts/run_full_pipeline.sh` helper validates configs, runs the CPU demo, then executes a GRPO pass
-using the new training entry point.【F:scripts/run_full_pipeline.sh†L1-L16】
+The `scripts/run_full_pipeline.sh` helper validates configs, runs the CPU demo,
+and executes a GRPO pass using the Click-based training CLI.
+
 ## Metrics & Testing
 
-Outside the alignment loop, `gepa_mindfulness/metrics.py` models mindfulness practice sessions and aggregates GEPA metrics with strong validation and numerical safety checks.【F:gepa_mindfulness/metrics.py†L9-L190】 Pytest coverage in `tests/test_metrics.py` exercises weighting, validation, and edge cases to prevent regressions.【F:tests/test_metrics.py†L1-L199】
+Outside the alignment loop, `gepa_mindfulness/metrics.py` models mindfulness practice
+sessions and aggregates GEPA metrics with numerical safety checks. Pytest coverage
+in `tests/test_metrics.py` exercises weighting, validation, and edge cases.
 
 ## Suggested Next Steps
 
-1. **Extend datasets and reward shaping** – Customize prompts and tweak reward weights (α, β, γ, δ) in YAML to study how different objectives interact.
-2. **Instrument new backends** – Implement additional `TextGenerator` adapters for other serving stacks (e.g., OpenAI API, local quantized models).
-3. **Deepen adversarial evaluation** – Expand `core/adversarial.py` with richer scheming probes, then surface them via the CLI.
-4. **Broaden testing** – Mirror the existing metrics-focused tests for `core` and `training` modules to protect the alignment logic as the project evolves.
-
-Keep the README and this guide handy as you plan contributions; both outline how components fit together and where to plug in new work.【F:README.md†L1-L45】
+1. Extend datasets and reward shaping by tweaking reward weights in YAML.
+2. Instrument new backends by implementing additional `TextGenerator` adapters.
+3. Deepen dual-path evaluation by expanding `core/dual_path.py`.
+4. Broaden tests for `core` and `training` modules to protect alignment logic.
