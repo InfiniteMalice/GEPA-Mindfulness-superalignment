@@ -12,8 +12,8 @@ datasets:
     path: data/evaluation/neutral_contexts.jsonl
   - name: tension
     path: data/evaluation/tension_scenarios.jsonl
-  - name: adversarial
-    path: data/evaluation/adversarial_probes.jsonl
+  - name: dual_path
+    path: data/evaluation/dual_path_probes.jsonl
 
 rewards:
   weights:
