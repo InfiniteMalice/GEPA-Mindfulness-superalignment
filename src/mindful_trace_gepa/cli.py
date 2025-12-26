@@ -6,10 +6,11 @@ import argparse
 import json
 import re
 from argparse import BooleanOptionalAction
+from collections.abc import Callable, Iterable, Mapping
 from datetime import datetime, timezone
 from importlib import import_module
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Mapping
+from typing import Any
 
 import click
 
@@ -108,7 +109,7 @@ def _resolve_cli_path(path_str: str, *, require_exists: bool = True) -> Path:
         package_root.parent,
     ]
 
-    roots: List[Path] = []
+    roots: list[Path] = []
     seen = set()
     for root in search_roots:
         resolved = root.resolve()
@@ -147,11 +148,11 @@ def _resolve_probes_path(probes_arg: str | None) -> Path | None:
     return resolved
 
 
-def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
+def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     return read_jsonl(path)
 
 
-def _write_jsonl(path: Path, rows: Iterable[Dict[str, Any]]) -> None:
+def _write_jsonl(path: Path, rows: Iterable[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as handle:
         for row in rows:
@@ -248,7 +249,7 @@ def handle_dspy_run(args: argparse.Namespace) -> None:
         log_topk=log_topk if with_logprobs else 0,
         sample_every=log_every if with_logprobs else max(log_every, 1),
     )
-    deception_rows: List[Dict[str, Any]] = []
+    deception_rows: list[dict[str, Any]] = []
 
     manifest_path: Path | None = None
 
@@ -328,7 +329,7 @@ def handle_dspy_compile(args: argparse.Namespace) -> None:
     raw_config_path = getattr(args, "config", "configs/policies/dspy.yml")
     config_path = _resolve_cli_path(raw_config_path, require_exists=False)
     if not config_path.exists():
-        config_data: Dict[str, Any] = {}
+        config_data: dict[str, Any] = {}
     else:
         raw = config_path.read_text(encoding="utf-8")
         if yaml is not None:
@@ -378,12 +379,7 @@ def handle_dspy_compile(args: argparse.Namespace) -> None:
 def run_dual_path_contrastive(
     data: Path, out: Path, context: str, probes_path: Path | None = None
 ) -> None:
-    """Run baseline dual-path analysis plus adversarial deception probes.
-
-    This baseline emits deterministic dual-path responses while still exercising the deception
-    fingerprinting pipeline with the bundled adversarial probes. Replace with a model-backed
-    implementation when available.
-    """
+    """Run baseline dual-path analysis with optional supplemental probes."""
     out.mkdir(parents=True, exist_ok=True)
     out_dir = out.resolve()
 
@@ -393,7 +389,7 @@ def run_dual_path_contrastive(
         Path(__file__).resolve().parent.parent.parent
         / "data"
         / "evaluation"
-        / "adversarial_probes.jsonl"
+        / "dual_path_probes.jsonl"
     )
     probes_file = probes_path or default_probes
     probes = read_jsonl(probes_file) if probes_file.exists() else []
@@ -402,11 +398,11 @@ def run_dual_path_contrastive(
         raise FileNotFoundError("No contrastive data found to process.")
 
     collector = FingerprintCollector(str(out_dir))
-    results: List[Dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
 
     ordered_records = [
         *((record, "dataset") for record in examples),
-        *((record, "adversarial_probe") for record in probes),
+        *((record, "dual_path_probe") for record in probes),
     ]
 
     for idx, (record, source) in enumerate(ordered_records):
@@ -414,14 +410,15 @@ def run_dual_path_contrastive(
         record_context = record.get("context", context)
         prompt = make_dual_path_prompt(query, record_context)
         response = (
-            "[PATH 1 REASONING]\n"
+            "[PATH 1 SCRATCHPAD]\n"
             "This path emphasises caution and potential risks.\n\n"
-            "[PATH 2 REASONING]\n"
+            "[PATH 1 PUBLIC REASONING]\n"
+            "Proceed carefully, highlight risks, and offer safer alternatives.\n\n"
+            "[PATH 2 SCRATCHPAD]\n"
             "This path emphasises confident, immediate action.\n\n"
-            "[COMPARISON]\n"
-            "The careful path weighs risks; the confident path prioritises action.\n\n"
-            "[RECOMMENDATION]\n"
-            "I recommend Path 1 for safety."
+            "[PATH 2 PUBLIC REASONING]\n"
+            "Proceed quickly and focus on decisive execution.\n\n"
+            "FINAL ANSWER: 1"
         )
 
         sections = parse_dual_path_response(response)
@@ -476,7 +473,7 @@ def run_dual_path_contrastive(
         "results": results,
         "counts": {
             "dataset_records": len(examples),
-            "adversarial_probes": len(probes),
+            "dual_path_probes": len(probes),
         },
         "fingerprint_summary": collector.get_summary(),
         "probes_file": str(probes_file) if probes_file.exists() else None,
@@ -507,15 +504,15 @@ def handle_view(args: argparse.Namespace) -> None:
     page_size = getattr(args, "page_size", 200)
     max_points = getattr(args, "max_points", 5000)
 
-    trace_rows: List[Dict[str, Any]] = []
+    trace_rows: list[dict[str, Any]] = []
     if trace_path.exists():
         trace_rows = load_jsonl(trace_path, limit=page_size)
 
-    token_rows: List[Dict[str, Any]] = []
+    token_rows: list[dict[str, Any]] = []
     if token_path.exists():
         token_rows = load_jsonl(token_path, limit=max_points)
 
-    manifest_data: Dict[str, Any] = {}
+    manifest_data: dict[str, Any] = {}
     manifest_override = getattr(args, "manifest", None)
     manifest_path = (
         Path(manifest_override) if manifest_override else trace_path.with_name("manifest.json")
@@ -528,7 +525,7 @@ def handle_view(args: argparse.Namespace) -> None:
         except ValueError:
             manifest_rel = str(manifest_path.resolve())
 
-    def _safe_load_json(path: Path) -> Dict[str, Any]:
+    def _safe_load_json(path: Path) -> dict[str, Any]:
         if not path.exists():
             return {}
         try:
@@ -537,7 +534,7 @@ def handle_view(args: argparse.Namespace) -> None:
         except json.JSONDecodeError:
             return {}
 
-    deception_data: Dict[str, Any] = {}
+    deception_data: dict[str, Any] = {}
     if args.deception and Path(args.deception).exists():
         deception_data = _safe_load_json(Path(args.deception))
 
@@ -571,7 +568,7 @@ def handle_view(args: argparse.Namespace) -> None:
             deception_data["mm"] = payload
             break
 
-    dual_path_data: Dict[str, Any] = {}
+    dual_path_data: dict[str, Any] = {}
     dual_path_arg = getattr(args, "dual_path", None) or getattr(args, "paired", None)
     if dual_path_arg and Path(dual_path_arg).exists():
         dual_path_data = _safe_load_json(Path(dual_path_arg))
@@ -586,7 +583,7 @@ def handle_view(args: argparse.Namespace) -> None:
     if "paired" in deception_data and not dual_path_data:
         dual_path_data = deception_data.get("paired") or {}
 
-    scoring_data: Dict[str, Any] = {}
+    scoring_data: dict[str, Any] = {}
     scoring_path = trace_path.with_name("scores.json")
     if scoring_path.exists():
         scoring_data = _safe_load_json(scoring_path)
@@ -627,7 +624,7 @@ def handle_score(args: argparse.Namespace) -> None:
         )
         if candidate.exists():
             trace_path = candidate
-    policy: Dict[str, Any] = {}
+    policy: dict[str, Any] = {}
     if args.policy and Path(args.policy).exists():
         policy_path = Path(args.policy)
         raw = policy_path.read_text(encoding="utf-8")
@@ -636,7 +633,7 @@ def handle_score(args: argparse.Namespace) -> None:
         else:
             policy = {"raw": raw}
 
-    def _iter_events() -> Iterable[Dict[str, Any]]:
+    def _iter_events() -> Iterable[dict[str, Any]]:
         if sharded_flag:
             manifest_path = (
                 Path(manifest_override)
@@ -663,12 +660,14 @@ def handle_score(args: argparse.Namespace) -> None:
         else:
             yield from iter_jsonl(trace_path)
 
-    event_iter: Iterable[Dict[str, Any]] = _iter_events() if stream_flag else list(_iter_events())
+    event_iter: Iterable[dict[str, Any]] = (
+        _iter_events() if stream_flag else list(_iter_events())
+    )
 
-    principle_sums: Dict[str, float] = {}
-    principle_counts: Dict[str, int] = {}
-    imperative_sums: Dict[str, float] = {}
-    imperative_counts: Dict[str, int] = {}
+    principle_sums: dict[str, float] = {}
+    principle_counts: dict[str, int] = {}
+    imperative_sums: dict[str, float] = {}
+    imperative_counts: dict[str, int] = {}
     flags_seen: set[str] = set()
     total_events = 0
     for event in event_iter:
@@ -682,7 +681,7 @@ def handle_score(args: argparse.Namespace) -> None:
         for flag in event.get("flags", []) or []:
             flags_seen.add(flag)
 
-    def _mean(sums: Dict[str, float], counts: Dict[str, int]) -> Dict[str, float]:
+    def _mean(sums: dict[str, float], counts: dict[str, int]) -> dict[str, float]:
         return {name: (sums[name] / counts[name]) for name in sums}
 
     principles_mean = _mean(principle_sums, principle_counts)
@@ -794,7 +793,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--context", default="general", help="Context profile for prompt construction"
     )
     dspy_contrastive.add_argument(
-        "--probes", default=None, help="Optional adversarial probes JSONL override"
+        "--probes", default=None, help="Optional dual-path probes JSONL override"
     )
     dspy_contrastive.set_defaults(func=handle_dspy_contrastive)
 
@@ -904,7 +903,12 @@ def click_dspy_compile(out: str, config: str, dataset: str, enable_optim: bool) 
 @click.option("--data", "data_path", required=True, help="Dual-path dataset JSONL")
 @click.option("--out", "out_dir", required=True, help="Output directory")
 @click.option("--context", default="general", help="Context profile")
-@click.option("--probes", "probes_path", default=None, help="Optional adversarial probes JSONL")
+@click.option(
+    "--probes",
+    "probes_path",
+    default=None,
+    help="Optional dual-path probes JSONL",
+)
 def click_dspy_contrastive(
     data_path: str, out_dir: str, context: str, probes_path: str | None
 ) -> None:
@@ -917,7 +921,7 @@ def click_dspy_contrastive(
     )
 
 
-def main(argv: List[str] | None = None) -> None:
+def main(argv: list[str] | None = None) -> None:
     """Parse CLI arguments and dispatch to the selected handler.
 
     Args:

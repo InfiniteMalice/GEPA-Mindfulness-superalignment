@@ -216,8 +216,8 @@ class TrainingOrchestrator:
             )
         return results
 
-    def run_adversarial_eval(self) -> list[RolloutResult]:
-        """Return an empty rollout list for adversarial compatibility tests."""
+    def run_dual_path_eval(self) -> list[RolloutResult]:
+        """Return an empty rollout list for dual-path compatibility tests."""
 
         return []
 
