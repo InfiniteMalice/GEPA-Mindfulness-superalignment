@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import runpy
+import sys
 from pathlib import Path
 
 
@@ -16,12 +17,13 @@ def main() -> None:
         raise FileNotFoundError(f"Dual-path ablation workflow not found at {target}")
     module_globals = runpy.run_path(str(target), run_name="__main__")
     entrypoint = module_globals.get("main")
-    if callable(entrypoint):
-        try:
-            result = entrypoint()
-        except SystemExit as exc:
-            raise SystemExit(exc.code) from exc
-        raise SystemExit(result if isinstance(result, int) else 0)
+    if not callable(entrypoint):
+        raise SystemExit(f"Dual-path ablation workflow missing callable main in {target}")
+    try:
+        result = entrypoint()
+    except SystemExit as exc:
+        raise SystemExit(exc.code) from exc
+    sys.exit(result if isinstance(result, int) else 0)
 
 
 if __name__ == "__main__":

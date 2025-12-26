@@ -176,7 +176,6 @@ def test_training_cli_writes_logs(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(cli, "load_training_config", lambda _: object())
     monkeypatch.setattr(cli, "TrainingOrchestrator", lambda config: orchestrator, raising=False)
     monkeypatch.setattr(cli, "_resolve_orchestrator_factory", lambda: lambda config: orchestrator)
-    monkeypatch.setattr(cli, "iterate_dual_path_pool", lambda: [])
     monkeypatch.setattr(
         sys,
         "argv",
@@ -221,7 +220,6 @@ def test_training_cli_prompts_for_log_dir(tmp_path: Path, monkeypatch: pytest.Mo
     monkeypatch.setattr(cli, "load_training_config", lambda _: object())
     monkeypatch.setattr(cli, "TrainingOrchestrator", lambda config: orchestrator, raising=False)
     monkeypatch.setattr(cli, "_resolve_orchestrator_factory", lambda: lambda config: orchestrator)
-    monkeypatch.setattr(cli, "iterate_dual_path_pool", lambda: [])
     monkeypatch.setattr(
         sys,
         "argv",
@@ -262,7 +260,6 @@ def test_training_cli_uses_default_log_dir_when_non_interactive(
     monkeypatch.setattr(cli, "load_training_config", lambda _: object())
     monkeypatch.setattr(cli, "TrainingOrchestrator", lambda config: orchestrator, raising=False)
     monkeypatch.setattr(cli, "_resolve_orchestrator_factory", lambda: lambda config: orchestrator)
-    monkeypatch.setattr(cli, "iterate_dual_path_pool", lambda: [])
     monkeypatch.setattr(
         sys,
         "argv",

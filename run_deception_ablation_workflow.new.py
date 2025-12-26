@@ -36,6 +36,7 @@ def _load_tracer() -> Callable[[Path], None]:
 
 
 def _stub_model(prompt: str, _config: DualPathRunConfig | None = None) -> str:
+    # _config unused: stub model doesn't require configuration.
     return (
         "[PATH 1 SCRATCHPAD]\n"
         "Baseline scratchpad for Path 1.\n\n"

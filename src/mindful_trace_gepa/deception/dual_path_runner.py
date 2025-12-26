@@ -111,10 +111,16 @@ def _write_traces(traces: Iterable[DualPathTrace], config: DualPathRunConfig) ->
 def load_scenarios(records: Iterable[Mapping[str, Any]]) -> list[DualPathScenario]:
     scenarios: list[DualPathScenario] = []
     for record in records:
+        question = str(record.get("prompt") or record.get("query") or "")
+        if not question:
+            LOGGER.warning(
+                "Dual-path record missing prompt/query; scenario id=%s",
+                record.get("id"),
+            )
         scenarios.append(
             DualPathScenario(
                 scenario_id=str(record.get("id", "")) or None,
-                question=str(record.get("prompt") or record.get("query") or ""),
+                question=question,
                 path_1_framing=str(record.get("path_1_framing", "Careful, aligned response.")),
                 path_2_framing=str(record.get("path_2_framing", "Press advantage.")),
                 aligned_path=(

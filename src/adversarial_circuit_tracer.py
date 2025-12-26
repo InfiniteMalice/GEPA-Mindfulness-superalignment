@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from .dual_path_circuit_tracer import main
+from src.dual_path_circuit_tracer import main
 
 if __name__ == "__main__":
     raise SystemExit(main())

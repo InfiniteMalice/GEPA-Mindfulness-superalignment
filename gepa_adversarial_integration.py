@@ -4,6 +4,6 @@
 
 from __future__ import annotations
 
-from gepa_dual_path_integration import evaluate_gepa_model, track_training_progress
+from gepa_dual_path_integration import enumerate_checkpoint_metadata, evaluate_gepa_model
 
-__all__ = ["evaluate_gepa_model", "track_training_progress"]
+__all__ = ["evaluate_gepa_model", "enumerate_checkpoint_metadata"]

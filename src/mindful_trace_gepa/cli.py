@@ -900,7 +900,12 @@ def click_dspy_compile(out: str, config: str, dataset: str, enable_optim: bool) 
 @click.option("--data", "data_path", required=True, help="Dual-path dataset JSONL")
 @click.option("--out", "out_dir", required=True, help="Output directory")
 @click.option("--context", default="general", help="Context profile")
-@click.option("--probes", "probes_path", default=None, help="Optional dual-path probes JSONL")
+@click.option(
+    "--probes",
+    "probes_path",
+    default=None,
+    help="Optional dual-path probes JSONL",
+)
 def click_dspy_contrastive(
     data_path: str, out_dir: str, context: str, probes_path: str | None
 ) -> None:

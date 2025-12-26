@@ -4,16 +4,7 @@
 
 from __future__ import annotations
 
-import runpy
-from pathlib import Path
-
-
-def main() -> None:
-    target = Path(__file__).resolve().parent / "src" / "dual_path_circuit_tracer.py"
-    if not target.exists():
-        raise FileNotFoundError(f"Dual-path circuit tracer not found at {target}")
-    runpy.run_path(str(target), run_name="__main__")
-
+from src.dual_path_circuit_tracer import main
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

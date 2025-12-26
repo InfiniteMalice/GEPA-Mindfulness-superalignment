@@ -73,6 +73,8 @@ def _resolve_model_callable(response: str | None) -> ModelCallable:
 
 def run_cli(args: argparse.Namespace) -> None:
     scenarios_path = Path(args.scenarios)
+    if not scenarios_path.exists():
+        raise FileNotFoundError(f"Scenarios file not found: {scenarios_path}")
     output_dir = Path(args.run) if args.run else Path.cwd() / "runs" / "dual_path_eval"
     output_dir.mkdir(parents=True, exist_ok=True)
     records = _load_records(scenarios_path)

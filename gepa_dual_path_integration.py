@@ -29,12 +29,12 @@ def evaluate_gepa_model(
     return run_dual_path_batch(scenarios, model_callable, config)
 
 
-def track_training_progress(
+def enumerate_checkpoint_metadata(
     checkpoints_dir: str,
     scenarios_path: str = "datasets/dual_path/data.jsonl",
     output_dir: str = "results/dual_path",
 ) -> list[dict[str, Any]]:
-    """Return placeholder summaries for dual-path evaluations across checkpoints."""
+    """Enumerate checkpoint directories and return metadata for future evaluation."""
 
     ckpt_path = Path(checkpoints_dir)
     if not ckpt_path.exists():
@@ -54,4 +54,4 @@ def track_training_progress(
     return summaries
 
 
-__all__ = ["evaluate_gepa_model", "track_training_progress"]
+__all__ = ["evaluate_gepa_model", "enumerate_checkpoint_metadata"]

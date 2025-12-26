@@ -29,10 +29,6 @@ def read_dataset(path: Path) -> list[str]:
     return [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def iterate_dual_path_pool() -> Iterable[DualPathProbeScenario]:  # pragma: no cover
-    return []
-
-
 def _resolve_orchestrator_factory():
     target = os.environ.get("GEPA_MINDFULNESS_TRAINING_ORCHESTRATOR")
     if not target:

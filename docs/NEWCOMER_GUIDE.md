@@ -20,6 +20,10 @@ This guide summarizes the current codebase so you can orient yourself quickly.
 
 The `core` package implements the conceptual building blocks of GEPA alignment:
 
+The dual-path architecture compares two candidate responses for the same prompt.
+It replaces legacy adversarial probes with a unified path-by-path trace and
+selection workflow to surface alignment trade-offs and deception signals.
+
 - **Contemplative principles** – `contemplative_principles.py` models the Mindfulness,
   Empathy, Perspective, and Agency axes.
 - **Imperatives & paraconsistency** – `imperatives.py` and `paraconsistent.py`
@@ -57,10 +61,12 @@ Exports live in `gepa_mindfulness.adapters.__init__`.
 ## Configurations & Examples
 
 YAML presets live under `configs/ppo/`, `configs/grpo/`, and `configs/comparison/`.
-Launch a run directly from the CLI:
+There are two CLI entry points. The recommended path is the Click-based CLI
+(`gepa_mindfulness.training.cli`). The legacy entry point
+(`gepa_mindfulness.training.train`) uses `--mode` and is kept for compatibility.
 
 ```bash
-python -m gepa_mindfulness.training.train --mode grpo \
+python -m gepa_mindfulness.training.cli \
   --config gepa_mindfulness/configs/default.yaml \
   --dataset path/to/prompts.txt
 ```
@@ -72,8 +78,8 @@ Example scripts:
 - `examples/vllm_demo/run_vllm_demo.py` targets a vLLM endpoint defined in
   `configs/vllm.yaml` for remote inference.
 
-The `scripts/run_full_pipeline.sh` helper validates configs, runs the CPU demo, and
-executes a GRPO pass using the training entry point.
+The `scripts/run_full_pipeline.sh` helper validates configs, runs the CPU demo,
+and executes a GRPO pass using the Click-based training CLI.
 
 ## Metrics & Testing
 
