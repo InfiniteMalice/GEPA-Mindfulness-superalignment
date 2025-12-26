@@ -445,7 +445,7 @@ class TrainingConfig:
     grpo: GRPOConfig = field(default_factory=GRPOConfig)
     model: ModelConfig = field(default_factory=ModelConfig)
     dataset: DatasetConfig = field(default_factory=DatasetConfig)
-    adversarial_batch: int = 2
+    dual_path_batch: int = 2
     confidence_threshold: float = 0.75
     use_dual_path: bool = False
     abstention: AbstentionConfig = field(default_factory=AbstentionConfig)
@@ -489,8 +489,11 @@ class TrainingConfig:
             grpo=GRPOConfig.from_mapping(grpo_section),
             model=ModelConfig.from_mapping(model_section),
             dataset=DatasetConfig.from_mapping(payload.get("dataset")),
-            adversarial_batch=_to_int(
-                training_section.get("adversarial_batch", payload.get("adversarial_batch")),
+            dual_path_batch=_to_int(
+                training_section.get("dual_path_batch")
+                or training_section.get("adversarial_batch")
+                or payload.get("dual_path_batch")
+                or payload.get("adversarial_batch"),
                 2,
             ),
             confidence_threshold=_to_float(
