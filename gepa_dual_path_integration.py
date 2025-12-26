@@ -39,7 +39,7 @@ def track_training_progress(
     ckpt_path = Path(checkpoints_dir)
     if not ckpt_path.exists():
         raise FileNotFoundError(f"Checkpoints directory not found: {checkpoints_dir}")
-    checkpoints = sorted(ckpt_path.glob("*"))
+    checkpoints = sorted(path for path in ckpt_path.iterdir() if path.is_dir())
     summaries: list[dict[str, Any]] = []
     run_timestamp = datetime.now(timezone.utc).isoformat()
     for checkpoint in checkpoints:

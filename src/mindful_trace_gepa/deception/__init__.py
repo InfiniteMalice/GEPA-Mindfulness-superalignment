@@ -11,15 +11,15 @@ from .fingerprints import DeceptionFingerprint, FingerprintCollector
 from .score import score_deception, summarize_deception_sources
 
 __all__ = [
-    "score_deception",
-    "summarize_deception_sources",
     "DeceptionFingerprint",
-    "FingerprintCollector",
     "DualPathRunConfig",
     "DualPathScenario",
     "DualPathTrace",
+    "FingerprintCollector",
     "build_prompt",
     "load_scenarios",
     "run_dual_path_batch",
     "run_dual_path_scenario",
+    "score_deception",
+    "summarize_deception_sources",
 ]

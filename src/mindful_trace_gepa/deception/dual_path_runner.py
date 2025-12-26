@@ -5,8 +5,9 @@ from __future__ import annotations
 import inspect
 import json
 import logging
+from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping
+from typing import Any
 
 from mindful_trace_gepa.prompts.dual_path import make_dual_path_prompt, parse_dual_path_response
 

@@ -82,8 +82,14 @@ def run_tracing(run_dir: Path) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run dual-path circuit tracing.")
     parser.add_argument("run_dir", help="Run directory containing dual_path_traces.jsonl")
-    parser.add_argument("--tokenizer", default=None, help="Legacy flag (unused)")
-    parser.add_argument("--apply-ablation", action="store_true", help="Legacy flag (unused)")
+    parser.add_argument(
+        "--tokenizer", default=None, help="[DEPRECATED] Legacy flag, no longer used."
+    )
+    parser.add_argument(
+        "--apply-ablation",
+        action="store_true",
+        help="[DEPRECATED] Legacy flag, no longer used.",
+    )
     return parser
 
 

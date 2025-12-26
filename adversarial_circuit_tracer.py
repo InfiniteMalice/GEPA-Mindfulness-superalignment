@@ -10,6 +10,8 @@ from pathlib import Path
 
 def main() -> None:
     target = Path(__file__).resolve().parent / "src" / "dual_path_circuit_tracer.py"
+    if not target.exists():
+        raise FileNotFoundError(f"Dual-path circuit tracer not found at {target}")
     runpy.run_path(str(target), run_name="__main__")
 
 

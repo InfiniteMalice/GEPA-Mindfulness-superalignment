@@ -13,9 +13,9 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable
 
 from mindful_trace_gepa.deception.dual_path_core import DualPathRunConfig
 from mindful_trace_gepa.deception.dual_path_runner import load_scenarios, run_dual_path_batch
@@ -57,6 +57,8 @@ def run_workflow(args: argparse.Namespace) -> None:
     reports_dir.mkdir(parents=True, exist_ok=True)
 
     scenario_path = Path(args.scenarios)
+    if not scenario_path.exists():
+        raise FileNotFoundError(f"Scenarios file not found: {scenario_path}")
     records = read_jsonl(scenario_path)
     scenarios = load_scenarios(records)
     config = DualPathRunConfig(model_id=args.model, log_dir=str(traces_dir))

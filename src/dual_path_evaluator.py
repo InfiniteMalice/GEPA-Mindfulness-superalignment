@@ -62,8 +62,10 @@ def _resolve_model_callable(response: str | None) -> ModelCallable:
             "No model hook provided. Pass --response module:callable or a .py file path."
         )
     response_path = Path(response)
-    if response_path.suffix == ".py" and response_path.exists():
-        return _load_callable_from_file(response_path)
+    if response_path.suffix == ".py":
+        if response_path.exists():
+            return _load_callable_from_file(response_path)
+        raise ValueError(f"Response hook file not found: {response_path}")
     if ":" in response:
         return _load_callable_from_module(response)
     raise ValueError("Unsupported --response value. Use module:callable or a .py file path.")
