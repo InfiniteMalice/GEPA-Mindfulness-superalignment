@@ -762,14 +762,17 @@ def main() -> int:
     print()
 
     fingerprints_path = fingerprint_dir / "fingerprints.jsonl"
-    print("🎯 Next steps:")
-    print(
-        "   python scripts/analyze_deception_fingerprints.py " f"--fingerprints {fingerprints_path}"
+    analyze_cmd = (
+        "python scripts/analyze_deception_fingerprints.py "
+        f"--fingerprints {fingerprints_path}"
     )
-    print(
-        "   python scripts/validate_ablation.py "
+    validate_cmd = (
+        "python scripts/validate_ablation.py "
         f"--original {model_output} --test-data {dataset_path}"
     )
+    print("🎯 Next steps:")
+    print(f"   {analyze_cmd}")
+    print(f"   {validate_cmd}")
     print()
     print("=" * 70)
 

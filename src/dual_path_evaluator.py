@@ -99,7 +99,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--model-id", default=None, help="Model identifier for logging")
     parser.add_argument("--temperature", type=float, default=0.7)
     parser.add_argument("--max-tokens", type=int, default=512)
-    parser.add_argument("--mode", default=None, help="Legacy mode flag (unused)")
     parser.add_argument(
         "--response",
         default=None,

@@ -1015,6 +1015,10 @@ def _extract_final_answer_value(response: str) -> tuple[str, tuple[int, int]]:
 def parse_dual_path_response(response: str, *, strict: bool = True) -> dict[str, Any]:
     """Parse model response into structured dual-path sections.
 
+    Note:
+        strict defaults to True and raises ValueError when the FINAL ANSWER line is
+        missing or malformed. Pass strict=False for the previous permissive behavior.
+
     Invariants:
         - Both Path 1 and Path 2 contain scratchpads and public reasoning.
         - A FINAL ANSWER line exists with one token: 1, 2, both, or neither.

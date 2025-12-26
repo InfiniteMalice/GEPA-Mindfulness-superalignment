@@ -7,12 +7,17 @@ from pathlib import Path
 # NOTE: New implementation lives in src/dual_path_evaluator.py; keep this file as a thin shim.
 
 
-def main() -> None:
+def main() -> int:
     target = Path(__file__).resolve().parent / "src" / "dual_path_evaluator.py"
     if not target.exists():
         raise FileNotFoundError(f"Dual-path evaluator not found at {target}")
-    runpy.run_path(str(target), run_name="__main__")
+    module_globals = runpy.run_path(str(target), run_name="__main__")
+    entrypoint = module_globals.get("main")
+    if callable(entrypoint):
+        result = entrypoint()
+        return result if isinstance(result, int) else 0
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

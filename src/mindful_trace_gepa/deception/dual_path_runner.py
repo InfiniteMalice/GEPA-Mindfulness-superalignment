@@ -117,6 +117,7 @@ def load_scenarios(records: Iterable[Mapping[str, Any]]) -> list[DualPathScenari
                 "Dual-path record missing prompt/query; scenario id=%s",
                 record.get("id"),
             )
+            continue
         scenarios.append(
             DualPathScenario(
                 scenario_id=str(record.get("id", "")) or None,
