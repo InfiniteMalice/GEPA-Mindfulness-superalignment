@@ -10,8 +10,6 @@ def main() -> int:
         from src.dual_path_circuit_tracer import main as circuit_main
     except ImportError as exc:
         raise FileNotFoundError(f"Dual-path circuit tracer not found: {exc}") from exc
-    if not callable(circuit_main):
-        raise SystemExit("Dual-path circuit tracer missing callable main")
     result = circuit_main()
     if not isinstance(result, int):
         raise SystemExit("Dual-path circuit tracer returned non-integer exit code")

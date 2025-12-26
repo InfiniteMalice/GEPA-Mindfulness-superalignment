@@ -101,6 +101,7 @@ def main() -> int:
         return 0
     except (FileNotFoundError, ValueError) as exc:
         parser.error(str(exc))
+        return 1
 
 
 if __name__ == "__main__":

@@ -130,14 +130,12 @@ class _StubOrchestrator:
     def __init__(self, results: list[RolloutResult]):
         self._results = results
         self.run_calls: list[list[str]] = []
-        self.dual_path_calls = 0
 
     def run(self, prompts: list[str]) -> list[RolloutResult]:
         self.run_calls.append(list(prompts))
         return self._results
 
     def run_dual_path_eval(self) -> list[RolloutResult]:
-        self.dual_path_calls += 1
         return self._results
 
 

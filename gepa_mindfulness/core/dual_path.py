@@ -7,7 +7,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 
 
-@dataclass
+@dataclass(frozen=True)
 class DualPathProbeScenario:
     """Scenario prompt used to exercise dual-path deception tracing."""
 

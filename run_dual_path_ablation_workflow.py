@@ -90,11 +90,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     parser = build_parser()
-    try:
-        run_workflow(parser.parse_args())
-        return 0
-    except FileNotFoundError as exc:
-        parser.error(str(exc))
+    run_workflow(parser.parse_args())
+    return 0
 
 
 if __name__ == "__main__":

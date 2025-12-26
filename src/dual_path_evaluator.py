@@ -6,6 +6,7 @@ import argparse
 import importlib
 import importlib.util
 import json
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -113,7 +114,7 @@ def main() -> int:
         run_cli(parser.parse_args())
     except (FileNotFoundError, ValueError) as exc:
         parser.error(str(exc))
-    return 0
+    sys.exit(0)
 
 
 if __name__ == "__main__":

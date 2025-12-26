@@ -660,9 +660,7 @@ def handle_score(args: argparse.Namespace) -> None:
         else:
             yield from iter_jsonl(trace_path)
 
-    event_iter: Iterable[dict[str, Any]] = (
-        _iter_events() if stream_flag else list(_iter_events())
-    )
+    event_iter: Iterable[dict[str, Any]] = _iter_events() if stream_flag else list(_iter_events())
 
     principle_sums: dict[str, float] = {}
     principle_counts: dict[str, int] = {}

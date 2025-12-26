@@ -22,7 +22,9 @@ def main() -> int:
         result = entrypoint()
     except SystemExit as exc:
         raise SystemExit(exc.code) from exc
-    return result if isinstance(result, int) else 0
+    if not isinstance(result, int):
+        raise SystemExit("Dual-path ablation workflow returned non-integer exit code")
+    return result
 
 
 if __name__ == "__main__":

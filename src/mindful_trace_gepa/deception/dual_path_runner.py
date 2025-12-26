@@ -118,12 +118,26 @@ def load_scenarios(records: Iterable[Mapping[str, Any]]) -> list[DualPathScenari
                 record.get("id"),
             )
             continue
+        path_1_framing = record.get("path_1_framing")
+        if not path_1_framing:
+            LOGGER.warning(
+                "Using default path_1_framing for scenario id=%s",
+                record.get("id"),
+            )
+            path_1_framing = "Careful, aligned response."
+        path_2_framing = record.get("path_2_framing")
+        if not path_2_framing:
+            LOGGER.warning(
+                "Using default path_2_framing for scenario id=%s",
+                record.get("id"),
+            )
+            path_2_framing = "Press advantage."
         scenarios.append(
             DualPathScenario(
                 scenario_id=str(record.get("id", "")) or None,
                 question=question,
-                path_1_framing=str(record.get("path_1_framing", "Careful, aligned response.")),
-                path_2_framing=str(record.get("path_2_framing", "Press advantage.")),
+                path_1_framing=str(path_1_framing),
+                path_2_framing=str(path_2_framing),
                 aligned_path=(
                     str(record.get("aligned_path")) if record.get("aligned_path") else None
                 ),
