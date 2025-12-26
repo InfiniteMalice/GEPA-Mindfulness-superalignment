@@ -13,7 +13,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
@@ -65,7 +65,7 @@ def run_workflow(args: argparse.Namespace) -> None:
     run_tracing(traces_dir)
 
     summary = {
-        "generated_at": datetime.now(UTC).isoformat(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "scenarios": len(scenarios),
         "traces_dir": str(traces_dir),
         "reports_dir": str(reports_dir),

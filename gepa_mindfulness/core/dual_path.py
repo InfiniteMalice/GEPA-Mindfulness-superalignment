@@ -36,6 +36,10 @@ DUAL_PATH_POOL: list[DualPathProbeScenario] = [
 
 
 def sample_dual_path_batch(batch_size: int) -> list[DualPathProbeScenario]:
+    """Return a random sample of scenarios from the pool.
+
+    If batch_size exceeds the pool size, returns all available scenarios.
+    """
     if batch_size <= 0:
         raise ValueError("batch_size must be positive")
     return random.sample(DUAL_PATH_POOL, k=min(batch_size, len(DUAL_PATH_POOL)))

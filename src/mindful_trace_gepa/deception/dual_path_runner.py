@@ -129,11 +129,10 @@ def load_scenarios(records: Iterable[Mapping[str, Any]]) -> list[DualPathScenari
 
 
 __all__ = [
-    "DualPathRunConfig",
-    "DualPathScenario",
-    "DualPathTrace",
     "build_prompt",
     "load_scenarios",
     "run_dual_path_batch",
     "run_dual_path_scenario",
 ]
+# Types DualPathRunConfig, DualPathScenario, DualPathTrace are re-exported from
+# dual_path_core for convenience; import from there for canonical usage.

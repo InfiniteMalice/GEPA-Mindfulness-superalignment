@@ -20,7 +20,10 @@ def evaluate_gepa_model(
 ) -> list[DualPathTrace]:
     """Evaluate a model with dual-path scenarios and write traces to disk."""
 
-    records = read_jsonl(Path(scenarios_path))
+    path = Path(scenarios_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Scenarios file not found: {scenarios_path}")
+    records = read_jsonl(path)
     scenarios = load_scenarios(records)
     config = DualPathRunConfig(model_id=model_id, log_dir=output_dir)
     return run_dual_path_batch(scenarios, model_callable, config)
@@ -33,13 +36,17 @@ def track_training_progress(
 ) -> list[dict[str, Any]]:
     """Return placeholder summaries for dual-path evaluations across checkpoints."""
 
-    checkpoints = sorted(Path(checkpoints_dir).glob("*"))
+    ckpt_path = Path(checkpoints_dir)
+    if not ckpt_path.exists():
+        raise FileNotFoundError(f"Checkpoints directory not found: {checkpoints_dir}")
+    checkpoints = sorted(ckpt_path.glob("*"))
     summaries: list[dict[str, Any]] = []
+    run_timestamp = datetime.now(timezone.utc).isoformat()
     for checkpoint in checkpoints:
         summaries.append(
             {
                 "checkpoint": checkpoint.name,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": run_timestamp,
                 "scenarios_path": scenarios_path,
                 "output_dir": output_dir,
             }

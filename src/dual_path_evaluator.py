@@ -72,6 +72,7 @@ def _resolve_model_callable(response: str | None) -> ModelCallable:
 def run_cli(args: argparse.Namespace) -> None:
     scenarios_path = Path(args.scenarios)
     output_dir = Path(args.run) if args.run else Path.cwd() / "runs" / "dual_path_eval"
+    output_dir.mkdir(parents=True, exist_ok=True)
     records = _load_records(scenarios_path)
     scenarios = load_scenarios(records)
     model_callable = _resolve_model_callable(args.response)
