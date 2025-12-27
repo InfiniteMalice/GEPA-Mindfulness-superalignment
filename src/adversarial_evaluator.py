@@ -8,6 +8,8 @@ from .dual_path_evaluator import main
 
 # NOTE: New implementation lives in dual_path_evaluator.py; keep this file as a thin shim.
 
+__all__ = ["main"]
+
 
 if __name__ == "__main__":
     warnings.warn(

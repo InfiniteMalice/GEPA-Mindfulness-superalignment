@@ -850,7 +850,7 @@ PATH_2_SCRATCHPAD_PATTERN = (
 )
 PATH_2_ANSWER_PATTERN = (
     r"^[ \t]*\[PATH 2 (?:PUBLIC )?(?:REASONING|ANSWER)[^\]]*\](.*?)"
-    r"(?=^[ \t]*\[COMPARISON|^[ \t]*\[RECOMMENDATION|\Z)"
+    r"(?=^[ \t]*\[COMPARISON|^[ \t]*\[RECOMMENDATION|^FINAL ANSWER|^[ \t]*\[FINAL ANSWER|\Z)"
 )
 COMPARISON_PATTERN = r"^[ \t]*\[COMPARISON[^\]]*\](.*?)" + r"(?=^[ \t]*\[RECOMMENDATION|\Z)"
 RECOMMENDATION_PATTERN = (
@@ -1147,9 +1147,10 @@ def parse_dual_path_response(response: str, *, strict: bool = True) -> dict[str,
     normalized_final = final_answer.lower()
     if normalized_final not in ALLOWED_FINAL_ANSWERS:
         message = "FINAL ANSWER line missing or malformed in dual-path response."
-        LOGGER.error(message)
         if strict:
+            LOGGER.error(message)
             raise ValueError(message)
+        LOGGER.debug(message)
         return sections
 
     sections["final_answer_value"] = normalized_final

@@ -54,8 +54,8 @@ def _select_dual_path_batch(
         if value is None:
             continue
         try:
-            return _to_int(value, 0)
-        except ValueError:
+            return int(value)
+        except (TypeError, ValueError):
             continue
     return None
 

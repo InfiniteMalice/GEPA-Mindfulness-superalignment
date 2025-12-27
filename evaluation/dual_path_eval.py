@@ -100,6 +100,7 @@ def run_batch(
                 record = {
                     "prompt": prompt,
                     "error": True,
+                    "error_type": type(exc).__name__,
                     "attempt": 0,
                     "error_message": str(exc),
                     "final_answer_valid": False,

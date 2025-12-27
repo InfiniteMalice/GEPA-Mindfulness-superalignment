@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import runpy
 import warnings
-from pathlib import Path
 
 # Deprecated entry point for dual-path evaluation.
 # NOTE: New implementation lives in src/dual_path_evaluator.py; keep this file as a thin shim.
@@ -14,14 +12,13 @@ def main() -> int:
         DeprecationWarning,
         stacklevel=2,
     )
-    target = Path(__file__).resolve().parent / "src" / "dual_path_evaluator.py"
-    if not target.exists():
-        raise FileNotFoundError(f"Dual-path evaluator not found at {target}")
-    module_globals = runpy.run_path(str(target), run_name="dual_path_evaluator")
-    entrypoint = module_globals.get("main")
-    if not callable(entrypoint):
-        raise RuntimeError(f"Dual-path evaluator missing callable main in {target}")
-    return entrypoint()
+    try:
+        from src.dual_path_evaluator import main as dual_main
+    except ImportError as exc:
+        raise FileNotFoundError(f"Cannot import dual-path evaluator: {exc}") from exc
+    if not callable(dual_main):
+        raise RuntimeError("Dual-path evaluator main is not callable")
+    return dual_main()
 
 
 if __name__ == "__main__":

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import warnings
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -68,6 +69,7 @@ def run_tracing(run_dir: Path) -> None:
             domain=str(trace.get("metadata", {}).get("domain", "general")),
             path_1_text=str(sections.get("path_1", "")),
             path_2_text=str(sections.get("path_2", "")),
+            # Placeholder fields until circuit attribution signals are available.
             comparison="",
             recommendation="",
             recommended_path=str(sections.get("recommended_path", "unclear")),
@@ -101,8 +103,6 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _warn_deprecated_flags(args: argparse.Namespace) -> None:
-    import warnings
-
     if args.tokenizer is not None:
         warnings.warn("--tokenizer is deprecated and ignored.", DeprecationWarning, stacklevel=2)
     if args.apply_ablation:

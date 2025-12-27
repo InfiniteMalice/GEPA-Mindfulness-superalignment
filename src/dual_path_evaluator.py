@@ -119,6 +119,9 @@ def main() -> int:
     except ValueError as exc:
         print(f"{parser.prog}: {exc}", file=sys.stderr)
         return 2
+    except RuntimeError as exc:
+        print(f"{parser.prog}: {exc}", file=sys.stderr)
+        return 3
 
 
 if __name__ == "__main__":
