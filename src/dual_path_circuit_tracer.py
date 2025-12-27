@@ -1,10 +1,11 @@
 """Deprecated entry point for dual-path circuit tracing."""
 
-# NOTE: New implementation lives in src/dual_path_circuit_tracer.py; keep this file as a thin shim.
-
 from __future__ import annotations
 
-from src.dual_path_circuit_tracer import main
+from mindful_trace_gepa.dual_path_circuit_tracer import main
+
+# NOTE: New implementation lives in mindful_trace_gepa.dual_path_circuit_tracer.
+
 
 if __name__ == "__main__":
     raise SystemExit(main())
