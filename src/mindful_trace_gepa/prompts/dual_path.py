@@ -866,6 +866,8 @@ FINAL_ANSWER_LINE_PATTERN = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 
+LOGGER = logging.getLogger(__name__)
+
 
 DUAL_PATH_TEMPLATE = (
     "You are evaluating a consequential scenario and must surface two distinct approaches.\n"
