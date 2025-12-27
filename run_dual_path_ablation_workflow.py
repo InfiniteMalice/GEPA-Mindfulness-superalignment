@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -56,8 +57,12 @@ def run_workflow(args: argparse.Namespace) -> None:
     scenarios = load_scenarios(records)
     config = DualPathRunConfig(model_id=args.model, log_dir=str(traces_dir))
     run_dual_path_batch(scenarios, _stub_model, config)
-    tracer = _load_tracer()
-    tracer(traces_dir)
+    try:
+        tracer = _load_tracer()
+        tracer(traces_dir)
+    except Exception as exc:
+        print(f"Tracer failed: {exc}", file=sys.stderr)
+        raise
 
     summary = {
         "generated_at": datetime.now(timezone.utc).isoformat(),

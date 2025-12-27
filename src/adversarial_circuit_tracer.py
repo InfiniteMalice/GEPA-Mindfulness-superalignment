@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sys
+
 # NOTE: New implementation lives in mindful_trace_gepa.dual_path_circuit_tracer.
 
 
@@ -11,9 +13,10 @@ def main() -> int:
     except ImportError as exc:
         raise FileNotFoundError(f"Dual-path circuit tracer not found: {exc}") from exc
     result = circuit_main()
-    if not isinstance(result, int):
-        raise SystemExit("Dual-path circuit tracer returned non-integer exit code")
-    return result
+    if isinstance(result, int):
+        return result
+    print("Dual-path circuit tracer returned non-integer exit code", file=sys.stderr)
+    return 1
 
 
 if __name__ == "__main__":

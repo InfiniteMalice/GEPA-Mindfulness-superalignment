@@ -112,9 +112,13 @@ def main() -> int:
     parser = build_parser()
     try:
         run_cli(parser.parse_args())
-    except (FileNotFoundError, ValueError) as exc:
-        parser.error(str(exc))
-    sys.exit(0)
+        return 0
+    except FileNotFoundError as exc:
+        print(f"{parser.prog}: {exc}", file=sys.stderr)
+        return 1
+    except ValueError as exc:
+        print(f"{parser.prog}: {exc}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

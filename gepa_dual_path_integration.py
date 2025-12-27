@@ -12,6 +12,8 @@ from mindful_trace_gepa.deception.dual_path_core import DualPathRunConfig, DualP
 from mindful_trace_gepa.deception.dual_path_runner import load_scenarios, run_dual_path_batch
 from mindful_trace_gepa.storage import read_jsonl
 
+LOGGER = logging.getLogger(__name__)
+
 
 def evaluate_gepa_model(
     model_callable: Callable[..., str],
@@ -42,7 +44,7 @@ def enumerate_checkpoint_metadata(
         raise FileNotFoundError(f"Checkpoints directory not found: {checkpoints_dir}")
     checkpoints = sorted(path for path in ckpt_path.iterdir() if path.is_dir())
     if not checkpoints:
-        logging.getLogger(__name__).warning(
+        LOGGER.warning(
             "No checkpoint subdirectories found in %s",
             ckpt_path,
         )

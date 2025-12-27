@@ -83,8 +83,6 @@ def _resolve_call_mode(model_callable: ModelCallable) -> str:
         if second.kind == second.VAR_POSITIONAL:
             return "positional"
     for param in params:
-        if param.kind == param.VAR_POSITIONAL:
-            return "positional"
         if param.kind == param.VAR_KEYWORD:
             return "keyword"
         if param.kind == param.KEYWORD_ONLY and param.name == "config":

@@ -46,6 +46,7 @@ def sample_dual_path_batch(batch_size: int) -> list[DualPathProbeScenario]:
 
 
 def iterate_dual_path_pool() -> Iterable[DualPathProbeScenario]:
+    """Yield all scenarios from the dual-path pool."""
     yield from DUAL_PATH_POOL
 
 
