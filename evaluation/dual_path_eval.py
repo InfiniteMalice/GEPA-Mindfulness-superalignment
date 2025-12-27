@@ -30,7 +30,8 @@ def evaluate_once(
         sections = parse_dual_path_response(response, strict=True)
         sections["raw_response"] = response
         return response, sections
-    except ValueError:
+    except ValueError as exc:
+        logger.debug("Dual-path parsing failed: %s", exc)
         return response, None
 
 

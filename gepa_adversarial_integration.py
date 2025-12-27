@@ -1,6 +1,7 @@
 """Deprecated entry point for dual-path evaluation integration."""
 
-# NOTE: New implementation lives in gepa_dual_path_integration.py; keep this file as a thin shim.
+# NOTE: New implementation lives in gepa_dual_path_integration.py.
+# Keep this file as a thin shim.
 
 from __future__ import annotations
 

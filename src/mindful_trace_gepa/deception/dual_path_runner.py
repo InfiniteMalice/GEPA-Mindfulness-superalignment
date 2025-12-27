@@ -64,6 +64,13 @@ def run_dual_path_scenario(
 
 
 def _resolve_call_mode(model_callable: ModelCallable) -> str:
+    """Determine how to pass config to the model callable.
+
+    Returns:
+        "positional": callable accepts config as second positional arg
+        "keyword": callable accepts config as keyword arg or **kwargs
+        "none": callable only accepts the prompt
+    """
     try:
         signature = inspect.signature(model_callable)
     except (TypeError, ValueError):

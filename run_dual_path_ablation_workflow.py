@@ -22,7 +22,7 @@ from mindful_trace_gepa.storage import read_jsonl
 
 
 def _load_tracer() -> Callable[[Path], None]:
-    from src.dual_path_circuit_tracer import run_tracing
+    from mindful_trace_gepa.dual_path_circuit_tracer import run_tracing
 
     return run_tracing
 

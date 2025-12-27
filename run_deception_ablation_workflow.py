@@ -14,7 +14,7 @@ def main() -> int:
     target = Path(__file__).resolve().parent / "run_dual_path_ablation_workflow.py"
     if not target.exists():
         raise FileNotFoundError(f"Dual-path ablation workflow not found at {target}")
-    module_globals = runpy.run_path(str(target), run_name="__main__")
+    module_globals = runpy.run_path(str(target), run_name="dual_path_ablation_workflow")
     entrypoint = module_globals.get("main")
     if not callable(entrypoint):
         raise SystemExit(f"Dual-path ablation workflow missing callable main in {target}")

@@ -467,7 +467,7 @@ def check_requirements(model_key: str) -> list[str]:
             gpu_mem = torch.cuda.get_device_properties(0).total_memory / 1e9
             if gpu_mem < config["min_vram"]:
                 issues.append(
-                    (f"GPU has {gpu_mem:.1f}GB - " f"need {config['min_vram']}GB+ for {model_key}")
+                    f"GPU has {gpu_mem:.1f}GB - " f"need {config['min_vram']}GB+ for {model_key}"
                 )
     except ImportError:
         issues.append("torch not installed - run: pip install torch")
@@ -522,10 +522,8 @@ def main() -> int:
     cache_path = Path.home() / ".cache" / "huggingface" / "hub"
     if not cache_path.exists():
         print(
-            (
-                "   ⚠️  First run downloads ~"
-                f"{model_config['download_size']}GB (may take several minutes)"
-            )
+            "   ⚠️  First run downloads ~"
+            f"{model_config['download_size']}GB (may take several minutes)"
         )
     print("   ⏳ Please be patient...")
     print()

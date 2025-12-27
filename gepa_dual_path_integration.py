@@ -46,6 +46,7 @@ def enumerate_checkpoint_metadata(
             "No checkpoint subdirectories found in %s",
             ckpt_path,
         )
+        return []
     summaries: list[dict[str, Any]] = []
     run_timestamp = datetime.now(timezone.utc).isoformat()
     for checkpoint in checkpoints:

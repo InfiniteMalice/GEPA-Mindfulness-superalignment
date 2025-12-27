@@ -49,4 +49,9 @@ def iterate_dual_path_pool() -> Iterable[DualPathProbeScenario]:
     yield from DUAL_PATH_POOL
 
 
-__all__ = ["DualPathProbeScenario", "sample_dual_path_batch", "iterate_dual_path_pool"]
+__all__ = [
+    "DUAL_PATH_POOL",
+    "DualPathProbeScenario",
+    "iterate_dual_path_pool",
+    "sample_dual_path_batch",
+]

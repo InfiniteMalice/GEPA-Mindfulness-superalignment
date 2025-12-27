@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-# NOTE: New implementation lives in dual_path_circuit_tracer.py; keep this file as a thin shim.
+# NOTE: New implementation lives in mindful_trace_gepa.dual_path_circuit_tracer.
 
 
 def main() -> int:
     try:
-        from src.dual_path_circuit_tracer import main as circuit_main
+        from mindful_trace_gepa.dual_path_circuit_tracer import main as circuit_main
     except ImportError as exc:
         raise FileNotFoundError(f"Dual-path circuit tracer not found: {exc}") from exc
     result = circuit_main()
