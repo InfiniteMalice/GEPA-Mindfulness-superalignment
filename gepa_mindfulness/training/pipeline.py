@@ -5,8 +5,8 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Mapping, Sequence
 
 from gepa_mindfulness.core import (
     AbstentionRewardWeights,

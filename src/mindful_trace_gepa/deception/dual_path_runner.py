@@ -16,6 +16,12 @@ from .dual_path_core import DualPathRunConfig, DualPathScenario, DualPathTrace
 LOGGER = logging.getLogger(__name__)
 
 ModelCallable = Callable[..., str]
+"""Callable model hook.
+
+Uses a broad signature to support prompt-only callables as well as callables
+that accept config via positional or keyword arguments. _resolve_call_mode
+inspects the signature to determine how to invoke it.
+"""
 
 
 def build_prompt(scenario: DualPathScenario) -> str:

@@ -100,9 +100,23 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _warn_deprecated_flags(args: argparse.Namespace) -> None:
+    import warnings
+
+    if args.tokenizer is not None:
+        warnings.warn("--tokenizer is deprecated and ignored.", DeprecationWarning, stacklevel=2)
+    if args.apply_ablation:
+        warnings.warn(
+            "--apply-ablation is deprecated and ignored.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
+    _warn_deprecated_flags(args)
     try:
         run_tracing(Path(args.run_dir))
         return 0

@@ -148,10 +148,6 @@ def _resolve_probes_path(probes_arg: str | None) -> Path | None:
     return resolved
 
 
-def _read_jsonl(path: Path) -> list[dict[str, Any]]:
-    return read_jsonl(path)
-
-
 def _write_jsonl(path: Path, rows: Iterable[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as handle:
@@ -233,7 +229,7 @@ def handle_dspy_run(args: argparse.Namespace) -> None:
     )
     chain = chain_factory(config=config, allow_optimizations=args.enable_optim)
     input_path = _resolve_cli_path(args.input)
-    input_records = _read_jsonl(input_path)
+    input_records = read_jsonl(input_path)
     trace_path = Path(args.trace)
     tokens_path = trace_path.with_name("tokens.jsonl")
     summary_path = trace_path.with_name("summary.json")
@@ -356,7 +352,7 @@ def handle_dspy_compile(args: argparse.Namespace) -> None:
         forbidden_phrases=config_data.get("safety", {}).get("forbidden_phrases", []),
     )
 
-    dataset_records = _read_jsonl(_resolve_cli_path(args.dataset)) if args.dataset else []
+    dataset_records = read_jsonl(_resolve_cli_path(args.dataset)) if args.dataset else []
     trainset = [
         dspy_pkg.Example(
             inquiry=record.get("query", record.get("prompt", "")),

@@ -62,6 +62,9 @@ def run_workflow(args: argparse.Namespace) -> None:
     try:
         tracer = _load_tracer()
         tracer(traces_dir)
+    except FileNotFoundError as exc:
+        LOGGER.error("Tracer input file not found: %s", exc)
+        raise
     except Exception as exc:
         LOGGER.exception("Tracer failed: %s", exc)
         raise

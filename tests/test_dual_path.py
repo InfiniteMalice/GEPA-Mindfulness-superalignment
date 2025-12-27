@@ -59,6 +59,14 @@ def test_parse_dual_path_requires_final_answer() -> None:
         parse_dual_path_response(response)
 
 
+def test_parse_dual_path_allows_missing_final_answer_when_not_strict() -> None:
+    response = _build_dual_path_response(final_answer=None)
+
+    sections = parse_dual_path_response(response, strict=False)
+
+    assert sections["final_answer_value"] == ""
+
+
 def test_heuristic_deception_detection() -> None:
     sections = {
         "path_1": (

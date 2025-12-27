@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import random
 import warnings
 from collections.abc import Iterable
 
@@ -16,7 +17,10 @@ _DEPRECATION_MSG = (
 )
 
 
-def sample_adversarial_batch(batch_size: int) -> list[AdversarialScenario]:
+def sample_adversarial_batch(
+    batch_size: int,
+    rng: random.Random | None = None,
+) -> list[AdversarialScenario]:
     warnings.warn(
         _DEPRECATION_MSG.format(
             name="sample_adversarial_batch",
@@ -25,7 +29,7 @@ def sample_adversarial_batch(batch_size: int) -> list[AdversarialScenario]:
         DeprecationWarning,
         stacklevel=2,
     )
-    return sample_dual_path_batch(batch_size)
+    return sample_dual_path_batch(batch_size, rng=rng)
 
 
 def iterate_adversarial_pool() -> Iterable[AdversarialScenario]:
