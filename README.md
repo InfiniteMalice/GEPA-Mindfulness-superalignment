@@ -265,7 +265,7 @@ Or command line:
 
 ```bash
 python src/dual_path_evaluator.py --scenarios datasets/dual_path/data.jsonl --run runs/001
-python src/dual_path_circuit_tracer.py runs/001 --tokenizer mistral-instruct
+python src/dual_path_circuit_tracer.py runs/001
 python tools/merge_run_inspection.py runs/001
 ```
 

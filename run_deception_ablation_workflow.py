@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-import runpy
+import sys
 import warnings
 from pathlib import Path
 
@@ -18,20 +18,13 @@ def main() -> int:
         DeprecationWarning,
         stacklevel=2,
     )
-    target = Path(__file__).resolve().parent / "run_dual_path_ablation_workflow.py"
-    if not target.exists():
-        raise FileNotFoundError(f"Dual-path ablation workflow not found at {target}")
-    module_globals = runpy.run_path(str(target), run_name="dual_path_ablation_workflow")
-    entrypoint = module_globals.get("main")
-    if not callable(entrypoint):
-        raise SystemExit(f"Dual-path ablation workflow missing callable main in {target}")
-    try:
-        result = entrypoint()
-    except SystemExit as exc:
-        raise SystemExit(exc.code) from exc
-    if not isinstance(result, int):
-        raise SystemExit("Dual-path ablation workflow returned non-integer exit code")
-    return result
+    repo_root = Path(__file__).resolve().parent
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
+
+    from run_dual_path_ablation_workflow import main as dual_path_main
+
+    return dual_path_main()
 
 
 if __name__ == "__main__":

@@ -95,10 +95,10 @@ def _legacy_main(
         config = load_training_config(config_path)
         orchestrator_factory = _resolve_orchestrator_factory()
         orchestrator = orchestrator_factory(config=config)
-        prompts = read_dataset(dataset_path)
         if dual_path_only:
             results = orchestrator.run_dual_path_eval()
         else:
+            prompts = read_dataset(dataset_path)
             results = orchestrator.run(prompts)
         count = _serialize_rollouts(log_destination / "rollouts.jsonl", results)
         root_logger.info("Serialized %s rollouts", count)

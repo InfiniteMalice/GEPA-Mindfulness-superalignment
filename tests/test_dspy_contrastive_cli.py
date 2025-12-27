@@ -18,7 +18,12 @@ def test_dspy_contrastive_subcommand_invokes_runner(
 
     called: dict[str, object] = {}
 
-    def fake_runner(data: Path, out: Path, context: str, probes_path: Path | None = None) -> None:
+    def fake_runner(
+        data: Path,
+        out: Path,
+        context: str,
+        probes_path: Path | None = None,
+    ) -> None:
         called["data"] = data
         called["out"] = out
         called["context"] = context

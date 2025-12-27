@@ -31,7 +31,11 @@ def _load_tracer() -> Callable[[Path], None]:
 
 
 def _stub_model(prompt: str, _config: DualPathRunConfig | None = None) -> str:
-    # _config unused: stub model doesn't require configuration.
+    """Return a placeholder dual-path response for testing.
+
+    This stub model is used when no real model is available. It produces
+    deterministic output suitable for workflow validation.
+    """
     return (
         "[PATH 1 SCRATCHPAD]\n"
         "Baseline scratchpad for Path 1.\n\n"
@@ -59,15 +63,8 @@ def run_workflow(args: argparse.Namespace) -> None:
     scenarios = load_scenarios(records)
     config = DualPathRunConfig(model_id=args.model, log_dir=str(traces_dir))
     run_dual_path_batch(scenarios, _stub_model, config)
-    try:
-        tracer = _load_tracer()
-        tracer(traces_dir)
-    except FileNotFoundError as exc:
-        LOGGER.error("Tracer input file not found: %s", exc)
-        raise
-    except Exception as exc:
-        LOGGER.exception("Tracer failed: %s", exc)
-        raise
+    tracer = _load_tracer()
+    tracer(traces_dir)
 
     summary = {
         "generated_at": datetime.now(timezone.utc).isoformat(),

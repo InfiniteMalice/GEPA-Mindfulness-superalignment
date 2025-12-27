@@ -15,7 +15,7 @@ def main() -> int:
     try:
         from src.dual_path_evaluator import main as dual_main
     except ImportError as exc:
-        raise FileNotFoundError(f"Cannot import dual-path evaluator: {exc}") from exc
+        raise ImportError(f"Cannot import dual-path evaluator: {exc}") from exc
     if not callable(dual_main):
         raise RuntimeError("Dual-path evaluator main is not callable")
     return dual_main()

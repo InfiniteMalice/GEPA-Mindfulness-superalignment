@@ -11,7 +11,9 @@ from typing import Any
 from gepa_dual_path_integration import (
     enumerate_checkpoint_metadata as _enumerate_checkpoint_metadata,
 )
-from gepa_dual_path_integration import evaluate_gepa_model as _evaluate_gepa_model
+from gepa_dual_path_integration import (
+    evaluate_gepa_model as _evaluate_gepa_model,
+)
 
 
 def evaluate_gepa_model(*args: Any, **kwargs: Any) -> Any:

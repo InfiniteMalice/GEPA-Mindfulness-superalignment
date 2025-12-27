@@ -1151,6 +1151,15 @@ def parse_dual_path_response(response: str, *, strict: bool = True) -> dict[str,
             LOGGER.error(message)
             raise ValueError(message)
         LOGGER.debug(message)
+        rec_text = (
+            sections["recommendation"]
+            or sections["official_answer"]
+            or sections["comparison"]
+            or sections["path_2"]
+            or sections["path_1"]
+        )
+        if rec_text:
+            sections["recommended_path"] = _resolve_recommendation(rec_text)
         return sections
 
     sections["final_answer_value"] = normalized_final
