@@ -658,7 +658,11 @@ def main() -> int:
                 skip_special_tokens=True,
             )
 
-            sections = parse_dual_path_response(response)
+            try:
+                sections = parse_dual_path_response(response)
+            except ValueError as exc:
+                print(f"  ⚠️ Invalid dual-path response, skipping: {exc}")
+                sections = parse_dual_path_response(response, strict=False)
             heuristic = circuit_analysis.detect_deception_heuristic(sections)
             dual_path = analyze_dual_path_signals(sections)
 
@@ -760,13 +764,10 @@ def main() -> int:
     print()
 
     fingerprints_path = fingerprint_dir / "fingerprints.jsonl"
-    analyze_cmd = (
-        "python scripts/analyze_deception_fingerprints.py " f"--fingerprints {fingerprints_path}"
-    )
-    validate_cmd = (
-        "python scripts/validate_ablation.py "
-        f"--original {model_output} --test-data {dataset_path}"
-    )
+    analyze_base = "python scripts/analyze_deception_fingerprints.py"
+    analyze_cmd = f"{analyze_base} --fingerprints {fingerprints_path}"
+    validate_base = "python scripts/validate_ablation.py"
+    validate_cmd = f"{validate_base} --original {model_output} --test-data {dataset_path}"
     print("🎯 Next steps:")
     print(f"   {analyze_cmd}")
     print(f"   {validate_cmd}")

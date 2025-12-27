@@ -3,20 +3,23 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from mindful_trace_gepa.deception.dual_path_core import DualPathRunConfig, DualPathTrace
-from mindful_trace_gepa.deception.dual_path_runner import load_scenarios, run_dual_path_batch
+from mindful_trace_gepa.deception.dual_path_runner import (
+    ModelCallable,
+    load_scenarios,
+    run_dual_path_batch,
+)
 from mindful_trace_gepa.storage import read_jsonl
 
 LOGGER = logging.getLogger(__name__)
 
 
 def evaluate_gepa_model(
-    model_callable: Callable[..., str],
+    model_callable: ModelCallable,
     scenarios_path: str = "datasets/dual_path/data.jsonl",
     output_dir: str = "results/dual_path",
     model_id: str = "gepa-model",

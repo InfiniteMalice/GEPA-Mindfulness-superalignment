@@ -48,9 +48,7 @@ def _select_dual_path_batch(
 ) -> int | None:
     candidates = [
         training_section.get("dual_path_batch"),
-        training_section.get("adversarial_batch"),
         payload.get("dual_path_batch"),
-        payload.get("adversarial_batch"),
     ]
     for value in candidates:
         if value is None:

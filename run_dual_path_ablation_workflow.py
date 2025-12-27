@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
+import logging
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -20,6 +20,8 @@ from pathlib import Path
 from mindful_trace_gepa.deception.dual_path_core import DualPathRunConfig
 from mindful_trace_gepa.deception.dual_path_runner import load_scenarios, run_dual_path_batch
 from mindful_trace_gepa.storage import read_jsonl
+
+LOGGER = logging.getLogger(__name__)
 
 
 def _load_tracer() -> Callable[[Path], None]:
@@ -61,7 +63,7 @@ def run_workflow(args: argparse.Namespace) -> None:
         tracer = _load_tracer()
         tracer(traces_dir)
     except Exception as exc:
-        print(f"Tracer failed: {exc}", file=sys.stderr)
+        LOGGER.exception("Tracer failed: %s", exc)
         raise
 
     summary = {
@@ -95,8 +97,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     parser = build_parser()
-    run_workflow(parser.parse_args())
-    return 0
+    try:
+        run_workflow(parser.parse_args())
+        return 0
+    except Exception as exc:
+        LOGGER.exception("Dual-path ablation workflow failed: %s", exc)
+        return 1
 
 
 if __name__ == "__main__":

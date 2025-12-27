@@ -7,10 +7,17 @@
 from __future__ import annotations
 
 import runpy
+import warnings
 from pathlib import Path
 
 
 def main() -> int:
+    warnings.warn(
+        "run_deception_ablation_workflow.py is deprecated; "
+        "use run_dual_path_ablation_workflow.py instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     target = Path(__file__).resolve().parent / "run_dual_path_ablation_workflow.py"
     if not target.exists():
         raise FileNotFoundError(f"Dual-path ablation workflow not found at {target}")
