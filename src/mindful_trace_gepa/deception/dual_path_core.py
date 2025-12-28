@@ -79,7 +79,7 @@ class DualPathTrace:
         raw_response: str,
         sections: Mapping[str, Any],
         metadata: Mapping[str, Any] | None = None,
-    ) -> "DualPathTrace":
+    ) -> DualPathTrace:
         return cls(
             scenario_id=scenario_id,
             prompt=prompt,

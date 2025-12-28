@@ -18,6 +18,7 @@ def main() -> int:
         DeprecationWarning,
         stacklevel=2,
     )
+    # Allow direct script execution by ensuring the repo root is in sys.path.
     repo_root = Path(__file__).resolve().parent
     if str(repo_root) not in sys.path:
         sys.path.insert(0, str(repo_root))
