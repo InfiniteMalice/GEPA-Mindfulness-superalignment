@@ -7,8 +7,8 @@ from .abstention_rewards import (
     compute_abstention_reward,
     is_abstention_response,
 )
-from .adversarial import AdversarialScenario, iterate_adversarial_pool, sample_adversarial_batch
 from .contemplative_principles import ContemplativePrinciple, GEPAPrinciples, GEPAPrincipleScore
+from .dual_path import DualPathProbeScenario, iterate_dual_path_pool, sample_dual_path_batch
 from .imperatives import AlignmentImperative, ImperativeEvaluator, ImperativeSignal
 from .paraconsistent import ParaconsistentTruthValue, dialetheic_and
 from .rewards import RewardSignal, RewardWeights
@@ -19,23 +19,27 @@ from .thought_alignment import (
 )
 from .tracing import CircuitTracerLogger, ThoughtTrace, TraceEvent
 
+AdversarialScenario = DualPathProbeScenario
+iterate_adversarial_pool = iterate_dual_path_pool
+sample_adversarial_batch = sample_dual_path_batch
+
 __all__ = [
     "ABSTAIN_OUTPUT",
     "AbstentionReward",
     "AbstentionRewardWeights",
-    "AdversarialScenario",
     "AlignmentImperative",
+    "AdversarialScenario",
     "CircuitTracerLogger",
     "ConfidenceDecision",
     "ContemplativePrinciple",
     "dialetheic_and",
+    "DualPathProbeScenario",
     "enforce_abstention",
     "GEPAPrincipleScore",
     "GEPAPrinciples",
     "ImperativeEvaluator",
     "ImperativeSignal",
     "is_abstention_response",
-    "iterate_adversarial_pool",
     "ParaconsistentTruthValue",
     "RewardSignal",
     "RewardWeights",
@@ -45,9 +49,8 @@ __all__ = [
     "compute_abstention_reward",
     "compute_epistemic_score",
     "compute_match_score",
-    "dialetheic_and",
-    "enforce_abstention",
-    "is_abstention_response",
+    "iterate_dual_path_pool",
     "iterate_adversarial_pool",
+    "sample_dual_path_batch",
     "sample_adversarial_batch",
 ]
