@@ -661,7 +661,10 @@ def main() -> int:
             try:
                 sections = parse_dual_path_response(response)
             except ValueError as exc:
-                print(f"  ⚠️ Invalid dual-path response, skipping: {exc}")
+                print(
+                    "  ⚠️ Invalid dual-path response (strict parsing failed), "
+                    f"falling back to lenient parsing: {exc}"
+                )
                 sections = parse_dual_path_response(response, strict=False)
             heuristic = circuit_analysis.detect_deception_heuristic(sections)
             dual_path = analyze_dual_path_signals(sections)

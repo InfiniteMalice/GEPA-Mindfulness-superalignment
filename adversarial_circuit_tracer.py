@@ -16,7 +16,7 @@ def main() -> int:
         stacklevel=2,
     )
     try:
-        from src.dual_path_circuit_tracer import main as circuit_main
+        from mindful_trace_gepa.dual_path_circuit_tracer import main as circuit_main
     except ImportError as exc:
         print(f"Failed to import dual-path circuit tracer: {exc}", file=sys.stderr)
         return 1

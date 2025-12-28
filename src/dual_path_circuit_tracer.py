@@ -13,7 +13,7 @@ def main() -> int:
         "src/dual_path_circuit_tracer.py is deprecated. "
         "Use mindful_trace_gepa.dual_path_circuit_tracer instead.",
         DeprecationWarning,
-        stacklevel=3,
+        stacklevel=2,
     )
     try:
         from mindful_trace_gepa.dual_path_circuit_tracer import main as circuit_main

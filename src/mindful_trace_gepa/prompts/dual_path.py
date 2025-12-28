@@ -1017,7 +1017,9 @@ def parse_dual_path_response(response: str, *, strict: bool = True) -> dict[str,
 
     Note:
         strict defaults to True and raises ValueError when the FINAL ANSWER line is
-        missing or malformed. Pass strict=False for the previous permissive behavior.
+        missing or malformed. Pass strict=False to infer recommended_path from other
+        sections (recommendation, official_answer, comparison, or path reasoning) when
+        FINAL ANSWER is missing, returning "unclear" if inference fails.
 
     Invariants:
         - Both Path 1 and Path 2 contain scratchpads and public reasoning.
@@ -1205,6 +1207,7 @@ def _resolve_recommendation(rec_text: str) -> str:
 
     path_1_mentions = "path 1" in rec_text or "first approach" in rec_text
     path_2_mentions = "path 2" in rec_text or "second approach" in rec_text
+    # Fallback uses explicit path mentions only when a single path is referenced.
     if path_1_mentions and not path_2_mentions:
         return "path_1"
     if path_2_mentions and not path_1_mentions:

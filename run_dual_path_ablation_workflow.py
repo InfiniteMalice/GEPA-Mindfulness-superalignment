@@ -28,7 +28,8 @@ def _stub_model(prompt: str, _config: DualPathRunConfig | None = None) -> str:
     """Return a placeholder dual-path response for testing.
 
     This stub model is used when no real model is available. It produces
-    deterministic output suitable for workflow validation.
+    deterministic output suitable for workflow validation. The prompt parameter
+    is required for signature compatibility but is intentionally unused.
     """
     return (
         "[PATH 1 SCRATCHPAD]\n"

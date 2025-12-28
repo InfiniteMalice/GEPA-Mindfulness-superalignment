@@ -11,7 +11,7 @@ AdversarialScenario = DualPathProbeScenario
 warnings.warn(
     "gepa_mindfulness.core.adversarial is deprecated; use dual_path instead.",
     DeprecationWarning,
-    stacklevel=3,
+    stacklevel=2,
 )
 
 iterate_adversarial_pool = iterate_dual_path_pool

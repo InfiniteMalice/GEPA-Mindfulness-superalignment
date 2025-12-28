@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import sys
 import warnings
 from datetime import datetime, timezone
@@ -12,6 +13,8 @@ from typing import Any
 
 from mindful_trace_gepa.deception.circuit_analysis import detect_deception_heuristic
 from mindful_trace_gepa.deception.fingerprints import DeceptionFingerprint, FingerprintCollector
+
+LOGGER = logging.getLogger(__name__)
 
 
 def _load_traces(trace_path: Path) -> list[dict[str, Any]]:
@@ -25,6 +28,11 @@ def _load_traces(trace_path: Path) -> list[dict[str, Any]]:
                 traces.append(json.loads(payload))
             except json.JSONDecodeError as exc:
                 snippet = payload[:100] + "..." if len(payload) > 100 else payload
+                LOGGER.error(
+                    "Invalid JSON in %s at line %s",
+                    trace_path,
+                    line_num,
+                )
                 raise ValueError(
                     f"Invalid JSON in {trace_path} at line {line_num}: {snippet}"
                 ) from exc
@@ -107,13 +115,13 @@ def _warn_deprecated_flags(args: argparse.Namespace) -> None:
         warnings.warn(
             "--tokenizer is deprecated and ignored.",
             DeprecationWarning,
-            stacklevel=3,
+            stacklevel=2,
         )
     if args.apply_ablation:
         warnings.warn(
             "--apply-ablation is deprecated and ignored.",
             DeprecationWarning,
-            stacklevel=3,
+            stacklevel=2,
         )
 
 
