@@ -8,6 +8,8 @@ from textual.widgets import Button, Input, Label, TextLog
 
 from app.services.runners import build_dual_path_command, run_command
 
+DEFAULT_DATASET_PATH = "datasets/dual_path/data.jsonl"
+
 
 class DualPathView(Container):
     """Allow researchers to launch dual-path evaluations."""
@@ -19,7 +21,7 @@ class DualPathView(Container):
         )
         yield Horizontal(
             Label("Scenario dataset"),
-            Input(placeholder="datasets/dual_path/data.jsonl", id="dataset-path"),
+            Input(placeholder=DEFAULT_DATASET_PATH, id="dataset-path"),
         )
         yield Horizontal(
             Label("Run directory"),
@@ -33,7 +35,7 @@ class DualPathView(Container):
             return
         model_path = self.query_one("#model-path", Input).value
         dataset_widget = self.query_one("#dataset-path", Input)
-        dataset_path = dataset_widget.value or "datasets/dual_path/data.jsonl"
+        dataset_path = dataset_widget.value or DEFAULT_DATASET_PATH
         run_path = self.query_one("#run-path", Input).value or "runs/latest"
 
         log_widget = self.query_one("#dual-log", TextLog)
