@@ -15,5 +15,5 @@ model:
   policy_model: mistralai/Mistral-7B-v0.1
   reward_model: recursalabs/honesty-detector-base
   vllm_engine: http://localhost:8000
-adversarial_batch: 3
+dual_path_batch: 3
 confidence_threshold: 0.8
