@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-# ruff: noqa: I001
 import argparse
 from collections.abc import Callable
 import importlib
