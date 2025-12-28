@@ -123,8 +123,12 @@ def cli(
     """Entry point for GEPA Mindfulness training utilities."""
 
     if ctx.invoked_subcommand is None:
-        if config_path is None or dataset_path is None:
-            raise click.UsageError("--config and --dataset are required when no subcommand is used")
+        if config_path is None:
+            raise click.UsageError("--config is required when no subcommand is used")
+        if not dual_path_only and dataset_path is None:
+            raise click.UsageError(
+                "--dataset is required unless --dual-path-only is set when no subcommand is used"
+            )
         _legacy_main(config_path, dataset_path, log_dir, dual_path_only)
 
 
