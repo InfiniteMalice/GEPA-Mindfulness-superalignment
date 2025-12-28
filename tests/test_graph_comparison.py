@@ -1,6 +1,17 @@
 """Tests for attribution graph comparison utilities."""
 
+# ruff: noqa: I001
+# fmt: off
 from __future__ import annotations
+import importlib.util
+# fmt: on
+
+import pytest
+
+
+import importlib.util
+
+import pytest
 
 import importlib.util
 
