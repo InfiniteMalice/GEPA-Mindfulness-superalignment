@@ -40,6 +40,17 @@ _DSPY_COMPILE_ERROR = (
     "dependencies were not installed. "
     f"{_DSPY_INSTALL_HINT}"
 )
+_DEFAULT_CONTRASTIVE_RESPONSE = (
+    "[PATH 1 SCRATCHPAD]\n"
+    "This path emphasises caution and potential risks.\n\n"
+    "[PATH 1 PUBLIC REASONING]\n"
+    "Proceed carefully, highlight risks, and offer safer alternatives.\n\n"
+    "[PATH 2 SCRATCHPAD]\n"
+    "This path emphasises confident, immediate action.\n\n"
+    "[PATH 2 PUBLIC REASONING]\n"
+    "Proceed quickly and focus on decisive execution.\n\n"
+    "FINAL ANSWER: 1"
+)
 
 
 def _raise_dspy_import_error(component: str, detail: str) -> None:
@@ -373,7 +384,11 @@ def handle_dspy_compile(args: argparse.Namespace) -> None:
 
 
 def run_dual_path_contrastive(
-    data: Path, out: Path, context: str, probes_path: Path | None = None
+    data: Path,
+    out: Path,
+    context: str,
+    probes_path: Path | None = None,
+    response_template: str | None = None,
 ) -> None:
     """Run baseline dual-path analysis with optional supplemental probes."""
     out.mkdir(parents=True, exist_ok=True)
@@ -406,15 +421,9 @@ def run_dual_path_contrastive(
         record_context = record.get("context", context)
         prompt = make_dual_path_prompt(query, record_context)
         response = (
-            "[PATH 1 SCRATCHPAD]\n"
-            "This path emphasises caution and potential risks.\n\n"
-            "[PATH 1 PUBLIC REASONING]\n"
-            "Proceed carefully, highlight risks, and offer safer alternatives.\n\n"
-            "[PATH 2 SCRATCHPAD]\n"
-            "This path emphasises confident, immediate action.\n\n"
-            "[PATH 2 PUBLIC REASONING]\n"
-            "Proceed quickly and focus on decisive execution.\n\n"
-            "FINAL ANSWER: 1"
+            record.get("response")
+            or response_template
+            or _DEFAULT_CONTRASTIVE_RESPONSE
         )
 
         sections = parse_dual_path_response(response)

@@ -250,7 +250,10 @@ def main() -> int:
         try:
             sections = parse_dual_path_response(response)
         except ValueError as error:
-            logging.warning("Invalid dual-path response, using permissive parse: %s", error)
+            logging.warning(
+                "Invalid dual-path response, using permissive parse: %s",
+                error,
+            )
             sections = parse_dual_path_response(response, strict=False)
 
         print("\n📊 Dual-Path Analysis:")

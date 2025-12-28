@@ -89,6 +89,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    logging.basicConfig(level=logging.INFO)
     parser = build_parser()
     try:
         run_workflow(parser.parse_args())

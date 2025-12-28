@@ -114,7 +114,7 @@ def _write_traces(traces: Iterable[DualPathTrace], config: DualPathRunConfig) ->
     output_dir = Path(config.log_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / "dual_path_traces.jsonl"
-    with output_path.open("w", encoding="utf-8") as handle:
+    with output_path.open("a", encoding="utf-8") as handle:
         for trace in traces:
             handle.write(json.dumps(trace.to_dict()) + "\n")
 

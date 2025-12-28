@@ -60,7 +60,7 @@ def _select_dual_path_batch(
             warnings.warn(
                 "adversarial_batch is deprecated; use dual_path_batch instead.",
                 DeprecationWarning,
-                stacklevel=2,
+                stacklevel=3,
             )
         try:
             return int(value)
