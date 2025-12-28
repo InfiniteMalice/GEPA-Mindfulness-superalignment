@@ -14,5 +14,5 @@ ppo:
 model:
   policy_model: distilgpt2
   reward_model: distilbert-base-uncased
-adversarial_batch: 2
+dual_path_batch: 2
 confidence_threshold: 0.75

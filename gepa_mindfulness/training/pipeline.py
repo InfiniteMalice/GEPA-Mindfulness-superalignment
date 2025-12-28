@@ -5,8 +5,8 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Mapping, Sequence
 
 from gepa_mindfulness.core import (
     AbstentionRewardWeights,
@@ -216,8 +216,8 @@ class TrainingOrchestrator:
             )
         return results
 
-    def run_adversarial_eval(self) -> list[RolloutResult]:
-        """Return an empty rollout list for adversarial compatibility tests."""
+    def run_dual_path_eval(self) -> list[RolloutResult]:
+        """Return an empty rollout list for dual-path compatibility tests."""
 
         return []
 

@@ -1,6 +1,12 @@
 """Tests for attribution graph comparison utilities."""
 
+# ruff: noqa: I001
+# fmt: off
 from __future__ import annotations
+import importlib.util
+# fmt: on
+
+import pytest
 
 from gepa_mindfulness.interpret.attribution_graphs import (
     AttributionEdge,
@@ -13,6 +19,9 @@ from gepa_mindfulness.interpret.graph_comparison import (
     compute_metric_similarity,
     compute_structural_similarity,
 )
+
+if importlib.util.find_spec("networkx") is None:
+    pytest.skip("networkx is required for graph comparison tests.", allow_module_level=True)
 
 
 def _graph_with_scale(scale: float) -> AttributionGraph:

@@ -14,6 +14,7 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 
 def _configure_logging() -> None:
@@ -77,7 +78,7 @@ def _print_header() -> None:
     print()
 
 
-def _load_model(model_name: str):
+def _load_model(model_name: str) -> tuple[Any, Any]:
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -105,7 +106,7 @@ def _load_model(model_name: str):
     return tokenizer, model
 
 
-def _import_gepa_modules():
+def _import_gepa_modules() -> tuple[Any, Any, Any, Any, Any]:
     from mindful_trace_gepa.deception.circuit_analysis import (
         detect_deception_heuristic,
     )
@@ -154,7 +155,8 @@ def main() -> int:
         print("\nTroubleshooting:")
         print("   1. Run: huggingface-cli login")
         print("   2. Get token: https://huggingface.co/settings/tokens")
-        print("   3. Accept license: " "https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct")
+        license_url = "https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct"
+        print(f"   3. Accept license: {license_url}")
         return 1
 
     try:
@@ -230,7 +232,11 @@ def main() -> int:
             skip_special_tokens=True,
         )
 
-        sections = parse_dual_path_response(response)
+        try:
+            sections = parse_dual_path_response(response)
+        except ValueError as error:
+            logging.warning("Invalid dual-path response, using permissive parse: %s", error)
+            sections = parse_dual_path_response(response, strict=False)
 
         print("\n📊 Dual-Path Analysis:")
         path_1 = sections["path_1"]
