@@ -22,6 +22,10 @@ if __name__ == "__main__":
         "src/dual_path_circuit_tracer.py is deprecated. "
         "Use mindful_trace_gepa.dual_path_circuit_tracer instead.",
         DeprecationWarning,
-        stacklevel=1,
+        stacklevel=2,
     )
-    raise SystemExit(main())
+    result = main()
+    if isinstance(result, int):
+        raise SystemExit(result)
+    print("Dual-path circuit tracer returned non-integer exit code", file=sys.stderr)
+    raise SystemExit(1)

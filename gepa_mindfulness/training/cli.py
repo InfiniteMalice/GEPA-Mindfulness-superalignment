@@ -84,7 +84,7 @@ def _setup_file_logging(log_dir: Path) -> logging.FileHandler:
 
 def _legacy_main(
     config_path: Path,
-    dataset_path: Path,
+    dataset_path: Path | None,
     log_dir: Path | None,
     dual_path_only: bool,
 ) -> None:
@@ -98,6 +98,7 @@ def _legacy_main(
         if dual_path_only:
             results = orchestrator.run_dual_path_eval()
         else:
+            assert dataset_path is not None, "dataset_path required when not dual_path_only"
             prompts = read_dataset(dataset_path)
             results = orchestrator.run(prompts)
         count = _serialize_rollouts(log_destination / "rollouts.jsonl", results)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deprecated dual-path ablation workflow entry point."""
+"""Legacy deception ablation entry point (deprecated; use run_dual_path_ablation_workflow.py)."""
 
 # NOTE: New implementation lives in run_dual_path_ablation_workflow.py; keep this file as a
 # thin shim.

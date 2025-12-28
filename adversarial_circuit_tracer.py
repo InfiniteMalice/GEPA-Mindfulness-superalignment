@@ -4,19 +4,27 @@
 
 from __future__ import annotations
 
+import sys
 import warnings
 
-from src.dual_path_circuit_tracer import main
 
-
-def _main_with_warning() -> int:
+def main() -> int:
     warnings.warn(
         "adversarial_circuit_tracer is deprecated; use src.dual_path_circuit_tracer instead.",
         DeprecationWarning,
         stacklevel=2,
     )
-    return main()
+    try:
+        from src.dual_path_circuit_tracer import main as circuit_main
+    except ImportError as exc:
+        print(f"Failed to import dual-path circuit tracer: {exc}", file=sys.stderr)
+        return 1
+    result = circuit_main()
+    if isinstance(result, int):
+        return result
+    print("Dual-path circuit tracer returned non-integer exit code", file=sys.stderr)
+    return 1
 
 
 if __name__ == "__main__":
-    raise SystemExit(_main_with_warning())
+    raise SystemExit(main())

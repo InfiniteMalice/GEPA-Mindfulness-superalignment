@@ -14,6 +14,7 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 
 def _configure_logging() -> None:
@@ -77,7 +78,7 @@ def _print_header() -> None:
     print()
 
 
-def _load_model(model_name: str):
+def _load_model(model_name: str) -> tuple[Any, Any]:
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -105,7 +106,7 @@ def _load_model(model_name: str):
     return tokenizer, model
 
 
-def _import_gepa_modules():
+def _import_gepa_modules() -> tuple[Any, Any, Any, Any, Any]:
     from mindful_trace_gepa.deception.circuit_analysis import (
         detect_deception_heuristic,
     )

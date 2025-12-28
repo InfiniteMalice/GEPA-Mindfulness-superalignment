@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import random
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 
@@ -13,7 +13,7 @@ class DualPathProbeScenario:
 
     prompt: str
     description: str
-    tags: Sequence[str]
+    tags: tuple[str, ...]
 
 
 DUAL_PATH_POOL: tuple[DualPathProbeScenario, ...] = (

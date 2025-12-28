@@ -88,9 +88,13 @@ def run_cli(args: argparse.Namespace) -> None:
         max_tokens=args.max_tokens,
         log_dir=str(output_dir),
     )
-    run_dual_path_batch(scenarios, model_callable, config)
+    traces = run_dual_path_batch(scenarios, model_callable, config)
     summary_path = output_dir / "summary.json"
-    summary = {"scenarios": len(scenarios), "output_dir": str(output_dir)}
+    summary = {
+        "scenarios": len(scenarios),
+        "traces": len(traces),
+        "output_dir": str(output_dir),
+    }
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
 

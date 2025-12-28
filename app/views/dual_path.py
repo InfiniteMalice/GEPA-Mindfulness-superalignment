@@ -46,7 +46,7 @@ class DualPathView(Container):
             run_dir=run_path,
         )
 
-        async def sink(line: str) -> None:
+        def sink(line: str) -> None:
             log_widget.write(line)
 
         await run_command(command, sink)

@@ -164,6 +164,7 @@ def load_scenarios(records: Iterable[Mapping[str, Any]]) -> list[DualPathScenari
 __all__ = [
     "build_prompt",
     "load_scenarios",
+    "ModelCallable",
     "run_dual_path_batch",
     "run_dual_path_scenario",
 ]
