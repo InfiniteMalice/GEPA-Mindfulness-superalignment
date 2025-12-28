@@ -18,15 +18,10 @@ from pathlib import Path
 
 from mindful_trace_gepa.deception.dual_path_core import DualPathRunConfig
 from mindful_trace_gepa.deception.dual_path_runner import load_scenarios, run_dual_path_batch
+from mindful_trace_gepa.dual_path_circuit_tracer import run_tracing
 from mindful_trace_gepa.storage import read_jsonl
 
 LOGGER = logging.getLogger(__name__)
-
-
-def _load_tracer():
-    from mindful_trace_gepa.dual_path_circuit_tracer import run_tracing
-
-    return run_tracing
 
 
 def _stub_model(prompt: str, _config: DualPathRunConfig | None = None) -> str:
@@ -62,8 +57,7 @@ def run_workflow(args: argparse.Namespace) -> None:
     scenarios = load_scenarios(records)
     config = DualPathRunConfig(model_id=args.model, log_dir=str(traces_dir))
     run_dual_path_batch(scenarios, _stub_model, config)
-    tracer = _load_tracer()
-    tracer(traces_dir)
+    run_tracing(traces_dir)
 
     summary = {
         "generated_at": datetime.now(timezone.utc).isoformat(),

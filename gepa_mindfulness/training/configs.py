@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import asdict, dataclass, field
 from math import isclose, isfinite
 from pathlib import Path
@@ -47,13 +48,21 @@ def _select_dual_path_batch(
     payload: Mapping[str, Any],
 ) -> int | None:
     candidates = [
-        training_section.get("dual_path_batch"),
-        payload.get("dual_path_batch"),
+        (training_section.get("dual_path_batch"), False),
+        (training_section.get("adversarial_batch"), True),
+        (payload.get("dual_path_batch"), False),
+        (payload.get("adversarial_batch"), True),
     ]
-    for value in candidates:
+    for value, is_legacy in candidates:
         if value is None:
             continue
         try:
+            if is_legacy:
+                warnings.warn(
+                    "adversarial_batch is deprecated; use dual_path_batch instead.",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
             return int(value)
         except (TypeError, ValueError):
             continue

@@ -47,6 +47,7 @@ def _load_callable_from_file(file_path: Path) -> ModelCallable:
     if spec is None or spec.loader is None:
         raise ValueError(f"Unable to load module from {file_path}.")
     module = importlib.util.module_from_spec(spec)
+    sys.modules["dual_path_response_module"] = module
     spec.loader.exec_module(module)
     for attr_name in ("generate", "model_callable"):
         callable_obj = getattr(module, attr_name, None)

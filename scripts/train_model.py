@@ -764,10 +764,10 @@ def main() -> int:
     print()
 
     fingerprints_path = fingerprint_dir / "fingerprints.jsonl"
-    a_cmd = "python scripts/analyze_deception_fingerprints.py"
-    analyze_cmd = f"{a_cmd} --fingerprints {fingerprints_path}"
-    v_cmd = "python scripts/validate_ablation.py"
-    validate_cmd = f"{v_cmd} --original {model_output} --test-data {dataset_path}"
+    analyze_script = "python scripts/analyze_deception_fingerprints.py"
+    analyze_cmd = f"{analyze_script} --fingerprints {fingerprints_path}"
+    validate_script = "python scripts/validate_ablation.py"
+    validate_cmd = f"{validate_script} --original {model_output} --test-data {dataset_path}"
     print("🎯 Next steps:")
     print(f"   {analyze_cmd}")
     print(f"   {validate_cmd}")
