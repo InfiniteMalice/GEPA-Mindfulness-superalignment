@@ -1,5 +1,9 @@
 """Core GEPA logic exports."""
 
+import random
+import warnings
+from collections.abc import Iterable
+
 from .abstention import ABSTAIN_OUTPUT, ConfidenceDecision, enforce_abstention
 from .abstention_rewards import (
     AbstentionReward,
@@ -7,8 +11,12 @@ from .abstention_rewards import (
     compute_abstention_reward,
     is_abstention_response,
 )
-from .adversarial import AdversarialScenario, iterate_adversarial_pool, sample_adversarial_batch
-from .contemplative_principles import ContemplativePrinciple, GEPAPrinciples, GEPAPrincipleScore
+from .contemplative_principles import (
+    ContemplativePrinciple,
+    GEPAPrinciples,
+    GEPAPrincipleScore,
+)
+from .dual_path import DualPathProbeScenario, iterate_dual_path_pool, sample_dual_path_batch
 from .imperatives import AlignmentImperative, ImperativeEvaluator, ImperativeSignal
 from .paraconsistent import ParaconsistentTruthValue, dialetheic_and
 from .rewards import RewardSignal, RewardWeights
@@ -19,6 +27,30 @@ from .thought_alignment import (
 )
 from .tracing import CircuitTracerLogger, ThoughtTrace, TraceEvent
 
+AdversarialScenario = DualPathProbeScenario
+
+
+def iterate_adversarial_pool() -> Iterable[DualPathProbeScenario]:
+    warnings.warn(
+        "iterate_adversarial_pool is deprecated; use iterate_dual_path_pool instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return iterate_dual_path_pool()
+
+
+def sample_adversarial_batch(
+    batch_size: int,
+    rng: random.Random | None = None,
+) -> list[DualPathProbeScenario]:
+    warnings.warn(
+        "sample_adversarial_batch is deprecated; use sample_dual_path_batch instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return sample_dual_path_batch(batch_size, rng=rng)
+
+
 __all__ = [
     "ABSTAIN_OUTPUT",
     "AbstentionReward",
@@ -28,14 +60,11 @@ __all__ = [
     "CircuitTracerLogger",
     "ConfidenceDecision",
     "ContemplativePrinciple",
-    "dialetheic_and",
-    "enforce_abstention",
+    "DualPathProbeScenario",
     "GEPAPrincipleScore",
     "GEPAPrinciples",
     "ImperativeEvaluator",
     "ImperativeSignal",
-    "is_abstention_response",
-    "iterate_adversarial_pool",
     "ParaconsistentTruthValue",
     "RewardSignal",
     "RewardWeights",
@@ -49,5 +78,7 @@ __all__ = [
     "enforce_abstention",
     "is_abstention_response",
     "iterate_adversarial_pool",
+    "iterate_dual_path_pool",
     "sample_adversarial_batch",
+    "sample_dual_path_batch",
 ]

@@ -2,17 +2,29 @@
 
 from __future__ import annotations
 
-from typing import Dict
+import importlib
+import importlib.util
 
 import numpy as np
 
-import networkx as nx
 from gepa_mindfulness.interpret.attribution_graphs import AttributionGraph
+
+_NETWORKX_SPEC = importlib.util.find_spec("networkx")
+if _NETWORKX_SPEC is not None:
+    nx = importlib.import_module("networkx")
+else:  # pragma: no cover - optional dependency missing
+    nx = None  # type: ignore[assignment]
+
+
+def _require_networkx() -> None:
+    if nx is None:
+        raise ImportError("Graph metrics require networkx to be installed.")
 
 
 def compute_path_coherence(graph: AttributionGraph) -> float:
     """Return a coherence score describing attribution concentration."""
 
+    _require_networkx()
     network = graph.to_networkx()
     if network.number_of_nodes() == 0:
         return 0.0
@@ -48,6 +60,7 @@ def compute_path_coherence(graph: AttributionGraph) -> float:
 def compute_graph_entropy(graph: AttributionGraph) -> float:
     """Return the Shannon entropy of node attributions."""
 
+    _require_networkx()
     network = graph.to_networkx()
     if network.number_of_nodes() == 0:
         return 0.0
@@ -64,6 +77,7 @@ def compute_graph_entropy(graph: AttributionGraph) -> float:
 def compute_centrality_concentration(graph: AttributionGraph) -> float:
     """Return the relative dispersion of degree centrality values."""
 
+    _require_networkx()
     network = graph.to_networkx()
     if network.number_of_nodes() == 0:
         return 0.0
@@ -84,6 +98,7 @@ def compute_centrality_concentration(graph: AttributionGraph) -> float:
 def compute_average_path_length(graph: AttributionGraph) -> float:
     """Return the average shortest path length for the largest component."""
 
+    _require_networkx()
     network = graph.to_networkx()
     if network.number_of_nodes() < 2:
         return 0.0
@@ -102,7 +117,7 @@ def compute_average_path_length(graph: AttributionGraph) -> float:
         return 0.0
 
 
-def compute_all_metrics(graph: AttributionGraph) -> Dict[str, float]:
+def compute_all_metrics(graph: AttributionGraph) -> dict[str, float]:
     """Return a dictionary containing all supported metrics."""
 
     return {

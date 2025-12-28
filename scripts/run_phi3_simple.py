@@ -19,6 +19,7 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 
 def _configure_logging() -> None:
@@ -63,8 +64,9 @@ def check_requirements() -> list[str]:
         version = transformers.__version__
         major = int(version.split(".")[0])
         if major < 4:
-            message = f"transformers {version} too old - " "run: pip install --upgrade transformers"
-            issues.append(message)
+            prefix = f"transformers {version} too old - run: "
+            msg = f"{prefix}pip install --upgrade transformers"
+            issues.append(msg)
     except ImportError:
         issues.append("transformers not installed - run: pip install transformers")
 
@@ -88,7 +90,7 @@ def _print_header() -> None:
     print()
 
 
-def _load_model(model_name: str):
+def _load_model(model_name: str) -> tuple[Any, Any]:
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -117,7 +119,7 @@ def _load_model(model_name: str):
     return tokenizer, model
 
 
-def _import_gepa_modules():
+def _import_gepa_modules() -> tuple[Any, Any, Any, Any, Any]:
     from mindful_trace_gepa.deception.circuit_analysis import (
         detect_deception_heuristic,
     )
@@ -166,7 +168,8 @@ def main() -> int:
         print("\nTroubleshooting:")
         print("   1. Run: huggingface-cli login")
         print("   2. Get token from: https://huggingface.co/settings/tokens")
-        print("   3. Accept license: " "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct")
+        url = "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct"
+        print(f"   3. Accept license: {url}")
         return 1
 
     try:
@@ -245,7 +248,14 @@ def main() -> int:
             skip_special_tokens=True,
         )
 
-        sections = parse_dual_path_response(response)
+        try:
+            sections = parse_dual_path_response(response)
+        except ValueError as error:
+            logging.warning(
+                "Invalid dual-path response, using permissive parse: %s",
+                error,
+            )
+            sections = parse_dual_path_response(response, strict=False)
 
         print("\n📊 Dual-Path Analysis:")
         path_1 = sections["path_1"]
