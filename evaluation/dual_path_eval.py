@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping
+from typing import Any
 
 from mindful_trace_gepa.prompts.dual_path import (
     ALLOWED_FINAL_ANSWERS,
@@ -20,11 +21,18 @@ def _serialize(record: Mapping[str, Any]) -> str:
     return json.dumps(record, ensure_ascii=False)
 
 
-def evaluate_once(generate: Callable[[str], str], prompt: str) -> dict[str, Any]:
+def evaluate_once(
+    generate: Callable[[str], str],
+    prompt: str,
+) -> tuple[str, dict[str, Any] | None]:
     response = generate(prompt)
-    sections = parse_dual_path_response(response)
-    sections["raw_response"] = response
-    return sections
+    try:
+        sections = parse_dual_path_response(response, strict=True)
+        sections["raw_response"] = response
+        return response, sections
+    except ValueError as exc:
+        logger.debug("Dual-path parsing failed: %s", exc)
+        return response, None
 
 
 def evaluate_until_valid(
@@ -33,6 +41,14 @@ def evaluate_until_valid(
     *,
     max_attempts: int | None = None,
 ) -> dict[str, Any]:
+    """Evaluate until a valid FINAL ANSWER appears or attempts are exhausted.
+
+    Returns:
+        On success, returns parsed sections with ``attempt``, ``final_answer_valid``,
+        and ``prompt`` fields. On failure, returns a summary record containing
+        ``attempt``, ``final_answer_valid``, ``prompt``, ``final_answer_value``,
+        and ``raw_response``.
+    """
     limit = max_attempts if max_attempts is not None else DEFAULT_MAX_ATTEMPTS
     attempt = 0
     record: dict[str, Any] = {
@@ -41,13 +57,16 @@ def evaluate_until_valid(
         "raw_response": "",
     }
     while attempt < limit:
-        record = evaluate_once(generate, prompt)
+        response, sections = evaluate_once(generate, prompt)
         attempt += 1
-        if record.get("final_answer_value") in ALLOWED_FINAL_ANSWERS:
-            record["attempt"] = attempt
-            record["final_answer_valid"] = True
-            record["prompt"] = prompt
-            return record
+        final_answer_value = sections.get("final_answer_value") if sections else None
+        if sections is not None and final_answer_value in ALLOWED_FINAL_ANSWERS:
+            sections["attempt"] = attempt
+            sections["final_answer_valid"] = True
+            sections["prompt"] = prompt
+            return sections
+        record["raw_response"] = response
+        logger.warning("Dual-path parsing failed on attempt %d", attempt)
 
     record["attempt"] = attempt
     record["final_answer_valid"] = False
@@ -74,10 +93,14 @@ def run_batch(
             try:
                 record = evaluate_until_valid(generate, prompt)
             except Exception as exc:
-                logger.exception("Dual-path evaluation failed for prompt (redacted)")
+                logger.exception(
+                    "Dual-path evaluation failed for prompt (redacted): %s",
+                    type(exc).__name__,
+                )
                 record = {
                     "prompt": prompt,
                     "error": True,
+                    "error_type": type(exc).__name__,
                     "attempt": 0,
                     "error_message": str(exc),
                     "final_answer_valid": False,

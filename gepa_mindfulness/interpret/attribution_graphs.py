@@ -5,9 +5,16 @@ from __future__ import annotations
 import importlib
 import importlib.util
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple
 
-import networkx as nx
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    import networkx as nx
+
+_NETWORKX_SPEC = importlib.util.find_spec("networkx")
+if _NETWORKX_SPEC is not None:
+    nx = importlib.import_module("networkx")
+else:  # pragma: no cover - optional dependency missing
+    nx = None  # type: ignore[assignment]
 
 _TORCH_SPEC = importlib.util.find_spec("torch")
 _TRANSFORMER_SPEC = importlib.util.find_spec("transformers")
@@ -30,6 +37,13 @@ def _require_torch() -> None:
     if torch is None:
         raise ImportError(
             "AttributionGraphExtractor requires torch and transformers to be installed."
+        )
+
+
+def _require_networkx() -> None:
+    if nx is None:
+        raise ImportError(
+            "AttributionGraphExtractor requires networkx to be installed for graph exports."
         )
 
 
@@ -68,6 +82,8 @@ class AttributionGraph:
     def to_networkx(self) -> nx.DiGraph:
         """Convert the graph to a :class:`networkx.DiGraph`."""
 
+        _require_networkx()
+        assert nx is not None
         graph = nx.DiGraph()
         for index, node in enumerate(self.nodes):
             graph.add_node(
