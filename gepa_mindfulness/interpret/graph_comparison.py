@@ -2,18 +2,34 @@
 
 from __future__ import annotations
 
-from typing import Dict, List
+import importlib
+import importlib.util
+from typing import TYPE_CHECKING
 
 import numpy as np
 
-import networkx as nx
 from gepa_mindfulness.interpret.attribution_graphs import AttributionGraph
 from gepa_mindfulness.interpret.graph_metrics import compute_all_metrics
 
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    import networkx as nx
 
-def compare_graphs(graph_a: AttributionGraph, graph_b: AttributionGraph) -> Dict[str, float]:
+_NETWORKX_SPEC = importlib.util.find_spec("networkx")
+if _NETWORKX_SPEC is not None:
+    nx = importlib.import_module("networkx")
+else:  # pragma: no cover - optional dependency missing
+    nx = None  # type: ignore[assignment]
+
+
+def _require_networkx() -> None:
+    if nx is None:
+        raise ImportError("Graph comparison requires networkx to be installed.")
+
+
+def compare_graphs(graph_a: AttributionGraph, graph_b: AttributionGraph) -> dict[str, float]:
     """Return similarity scores between two attribution graphs."""
 
+    _require_networkx()
     net_a = graph_a.to_networkx()
     net_b = graph_b.to_networkx()
     structural = compute_structural_similarity(net_a, net_b)
@@ -33,6 +49,7 @@ def compare_graphs(graph_a: AttributionGraph, graph_b: AttributionGraph) -> Dict
 def compute_structural_similarity(graph_a: nx.DiGraph, graph_b: nx.DiGraph) -> float:
     """Return a spectral similarity score between two graphs."""
 
+    _require_networkx()
     if graph_a.number_of_nodes() == 0 or graph_b.number_of_nodes() == 0:
         return 0.0
 
@@ -56,6 +73,7 @@ def compute_structural_similarity(graph_a: nx.DiGraph, graph_b: nx.DiGraph) -> f
 def compute_attribution_similarity(graph_a: nx.DiGraph, graph_b: nx.DiGraph) -> float:
     """Return similarity of attribution histograms."""
 
+    _require_networkx()
     if graph_a.number_of_nodes() == 0 or graph_b.number_of_nodes() == 0:
         return 0.0
 
@@ -75,7 +93,7 @@ def compute_attribution_similarity(graph_a: nx.DiGraph, graph_b: nx.DiGraph) -> 
     return float(np.clip(similarity, 0.0, 1.0))
 
 
-def compute_metric_similarity(metrics_a: Dict[str, float], metrics_b: Dict[str, float]) -> float:
+def compute_metric_similarity(metrics_a: dict[str, float], metrics_b: dict[str, float]) -> float:
     """Return cosine similarity between the metric vectors."""
 
     shared = sorted(set(metrics_a) & set(metrics_b))
@@ -92,11 +110,11 @@ def compute_metric_similarity(metrics_a: Dict[str, float], metrics_b: Dict[str, 
 
 
 def find_distinctive_subgraphs(
-    honest_graphs: List[AttributionGraph],
-    deceptive_graphs: List[AttributionGraph],
+    honest_graphs: list[AttributionGraph],
+    deceptive_graphs: list[AttributionGraph],
     *,
     min_frequency: float = 0.3,
-) -> Dict[str, List[nx.DiGraph]]:
+) -> dict[str, list[nx.DiGraph]]:
     """Return placeholder results for distinctive subgraph mining."""
 
     _ = (honest_graphs, deceptive_graphs, min_frequency)

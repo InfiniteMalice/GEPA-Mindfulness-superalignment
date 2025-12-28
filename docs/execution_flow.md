@@ -14,7 +14,7 @@ worrying about PYTHONPATH tweaks.
 ## Stage 3 – Click-based training CLI
 `gepa_mindfulness/training/cli.py` exposes a Click group. Invoking the root command
 mirrors the historical behaviour: it reads the prompt file, instantiates a configurable
-`TrainingOrchestrator`, runs either rollouts or adversarial probes, and writes
+`TrainingOrchestrator`, runs either rollouts or dual-path probes, and writes
 `rollouts.jsonl`. The `train` subcommand selects the lightweight PPO or GRPO trainers,
 runs them against the chosen config, and records metrics in the trainer output directory.
 The `compare` helper loads two runs and prints a tabular reward summary.

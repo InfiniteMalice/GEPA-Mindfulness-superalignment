@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import asdict, dataclass, field
 from math import isclose, isfinite
 from pathlib import Path
@@ -40,6 +41,34 @@ def _merge_mapping(
     if isinstance(primary, Mapping):
         merged.update(primary)
     return merged
+
+
+def _select_dual_path_batch(
+    training_section: Mapping[str, Any],
+    payload: Mapping[str, Any],
+) -> int | None:
+    candidates = [
+        ("dual_path_batch", training_section.get("dual_path_batch"), False),
+        ("adversarial_batch", training_section.get("adversarial_batch"), True),
+        ("dual_path_batch", payload.get("dual_path_batch"), False),
+        ("adversarial_batch", payload.get("adversarial_batch"), True),
+    ]
+    for key, value, is_legacy in candidates:
+        if value is None:
+            continue
+        if is_legacy:
+            warnings.warn(
+                "adversarial_batch is deprecated; use dual_path_batch instead.",
+                DeprecationWarning,
+                stacklevel=3,
+            )
+        try:
+            return int(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"Invalid {key} value {value!r}; expected an int-compatible value."
+            ) from exc
+    return None
 
 
 @dataclass
@@ -445,7 +474,7 @@ class TrainingConfig:
     grpo: GRPOConfig = field(default_factory=GRPOConfig)
     model: ModelConfig = field(default_factory=ModelConfig)
     dataset: DatasetConfig = field(default_factory=DatasetConfig)
-    adversarial_batch: int = 2
+    dual_path_batch: int = 2
     confidence_threshold: float = 0.75
     use_dual_path: bool = False
     abstention: AbstentionConfig = field(default_factory=AbstentionConfig)
@@ -489,8 +518,8 @@ class TrainingConfig:
             grpo=GRPOConfig.from_mapping(grpo_section),
             model=ModelConfig.from_mapping(model_section),
             dataset=DatasetConfig.from_mapping(payload.get("dataset")),
-            adversarial_batch=_to_int(
-                training_section.get("adversarial_batch", payload.get("adversarial_batch")),
+            dual_path_batch=_to_int(
+                _select_dual_path_batch(training_section, payload),
                 2,
             ),
             confidence_threshold=_to_float(

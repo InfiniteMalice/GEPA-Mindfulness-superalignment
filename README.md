@@ -253,7 +253,7 @@ are surfaced for manual review. Recommended workflow:
                              --out runs/contrastive/ --context general
    ```
 
-## Dual-Prompt + Adversarial Integration
+## Dual-Path Deception Integration
 
 Run GUI:
 
@@ -264,8 +264,8 @@ python -m app.main
 Or command line:
 
 ```bash
-python src/adversarial_evaluator.py --scenario safety_lab_001
-python src/adversarial_circuit_tracer.py runs/001 --tokenizer mistral-instruct
+python src/dual_path_evaluator.py --scenarios datasets/dual_path/data.jsonl --run runs/001
+python src/dual_path_circuit_tracer.py runs/001
 python tools/merge_run_inspection.py runs/001
 ```
 
