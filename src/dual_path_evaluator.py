@@ -7,14 +7,15 @@ import importlib
 import importlib.util
 import json
 import sys
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from mindful_trace_gepa.deception.dual_path_core import DualPathRunConfig
-from mindful_trace_gepa.deception.dual_path_runner import load_scenarios, run_dual_path_batch
-
-ModelCallable = Callable[[str, DualPathRunConfig | None], str]
+from mindful_trace_gepa.deception.dual_path_runner import (
+    ModelCallable,
+    load_scenarios,
+    run_dual_path_batch,
+)
 
 
 def _load_records(path: Path) -> list[dict[str, Any]]:
@@ -83,8 +84,10 @@ def run_cli(args: argparse.Namespace) -> None:
     records = _load_records(scenarios_path)
     scenarios = load_scenarios(records)
     model_callable = _resolve_model_callable(args.response)
+    model_id_source = args.model_id if args.model_id is not None else args.response
+    model_id = str(model_id_source) if model_id_source is not None else "unknown"
     config = DualPathRunConfig(
-        model_id=args.model_id or str(args.response),
+        model_id=model_id,
         temperature=args.temperature,
         max_tokens=args.max_tokens,
         log_dir=str(output_dir),

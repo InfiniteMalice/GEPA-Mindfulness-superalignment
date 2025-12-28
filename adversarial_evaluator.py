@@ -9,7 +9,7 @@ import warnings
 
 def main() -> int:
     warnings.warn(
-        "adversarial_evaluator is deprecated; use src/dual_path_evaluator.py instead",
+        "adversarial_evaluator is deprecated; use src.dual_path_evaluator instead",
         DeprecationWarning,
         stacklevel=2,
     )
