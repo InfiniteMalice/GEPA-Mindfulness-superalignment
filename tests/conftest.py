@@ -1,8 +1,8 @@
 """Pytest fixtures for Phase 0 modules."""
 
-# ruff: noqa: I001
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 import sys
