@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import random
-from collections.abc import Iterable
+from collections.abc import Iterator
 from dataclasses import dataclass
 
 
@@ -49,7 +49,7 @@ def sample_dual_path_batch(
     return sampler.sample(DUAL_PATH_POOL, k=min(batch_size, len(DUAL_PATH_POOL)))
 
 
-def iterate_dual_path_pool() -> Iterable[DualPathProbeScenario]:
+def iterate_dual_path_pool() -> Iterator[DualPathProbeScenario]:
     """Yield all scenarios from the dual-path pool."""
     yield from DUAL_PATH_POOL
 

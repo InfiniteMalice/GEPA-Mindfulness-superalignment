@@ -7,7 +7,7 @@ import json
 import logging
 from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
-from typing import Any, get_args
+from typing import Any, TypeAlias, get_args
 
 from mindful_trace_gepa.prompts.dual_path import make_dual_path_prompt, parse_dual_path_response
 
@@ -15,7 +15,7 @@ from .dual_path_core import DualPathRunConfig, DualPathScenario, DualPathTrace
 
 LOGGER = logging.getLogger(__name__)
 
-ModelCallable = Callable[..., str]
+ModelCallable: TypeAlias = Callable[..., str]
 """Callable model hook.
 
 Uses a broad signature to support prompt-only callables as well as callables
