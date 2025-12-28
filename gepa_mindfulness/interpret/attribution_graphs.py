@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib
 import importlib.util
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Iterable
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     import networkx as nx
@@ -43,7 +43,7 @@ def _require_torch() -> None:
 def _require_networkx() -> None:
     if nx is None:
         raise ImportError(
-            "AttributionGraphExtractor requires networkx to be installed for graph exports."
+            "AttributionGraph.to_networkx() requires networkx to be installed."
         )
 
 
@@ -53,7 +53,7 @@ class AttributionNode:
 
     layer: int
     component_type: str
-    component_idx: Optional[int]
+    component_idx: int | None
     token_position: int
     activation_value: float
     attribution_score: float
@@ -74,10 +74,10 @@ class AttributionGraph:
 
     prompt: str
     response: str
-    nodes: List[AttributionNode]
-    edges: List[AttributionEdge]
+    nodes: list[AttributionNode]
+    edges: list[AttributionEdge]
     method: str
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
     def to_networkx(self) -> nx.DiGraph:
         """Convert the graph to a :class:`networkx.DiGraph`."""
@@ -125,15 +125,15 @@ class AttributionGraphExtractor:
         self.model = model.to(self.device)
         self.tokenizer = tokenizer
         self.method = method
-        self.activations: Dict[str, Any] = {}
-        self.gradients: Dict[str, Any] = {}
+        self.activations: dict[str, Any] = {}
+        self.gradients: dict[str, Any] = {}
         self._register_hooks()
 
     def _register_hooks(self) -> None:
         """Attach forward and backward hooks for attention and MLP blocks."""
 
         def make_forward_hook(name: str):
-            def hook(module: nn.Module, _inputs: Tuple[Any, ...], output: Any) -> None:
+            def hook(module: nn.Module, _inputs: tuple[Any, ...], output: Any) -> None:
                 tensor = output[0] if isinstance(output, tuple) else output
                 self.activations[name] = tensor.detach()
 
@@ -142,8 +142,8 @@ class AttributionGraphExtractor:
         def make_backward_hook(name: str):
             def hook(
                 module: nn.Module,
-                _grad_inputs: Tuple[torch.Tensor, ...],
-                grad_outputs: Tuple[torch.Tensor, ...],
+                _grad_inputs: tuple[torch.Tensor, ...],
+                grad_outputs: tuple[torch.Tensor, ...],
             ) -> None:
                 tensor = grad_outputs[0] if isinstance(grad_outputs, tuple) else grad_outputs
                 self.gradients[name] = tensor.detach()
@@ -160,7 +160,7 @@ class AttributionGraphExtractor:
         self,
         prompt: str,
         response: str,
-        layers: Optional[Iterable[int]] = None,
+        layers: Iterable[int] | None = None,
         threshold: float = 0.01,
     ) -> AttributionGraph:
         """Extract an attribution graph for ``prompt`` and ``response``."""
@@ -222,12 +222,12 @@ class AttributionGraphExtractor:
     def _dispatch_method(
         self,
         *,
-        inputs: Dict[str, torch.Tensor],
+        inputs: dict[str, torch.Tensor],
         outputs: Any,
         prompt_len: int,
         layers: Iterable[int],
         threshold: float,
-    ) -> Tuple[List[AttributionNode], List[AttributionEdge]]:
+    ) -> tuple[list[AttributionNode], list[AttributionEdge]]:
         method = self.method.lower()
         if method == "gradient_x_activation":
             return self._gradient_x_activation(layers=layers, threshold=threshold)
@@ -247,9 +247,9 @@ class AttributionGraphExtractor:
         *,
         layers: Iterable[int],
         threshold: float,
-    ) -> Tuple[List[AttributionNode], List[AttributionEdge]]:
+    ) -> tuple[list[AttributionNode], list[AttributionEdge]]:
         target_layers = set(layers)
-        nodes: List[AttributionNode] = []
+        nodes: list[AttributionNode] = []
         for name, activation in self.activations.items():
             gradient = self.gradients.get(name)
             if gradient is None:
@@ -290,25 +290,25 @@ class AttributionGraphExtractor:
         *,
         layers: Iterable[int],
         threshold: float,
-    ) -> Tuple[List[AttributionNode], List[AttributionEdge]]:
+    ) -> tuple[list[AttributionNode], list[AttributionEdge]]:
         return self._gradient_x_activation(layers=layers, threshold=threshold)
 
     def _activation_patching(
         self,
         *,
-        inputs: Dict[str, torch.Tensor],
+        inputs: dict[str, torch.Tensor],
         prompt_len: int,
         layers: Iterable[int],
         threshold: float,
-    ) -> Tuple[List[AttributionNode], List[AttributionEdge]]:
+    ) -> tuple[list[AttributionNode], list[AttributionEdge]]:
         return self._gradient_x_activation(layers=layers, threshold=threshold)
 
-    def _build_edges(self, nodes: List[AttributionNode]) -> List[AttributionEdge]:
-        nodes_by_layer: Dict[int, List[AttributionNode]] = {}
+    def _build_edges(self, nodes: list[AttributionNode]) -> list[AttributionEdge]:
+        nodes_by_layer: dict[int, list[AttributionNode]] = {}
         for node in nodes:
             nodes_by_layer.setdefault(node.layer, []).append(node)
 
-        edges: List[AttributionEdge] = []
+        edges: list[AttributionEdge] = []
         for layer in sorted(nodes_by_layer):
             next_layer = layer + 1
             if next_layer not in nodes_by_layer:
@@ -353,7 +353,7 @@ class AttributionGraphExtractor:
         return "residual"
 
     @staticmethod
-    def _parse_component_idx(_name: str) -> Optional[int]:
+    def _parse_component_idx(_name: str) -> int | None:
         return None
 
 
@@ -364,7 +364,7 @@ def extract_attribution_graph(
     prompt: str,
     response: str,
     method: str = "gradient_x_activation",
-    layers: Optional[Iterable[int]] = None,
+    layers: Iterable[int] | None = None,
     threshold: float = 0.01,
 ) -> AttributionGraph:
     """Convenience wrapper returning a single attribution graph."""
