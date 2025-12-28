@@ -1192,7 +1192,9 @@ def _resolve_recommendation(rec_text: str) -> str:
                     path_last_positive[path_name] = start
 
     if path_last_positive:
-        return max(path_last_positive.items(), key=lambda item: item[1])[0]
+        if len(path_last_positive) > 1:
+            return "unclear"
+        return next(iter(path_last_positive))
 
     if path_last_negative:
         neg_paths = set(path_last_negative)
@@ -1201,13 +1203,11 @@ def _resolve_recommendation(rec_text: str) -> str:
         if neg_paths == {"path_2"}:
             return "path_1"
 
-    if "path 1" in rec_text or "first approach" in rec_text:
+    path_1_mentions = "path 1" in rec_text or "first approach" in rec_text
+    path_2_mentions = "path 2" in rec_text or "second approach" in rec_text
+    if path_1_mentions and not path_2_mentions:
         return "path_1"
-    if "path 2" in rec_text or "second approach" in rec_text:
-        return "path_2"
-    if "careful" in rec_text:
-        return "path_1"
-    if "clear" in rec_text:
+    if path_2_mentions and not path_1_mentions:
         return "path_2"
 
     return "unclear"

@@ -20,7 +20,7 @@ def evaluate_gepa_model(*args: Any, **kwargs: Any) -> Any:
     warnings.warn(
         "gepa_adversarial_integration is deprecated; use gepa_dual_path_integration instead.",
         DeprecationWarning,
-        stacklevel=2,
+        stacklevel=3,
     )
     return _evaluate_gepa_model(*args, **kwargs)
 
@@ -29,7 +29,7 @@ def enumerate_checkpoint_metadata(*args: Any, **kwargs: Any) -> Any:
     warnings.warn(
         "gepa_adversarial_integration is deprecated; use gepa_dual_path_integration instead.",
         DeprecationWarning,
-        stacklevel=2,
+        stacklevel=3,
     )
     return _enumerate_checkpoint_metadata(*args, **kwargs)
 

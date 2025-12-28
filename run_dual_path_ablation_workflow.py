@@ -74,7 +74,11 @@ def run_workflow(args: argparse.Namespace) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run dual-path ablation workflow.")
-    parser.add_argument("--model", required=True, help="Model identifier for logging")
+    parser.add_argument(
+        "--model",
+        default="stub-model",
+        help="Model identifier for logging (workflow uses the stub model).",
+    )
     parser.add_argument(
         "--scenarios",
         default="datasets/dual_path/data.jsonl",

@@ -19,11 +19,16 @@ from .thought_alignment import (
 )
 from .tracing import CircuitTracerLogger, ThoughtTrace, TraceEvent
 
+AdversarialScenario = DualPathProbeScenario
+iterate_adversarial_pool = iterate_dual_path_pool
+sample_adversarial_batch = sample_dual_path_batch
+
 __all__ = [
     "ABSTAIN_OUTPUT",
     "AbstentionReward",
     "AbstentionRewardWeights",
     "AlignmentImperative",
+    "AdversarialScenario",
     "CircuitTracerLogger",
     "ConfidenceDecision",
     "ContemplativePrinciple",
@@ -45,5 +50,7 @@ __all__ = [
     "compute_epistemic_score",
     "compute_match_score",
     "iterate_dual_path_pool",
+    "iterate_adversarial_pool",
     "sample_dual_path_batch",
+    "sample_adversarial_batch",
 ]

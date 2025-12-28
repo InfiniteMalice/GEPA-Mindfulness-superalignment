@@ -16,5 +16,12 @@ Key components:
   measurements.
 - `dual_path.py` exposes dual-path probes for deception comparison analysis.
 
+Migration note:
+
+- Legacy adversarial helpers now live in `dual_path.py`. Use `DualPathProbeScenario`,
+  `iterate_dual_path_pool`, and `sample_dual_path_batch`. Backward-compatible aliases for
+  `AdversarialScenario`, `iterate_adversarial_pool`, and `sample_adversarial_batch` remain
+  available but are deprecated.
+
 These modules are imported by the higher-level training orchestration code and
 can also be reused independently for evaluation or analysis tools.

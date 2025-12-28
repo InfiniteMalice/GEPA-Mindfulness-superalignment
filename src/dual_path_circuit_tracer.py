@@ -22,7 +22,7 @@ if __name__ == "__main__":
         "src/dual_path_circuit_tracer.py is deprecated. "
         "Use mindful_trace_gepa.dual_path_circuit_tracer instead.",
         DeprecationWarning,
-        stacklevel=2,
+        stacklevel=3,
     )
     result = main()
     if isinstance(result, int):

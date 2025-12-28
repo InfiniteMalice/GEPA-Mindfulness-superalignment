@@ -16,7 +16,7 @@ def main() -> int:
         "run_deception_ablation_workflow.py is deprecated; "
         "use run_dual_path_ablation_workflow.py instead.",
         DeprecationWarning,
-        stacklevel=2,
+        stacklevel=3,
     )
     repo_root = Path(__file__).resolve().parent
     if str(repo_root) not in sys.path:

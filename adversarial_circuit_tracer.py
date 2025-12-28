@@ -12,7 +12,7 @@ def main() -> int:
     warnings.warn(
         "adversarial_circuit_tracer is deprecated; use src.dual_path_circuit_tracer instead.",
         DeprecationWarning,
-        stacklevel=2,
+        stacklevel=3,
     )
     try:
         from src.dual_path_circuit_tracer import main as circuit_main

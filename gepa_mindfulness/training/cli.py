@@ -98,7 +98,8 @@ def _legacy_main(
         if dual_path_only:
             results = orchestrator.run_dual_path_eval()
         else:
-            assert dataset_path is not None, "dataset_path required when not dual_path_only"
+            if dataset_path is None:
+                raise ValueError("dataset_path required when not dual_path_only")
             prompts = read_dataset(dataset_path)
             results = orchestrator.run(prompts)
         count = _serialize_rollouts(log_destination / "rollouts.jsonl", results)
