@@ -42,9 +42,7 @@ def _require_torch() -> None:
 
 def _require_networkx() -> None:
     if nx is None:
-        raise ImportError(
-            "AttributionGraph.to_networkx() requires networkx to be installed."
-        )
+        raise ImportError("AttributionGraph.to_networkx() requires networkx to be installed.")
 
 
 @dataclass

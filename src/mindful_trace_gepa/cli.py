@@ -420,11 +420,7 @@ def run_dual_path_contrastive(
         query = record.get("query") or record.get("prompt") or ""
         record_context = record.get("context", context)
         prompt = make_dual_path_prompt(query, record_context)
-        response = (
-            record.get("response")
-            or response_template
-            or _DEFAULT_CONTRASTIVE_RESPONSE
-        )
+        response = record.get("response") or response_template or _DEFAULT_CONTRASTIVE_RESPONSE
 
         sections = parse_dual_path_response(response)
         deception = detect_deception_heuristic(sections)
