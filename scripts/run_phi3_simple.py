@@ -64,7 +64,8 @@ def check_requirements() -> list[str]:
         version = transformers.__version__
         major = int(version.split(".")[0])
         if major < 4:
-            msg = f"transformers {version} too old - run: " "pip install --upgrade transformers"
+            prefix = f"transformers {version} too old - run: "
+            msg = f"{prefix}pip install --upgrade transformers"
             issues.append(msg)
     except ImportError:
         issues.append("transformers not installed - run: pip install transformers")

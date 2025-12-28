@@ -7,7 +7,7 @@ import json
 import logging
 from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args
 
 from mindful_trace_gepa.prompts.dual_path import make_dual_path_prompt, parse_dual_path_response
 
@@ -85,15 +85,29 @@ def _resolve_call_mode(model_callable: ModelCallable) -> str:
     if len(params) >= 2:
         second = params[1]
         if second.kind in (second.POSITIONAL_ONLY, second.POSITIONAL_OR_KEYWORD):
-            return "positional"
-        if second.kind == second.VAR_POSITIONAL:
-            return "positional"
+            if _is_config_param(second):
+                return "positional"
+            LOGGER.warning(
+                "Second positional param %s does not match expected config signature.",
+                second.name,
+            )
     for param in params:
         if param.kind == param.VAR_KEYWORD:
             return "keyword"
         if param.kind == param.KEYWORD_ONLY and param.name == "config":
             return "keyword"
     return "none"
+
+
+def _is_config_param(param: inspect.Parameter) -> bool:
+    if param.name == "config":
+        return True
+    annotation = param.annotation
+    if annotation is inspect.Parameter.empty:
+        return False
+    if annotation is DualPathRunConfig:
+        return True
+    return DualPathRunConfig in get_args(annotation)
 
 
 def run_dual_path_batch(

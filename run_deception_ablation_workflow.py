@@ -16,14 +16,17 @@ def main() -> int:
         "run_deception_ablation_workflow.py is deprecated; "
         "use run_dual_path_ablation_workflow.py instead.",
         DeprecationWarning,
-        stacklevel=3,
+        stacklevel=2,
     )
     repo_root = Path(__file__).resolve().parent
     if str(repo_root) not in sys.path:
         sys.path.insert(0, str(repo_root))
 
-    from run_dual_path_ablation_workflow import main as dual_path_main
-
+    try:
+        from run_dual_path_ablation_workflow import main as dual_path_main
+    except ImportError as exc:
+        print(f"Failed to import dual-path ablation workflow: {exc}", file=sys.stderr)
+        return 1
     return dual_path_main()
 
 

@@ -55,6 +55,8 @@ def run_workflow(args: argparse.Namespace) -> None:
         raise FileNotFoundError(f"Scenarios file not found: {scenario_path}")
     records = read_jsonl(scenario_path)
     scenarios = load_scenarios(records)
+    if not scenarios:
+        raise ValueError(f"No valid scenarios loaded from: {scenario_path}")
     config = DualPathRunConfig(model_id=args.model, log_dir=str(traces_dir))
     run_dual_path_batch(scenarios, _stub_model, config)
     run_tracing(traces_dir)

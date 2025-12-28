@@ -7,9 +7,8 @@ import importlib
 import importlib.util
 import json
 import sys
-from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from mindful_trace_gepa.deception.dual_path_core import DualPathRunConfig
 from mindful_trace_gepa.deception.dual_path_runner import load_scenarios, run_dual_path_batch
@@ -64,13 +63,13 @@ def _resolve_model_callable(response: str | None) -> ModelCallable:
         raise ValueError(
             "No model hook provided. Pass --response module:callable or a .py file path."
         )
+    if ":" in response:
+        return _load_callable_from_module(response)
     response_path = Path(response)
     if response_path.suffix == ".py":
         if response_path.exists():
             return _load_callable_from_file(response_path)
         raise ValueError(f"Response hook file not found: {response_path}")
-    if ":" in response:
-        return _load_callable_from_module(response)
     raise ValueError("Unsupported --response value. Use module:callable or a .py file path.")
 
 

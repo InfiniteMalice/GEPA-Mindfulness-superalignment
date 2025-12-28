@@ -8,24 +8,28 @@ import warnings
 # NOTE: New implementation lives in mindful_trace_gepa.dual_path_circuit_tracer.
 
 
-if __name__ == "__main__":
-    try:
-        from mindful_trace_gepa.dual_path_circuit_tracer import main
-    except ImportError as exc:
-        print(
-            "Failed to import mindful_trace_gepa.dual_path_circuit_tracer: "
-            f"{exc}. Run from the repo root or install the package.",
-            file=sys.stderr,
-        )
-        raise SystemExit(1) from exc
+def main() -> int:
     warnings.warn(
         "src/dual_path_circuit_tracer.py is deprecated. "
         "Use mindful_trace_gepa.dual_path_circuit_tracer instead.",
         DeprecationWarning,
         stacklevel=3,
     )
-    result = main()
+    try:
+        from mindful_trace_gepa.dual_path_circuit_tracer import main as circuit_main
+    except ImportError as exc:
+        print(
+            "Failed to import mindful_trace_gepa.dual_path_circuit_tracer: "
+            f"{exc}. Run from the repo root or install the package.",
+            file=sys.stderr,
+        )
+        return 1
+    result = circuit_main()
     if isinstance(result, int):
-        raise SystemExit(result)
+        return result
     print("Dual-path circuit tracer returned non-integer exit code", file=sys.stderr)
-    raise SystemExit(1)
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

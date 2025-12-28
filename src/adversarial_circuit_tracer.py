@@ -20,7 +20,11 @@ def main() -> int:
     except ImportError as exc:
         print(f"Failed to import dual-path circuit tracer: {exc}", file=sys.stderr)
         return 1
-    return circuit_main()
+    result = circuit_main()
+    if isinstance(result, int):
+        return result
+    print("Dual-path circuit tracer returned non-integer exit code", file=sys.stderr)
+    return 1
 
 
 if __name__ == "__main__":
