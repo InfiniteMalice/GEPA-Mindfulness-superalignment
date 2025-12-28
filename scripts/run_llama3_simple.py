@@ -155,7 +155,8 @@ def main() -> int:
         print("\nTroubleshooting:")
         print("   1. Run: huggingface-cli login")
         print("   2. Get token: https://huggingface.co/settings/tokens")
-        print("   3. Accept license: " "https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct")
+        license_url = "https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct"
+        print(f"   3. Accept license: {license_url}")
         return 1
 
     try:

@@ -104,12 +104,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _warn_deprecated_flags(args: argparse.Namespace) -> None:
     if args.tokenizer is not None:
-        warnings.warn("--tokenizer is deprecated and ignored.", DeprecationWarning, stacklevel=2)
+        warnings.warn(
+            "--tokenizer is deprecated and ignored.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
     if args.apply_ablation:
         warnings.warn(
             "--apply-ablation is deprecated and ignored.",
             DeprecationWarning,
-            stacklevel=2,
+            stacklevel=3,
         )
 
 

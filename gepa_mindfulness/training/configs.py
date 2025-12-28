@@ -48,20 +48,12 @@ def _select_dual_path_batch(
     payload: Mapping[str, Any],
 ) -> int | None:
     candidates = [
-        ("dual_path_batch", training_section.get("dual_path_batch"), False),
-        ("adversarial_batch", training_section.get("adversarial_batch"), True),
-        ("dual_path_batch", payload.get("dual_path_batch"), False),
-        ("adversarial_batch", payload.get("adversarial_batch"), True),
+        ("dual_path_batch", training_section.get("dual_path_batch")),
+        ("dual_path_batch", payload.get("dual_path_batch")),
     ]
-    for key, value, is_legacy in candidates:
+    for key, value in candidates:
         if value is None:
             continue
-        if is_legacy:
-            warnings.warn(
-                "adversarial_batch is deprecated; use dual_path_batch instead.",
-                DeprecationWarning,
-                stacklevel=3,
-            )
         try:
             return int(value)
         except (TypeError, ValueError) as exc:

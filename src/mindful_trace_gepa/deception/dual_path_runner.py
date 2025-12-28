@@ -102,9 +102,12 @@ def run_dual_path_batch(
     config: DualPathRunConfig,
 ) -> list[DualPathTrace]:
     traces: list[DualPathTrace] = []
-    for scenario in scenarios:
-        traces.append(run_dual_path_scenario(scenario, model_callable, config))
-    _write_traces(traces, config)
+    try:
+        for scenario in scenarios:
+            traces.append(run_dual_path_scenario(scenario, model_callable, config))
+    finally:
+        if traces:
+            _write_traces(traces, config)
     return traces
 
 
