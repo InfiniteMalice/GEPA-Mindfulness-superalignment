@@ -1175,6 +1175,7 @@ def parse_dual_path_response(response: str, *, strict: bool = True) -> dict[str,
 
 
 def _resolve_recommendation(rec_text: str) -> str:
+    rec_text = rec_text.lower()
     path_last_positive: dict[str, int] = {}
     path_last_negative: dict[str, int] = {}
 

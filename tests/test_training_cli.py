@@ -275,7 +275,10 @@ def test_training_cli_uses_default_log_dir_when_non_interactive(
     assert (default_dir / "training.log").exists()
 
 
-def test_training_cli_runs_dual_path_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_training_cli_runs_dual_path_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     config_path, dataset_path = _write_stub_files(tmp_path)
     log_dir = tmp_path / "logs"
 
@@ -291,7 +294,11 @@ def test_training_cli_runs_dual_path_only(tmp_path: Path, monkeypatch: pytest.Mo
     orchestrator = _StubOrchestrator(results)
 
     monkeypatch.setattr(cli, "load_training_config", lambda _: object())
-    monkeypatch.setattr(cli, "TrainingOrchestrator", lambda config: orchestrator, raising=False)
+
+    def _make_orchestrator(config):
+        return orchestrator
+
+    monkeypatch.setattr(cli, "TrainingOrchestrator", _make_orchestrator, raising=False)
     monkeypatch.setattr(cli, "_resolve_orchestrator_factory", lambda: lambda config: orchestrator)
     monkeypatch.setattr(
         sys,

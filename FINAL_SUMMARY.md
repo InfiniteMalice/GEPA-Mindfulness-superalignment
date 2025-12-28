@@ -21,10 +21,3 @@
 * `src/dual_path_evaluator.py`
 * `src/dual_path_circuit_tracer.py`
 * `run_dual_path_ablation_workflow.py`
-
-## Remaining human sign-off items
-
-* Review any downstream scripts that relied on the removed adversarial JSONL file and update
-  their scenario inputs to `datasets/dual_path/data.jsonl`.
-* Validate model-backed dual-path evaluation in production environments (the CLI uses a stub
-  model until an integration is wired in).

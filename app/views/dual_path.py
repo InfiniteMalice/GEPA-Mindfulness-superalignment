@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
-
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.widgets import Button, Input, Label, TextLog
@@ -51,5 +49,5 @@ class DualPathView(Container):
         async def sink(line: str) -> None:
             log_widget.write(line)
 
-        await asyncio.create_task(run_command(command, sink))
+        await run_command(command, sink)
         log_widget.write("Dual-path evaluation completed.")

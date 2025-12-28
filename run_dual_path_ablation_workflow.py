@@ -13,7 +13,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -24,7 +23,7 @@ from mindful_trace_gepa.storage import read_jsonl
 LOGGER = logging.getLogger(__name__)
 
 
-def _load_tracer() -> Callable[[Path], None]:
+def _load_tracer():
     from mindful_trace_gepa.dual_path_circuit_tracer import run_tracing
 
     return run_tracing
