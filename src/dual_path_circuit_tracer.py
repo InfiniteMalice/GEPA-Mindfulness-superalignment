@@ -10,15 +10,19 @@ import warnings
 
 def main() -> int:
     warnings.warn(
-        "src.adversarial_circuit_tracer is deprecated; "
-        "use mindful_trace_gepa.dual_path_circuit_tracer instead.",
+        "src/dual_path_circuit_tracer.py is deprecated. "
+        "Use mindful_trace_gepa.dual_path_circuit_tracer instead.",
         DeprecationWarning,
         stacklevel=2,
     )
     try:
         from mindful_trace_gepa.dual_path_circuit_tracer import main as circuit_main
     except ImportError as exc:
-        print(f"Failed to import dual-path circuit tracer: {exc}", file=sys.stderr)
+        print(
+            "Failed to import mindful_trace_gepa.dual_path_circuit_tracer: "
+            f"{exc}. Run from the repo root or install the package.",
+            file=sys.stderr,
+        )
         return 1
     result = circuit_main()
     if isinstance(result, int):
