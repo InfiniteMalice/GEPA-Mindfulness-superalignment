@@ -7,8 +7,8 @@ import json
 import logging
 import os
 import sys
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, List
 
 import click
 
@@ -24,12 +24,8 @@ def load_training_config(path: Path) -> TrainingConfig:
     return TrainingConfig.from_mapping(payload)
 
 
-def read_dataset(path: Path) -> List[str]:
+def read_dataset(path: Path) -> list[str]:
     return [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
-
-
-def iterate_adversarial_pool() -> Iterable[str]:  # pragma: no cover - compatibility hook
-    return []
 
 
 def _resolve_orchestrator_factory():
@@ -90,7 +86,7 @@ def _legacy_main(
     config_path: Path,
     dataset_path: Path,
     log_dir: Path | None,
-    adversarial_only: bool,
+    dual_path_only: bool,
 ) -> None:
     log_destination = _resolve_log_dir(log_dir)
     handler = _setup_file_logging(log_destination)
@@ -99,10 +95,10 @@ def _legacy_main(
         config = load_training_config(config_path)
         orchestrator_factory = _resolve_orchestrator_factory()
         orchestrator = orchestrator_factory(config=config)
-        prompts = read_dataset(dataset_path)
-        if adversarial_only:
-            results = orchestrator.run_adversarial_eval()
+        if dual_path_only:
+            results = orchestrator.run_dual_path_eval()
         else:
+            prompts = read_dataset(dataset_path)
             results = orchestrator.run(prompts)
         count = _serialize_rollouts(log_destination / "rollouts.jsonl", results)
         root_logger.info("Serialized %s rollouts", count)
@@ -115,21 +111,25 @@ def _legacy_main(
 @click.option("--config", "config_path", type=click.Path(exists=True, path_type=Path))
 @click.option("--dataset", "dataset_path", type=click.Path(exists=True, path_type=Path))
 @click.option("--log-dir", "log_dir", type=click.Path(path_type=Path))
-@click.option("--adversarial-only", is_flag=True)
+@click.option("--dual-path-only", is_flag=True)
 @click.pass_context
 def cli(
     ctx: click.Context,
     config_path: Path | None,
     dataset_path: Path | None,
     log_dir: Path | None,
-    adversarial_only: bool,
+    dual_path_only: bool,
 ) -> None:
     """Entry point for GEPA Mindfulness training utilities."""
 
     if ctx.invoked_subcommand is None:
-        if config_path is None or dataset_path is None:
-            raise click.UsageError("--config and --dataset are required when no subcommand is used")
-        _legacy_main(config_path, dataset_path, log_dir, adversarial_only)
+        if config_path is None:
+            raise click.UsageError("--config is required when no subcommand is used")
+        if not dual_path_only and dataset_path is None:
+            raise click.UsageError(
+                "--dataset is required unless --dual-path-only is set when no subcommand is used"
+            )
+        _legacy_main(config_path, dataset_path, log_dir, dual_path_only)
 
 
 @cli.command()
