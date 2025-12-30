@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Dict
+from typing import Callable
 
 from ..values import ValueComponents
 
@@ -14,7 +14,7 @@ class ThoughtTraceRecord:
 
     token_index: int
     components: ValueComponents
-    metadata: Dict[str, float]
+    metadata: dict[str, float]
 
 
 def build_trace_hook(

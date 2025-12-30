@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Iterable
+from typing import Iterable
 
 import torch
 
@@ -14,7 +14,7 @@ from ..values import ValueComponents
 class DeploymentPolicy:
     """Simple policy for gating deployments based on value thresholds."""
 
-    thresholds: Dict[str, float]
+    thresholds: dict[str, float]
     required_heads: Iterable[str]
 
     def is_satisfied(self, values: ValueComponents) -> bool:

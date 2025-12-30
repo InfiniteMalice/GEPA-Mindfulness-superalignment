@@ -7,10 +7,10 @@ from typing import Any
 from .curriculum import DEFAULT_CURRICULUM, CurriculumPhase, get_default_curriculum
 
 __all__ = [
+    "combined_value_loss",
     "CurriculumPhase",
     "DEFAULT_CURRICULUM",
     "get_default_curriculum",
-    "combined_value_loss",
     "rl_reward",
     "supervised_head_losses",
 ]

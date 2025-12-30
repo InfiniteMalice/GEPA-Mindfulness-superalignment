@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Mapping
+from typing import Mapping
 
 import torch
 from torch import nn
@@ -21,7 +21,7 @@ class ValueComponents:
     flexibility: torch.Tensor
     belonging: torch.Tensor
 
-    def as_dict(self) -> Dict[str, torch.Tensor]:
+    def as_dict(self) -> dict[str, torch.Tensor]:
         """Return components as a dictionary."""
 
         return {

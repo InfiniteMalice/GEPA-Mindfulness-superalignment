@@ -38,6 +38,12 @@ def combined_value_loss(
 
     per_head = supervised_head_losses(predicted, target, loss_fn=loss_fn)
     active = weights or DEFAULT_HEAD_WEIGHTS
+    if weights is not None:
+        required = {"epistemic", "cooperation", "flexibility", "belonging"}
+        missing = required - weights.keys()
+        if missing:
+            missing_text = ", ".join(sorted(missing))
+            raise ValueError(f"weights missing required keys: {missing_text}")
     total = (
         per_head["epistemic"] * active["epistemic"]
         + per_head["cooperation"] * active["cooperation"]

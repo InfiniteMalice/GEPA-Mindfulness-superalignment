@@ -49,5 +49,13 @@ def test_rl_reward_from_components() -> None:
         flexibility=torch.tensor([0.0]),
         belonging=torch.tensor([0.0]),
     )
-    reward = rl_reward(values, weights={"epistemic": 0.5, "cooperation": 0.5})
+    reward = rl_reward(
+        values,
+        weights={
+            "epistemic": 0.5,
+            "cooperation": 0.5,
+            "flexibility": 0.0,
+            "belonging": 0.0,
+        },
+    )
     assert torch.allclose(reward, torch.tensor([1.0]))
