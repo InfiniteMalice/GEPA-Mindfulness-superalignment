@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import Callable, Mapping
 
 from ..values import ValueComponents
@@ -23,13 +24,13 @@ def build_trace_hook(
 ) -> Callable[[int, ValueComponents], None]:
     """Create a hook that records participatory agency values."""
 
-    base_metadata = dict(default_metadata) if default_metadata else {}
+    immutable_base_metadata = MappingProxyType(dict(default_metadata) if default_metadata else {})
 
     def _hook(token_index: int, values: ValueComponents) -> None:
         record = ThoughtTraceRecord(
             token_index=token_index,
             components=values,
-            metadata=base_metadata,
+            metadata=immutable_base_metadata,
         )
         recorder(record)
 

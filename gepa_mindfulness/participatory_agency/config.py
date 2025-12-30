@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from types import MappingProxyType
+from typing import Mapping
 
 DEFAULT_HEAD_WEIGHTS: dict[str, float] = {
     "epistemic": 1.0,
@@ -19,8 +21,12 @@ class ParticipatoryAgencyConfig:
     hidden_size: int = 768
     dropout: float = 0.0
     head_bias: bool = True
-    loss_weights: dict[str, float] = field(default_factory=lambda: dict(DEFAULT_HEAD_WEIGHTS))
-    reward_weights: dict[str, float] = field(default_factory=lambda: dict(DEFAULT_HEAD_WEIGHTS))
+    loss_weights: Mapping[str, float] = field(
+        default_factory=lambda: MappingProxyType(dict(DEFAULT_HEAD_WEIGHTS))
+    )
+    reward_weights: Mapping[str, float] = field(
+        default_factory=lambda: MappingProxyType(dict(DEFAULT_HEAD_WEIGHTS))
+    )
 
     def with_hidden_size(self, hidden_size: int) -> "ParticipatoryAgencyConfig":
         """Return a copy of the config with a new hidden size."""
@@ -29,6 +35,6 @@ class ParticipatoryAgencyConfig:
             hidden_size=hidden_size,
             dropout=self.dropout,
             head_bias=self.head_bias,
-            loss_weights=dict(self.loss_weights),
-            reward_weights=dict(self.reward_weights),
+            loss_weights=MappingProxyType(dict(self.loss_weights)),
+            reward_weights=MappingProxyType(dict(self.reward_weights)),
         )

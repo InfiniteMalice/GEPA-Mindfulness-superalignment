@@ -10,6 +10,8 @@ from torch import nn
 
 from ..values import ValueComponents
 
+_NUM_VALUE_HEADS = 4
+
 
 @dataclass(frozen=True)
 class ProbeResult:
@@ -20,6 +22,8 @@ class ProbeResult:
 
 
 def _split_probe_outputs(outputs: torch.Tensor) -> ValueComponents:
+    """Split a probe tensor with shape [..., 4] into value components."""
+
     return ValueComponents(
         epistemic=outputs[..., 0],
         cooperation=outputs[..., 1],
@@ -33,7 +37,7 @@ class LinearValueProbe(nn.Module):
 
     def __init__(self, hidden_size: int) -> None:
         super().__init__()
-        self.projection = nn.Linear(hidden_size, 4)
+        self.projection = nn.Linear(hidden_size, _NUM_VALUE_HEADS)
 
     def forward(self, features: torch.Tensor) -> ValueComponents:
         outputs = self.projection(features)

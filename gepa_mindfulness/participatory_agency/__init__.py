@@ -11,9 +11,7 @@ __all__ = ["ParticipatoryAgencyConfig", "ParticipatoryValueHead", "ValueComponen
 
 def __getattr__(name: str) -> Any:
     if name in {"ParticipatoryValueHead", "ValueComponents"}:
-        from .values import ParticipatoryValueHead, ValueComponents
+        from . import values
 
-        if name == "ParticipatoryValueHead":
-            return ParticipatoryValueHead
-        return ValueComponents
+        return getattr(values, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

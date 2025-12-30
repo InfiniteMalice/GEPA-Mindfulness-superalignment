@@ -12,7 +12,7 @@ class CurriculumPhase:
 
     name: str
     description: str
-    active_heads: Sequence[str]
+    active_heads: tuple[str, ...]
     loss_weights: dict[str, float]
 
     def __post_init__(self) -> None:
