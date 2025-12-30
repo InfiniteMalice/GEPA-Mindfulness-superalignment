@@ -21,19 +21,34 @@ DEFAULT_CURRICULUM: Sequence[CurriculumPhase] = (
         name="phase_1_epistemic",
         description="Focus on epistemic humility signals.",
         active_heads=("epistemic",),
-        loss_weights={"epistemic": 1.0},
+        loss_weights={
+            "epistemic": 1.0,
+            "cooperation": 0.0,
+            "flexibility": 0.0,
+            "belonging": 0.0,
+        },
     ),
     CurriculumPhase(
         name="phase_2_cooperation",
         description="Add cooperative equilibrium signals.",
         active_heads=("epistemic", "cooperation"),
-        loss_weights={"epistemic": 0.7, "cooperation": 0.3},
+        loss_weights={
+            "epistemic": 0.7,
+            "cooperation": 0.3,
+            "flexibility": 0.0,
+            "belonging": 0.0,
+        },
     ),
     CurriculumPhase(
         name="phase_3_flexibility",
         description="Add goal flexibility signals.",
         active_heads=("epistemic", "cooperation", "flexibility"),
-        loss_weights={"epistemic": 0.5, "cooperation": 0.3, "flexibility": 0.2},
+        loss_weights={
+            "epistemic": 0.5,
+            "cooperation": 0.3,
+            "flexibility": 0.2,
+            "belonging": 0.0,
+        },
     ),
     CurriculumPhase(
         name="phase_4_belonging",

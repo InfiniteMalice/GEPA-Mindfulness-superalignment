@@ -33,14 +33,15 @@ def batch_self_supervision(
 ) -> dict[str, torch.Tensor]:
     """Aggregate self-supervision diagnostics across batches."""
 
-    device = next(head.parameters()).device
+    params = list(head.parameters())
+    device = params[0].device if params else torch.device("cpu")
     totals: dict[str, torch.Tensor] = {}
     count = 0
     for features, targets in zip(feature_batches, target_batches):
         diagnostics = self_supervision_step(head, features, targets)
         for key, value in diagnostics.items():
             if key not in totals:
-                totals[key] = torch.zeros_like(value.detach()).to(device)
+                totals[key] = torch.zeros_like(value, device=device).detach()
             totals[key].add_(value.detach())
         count += 1
     if count == 0:
