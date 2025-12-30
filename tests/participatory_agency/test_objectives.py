@@ -4,15 +4,14 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from gepa_mindfulness.participatory_agency.training.objectives import (
-    combined_value_loss,
-    rl_reward,
-    supervised_head_losses,
-)
-from gepa_mindfulness.participatory_agency.values import ValueComponents
-
 
 def test_supervised_losses_and_total() -> None:
+    from gepa_mindfulness.participatory_agency.training.objectives import (
+        combined_value_loss,
+        supervised_head_losses,
+    )
+    from gepa_mindfulness.participatory_agency.values import ValueComponents
+
     pred = ValueComponents(
         epistemic=torch.tensor([1.0]),
         cooperation=torch.tensor([0.0]),
@@ -41,6 +40,9 @@ def test_supervised_losses_and_total() -> None:
 
 
 def test_rl_reward_from_components() -> None:
+    from gepa_mindfulness.participatory_agency.training.objectives import rl_reward
+    from gepa_mindfulness.participatory_agency.values import ValueComponents
+
     values = ValueComponents(
         epistemic=torch.tensor([1.0]),
         cooperation=torch.tensor([1.0]),

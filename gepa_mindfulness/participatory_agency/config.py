@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict
 
-
-DEFAULT_HEAD_WEIGHTS: Dict[str, float] = {
+DEFAULT_HEAD_WEIGHTS: dict[str, float] = {
     "epistemic": 1.0,
     "cooperation": 1.0,
     "flexibility": 1.0,
@@ -21,8 +19,8 @@ class ParticipatoryAgencyConfig:
     hidden_size: int = 768
     dropout: float = 0.0
     head_bias: bool = True
-    loss_weights: Dict[str, float] = field(default_factory=lambda: dict(DEFAULT_HEAD_WEIGHTS))
-    reward_weights: Dict[str, float] = field(default_factory=lambda: dict(DEFAULT_HEAD_WEIGHTS))
+    loss_weights: dict[str, float] = field(default_factory=lambda: dict(DEFAULT_HEAD_WEIGHTS))
+    reward_weights: dict[str, float] = field(default_factory=lambda: dict(DEFAULT_HEAD_WEIGHTS))
 
     def with_hidden_size(self, hidden_size: int) -> "ParticipatoryAgencyConfig":
         """Return a copy of the config with a new hidden size."""

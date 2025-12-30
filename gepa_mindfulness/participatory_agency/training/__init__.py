@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .curriculum import CurriculumPhase, DEFAULT_CURRICULUM, get_default_curriculum
+from .curriculum import DEFAULT_CURRICULUM, CurriculumPhase, get_default_curriculum
 
 __all__ = [
     "CurriculumPhase",

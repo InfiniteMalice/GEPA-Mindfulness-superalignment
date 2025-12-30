@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Callable, Dict, Mapping
+from typing import Callable, Mapping
 
 import torch
 from torch.nn import functional as nn_functional
@@ -15,7 +15,7 @@ def supervised_head_losses(
     predicted: ValueComponents,
     target: ValueComponents,
     loss_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] | None = None,
-) -> Dict[str, torch.Tensor]:
+) -> dict[str, torch.Tensor]:
     """Compute per-head supervised losses."""
 
     if loss_fn is None:
@@ -53,4 +53,4 @@ def rl_reward(
 ) -> torch.Tensor:
     """Compute a scalar RL reward from value components."""
 
-    return components.total(weights or DEFAULT_HEAD_WEIGHTS)
+    return components.total(weights)

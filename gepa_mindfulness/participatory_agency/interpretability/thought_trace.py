@@ -5,8 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Dict
 
-import torch
-
 from ..values import ValueComponents
 
 
@@ -21,7 +19,7 @@ class ThoughtTraceRecord:
 
 def build_trace_hook(
     recorder: Callable[[ThoughtTraceRecord], None],
-) -> Callable[[torch.Tensor, ValueComponents], None]:
+) -> Callable[[int, ValueComponents], None]:
     """Create a hook that records participatory agency values."""
 
     def _hook(token_index: int, values: ValueComponents) -> None:

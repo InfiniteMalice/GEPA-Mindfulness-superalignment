@@ -4,10 +4,10 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from gepa_mindfulness.participatory_agency.values import ValueComponents
-
 
 def test_value_components_total() -> None:
+    from gepa_mindfulness.participatory_agency.values import ValueComponents
+
     values = ValueComponents(
         epistemic=torch.tensor([1.0]),
         cooperation=torch.tensor([2.0]),
@@ -26,6 +26,8 @@ def test_value_components_total() -> None:
 
 
 def test_value_components_stack() -> None:
+    from gepa_mindfulness.participatory_agency.values import ValueComponents
+
     values = ValueComponents(
         epistemic=torch.tensor([1.0, 2.0]),
         cooperation=torch.tensor([0.0, 1.0]),

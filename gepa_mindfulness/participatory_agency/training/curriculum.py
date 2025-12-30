@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Sequence
+from typing import Sequence
 
 
 @dataclass(frozen=True)
@@ -13,7 +13,7 @@ class CurriculumPhase:
     name: str
     description: str
     active_heads: Sequence[str]
-    loss_weights: Dict[str, float]
+    loss_weights: dict[str, float]
 
 
 DEFAULT_CURRICULUM: Sequence[CurriculumPhase] = (

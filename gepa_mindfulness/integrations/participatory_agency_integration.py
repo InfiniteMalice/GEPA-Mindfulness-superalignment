@@ -25,6 +25,9 @@ def attach_participatory_value_head(
 
     head = build_participatory_value_head(hidden_size=hidden_size, config=config)
     if hasattr(model, "participatory_value_head"):
-        raise AttributeError("Model already has a participatory_value_head")
+        raise AttributeError(
+            "Model already has a participatory_value_head. "
+            "Remove it first or use build_participatory_value_head() directly."
+        )
     setattr(model, "participatory_value_head", head)
     return head

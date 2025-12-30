@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, Iterable
+from typing import Iterable
 
 import torch
 
@@ -13,7 +13,7 @@ def self_supervision_step(
     head: ParticipatoryValueHead,
     features: torch.Tensor,
     targets: ValueComponents,
-) -> Dict[str, torch.Tensor]:
+) -> dict[str, torch.Tensor]:
     """Run a stub self-supervision step and return diagnostics."""
 
     predictions = head(features)
@@ -30,21 +30,24 @@ def batch_self_supervision(
     head: ParticipatoryValueHead,
     feature_batches: Iterable[torch.Tensor],
     target_batches: Iterable[ValueComponents],
-) -> Dict[str, torch.Tensor]:
+) -> dict[str, torch.Tensor]:
     """Aggregate self-supervision diagnostics across batches."""
 
-    totals: Dict[str, torch.Tensor] = {
-        "epistemic": torch.tensor(0.0),
-        "cooperation": torch.tensor(0.0),
-        "flexibility": torch.tensor(0.0),
-        "belonging": torch.tensor(0.0),
-    }
+    totals: dict[str, torch.Tensor] = {}
     count = 0
     for features, targets in zip(feature_batches, target_batches):
         diagnostics = self_supervision_step(head, features, targets)
         for key, value in diagnostics.items():
-            totals[key] = totals[key] + value
+            if key not in totals:
+                totals[key] = torch.zeros_like(value.detach())
+            totals[key].add_(value.detach())
         count += 1
     if count == 0:
-        return totals
+        device = next(head.parameters()).device
+        return {
+            "epistemic": torch.tensor(0.0, device=device),
+            "cooperation": torch.tensor(0.0, device=device),
+            "flexibility": torch.tensor(0.0, device=device),
+            "belonging": torch.tensor(0.0, device=device),
+        }
     return {key: value / count for key, value in totals.items()}

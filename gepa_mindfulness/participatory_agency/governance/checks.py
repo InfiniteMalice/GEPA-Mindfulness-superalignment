@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Dict
-
 import torch
 
 from ..values import ValueComponents
@@ -26,7 +24,7 @@ def values_within_range(
     return bool(torch.all(stacked >= minimum) and torch.all(stacked <= maximum))
 
 
-def build_check_report(values: ValueComponents) -> Dict[str, bool]:
+def build_check_report(values: ValueComponents) -> dict[str, bool]:
     """Return a dictionary of standard governance checks."""
 
     return {
