@@ -22,7 +22,7 @@ class ProbeResult:
 
 
 def _split_probe_outputs(outputs: torch.Tensor) -> ValueComponents:
-    """Split a probe tensor with shape [..., 4] into value components."""
+    """Split a probe tensor with shape [..., num_heads] into value components."""
 
     field_names = [field.name for field in fields(ValueComponents)]
     return ValueComponents(**{name: outputs[..., idx] for idx, name in enumerate(field_names)})
