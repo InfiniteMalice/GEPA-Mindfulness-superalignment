@@ -34,7 +34,6 @@ class ValueComponents:
     def total(self, weights: Mapping[str, float] | None = None) -> torch.Tensor:
         """Combine values into a single scalar using *weights*."""
 
-        active = weights or DEFAULT_HEAD_WEIGHTS
         if weights is not None:
             required = {"epistemic", "cooperation", "flexibility", "belonging"}
             missing = required - weights.keys()
@@ -45,6 +44,9 @@ class ValueComponents:
             if unknown:
                 unknown_text = ", ".join(sorted(unknown))
                 raise ValueError(f"weights contains unknown keys: {unknown_text}")
+            active = weights
+        else:
+            active = DEFAULT_HEAD_WEIGHTS
         return (
             self.epistemic * active["epistemic"]
             + self.cooperation * active["cooperation"]

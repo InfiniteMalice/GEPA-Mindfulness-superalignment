@@ -43,8 +43,9 @@ def batch_self_supervision(
         diagnostics = self_supervision_step(head, features, targets)
         for key, value in diagnostics.items():
             if key not in totals:
-                totals[key] = torch.zeros_like(value)
-            totals[key].add_(value)
+                totals[key] = value
+            else:
+                totals[key].add_(value)
         count += 1
     if count == 0:
         return {key: torch.tensor(0.0, device=device) for key in _COMPONENT_KEYS}

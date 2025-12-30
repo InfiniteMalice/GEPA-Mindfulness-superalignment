@@ -16,24 +16,20 @@ __all__ = [
 ]
 
 _cached_attrs: dict[str, object] = {}
+_LAZY_IMPORTS = {
+    "combined_value_loss": "objectives",
+    "rl_reward": "objectives",
+    "supervised_head_losses": "objectives",
+}
 
 
 def __getattr__(name: str) -> Any:
     if name in _cached_attrs:
         return _cached_attrs[name]
-    if name == "combined_value_loss":
-        from .objectives import combined_value_loss
-
-        _cached_attrs[name] = combined_value_loss
-        return _cached_attrs[name]
-    if name == "rl_reward":
-        from .objectives import rl_reward
-
-        _cached_attrs[name] = rl_reward
-        return _cached_attrs[name]
-    if name == "supervised_head_losses":
-        from .objectives import supervised_head_losses
-
-        _cached_attrs[name] = supervised_head_losses
-        return _cached_attrs[name]
+    if name in _LAZY_IMPORTS:
+        module_name = _LAZY_IMPORTS[name]
+        module = __import__(f".{module_name}", fromlist=[name], level=1)
+        attr = getattr(module, name)
+        _cached_attrs[name] = attr
+        return attr
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

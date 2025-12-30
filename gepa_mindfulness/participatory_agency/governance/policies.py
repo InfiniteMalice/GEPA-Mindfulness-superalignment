@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from types import MappingProxyType
 from typing import Mapping, Sequence
 
@@ -25,7 +25,7 @@ class DeploymentPolicy:
     def is_satisfied(self, values: ValueComponents) -> bool:
         """Return True when all required heads meet their thresholds."""
 
-        valid_heads = {"epistemic", "cooperation", "flexibility", "belonging"}
+        valid_heads = {field.name for field in fields(ValueComponents)}
         components = values.as_dict()
         for head in self.required_heads:
             if head not in valid_heads:

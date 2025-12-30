@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from typing import Iterable, Mapping
 
 import torch
@@ -10,7 +10,7 @@ from torch import nn
 
 from ..values import ValueComponents
 
-_NUM_VALUE_HEADS = 4
+_NUM_VALUE_HEADS = len(fields(ValueComponents))
 
 
 @dataclass(frozen=True)
@@ -24,12 +24,8 @@ class ProbeResult:
 def _split_probe_outputs(outputs: torch.Tensor) -> ValueComponents:
     """Split a probe tensor with shape [..., 4] into value components."""
 
-    return ValueComponents(
-        epistemic=outputs[..., 0],
-        cooperation=outputs[..., 1],
-        flexibility=outputs[..., 2],
-        belonging=outputs[..., 3],
-    )
+    field_names = [field.name for field in fields(ValueComponents)]
+    return ValueComponents(**{name: outputs[..., idx] for idx, name in enumerate(field_names)})
 
 
 class LinearValueProbe(nn.Module):
