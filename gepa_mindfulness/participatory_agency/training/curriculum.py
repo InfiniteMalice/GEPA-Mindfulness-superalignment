@@ -15,6 +15,9 @@ class CurriculumPhase:
     active_heads: Sequence[str]
     loss_weights: dict[str, float]
 
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "active_heads", tuple(self.active_heads))
+
 
 DEFAULT_CURRICULUM: Sequence[CurriculumPhase] = (
     CurriculumPhase(

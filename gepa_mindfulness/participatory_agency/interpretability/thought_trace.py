@@ -19,14 +19,17 @@ class ThoughtTraceRecord:
 
 def build_trace_hook(
     recorder: Callable[[ThoughtTraceRecord], None],
+    default_metadata: Mapping[str, float] | None = None,
 ) -> Callable[[int, ValueComponents], None]:
     """Create a hook that records participatory agency values."""
+
+    base_metadata = dict(default_metadata) if default_metadata else {}
 
     def _hook(token_index: int, values: ValueComponents) -> None:
         record = ThoughtTraceRecord(
             token_index=token_index,
             components=values,
-            metadata={},
+            metadata=base_metadata,
         )
         recorder(record)
 

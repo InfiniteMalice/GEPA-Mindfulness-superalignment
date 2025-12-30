@@ -17,13 +17,16 @@ __all__ = [
 
 
 def __getattr__(name: str) -> Any:
-    if name in {"combined_value_loss", "rl_reward", "supervised_head_losses"}:
-        from .objectives import combined_value_loss, rl_reward, supervised_head_losses
+    if name == "combined_value_loss":
+        from .objectives import combined_value_loss
 
-        mapping = {
-            "combined_value_loss": combined_value_loss,
-            "rl_reward": rl_reward,
-            "supervised_head_losses": supervised_head_losses,
-        }
-        return mapping[name]
+        return combined_value_loss
+    if name == "rl_reward":
+        from .objectives import rl_reward
+
+        return rl_reward
+    if name == "supervised_head_losses":
+        from .objectives import supervised_head_losses
+
+        return supervised_head_losses
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
