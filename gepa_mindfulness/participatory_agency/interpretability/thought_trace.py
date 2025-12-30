@@ -24,7 +24,8 @@ def build_trace_hook(
 ) -> Callable[[int, ValueComponents], None]:
     """Create a hook that records participatory agency values."""
 
-    immutable_base_metadata = MappingProxyType(dict(default_metadata) if default_metadata else {})
+    base_metadata = dict(default_metadata) if default_metadata else {}
+    immutable_base_metadata = MappingProxyType(base_metadata)
 
     def _hook(token_index: int, values: ValueComponents) -> None:
         record = ThoughtTraceRecord(

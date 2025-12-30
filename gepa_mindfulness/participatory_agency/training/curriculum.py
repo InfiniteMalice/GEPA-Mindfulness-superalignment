@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Sequence
+from types import MappingProxyType
+from typing import Mapping, Sequence
 
 
 @dataclass(frozen=True)
@@ -13,10 +14,11 @@ class CurriculumPhase:
     name: str
     description: str
     active_heads: tuple[str, ...]
-    loss_weights: dict[str, float]
+    loss_weights: Mapping[str, float]
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "active_heads", tuple(self.active_heads))
+        object.__setattr__(self, "loss_weights", MappingProxyType(dict(self.loss_weights)))
 
 
 DEFAULT_CURRICULUM: Sequence[CurriculumPhase] = (
