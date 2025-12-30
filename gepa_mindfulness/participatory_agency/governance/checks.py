@@ -21,7 +21,7 @@ def values_within_range(
     """Return True if all values are within [minimum, maximum]."""
 
     stacked = values.stack()
-    return bool(torch.all(stacked >= minimum) and torch.all(stacked <= maximum))
+    return bool(torch.all((stacked >= minimum) & (stacked <= maximum)))
 
 
 def build_check_report(values: ValueComponents) -> dict[str, bool]:

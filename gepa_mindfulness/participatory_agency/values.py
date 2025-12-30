@@ -41,6 +41,10 @@ class ValueComponents:
             if missing:
                 missing_text = ", ".join(sorted(missing))
                 raise ValueError(f"weights missing required keys: {missing_text}")
+            unknown = weights.keys() - required
+            if unknown:
+                unknown_text = ", ".join(sorted(unknown))
+                raise ValueError(f"weights contains unknown keys: {unknown_text}")
         return (
             self.epistemic * active["epistemic"]
             + self.cooperation * active["cooperation"]
