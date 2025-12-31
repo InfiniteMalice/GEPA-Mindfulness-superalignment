@@ -30,11 +30,8 @@ class DeploymentPolicy:
     def is_satisfied(self, values: ValueComponents) -> bool:
         """Return True when all required heads meet their thresholds."""
 
-        valid_heads = {field.name for field in fields(ValueComponents)}
         components = values.as_dict()
         for head in self.required_heads:
-            if head not in valid_heads:
-                raise ValueError(f"Unknown head: {head!r}")
             threshold = self.thresholds.get(head, 0.0)
             component = components[head]
             if torch.any(component < threshold):

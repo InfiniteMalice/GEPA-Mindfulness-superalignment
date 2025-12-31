@@ -24,12 +24,7 @@ class ValueComponents:
     def as_dict(self) -> dict[str, torch.Tensor]:
         """Return components as a dictionary."""
 
-        return {
-            "epistemic": self.epistemic,
-            "cooperation": self.cooperation,
-            "flexibility": self.flexibility,
-            "belonging": self.belonging,
-        }
+        return {field.name: getattr(self, field.name) for field in fields(self)}
 
     def total(self, weights: Mapping[str, float] | None = None) -> torch.Tensor:
         """Combine values into a single scalar using *weights*."""

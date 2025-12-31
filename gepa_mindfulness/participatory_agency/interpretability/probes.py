@@ -25,6 +25,8 @@ def _split_probe_outputs(outputs: torch.Tensor) -> ValueComponents:
     """Split a probe tensor with shape [..., num_heads] into value components."""
 
     field_names = [field.name for field in fields(ValueComponents)]
+    if outputs.shape[-1] != _NUM_VALUE_HEADS:
+        raise ValueError(f"Expected last dimension {_NUM_VALUE_HEADS}, got {outputs.shape[-1]}")
     return ValueComponents(**{name: outputs[..., idx] for idx, name in enumerate(field_names)})
 
 

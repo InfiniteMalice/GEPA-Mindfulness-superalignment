@@ -35,10 +35,6 @@ def combined_value_loss(
     """Combine supervised losses into a weighted total."""
 
     per_head = supervised_head_losses(predicted, target, loss_fn=loss_fn)
-    # supervised_head_losses must return the ValueComponents field names.
-    expected_keys = {field.name for field in fields(ValueComponents)}
-    if set(per_head) != expected_keys:
-        raise ValueError("supervised_head_losses must return all ValueComponents fields")
     per_head_components = ValueComponents(**per_head)
     return per_head_components.total(weights)
 

@@ -33,6 +33,12 @@ if HAS_TORCH:
         def __init__(self, data: dict[str, torch.Tensor]) -> None:
             super().__init__(data)
 
+        def __getattr__(self, name: str) -> torch.Tensor:
+            try:
+                return self[name]
+            except KeyError as exc:
+                raise AttributeError(name) from exc
+
         def to(self, device: torch.device) -> "BatchEncoding":
             return BatchEncoding({key: value.to(device) for key, value in self.items()})
 
