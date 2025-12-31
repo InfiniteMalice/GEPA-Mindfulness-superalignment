@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from .config import ParticipatoryAgencyConfig
-
-__all__ = ["ParticipatoryAgencyConfig", "ParticipatoryValueHead", "ValueComponents"]
+__all__ = [
+    "ParticipatoryAgencyConfig",
+    "ParticipatoryValueHead",
+    "ValueComponents",
+]
 
 _cached: dict[str, object] = {}
 
@@ -14,6 +16,11 @@ _cached: dict[str, object] = {}
 def __getattr__(name: str) -> Any:
     if name in _cached:
         return _cached[name]
+    if name == "ParticipatoryAgencyConfig":
+        from .config import ParticipatoryAgencyConfig
+
+        _cached[name] = ParticipatoryAgencyConfig
+        return ParticipatoryAgencyConfig
     if name in {"ParticipatoryValueHead", "ValueComponents"}:
         from . import values
 

@@ -10,7 +10,7 @@ from ..values import ValueComponents
 def values_are_finite(values: ValueComponents) -> bool:
     """Return True if all value components are finite."""
 
-    return bool(torch.isfinite(values.stack()).all())
+    return torch.isfinite(values.stack()).all().item()
 
 
 def values_within_range(
@@ -21,7 +21,7 @@ def values_within_range(
     """Return True if all values are within [minimum, maximum]."""
 
     stacked = values.stack()
-    return bool(torch.all((stacked >= minimum) & (stacked <= maximum)))
+    return ((stacked >= minimum) & (stacked <= maximum)).all().item()
 
 
 def build_check_report(values: ValueComponents) -> dict[str, bool]:

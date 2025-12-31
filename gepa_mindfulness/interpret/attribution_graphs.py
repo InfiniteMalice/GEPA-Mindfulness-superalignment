@@ -390,6 +390,7 @@ def extract_attribution_graph(
     method: str = "gradient_x_activation",
     layers: Iterable[int] | None = None,
     threshold: float = 0.01,
+    use_fast_gradients: bool | None = None,
 ) -> AttributionGraph:
     """Convenience wrapper returning a single attribution graph."""
 
@@ -404,4 +405,5 @@ def extract_attribution_graph(
         response=response,
         layers=layers,
         threshold=threshold,
+        use_fast_gradients=use_fast_gradients,
     )
