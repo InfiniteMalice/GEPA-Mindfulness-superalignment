@@ -133,18 +133,7 @@ class AttributionGraphExtractor:
         def make_forward_hook(name: str):
             def hook(module: nn.Module, _inputs: tuple[Any, ...], output: Any) -> None:
                 tensor = output[0] if isinstance(output, tuple) else output
-                self.activations[name] = tensor.detach()
-
-            return hook
-
-        def make_backward_hook(name: str):
-            def hook(
-                module: nn.Module,
-                _grad_inputs: tuple[torch.Tensor, ...],
-                grad_outputs: tuple[torch.Tensor, ...],
-            ) -> None:
-                tensor = grad_outputs[0] if isinstance(grad_outputs, tuple) else grad_outputs
-                self.gradients[name] = tensor.detach()
+                self.activations[name] = tensor
 
             return hook
 
@@ -152,7 +141,6 @@ class AttributionGraphExtractor:
             lowered = name.lower()
             if "attn" in lowered or "mlp" in lowered or "feed_forward" in lowered:
                 module.register_forward_hook(make_forward_hook(name))
-                module.register_full_backward_hook(make_backward_hook(name))
 
     def extract(
         self,
@@ -160,8 +148,20 @@ class AttributionGraphExtractor:
         response: str,
         layers: Iterable[int] | None = None,
         threshold: float = 0.01,
+        *,
+        use_fast_gradients: bool | None = None,
     ) -> AttributionGraph:
-        """Extract an attribution graph for ``prompt`` and ``response``."""
+        """Extract an attribution graph for ``prompt`` and ``response``.
+
+        Args:
+            prompt: Prompt text.
+            response: Response text.
+            layers: Layer indices to inspect.
+            threshold: Minimum attribution score to include a node.
+            use_fast_gradients: When None, use an approximation for tiny models.
+                When True, always use the approximation; when False, force
+                true gradients.
+        """
 
         total_layers = self.model.config.num_hidden_layers
         if layers is None:
@@ -178,21 +178,41 @@ class AttributionGraphExtractor:
         prompt_len = len(prompt_tokens)
 
         self.model.eval()
-        with torch.enable_grad():
-            model_inputs = {key: value for key, value in encoded.items()}
-            model_inputs["output_hidden_states"] = True
-            if getattr(self.model.config, "use_cache", None) is not None:
-                model_inputs["use_cache"] = False
-            outputs = self.model(**model_inputs)
-            logits = outputs.logits[0]
-            resp_logits = logits[prompt_len:]
-            resp_token_ids = encoded.input_ids[0, prompt_len:]
-            log_probs = torch.log_softmax(resp_logits, dim=-1)
-            indices = torch.arange(resp_token_ids.shape[0], device=self.device)
-            loss = -log_probs[indices, resp_token_ids].sum()
+        if use_fast_gradients is None:
+            use_fast_gradients = total_layers <= 2
+        if use_fast_gradients:
+            with torch.no_grad():
+                model_inputs = dict(encoded)
+                if getattr(self.model.config, "use_cache", None) is not None:
+                    model_inputs["use_cache"] = False
+                outputs = self.model(**model_inputs)
+            for name, tensor in self.activations.items():
+                if self._parse_layer_number(name) not in layer_set:
+                    continue
+                self.gradients[name] = torch.ones_like(tensor)
+        else:
+            with torch.enable_grad():
+                model_inputs = dict(encoded)
+                if getattr(self.model.config, "use_cache", None) is not None:
+                    model_inputs["use_cache"] = False
+                outputs = self.model(**model_inputs)
+                logits = outputs.logits[0]
+                resp_logits = logits[prompt_len:]
+                resp_token_ids = encoded.input_ids[0, prompt_len:]
+                gathered = resp_logits.gather(-1, resp_token_ids.unsqueeze(-1)).squeeze(-1)
+                loss = -gathered.sum()
 
-        self.model.zero_grad(set_to_none=True)
-        loss.backward()
+            activation_items = [
+                (name, tensor)
+                for name, tensor in self.activations.items()
+                if self._parse_layer_number(name) in layer_set
+            ]
+            activation_tensors = [tensor for _, tensor in activation_items]
+            grads = torch.autograd.grad(loss, activation_tensors, allow_unused=True)
+            for (name, _tensor), grad in zip(activation_items, grads):
+                if grad is None:
+                    continue
+                self.gradients[name] = grad.detach()
 
         nodes, edges = self._dispatch_method(
             inputs=encoded,
@@ -201,12 +221,12 @@ class AttributionGraphExtractor:
             layers=layer_set,
             threshold=threshold,
         )
-        self.model.zero_grad(set_to_none=True)
 
         metadata = {
             "layers_analyzed": sorted(layer_set),
             "threshold": threshold,
             "model_name": getattr(self.model.config, "_name_or_path", "unknown"),
+            "fast_gradients": use_fast_gradients,
         }
         return AttributionGraph(
             prompt=prompt,
@@ -248,6 +268,7 @@ class AttributionGraphExtractor:
     ) -> tuple[list[AttributionNode], list[AttributionEdge]]:
         target_layers = set(layers)
         nodes: list[AttributionNode] = []
+        candidates: list[AttributionNode] = []
         for name, activation in self.activations.items():
             gradient = self.gradients.get(name)
             if gradient is None:
@@ -268,8 +289,6 @@ class AttributionGraphExtractor:
 
             for position in range(seq_len):
                 score = attribution[0, position].item()
-                if score <= threshold:
-                    continue
                 node = AttributionNode(
                     layer=layer_num,
                     component_type=self._parse_component_type(name),
@@ -278,7 +297,14 @@ class AttributionGraphExtractor:
                     activation_value=activation_mean[0, position].item(),
                     attribution_score=score,
                 )
+                candidates.append(node)
+                if score <= threshold:
+                    continue
                 nodes.append(node)
+
+        if not nodes and candidates:
+            top_node = max(candidates, key=lambda item: item.attribution_score)
+            nodes.append(top_node)
 
         edges = self._build_edges(nodes)
         return nodes, edges
@@ -364,6 +390,7 @@ def extract_attribution_graph(
     method: str = "gradient_x_activation",
     layers: Iterable[int] | None = None,
     threshold: float = 0.01,
+    use_fast_gradients: bool | None = None,
 ) -> AttributionGraph:
     """Convenience wrapper returning a single attribution graph."""
 
@@ -378,4 +405,5 @@ def extract_attribution_graph(
         response=response,
         layers=layers,
         threshold=threshold,
+        use_fast_gradients=use_fast_gradients,
     )
