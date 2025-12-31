@@ -19,12 +19,11 @@ def self_supervision_step(
     """Run a stub self-supervision step and return diagnostics."""
 
     predictions = head(features)
-    diagnostics = {
-        "epistemic": torch.mean(predictions.epistemic - targets.epistemic).detach(),
-        "cooperation": torch.mean(predictions.cooperation - targets.cooperation).detach(),
-        "flexibility": torch.mean(predictions.flexibility - targets.flexibility).detach(),
-        "belonging": torch.mean(predictions.belonging - targets.belonging).detach(),
-    }
+    diagnostics: dict[str, torch.Tensor] = {}
+    for key in _COMPONENT_KEYS:
+        pred_val = getattr(predictions, key)
+        target_val = getattr(targets, key)
+        diagnostics[key] = torch.mean(pred_val - target_val).detach()
     return diagnostics
 
 

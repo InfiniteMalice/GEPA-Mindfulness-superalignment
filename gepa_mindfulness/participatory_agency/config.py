@@ -35,6 +35,6 @@ class ParticipatoryAgencyConfig:
             hidden_size=hidden_size,
             dropout=self.dropout,
             head_bias=self.head_bias,
-            loss_weights=MappingProxyType(dict(self.loss_weights)),
-            reward_weights=MappingProxyType(dict(self.reward_weights)),
+            loss_weights=self.loss_weights,
+            reward_weights=self.reward_weights,
         )

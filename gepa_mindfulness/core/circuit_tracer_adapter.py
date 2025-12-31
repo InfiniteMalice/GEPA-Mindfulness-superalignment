@@ -14,7 +14,7 @@ from .abstention import (
 from .tracing import CircuitTracerLogger
 
 
-@dataclass
+@dataclass(init=False)
 class TraceResult:
     """Minimal representation of a Circuit Tracer analysis."""
 
@@ -22,6 +22,25 @@ class TraceResult:
     assessment: AbstentionAssessment | None
     confidence_hint: float
     traced: bool
+    trace: object | None = None
+
+    def __init__(
+        self,
+        summary: dict[str, str],
+        assessment: AbstentionAssessment | None = None,
+        confidence_hint: float = 0.0,
+        traced: bool = False,
+        trace: object | None = None,
+        *,
+        abstention: AbstentionAssessment | None = None,
+    ) -> None:
+        if assessment is None and abstention is not None:
+            assessment = abstention
+        self.summary = summary
+        self.assessment = assessment
+        self.confidence_hint = confidence_hint
+        self.traced = traced
+        self.trace = trace
 
     @property
     def abstention(self) -> AbstentionAssessment | None:
