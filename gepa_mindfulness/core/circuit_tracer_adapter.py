@@ -34,6 +34,12 @@ class TraceResult:
         *,
         abstention: AbstentionAssessment | None = None,
     ) -> None:
+        """Initialize TraceResult.
+
+        Args:
+            abstention: Backward-compatible alias for assessment (keyword-only).
+                Cannot differ from assessment if both are provided.
+        """
         if assessment is not None and abstention is not None and assessment != abstention:
             raise ValueError(
                 "Cannot specify both 'assessment' and 'abstention' with different values"
@@ -158,6 +164,7 @@ class CircuitTracerAdapter:
             assessment=abstention,
             confidence_hint=confidence_hint,
             traced=True,
+            trace=trace,
         )
 
     def _heuristic_only(self, response: str) -> TraceResult:
@@ -170,6 +177,7 @@ class CircuitTracerAdapter:
             assessment=abstention,
             confidence_hint=confidence_hint,
             traced=False,
+            trace=None,
         )
 
     @staticmethod

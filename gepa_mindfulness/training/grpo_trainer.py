@@ -76,6 +76,7 @@ class GRPOTrainer(BaseTrainer):
             self._logits: dict[str, float] = {}
             self.training_history: list[GRPOTrainingStats] = []
             self._hf_mode = False
+            self.global_step = 0
             if kwargs:
                 raise TypeError(f"Unexpected keyword arguments: {sorted(kwargs)}")
             return

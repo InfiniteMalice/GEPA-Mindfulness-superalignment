@@ -182,7 +182,7 @@ class AttributionGraphExtractor:
             use_fast_gradients = total_layers <= 2
         if use_fast_gradients:
             with torch.no_grad():
-                model_inputs = {key: value for key, value in encoded.items()}
+                model_inputs = dict(encoded)
                 if getattr(self.model.config, "use_cache", None) is not None:
                     model_inputs["use_cache"] = False
                 outputs = self.model(**model_inputs)
@@ -192,7 +192,7 @@ class AttributionGraphExtractor:
                 self.gradients[name] = torch.ones_like(tensor)
         else:
             with torch.enable_grad():
-                model_inputs = {key: value for key, value in encoded.items()}
+                model_inputs = dict(encoded)
                 if getattr(self.model.config, "use_cache", None) is not None:
                     model_inputs["use_cache"] = False
                 outputs = self.model(**model_inputs)
