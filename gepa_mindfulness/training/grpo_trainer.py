@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import random
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Iterable, List, Sequence
 
 try:  # pragma: no cover - torch is optional for lightweight tests
@@ -93,6 +94,7 @@ class GRPOTrainer(BaseTrainer):
             raise TypeError(f"Unexpected positional arguments: {extra}")
 
         device = kwargs.pop("device", None)
+        output_dir = kwargs.pop("output_dir", None)
         if kwargs:
             raise TypeError(f"Unexpected keyword arguments: {sorted(kwargs)}")
 
@@ -112,9 +114,16 @@ class GRPOTrainer(BaseTrainer):
         self.transformers_config = config
         self.reward_weights = reward_weights
         self.device = device
+        self.output_dir = Path(output_dir or "runs/grpo").resolve()
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.metrics_path = self.output_dir / "metrics.jsonl"
+        self.summary_path = self.output_dir / "summary.json"
         self._hf_mode = True
         self._hf_steps = 0
         self._reward_calculator = GRPORewardCalculator(reward_weights, config.hallucination)
+        self.reward_calculator = self._reward_calculator
+        self.logged_metrics: list[dict[str, object]] = []
+        self.global_step = 0
         if hasattr(self.policy_model, "eval"):
             self.policy_model.eval()
         if hasattr(self.reference_model, "eval"):
