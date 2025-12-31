@@ -43,7 +43,7 @@ def batch_self_supervision(
         diagnostics = self_supervision_step(head, features, targets)
         for key, value in diagnostics.items():
             if key not in totals:
-                totals[key] = value
+                totals[key] = value.clone()
             else:
                 totals[key].add_(value)
         count += 1

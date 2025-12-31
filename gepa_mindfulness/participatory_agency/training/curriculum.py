@@ -82,5 +82,4 @@ DEFAULT_CURRICULUM: Sequence[CurriculumPhase] = (
 
 def get_default_curriculum() -> Sequence[CurriculumPhase]:
     """Return the default participatory agency curriculum."""
-
     return DEFAULT_CURRICULUM

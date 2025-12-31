@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from typing import Mapping
 
 import torch
@@ -57,10 +57,8 @@ class ValueComponents:
     def stack(self) -> torch.Tensor:
         """Stack components into a single tensor along the last axis."""
 
-        return torch.stack(
-            [self.epistemic, self.cooperation, self.flexibility, self.belonging],
-            dim=-1,
-        )
+        field_values = [getattr(self, field.name) for field in fields(self)]
+        return torch.stack(field_values, dim=-1)
 
 
 class ParticipatoryValueHead(nn.Module):
