@@ -99,6 +99,9 @@ class EGGROLLMDTTrainer:
     def _apply_grn_if_needed(self, tensor: "torch.Tensor", module: Any | None) -> "torch.Tensor":
         if module is None:
             return tensor
+        if tensor.dim() == 1:
+            normalized = module(tensor.unsqueeze(0)).squeeze(0)
+            return normalized
         return module(tensor)
 
     def _build_views(self, eval_results: list[Mapping[str, Any]]) -> list["torch.Tensor"]:
