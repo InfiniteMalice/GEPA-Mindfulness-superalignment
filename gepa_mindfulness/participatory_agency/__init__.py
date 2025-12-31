@@ -8,10 +8,16 @@ from .config import ParticipatoryAgencyConfig
 
 __all__ = ["ParticipatoryAgencyConfig", "ParticipatoryValueHead", "ValueComponents"]
 
+_cached: dict[str, object] = {}
+
 
 def __getattr__(name: str) -> Any:
+    if name in _cached:
+        return _cached[name]
     if name in {"ParticipatoryValueHead", "ValueComponents"}:
         from . import values
 
-        return getattr(values, name)
+        attr = getattr(values, name)
+        _cached[name] = attr
+        return attr
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

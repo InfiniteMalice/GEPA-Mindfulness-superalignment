@@ -34,6 +34,10 @@ class TraceResult:
         *,
         abstention: AbstentionAssessment | None = None,
     ) -> None:
+        if assessment is not None and abstention is not None and assessment != abstention:
+            raise ValueError(
+                "Cannot specify both 'assessment' and 'abstention' with different values"
+            )
         if assessment is None and abstention is not None:
             assessment = abstention
         self.summary = summary

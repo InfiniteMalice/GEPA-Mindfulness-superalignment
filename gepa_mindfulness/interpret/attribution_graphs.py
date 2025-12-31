@@ -148,8 +148,20 @@ class AttributionGraphExtractor:
         response: str,
         layers: Iterable[int] | None = None,
         threshold: float = 0.01,
+        *,
+        use_fast_gradients: bool | None = None,
     ) -> AttributionGraph:
-        """Extract an attribution graph for ``prompt`` and ``response``."""
+        """Extract an attribution graph for ``prompt`` and ``response``.
+
+        Args:
+            prompt: Prompt text.
+            response: Response text.
+            layers: Layer indices to inspect.
+            threshold: Minimum attribution score to include a node.
+            use_fast_gradients: When None, use an approximation for tiny models.
+                When True, always use the approximation; when False, force
+                true gradients.
+        """
 
         total_layers = self.model.config.num_hidden_layers
         if layers is None:
@@ -166,7 +178,8 @@ class AttributionGraphExtractor:
         prompt_len = len(prompt_tokens)
 
         self.model.eval()
-        use_fast_gradients = total_layers <= 2
+        if use_fast_gradients is None:
+            use_fast_gradients = total_layers <= 2
         if use_fast_gradients:
             with torch.no_grad():
                 model_inputs = {key: value for key, value in encoded.items()}
@@ -213,6 +226,7 @@ class AttributionGraphExtractor:
             "layers_analyzed": sorted(layer_set),
             "threshold": threshold,
             "model_name": getattr(self.model.config, "_name_or_path", "unknown"),
+            "fast_gradients": use_fast_gradients,
         }
         return AttributionGraph(
             prompt=prompt,

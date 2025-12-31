@@ -34,6 +34,6 @@ class DeploymentPolicy:
         for head in self.required_heads:
             threshold = self.thresholds.get(head, 0.0)
             component = components[head]
-            if torch.any(component < threshold):
+            if torch.any(component < threshold).item():
                 return False
         return True

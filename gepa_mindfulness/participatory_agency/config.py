@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from types import MappingProxyType
 from typing import Mapping
 
@@ -31,10 +31,4 @@ class ParticipatoryAgencyConfig:
     def with_hidden_size(self, hidden_size: int) -> "ParticipatoryAgencyConfig":
         """Return a copy of the config with a new hidden size."""
 
-        return ParticipatoryAgencyConfig(
-            hidden_size=hidden_size,
-            dropout=self.dropout,
-            head_bias=self.head_bias,
-            loss_weights=self.loss_weights,
-            reward_weights=self.reward_weights,
-        )
+        return replace(self, hidden_size=hidden_size)
