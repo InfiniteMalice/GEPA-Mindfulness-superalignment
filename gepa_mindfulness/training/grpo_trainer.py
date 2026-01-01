@@ -123,7 +123,7 @@ class GRPOTrainer(BaseTrainer):
         self._hf_steps = 0
         self._reward_calculator = GRPORewardCalculator(reward_weights, config.hallucination)
         self.reward_calculator = self._reward_calculator
-        self.logged_metrics: list[dict[str, object]] = []
+        self.logged_metrics: List[dict[str, object]] = []
         self.global_step = 0
         if hasattr(self.policy_model, "eval"):
             self.policy_model.eval()

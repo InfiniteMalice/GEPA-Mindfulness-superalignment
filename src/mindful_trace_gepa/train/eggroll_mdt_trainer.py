@@ -113,7 +113,8 @@ class EGGROLLMDTTrainer:
         if tensor.dim() == 0:
             return tensor
         if tensor.dim() == 1:
-            normalized = module(tensor.unsqueeze(0)).squeeze(0)
+            # 1-D tensors represent batch-sized scalars.
+            normalized = module(tensor.unsqueeze(-1)).squeeze(-1)
             return normalized
         return module(tensor)
 

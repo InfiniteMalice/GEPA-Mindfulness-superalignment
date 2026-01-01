@@ -31,4 +31,6 @@ class ParticipatoryAgencyConfig:
     def with_hidden_size(self, hidden_size: int) -> "ParticipatoryAgencyConfig":
         """Return a copy of the config with a new hidden size."""
 
+        if hidden_size <= 0:
+            raise ValueError(f"hidden_size must be positive, got {hidden_size}")
         return replace(self, hidden_size=hidden_size)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from typing import Iterable, List, Protocol, Sequence
+from typing import Iterable, Protocol, Sequence
 
 from .abstention import (
     AbstentionAssessment,
@@ -126,7 +126,7 @@ class CircuitTracerAdapter:
 
     def _select_indices(
         self, responses: Sequence[str], reward_signals: Sequence[float] | None
-    ) -> List[bool]:
+    ) -> list[bool]:
         if not responses:
             return []
         strategy = self.trace_strategy
@@ -231,4 +231,10 @@ class CircuitTracerAdapter:
         return 0.6
 
 
-__all__ = ["CircuitTracerAdapter", "TraceResult", "AbstentionAssessment", "AbstentionQuality"]
+__all__ = [
+    "AbstentionAssessment",
+    "AbstentionQuality",
+    "CircuitTracerAdapter",
+    "TraceProtocol",
+    "TraceResult",
+]
