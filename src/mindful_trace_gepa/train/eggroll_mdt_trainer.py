@@ -101,6 +101,13 @@ class EGGROLLMDTTrainer:
         tensor: "torch.Tensor",
         module: Any | None,
     ) -> "torch.Tensor":
+        """Apply GRN module to tensor if module is provided.
+
+        Handles tensors of varying dimensions:
+        - 0-D (scalar): returned unchanged
+        - 1-D: temporarily adds batch dimension for GRN, then removes it
+        - 2-D+: applies module directly
+        """
         if module is None:
             return tensor
         if tensor.dim() == 0:

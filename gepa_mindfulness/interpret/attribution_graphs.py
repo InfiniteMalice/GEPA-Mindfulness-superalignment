@@ -30,6 +30,8 @@ else:  # pragma: no cover - used when optional deps missing
     PreTrainedModel = Any  # type: ignore[misc]
     PreTrainedTokenizer = Any  # type: ignore[misc]
 
+_TINY_MODEL_LAYER_THRESHOLD = 2
+
 
 def _require_torch() -> None:
     """Ensure optional torch dependencies are available."""
@@ -167,8 +169,8 @@ class AttributionGraphExtractor:
             layers: Layer indices to inspect.
             threshold: Minimum attribution score to include a node.
             use_fast_gradients: When None, use an approximation for tiny models.
-                When True, always use the approximation; when False, force
-                true gradients.
+                When True, always use the approximation (unit gradients); when
+                False, force true gradients via backpropagation.
         """
 
         total_layers = self.model.config.num_hidden_layers
@@ -187,7 +189,8 @@ class AttributionGraphExtractor:
 
         self.model.eval()
         if use_fast_gradients is None:
-            use_fast_gradients = total_layers <= 2
+            # Default to fast approximation only for tiny test models.
+            use_fast_gradients = total_layers <= _TINY_MODEL_LAYER_THRESHOLD
         if use_fast_gradients:
             with torch.no_grad():
                 outputs = self.model(**self._prepare_model_inputs(encoded))
@@ -307,6 +310,8 @@ class AttributionGraphExtractor:
         if not nodes and candidates:
             top_node = max(candidates, key=lambda item: item.attribution_score)
             nodes.append(top_node)
+        elif not nodes and not candidates:
+            pass
 
         edges = self._build_edges(nodes)
         return nodes, edges
