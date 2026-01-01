@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
+try:  # pragma: no cover - optional torch dependency
+    import torch
+except ImportError:  # pragma: no cover - torch optional
+    torch = None  # type: ignore[assignment]
+
 from ..participatory_agency import ParticipatoryAgencyConfig, ParticipatoryValueHead
 
 
@@ -29,5 +34,11 @@ def attach_participatory_value_head(
             "Model already has a participatory_value_head. "
             "Remove it first or use build_participatory_value_head() directly."
         )
+    if torch is not None and isinstance(model, torch.nn.Module):
+        model.add_module("participatory_value_head", head)
+        return head
+    if hasattr(model, "add_module"):
+        model.add_module("participatory_value_head", head)
+        return head
     setattr(model, "participatory_value_head", head)
     return head

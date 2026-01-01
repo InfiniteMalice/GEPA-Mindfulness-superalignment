@@ -204,8 +204,11 @@ class AttributionGraphExtractor:
                 logits = outputs.logits[0]
                 resp_logits = logits[prompt_len:]
                 resp_token_ids = encoded.input_ids[0, prompt_len:]
-                gathered = resp_logits.gather(-1, resp_token_ids.unsqueeze(-1)).squeeze(-1)
-                loss = -gathered.sum()
+                if resp_token_ids.numel() == 0:
+                    loss = logits.sum() * 0.0
+                else:
+                    gathered = resp_logits.gather(-1, resp_token_ids.unsqueeze(-1)).squeeze(-1)
+                    loss = -gathered.sum()
 
             activation_items = [
                 (name, tensor)
@@ -303,15 +306,13 @@ class AttributionGraphExtractor:
                     attribution_score=score,
                 )
                 candidates.append(node)
-                if score <= threshold:
+                if score < threshold:
                     continue
                 nodes.append(node)
 
         if not nodes and candidates:
             top_node = max(candidates, key=lambda item: item.attribution_score)
             nodes.append(top_node)
-        elif not nodes and not candidates:
-            pass
 
         edges = self._build_edges(nodes)
         return nodes, edges

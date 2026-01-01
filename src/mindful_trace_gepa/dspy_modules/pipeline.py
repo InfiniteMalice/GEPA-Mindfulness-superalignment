@@ -6,7 +6,7 @@ import logging
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Mapping, MutableMapping, Optional
+from typing import Any, Dict, List, Mapping, MutableMapping
 
 try:  # pragma: no cover - dspy optional
     import dspy
@@ -113,7 +113,7 @@ class GEPAChainResult:
     principle_scores: Dict[str, float]
     imperative_scores: Dict[str, float]
     final_answer: str
-    value_decomposition: Optional[Dict[str, Any]] = None
+    value_decomposition: Dict[str, Any] | None = None
 
 
 class GEPAChain:
