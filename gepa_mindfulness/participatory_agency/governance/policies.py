@@ -26,6 +26,10 @@ class DeploymentPolicy:
         if unknown:
             unknown_list = ", ".join(sorted(unknown))
             raise ValueError(f"Unknown heads: {unknown_list}")
+        missing_thresholds = set(self.required_heads) - self.thresholds.keys()
+        if missing_thresholds:
+            missing_list = ", ".join(sorted(missing_thresholds))
+            raise ValueError(f"Missing thresholds for required heads: {missing_list}")
 
     def is_satisfied(self, values: ValueComponents) -> bool:
         """Return True when all required heads meet their thresholds."""

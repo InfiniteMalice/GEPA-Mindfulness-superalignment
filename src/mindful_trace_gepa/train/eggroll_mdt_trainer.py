@@ -169,10 +169,7 @@ class EGGROLLMDTTrainer:
         base_tensor = torch.tensor(base_scores, device=self.device)
         reg = self._compute_geometry_regularizer(embedding)
         fitness = base_tensor + reg
-        if self.fitness_grn is not None:
-            normalized = self.fitness_grn(fitness.unsqueeze(-1)).squeeze(-1)
-            return normalized
-        return fitness
+        return self._apply_grn_if_needed(fitness, self.fitness_grn)
 
     def run(self) -> dict[str, Any]:
         logs: list[dict[str, Any]] = []

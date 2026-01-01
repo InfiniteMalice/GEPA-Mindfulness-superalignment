@@ -1,5 +1,7 @@
 """Interpretability helpers for participatory agency."""
 
+from __future__ import annotations
+
 from .probes import LinearValueProbe, ProbeResult, run_probe
 from .thought_trace import ThoughtTraceRecord, build_trace_hook
 

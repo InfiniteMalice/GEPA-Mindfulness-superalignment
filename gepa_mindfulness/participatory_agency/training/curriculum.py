@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Mapping, Sequence
 
+_VALID_HEADS = frozenset(("epistemic", "cooperation", "flexibility", "belonging"))
+
 
 @dataclass(frozen=True)
 class CurriculumPhase:
@@ -19,6 +21,10 @@ class CurriculumPhase:
     def __post_init__(self) -> None:
         object.__setattr__(self, "active_heads", tuple(self.active_heads))
         object.__setattr__(self, "loss_weights", MappingProxyType(dict(self.loss_weights)))
+        unknown = set(self.active_heads) - _VALID_HEADS
+        if unknown:
+            unknown_list = ", ".join(sorted(unknown))
+            raise ValueError(f"Unknown heads: {unknown_list}")
 
 
 DEFAULT_CURRICULUM: Sequence[CurriculumPhase] = (

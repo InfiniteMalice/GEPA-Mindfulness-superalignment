@@ -24,10 +24,14 @@ def values_within_range(
     return ((stacked >= minimum) & (stacked <= maximum)).all().item()
 
 
-def build_check_report(values: ValueComponents) -> dict[str, bool]:
+def build_check_report(
+    values: ValueComponents,
+    minimum: float = -1.0,
+    maximum: float = 1.0,
+) -> dict[str, bool]:
     """Return a dictionary of standard governance checks."""
 
     return {
         "finite": values_are_finite(values),
-        "bounded": values_within_range(values),
+        "bounded": values_within_range(values, minimum, maximum),
     }
