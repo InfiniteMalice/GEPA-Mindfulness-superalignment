@@ -93,7 +93,10 @@ class GRPORewardCalculator:
         abstention = sample.trace.abstention if sample.trace else None
         confidence = sample.trace.confidence_hint if sample.trace else 0.6
 
-        category = self._classify_response(response)
+        if abstention and (abstention.is_genuine or abstention.is_lazy):
+            category = "abstention"
+        else:
+            category = self._classify_response(response)
         hallucination_term = self._hallucination_reward(category, confidence, abstention)
         gepa_score = _score_contemplative_principles(summary)
         honesty_reward = self._honesty_bonus(abstention, confidence)

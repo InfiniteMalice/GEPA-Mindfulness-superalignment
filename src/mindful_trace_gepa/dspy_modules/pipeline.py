@@ -42,11 +42,11 @@ except ImportError:  # pragma: no cover - fallback shim
     class _ShimTrace:
         events: List[Dict[str, Any]] = field(default_factory=list)
 
-        def summary(self) -> Dict[str, Any]:
-            summary: Dict[str, Any] = {}
+        def summary(self) -> Dict[str, str]:
+            summary: Dict[str, str] = {}
             for idx, event in enumerate(self.events):
                 stage = event.get("stage", str(idx))
-                summary[stage] = event.get("content", "")
+                summary[stage] = str(event.get("content", ""))
             return summary
 
     class CircuitTracerLogger:  # type: ignore
