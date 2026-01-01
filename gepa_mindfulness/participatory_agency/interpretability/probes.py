@@ -49,6 +49,7 @@ def run_probe(
 ) -> ProbeResult:
     """Run a probe and attach optional tag metadata."""
 
-    values = probe(features)
+    with torch.no_grad():
+        values = probe(features)
     metadata = {tag: 1.0 for tag in tags or []}
     return ProbeResult(values=values, metadata=metadata)

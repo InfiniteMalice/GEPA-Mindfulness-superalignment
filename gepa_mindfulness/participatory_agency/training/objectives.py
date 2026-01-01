@@ -32,7 +32,10 @@ def combined_value_loss(
     weights: Mapping[str, float] | None = None,
     loss_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] | None = None,
 ) -> torch.Tensor:
-    """Combine supervised losses into a weighted total."""
+    """Combine supervised losses into a weighted total.
+
+    Uses ValueComponents.total() to apply the same weighting scheme to losses.
+    """
 
     per_head = supervised_head_losses(predicted, target, loss_fn=loss_fn)
     per_head_components = ValueComponents(**per_head)

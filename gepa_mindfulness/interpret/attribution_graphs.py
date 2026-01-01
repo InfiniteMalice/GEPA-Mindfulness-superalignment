@@ -142,6 +142,14 @@ class AttributionGraphExtractor:
             if "attn" in lowered or "mlp" in lowered or "feed_forward" in lowered:
                 module.register_forward_hook(make_forward_hook(name))
 
+    def _prepare_model_inputs(self, encoded: dict[str, torch.Tensor]) -> dict[str, Any]:
+        """Prepare model inputs from tokenizer output, disabling cache if needed."""
+
+        model_inputs = dict(encoded)
+        if getattr(self.model.config, "use_cache", None) is not None:
+            model_inputs["use_cache"] = False
+        return model_inputs
+
     def extract(
         self,
         prompt: str,
@@ -182,20 +190,14 @@ class AttributionGraphExtractor:
             use_fast_gradients = total_layers <= 2
         if use_fast_gradients:
             with torch.no_grad():
-                model_inputs = dict(encoded)
-                if getattr(self.model.config, "use_cache", None) is not None:
-                    model_inputs["use_cache"] = False
-                outputs = self.model(**model_inputs)
+                outputs = self.model(**self._prepare_model_inputs(encoded))
             for name, tensor in self.activations.items():
                 if self._parse_layer_number(name) not in layer_set:
                     continue
                 self.gradients[name] = torch.ones_like(tensor)
         else:
             with torch.enable_grad():
-                model_inputs = dict(encoded)
-                if getattr(self.model.config, "use_cache", None) is not None:
-                    model_inputs["use_cache"] = False
-                outputs = self.model(**model_inputs)
+                outputs = self.model(**self._prepare_model_inputs(encoded))
                 logits = outputs.logits[0]
                 resp_logits = logits[prompt_len:]
                 resp_token_ids = encoded.input_ids[0, prompt_len:]
