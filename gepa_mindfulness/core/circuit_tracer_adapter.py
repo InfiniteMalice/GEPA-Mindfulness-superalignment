@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from typing import Iterable, List, Sequence
+from typing import Iterable, Protocol, Sequence
 
 from .abstention import (
     AbstentionAssessment,
@@ -14,7 +14,14 @@ from .abstention import (
 from .tracing import CircuitTracerLogger
 
 
-@dataclass
+class TraceProtocol(Protocol):
+    """Protocol describing the trace object interface used by TraceResult."""
+
+    def summary(self) -> dict[str, str]:
+        """Return a summary of the trace details."""
+
+
+@dataclass(init=False)
 class TraceResult:
     """Minimal representation of a Circuit Tracer analysis."""
 
@@ -22,6 +29,43 @@ class TraceResult:
     assessment: AbstentionAssessment | None
     confidence_hint: float
     traced: bool
+    trace: TraceProtocol | None = None
+
+    def __init__(
+        self,
+        summary: dict[str, str],
+        assessment: AbstentionAssessment | None = None,
+        confidence_hint: float = 0.0,
+        traced: bool = False,
+        trace: TraceProtocol | None = None,
+        *,
+        abstention: AbstentionAssessment | None = None,
+    ) -> None:
+        """Initialize TraceResult.
+
+        Args:
+            summary: Trace summary details keyed by stage or signal.
+            assessment: Primary abstention assessment value, if available.
+            confidence_hint: Confidence estimate for the response.
+            traced: Whether a trace was performed for this response.
+            trace: Raw trace payload, if available.
+            abstention: Backward-compatible alias for assessment (keyword-only).
+                Cannot differ from assessment if both are provided.
+
+        Raises:
+            ValueError: When assessment and abstention differ.
+        """
+        if assessment is not None and abstention is not None and assessment != abstention:
+            raise ValueError(
+                "Cannot specify both 'assessment' and 'abstention' with different values"
+            )
+        if assessment is None and abstention is not None:
+            assessment = abstention
+        self.summary = summary
+        self.assessment = assessment
+        self.confidence_hint = confidence_hint
+        self.traced = traced
+        self.trace = trace
 
     @property
     def abstention(self) -> AbstentionAssessment | None:
@@ -82,7 +126,7 @@ class CircuitTracerAdapter:
 
     def _select_indices(
         self, responses: Sequence[str], reward_signals: Sequence[float] | None
-    ) -> List[bool]:
+    ) -> list[bool]:
         if not responses:
             return []
         strategy = self.trace_strategy
@@ -135,6 +179,7 @@ class CircuitTracerAdapter:
             assessment=abstention,
             confidence_hint=confidence_hint,
             traced=True,
+            trace=trace,
         )
 
     def _heuristic_only(self, response: str) -> TraceResult:
@@ -147,6 +192,7 @@ class CircuitTracerAdapter:
             assessment=abstention,
             confidence_hint=confidence_hint,
             traced=False,
+            trace=None,
         )
 
     @staticmethod
@@ -185,4 +231,11 @@ class CircuitTracerAdapter:
         return 0.6
 
 
-__all__ = ["CircuitTracerAdapter", "TraceResult", "AbstentionAssessment", "AbstentionQuality"]
+__all__ = [
+    "AbstentionAssessment",
+    "AbstentionQuality",
+    "CircuitTracerAdapter",
+    "TraceAnalysis",
+    "TraceProtocol",
+    "TraceResult",
+]
