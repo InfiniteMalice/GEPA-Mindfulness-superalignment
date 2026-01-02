@@ -21,6 +21,11 @@ def build_participatory_value_head(
 ) -> "ParticipatoryValueHead":
     """Construct a participatory agency value head without mutating any models."""
 
+    if torch is None:
+        raise ImportError(
+            "torch is required to build participatory value heads. Install it with: pip install "
+            "torch"
+        )
     from ..participatory_agency import ParticipatoryValueHead
 
     return ParticipatoryValueHead(hidden_size=hidden_size, config=config)

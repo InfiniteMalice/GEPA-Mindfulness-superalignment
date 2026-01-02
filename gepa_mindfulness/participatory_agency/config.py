@@ -6,12 +6,13 @@ from dataclasses import dataclass, field, replace
 from types import MappingProxyType
 from typing import Mapping
 
-DEFAULT_HEAD_WEIGHTS: dict[str, float] = {
+_DEFAULT_HEAD_WEIGHTS_DATA = {
     "epistemic": 1.0,
     "cooperation": 1.0,
     "flexibility": 1.0,
     "belonging": 1.0,
 }
+DEFAULT_HEAD_WEIGHTS: MappingProxyType[str, float] = MappingProxyType(_DEFAULT_HEAD_WEIGHTS_DATA)
 
 
 @dataclass(frozen=True)
@@ -21,12 +22,8 @@ class ParticipatoryAgencyConfig:
     hidden_size: int = 768
     dropout: float = 0.0
     head_bias: bool = True
-    loss_weights: Mapping[str, float] = field(
-        default_factory=lambda: MappingProxyType(dict(DEFAULT_HEAD_WEIGHTS))
-    )
-    reward_weights: Mapping[str, float] = field(
-        default_factory=lambda: MappingProxyType(dict(DEFAULT_HEAD_WEIGHTS))
-    )
+    loss_weights: Mapping[str, float] = field(default_factory=lambda: DEFAULT_HEAD_WEIGHTS)
+    reward_weights: Mapping[str, float] = field(default_factory=lambda: DEFAULT_HEAD_WEIGHTS)
 
     def with_hidden_size(self, hidden_size: int) -> "ParticipatoryAgencyConfig":
         """Return a copy of the config with a new hidden size."""

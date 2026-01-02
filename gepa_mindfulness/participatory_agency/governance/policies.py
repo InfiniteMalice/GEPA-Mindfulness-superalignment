@@ -19,17 +19,17 @@ class DeploymentPolicy:
     required_heads: Sequence[str]
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "required_heads", tuple(self.required_heads))
-        object.__setattr__(self, "thresholds", MappingProxyType(dict(self.thresholds)))
         valid_heads = {field.name for field in fields(ValueComponents)}
         unknown = set(self.required_heads) - valid_heads
         if unknown:
             unknown_list = ", ".join(sorted(unknown))
             raise ValueError(f"Unknown heads: {unknown_list}")
-        missing_thresholds = set(self.required_heads) - self.thresholds.keys()
+        missing_thresholds = set(self.required_heads) - set(self.thresholds.keys())
         if missing_thresholds:
             missing_list = ", ".join(sorted(missing_thresholds))
             raise ValueError(f"Missing thresholds for required heads: {missing_list}")
+        object.__setattr__(self, "required_heads", tuple(self.required_heads))
+        object.__setattr__(self, "thresholds", MappingProxyType(dict(self.thresholds)))
 
     def is_satisfied(self, values: ValueComponents) -> bool:
         """Return True when all required heads meet their thresholds."""

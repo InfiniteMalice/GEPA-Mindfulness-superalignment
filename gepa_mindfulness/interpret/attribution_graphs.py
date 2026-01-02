@@ -171,6 +171,8 @@ class AttributionGraphExtractor:
             use_fast_gradients: When None, use an approximation for tiny models.
                 When True, always use the approximation (unit gradients); when
                 False, force true gradients via backpropagation.
+                Unit gradients are a coarse approximation and may reduce
+                attribution accuracy compared to true gradients.
         """
 
         total_layers = self.model.config.num_hidden_layers
