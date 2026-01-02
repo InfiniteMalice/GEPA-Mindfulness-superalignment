@@ -19,12 +19,12 @@ class CurriculumPhase:
     loss_weights: Mapping[str, float]
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "active_heads", tuple(self.active_heads))
-        object.__setattr__(self, "loss_weights", MappingProxyType(dict(self.loss_weights)))
         unknown = set(self.active_heads) - _VALID_HEADS
         if unknown:
             unknown_list = ", ".join(sorted(unknown))
             raise ValueError(f"Unknown heads: {unknown_list}")
+        object.__setattr__(self, "active_heads", tuple(self.active_heads))
+        object.__setattr__(self, "loss_weights", MappingProxyType(dict(self.loss_weights)))
 
 
 DEFAULT_CURRICULUM: Sequence[CurriculumPhase] = (

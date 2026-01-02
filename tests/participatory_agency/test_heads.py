@@ -26,3 +26,6 @@ def test_value_head_uses_config() -> None:
     features = torch.ones((1, 4))
     outputs = head(features)
     assert outputs.epistemic.shape == (1,)
+    assert outputs.cooperation.shape == (1,)
+    assert outputs.flexibility.shape == (1,)
+    assert outputs.belonging.shape == (1,)

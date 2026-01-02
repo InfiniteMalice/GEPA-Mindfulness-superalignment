@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import dataclasses
 import math
-from pathlib import Path
+import pathlib
 import random
-from typing import Iterable, List, Sequence
+import typing
 
 try:  # pragma: no cover - torch is optional for lightweight tests
     import torch
@@ -22,33 +22,33 @@ from .grpo_reward_calculator import GRPORewardCalculator
 from .grpo_types import GRPOGroupSample
 
 
-@dataclass
+@dataclasses.dataclass
 class GRPOTrainingStats:
     """Summary of a single GRPO optimisation step."""
 
     prompt: str
-    rewards: Sequence[float]
-    advantages: Sequence[float]
-    confidences: Sequence[float]
+    rewards: typing.Sequence[float]
+    advantages: typing.Sequence[float]
+    confidences: typing.Sequence[float]
 
 
-@dataclass
+@dataclasses.dataclass
 class GRPOBatchSummary:
     """Aggregate statistics for a single prompt during HF-style training."""
 
     prompt: str
     mean_reward: float
-    advantages: List[float]
-    categories: List[str]
-    confidences: List[float]
+    advantages: list[float]
+    categories: list[str]
+    confidences: list[float]
 
 
-@dataclass
+@dataclasses.dataclass
 class GRPOEpochSum:
     """Lightweight summary returned by ``train_epoch`` in HF compatibility mode."""
 
     steps: int
-    batches: List[GRPOBatchSummary]
+    batches: list[GRPOBatchSummary]
 
     def mean_reward(self) -> float:
         if not self.batches:
@@ -115,7 +115,7 @@ class GRPOTrainer(BaseTrainer):
         self.transformers_config = config
         self.reward_weights = reward_weights
         self.device = device
-        self.output_dir = Path(output_dir or "runs/grpo").resolve()
+        self.output_dir = pathlib.Path(output_dir or "runs/grpo").resolve()
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.metrics_path = self.output_dir / "metrics.jsonl"
         self.summary_path = self.output_dir / "summary.json"
@@ -176,7 +176,7 @@ class GRPOTrainer(BaseTrainer):
 
     def _compute_advantages(
         self,
-        grouped_rewards: Sequence[Sequence[float]],
+        grouped_rewards: typing.Sequence[typing.Sequence[float]],
     ) -> list[list[float]]:
         advantages: list[list[float]] = []
         for rewards in grouped_rewards:
@@ -210,9 +210,9 @@ class GRPOTrainer(BaseTrainer):
 
     def _apply_policy_update(
         self,
-        examples: Iterable[DatasetExample],
-        groups: Sequence[Sequence[GeneratedResponse]],
-        advantages: Sequence[Sequence[float]],
+        examples: typing.Iterable[DatasetExample],
+        groups: typing.Sequence[typing.Sequence[GeneratedResponse]],
+        advantages: typing.Sequence[typing.Sequence[float]],
     ) -> None:
         for example, group_advantages in zip(examples, advantages):
             if not group_advantages:
@@ -237,7 +237,12 @@ class GRPOTrainer(BaseTrainer):
     # ------------------------------------------------------------------
     # HF compatibility helpers
 
-    def train_epoch(self, prompts: Sequence[str], *, batch_size: int | None = None) -> GRPOEpochSum:
+    def train_epoch(
+        self,
+        prompts: typing.Sequence[str],
+        *,
+        batch_size: int | None = None,
+    ) -> GRPOEpochSum:
         if not getattr(self, "_hf_mode", False):
             raise RuntimeError("train_epoch() is only available in HF compatibility mode")
 

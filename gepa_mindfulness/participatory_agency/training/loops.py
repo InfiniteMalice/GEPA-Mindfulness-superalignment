@@ -18,13 +18,14 @@ def self_supervision_step(
 ) -> dict[str, torch.Tensor]:
     """Run a stub self-supervision step and return diagnostics."""
 
-    predictions = head(features)
-    diagnostics: dict[str, torch.Tensor] = {}
-    for key in _COMPONENT_KEYS:
-        pred_val = getattr(predictions, key)
-        target_val = getattr(targets, key)
-        diagnostics[key] = torch.mean(pred_val - target_val).detach()
-    return diagnostics
+    with torch.no_grad():
+        predictions = head(features)
+        diagnostics: dict[str, torch.Tensor] = {}
+        for key in _COMPONENT_KEYS:
+            pred_val = getattr(predictions, key)
+            target_val = getattr(targets, key)
+            diagnostics[key] = torch.mean(pred_val - target_val)
+        return diagnostics
 
 
 def batch_self_supervision(
