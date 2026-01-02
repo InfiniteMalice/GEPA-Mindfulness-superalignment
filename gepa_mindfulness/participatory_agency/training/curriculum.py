@@ -23,6 +23,10 @@ class CurriculumPhase:
         if unknown:
             unknown_list = ", ".join(sorted(unknown))
             raise ValueError(f"Unknown heads: {unknown_list}")
+        unknown_weights = set(self.loss_weights.keys()) - _VALID_HEADS
+        if unknown_weights:
+            unknown_list = ", ".join(sorted(unknown_weights))
+            raise ValueError(f"Unknown loss_weights keys: {unknown_list}")
         object.__setattr__(self, "active_heads", tuple(self.active_heads))
         object.__setattr__(self, "loss_weights", MappingProxyType(dict(self.loss_weights)))
 

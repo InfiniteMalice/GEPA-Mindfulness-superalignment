@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import importlib.util
+import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Iterable
 
@@ -31,6 +32,7 @@ else:  # pragma: no cover - used when optional deps missing
     PreTrainedTokenizer = Any  # type: ignore[misc]
 
 _TINY_MODEL_LAYER_THRESHOLD = 2
+LOGGER = logging.getLogger(__name__)
 
 
 def _require_torch() -> None:
@@ -223,6 +225,11 @@ class AttributionGraphExtractor:
                 if grad is None:
                     continue
                 self.gradients[name] = grad.detach()
+            if not self.gradients:
+                LOGGER.warning(
+                    "No gradients were computed for attribution; the model may be frozen or "
+                    "disconnected from the loss."
+                )
 
         nodes, edges = self._dispatch_method(
             inputs=encoded,

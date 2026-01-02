@@ -41,7 +41,6 @@ def test_supervised_losses_and_total() -> None:
         "flexibility",
         "belonging",
     }
-    assert "epistemic" in losses
     assert torch.allclose(total, losses["epistemic"])
 
 
