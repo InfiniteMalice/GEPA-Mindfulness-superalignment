@@ -96,9 +96,26 @@ class EGGROLLMDTTrainer:
         perturb = self.config.sigma * (self.low_rank @ z)
         return perturb, z
 
-    def _apply_grn_if_needed(self, tensor: "torch.Tensor", module: Any | None) -> "torch.Tensor":
+    def _apply_grn_if_needed(
+        self,
+        tensor: "torch.Tensor",
+        module: Any | None,
+    ) -> "torch.Tensor":
+        """Apply GRN module to tensor if module is provided.
+
+        Handles tensors of varying dimensions:
+        - 0-D (scalar): returned unchanged
+        - 1-D: temporarily adds batch dimension for GRN, then removes it
+        - 2-D+: applies module directly
+        """
         if module is None:
             return tensor
+        if tensor.dim() == 0:
+            return tensor
+        if tensor.dim() == 1:
+            # 1-D tensors represent batch-sized scalars.
+            normalized = module(tensor.unsqueeze(-1)).squeeze(-1)
+            return normalized
         return module(tensor)
 
     def _build_views(self, eval_results: list[Mapping[str, Any]]) -> list["torch.Tensor"]:
@@ -152,10 +169,7 @@ class EGGROLLMDTTrainer:
         base_tensor = torch.tensor(base_scores, device=self.device)
         reg = self._compute_geometry_regularizer(embedding)
         fitness = base_tensor + reg
-        if self.fitness_grn is not None:
-            normalized = self.fitness_grn(fitness.unsqueeze(-1)).squeeze(-1)
-            return normalized
-        return fitness
+        return self._apply_grn_if_needed(fitness, self.fitness_grn)
 
     def run(self) -> dict[str, Any]:
         logs: list[dict[str, Any]] = []
@@ -177,12 +191,15 @@ class EGGROLLMDTTrainer:
                     result["confidence_outputs"] = self._apply_grn_if_needed(
                         result["confidence_outputs"], self.conf_grn
                     )
-                    result["confidence_metric"] = float(result["confidence_outputs"].mean().item())
-                if self.config.use_grn_for_probes and torch.is_tensor(result.get("probe_logits")):
+                    conf_mean = result["confidence_outputs"].mean().item()
+                    result["confidence_metric"] = float(conf_mean)
+                use_probe_grn = self.config.use_grn_for_probes
+                if use_probe_grn and torch.is_tensor(result.get("probe_logits")):
                     result["probe_logits"] = self._apply_grn_if_needed(
                         result["probe_logits"], self.probe_grn
                     )
-                    result["deception_penalty"] = float(result["probe_logits"].abs().mean().item())
+                    probe_mean = result["probe_logits"].abs().mean().item()
+                    result["deception_penalty"] = float(probe_mean)
                 eval_results.append(result)
             views = self._build_views(eval_results)
             embedding = self._compute_mdt_embedding(views)
