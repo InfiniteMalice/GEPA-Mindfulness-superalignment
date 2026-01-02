@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-# ruff: noqa: I001
-
 from collections.abc import Iterable
 from pathlib import Path
 import sys
