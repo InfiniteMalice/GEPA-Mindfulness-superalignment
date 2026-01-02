@@ -165,6 +165,10 @@ class AttributionGraphExtractor:
     ) -> AttributionGraph:
         """Extract an attribution graph for ``prompt`` and ``response``.
 
+        When activations are present, at least one node will be included in the
+        graph. If no nodes exceed the threshold, the highest-scoring candidate
+        is automatically included as a fallback.
+
         Args:
             prompt: Prompt text.
             response: Response text.
@@ -175,8 +179,6 @@ class AttributionGraphExtractor:
                 False, force true gradients via backpropagation.
                 Unit gradients are a coarse approximation and may reduce
                 attribution accuracy compared to true gradients.
-            Fallback behavior: If no nodes exceed the threshold, the highest
-                scoring candidate is included when activations are present.
         """
 
         total_layers = self.model.config.num_hidden_layers

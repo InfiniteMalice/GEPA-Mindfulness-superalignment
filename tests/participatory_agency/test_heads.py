@@ -17,7 +17,7 @@ def test_participatory_value_head_forward() -> None:
     assert outputs.belonging.shape == (2,)
 
 
-def test_value_head_uses_config() -> None:
+def test_value_head_with_config_forward() -> None:
     from gepa_mindfulness.participatory_agency import ParticipatoryAgencyConfig
     from gepa_mindfulness.participatory_agency.values import ParticipatoryValueHead
 

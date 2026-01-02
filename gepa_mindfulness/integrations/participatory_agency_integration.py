@@ -23,8 +23,8 @@ def build_participatory_value_head(
 
     if torch is None:
         raise ImportError(
-            "torch is required to build participatory value heads. Install it with: pip install "
-            "torch"
+            "torch is required to build participatory value heads. "
+            "Install it with: pip install torch"
         )
     from ..participatory_agency import ParticipatoryValueHead
 

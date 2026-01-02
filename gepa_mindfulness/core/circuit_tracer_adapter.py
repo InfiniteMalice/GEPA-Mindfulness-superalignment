@@ -235,6 +235,7 @@ __all__ = [
     "AbstentionAssessment",
     "AbstentionQuality",
     "CircuitTracerAdapter",
+    "TraceAnalysis",
     "TraceProtocol",
     "TraceResult",
 ]
