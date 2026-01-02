@@ -5,8 +5,6 @@ from __future__ import annotations
 from importlib import import_module
 from typing import Any
 
-from .curriculum import DEFAULT_CURRICULUM, CurriculumPhase, get_default_curriculum
-
 __all__ = [
     "CurriculumPhase",
     "DEFAULT_CURRICULUM",
@@ -18,6 +16,9 @@ __all__ = [
 
 _cached_attrs: dict[str, object] = {}
 _LAZY_IMPORTS = {
+    "CurriculumPhase": "curriculum",
+    "DEFAULT_CURRICULUM": "curriculum",
+    "get_default_curriculum": "curriculum",
     "combined_value_loss": "objectives",
     "rl_reward": "objectives",
     "supervised_head_losses": "objectives",

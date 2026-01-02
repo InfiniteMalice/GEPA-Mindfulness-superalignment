@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import math
-import random
 from dataclasses import dataclass
+import math
 from pathlib import Path
+import random
 from typing import Iterable, List, Sequence
 
 try:  # pragma: no cover - torch is optional for lightweight tests
