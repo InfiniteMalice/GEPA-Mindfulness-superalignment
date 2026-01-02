@@ -191,12 +191,15 @@ class EGGROLLMDTTrainer:
                     result["confidence_outputs"] = self._apply_grn_if_needed(
                         result["confidence_outputs"], self.conf_grn
                     )
-                    result["confidence_metric"] = float(result["confidence_outputs"].mean().item())
-                if self.config.use_grn_for_probes and torch.is_tensor(result.get("probe_logits")):
+                    conf_mean = result["confidence_outputs"].mean().item()
+                    result["confidence_metric"] = float(conf_mean)
+                use_probe_grn = self.config.use_grn_for_probes
+                if use_probe_grn and torch.is_tensor(result.get("probe_logits")):
                     result["probe_logits"] = self._apply_grn_if_needed(
                         result["probe_logits"], self.probe_grn
                     )
-                    result["deception_penalty"] = float(result["probe_logits"].abs().mean().item())
+                    probe_mean = result["probe_logits"].abs().mean().item()
+                    result["deception_penalty"] = float(probe_mean)
                 eval_results.append(result)
             views = self._build_views(eval_results)
             embedding = self._compute_mdt_embedding(views)

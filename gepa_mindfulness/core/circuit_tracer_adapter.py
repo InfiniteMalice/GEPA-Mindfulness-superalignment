@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import dataclasses
 import random
-from dataclasses import dataclass
 from typing import Iterable, Protocol, Sequence
 
 from .abstention import (
@@ -21,7 +21,7 @@ class TraceProtocol(Protocol):
         """Return a summary of the trace details."""
 
 
-@dataclass(init=False)
+@dataclasses.dataclass(init=False)
 class TraceResult:
     """Minimal representation of a Circuit Tracer analysis."""
 

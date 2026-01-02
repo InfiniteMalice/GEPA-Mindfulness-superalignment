@@ -5,27 +5,26 @@ import pytest
 torch = pytest.importorskip("torch")
 
 
-def test_participatory_value_head_forward() -> None:
-    from gepa_mindfulness.participatory_agency.values import ParticipatoryValueHead
-
-    head = ParticipatoryValueHead(hidden_size=8)
-    features = torch.zeros((2, 8))
-    outputs = head(features)
-    assert outputs.epistemic.shape == (2,)
-    assert outputs.cooperation.shape == (2,)
-    assert outputs.flexibility.shape == (2,)
-    assert outputs.belonging.shape == (2,)
-
-
-def test_value_head_with_config_forward() -> None:
+@pytest.mark.parametrize(
+    "hidden_size,config,batch_size",
+    [
+        (8, None, 2),
+        (4, {"hidden_size": 4, "dropout": 0.2, "head_bias": False}, 1),
+    ],
+)
+def test_participatory_value_head_forward(
+    hidden_size: int,
+    config: dict | None,
+    batch_size: int,
+) -> None:
     from gepa_mindfulness.participatory_agency import ParticipatoryAgencyConfig
     from gepa_mindfulness.participatory_agency.values import ParticipatoryValueHead
 
-    config = ParticipatoryAgencyConfig(hidden_size=4, dropout=0.2, head_bias=False)
-    head = ParticipatoryValueHead(hidden_size=4, config=config)
-    features = torch.ones((1, 4))
+    resolved_config = ParticipatoryAgencyConfig(**config) if config else None
+    head = ParticipatoryValueHead(hidden_size=hidden_size, config=resolved_config)
+    features = torch.ones((batch_size, hidden_size))
     outputs = head(features)
-    assert outputs.epistemic.shape == (1,)
-    assert outputs.cooperation.shape == (1,)
-    assert outputs.flexibility.shape == (1,)
-    assert outputs.belonging.shape == (1,)
+    assert outputs.epistemic.shape == (batch_size,)
+    assert outputs.cooperation.shape == (batch_size,)
+    assert outputs.flexibility.shape == (batch_size,)
+    assert outputs.belonging.shape == (batch_size,)

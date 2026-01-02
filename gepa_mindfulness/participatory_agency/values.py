@@ -59,7 +59,11 @@ class ValueComponents:
 class ParticipatoryValueHead(nn.Module):
     """Multi-head value decomposition for participatory agency."""
 
-    def __init__(self, hidden_size: int, config: ParticipatoryAgencyConfig | None = None) -> None:
+    def __init__(
+        self,
+        hidden_size: int,
+        config: ParticipatoryAgencyConfig | None = None,
+    ) -> None:
         super().__init__()
         resolved = config or ParticipatoryAgencyConfig(hidden_size=hidden_size)
         if resolved.hidden_size != hidden_size:

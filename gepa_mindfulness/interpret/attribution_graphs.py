@@ -224,11 +224,17 @@ class AttributionGraphExtractor:
                 if self._parse_layer_number(name) in layer_set
             ]
             activation_tensors = [tensor for _, tensor in activation_items]
-            grads = torch.autograd.grad(loss, activation_tensors, allow_unused=True)
-            for (name, _tensor), grad in zip(activation_items, grads):
-                if grad is None:
-                    continue
-                self.gradients[name] = grad.detach()
+            if not activation_tensors:
+                LOGGER.warning(
+                    "No gradients were computed for attribution; the model may be frozen or "
+                    "disconnected from the loss."
+                )
+            else:
+                grads = torch.autograd.grad(loss, activation_tensors, allow_unused=True)
+                for (name, _tensor), grad in zip(activation_items, grads):
+                    if grad is None:
+                        continue
+                    self.gradients[name] = grad.detach()
             if not self.gradients:
                 LOGGER.warning(
                     "No gradients were computed for attribution; the model may be frozen or "

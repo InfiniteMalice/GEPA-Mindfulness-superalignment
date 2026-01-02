@@ -27,9 +27,9 @@ class GRPOTrainingStats:
     """Summary of a single GRPO optimisation step."""
 
     prompt: str
-    rewards: typing.Sequence[float]
-    advantages: typing.Sequence[float]
-    confidences: typing.Sequence[float]
+    rewards: list[float]
+    advantages: list[float]
+    confidences: list[float]
 
 
 @dataclasses.dataclass
