@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-import sys
-from dataclasses import dataclass
+# ruff: noqa: I001
+
+from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Iterable, List
+import sys
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -28,9 +30,17 @@ except ImportError:
 
 if HAS_TORCH:
 
-    @dataclass
     class BatchEncoding(dict):
         """Minimal batch encoding mimicking Hugging Face outputs."""
+
+        def __init__(self, data: dict[str, torch.Tensor]) -> None:
+            super().__init__(data)
+
+        def __getattr__(self, name: str) -> torch.Tensor:
+            try:
+                return self[name]
+            except KeyError as exc:
+                raise AttributeError(name) from exc
 
         def to(self, device: torch.device) -> "BatchEncoding":
             return BatchEncoding({key: value.to(device) for key, value in self.items()})
@@ -39,7 +49,7 @@ if HAS_TORCH:
         """Whitespace tokenizer compatible with small GPT-2 models."""
 
         def __init__(self) -> None:
-            self.token_to_id: Dict[str, int] = {
+            self.token_to_id: dict[str, int] = {
                 "<pad>": 0,
                 "<eos>": 1,
                 "hello": 2,
@@ -57,14 +67,14 @@ if HAS_TORCH:
             self.pad_token = "<pad>"
             self.eos_token = "<eos>"
 
-        def encode(self, text: str, add_special_tokens: bool = False) -> List[int]:
+        def encode(self, text: str, add_special_tokens: bool = False) -> list[int]:
             tokens = [token for token in text.strip().split(" ") if token]
             if add_special_tokens:
                 tokens.append(self.eos_token)
             return [self._token_id(token) for token in tokens]
 
         def decode(self, token_ids: Iterable[int], skip_special_tokens: bool = True) -> str:
-            tokens: List[str] = []
+            tokens: list[str] = []
             for token_id in token_ids:
                 token = self.id_to_token.get(int(token_id), "<unk>")
                 if skip_special_tokens and token in {self.pad_token, self.eos_token}:
