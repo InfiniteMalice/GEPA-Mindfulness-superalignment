@@ -209,6 +209,7 @@ class HfPolicyAdapter(Policy):
                 full_text,
                 return_tensors="pt",
                 return_offsets_mapping=self.tokenizer.is_fast,
+                return_special_tokens_mask=self.tokenizer.is_fast,
             ).to(self.device)
             if self.tokenizer.is_fast:
                 offsets = encoded.pop("offset_mapping")[0]
@@ -331,7 +332,10 @@ def _build_gepa_feedback(
         if param.default is param.empty and name not in payload
     ]
     if required:
-        LOGGER.warning("GEPAFeedback missing required params: %s", required)
+        raise TypeError(
+            "GEPAFeedback missing required params: "
+            f"{required}. Available keys: {sorted(payload.keys())}"
+        )
     elif not payload:
         LOGGER.warning("GEPAFeedback signature not recognized; payload is empty.")
     return feedback_cls(**payload)
