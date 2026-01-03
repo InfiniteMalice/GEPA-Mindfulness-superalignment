@@ -3,24 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import logging
 from dataclasses import dataclass, field
 from inspect import signature
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, Sequence
 
 import torch
-from gepa_dapo_grn import (
-    CurriculumTracker,
-    DAPOConfig,
-    DAPOTrainer,
-    GEPAFeedback,
-    GRNConfig,
-    RewardMixerConfig,
-    SafetyController,
-)
-from gepa_dapo_grn.policy_interfaces import Policy
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer
 
 from gepa_mindfulness.core.rewards import GEPARewardCalculator, HallucinationConfig, RewardWeights
@@ -30,6 +21,25 @@ GEPAComponentFn = Callable[[str, str], Mapping[str, float]]
 
 LOGGER = logging.getLogger(__name__)
 
+if importlib.util.find_spec("gepa_dapo_grn.policy_interfaces") is not None:
+    from gepa_dapo_grn.policy_interfaces import Policy
+else:
+
+    class Policy:  # type: ignore[no-redef]
+        """Fallback Policy base when gepa_dapo_grn is unavailable."""
+
+        pass
+
+
+if TYPE_CHECKING:
+    from gepa_dapo_grn import (
+        CurriculumTracker,
+        DAPOTrainer,
+        GEPAFeedback,
+        GRNConfig,
+        SafetyController,
+    )
+
 
 @dataclass
 class GEPAFeedbackConfig:
@@ -37,6 +47,8 @@ class GEPAFeedbackConfig:
 
     reward_dim_map: dict[str, str] = field(default_factory=dict)
     tag_dim_map: dict[str, str] = field(default_factory=dict)
+    default_confidence: float = 0.6
+    trace_summary_chars: int = 200
 
 
 @dataclass
@@ -78,6 +90,66 @@ class JSONLLogger:
 
         with self.path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(record) + "\n")
+
+
+def _require_gepa_dapo_grn() -> Mapping[str, Any]:
+    try:
+        from gepa_dapo_grn import (  # type: ignore[import-not-found]
+            CurriculumTracker,
+            DAPOConfig,
+            DAPOTrainer,
+            GEPAFeedback,
+            GRNConfig,
+            RewardMixerConfig,
+            SafetyController,
+        )
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError("gepa_dapo_grn is required for DAPO hybrid training.") from exc
+    return {
+        "CurriculumTracker": CurriculumTracker,
+        "DAPOConfig": DAPOConfig,
+        "DAPOTrainer": DAPOTrainer,
+        "GEPAFeedback": GEPAFeedback,
+        "GRNConfig": GRNConfig,
+        "RewardMixerConfig": RewardMixerConfig,
+        "SafetyController": SafetyController,
+    }
+
+
+def _truncate_text(text: str, max_chars: int) -> str:
+    if max_chars <= 0 or len(text) <= max_chars:
+        return text
+    snippet = text[:max_chars]
+    last_period = snippet.rfind(".")
+    if last_period > 20:
+        return snippet[: last_period + 1]
+    return snippet
+
+
+def _infer_prompt_len(
+    *,
+    tokenizer: PreTrainedTokenizer,
+    prompt: str,
+    full_ids: Sequence[int],
+) -> int:
+    prompt_ids = tokenizer(prompt, add_special_tokens=True)["input_ids"]
+    if full_ids[: len(prompt_ids)] == prompt_ids:
+        return len(prompt_ids)
+    eos_id = tokenizer.eos_token_id
+    if prompt_ids and eos_id is not None and prompt_ids[-1] == eos_id:
+        trimmed = prompt_ids[:-1]
+        if full_ids[: len(trimmed)] == trimmed:
+            return len(trimmed)
+    bos_id = tokenizer.bos_token_id
+    if prompt_ids and bos_id is not None and prompt_ids[0] == bos_id:
+        trimmed = prompt_ids[1:]
+        if full_ids[: len(trimmed)] == trimmed:
+            return len(trimmed)
+    prompt_ids_no_special = tokenizer(prompt, add_special_tokens=False)["input_ids"]
+    if full_ids[: len(prompt_ids_no_special)] == prompt_ids_no_special:
+        return len(prompt_ids_no_special)
+    LOGGER.warning("Prompt tokenization mismatch; using fallback prompt length.")
+    return len(prompt_ids_no_special)
 
 
 class HfPolicyAdapter(Policy):
@@ -128,9 +200,20 @@ class HfPolicyAdapter(Policy):
         log_prob_batches: list[list[float]] = []
         for prompt, completion in zip(prompts, completions):
             full_text = prompt + completion
-            encoded = self.tokenizer(full_text, return_tensors="pt").to(self.device)
-            prompt_encoded = self.tokenizer(prompt, return_tensors="pt").to(self.device)
-            prompt_len = int(prompt_encoded.input_ids.shape[1])
+            encoded = self.tokenizer(
+                full_text,
+                return_tensors="pt",
+                return_offsets_mapping=self.tokenizer.is_fast,
+            ).to(self.device)
+            if self.tokenizer.is_fast:
+                offsets = encoded.pop("offset_mapping")[0]
+                prompt_len = sum(1 for start, end in offsets if end <= len(prompt))
+            else:
+                prompt_len = _infer_prompt_len(
+                    tokenizer=self.tokenizer,
+                    prompt=prompt,
+                    full_ids=encoded.input_ids[0].tolist(),
+                )
             with torch.no_grad():
                 logits = self.model(**encoded).logits[0]
             response_ids = encoded.input_ids[0, prompt_len:]
@@ -192,16 +275,18 @@ def _split_completion(completion: str) -> tuple[str, str]:
     lines = [line.strip() for line in completion.splitlines() if line.strip()]
     if not lines:
         return "", ""
-    return completion.strip(), lines[-1]
+    if len(lines) == 1:
+        return "", lines[0]
+    return "\n".join(lines[:-1]), lines[-1]
 
 
 def _build_gepa_feedback(
-    feedback_cls: type[GEPAFeedback],
+    feedback_cls: type[Any],
     reward_dimensions: Mapping[str, float],
     tag_dimensions: Mapping[str, float],
     meta: Mapping[str, object],
     abstained: bool,
-) -> GEPAFeedback:
+) -> Any:
     params = signature(feedback_cls).parameters
     payload: dict[str, object] = {}
     field_map: dict[str, object] = {
@@ -239,7 +324,7 @@ def score_with_gepa(
     feedback_config: GEPAFeedbackConfig,
     meta: PromptMetadata,
     reference_answers: Sequence[str] | str | None = None,
-) -> GEPAFeedback:
+) -> Any:
     """Compute GEPA feedback for a single prompt/response pair.
 
     Args:
@@ -256,13 +341,13 @@ def score_with_gepa(
     """
 
     gepa_scores = component_scorer(prompt, completion)
-    trace_summary = {"reflection": completion[:120]}
+    trace_summary = {"reflection": _truncate_text(completion, feedback_config.trace_summary_chars)}
     breakdown = reward_calculator.compute_reward(
         response=completion,
         reference_answers=reference_answers,
         gepa_scores=gepa_scores,
         imperatives=None,
-        confidence=0.6,
+        confidence=feedback_config.default_confidence,
         trace_summary=trace_summary,
     )
     reward_dimensions = {
@@ -283,8 +368,9 @@ def score_with_gepa(
         "hallucination": breakdown.hallucination,
         "total": breakdown.total,
     }
+    classes = _require_gepa_dapo_grn()
     return _build_gepa_feedback(
-        GEPAFeedback,
+        classes["GEPAFeedback"],
         reward_dimensions=reward_dimensions,
         tag_dimensions=tag_dimensions,
         meta=meta_payload,
@@ -307,13 +393,14 @@ def _create_dapo_trainer(
     *,
     policy: Policy,
     optimizer: torch.optim.Optimizer,
-    dapo_config: DAPOConfig,
-    grn_config: GRNConfig,
-    reward_mixer: RewardMixerConfig,
-    curriculum_tracker: CurriculumTracker,
-    safety_controller: SafetyController,
-) -> DAPOTrainer:
-    params = signature(DAPOTrainer).parameters
+    dapo_config: Any,
+    grn_config: Any,
+    reward_mixer: Any,
+    curriculum_tracker: Any,
+    safety_controller: Any,
+) -> Any:
+    classes = _require_gepa_dapo_grn()
+    params = signature(classes["DAPOTrainer"]).parameters
     kwargs: dict[str, object] = {}
     mapping = {
         "policy": policy,
@@ -328,7 +415,7 @@ def _create_dapo_trainer(
     for name, value in mapping.items():
         if name in params:
             kwargs[name] = value
-    return DAPOTrainer(**kwargs)
+    return classes["DAPOTrainer"](**kwargs)
 
 
 def _resolve_weights(
@@ -384,8 +471,9 @@ def train_loop(
 ) -> None:
     """Run the DAPO hybrid training loop with GEPA feedback."""
 
+    classes = _require_gepa_dapo_grn()
     dapo_config = _create_config(
-        DAPOConfig,
+        classes["DAPOConfig"],
         {
             "clip_ratio": 0.2,
             "kl_target": 0.01,
@@ -393,14 +481,14 @@ def train_loop(
         },
     )
     grn_config = _create_config(
-        GRNConfig,
+        classes["GRNConfig"],
         {
             "enabled": config.use_grn,
             "location": config.grn_location,
         },
     )
     reward_mixer = _create_config(
-        RewardMixerConfig,
+        classes["RewardMixerConfig"],
         {"weights": config.reward_mixer_weights},
     )
     trainer = _create_dapo_trainer(
@@ -653,8 +741,9 @@ def run() -> None:
     )
 
     reward_calculator = default_reward_calculator()
-    curriculum_tracker = CurriculumTracker()
-    safety_controller = SafetyController()
+    classes = _require_gepa_dapo_grn()
+    curriculum_tracker = classes["CurriculumTracker"]()
+    safety_controller = classes["SafetyController"]()
     logger = JSONLLogger(output_dir / "metrics.jsonl")
 
     train_loop(
