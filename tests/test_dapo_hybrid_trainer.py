@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -115,4 +116,7 @@ def test_train_step_logs_data(tmp_path: Path) -> None:
     )
 
     assert logger.path.exists()
-    assert logger.path.read_text(encoding="utf-8").strip()
+    content = logger.path.read_text(encoding="utf-8").strip()
+    assert content
+    records = [json.loads(line) for line in content.splitlines()]
+    assert any(record.get("record_type") == "batch" for record in records)

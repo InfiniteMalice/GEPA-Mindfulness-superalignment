@@ -212,7 +212,17 @@ class HfPolicyAdapter(Policy):
             ).to(self.device)
             if self.tokenizer.is_fast:
                 offsets = encoded.pop("offset_mapping")[0]
-                prompt_len = sum(1 for start, end in offsets if end <= len(prompt) and start != end)
+                # Include leading special tokens so prompt_len aligns with input_ids slicing.
+                prompt_len = 0
+                saw_content = False
+                for start, end in offsets:
+                    if start == end:
+                        if not saw_content:
+                            prompt_len += 1
+                        continue
+                    saw_content = True
+                    if end <= len(prompt):
+                        prompt_len += 1
             else:
                 prompt_len = _infer_prompt_len(
                     tokenizer=self.tokenizer,
