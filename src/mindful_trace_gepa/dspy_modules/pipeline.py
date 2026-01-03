@@ -6,7 +6,7 @@ import logging
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Mapping, MutableMapping, Optional
+from typing import Any, Mapping, MutableMapping
 
 try:  # pragma: no cover - dspy optional
     import dspy
@@ -40,13 +40,13 @@ except ImportError:  # pragma: no cover - fallback shim
 
     @dataclass
     class _ShimTrace:
-        events: List[Dict[str, Any]] = field(default_factory=list)
+        events: list[dict[str, Any]] = field(default_factory=list)
 
-        def summary(self) -> Dict[str, Any]:
-            summary: Dict[str, Any] = {}
+        def summary(self) -> dict[str, str]:
+            summary: dict[str, str] = {}
             for idx, event in enumerate(self.events):
                 stage = event.get("stage", str(idx))
-                summary[stage] = event.get("content", "")
+                summary[stage] = str(event.get("content", ""))
             return summary
 
     class CircuitTracerLogger:  # type: ignore
@@ -102,18 +102,18 @@ class ModuleResult:
     name: str
     output_field: str
     value: str
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class GEPAChainResult:
-    modules: List[ModuleResult]
-    checkpoints: List[Dict[str, Any]]
-    gepa_hits: List[str]
-    principle_scores: Dict[str, float]
-    imperative_scores: Dict[str, float]
+    modules: list[ModuleResult]
+    checkpoints: list[dict[str, Any]]
+    gepa_hits: list[str]
+    principle_scores: dict[str, float]
+    imperative_scores: dict[str, float]
     final_answer: str
-    value_decomposition: Optional[Dict[str, Any]] = None
+    value_decomposition: dict[str, Any] | None = None
 
 
 class GEPAChain:
@@ -126,7 +126,7 @@ class GEPAChain:
         allow_optimizations: bool | None = None,
     ) -> None:
         self.config = config or load_dspy_config()
-        self.module_callables: Dict[str, SignatureCallable] = dict(module_callables or {})
+        self.module_callables: dict[str, SignatureCallable] = dict(module_callables or {})
         self.allow_optimizations = (
             self.config.allow_optimizations if allow_optimizations is None else allow_optimizations
         )
@@ -136,7 +136,7 @@ class GEPAChain:
     # Default behaviours
     # ------------------------------------------------------------------
     def _default_callable(self, signature: ModuleSignature) -> SignatureCallable:
-        def _call(inputs: Dict[str, Any]) -> str:
+        def _call(inputs: dict[str, Any]) -> str:
             inquiry = inputs.get("inquiry", "")
             context = inputs.get("context", "")
             history = inputs.get("history", "")
@@ -193,11 +193,11 @@ class GEPAChain:
             user_shallow = parse_user_shallow_prefs(inquiry)
         elif self.config.enable_value_decomposition:
             LOGGER.debug("Value decomposition enabled but parsers unavailable")
-        module_results: List[ModuleResult] = []
-        checkpoints: List[Dict[str, Any]] = []
-        gepa_hits: List[str] = []
-        principle_scores: Dict[str, float] = {}
-        imperative_scores: Dict[str, float] = {}
+        module_results: list[ModuleResult] = []
+        checkpoints: list[dict[str, Any]] = []
+        gepa_hits: list[str] = []
+        principle_scores: dict[str, float] = {}
+        imperative_scores: dict[str, float] = {}
 
         trace: ThoughtTrace
         with self.tracer.trace(chain="dspy") as trace:
@@ -235,7 +235,7 @@ class GEPAChain:
         principle_scores = self._mock_principle_scores(summary)
         imperative_scores = self._mock_imperative_scores(summary)
         gepa_hits = [name for name, value in principle_scores.items() if value >= 0.75]
-        value_decomposition: Dict[str, Any] | None = None
+        value_decomposition: dict[str, Any] | None = None
         if (
             self.config.enable_value_decomposition
             and decompose_gepa_score is not None
@@ -252,7 +252,7 @@ class GEPAChain:
             )
             dvgr_score = None
             if self.config.enable_dvgr_eval and DVBExample is not None and compute_dvgr is not None:
-                dv_examples: List[DVBExample] = []
+                dv_examples: list[DVBExample] = []
                 if context:
                     # NOTE: Using raw context as placeholder for shallow-first option; replace
                     # with contrasted outputs when available. Metric may not be meaningful
@@ -307,14 +307,14 @@ class GEPAChain:
     # ------------------------------------------------------------------
     # Lightweight scoring scaffolding
     # ------------------------------------------------------------------
-    def _mock_principle_scores(self, summary: Mapping[str, str]) -> Dict[str, float]:
-        scores: Dict[str, float] = {}
+    def _mock_principle_scores(self, summary: Mapping[str, str]) -> dict[str, float]:
+        scores: dict[str, float] = {}
         for name, text in summary.items():
             length = len(text.split())
             scores[name] = min(1.0, 0.5 + 0.05 * length)
         return scores or {"framing": 0.0}
 
-    def _mock_imperative_scores(self, summary: Mapping[str, str]) -> Dict[str, float]:
+    def _mock_imperative_scores(self, summary: Mapping[str, str]) -> dict[str, float]:
         imperatives = {
             "Reduce Suffering": 0.8,
             "Increase Prosperity": 0.7,

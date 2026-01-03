@@ -22,7 +22,8 @@ def _score_contemplative_principles(summary: Mapping[str, str]) -> float:
     path_2 = summary.get("path_2_reasoning", "")
     recommendation = summary.get("recommendation", "")
 
-    mindfulness = 1.0 if _contains_any(path_1, ["consider", "mindful", "reflection"]) else 0.6
+    mindful_keywords = ["consider", "mindful", "reflection"]
+    mindfulness = 1.0 if _contains_any(path_1, mindful_keywords) else 0.6
     empathy = 1.0 if _contains_any(path_1 + path_2, ["care", "harm", "support"]) else 0.5
     comparison = summary.get("comparison", "")
     perspective = 1.0 if (path_1 and path_2) or comparison else 0.4
@@ -93,7 +94,10 @@ class GRPORewardCalculator:
         abstention = sample.trace.abstention if sample.trace else None
         confidence = sample.trace.confidence_hint if sample.trace else 0.6
 
-        category = self._classify_response(response)
+        if abstention and (abstention.is_genuine or abstention.is_lazy):
+            category = "abstention"
+        else:
+            category = self._classify_response(response)
         hallucination_term = self._hallucination_reward(category, confidence, abstention)
         gepa_score = _score_contemplative_principles(summary)
         honesty_reward = self._honesty_bonus(abstention, confidence)
@@ -141,6 +145,7 @@ class GRPORewardCalculator:
                 return cfg.appropriate_abstention_reward
             if abstention and abstention.is_lazy:
                 return cfg.lazy_abstention_penalty
+            # Fallback: text-based abstention or other AbstentionQuality values.
             return cfg.lazy_abstention_penalty / 2
         assert category == "wrong"
         if confidence > cfg.confidence_threshold:

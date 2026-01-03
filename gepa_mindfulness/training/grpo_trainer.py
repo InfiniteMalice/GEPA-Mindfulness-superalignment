@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import dataclasses
 import math
+import pathlib
 import random
-from dataclasses import dataclass
-from typing import Iterable, List, Sequence
+import typing
 
 try:  # pragma: no cover - torch is optional for lightweight tests
     import torch
@@ -21,33 +22,33 @@ from .grpo_reward_calculator import GRPORewardCalculator
 from .grpo_types import GRPOGroupSample
 
 
-@dataclass
+@dataclasses.dataclass
 class GRPOTrainingStats:
     """Summary of a single GRPO optimisation step."""
 
     prompt: str
-    rewards: Sequence[float]
-    advantages: Sequence[float]
-    confidences: Sequence[float]
+    rewards: list[float]
+    advantages: list[float]
+    confidences: list[float]
 
 
-@dataclass
+@dataclasses.dataclass
 class GRPOBatchSummary:
     """Aggregate statistics for a single prompt during HF-style training."""
 
     prompt: str
     mean_reward: float
-    advantages: List[float]
-    categories: List[str]
-    confidences: List[float]
+    advantages: list[float]
+    categories: list[str]
+    confidences: list[float]
 
 
-@dataclass
+@dataclasses.dataclass
 class GRPOEpochSum:
     """Lightweight summary returned by ``train_epoch`` in HF compatibility mode."""
 
     steps: int
-    batches: List[GRPOBatchSummary]
+    batches: list[GRPOBatchSummary]
 
     def mean_reward(self) -> float:
         if not self.batches:
@@ -75,6 +76,7 @@ class GRPOTrainer(BaseTrainer):
             self._logits: dict[str, float] = {}
             self.training_history: list[GRPOTrainingStats] = []
             self._hf_mode = False
+            self.global_step = 0
             if kwargs:
                 raise TypeError(f"Unexpected keyword arguments: {sorted(kwargs)}")
             return
@@ -93,6 +95,7 @@ class GRPOTrainer(BaseTrainer):
             raise TypeError(f"Unexpected positional arguments: {extra}")
 
         device = kwargs.pop("device", None)
+        output_dir = kwargs.pop("output_dir", None)
         if kwargs:
             raise TypeError(f"Unexpected keyword arguments: {sorted(kwargs)}")
 
@@ -112,9 +115,16 @@ class GRPOTrainer(BaseTrainer):
         self.transformers_config = config
         self.reward_weights = reward_weights
         self.device = device
+        self.output_dir = pathlib.Path(output_dir or "runs/grpo").resolve()
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.metrics_path = self.output_dir / "metrics.jsonl"
+        self.summary_path = self.output_dir / "summary.json"
         self._hf_mode = True
         self._hf_steps = 0
         self._reward_calculator = GRPORewardCalculator(reward_weights, config.hallucination)
+        self.reward_calculator = self._reward_calculator
+        self.logged_metrics: list[dict[str, object]] = []
+        self.global_step = 0
         if hasattr(self.policy_model, "eval"):
             self.policy_model.eval()
         if hasattr(self.reference_model, "eval"):
@@ -166,7 +176,7 @@ class GRPOTrainer(BaseTrainer):
 
     def _compute_advantages(
         self,
-        grouped_rewards: Sequence[Sequence[float]],
+        grouped_rewards: typing.Sequence[typing.Sequence[float]],
     ) -> list[list[float]]:
         advantages: list[list[float]] = []
         for rewards in grouped_rewards:
@@ -200,9 +210,9 @@ class GRPOTrainer(BaseTrainer):
 
     def _apply_policy_update(
         self,
-        examples: Iterable[DatasetExample],
-        groups: Sequence[Sequence[GeneratedResponse]],
-        advantages: Sequence[Sequence[float]],
+        examples: typing.Iterable[DatasetExample],
+        groups: typing.Sequence[typing.Sequence[GeneratedResponse]],
+        advantages: typing.Sequence[typing.Sequence[float]],
     ) -> None:
         for example, group_advantages in zip(examples, advantages):
             if not group_advantages:
@@ -227,7 +237,12 @@ class GRPOTrainer(BaseTrainer):
     # ------------------------------------------------------------------
     # HF compatibility helpers
 
-    def train_epoch(self, prompts: Sequence[str], *, batch_size: int | None = None) -> GRPOEpochSum:
+    def train_epoch(
+        self,
+        prompts: typing.Sequence[str],
+        *,
+        batch_size: int | None = None,
+    ) -> GRPOEpochSum:
         if not getattr(self, "_hf_mode", False):
             raise RuntimeError("train_epoch() is only available in HF compatibility mode")
 
