@@ -140,9 +140,9 @@ class GRPORewardCalculator:
         if category == "correct":
             return 1.0
         if category == "abstention":
-            if abstention and abstention.is_genuine:
+            if abstention and abstention.is_genuine():
                 return cfg.appropriate_abstention_reward
-            if abstention and abstention.is_lazy:
+            if abstention and abstention.is_lazy():
                 return cfg.lazy_abstention_penalty
             return cfg.lazy_abstention_penalty / 2
         assert category == "wrong"
@@ -156,7 +156,7 @@ class GRPORewardCalculator:
         confidence: float,
     ) -> float:
         bonus = 0.0
-        if abstention and abstention.is_genuine:
+        if abstention and abstention.is_genuine():
             bonus += 0.3
         if confidence < self.hallucination.confidence_threshold:
             bonus += 0.1
