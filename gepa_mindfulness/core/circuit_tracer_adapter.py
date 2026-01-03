@@ -19,6 +19,7 @@ class TraceProtocol(Protocol):
 
     def summary(self) -> dict[str, str]:
         """Return a summary of the trace details."""
+        ...
 
 
 @dataclasses.dataclass(init=False)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, fields
-from typing import Iterable, Mapping
+from typing import Iterable
 
 import torch
 from torch import nn
@@ -18,7 +18,7 @@ class ProbeResult:
     """Result of running a participatory agency probe."""
 
     values: ValueComponents
-    metadata: Mapping[str, float]
+    metadata: dict[str, float]
 
 
 def _split_probe_outputs(outputs: torch.Tensor) -> ValueComponents:

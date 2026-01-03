@@ -13,6 +13,10 @@ __all__ = [
 _cached: dict[str, object] = {}
 
 
+def __dir__() -> list[str]:
+    return __all__
+
+
 def __getattr__(name: str) -> Any:
     if name in _cached:
         return _cached[name]

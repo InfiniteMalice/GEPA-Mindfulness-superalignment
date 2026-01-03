@@ -31,7 +31,8 @@ def build_check_report(
 ) -> dict[str, bool]:
     """Return a dictionary of standard governance checks."""
 
+    stacked = values.stack()
     return {
-        "finite": values_are_finite(values),
-        "bounded": values_within_range(values, minimum, maximum),
+        "finite": torch.isfinite(stacked).all().item(),
+        "bounded": ((stacked >= minimum) & (stacked <= maximum)).all().item(),
     }

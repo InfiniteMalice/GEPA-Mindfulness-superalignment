@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Iterable
 from pathlib import Path
-from sys import path as sys_path
 from typing import TYPE_CHECKING
 
 import pytest

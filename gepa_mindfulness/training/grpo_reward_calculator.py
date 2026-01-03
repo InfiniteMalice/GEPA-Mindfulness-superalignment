@@ -93,7 +93,7 @@ class GRPORewardCalculator:
         abstention = sample.trace.abstention if sample.trace else None
         confidence = sample.trace.confidence_hint if sample.trace else 0.6
 
-        if abstention and (abstention.is_genuine() or abstention.is_lazy()):
+        if abstention and (abstention.is_genuine or abstention.is_lazy):
             category = "abstention"
         else:
             category = self._classify_response(response)

@@ -226,8 +226,7 @@ class AttributionGraphExtractor:
             activation_tensors = [tensor for _, tensor in activation_items]
             if not activation_tensors:
                 LOGGER.warning(
-                    "No gradients were computed for attribution; the model may be frozen or "
-                    "disconnected from the loss."
+                    "No activations matched the requested layers; cannot compute gradients."
                 )
             else:
                 grads = torch.autograd.grad(loss, activation_tensors, allow_unused=True)
