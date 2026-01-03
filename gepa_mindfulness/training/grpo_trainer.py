@@ -322,6 +322,7 @@ class GRPOTrainer(BaseTrainer):
                 )
 
         self._hf_steps += steps
+        self.global_step += steps
         return GRPOEpochSum(steps=steps, batches=batches)
 
 
