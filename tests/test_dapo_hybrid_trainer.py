@@ -39,6 +39,8 @@ def test_score_with_gepa_returns_feedback() -> None:
         reference_answers=None,
     )
     assert feedback is not None
+    assert hasattr(feedback, "reward_dimensions") or hasattr(feedback, "reward_dims")
+    assert hasattr(feedback, "meta") or hasattr(feedback, "metadata")
 
 
 @pytest.mark.unit

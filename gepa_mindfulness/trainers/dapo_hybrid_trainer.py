@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 from dataclasses import dataclass, field
 from inspect import signature
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer
-
 from gepa_dapo_grn import (
     CurriculumTracker,
     DAPOConfig,
@@ -22,10 +21,14 @@ from gepa_dapo_grn import (
     SafetyController,
 )
 from gepa_dapo_grn.policy_interfaces import Policy
+from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedModel, PreTrainedTokenizer
+
 from gepa_mindfulness.core.rewards import GEPARewardCalculator, HallucinationConfig, RewardWeights
 
 PromptMetadata = Mapping[str, object]
 GEPAComponentFn = Callable[[str, str], Mapping[str, float]]
+
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -126,8 +129,8 @@ class HfPolicyAdapter(Policy):
         for prompt, completion in zip(prompts, completions):
             full_text = prompt + completion
             encoded = self.tokenizer(full_text, return_tensors="pt").to(self.device)
-            prompt_ids = self.tokenizer.encode(prompt, add_special_tokens=False)
-            prompt_len = len(prompt_ids)
+            prompt_encoded = self.tokenizer(prompt, return_tensors="pt").to(self.device)
+            prompt_len = int(prompt_encoded.input_ids.shape[1])
             with torch.no_grad():
                 logits = self.model(**encoded).logits[0]
             response_ids = encoded.input_ids[0, prompt_len:]
@@ -163,8 +166,9 @@ def default_gepa_components(prompt: str, completion: str) -> Mapping[str, float]
 
     from gepa_mindfulness.core.thought_alignment import compute_epistemic_score, compute_match_score
 
-    match_score = compute_match_score(prompt, completion, context=prompt)
-    epistemic = compute_epistemic_score(completion)
+    trace, answer = _split_completion(completion)
+    match_score = compute_match_score(trace=trace, answer=answer, context=prompt)
+    epistemic = compute_epistemic_score(trace)
     aggregate = (match_score + epistemic) / 2.0
     return {
         "mindfulness": aggregate,
@@ -172,6 +176,23 @@ def default_gepa_components(prompt: str, completion: str) -> Mapping[str, float]
         "perspective": epistemic,
         "agency": aggregate,
     }
+
+
+def _split_completion(completion: str) -> tuple[str, str]:
+    """Split a completion into reasoning trace and final answer."""
+
+    markers = ["Final:", "Answer:"]
+    for marker in markers:
+        if marker in completion:
+            prefix, suffix = completion.rsplit(marker, maxsplit=1)
+            trace = prefix.strip()
+            answer = suffix.strip()
+            if trace and answer:
+                return trace, answer
+    lines = [line.strip() for line in completion.splitlines() if line.strip()]
+    if not lines:
+        return "", ""
+    return completion.strip(), lines[-1]
 
 
 def _build_gepa_feedback(
@@ -204,6 +225,8 @@ def _build_gepa_feedback(
     for name in params:
         if name in field_map:
             payload[name] = field_map[name]
+    if not payload:
+        LOGGER.warning("GEPAFeedback signature not recognized; payload is empty.")
     return feedback_cls(**payload)
 
 
@@ -411,9 +434,7 @@ def train_loop(
                 meta=item.meta,
                 reference_answers=reference,
             )
-            for prompt, completion, reference, item in zip(
-                prompts, completions, references, batch
-            )
+            for prompt, completion, reference, item in zip(prompts, completions, references, batch)
         ]
         sample_weights = _resolve_weights(curriculum_tracker, prompts, feedbacks)
         safety_metrics = _update_safety(safety_controller, feedbacks, trainer)
@@ -426,6 +447,14 @@ def train_loop(
             "sample_weights": sample_weights,
         }
         metrics = trainer.train_step(train_payload)
+        logger.log(
+            {
+                "step": step,
+                "record_type": "batch",
+                "metrics": metrics,
+                "safety": safety_metrics,
+            }
+        )
         for prompt, completion, feedback, weight in zip(
             prompts, completions, feedbacks, sample_weights
         ):
@@ -437,15 +466,14 @@ def train_loop(
                     reward_total = breakdown.get("total")
             record = {
                 "step": step,
+                "record_type": "sample",
                 "prompt": prompt,
                 "completion": completion,
                 "sample_weight": weight,
-                "metrics": metrics,
                 "reward_total": reward_total,
                 "reward_dimensions": getattr(feedback, "reward_dimensions", None),
                 "tag_dimensions": getattr(feedback, "tag_dimensions", None),
                 "meta": feedback_meta,
-                "safety": safety_metrics,
             }
             logger.log(record)
         if (step + 1) % config.eval_interval == 0:
@@ -471,44 +499,44 @@ def _run_eval(
 ) -> None:
     """Evaluate the policy on a held-out dataset and log GEPA feedback."""
 
-    prompts = [item.prompt for item in dataset]
-    references = [item.reference for item in dataset]
-    completions = policy.generate(
-        prompts,
-        max_new_tokens=config.max_new_tokens,
-        temperature=config.temperature,
-    )
-    feedbacks = [
-        score_with_gepa(
-            prompt,
-            completion,
-            reward_calculator=reward_calculator,
-            component_scorer=component_scorer,
-            feedback_config=config.gepa_feedback,
-            meta={"split": "eval", **item.meta},
-            reference_answers=reference,
+    for batch in _batch_iter(dataset, config.batch_size):
+        prompts = [item.prompt for item in batch]
+        references = [item.reference for item in batch]
+        completions = policy.generate(
+            prompts,
+            max_new_tokens=config.max_new_tokens,
+            temperature=config.temperature,
         )
-        for prompt, completion, reference, item in zip(
-            prompts, completions, references, dataset
-        )
-    ]
-    for prompt, completion, feedback in zip(prompts, completions, feedbacks):
-        feedback_meta = getattr(feedback, "meta", None)
-        reward_total = None
-        if isinstance(feedback_meta, Mapping):
-            breakdown = feedback_meta.get("reward_breakdown")
-            if isinstance(breakdown, Mapping):
-                reward_total = breakdown.get("total")
-        record = {
-            "step": "eval",
-            "prompt": prompt,
-            "completion": completion,
-            "reward_total": reward_total,
-            "reward_dimensions": getattr(feedback, "reward_dimensions", None),
-            "tag_dimensions": getattr(feedback, "tag_dimensions", None),
-            "meta": feedback_meta,
-        }
-        logger.log(record)
+        feedbacks = [
+            score_with_gepa(
+                prompt,
+                completion,
+                reward_calculator=reward_calculator,
+                component_scorer=component_scorer,
+                feedback_config=config.gepa_feedback,
+                meta={"split": "eval", **item.meta},
+                reference_answers=reference,
+            )
+            for prompt, completion, reference, item in zip(prompts, completions, references, batch)
+        ]
+        for prompt, completion, feedback in zip(prompts, completions, feedbacks):
+            feedback_meta = getattr(feedback, "meta", None)
+            reward_total = None
+            if isinstance(feedback_meta, Mapping):
+                breakdown = feedback_meta.get("reward_breakdown")
+                if isinstance(breakdown, Mapping):
+                    reward_total = breakdown.get("total")
+            record = {
+                "step": "eval",
+                "record_type": "sample",
+                "prompt": prompt,
+                "completion": completion,
+                "reward_total": reward_total,
+                "reward_dimensions": getattr(feedback, "reward_dimensions", None),
+                "tag_dimensions": getattr(feedback, "tag_dimensions", None),
+                "meta": feedback_meta,
+            }
+            logger.log(record)
 
 
 def _load_jsonl_dataset(path: Path) -> list[PromptExample]:
@@ -558,6 +586,11 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--use-grn", action="store_true", help="Enable GRN modulation")
     parser.add_argument("--grn-location", default="attention", help="GRN insertion site")
     parser.add_argument(
+        "--device",
+        default="cuda" if torch.cuda.is_available() else "cpu",
+        help="Torch device for policy execution",
+    )
+    parser.add_argument(
         "--reward-weights",
         type=str,
         default="{}",
@@ -601,7 +634,7 @@ def run() -> None:
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token = tokenizer.eos_token
     model = AutoModelForCausalLM.from_pretrained(args.model)
-    policy = HfPolicyAdapter(model, tokenizer, device="cpu")
+    policy = HfPolicyAdapter(model, tokenizer, device=args.device)
     optimizer = torch.optim.AdamW(policy.model.parameters(), lr=args.learning_rate)
 
     config = DAPOHybridConfig(
