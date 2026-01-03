@@ -21,7 +21,12 @@ GEPAComponentFn = Callable[[str, str], Mapping[str, float]]
 
 LOGGER = logging.getLogger(__name__)
 
-if importlib.util.find_spec("gepa_dapo_grn.policy_interfaces") is not None:
+try:
+    _GEPA_POLICY_SPEC = importlib.util.find_spec("gepa_dapo_grn.policy_interfaces")
+except ModuleNotFoundError:
+    _GEPA_POLICY_SPEC = None
+
+if _GEPA_POLICY_SPEC is not None:
     from gepa_dapo_grn.policy_interfaces import Policy
 else:
 
@@ -207,7 +212,7 @@ class HfPolicyAdapter(Policy):
             ).to(self.device)
             if self.tokenizer.is_fast:
                 offsets = encoded.pop("offset_mapping")[0]
-                prompt_len = sum(1 for start, end in offsets if end <= len(prompt))
+                prompt_len = sum(1 for start, end in offsets if end <= len(prompt) and start != end)
             else:
                 prompt_len = _infer_prompt_len(
                     tokenizer=self.tokenizer,
@@ -310,7 +315,14 @@ def _build_gepa_feedback(
     for name in params:
         if name in field_map:
             payload[name] = field_map[name]
-    if not payload:
+    required = [
+        name
+        for name, param in params.items()
+        if param.default is param.empty and name not in payload
+    ]
+    if required:
+        LOGGER.warning("GEPAFeedback missing required params: %s", required)
+    elif not payload:
         LOGGER.warning("GEPAFeedback signature not recognized; payload is empty.")
     return feedback_cls(**payload)
 
@@ -690,8 +702,11 @@ def _parse_args() -> argparse.Namespace:
 def _parse_reward_weights(payload: str) -> dict[str, float]:
     if not payload:
         return {}
-    data = json.loads(payload)
-    return {str(key): float(value) for key, value in data.items()}
+    try:
+        data = json.loads(payload)
+        return {str(key): float(value) for key, value in data.items()}
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise argparse.ArgumentTypeError(f"Invalid reward weights JSON: {exc}") from exc
 
 
 def _default_examples() -> list[PromptExample]:
