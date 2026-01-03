@@ -4,6 +4,9 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
+from gepa_mindfulness.participatory_agency import ParticipatoryAgencyConfig  # noqa: E402
+from gepa_mindfulness.participatory_agency.values import ParticipatoryValueHead  # noqa: E402
+
 
 @pytest.mark.parametrize(
     "hidden_size,config,batch_size",
@@ -17,9 +20,6 @@ def test_participatory_value_head_forward(
     config: dict | None,
     batch_size: int,
 ) -> None:
-    from gepa_mindfulness.participatory_agency import ParticipatoryAgencyConfig
-    from gepa_mindfulness.participatory_agency.values import ParticipatoryValueHead
-
     resolved_config = ParticipatoryAgencyConfig(**config) if config else None
     head = ParticipatoryValueHead(hidden_size=hidden_size, config=resolved_config)
     features = torch.ones((batch_size, hidden_size))

@@ -235,10 +235,11 @@ class AttributionGraphExtractor:
                         continue
                     self.gradients[name] = grad.detach()
             if not self.gradients:
-                LOGGER.warning(
+                warning_msg = (
                     "No gradients were computed for attribution; the model may be frozen or "
                     "disconnected from the loss."
                 )
+                LOGGER.warning(warning_msg)
 
         nodes, edges = self._dispatch_method(
             inputs=encoded,

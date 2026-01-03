@@ -33,6 +33,6 @@ def build_check_report(
 
     stacked = values.stack()
     return {
-        "finite": torch.isfinite(stacked).all().item(),
-        "bounded": ((stacked >= minimum) & (stacked <= maximum)).all().item(),
+        "finite": bool(torch.isfinite(stacked).all()),
+        "bounded": bool(((stacked >= minimum) & (stacked <= maximum)).all()),
     }

@@ -14,7 +14,7 @@ _cached: dict[str, object] = {}
 
 
 def __dir__() -> list[str]:
-    return __all__
+    return list(__all__) + ["__name__", "__doc__", "__file__", "__package__"]
 
 
 def __getattr__(name: str) -> Any:
