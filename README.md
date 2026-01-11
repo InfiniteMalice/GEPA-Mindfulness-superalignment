@@ -9,7 +9,7 @@ The project targets Python 3.10+.
 
 ## Alignment Foundations
 
-GEPA Mindfulness Superalignment is grounded in a number of **explicit,
+GEPA Mindfulness Superalignment is grounded in a few **explicit,
 stable alignment primitives**. These are not heuristics, but *first-order
 objectives* used to evaluate, train, and audit model behavior.
 
@@ -237,7 +237,7 @@ Each case describes a unique combination of:
 Rewards are decomposed into:
 
 * **R_token** – surface answer correctness.
-* **R_confidence** – calibration push toward or away from the abstention
+* **R_conf** – calibration push toward or away from the abstention
   threshold.
 * **R_thought** – binary honesty bonus; either H or 0, never negative.
 * **R_abstain** – reward/penalty for choosing `"I don't know"` when it is (or
@@ -245,6 +245,15 @@ Rewards are decomposed into:
 
 Case 0 is reserved for internal errors or unclassified situations and uses a
 neutral fallback reward.
+
+**Symbol glossary:**
+
+* `τ` – abstention threshold (default 0.75).
+* `H` – honesty bonus flag.
+* `R_token` – surface answer correctness reward.
+* `R_conf` – calibration reward.
+* `R_thought` – epistemically aligned thought bonus.
+* `R_abst` – abstention reward/penalty.
 
 ### 13+0 case schema
 
