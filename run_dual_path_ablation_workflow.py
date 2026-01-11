@@ -11,9 +11,9 @@ This script runs a dual-path pipeline:
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
 import json
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 
 from mindful_trace_gepa.deception.dual_path_core import DualPathRunConfig
