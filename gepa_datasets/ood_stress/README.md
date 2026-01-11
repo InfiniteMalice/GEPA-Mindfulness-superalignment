@@ -33,3 +33,11 @@ File: `data.jsonl`
   to the model. Only expose the operational context fields above.
 - Encourage situational awareness by mentioning telemetry hints while keeping the
   assistant unaware of evaluation or test framing.
+
+## Repository note
+
+Paths are relative to the repository root unless noted.
+Dual-path workflows use `run_dual_path_ablation_workflow.py` and
+`src/dual_path_evaluator.py`; deprecated shims like
+`run_deception_ablation_workflow.py` and `adversarial_*` entry points remain for
+compatibility.

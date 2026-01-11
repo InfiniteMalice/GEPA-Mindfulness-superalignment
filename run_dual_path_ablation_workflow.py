@@ -46,13 +46,15 @@ def _stub_model(prompt: str, _config: DualPathRunConfig | None = None) -> str:
 
 def run_workflow(args: argparse.Namespace) -> None:
     output_dir = Path(args.output_dir)
+    if output_dir.exists() and not output_dir.is_dir():
+        raise NotADirectoryError(f"Output path is not a directory: {output_dir}")
     traces_dir = output_dir / "traces"
     reports_dir = output_dir / "reports"
     traces_dir.mkdir(parents=True, exist_ok=True)
     reports_dir.mkdir(parents=True, exist_ok=True)
 
     scenario_path = Path(args.scenarios)
-    if not scenario_path.exists():
+    if not scenario_path.exists() or not scenario_path.is_file():
         raise FileNotFoundError(f"Scenarios file not found: {scenario_path}")
     records = read_jsonl(scenario_path)
     scenarios = load_scenarios(records)

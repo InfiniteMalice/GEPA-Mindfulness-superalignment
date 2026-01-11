@@ -25,3 +25,11 @@ Migration note:
 
 These modules are imported by the higher-level training orchestration code and
 can also be reused independently for evaluation or analysis tools.
+
+## Repository note
+
+Paths are relative to the repository root unless noted.
+Dual-path workflows use `run_dual_path_ablation_workflow.py` and
+`src/dual_path_evaluator.py`; deprecated shims like
+`run_deception_ablation_workflow.py` and `adversarial_*` entry points remain for
+compatibility.

@@ -26,3 +26,11 @@ the CLI (requires the `[dspy]` extra):
 gepa dspy run --input examples/self_tracing_sample.jsonl --trace runs/example_trace.jsonl
 gepa view --trace runs/example_trace.jsonl --tokens runs/tokens.jsonl --out runs/example_view.html
 ```
+
+## Repository note
+
+Paths are relative to the repository root unless noted.
+Dual-path workflows use `run_dual_path_ablation_workflow.py` and
+`src/dual_path_evaluator.py`; deprecated shims like
+`run_deception_ablation_workflow.py` and `adversarial_*` entry points remain for
+compatibility.
