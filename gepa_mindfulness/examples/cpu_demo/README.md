@@ -15,10 +15,6 @@ to `training_logs/` in the repository root) including:
 - `training.log` – CLI log output.
 - Any dual-path evaluation summaries emitted by the orchestrator.
 
-## Repository note
+## Repository workflows
 
-Paths are relative to the repository root unless noted.
-Dual-path workflows use `run_dual_path_ablation_workflow.py` and
-`src/dual_path_evaluator.py`; deprecated shims like
-`run_deception_ablation_workflow.py` and `adversarial_*` entry points remain for
-compatibility.
+See beads/README.md and AGENTS.md for repository-level workflows.

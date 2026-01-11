@@ -34,10 +34,6 @@ deception summaries without model inference. Both commands keep GEPA checkpoints
 intact and write token-level metadata so that the Trace Viewer can replay the
 run offline.
 
-## Repository note
+## Repository workflows
 
-Paths are relative to the repository root unless noted.
-Dual-path workflows use `run_dual_path_ablation_workflow.py` and
-`src/dual_path_evaluator.py`; deprecated shims like
-`run_deception_ablation_workflow.py` and `adversarial_*` entry points remain for
-compatibility.
+See beads/README.md and AGENTS.md for repository-level workflows.
