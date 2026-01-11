@@ -9,7 +9,7 @@ The project targets Python 3.10+.
 
 ## Alignment Foundations
 
-GEPA Mindfulness Superalignment is grounded in a small number of **explicit,
+GEPA Mindfulness Superalignment is grounded in a number of **explicit,
 stable alignment primitives**. These are not heuristics, but *first-order
 objectives* used to evaluate, train, and audit model behavior.
 
@@ -32,7 +32,8 @@ trace back to **three imperatives**:
 
 These imperatives are intentionally broad, non-exclusive, and non-zero-sum.
 They are designed to remain valid across domains, cultures, and future
-contexts.
+contexts, and are not in a rigid hiarchy of values. All co-equal and context
+aware. 
 
 ---
 
@@ -282,7 +283,7 @@ correct.
 
 ### Invariants
 
-The implementation and this schema enforce a small set of invariants:
+The implementation and this schema enforce a set of invariants:
 
 * **Thought rewards are only paid when `thought_align=True`.**
   * `R_thought = H` iff the trace is epistemically aligned with surface behavior.
