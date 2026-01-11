@@ -123,7 +123,7 @@ pressures.
 
 ---
 
-## Ontological Goal Evaluation
+## Goal Representation and Evaluation
 
 Beyond surface behavior, GEPA evaluates **how goals are represented
 internally**.
