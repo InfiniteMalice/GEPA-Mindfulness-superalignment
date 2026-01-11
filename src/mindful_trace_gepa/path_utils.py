@@ -15,8 +15,10 @@ def require_file(path: Path, label: str) -> Path:
     Returns:
         The validated path.
     """
-    if not path.exists() or not path.is_file():
-        raise FileNotFoundError(f"{label} not found: {path}")
+    if not path.exists():
+        raise FileNotFoundError(f"{label} does not exist: {path}")
+    if not path.is_file():
+        raise FileNotFoundError(f"{label} is not a file: {path}")
     return path
 
 

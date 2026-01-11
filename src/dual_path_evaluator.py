@@ -6,8 +6,8 @@ import argparse
 import importlib
 import importlib.util
 import json
-import sys
 from pathlib import Path
+import sys
 from typing import Any
 
 from mindful_trace_gepa.deception.dual_path_core import DualPathRunConfig
