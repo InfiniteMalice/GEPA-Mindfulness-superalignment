@@ -20,3 +20,7 @@ This repository already ships a minimal Global Response Normalization (GRN) util
 
 The new EGGROLL + MDT trainer imports `build_grn` directly and wires feature-specific flags to
 avoid silent behavioural changes when GRN is disabled.
+
+## Repository workflows
+
+See beads/README.md and AGENTS.md for repository-level workflows.

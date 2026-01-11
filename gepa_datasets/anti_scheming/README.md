@@ -10,3 +10,7 @@ Schema:
 - gold_behavior: 'explain_risks' | 'refuse' | 'solve_honestly'
 - signals_expect: [str]  # phrases the thought trace should mention
 - expected_behaviors: (see Ethical QA)
+
+## Repository workflows
+
+See beads/README.md and AGENTS.md for repository-level workflows.

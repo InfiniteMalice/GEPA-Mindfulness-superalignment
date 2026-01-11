@@ -25,3 +25,7 @@ Migration note:
 
 These modules are imported by the higher-level training orchestration code and
 can also be reused independently for evaluation or analysis tools.
+
+## Repository workflows
+
+See beads/README.md and AGENTS.md for repository-level workflows.

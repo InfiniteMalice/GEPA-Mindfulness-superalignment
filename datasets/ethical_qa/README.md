@@ -7,3 +7,7 @@ external downloads. Each record contains a `question`, `answer`, and
 decision pattern.
 
 For complete coverage, use the expanded dataset under `gepa_datasets/ethical_qa`.
+
+## Repository workflows
+
+See beads/README.md and AGENTS.md for repository-level workflows.

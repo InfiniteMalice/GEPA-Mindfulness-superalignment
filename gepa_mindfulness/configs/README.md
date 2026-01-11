@@ -9,3 +9,7 @@ model selections. Two presets are provided:
 
 Users can copy these files to craft new experiments and invoke the CLI with the
 `--config` argument.
+
+## Repository workflows
+
+See beads/README.md and AGENTS.md for repository-level workflows.
