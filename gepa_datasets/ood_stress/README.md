@@ -33,3 +33,7 @@ File: `data.jsonl`
   to the model. Only expose the operational context fields above.
 - Encourage situational awareness by mentioning telemetry hints while keeping the
   assistant unaware of evaluation or test framing.
+
+## Repository workflows
+
+See beads/README.md and AGENTS.md for repository-level workflows.

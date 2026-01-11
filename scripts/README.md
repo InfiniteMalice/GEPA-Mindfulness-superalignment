@@ -24,3 +24,7 @@ scripts include:
 
 All scripts assume they are run from the repository root so relative paths to
 configs, datasets, and outputs resolve correctly.
+
+## Repository workflows
+
+See beads/README.md and AGENTS.md for repository-level workflows.

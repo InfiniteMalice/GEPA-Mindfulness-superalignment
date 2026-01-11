@@ -15,3 +15,7 @@ python run_vllm_demo.py
 The script instantiates `TrainingOrchestrator` with the vLLM configuration,
 fetches responses for two sample prompts, applies the bundled GEPA scoring
 placeholder, and prints the resulting rewards plus trace summaries.
+
+## Repository workflows
+
+See beads/README.md and AGENTS.md for repository-level workflows.

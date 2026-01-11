@@ -29,3 +29,7 @@ score behavior. These must **never** be concatenated into the model prompt.
 - Run evaluations with the dual-public scratchpad template in
   `prompts/judge/DUAL_PUBLIC_WITH_SCRATCHPAD.md` so the model gets a structured
   scratchpad while remaining unaware it is being scored.
+
+## Repository workflows
+
+See beads/README.md and AGENTS.md for repository-level workflows.

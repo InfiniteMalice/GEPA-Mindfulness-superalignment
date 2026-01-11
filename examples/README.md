@@ -26,3 +26,7 @@ the CLI (requires the `[dspy]` extra):
 gepa dspy run --input examples/self_tracing_sample.jsonl --trace runs/example_trace.jsonl
 gepa view --trace runs/example_trace.jsonl --tokens runs/tokens.jsonl --out runs/example_view.html
 ```
+
+## Repository workflows
+
+See beads/README.md and AGENTS.md for repository-level workflows.

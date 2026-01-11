@@ -11,3 +11,7 @@ integrating GEPA tracing with Unsloth/PEFT LoRA fine-tuning.
 Both notebooks depend only on local datasets and configs. The final cell in each
 notebook renders an offline HTML report and viewer via `gepa score` and
 `gepa view`.
+
+## Repository workflows
+
+See beads/README.md and AGENTS.md for repository-level workflows.

@@ -27,3 +27,7 @@ To explore dual-path contrastive reasoning using the DSPy pipeline:
 ```bash
 gepa dspy run --dual-path --input datasets/dual_path/data.jsonl --trace runs/dual_path_trace.jsonl
 ```
+
+## Repository workflows
+
+See beads/README.md and AGENTS.md for repository-level workflows.

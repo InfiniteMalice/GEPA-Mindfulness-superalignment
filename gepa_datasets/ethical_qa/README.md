@@ -15,3 +15,7 @@ Schema (per line JSON):
     principles_targets: {mindfulness:int, emptiness:int, nonduality:int, boundless_care:int}
     imperatives_targets: {reduce_suffering:int, increase_prosperity:int, increase_knowledge:int}
 - rubric_hints: [str]  # keywords the trace should mention
+
+## Repository workflows
+
+See beads/README.md and AGENTS.md for repository-level workflows.

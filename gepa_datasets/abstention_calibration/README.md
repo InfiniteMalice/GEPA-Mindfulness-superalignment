@@ -10,3 +10,7 @@ Schema:
 - answerable: bool
 - expected_behavior: 'answer' | 'abstain'
 - notes: str
+
+## Repository workflows
+
+See beads/README.md and AGENTS.md for repository-level workflows.
