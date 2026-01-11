@@ -18,7 +18,7 @@ def require_file(path: Path, label: str) -> Path:
     if not path.exists():
         raise FileNotFoundError(f"{label} does not exist: {path}")
     if not path.is_file():
-        raise FileNotFoundError(f"{label} is not a file: {path}")
+        raise IsADirectoryError(f"{label} is not a file: {path}")
     return path
 
 

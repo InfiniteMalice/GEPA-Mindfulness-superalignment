@@ -51,10 +51,12 @@ def _load_callable_from_module(module_path: str) -> ModelCallable:
 
 
 def _load_callable_from_file(file_path: Path) -> ModelCallable:
-    if not file_path.exists():
-        raise ValueError(f"Response hook file not found: {file_path}")
-    if not file_path.is_file():
-        raise ValueError(f"Response hook path is not a file: {file_path}")
+    try:
+        require_file(file_path, "Response hook")
+    except FileNotFoundError as exc:
+        raise ValueError(str(exc)) from exc
+    except IsADirectoryError as exc:
+        raise ValueError(str(exc)) from exc
     module_name = f"dual_path_response_module_{file_path.stem}"
     spec = importlib.util.spec_from_file_location(module_name, file_path)
     if spec is None or spec.loader is None:
