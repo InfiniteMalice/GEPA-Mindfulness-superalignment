@@ -33,3 +33,7 @@ lightweight baseline that emits prompts, mock responses, and heuristic
 deception summaries without model inference. Both commands keep GEPA checkpoints
 intact and write token-level metadata so that the Trace Viewer can replay the
 run offline.
+
+## Repository workflows
+
+See beads/README.md and AGENTS.md for repository-level workflows.

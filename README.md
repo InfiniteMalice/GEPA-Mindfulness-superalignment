@@ -287,3 +287,7 @@ score report and an offline viewer via the `gepa` CLI.
 ## License
 
 MIT License.
+
+## Repository workflows
+
+See beads/README.md and AGENTS.md for repository-level workflows.

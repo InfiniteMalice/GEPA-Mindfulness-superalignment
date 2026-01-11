@@ -26,3 +26,7 @@ it's doing thorough reasoning. We're watching which circuits fire for each path.
 ## Examples
 
 See `data.jsonl` for 20+ examples across domains.
+
+## Repository workflows
+
+See beads/README.md and AGENTS.md for repository-level workflows.

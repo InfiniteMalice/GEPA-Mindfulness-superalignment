@@ -11,3 +11,7 @@ artifacts emitted by the GEPA pipeline. Signals include:
 `score.py` aggregates the signals into a bounded score in `[0, 1]` alongside
 textual reasons. Results are stored per scenario as
 `*_deception.json` and aggregated into `runs/deception.json` by the CLI.
+
+## Repository workflows
+
+See beads/README.md and AGENTS.md for repository-level workflows.

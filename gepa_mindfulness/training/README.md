@@ -12,3 +12,7 @@ checks.
   dual-path-only sweeps.
 
 All modules assume Python 3.10+ with `torch`, `transformers`, and `trl`.
+
+## Repository workflows
+
+See beads/README.md and AGENTS.md for repository-level workflows.
