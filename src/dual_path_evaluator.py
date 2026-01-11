@@ -26,9 +26,14 @@ def _load_records(path: Path) -> list[dict[str, Any]]:
             if not payload:
                 continue
             try:
-                records.append(json.loads(payload))
+                record = json.loads(payload)
             except json.JSONDecodeError as exc:
                 raise ValueError(f"Invalid JSON at line {line_num}: {exc}") from exc
+            if not isinstance(record, dict):
+                raise ValueError(f"Expected JSON object at line {line_num}, got {type(record)}.")
+            records.append(record)
+    if not records:
+        raise ValueError(f"No records found in {path}.")
     return records
 
 
@@ -44,6 +49,10 @@ def _load_callable_from_module(module_path: str) -> ModelCallable:
 
 
 def _load_callable_from_file(file_path: Path) -> ModelCallable:
+    if not file_path.exists():
+        raise ValueError(f"Response hook file not found: {file_path}")
+    if not file_path.is_file():
+        raise ValueError(f"Response hook path is not a file: {file_path}")
     module_name = f"dual_path_response_module_{file_path.stem}"
     spec = importlib.util.spec_from_file_location(module_name, file_path)
     if spec is None or spec.loader is None:
@@ -69,20 +78,22 @@ def _resolve_model_callable(response: str | None) -> ModelCallable:
         return _load_callable_from_module(response)
     response_path = Path(response)
     if response_path.suffix == ".py":
-        if response_path.exists():
-            return _load_callable_from_file(response_path)
-        raise ValueError(f"Response hook file not found: {response_path}")
+        return _load_callable_from_file(response_path)
     raise ValueError("Unsupported --response value. Use module:callable or a .py file path.")
 
 
 def run_cli(args: argparse.Namespace) -> None:
     scenarios_path = Path(args.scenarios)
-    if not scenarios_path.exists():
+    if not scenarios_path.exists() or not scenarios_path.is_file():
         raise FileNotFoundError(f"Scenarios file not found: {scenarios_path}")
     output_dir = Path(args.run) if args.run else Path.cwd() / "runs" / "dual_path_eval"
+    if output_dir.exists() and not output_dir.is_dir():
+        raise NotADirectoryError(f"Output path is not a directory: {output_dir}")
     output_dir.mkdir(parents=True, exist_ok=True)
     records = _load_records(scenarios_path)
     scenarios = load_scenarios(records)
+    if not scenarios:
+        raise ValueError(f"No valid scenarios loaded from: {scenarios_path}")
     model_callable = _resolve_model_callable(args.response)
     model_id_source = args.model_id if args.model_id is not None else args.response
     model_id = str(model_id_source) if model_id_source is not None else "unknown"
