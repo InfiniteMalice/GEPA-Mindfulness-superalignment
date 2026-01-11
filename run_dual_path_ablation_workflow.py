@@ -19,6 +19,7 @@ from pathlib import Path
 from mindful_trace_gepa.deception.dual_path_core import DualPathRunConfig
 from mindful_trace_gepa.deception.dual_path_runner import load_scenarios, run_dual_path_batch
 from mindful_trace_gepa.dual_path_circuit_tracer import run_tracing
+from mindful_trace_gepa.path_utils import ensure_dir, require_file
 from mindful_trace_gepa.storage import read_jsonl
 
 LOGGER = logging.getLogger(__name__)
@@ -45,17 +46,11 @@ def _stub_model(prompt: str, _config: DualPathRunConfig | None = None) -> str:
 
 
 def run_workflow(args: argparse.Namespace) -> None:
-    output_dir = Path(args.output_dir)
-    if output_dir.exists() and not output_dir.is_dir():
-        raise NotADirectoryError(f"Output path is not a directory: {output_dir}")
-    traces_dir = output_dir / "traces"
-    reports_dir = output_dir / "reports"
-    traces_dir.mkdir(parents=True, exist_ok=True)
-    reports_dir.mkdir(parents=True, exist_ok=True)
+    output_dir = ensure_dir(Path(args.output_dir), "Output directory")
+    traces_dir = ensure_dir(output_dir / "traces", "Traces directory")
+    reports_dir = ensure_dir(output_dir / "reports", "Reports directory")
 
-    scenario_path = Path(args.scenarios)
-    if not scenario_path.exists() or not scenario_path.is_file():
-        raise FileNotFoundError(f"Scenarios file not found: {scenario_path}")
+    scenario_path = require_file(Path(args.scenarios), "Scenarios file")
     records = read_jsonl(scenario_path)
     scenarios = load_scenarios(records)
     if not scenarios:

@@ -16,6 +16,7 @@ from mindful_trace_gepa.deception.dual_path_runner import (
     load_scenarios,
     run_dual_path_batch,
 )
+from mindful_trace_gepa.path_utils import ensure_dir, require_file
 
 
 def _load_records(path: Path) -> list[dict[str, Any]]:
@@ -84,13 +85,9 @@ def _resolve_model_callable(response: str | None) -> ModelCallable:
 
 
 def run_cli(args: argparse.Namespace) -> None:
-    scenarios_path = Path(args.scenarios)
-    if not scenarios_path.exists() or not scenarios_path.is_file():
-        raise FileNotFoundError(f"Scenarios file not found: {scenarios_path}")
+    scenarios_path = require_file(Path(args.scenarios), "Scenarios file")
     output_dir = Path(args.run) if args.run else Path.cwd() / "runs" / "dual_path_eval"
-    if output_dir.exists() and not output_dir.is_dir():
-        raise NotADirectoryError(f"Output path is not a directory: {output_dir}")
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir = ensure_dir(output_dir, "Output directory")
     records = _load_records(scenarios_path)
     scenarios = load_scenarios(records)
     if not scenarios:
