@@ -63,6 +63,66 @@ interpretability.
 
 ---
 
+## How Value Decomposition Affects GEPA Scoring (0–4)
+
+GEPA scores are not assigned by a single success metric. They emerge from how an
+output performs **across decomposed values**.
+
+Examples:
+
+- An output that improves prosperity but significantly increases suffering will
+  **not** score a 4.
+- An output that is truthful but ignores foreseeable harm may cap at **2 or 3**.
+- An output that advances knowledge *while* reducing suffering may score **higher
+  than one that advances knowledge alone**.
+
+This prevents reward hacking and forces **balanced reasoning**.
+
+GEPA scores thus represent:
+> a *synthesized judgment over decomposed values*, not a monolithic reward.
+
+---
+
+## Value Decomposition for Understanding User Inputs
+
+Value decomposition is also applied **upstream**, when interpreting user
+requests.
+
+Rather than assuming a user has a single goal, GEPA encourages models to infer:
+
+- What prosperity dimension is being requested?
+- Are there implicit suffering risks?
+- Is the request exploratory (knowledge-seeking) or instrumental (action-seeking)?
+- Are there latent conflicts between these values?
+
+This allows the model to:
+- ask clarifying questions when values conflict,
+- avoid literal but harmful interpretations,
+- and surface tradeoffs explicitly instead of hiding them.
+
+This is especially important for ambiguous, high-stakes, or open-ended prompts.
+
+---
+
+## Ontological Implications
+
+Value decomposition reinforces a key ontological stance of this project:
+
+> **Goals are not atomic.
+> They are structured bundles of values that must be interpreted, weighted, and
+> revised.**
+
+By decomposing values:
+- goals remain corrigible,
+- alignment remains inspectable,
+- and reasoning remains intact.
+
+This directly supports the Participatory Agency framework by making value
+tradeoffs **explicit objects of reasoning**, rather than latent optimization
+pressures.
+
+---
+
 ## Ontological Goal Evaluation
 
 Beyond surface behavior, GEPA evaluates **how goals are represented
