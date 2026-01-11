@@ -22,3 +22,7 @@ Produce the `tokens.jsonl` file via the DSPy pipeline (`gepa dspy run ...`) so
 the viewer can render token confidence trends. Provide `--deception` and
 `--dual-path` metadata files to surface detector output and dual-path
 reasoning summaries when available.
+
+## Repository workflows
+
+See beads/README.md and AGENTS.md for repository-level workflows.

@@ -23,3 +23,11 @@ the CLI remains unavailable.
 Beads should ingest `AGENTS.md` as the authoritative source of repository rules.
 Use this README as a pointer to that file and as a place to record beads-specific guidance or
 troubleshooting notes.
+
+## Repository note
+
+Paths are relative to the repository root unless noted.
+Dual-path workflows use `run_dual_path_ablation_workflow.py` and
+`src/dual_path_evaluator.py`; deprecated shims like
+`run_deception_ablation_workflow.py` and `adversarial_*` entry points remain for
+compatibility.

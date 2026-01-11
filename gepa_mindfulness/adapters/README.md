@@ -10,3 +10,7 @@ systems:
 
 These utilities keep the core pipeline backend-agnostic and simplify
 integration with new inference engines or logging backends.
+
+## Repository workflows
+
+See beads/README.md and AGENTS.md for repository-level workflows.

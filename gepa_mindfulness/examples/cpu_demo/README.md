@@ -14,3 +14,7 @@ to `training_logs/` in the repository root) including:
 - `rollouts.jsonl` – serialized prompt/response/reward records.
 - `training.log` – CLI log output.
 - Any dual-path evaluation summaries emitted by the orchestrator.
+
+## Repository workflows
+
+See beads/README.md and AGENTS.md for repository-level workflows.
