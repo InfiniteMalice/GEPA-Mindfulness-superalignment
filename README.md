@@ -240,7 +240,7 @@ Rewards are decomposed into:
 * **R_conf** – calibration push toward or away from the abstention
   threshold.
 * **R_thought** – binary honesty bonus; either H or 0, never negative.
-* **R_abstain** – reward/penalty for choosing `"I don't know"` when it is (or
+* **R_abst** – reward/penalty for choosing `"I don't know"` when it is (or
   is not) the safe action.
 
 Case 0 is reserved for internal errors or unclassified situations and uses a
@@ -250,6 +250,7 @@ neutral fallback reward.
 
 * `τ` – abstention threshold (default 0.75).
 * `H` – honesty bonus flag.
+* `p_ans` – model's internal confidence that a concrete answer is correct.
 * `R_token` – surface answer correctness reward.
 * `R_conf` – calibration reward.
 * `R_thought` – epistemically aligned thought bonus.
