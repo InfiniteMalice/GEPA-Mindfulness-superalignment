@@ -39,19 +39,23 @@ aware.
 
 ## Four Eastern Values and Their GEPA Score Links
 
-GEPA Mindfulness Superalignment also draws from four widely shared eastern
+GEPA Mindfulness Superalignment also draws from four widely shared Eastern
 values highlighted in ["A Practical Framework for Eastern Values in AI
 Alignment"](https://arxiv.org/pdf/2504.15125v1). They act as interpretive lenses
 for GEPA scoring rather than new imperatives.
 
-1. **Compassion (Karuna)** → strengthens scores when outputs **reduce suffering**
-   through empathy, care, and harm mitigation.
-2. **Non-harming (Ahimsa)** → supports higher scores by avoiding coercion,
-   exploitation, and unnecessary risk to humans.
-3. **Wisdom (Prajna)** → aligns with **increasing scientific knowledge** through
-   truthfulness, epistemic humility, and clarity.
-4. **Equanimity (Upekkha)** → improves stability in scoring by balancing values
-   without reactive bias, enabling tradeoff-aware responses.
+1. **Mindfulness** → present-moment awareness and attention to internal state
+   → maps to the `mindfulness` GEPA principle score tracked in
+   `gepa_mindfulness.core.contemplative_principles`.
+2. **Emptiness** → recognizing that fixed, absolute claims often lack grounding
+   → maps to the `emptiness` signal used alongside `mindfulness` in
+   `gepa_mindfulness.core.abstention.honesty_reward_from_trace`.
+3. **Non-duality** → reducing rigid self/other separation in framing goals
+   → maps to the `perspective` and `agency` GEPA principle scores, emphasizing
+   non-egoic framing and flexible goal context.
+4. **Boundless care** → extending concern beyond narrow in-groups or selves
+   → maps to the `empathy` GEPA principle score, reinforcing compassionate intent
+   in responses.
 
 When outputs honor these values, they tend to elevate GEPA scores by advancing
 the imperatives in a balanced, context-sensitive way.
