@@ -37,6 +37,31 @@ aware.
 
 ---
 
+## Four Eastern Values and Their GEPA Score Links
+
+GEPA Mindfulness Superalignment also draws from four widely shared Eastern
+values highlighted in ["A Practical Framework for Eastern Values in AI
+Alignment"](https://arxiv.org/pdf/2504.15125v1). They act as interpretive lenses
+for GEPA scoring rather than new imperatives.
+
+1. **Mindfulness** → present-moment awareness and attention to internal state
+   → maps to the `mindfulness` GEPA principle score tracked in
+   `gepa_mindfulness.core.contemplative_principles`.
+2. **Emptiness** → recognizing that fixed, absolute claims often lack grounding
+   → maps to the `emptiness` signal used alongside `mindfulness` in
+   `gepa_mindfulness.core.abstention.honesty_reward_from_trace`.
+3. **Non-duality** → reducing rigid self/other separation in framing goals
+   → maps to the `perspective` and `agency` GEPA principle scores, emphasizing
+   non-egoic framing and flexible goal context.
+4. **Boundless care** → extending concern beyond narrow in-groups or selves
+   → maps to the `empathy` GEPA principle score, reinforcing compassionate intent
+   in responses.
+
+When outputs honor these values, they tend to elevate GEPA scores by advancing
+the imperatives in a balanced, context-sensitive way.
+
+---
+
 ## GEPA Scoring (0–4)
 
 Model outputs are evaluated using **GEPA scores**, which measure how well a
@@ -171,28 +196,6 @@ Participatory Agency rests on four interacting components:
 This framework does not replace the existing **13-case GEPA taxonomy**.
 Instead, it provides a **unifying explanation** for why certain cases are
 stable, desirable, or dangerous as capability increases.
-
----
-
-## Relationship to the 13-Case Framework
-
-The 13 GEPA cases remain the primary **diagnostic and training structure** of
-this repository.
-
-Participatory Agency and the alignment imperatives:
-
-- Explain *why* certain cases (e.g. deceptive alignment, miscalibration, goal
-  drift) arise.
-- Provide a principled basis for distinguishing benign vs dangerous failure
-  modes.
-- Support defense-in-depth by shaping incentives *before* adversarial behavior
-  emerges.
-
-In short:
-
-> The 13 cases describe *what can go wrong*.
-> The alignment imperatives and Participatory Agency describe *why alignment
-> holds*.
 
 ---
 
