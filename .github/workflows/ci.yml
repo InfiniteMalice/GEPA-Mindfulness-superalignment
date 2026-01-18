@@ -42,6 +42,17 @@ jobs:
           pip install torch>=2.9.0 --extra-index-url https://download.pytorch.org/whl/cpu
           pip install -e .[pdf] || pip install -e .
           pip install pytest pytest-cov ruff black==24.11.0 mypy
+
+      - name: Show Black & tooling versions and diffs (CI debug)
+        run: |
+          echo "Black version:"
+          black --version || python -m pip show black
+          echo
+          echo "pip freeze (formatters):"
+          pip freeze | grep -E '^(black|ruff|mypy|pytest)' || true
+          echo
+          echo "Black --check --diff (CI view of changes):"
+          black --config pyproject.toml --check --diff . || true
       
       - name: Lint (ruff)
         run: ruff check .
