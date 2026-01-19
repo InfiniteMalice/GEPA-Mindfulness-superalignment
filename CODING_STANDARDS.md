@@ -499,7 +499,7 @@ Create `.pre-commit-config.yaml`:
 ```yaml
 repos:
   - repo: https://github.com/psf/black
-    rev: 24.10.0
+    rev: 26.1.0
     hooks:
       - id: black
         args: [--line-length=100]
