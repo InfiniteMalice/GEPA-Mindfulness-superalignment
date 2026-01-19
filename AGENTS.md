@@ -6,6 +6,9 @@ You are coding for the GEPA-Mindfulness-superalignment repository. Follow these 
 
 - Repository instructions are canonical here; beads reads them via `beads/README.md`.
 - See `beads/README.md` for beads setup and ingestion notes.
+- Reminder: Codex automation (agents/scripts) must avoid `bd`, while humans and onboarding
+  flows should continue to use `bd` for issue tracking and CLI workflows; direct `.beads/*`
+  edits are acceptable for artifact updates or when the CLI is unavailable.
 - Beads is already enabled for this repository; run `bd onboard` from the repo root to fetch
   integration instructions. If `bd` is unavailable, ensure the beads CLI is on your PATH and
   ask the maintainer of the manual install for the expected location.
