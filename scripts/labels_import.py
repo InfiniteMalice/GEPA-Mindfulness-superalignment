@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Import gold labels and split train/val/test."""
+
 import argparse
 import json
 import random
