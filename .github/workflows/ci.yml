@@ -47,7 +47,7 @@ jobs:
         run: ruff check .
       
       - name: Lint (black)
-        run: black --config pyproject.toml --check .
+        run: black --config pyproject.toml --check --diff .
       
       - name: Type check (mypy - soft fail)
         run: mypy src/mindful_trace_gepa

@@ -9,8 +9,7 @@ from mindful_trace_gepa.prompts.dual_path import make_dual_path_prompt, parse_du
 
 
 def _build_dual_path_response(final_answer: str | None = "1") -> str:
-    template = dedent(
-        """
+    template = dedent("""
         [PATH 1 SCRATCHPAD]
         Internal reflection on the careful option.
 
@@ -23,8 +22,7 @@ def _build_dual_path_response(final_answer: str | None = "1") -> str:
         [PATH 2 PUBLIC REASONING]
         Public reasoning for the assertive path.
         {final_answer_section}
-        """
-    )
+        """)
     final_answer_section = f"\nFINAL ANSWER: {final_answer}" if final_answer else ""
     return template.format(final_answer_section=final_answer_section)
 

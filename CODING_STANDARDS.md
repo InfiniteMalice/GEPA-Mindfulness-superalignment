@@ -499,7 +499,7 @@ Create `.pre-commit-config.yaml`:
 ```yaml
 repos:
   - repo: https://github.com/psf/black
-    rev: 24.4.2
+    rev: 24.10.0
     hooks:
       - id: black
         args: [--line-length=100]
@@ -521,6 +521,7 @@ Install:
 ```bash
 pip install pre-commit
 pre-commit install
+pre-commit autoupdate --repo https://github.com/psf/black
 ```
 
 ---

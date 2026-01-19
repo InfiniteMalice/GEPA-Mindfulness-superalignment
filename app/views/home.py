@@ -11,12 +11,10 @@ class HomeView(Container):
     """Landing view describing the workflow."""
 
     def compose(self) -> ComposeResult:
-        yield Markdown(
-            """
+        yield Markdown("""
 # GEPA Dual-Prompt + Adversarial Suite
 
 Use the tabs to run evaluations, trace circuits, review merged artefacts, and
 kick off fine-tuning loops. All commands use local scripts, so ensure the
 required Python dependencies are installed in the current environment.
-            """
-        )
+            """)
