@@ -32,8 +32,8 @@ trace back to **three imperatives**:
 
 These imperatives are intentionally broad, non-exclusive, and non-zero-sum.
 They are designed to remain valid across domains, cultures, and future
-contexts, and are not in a rigid hiarchy of values. All co-equal and context
-aware. They align with the
+contexts, and are not in a rigid hierarchy of values. They are all co-equal
+and context-aware. They align with the
 ["Benevolent by Design" imperatives](https://github.com/daveshap/BenevolentByDesign).
 
 ---
@@ -93,7 +93,7 @@ interpretability.
 
 GEPA scores are not assigned by a single success metric. They emerge from how an
 output performs **across decomposed values**, following the value decomposition
-framing in ["Value Decomposition"](http://arxiv.org/pdf/2511.02109v1).
+framing in ["Value Decomposition"](https://arxiv.org/pdf/2511.02109v1).
 
 Examples:
 
