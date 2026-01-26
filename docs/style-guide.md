@@ -947,7 +947,7 @@ class Visualizer:
 
 **Key Takeaways:**
 
-1. **Line length is absolute**: Always ≤100 characters
+1. **Line length is absolute for Python**: Always ≤100 characters
 2. **Imports are organized**: stdlib → 3rd-party → local
 3. **Type hints are required**: On all public functions
 4. **Documentation is comprehensive**: Module, class, function
