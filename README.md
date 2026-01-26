@@ -42,7 +42,7 @@ and context-aware. They align with the
 
 GEPA Mindfulness Superalignment also draws from four widely shared Eastern
 values highlighted in ["A Practical Framework for Eastern Values in AI
-Alignment"](https://arxiv.org/pdf/2504.15125v1). They act as interpretive lenses
+Alignment"](https://arxiv.org/pdf/2504.15125?). They act as interpretive lenses
 for GEPA scoring rather than new imperatives.
 
 1. **Mindfulness** → present-moment awareness and attention to internal state
