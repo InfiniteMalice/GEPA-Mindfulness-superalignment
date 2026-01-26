@@ -172,11 +172,12 @@ For more details, see README.md and QUICKSTART.md.
 
 ## CRITICAL RULES (ALL CODE MUST FOLLOW)
 
-### Rule 1: 100 Character Line Limit
-- Maximum line length: 100 characters
-- NO exceptions
+### Rule 1: 100 Character Line Limit (Python Only)
+- Maximum line length: 100 characters for Python files
+- NO exceptions for Python source
 - Count includes indentation
 - Enforce before Black formatting
+- Markdown and other documentation files are not subject to this limit
 
 ### Rule 2: Import Organization
 Structure ALL imports exactly like this:
@@ -297,7 +298,7 @@ def short_func_name(
 
 ## PRE-COMMIT CHECKLIST
 
-- [ ] All lines ≤ 100 characters (verify manually)
+- [ ] Python lines ≤ 100 characters (verify manually)
 - [ ] Imports: sorted, organized, no unused
 - [ ] Black formatted: `black --line-length 100 .`
 - [ ] No syntax errors
@@ -305,7 +306,7 @@ def short_func_name(
 
 ## PRIORITY ORDER
 
-1. 100 char limit (ABSOLUTE)
+1. 100 char limit for Python files (ABSOLUTE)
 2. Proper imports (REQUIRED)
 3. No unused imports (REQUIRED)
 4. Black formatting (REQUIRED)
