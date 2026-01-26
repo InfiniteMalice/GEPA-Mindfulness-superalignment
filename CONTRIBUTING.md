@@ -98,7 +98,7 @@ Examples:
 
 Follow the [CODING_STANDARDS.md](./CODING_STANDARDS.md) strictly:
 
-- Maximum 100 characters per line
+- Maximum 100 characters per line for Python files
 - Proper import organization
 - No unused imports
 - Black formatting
@@ -197,7 +197,7 @@ Closes #123
 
 ### Key Requirements Summary
 
-#### 1. Line Length: 100 Characters Maximum
+#### 1. Line Length: 100 Characters Maximum (Python Only)
 
 ```python
 # ❌ WILL BE REJECTED
@@ -257,7 +257,7 @@ def calc_score(data: np.ndarray) -> float:
 
 Before committing, verify:
 
-- [ ] All lines ≤ 100 characters
+- [ ] Python lines ≤ 100 characters
 - [ ] Imports organized and sorted
 - [ ] No unused imports
 - [ ] Code formatted with Black
@@ -325,7 +325,7 @@ Use the provided template. Include:
 ### What Reviewers Check
 
 1. **Coding Standards Compliance**
-   - 100-char line limit
+   - 100-char line limit for Python files
    - Import organization
    - Black formatting
    - Type hints

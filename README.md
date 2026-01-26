@@ -33,7 +33,8 @@ trace back to **three imperatives**:
 These imperatives are intentionally broad, non-exclusive, and non-zero-sum.
 They are designed to remain valid across domains, cultures, and future
 contexts, and are not in a rigid hiarchy of values. All co-equal and context
-aware. 
+aware. They align with the
+["Benevolent by Design" imperatives](https://github.com/daveshap/BenevolentByDesign).
 
 ---
 
@@ -91,7 +92,8 @@ interpretability.
 ## How Value Decomposition Affects GEPA Scoring (0–4)
 
 GEPA scores are not assigned by a single success metric. They emerge from how an
-output performs **across decomposed values**.
+output performs **across decomposed values**, following the value decomposition
+framing in ["Value Decomposition"](http://arxiv.org/pdf/2511.02109v1).
 
 Examples:
 
@@ -312,6 +314,9 @@ The implementation and this schema enforce a set of invariants:
 
 This 13+0 schema is applied on top of any optimizer (PPO, GRPO, supervised) and
 is the behavioral backbone for all experiments in this repository.
+Thought-trace alignment and attribution framing also draw on the
+["Thought Trace and Attribution Graphs"
+reference](https://transformer-circuits.pub/2025/attribution-graphs/biology.html).
 
 ## Repository layout
 

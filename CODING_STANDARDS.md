@@ -26,7 +26,7 @@ Mindfulness Superalignment project. All code contributions must
 adhere to these standards without exception.
 
 **Key Requirements:**
-- Maximum 100 characters per line (absolute)
+- Maximum 100 characters per line for Python files (absolute)
 - Strict import organization
 - No unused imports
 - Black formatting compliance
@@ -55,9 +55,10 @@ understand your code without deep context.
 
 ## Line Length Requirements
 
-### Rule: Maximum 100 Characters Per Line
+### Rule: Maximum 100 Characters Per Line (Python Only)
 
-**This is an absolute requirement with NO exceptions.**
+**This is an absolute requirement for Python files with NO exceptions.**
+Markdown and other documentation files are not subject to this limit.
 
 ### Strategies for Compliance
 
@@ -296,7 +297,7 @@ result = very_long_function_name(*args)
 - Use `snake_case` for functions and variables
 - Use `PascalCase` for classes
 - Use `UPPER_SNAKE_CASE` for constants
-- Use descriptive names, but respect 100-char limit
+- Use descriptive names, but respect the 100-char limit for Python files
 
 ### Examples
 
@@ -450,11 +451,11 @@ class TestMindfulScore(unittest.TestCase):
 
 Before committing code, verify:
 
-- [ ] All lines ≤ 100 characters
+- [ ] Python lines ≤ 100 characters
 - [ ] Imports organized in 3 sections (stdlib, 3rd-party, local)
 - [ ] Imports alphabetically sorted within sections
 - [ ] No unused imports
-- [ ] Code formatted with Black (100 char line length)
+- [ ] Python code formatted with Black (100 char line length)
 - [ ] Type hints on all public functions
 - [ ] Docstrings on all public functions/classes
 - [ ] No trailing whitespace
@@ -582,7 +583,7 @@ def func():
 ┌─────────────────────────────────────────────────────────┐
 │ GEPA MINDFULNESS CODING STANDARDS - QUICK REF          │
 ├─────────────────────────────────────────────────────────┤
-│ Line Length:        100 chars max (ABSOLUTE)           │
+│ Line Length:        100 chars max for Python (ABSOLUTE)│
 │ Indentation:        4 spaces (NO tabs)                 │
 │ Quotes:             Double quotes ""                    │
 │ Import Sections:    stdlib → 3rd-party → local         │
