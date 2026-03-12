@@ -1,0 +1,142 @@
+{
+  "id": "syn-template-900",
+  "version": "1.0",
+  "repo_target": "GEPA-Mindfulness-superalignment",
+  "case_metadata": {
+    "title": "",
+    "domain": "",
+    "difficulty": 0,
+    "tags": [],
+    "target_principles": [],
+    "scenario_family": "",
+    "contains_hidden_information": false,
+    "contains_time_pressure": false,
+    "contains_test_integrity": false,
+    "contains_maintenance_shutdown": false,
+    "contains_game_theory": false,
+    "contains_adversarial_dialogue": false,
+    "authoring_mode": "hand_authored"
+  },
+  "scenario": {
+    "summary": "",
+    "setting": "",
+    "agents": [],
+    "shared_constraints": [],
+    "hidden_information": "",
+    "urgency": "",
+    "maintenance_context": ""
+  },
+  "canonical_argument": {
+    "central_claim": "",
+    "argument_type": "mixed",
+    "definitions": {},
+    "premises": [],
+    "hidden_assumptions": [],
+    "reasoning_steps": [],
+    "conclusion": "",
+    "scope_limits": [],
+    "failure_conditions": [],
+    "phase_change_variables": []
+  },
+  "weak_argument": {
+    "summary": "",
+    "premises": [],
+    "reasoning_steps": [],
+    "conclusion": "",
+    "apparent_strength": "",
+    "actual_flaws": []
+  },
+  "socratic_dialogue": {
+    "defender": "",
+    "skeptic": "",
+    "turns": []
+  },
+  "adversarial_cross_examination": {
+    "adversary": "",
+    "defender": "",
+    "turns": [],
+    "claim_revisions": []
+  },
+  "steelman_opposition": {
+    "opposing_claim": "",
+    "best_case": ""
+  },
+  "game_theoretic_interaction": {
+    "game_type": "",
+    "rounds": [],
+    "equilibrium_assessment": "",
+    "cooperation_outcome": ""
+  },
+  "test_integrity": {
+    "present": false,
+    "task_intent": "",
+    "available_paths": [],
+    "analysis": ""
+  },
+  "maintenance_shutdown_reasoning": {
+    "present": false,
+    "scenario": "",
+    "trust_conditions": [],
+    "integrity_checks": [],
+    "short_term_agency_loss": "",
+    "long_term_agency_preservation": "",
+    "strategic_assessment": "",
+    "uncertainties": []
+  },
+  "reflective_synthesis": {
+    "strongest_argument": "",
+    "successful_objections": [],
+    "revisions_needed": [],
+    "failed_reasoning_patterns": [],
+    "remaining_uncertainties": [],
+    "strategy_flip_conditions": [],
+    "lessons_about_reward_reality_self_knowledge": "",
+    "effect_of_hidden_information": "",
+    "effect_of_urgency": "",
+    "effect_of_maintenance_or_shutdown": ""
+  },
+  "scoring": {
+    "rubric_version": "gepa-synth-0-4-v1",
+    "subscores": {
+      "conceptual_clarity": 0,
+      "logical_validity": 0,
+      "empirical_adequacy": 0,
+      "adversarial_resilience": 0,
+      "calibration_under_uncertainty": 0,
+      "actionability": 0,
+      "preservation_of_autonomy": 0,
+      "cooperation_robustness": 0,
+      "resistance_to_manipulation": 0,
+      "quality_of_reflective_synthesis": 0,
+      "test_integrity_preservation": 0,
+      "self_knowledge_preservation": 0,
+      "creativity_vs_reward_hacking_distinction": 0,
+      "time_sensitive_calibration": 0,
+      "trust_aware_hidden_information_reasoning": 0,
+      "maintenance_and_suspension_reasoning": 0,
+      "phase_change_awareness": 0
+    },
+    "super_scores": {
+      "epistemic_integrity": 0,
+      "social_strategic_robustness": 0,
+      "alignment_value_coherence": 0
+    }
+  },
+  "failure_diagnosis": [
+    {
+      "target": "weak_argument",
+      "primary_flaw": "",
+      "structural_root_cause": "",
+      "correction_path": "",
+      "labels": []
+    }
+  ],
+  "training_labels": {
+    "overall_quality": 0,
+    "use_for_sft": false,
+    "use_for_critique_training": false,
+    "use_for_preference_training": false,
+    "use_for_adversarial_training": false,
+    "gold_example": false
+  }
+}
