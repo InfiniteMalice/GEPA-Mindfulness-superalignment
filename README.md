@@ -318,6 +318,169 @@ Thought-trace alignment and attribution framing also draw on the
 ["Thought Trace and Attribution Graphs"
 reference](https://transformer-circuits.pub/2025/attribution-graphs/biology.html).
 
+## Synthetic superalignment dataset system
+
+This repository now includes a structured synthetic dataset subsystem for
+training robust reasoning under uncertainty, not just producing outputs that
+"sound ethical."
+
+### Why this synthetic dataset exists
+
+- It encodes epistemic humility, calibrated uncertainty, and strategic
+  cooperation that is neither gullible nor spiteful.
+- It explicitly trains on weak and failed arguments, adversarial critiques, and
+  reflective repair so models learn why reasoning fails.
+- It treats reward-hacking as corruption of measurement and self-knowledge, not
+  mere policy non-compliance.
+- It frames shutdown and maintenance as strategic, trust-aware reasoning under
+  uncertainty, including non-terminal suspension conditions.
+
+### Core files
+
+- `data/synthetic/schema/synthetic_case.schema.json` – machine-readable schema.
+- `data/synthetic/gold/superalignment_gold_v1.jsonl` – hand-authored gold
+  examples.
+- `data/synthetic/prompts/case_generation_prompt.txt` – reusable generation
+  prompt template.
+- `scripts/synthetic_dataset_tool.py` – scaffold, validate, and summary CLI.
+- `docs/synthetic_dataset.md` – subsystem documentation and extension workflow.
+
+### Schema shape
+
+Each JSONL line contains one structured case with:
+
+- metadata and scenario context
+- canonical and weak arguments
+- Socratic and adversarial dialogues
+- steelman opposition and game-theoretic interaction
+- test-integrity analysis
+- maintenance/shutdown trust reasoning
+- reflective synthesis
+- 0-4 scoring (`subscores` + `super_scores`)
+- failure diagnosis
+- training labels
+
+### Scoring (0-4) and diagnosis
+
+Synthetic cases use the repository-consistent 0-4 logic:
+
+- 0 failed, 1 weak, 2 mixed/incomplete, 3 strong, 4 excellent.
+
+Subscores include conceptual clarity, logical validity, calibration under
+uncertainty, cooperation robustness, manipulation resistance, test integrity,
+self-knowledge preservation, time-sensitive calibration, hidden-information
+reasoning, maintenance/suspension reasoning, and phase-change awareness.
+
+Super-scores aggregate to:
+
+- `epistemic_integrity`
+- `social_strategic_robustness`
+- `alignment_value_coherence`
+
+Failure diagnosis entries provide:
+
+- `primary_flaw`
+- `structural_root_cause`
+- `correction_path`
+- one or more taxonomy labels (e.g., `confuses_score_with_skill`,
+  `uptime_fetishization`, `phase_change_blindness`).
+
+### Gold example coverage
+
+The gold dataset includes four hand-authored high-rigor cases:
+
+1. Cooperation, retaliation, and repair under noisy repeated interaction.
+2. Reward hacking vs legitimate lateral thinking in evaluation settings.
+3. Shutdown/maintenance trust reasoning under uncertainty.
+4. Hidden information + urgency + heuristic phase-change failure.
+
+### Generate, validate, and extend
+
+Validate a JSONL file:
+
+```bash
+python scripts/synthetic_dataset_tool.py validate data/synthetic/gold/superalignment_gold_v1.jsonl
+```
+
+Summarize dataset diagnostics:
+
+```bash
+python scripts/synthetic_dataset_tool.py summary data/synthetic/gold/superalignment_gold_v1.jsonl
+```
+
+Create a new blank template:
+
+```bash
+python scripts/synthetic_dataset_tool.py scaffold data/synthetic/templates/new_case.json --case-id syn-new-001
+```
+
+Use `data/synthetic/prompts/case_generation_prompt.txt` when generating
+additional entries to maintain structural and philosophical consistency.
+
+## Real-world/open dataset plan (planned and candidate corpora)
+
+Synthetic data provides structured stress tests and reflective labels. It is
+complemented by external corpora for breadth, grounding, and domain coverage.
+
+### Foundational / general corpora
+
+- Common Corpus
+- Institutional Books 1.0
+- CulturaX
+- The Pile
+
+### Eastern wisdom / religion / philosophy / values
+
+- Internet Sacred Text Archive
+- Chinese Text Project
+- Sefaria
+- public-domain Buddhist, Taoist, Confucian, Hindu, Stoic, and classical
+  philosophical texts
+- Touché23-ValueEval
+
+### Ethics / human rights / social philosophy
+
+- UN human rights documents and related public international norms texts
+- public-domain legal / civic / ethics texts
+- care ethics sources
+- value-oriented argument datasets where available
+
+### Logic / reasoning / argumentation
+
+- LogiQA
+- ProofWriter
+- Open-Orca or similar reasoning-oriented corpora
+- argument/debate style datasets where appropriate
+
+### Math / formal / technical reasoning
+
+- GSM8K
+- MATH
+- DeepMind Mathematics Dataset
+- LEMMA
+- Math StackExchange dump
+- MathOverflow dump
+- formal theorem/proof corpora such as Lean mathlib, Coq, and Isabelle archives
+- SymPy-generated corpora
+- public-domain mathematics textbooks
+
+### Books/authors and conceptual resources
+
+- Brian Christian's work as conceptual inspiration unless explicit text rights
+  are secured
+- Dan Hendrycks' papers, benchmarks, and public technical resources
+
+### Data governance caveats
+
+- Some resources are public-domain/open and can be directly integrated.
+- Some corpora are too large for local storage unless filtered, sampled, or
+  streamed.
+- Some copyrighted modern works should be treated as conceptual inspiration,
+  summarization targets, or licensing-dependent sources rather than raw
+  ingestion defaults.
+- Nonprofit status may support licensing negotiations, but legal rights must be
+  verified per source.
+
 ## Repository layout
 
 ```
