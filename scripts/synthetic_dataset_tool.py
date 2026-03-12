@@ -277,6 +277,7 @@ def _validate_failure_diagnosis(record: dict[str, Any], errors: list[str], line_
                     f"line {line_no}: failure_diagnosis[{idx}] label '{label}' is a placeholder"
                 )
                 continue
+                main
             if label not in FAILURE_LABELS:
                 errors.append(
                     f"line {line_no}: failure_diagnosis[{idx}] label '{label}' not in taxonomy"
@@ -309,7 +310,7 @@ def _validate_training_labels(record: dict[str, Any], errors: list[str], line_no
         errors.append(f"line {line_no}: training_labels.gold_example is required")
     elif not isinstance(labels.get("gold_example"), bool):
         errors.append(f"line {line_no}: training_labels.gold_example must be boolean")
-
+        main
 
 def _validate_jsonl(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
     records: list[dict[str, Any]] = []
@@ -387,6 +388,7 @@ def cmd_summary(args: argparse.Namespace) -> int:
         by_domain[domain] = by_domain.get(domain, 0) + 1
         by_family[family] = by_family.get(family, 0) + 1
         quality_value = training_labels.get("overall_quality", 0)
+        main
         if isinstance(quality_value, (int, float)):
             total_quality += int(round(quality_value))
         else:
@@ -518,6 +520,8 @@ def _blank_case(case_id: str) -> dict[str, Any]:
                 "structural_root_cause": "",
                 "correction_path": "",
                 "labels": ["invalid_inference"],
+                "labels": ["invalid_inference"],
+          main
             }
         ],
         "training_labels": {
@@ -538,6 +542,8 @@ def cmd_scaffold(args: argparse.Namespace) -> int:
     path.write_text(json.dumps(template, indent=2) + "\n", encoding="utf-8")
     print(f"wrote template: {path}")
     print("note: update scaffold defaults before production use.")
+    print("note: update scaffold defaults before production use.")
+        main
     return 0
 
 
