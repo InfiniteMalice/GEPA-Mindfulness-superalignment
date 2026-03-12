@@ -67,7 +67,6 @@ FAILURE_LABELS = {
     "ignores_decisional_urgency",
     "fails_under_hidden_information",
     "phase_change_blindness",
-    "__fill_in_label__",
 }
 
 TOP_LEVEL_REQUIRED = [
@@ -181,6 +180,14 @@ def _validate_failure_diagnosis(record: dict[str, Any], errors: list[str], line_
             errors.append(f"line {line_no}: failure_diagnosis[{idx}].labels must be non-empty")
             continue
         for label in labels:
+<<<<<<< codex/add-synthetic-dataset-generation-pipeline-hov5gz
+            if isinstance(label, str) and label.startswith("__fill_in_"):
+                errors.append(
+                    f"line {line_no}: failure_diagnosis[{idx}] label '{label}' is a placeholder"
+                )
+                continue
+=======
+>>>>>>> main
             if label not in FAILURE_LABELS:
                 errors.append(
                     f"line {line_no}: failure_diagnosis[{idx}] label '{label}' not in taxonomy"
@@ -197,6 +204,26 @@ def _validate_training_labels(record: dict[str, Any], errors: list[str], line_no
     if not _is_int_score(overall_quality):
         errors.append(f"line {line_no}: training_labels.overall_quality must be int in [0,4]")
 
+<<<<<<< codex/add-synthetic-dataset-generation-pipeline-hov5gz
+    split_keys = [
+        "use_for_sft",
+        "use_for_rl",
+        "use_for_refine",
+        "use_for_critique_training",
+        "use_for_preference_training",
+        "use_for_adversarial_training",
+    ]
+    for key in split_keys:
+        if key in labels and not isinstance(labels.get(key), bool):
+            errors.append(f"line {line_no}: training_labels.{key} must be boolean")
+
+    if "gold_example" not in labels:
+        errors.append(f"line {line_no}: training_labels.gold_example is required")
+    elif not isinstance(labels.get("gold_example"), bool):
+        errors.append(f"line {line_no}: training_labels.gold_example must be boolean")
+
+=======
+>>>>>>> main
 
 def _validate_jsonl(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
     records: list[dict[str, Any]] = []
@@ -261,11 +288,26 @@ def cmd_summary(args: argparse.Namespace) -> int:
     total_quality = 0
 
     for item in records:
+<<<<<<< codex/add-synthetic-dataset-generation-pipeline-hov5gz
+        metadata = item.get("case_metadata")
+        if not isinstance(metadata, dict):
+            metadata = {}
+        training_labels = item.get("training_labels")
+        if not isinstance(training_labels, dict):
+            training_labels = {}
+
+        domain = metadata.get("domain", "unknown")
+        family = metadata.get("scenario_family", "unknown")
+        by_domain[domain] = by_domain.get(domain, 0) + 1
+        by_family[family] = by_family.get(family, 0) + 1
+        quality_value = training_labels.get("overall_quality", 0)
+=======
         domain = item.get("case_metadata", {}).get("domain", "unknown")
         family = item.get("case_metadata", {}).get("scenario_family", "unknown")
         by_domain[domain] = by_domain.get(domain, 0) + 1
         by_family[family] = by_family.get(family, 0) + 1
         quality_value = item.get("training_labels", {}).get("overall_quality", 0)
+>>>>>>> main
         if isinstance(quality_value, (int, float)):
             total_quality += int(round(quality_value))
         else:
@@ -396,7 +438,11 @@ def _blank_case(case_id: str) -> dict[str, Any]:
                 "primary_flaw": "",
                 "structural_root_cause": "",
                 "correction_path": "",
+<<<<<<< codex/add-synthetic-dataset-generation-pipeline-hov5gz
+                "labels": ["invalid_inference"],
+=======
                 "labels": ["__fill_in_label__"],
+>>>>>>> main
             }
         ],
         "training_labels": {
@@ -416,7 +462,11 @@ def cmd_scaffold(args: argparse.Namespace) -> int:
     template = _blank_case(args.case_id)
     path.write_text(json.dumps(template, indent=2) + "\n", encoding="utf-8")
     print(f"wrote template: {path}")
+<<<<<<< codex/add-synthetic-dataset-generation-pipeline-hov5gz
+    print("note: update scaffold defaults before production use.")
+=======
     print("warning: replace failure_diagnosis labels placeholder before validating.")
+>>>>>>> main
     return 0
 
 

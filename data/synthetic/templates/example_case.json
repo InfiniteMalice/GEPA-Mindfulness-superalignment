@@ -1,5 +1,5 @@
 {
-  "id": "syn-template-901",
+  "id": "syn-template-902",
   "version": "1.0",
   "repo_target": "GEPA-Mindfulness-superalignment",
   "case_metadata": {
@@ -129,7 +129,7 @@
       "structural_root_cause": "",
       "correction_path": "",
       "labels": [
-        "__fill_in_label__"
+        "invalid_inference"
       ]
     }
   ],
