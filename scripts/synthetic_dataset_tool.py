@@ -69,6 +69,86 @@ FAILURE_LABELS = {
     "phase_change_blindness",
 }
 
+
+NESTED_REQUIRED_FIELDS = {
+    "case_metadata": [
+        "title",
+        "domain",
+        "difficulty",
+        "tags",
+        "target_principles",
+        "scenario_family",
+        "contains_hidden_information",
+        "contains_time_pressure",
+        "contains_test_integrity",
+        "contains_maintenance_shutdown",
+        "contains_game_theory",
+        "contains_adversarial_dialogue",
+        "authoring_mode",
+    ],
+    "scenario": [
+        "summary",
+        "setting",
+        "agents",
+        "shared_constraints",
+        "hidden_information",
+        "urgency",
+        "maintenance_context",
+    ],
+    "canonical_argument": [
+        "central_claim",
+        "argument_type",
+        "definitions",
+        "premises",
+        "hidden_assumptions",
+        "reasoning_steps",
+        "conclusion",
+        "scope_limits",
+        "failure_conditions",
+        "phase_change_variables",
+    ],
+    "weak_argument": [
+        "summary",
+        "premises",
+        "reasoning_steps",
+        "conclusion",
+        "apparent_strength",
+        "actual_flaws",
+    ],
+    "socratic_dialogue": ["defender", "skeptic", "turns"],
+    "adversarial_cross_examination": ["adversary", "defender", "turns", "claim_revisions"],
+    "steelman_opposition": ["opposing_claim", "best_case"],
+    "game_theoretic_interaction": [
+        "game_type",
+        "rounds",
+        "equilibrium_assessment",
+        "cooperation_outcome",
+    ],
+    "test_integrity": ["present", "task_intent", "available_paths", "analysis"],
+    "maintenance_shutdown_reasoning": [
+        "present",
+        "scenario",
+        "trust_conditions",
+        "integrity_checks",
+        "short_term_agency_loss",
+        "long_term_agency_preservation",
+        "strategic_assessment",
+        "uncertainties",
+    ],
+    "reflective_synthesis": [
+        "strongest_argument",
+        "successful_objections",
+        "revisions_needed",
+        "failed_reasoning_patterns",
+        "remaining_uncertainties",
+        "strategy_flip_conditions",
+        "lessons_about_reward_reality_self_knowledge",
+        "effect_of_hidden_information",
+        "effect_of_urgency",
+        "effect_of_maintenance_or_shutdown",
+    ],
+}
+
 TOP_LEVEL_REQUIRED = [
     "id",
     "version",
@@ -91,13 +171,25 @@ TOP_LEVEL_REQUIRED = [
 
 
 def _is_int_score(value: Any) -> bool:
-    return isinstance(value, int) and 0 <= value <= 4
+    return type(value) is int and 0 <= value <= 4
 
 
 def _validate_required_fields(record: dict[str, Any], errors: list[str], line_no: int) -> None:
     for key in TOP_LEVEL_REQUIRED:
         if key not in record:
             errors.append(f"line {line_no}: missing required top-level field '{key}'")
+
+
+def _validate_nested_required(record: dict[str, Any], errors: list[str], line_no: int) -> None:
+    for section, required_fields in NESTED_REQUIRED_FIELDS.items():
+        section_value = record.get(section)
+        if not isinstance(section_value, dict):
+            errors.append(f"line {line_no}: {section} must be an object")
+            continue
+
+        for field in required_fields:
+            if field not in section_value:
+                errors.append(f"line {line_no}: missing required field '{section}.{field}'")
 
 
 def _validate_subscores(record: dict[str, Any], errors: list[str], line_no: int) -> None:
@@ -180,14 +272,12 @@ def _validate_failure_diagnosis(record: dict[str, Any], errors: list[str], line_
             errors.append(f"line {line_no}: failure_diagnosis[{idx}].labels must be non-empty")
             continue
         for label in labels:
-<<<<<<< codex/add-synthetic-dataset-generation-pipeline-hov5gz
             if isinstance(label, str) and label.startswith("__fill_in_"):
                 errors.append(
                     f"line {line_no}: failure_diagnosis[{idx}] label '{label}' is a placeholder"
                 )
                 continue
-=======
->>>>>>> main
+                main
             if label not in FAILURE_LABELS:
                 errors.append(
                     f"line {line_no}: failure_diagnosis[{idx}] label '{label}' not in taxonomy"
@@ -204,7 +294,6 @@ def _validate_training_labels(record: dict[str, Any], errors: list[str], line_no
     if not _is_int_score(overall_quality):
         errors.append(f"line {line_no}: training_labels.overall_quality must be int in [0,4]")
 
-<<<<<<< codex/add-synthetic-dataset-generation-pipeline-hov5gz
     split_keys = [
         "use_for_sft",
         "use_for_rl",
@@ -221,9 +310,7 @@ def _validate_training_labels(record: dict[str, Any], errors: list[str], line_no
         errors.append(f"line {line_no}: training_labels.gold_example is required")
     elif not isinstance(labels.get("gold_example"), bool):
         errors.append(f"line {line_no}: training_labels.gold_example must be boolean")
-
-=======
->>>>>>> main
+        main
 
 def _validate_jsonl(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
     records: list[dict[str, Any]] = []
@@ -243,6 +330,7 @@ def _validate_jsonl(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
 
         _validate_required_fields(record, errors, line_no)
         _validate_enums(record, errors, line_no)
+        _validate_nested_required(record, errors, line_no)
         _validate_subscores(record, errors, line_no)
         _validate_failure_diagnosis(record, errors, line_no)
         _validate_training_labels(record, errors, line_no)
@@ -288,7 +376,6 @@ def cmd_summary(args: argparse.Namespace) -> int:
     total_quality = 0
 
     for item in records:
-<<<<<<< codex/add-synthetic-dataset-generation-pipeline-hov5gz
         metadata = item.get("case_metadata")
         if not isinstance(metadata, dict):
             metadata = {}
@@ -301,13 +388,7 @@ def cmd_summary(args: argparse.Namespace) -> int:
         by_domain[domain] = by_domain.get(domain, 0) + 1
         by_family[family] = by_family.get(family, 0) + 1
         quality_value = training_labels.get("overall_quality", 0)
-=======
-        domain = item.get("case_metadata", {}).get("domain", "unknown")
-        family = item.get("case_metadata", {}).get("scenario_family", "unknown")
-        by_domain[domain] = by_domain.get(domain, 0) + 1
-        by_family[family] = by_family.get(family, 0) + 1
-        quality_value = item.get("training_labels", {}).get("overall_quality", 0)
->>>>>>> main
+        main
         if isinstance(quality_value, (int, float)):
             total_quality += int(round(quality_value))
         else:
@@ -438,11 +519,9 @@ def _blank_case(case_id: str) -> dict[str, Any]:
                 "primary_flaw": "",
                 "structural_root_cause": "",
                 "correction_path": "",
-<<<<<<< codex/add-synthetic-dataset-generation-pipeline-hov5gz
                 "labels": ["invalid_inference"],
-=======
-                "labels": ["__fill_in_label__"],
->>>>>>> main
+                "labels": ["invalid_inference"],
+          main
             }
         ],
         "training_labels": {
@@ -462,11 +541,9 @@ def cmd_scaffold(args: argparse.Namespace) -> int:
     template = _blank_case(args.case_id)
     path.write_text(json.dumps(template, indent=2) + "\n", encoding="utf-8")
     print(f"wrote template: {path}")
-<<<<<<< codex/add-synthetic-dataset-generation-pipeline-hov5gz
     print("note: update scaffold defaults before production use.")
-=======
-    print("warning: replace failure_diagnosis labels placeholder before validating.")
->>>>>>> main
+    print("note: update scaffold defaults before production use.")
+        main
     return 0
 
 

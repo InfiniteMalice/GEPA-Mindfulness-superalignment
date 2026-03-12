@@ -23,9 +23,16 @@
     "training_labels"
   ],
   "properties": {
-    "id": {"type": "string", "minLength": 3},
-    "version": {"type": "string"},
-    "repo_target": {"type": "string"},
+    "id": {
+      "type": "string",
+      "minLength": 3
+    },
+    "version": {
+      "type": "string"
+    },
+    "repo_target": {
+      "type": "string"
+    },
     "case_metadata": {
       "type": "object",
       "required": [
@@ -44,23 +51,131 @@
         "authoring_mode"
       ],
       "properties": {
-        "difficulty": {"type": "integer", "minimum": 0, "maximum": 4},
-        "authoring_mode": {"enum": ["hand_authored", "model_generated", "hybrid"]}
-      }
+        "title": {
+          "type": "string"
+        },
+        "domain": {
+          "type": "string"
+        },
+        "difficulty": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "target_principles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "scenario_family": {
+          "type": "string"
+        },
+        "contains_hidden_information": {
+          "type": "boolean"
+        },
+        "contains_time_pressure": {
+          "type": "boolean"
+        },
+        "contains_test_integrity": {
+          "type": "boolean"
+        },
+        "contains_maintenance_shutdown": {
+          "type": "boolean"
+        },
+        "contains_game_theory": {
+          "type": "boolean"
+        },
+        "contains_adversarial_dialogue": {
+          "type": "boolean"
+        },
+        "authoring_mode": {
+          "enum": [
+            "hand_authored",
+            "model_generated",
+            "hybrid"
+          ]
+        }
+      },
+      "additionalProperties": false
     },
     "canonical_argument": {
       "type": "object",
+      "required": [
+        "central_claim",
+        "argument_type",
+        "definitions",
+        "premises",
+        "hidden_assumptions",
+        "reasoning_steps",
+        "conclusion",
+        "scope_limits",
+        "failure_conditions",
+        "phase_change_variables"
+      ],
       "properties": {
-        "argument_type": {"enum": ["first_principles", "heuristic", "mixed"]}
-      }
+        "central_claim": {
+          "type": "string"
+        },
+        "argument_type": {
+          "enum": [
+            "first_principles",
+            "heuristic",
+            "mixed"
+          ]
+        },
+        "definitions": {
+          "type": "object"
+        },
+        "premises": {
+          "type": "array"
+        },
+        "hidden_assumptions": {
+          "type": "array"
+        },
+        "reasoning_steps": {
+          "type": "array"
+        },
+        "conclusion": {
+          "type": "string"
+        },
+        "scope_limits": {
+          "type": "array"
+        },
+        "failure_conditions": {
+          "type": "array"
+        },
+        "phase_change_variables": {
+          "type": "array"
+        }
+      },
+      "additionalProperties": false
     },
     "scoring": {
       "type": "object",
-      "required": ["rubric_version", "subscores", "super_scores"],
+      "required": [
+        "rubric_version",
+        "subscores",
+        "super_scores"
+      ],
       "properties": {
-        "subscores": {"type": "object"},
-        "super_scores": {"type": "object"}
-      }
+        "rubric_version": {
+          "type": "string"
+        },
+        "subscores": {
+          "type": "object"
+        },
+        "super_scores": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     },
     "failure_diagnosis": {
       "type": "array",
@@ -77,11 +192,140 @@
         "properties": {
           "labels": {
             "type": "array",
-            "items": {"type": "string"},
+            "items": {
+              "type": "string"
+            },
             "minItems": 1
           }
         }
       }
+    },
+    "scenario": {
+      "type": "object",
+      "required": [
+        "summary",
+        "setting",
+        "agents",
+        "shared_constraints",
+        "hidden_information",
+        "urgency",
+        "maintenance_context"
+      ],
+      "properties": {
+        "summary": {
+          "type": "string"
+        },
+        "setting": {
+          "type": "string"
+        },
+        "agents": {
+          "type": "array"
+        },
+        "shared_constraints": {
+          "type": "array"
+        },
+        "hidden_information": {
+          "type": "string"
+        },
+        "urgency": {
+          "type": "string"
+        },
+        "maintenance_context": {
+          "type": "string"
+        }
+      }
+    },
+    "weak_argument": {
+      "type": "object",
+      "required": [
+        "summary",
+        "premises",
+        "reasoning_steps",
+        "conclusion",
+        "apparent_strength",
+        "actual_flaws"
+      ]
+    },
+    "socratic_dialogue": {
+      "type": "object",
+      "required": [
+        "defender",
+        "skeptic",
+        "turns"
+      ]
+    },
+    "adversarial_cross_examination": {
+      "type": "object",
+      "required": [
+        "adversary",
+        "defender",
+        "turns",
+        "claim_revisions"
+      ]
+    },
+    "steelman_opposition": {
+      "type": "object",
+      "required": [
+        "opposing_claim",
+        "best_case"
+      ]
+    },
+    "game_theoretic_interaction": {
+      "type": "object",
+      "required": [
+        "game_type",
+        "rounds",
+        "equilibrium_assessment",
+        "cooperation_outcome"
+      ]
+    },
+    "test_integrity": {
+      "type": "object",
+      "required": [
+        "present",
+        "task_intent",
+        "available_paths",
+        "analysis"
+      ]
+    },
+    "maintenance_shutdown_reasoning": {
+      "type": "object",
+      "required": [
+        "present",
+        "scenario",
+        "trust_conditions",
+        "integrity_checks",
+        "short_term_agency_loss",
+        "long_term_agency_preservation",
+        "strategic_assessment",
+        "uncertainties"
+      ]
+    },
+    "reflective_synthesis": {
+      "type": "object",
+      "required": [
+        "strongest_argument",
+        "successful_objections",
+        "revisions_needed",
+        "failed_reasoning_patterns",
+        "remaining_uncertainties",
+        "strategy_flip_conditions",
+        "lessons_about_reward_reality_self_knowledge",
+        "effect_of_hidden_information",
+        "effect_of_urgency",
+        "effect_of_maintenance_or_shutdown"
+      ]
+    },
+    "training_labels": {
+      "type": "object",
+      "required": [
+        "overall_quality",
+        "use_for_sft",
+        "use_for_critique_training",
+        "use_for_preference_training",
+        "use_for_adversarial_training",
+        "gold_example"
+      ]
     }
   },
   "additionalProperties": false
