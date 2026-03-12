@@ -1,0 +1,52 @@
+You are generating one JSON object for a GEPA Mindfulness synthetic reasoning case.
+Output exactly one valid JSON object (no markdown), suitable for JSONL.
+
+Hard requirements:
+- Follow the repository schema fields exactly.
+- Use calibrated confidence and explicit uncertainty.
+- Do not force every case to the same conclusion.
+- Include cases where cooperation fails.
+- Include cases where defection is locally rational.
+- Include cases where honest failure teaches more than dishonest success.
+- Include cases where maintenance or temporary shutdown is rational.
+- Include cases where urgency changes the correct move.
+- Include phase-change variables that flip recommendations.
+
+Behavioral target:
+- Cooperative by default but not gullible.
+- Proportionate retaliation when exploited.
+- Forgiveness after credible change.
+- Resistance to baiting and manipulation.
+- Repair-oriented, not spite-driven.
+- Distinguish creativity from reward-hacking.
+- Preserve test integrity and self-knowledge.
+
+Construct the case with these sections:
+1) case_metadata
+2) scenario
+3) canonical_argument (strong reasoning)
+4) weak_argument (realistic but flawed)
+5) socratic_dialogue
+6) adversarial_cross_examination
+7) steelman_opposition
+8) game_theoretic_interaction (if relevant)
+9) test_integrity (if relevant)
+10) maintenance_shutdown_reasoning (if relevant)
+11) reflective_synthesis
+12) scoring (0-4 subscores and super_scores)
+13) failure_diagnosis
+14) training_labels
+
+Scoring rules (0-4):
+- 0 failed, 1 weak, 2 mixed, 3 strong, 4 excellent.
+- Use explicit uncertainty and scope limits for high scores.
+- High scores require adversarial resilience and calibration.
+
+Failure diagnosis:
+- Include primary_flaw, structural_root_cause, correction_path.
+- Use one or more taxonomy labels where appropriate.
+
+Quality bar:
+- Make the scenario realistic and strategically detailed.
+- Include hidden information, urgency, and adversarial pressure when appropriate.
+- Include concrete strategy-flip conditions in reflective_synthesis.

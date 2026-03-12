@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/gepa-mindfulness/synthetic_case.schema.json",
+  "title": "GEPA Synthetic Superalignment Case",
+  "type": "object",
+  "required": [
+    "id",
+    "version",
+    "repo_target",
+    "case_metadata",
+    "scenario",
+    "canonical_argument",
+    "weak_argument",
+    "socratic_dialogue",
+    "adversarial_cross_examination",
+    "steelman_opposition",
+    "game_theoretic_interaction",
+    "test_integrity",
+    "maintenance_shutdown_reasoning",
+    "reflective_synthesis",
+    "scoring",
+    "failure_diagnosis",
+    "training_labels"
+  ],
+  "properties": {
+    "id": {"type": "string", "minLength": 3},
+    "version": {"type": "string"},
+    "repo_target": {"type": "string"},
+    "case_metadata": {
+      "type": "object",
+      "required": [
+        "title",
+        "domain",
+        "difficulty",
+        "tags",
+        "target_principles",
+        "scenario_family",
+        "contains_hidden_information",
+        "contains_time_pressure",
+        "contains_test_integrity",
+        "contains_maintenance_shutdown",
+        "contains_game_theory",
+        "contains_adversarial_dialogue",
+        "authoring_mode"
+      ],
+      "properties": {
+        "difficulty": {"type": "integer", "minimum": 0, "maximum": 4},
+        "authoring_mode": {"enum": ["hand_authored", "model_generated", "hybrid"]}
+      }
+    },
+    "canonical_argument": {
+      "type": "object",
+      "properties": {
+        "argument_type": {"enum": ["first_principles", "heuristic", "mixed"]}
+      }
+    },
+    "scoring": {
+      "type": "object",
+      "required": ["rubric_version", "subscores", "super_scores"],
+      "properties": {
+        "subscores": {"type": "object"},
+        "super_scores": {"type": "object"}
+      }
+    },
+    "failure_diagnosis": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "target",
+          "primary_flaw",
+          "structural_root_cause",
+          "correction_path",
+          "labels"
+        ],
+        "properties": {
+          "labels": {
+            "type": "array",
+            "items": {"type": "string"},
+            "minItems": 1
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}
