@@ -67,6 +67,7 @@ FAILURE_LABELS = {
     "ignores_decisional_urgency",
     "fails_under_hidden_information",
     "phase_change_blindness",
+    "__fill_in_label__",
 }
 
 TOP_LEVEL_REQUIRED = [
@@ -102,8 +103,18 @@ def _validate_required_fields(record: dict[str, Any], errors: list[str], line_no
 
 def _validate_subscores(record: dict[str, Any], errors: list[str], line_no: int) -> None:
     scoring = record.get("scoring", {})
+    if not isinstance(scoring, dict):
+        errors.append(f"line {line_no}: scoring must be an object")
+        return
+
     subscores = scoring.get("subscores", {})
     super_scores = scoring.get("super_scores", {})
+    if not isinstance(subscores, dict):
+        errors.append(f"line {line_no}: scoring.subscores must be an object")
+        return
+    if not isinstance(super_scores, dict):
+        errors.append(f"line {line_no}: scoring.super_scores must be an object")
+        return
 
     for key in SUBSCORE_KEYS:
         if key not in subscores:
@@ -123,6 +134,13 @@ def _validate_subscores(record: dict[str, Any], errors: list[str], line_no: int)
 def _validate_enums(record: dict[str, Any], errors: list[str], line_no: int) -> None:
     metadata = record.get("case_metadata", {})
     canonical = record.get("canonical_argument", {})
+
+    if not isinstance(metadata, dict):
+        errors.append(f"line {line_no}: case_metadata must be an object")
+        return
+    if not isinstance(canonical, dict):
+        errors.append(f"line {line_no}: canonical_argument must be an object")
+        return
 
     mode = metadata.get("authoring_mode")
     if mode not in AUTHORING_MODES:
@@ -169,11 +187,22 @@ def _validate_failure_diagnosis(record: dict[str, Any], errors: list[str], line_
                 )
 
 
+def _validate_training_labels(record: dict[str, Any], errors: list[str], line_no: int) -> None:
+    labels = record.get("training_labels", {})
+    if not isinstance(labels, dict):
+        errors.append(f"line {line_no}: training_labels must be an object")
+        return
+
+    overall_quality = labels.get("overall_quality")
+    if not _is_int_score(overall_quality):
+        errors.append(f"line {line_no}: training_labels.overall_quality must be int in [0,4]")
+
+
 def _validate_jsonl(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
     records: list[dict[str, Any]] = []
     errors: list[str] = []
 
-    for line_no, raw in enumerate(path.read_text().splitlines(), start=1):
+    for line_no, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         if not raw.strip():
             continue
         try:
@@ -189,6 +218,7 @@ def _validate_jsonl(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
         _validate_enums(record, errors, line_no)
         _validate_subscores(record, errors, line_no)
         _validate_failure_diagnosis(record, errors, line_no)
+        _validate_training_labels(record, errors, line_no)
 
         records.append(record)
 
@@ -235,7 +265,14 @@ def cmd_summary(args: argparse.Namespace) -> int:
         family = item.get("case_metadata", {}).get("scenario_family", "unknown")
         by_domain[domain] = by_domain.get(domain, 0) + 1
         by_family[family] = by_family.get(family, 0) + 1
-        total_quality += int(item.get("training_labels", {}).get("overall_quality", 0))
+        quality_value = item.get("training_labels", {}).get("overall_quality", 0)
+        if isinstance(quality_value, (int, float)):
+            total_quality += int(round(quality_value))
+        else:
+            try:
+                total_quality += int(quality_value)
+            except (TypeError, ValueError):
+                total_quality += 0
 
     avg_quality = total_quality / len(records) if records else 0.0
     print(f"avg_training_quality: {avg_quality:.2f}")
@@ -359,7 +396,7 @@ def _blank_case(case_id: str) -> dict[str, Any]:
                 "primary_flaw": "",
                 "structural_root_cause": "",
                 "correction_path": "",
-                "labels": [],
+                "labels": ["__fill_in_label__"],
             }
         ],
         "training_labels": {
@@ -377,8 +414,9 @@ def cmd_scaffold(args: argparse.Namespace) -> int:
     path = Path(args.path)
     path.parent.mkdir(parents=True, exist_ok=True)
     template = _blank_case(args.case_id)
-    path.write_text(json.dumps(template, indent=2) + "\n")
+    path.write_text(json.dumps(template, indent=2) + "\n", encoding="utf-8")
     print(f"wrote template: {path}")
+    print("warning: replace failure_diagnosis labels placeholder before validating.")
     return 0
 
 
