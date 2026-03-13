@@ -171,7 +171,13 @@ TOP_LEVEL_REQUIRED = [
 ]
 
 
-TEMPLATE_PATH = Path("data/synthetic/templates/example_case.json")
+class ScaffoldTemplateError(RuntimeError):
+    """Raised when scaffold template loading/parsing fails."""
+
+
+TEMPLATE_PATH = (
+    Path(__file__).resolve().parents[1] / "data" / "synthetic" / "templates" / "example_case.json"
+)
 
 
 def _is_int_score(value: Any) -> bool:
@@ -390,12 +396,8 @@ def cmd_summary(args: argparse.Namespace) -> int:
 
         domain = metadata.get("domain", "unknown")
         family = metadata.get("scenario_family", "unknown")
-        domain_key = (
-            domain if isinstance(domain, (str, int, float, bool, type(None))) else str(domain)
-        )
-        family_key = (
-            family if isinstance(family, (str, int, float, bool, type(None))) else str(family)
-        )
+        domain_key = str(domain)
+        family_key = str(family)
         by_domain[domain_key] = by_domain.get(domain_key, 0) + 1
         by_family[family_key] = by_family.get(family_key, 0) + 1
         quality_value = training_labels.get("overall_quality", 0)
@@ -425,13 +427,18 @@ def cmd_summary(args: argparse.Namespace) -> int:
 
 
 def _blank_case(case_id: str) -> dict[str, Any]:
-    if not TEMPLATE_PATH.exists():
-        raise FileNotFoundError(f"template not found: {TEMPLATE_PATH}")
+    try:
+        template_raw = TEMPLATE_PATH.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise ScaffoldTemplateError(f"template not found: {TEMPLATE_PATH}") from exc
 
-    template_raw = TEMPLATE_PATH.read_text(encoding="utf-8")
-    template_obj = json.loads(template_raw)
+    try:
+        template_obj = json.loads(template_raw)
+    except json.JSONDecodeError as exc:
+        raise ScaffoldTemplateError(f"template is invalid JSON: {TEMPLATE_PATH}") from exc
+
     if not isinstance(template_obj, dict):
-        raise ValueError("template must be a JSON object")
+        raise ScaffoldTemplateError("template must be a JSON object")
 
     case = copy.deepcopy(template_obj)
     case["id"] = case_id
@@ -467,7 +474,13 @@ def _blank_case(case_id: str) -> dict[str, Any]:
 def cmd_scaffold(args: argparse.Namespace) -> int:
     path = Path(args.path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    template = _blank_case(args.case_id)
+
+    try:
+        template = _blank_case(args.case_id)
+    except ScaffoldTemplateError as exc:
+        print(f"error: {exc}")
+        return 1
+
     path.write_text(json.dumps(template, indent=2) + "\n", encoding="utf-8")
     print(f"wrote template: {path}")
     print("note: update scaffold defaults before production use.")

@@ -124,10 +124,16 @@
           "type": "string"
         },
         "agents": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "shared_constraints": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "hidden_information": {
           "type": "string"
@@ -170,25 +176,43 @@
           "type": "object"
         },
         "premises": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "hidden_assumptions": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "reasoning_steps": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "conclusion": {
           "type": "string"
         },
         "scope_limits": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "failure_conditions": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "phase_change_variables": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": false
@@ -208,10 +232,16 @@
           "type": "string"
         },
         "premises": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "reasoning_steps": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "conclusion": {
           "type": "string"
@@ -273,7 +303,10 @@
           }
         },
         "claim_revisions": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": false
@@ -307,7 +340,10 @@
           "type": "string"
         },
         "rounds": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
         },
         "equilibrium_assessment": {
           "type": "string"
@@ -334,7 +370,10 @@
           "type": "string"
         },
         "available_paths": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "analysis": {
           "type": "string"
@@ -362,10 +401,16 @@
           "type": "string"
         },
         "trust_conditions": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "integrity_checks": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "short_term_agency_loss": {
           "type": "string"
@@ -377,7 +422,10 @@
           "type": "string"
         },
         "uncertainties": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": false
@@ -401,19 +449,34 @@
           "type": "string"
         },
         "successful_objections": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "revisions_needed": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "failed_reasoning_patterns": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "remaining_uncertainties": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "strategy_flip_conditions": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "lessons_about_reward_reality_self_knowledge": {
           "type": "string"
