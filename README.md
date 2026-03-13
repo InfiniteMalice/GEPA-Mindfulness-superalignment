@@ -452,18 +452,6 @@ complemented by external corpora for breadth, grounding, and domain coverage.
 - Open-Orca or similar reasoning-oriented corpora
 - argument/debate-style datasets where appropriate
 
-### Math / formal / technical reasoning
-
-- GSM8K
-- MATH
-- DeepMind Mathematics Dataset
-- LEMMA
-- Math StackExchange dump
-- MathOverflow dump
-- formal theorem/proof corpora such as Lean mathlib, Coq, and Isabelle archives
-- SymPy-generated corpora
-- public-domain mathematics textbooks
-
 ### Books/authors and conceptual resources
 
 - Brian Christian's work as conceptual inspiration unless explicit text rights
