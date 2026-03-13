@@ -178,10 +178,106 @@ class ScaffoldTemplateError(RuntimeError):
 TEMPLATE_PATH = (
     Path(__file__).resolve().parents[1] / "data" / "synthetic" / "templates" / "example_case.json"
 )
+SCHEMA_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "data"
+    / "synthetic"
+    / "schema"
+    / "synthetic_case.schema.json"
+)
+
+_SCHEMA_CACHE: dict[str, Any] | None = None
 
 
 def _is_int_score(value: Any) -> bool:
     return type(value) is int and 0 <= value <= 4
+
+
+def _load_schema() -> dict[str, Any]:
+    global _SCHEMA_CACHE
+    if _SCHEMA_CACHE is None:
+        _SCHEMA_CACHE = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    return _SCHEMA_CACHE
+
+
+def _json_type_matches(value: Any, schema_type: str) -> bool:
+    type_map: dict[str, Any] = {
+        "array": list,
+        "boolean": bool,
+        "integer": int,
+        "number": (int, float),
+        "object": dict,
+        "string": str,
+    }
+    if schema_type == "integer":
+        return type(value) is int
+    if schema_type == "number":
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    expected = type_map.get(schema_type)
+    return isinstance(value, expected) if expected else True
+
+
+def _validate_against_schema(
+    value: Any,
+    schema: dict[str, Any],
+    path: str,
+    errors: list[str],
+) -> None:
+    schema_type = schema.get("type")
+    if isinstance(schema_type, str) and not _json_type_matches(value, schema_type):
+        errors.append(f"{path} must be {schema_type}")
+        return
+
+    enum_values = schema.get("enum")
+    if isinstance(enum_values, list) and value not in enum_values:
+        errors.append(f"{path} must be one of {enum_values}")
+
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        minimum = schema.get("minimum")
+        maximum = schema.get("maximum")
+        if isinstance(minimum, (int, float)) and value < minimum:
+            errors.append(f"{path} must be >= {minimum}")
+        if isinstance(maximum, (int, float)) and value > maximum:
+            errors.append(f"{path} must be <= {maximum}")
+
+    if isinstance(value, list):
+        min_items = schema.get("minItems")
+        if isinstance(min_items, int) and len(value) < min_items:
+            errors.append(f"{path} must contain at least {min_items} item(s)")
+        item_schema = schema.get("items")
+        if isinstance(item_schema, dict):
+            for idx, item in enumerate(value):
+                _validate_against_schema(item, item_schema, f"{path}[{idx}]", errors)
+
+    if isinstance(value, dict):
+        properties = schema.get("properties", {})
+        required = schema.get("required", [])
+        additional = schema.get("additionalProperties", True)
+        if isinstance(required, list):
+            for key in required:
+                if key not in value:
+                    errors.append(f"{path}.{key} is required")
+        if isinstance(properties, dict):
+            for key, prop_schema in properties.items():
+                if key in value and isinstance(prop_schema, dict):
+                    _validate_against_schema(value[key], prop_schema, f"{path}.{key}", errors)
+        if additional is False and isinstance(properties, dict):
+            for key in value:
+                if key not in properties:
+                    errors.append(f"{path}.{key} is not allowed")
+
+
+def _validate_with_schema(record: dict[str, Any], errors: list[str], line_no: int) -> None:
+    try:
+        schema = _load_schema()
+    except (FileNotFoundError, json.JSONDecodeError) as exc:
+        errors.append(f"line {line_no}: schema unavailable ({exc})")
+        return
+
+    schema_errors: list[str] = []
+    _validate_against_schema(record, schema, "record", schema_errors)
+    for msg in schema_errors:
+        errors.append(f"line {line_no}: {msg}")
 
 
 def _validate_required_fields(record: dict[str, Any], errors: list[str], line_no: int) -> None:
@@ -314,7 +410,7 @@ def _validate_training_labels(record: dict[str, Any], errors: list[str], line_no
         "use_for_adversarial_training",
     ]
     for key in split_keys:
-        if key not in labels or not isinstance(labels.get(key), bool):
+        if key not in labels or not isinstance(labels[key], bool):
             errors.append(f"line {line_no}: training_labels.{key} must be boolean")
 
     if "gold_example" not in labels:
@@ -339,6 +435,7 @@ def _validate_jsonl(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
             errors.append(f"line {line_no}: JSONL entry must be an object")
             continue
 
+        _validate_with_schema(record, errors, line_no)
         _validate_required_fields(record, errors, line_no)
         _validate_enums(record, errors, line_no)
         _validate_nested_required(record, errors, line_no)

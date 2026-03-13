@@ -274,8 +274,22 @@
         },
         "turns": {
           "type": "array",
+          "minItems": 1,
           "items": {
-            "type": "object"
+            "type": "object",
+            "description": "Dialogue turn. Recommended keys: speaker and utterance/text.",
+            "properties": {
+              "speaker": {
+                "type": "string"
+              },
+              "utterance": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": true
           }
         }
       },
@@ -298,8 +312,25 @@
         },
         "turns": {
           "type": "array",
+          "minItems": 1,
           "items": {
-            "type": "object"
+            "type": "object",
+            "description": "Cross-examination turn. Recommended keys: speaker and utterance, or q/a.",
+            "properties": {
+              "speaker": {
+                "type": "string"
+              },
+              "utterance": {
+                "type": "string"
+              },
+              "q": {
+                "type": "string"
+              },
+              "a": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": true
           }
         },
         "claim_revisions": {
@@ -341,8 +372,11 @@
         },
         "rounds": {
           "type": "array",
+          "minItems": 1,
           "items": {
-            "type": "object"
+            "type": "object",
+            "description": "Round record with action/outcome fields defined by game framing.",
+            "additionalProperties": true
           }
         },
         "equilibrium_assessment": {
