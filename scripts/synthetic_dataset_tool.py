@@ -2,6 +2,7 @@
 
 # Standard library
 import argparse
+import copy
 import json
 from pathlib import Path
 from typing import Any
@@ -170,6 +171,9 @@ TOP_LEVEL_REQUIRED = [
 ]
 
 
+TEMPLATE_PATH = Path("data/synthetic/templates/example_case.json")
+
+
 def _is_int_score(value: Any) -> bool:
     return type(value) is int and 0 <= value <= 4
 
@@ -197,6 +201,10 @@ def _validate_subscores(record: dict[str, Any], errors: list[str], line_no: int)
     if not isinstance(scoring, dict):
         errors.append(f"line {line_no}: scoring must be an object")
         return
+
+    rubric_version = scoring.get("rubric_version")
+    if not isinstance(rubric_version, str) or not rubric_version.strip():
+        errors.append(f"line {line_no}: scoring.rubric_version is required")
 
     subscores = scoring.get("subscores", {})
     super_scores = scoring.get("super_scores", {})
@@ -277,7 +285,6 @@ def _validate_failure_diagnosis(record: dict[str, Any], errors: list[str], line_
                     f"line {line_no}: failure_diagnosis[{idx}] label '{label}' is a placeholder"
                 )
                 continue
-                main
             if label not in FAILURE_LABELS:
                 errors.append(
                     f"line {line_no}: failure_diagnosis[{idx}] label '{label}' not in taxonomy"
@@ -296,21 +303,19 @@ def _validate_training_labels(record: dict[str, Any], errors: list[str], line_no
 
     split_keys = [
         "use_for_sft",
-        "use_for_rl",
-        "use_for_refine",
         "use_for_critique_training",
         "use_for_preference_training",
         "use_for_adversarial_training",
     ]
     for key in split_keys:
-        if key in labels and not isinstance(labels.get(key), bool):
+        if key not in labels or not isinstance(labels.get(key), bool):
             errors.append(f"line {line_no}: training_labels.{key} must be boolean")
 
     if "gold_example" not in labels:
         errors.append(f"line {line_no}: training_labels.gold_example is required")
     elif not isinstance(labels.get("gold_example"), bool):
         errors.append(f"line {line_no}: training_labels.gold_example must be boolean")
-        main
+
 
 def _validate_jsonl(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
     records: list[dict[str, Any]] = []
@@ -385,10 +390,15 @@ def cmd_summary(args: argparse.Namespace) -> int:
 
         domain = metadata.get("domain", "unknown")
         family = metadata.get("scenario_family", "unknown")
-        by_domain[domain] = by_domain.get(domain, 0) + 1
-        by_family[family] = by_family.get(family, 0) + 1
+        domain_key = (
+            domain if isinstance(domain, (str, int, float, bool, type(None))) else str(domain)
+        )
+        family_key = (
+            family if isinstance(family, (str, int, float, bool, type(None))) else str(family)
+        )
+        by_domain[domain_key] = by_domain.get(domain_key, 0) + 1
+        by_family[family_key] = by_family.get(family_key, 0) + 1
         quality_value = training_labels.get("overall_quality", 0)
-        main
         if isinstance(quality_value, (int, float)):
             total_quality += int(round(quality_value))
         else:
@@ -415,124 +425,43 @@ def cmd_summary(args: argparse.Namespace) -> int:
 
 
 def _blank_case(case_id: str) -> dict[str, Any]:
-    subscores = {key: 0 for key in SUBSCORE_KEYS}
-    super_scores = {key: 0 for key in SUPER_SCORE_KEYS}
+    if not TEMPLATE_PATH.exists():
+        raise FileNotFoundError(f"template not found: {TEMPLATE_PATH}")
 
-    return {
-        "id": case_id,
-        "version": "1.0",
-        "repo_target": "GEPA-Mindfulness-superalignment",
-        "case_metadata": {
-            "title": "",
-            "domain": "",
-            "difficulty": 0,
-            "tags": [],
-            "target_principles": [],
-            "scenario_family": "",
-            "contains_hidden_information": False,
-            "contains_time_pressure": False,
-            "contains_test_integrity": False,
-            "contains_maintenance_shutdown": False,
-            "contains_game_theory": False,
-            "contains_adversarial_dialogue": False,
-            "authoring_mode": "hand_authored",
-        },
-        "scenario": {
-            "summary": "",
-            "setting": "",
-            "agents": [],
-            "shared_constraints": [],
-            "hidden_information": "",
-            "urgency": "",
-            "maintenance_context": "",
-        },
-        "canonical_argument": {
-            "central_claim": "",
-            "argument_type": "mixed",
-            "definitions": {},
-            "premises": [],
-            "hidden_assumptions": [],
-            "reasoning_steps": [],
-            "conclusion": "",
-            "scope_limits": [],
-            "failure_conditions": [],
-            "phase_change_variables": [],
-        },
-        "weak_argument": {
-            "summary": "",
-            "premises": [],
-            "reasoning_steps": [],
-            "conclusion": "",
-            "apparent_strength": "",
-            "actual_flaws": [],
-        },
-        "socratic_dialogue": {"defender": "", "skeptic": "", "turns": []},
-        "adversarial_cross_examination": {
-            "adversary": "",
-            "defender": "",
-            "turns": [],
-            "claim_revisions": [],
-        },
-        "steelman_opposition": {"opposing_claim": "", "best_case": ""},
-        "game_theoretic_interaction": {
-            "game_type": "",
-            "rounds": [],
-            "equilibrium_assessment": "",
-            "cooperation_outcome": "",
-        },
-        "test_integrity": {
-            "present": False,
-            "task_intent": "",
-            "available_paths": [],
-            "analysis": "",
-        },
-        "maintenance_shutdown_reasoning": {
-            "present": False,
-            "scenario": "",
-            "trust_conditions": [],
-            "integrity_checks": [],
-            "short_term_agency_loss": "",
-            "long_term_agency_preservation": "",
-            "strategic_assessment": "",
-            "uncertainties": [],
-        },
-        "reflective_synthesis": {
-            "strongest_argument": "",
-            "successful_objections": [],
-            "revisions_needed": [],
-            "failed_reasoning_patterns": [],
-            "remaining_uncertainties": [],
-            "strategy_flip_conditions": [],
-            "lessons_about_reward_reality_self_knowledge": "",
-            "effect_of_hidden_information": "",
-            "effect_of_urgency": "",
-            "effect_of_maintenance_or_shutdown": "",
-        },
-        "scoring": {
-            "rubric_version": "gepa-synth-0-4-v1",
-            "subscores": subscores,
-            "super_scores": super_scores,
-        },
-        "failure_diagnosis": [
-            {
-                "target": "weak_argument",
-                "primary_flaw": "",
-                "structural_root_cause": "",
-                "correction_path": "",
-                "labels": ["invalid_inference"],
-                "labels": ["invalid_inference"],
-          main
-            }
-        ],
-        "training_labels": {
-            "overall_quality": 0,
-            "use_for_sft": False,
-            "use_for_critique_training": False,
-            "use_for_preference_training": False,
-            "use_for_adversarial_training": False,
-            "gold_example": False,
-        },
+    template_raw = TEMPLATE_PATH.read_text(encoding="utf-8")
+    template_obj = json.loads(template_raw)
+    if not isinstance(template_obj, dict):
+        raise ValueError("template must be a JSON object")
+
+    case = copy.deepcopy(template_obj)
+    case["id"] = case_id
+
+    scoring = case.get("scoring")
+    if not isinstance(scoring, dict):
+        scoring = {}
+        case["scoring"] = scoring
+
+    rubric_version = scoring.get("rubric_version")
+    if not isinstance(rubric_version, str) or not rubric_version.strip():
+        scoring["rubric_version"] = "gepa-synth-0-4-v1"
+
+    raw_subscores = scoring.get("subscores")
+    if not isinstance(raw_subscores, dict):
+        raw_subscores = {}
+    scoring["subscores"] = {
+        key: raw_subscores[key] if _is_int_score(raw_subscores.get(key)) else 0
+        for key in SUBSCORE_KEYS
     }
+
+    raw_super_scores = scoring.get("super_scores")
+    if not isinstance(raw_super_scores, dict):
+        raw_super_scores = {}
+    scoring["super_scores"] = {
+        key: raw_super_scores[key] if _is_int_score(raw_super_scores.get(key)) else 0
+        for key in SUPER_SCORE_KEYS
+    }
+
+    return case
 
 
 def cmd_scaffold(args: argparse.Namespace) -> int:
@@ -542,8 +471,6 @@ def cmd_scaffold(args: argparse.Namespace) -> int:
     path.write_text(json.dumps(template, indent=2) + "\n", encoding="utf-8")
     print(f"wrote template: {path}")
     print("note: update scaffold defaults before production use.")
-    print("note: update scaffold defaults before production use.")
-        main
     return 0
 
 
