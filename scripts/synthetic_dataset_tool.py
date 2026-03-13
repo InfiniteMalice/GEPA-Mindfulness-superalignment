@@ -240,6 +240,14 @@ def _validate_against_schema(
         if isinstance(maximum, (int, float)) and value > maximum:
             errors.append(f"{path} must be <= {maximum}")
 
+    if isinstance(value, str):
+        min_length = schema.get("minLength")
+        max_length = schema.get("maxLength")
+        if isinstance(min_length, int) and len(value) < min_length:
+            errors.append(f"{path} must be at least {min_length} characters")
+        if isinstance(max_length, int) and len(value) > max_length:
+            errors.append(f"{path} must be at most {max_length} characters")
+
     if isinstance(value, list):
         min_items = schema.get("minItems")
         if isinstance(min_items, int) and len(value) < min_items:
@@ -578,8 +586,9 @@ def cmd_scaffold(args: argparse.Namespace) -> int:
         print(f"error: {exc}")
         return 1
 
-    path.write_text(json.dumps(template, indent=2) + "\n", encoding="utf-8")
-    print(f"wrote template: {path}")
+    path.write_text(json.dumps(template, separators=(",", ":")) + "\n", encoding="utf-8")
+    print(f"wrote template JSONL: {path}")
+    print("note: scaffold writes one compact JSON record per line for validator compatibility.")
     print("note: update scaffold defaults before production use.")
     return 0
 
@@ -601,8 +610,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     summary.set_defaults(func=cmd_summary)
 
-    scaffold = subparsers.add_parser("scaffold", help="Write blank case template JSON")
-    scaffold.add_argument("path", help="Output path for template JSON")
+    scaffold = subparsers.add_parser("scaffold", help="Write one-case JSONL scaffold")
+    scaffold.add_argument("path", help="Output path for one-record JSONL scaffold")
     scaffold.add_argument("--case-id", default="syn-template-001", help="Case ID for template")
     scaffold.set_defaults(func=cmd_scaffold)
 

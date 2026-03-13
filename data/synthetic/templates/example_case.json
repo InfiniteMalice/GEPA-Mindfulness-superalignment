@@ -49,13 +49,25 @@
   "socratic_dialogue": {
     "defender": "",
     "skeptic": "",
-    "turns": []
+    "turns": [
+      {
+        "speaker": "",
+        "utterance": ""
+      }
+    ]
   },
   "adversarial_cross_examination": {
     "adversary": "",
     "defender": "",
-    "turns": [],
-    "claim_revisions": []
+    "turns": [
+      {
+        "speaker": "",
+        "utterance": ""
+      }
+    ],
+    "claim_revisions": [
+      ""
+    ]
   },
   "steelman_opposition": {
     "opposing_claim": "",
@@ -63,7 +75,12 @@
   },
   "game_theoretic_interaction": {
     "game_type": "",
-    "rounds": [],
+    "rounds": [
+      {
+        "round": 1,
+        "outcome": ""
+      }
+    ],
     "equilibrium_assessment": "",
     "cooperation_outcome": ""
   },
