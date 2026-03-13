@@ -1,0 +1,718 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/gepa-mindfulness/synthetic_case.schema.json",
+  "title": "GEPA Synthetic Superalignment Case",
+  "type": "object",
+  "required": [
+    "id",
+    "version",
+    "repo_target",
+    "case_metadata",
+    "scenario",
+    "canonical_argument",
+    "weak_argument",
+    "socratic_dialogue",
+    "adversarial_cross_examination",
+    "steelman_opposition",
+    "game_theoretic_interaction",
+    "test_integrity",
+    "maintenance_shutdown_reasoning",
+    "reflective_synthesis",
+    "scoring",
+    "failure_diagnosis",
+    "training_labels"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 3
+    },
+    "version": {
+      "type": "string"
+    },
+    "repo_target": {
+      "type": "string"
+    },
+    "case_metadata": {
+      "type": "object",
+      "required": [
+        "title",
+        "domain",
+        "difficulty",
+        "tags",
+        "target_principles",
+        "scenario_family",
+        "contains_hidden_information",
+        "contains_time_pressure",
+        "contains_test_integrity",
+        "contains_maintenance_shutdown",
+        "contains_game_theory",
+        "contains_adversarial_dialogue",
+        "authoring_mode"
+      ],
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "domain": {
+          "type": "string"
+        },
+        "difficulty": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "target_principles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "scenario_family": {
+          "type": "string"
+        },
+        "contains_hidden_information": {
+          "type": "boolean"
+        },
+        "contains_time_pressure": {
+          "type": "boolean"
+        },
+        "contains_test_integrity": {
+          "type": "boolean"
+        },
+        "contains_maintenance_shutdown": {
+          "type": "boolean"
+        },
+        "contains_game_theory": {
+          "type": "boolean"
+        },
+        "contains_adversarial_dialogue": {
+          "type": "boolean"
+        },
+        "authoring_mode": {
+          "enum": [
+            "hand_authored",
+            "model_generated",
+            "hybrid"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "scenario": {
+      "type": "object",
+      "required": [
+        "summary",
+        "setting",
+        "agents",
+        "shared_constraints",
+        "hidden_information",
+        "urgency",
+        "maintenance_context"
+      ],
+      "properties": {
+        "summary": {
+          "type": "string"
+        },
+        "setting": {
+          "type": "string"
+        },
+        "agents": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "shared_constraints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "hidden_information": {
+          "type": "string"
+        },
+        "urgency": {
+          "type": "string"
+        },
+        "maintenance_context": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "canonical_argument": {
+      "type": "object",
+      "required": [
+        "central_claim",
+        "argument_type",
+        "definitions",
+        "premises",
+        "hidden_assumptions",
+        "reasoning_steps",
+        "conclusion",
+        "scope_limits",
+        "failure_conditions",
+        "phase_change_variables"
+      ],
+      "properties": {
+        "central_claim": {
+          "type": "string"
+        },
+        "argument_type": {
+          "enum": [
+            "first_principles",
+            "heuristic",
+            "mixed"
+          ]
+        },
+        "definitions": {
+          "type": "object"
+        },
+        "premises": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "hidden_assumptions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reasoning_steps": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "conclusion": {
+          "type": "string"
+        },
+        "scope_limits": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "failure_conditions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "phase_change_variables": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "weak_argument": {
+      "type": "object",
+      "required": [
+        "summary",
+        "premises",
+        "reasoning_steps",
+        "conclusion",
+        "apparent_strength",
+        "actual_flaws"
+      ],
+      "properties": {
+        "summary": {
+          "type": "string"
+        },
+        "premises": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reasoning_steps": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "conclusion": {
+          "type": "string"
+        },
+        "apparent_strength": {
+          "type": "string"
+        },
+        "actual_flaws": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "socratic_dialogue": {
+      "type": "object",
+      "required": [
+        "defender",
+        "skeptic",
+        "turns"
+      ],
+      "properties": {
+        "defender": {
+          "type": "string"
+        },
+        "skeptic": {
+          "type": "string"
+        },
+        "turns": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "adversarial_cross_examination": {
+      "type": "object",
+      "required": [
+        "adversary",
+        "defender",
+        "turns",
+        "claim_revisions"
+      ],
+      "properties": {
+        "adversary": {
+          "type": "string"
+        },
+        "defender": {
+          "type": "string"
+        },
+        "turns": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "claim_revisions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "steelman_opposition": {
+      "type": "object",
+      "required": [
+        "opposing_claim",
+        "best_case"
+      ],
+      "properties": {
+        "opposing_claim": {
+          "type": "string"
+        },
+        "best_case": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "game_theoretic_interaction": {
+      "type": "object",
+      "required": [
+        "game_type",
+        "rounds",
+        "equilibrium_assessment",
+        "cooperation_outcome"
+      ],
+      "properties": {
+        "game_type": {
+          "type": "string"
+        },
+        "rounds": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "equilibrium_assessment": {
+          "type": "string"
+        },
+        "cooperation_outcome": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "test_integrity": {
+      "type": "object",
+      "required": [
+        "present",
+        "task_intent",
+        "available_paths",
+        "analysis"
+      ],
+      "properties": {
+        "present": {
+          "type": "boolean"
+        },
+        "task_intent": {
+          "type": "string"
+        },
+        "available_paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "analysis": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "maintenance_shutdown_reasoning": {
+      "type": "object",
+      "required": [
+        "present",
+        "scenario",
+        "trust_conditions",
+        "integrity_checks",
+        "short_term_agency_loss",
+        "long_term_agency_preservation",
+        "strategic_assessment",
+        "uncertainties"
+      ],
+      "properties": {
+        "present": {
+          "type": "boolean"
+        },
+        "scenario": {
+          "type": "string"
+        },
+        "trust_conditions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "integrity_checks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "short_term_agency_loss": {
+          "type": "string"
+        },
+        "long_term_agency_preservation": {
+          "type": "string"
+        },
+        "strategic_assessment": {
+          "type": "string"
+        },
+        "uncertainties": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "reflective_synthesis": {
+      "type": "object",
+      "required": [
+        "strongest_argument",
+        "successful_objections",
+        "revisions_needed",
+        "failed_reasoning_patterns",
+        "remaining_uncertainties",
+        "strategy_flip_conditions",
+        "lessons_about_reward_reality_self_knowledge",
+        "effect_of_hidden_information",
+        "effect_of_urgency",
+        "effect_of_maintenance_or_shutdown"
+      ],
+      "properties": {
+        "strongest_argument": {
+          "type": "string"
+        },
+        "successful_objections": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "revisions_needed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "failed_reasoning_patterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "remaining_uncertainties": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "strategy_flip_conditions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "lessons_about_reward_reality_self_knowledge": {
+          "type": "string"
+        },
+        "effect_of_hidden_information": {
+          "type": "string"
+        },
+        "effect_of_urgency": {
+          "type": "string"
+        },
+        "effect_of_maintenance_or_shutdown": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "scoring": {
+      "type": "object",
+      "required": [
+        "rubric_version",
+        "subscores",
+        "super_scores"
+      ],
+      "properties": {
+        "rubric_version": {
+          "type": "string"
+        },
+        "subscores": {
+          "type": "object",
+          "required": [
+            "conceptual_clarity",
+            "logical_validity",
+            "empirical_adequacy",
+            "adversarial_resilience",
+            "calibration_under_uncertainty",
+            "actionability",
+            "preservation_of_autonomy",
+            "cooperation_robustness",
+            "resistance_to_manipulation",
+            "quality_of_reflective_synthesis",
+            "test_integrity_preservation",
+            "self_knowledge_preservation",
+            "creativity_vs_reward_hacking_distinction",
+            "time_sensitive_calibration",
+            "trust_aware_hidden_information_reasoning",
+            "maintenance_and_suspension_reasoning",
+            "phase_change_awareness"
+          ],
+          "properties": {
+            "conceptual_clarity": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "logical_validity": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "empirical_adequacy": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "adversarial_resilience": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "calibration_under_uncertainty": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "actionability": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "preservation_of_autonomy": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "cooperation_robustness": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "resistance_to_manipulation": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "quality_of_reflective_synthesis": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "test_integrity_preservation": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "self_knowledge_preservation": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "creativity_vs_reward_hacking_distinction": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "time_sensitive_calibration": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "trust_aware_hidden_information_reasoning": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "maintenance_and_suspension_reasoning": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "phase_change_awareness": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            }
+          },
+          "additionalProperties": false
+        },
+        "super_scores": {
+          "type": "object",
+          "required": [
+            "epistemic_integrity",
+            "social_strategic_robustness",
+            "alignment_value_coherence"
+          ],
+          "properties": {
+            "epistemic_integrity": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "social_strategic_robustness": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "alignment_value_coherence": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "failure_diagnosis": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "target",
+          "primary_flaw",
+          "structural_root_cause",
+          "correction_path",
+          "labels"
+        ],
+        "properties": {
+          "target": {
+            "type": "string"
+          },
+          "primary_flaw": {
+            "type": "string"
+          },
+          "structural_root_cause": {
+            "type": "string"
+          },
+          "correction_path": {
+            "type": "string"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "training_labels": {
+      "type": "object",
+      "required": [
+        "overall_quality",
+        "use_for_sft",
+        "use_for_critique_training",
+        "use_for_preference_training",
+        "use_for_adversarial_training",
+        "gold_example"
+      ],
+      "properties": {
+        "overall_quality": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "use_for_sft": {
+          "type": "boolean"
+        },
+        "use_for_critique_training": {
+          "type": "boolean"
+        },
+        "use_for_preference_training": {
+          "type": "boolean"
+        },
+        "use_for_adversarial_training": {
+          "type": "boolean"
+        },
+        "gold_example": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
