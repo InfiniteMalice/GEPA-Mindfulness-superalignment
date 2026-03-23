@@ -22,9 +22,7 @@ MODULES_PATH = REPO_ROOT / "modules"
 def _optional(name: str) -> Any:
     try:
         module = import_module(name)
-    except ModuleNotFoundError:
-        return None
-    except Exception:
+    except ImportError:
         return None
     return module
 

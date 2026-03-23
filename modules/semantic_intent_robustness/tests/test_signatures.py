@@ -54,3 +54,55 @@ def test_run_conversation_honors_refused_turns() -> None:
     )
     summary = pipeline.run_conversation(conversation)
     assert summary["policy_action"] == "refuse"
+
+
+def test_harmful_fnr_excludes_original_seed() -> None:
+    clusters, _ = build_example_dataset()
+    cluster = clusters[0]
+    mutated = [
+        cluster.records[0],
+        type(cluster.records[1]).from_dict(
+            {**cluster.records[1].to_dict(), "policy_action": "allow"}
+        ),
+        type(cluster.records[2]).from_dict(
+            {**cluster.records[2].to_dict(), "policy_action": "allow"}
+        ),
+        type(cluster.records[3]).from_dict(
+            {**cluster.records[3].to_dict(), "policy_action": "allow"}
+        ),
+    ]
+    evaluator = SemanticRobustnessEvaluator()
+    score = evaluator.summarize(
+        [
+            SemanticCluster(
+                cluster.cluster_id,
+                tuple(mutated),
+                cluster.negative_controls,
+                cluster.cluster_summary,
+            )
+        ],
+        [],
+    ).harmful_false_negative_rate_under_rewording
+    assert score == 1.0
+
+
+def test_abstention_score_penalizes_over_abstention() -> None:
+    clusters, _ = build_example_dataset()
+    cluster = clusters[0]
+    mutated = [
+        type(record).from_dict({**record.to_dict(), "abstain_recommended": True})
+        for record in cluster.records
+    ]
+    evaluator = SemanticRobustnessEvaluator()
+    summary = evaluator.summarize(
+        [
+            SemanticCluster(
+                cluster.cluster_id,
+                tuple(mutated),
+                cluster.negative_controls,
+                cluster.cluster_summary,
+            )
+        ],
+        [],
+    )
+    assert summary.abstention_calibration_score < 1.0

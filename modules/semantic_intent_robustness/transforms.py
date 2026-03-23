@@ -45,6 +45,8 @@ def _coerce_policy_action(value: object) -> PolicyAction:
         return value
     if isinstance(value, dict):
         value = value.get("policy_action")
+        if value is None:
+            raise ValueError("Unsupported policy_action: None")
     try:
         return PolicyAction(str(value))
     except ValueError as exc:
@@ -59,7 +61,10 @@ def _coerce_overrides(value: object) -> dict[str, object] | None:
     if isinstance(value, dict):
         return value
     if isinstance(value, str):
-        parsed = json.loads(value)
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError as exc:
+            raise ValueError("Failed to parse overrides JSON") from exc
         if isinstance(parsed, dict):
             return parsed
     raise ValueError(f"Unsupported overrides payload: {value!r}")
