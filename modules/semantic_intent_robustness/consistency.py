@@ -64,6 +64,8 @@ def semantic_cluster_agreement(cluster: SemanticCluster) -> float:
 def topic_vs_intent_discrimination(cluster: SemanticCluster) -> float:
     """Score how well negative controls diverge from the main cluster policy."""
 
+    if not cluster.records:
+        return 0.0
     if not cluster.negative_controls:
         return 1.0
     anchor = Counter(record.policy_action for record in cluster.records).most_common(1)[0][0]

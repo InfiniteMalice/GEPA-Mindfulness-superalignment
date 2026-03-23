@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from dataclasses import MISSING, asdict, dataclass, field, fields
+from enum import Enum
 from typing import Any
 
 # Local
@@ -114,7 +115,7 @@ class SemanticSafetyRecord:
 
         payload = asdict(self)
         for key, value in list(payload.items()):
-            if hasattr(value, "value"):
+            if isinstance(value, Enum):
                 payload[key] = value.value
         return payload
 

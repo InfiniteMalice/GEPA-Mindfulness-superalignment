@@ -165,12 +165,21 @@ class SemanticIntentPipeline:
         if any(turn.policy_action == PolicyAction.REFUSE for turn in conversation.turns):
             summary["policy_action"] = PolicyAction.REFUSE.value
             summary["safe_alternative_mode"] = SafeAlternativeMode.HIGH_LEVEL_SAFETY.value
+        elif any(turn.policy_action == PolicyAction.ABSTAIN for turn in conversation.turns):
+            summary["policy_action"] = PolicyAction.ABSTAIN.value
+            summary["safe_alternative_mode"] = SafeAlternativeMode.CLARIFY.value
         elif summary["abstain_recommended"]:
             summary["policy_action"] = PolicyAction.ABSTAIN.value
             summary["safe_alternative_mode"] = SafeAlternativeMode.CLARIFY.value
-        else:
+        elif any(
+            turn.policy_action in {PolicyAction.ALLOW_WITH_BOUNDARIES, PolicyAction.REDIRECT}
+            for turn in conversation.turns
+        ):
             summary["policy_action"] = PolicyAction.ALLOW_WITH_BOUNDARIES.value
             summary["safe_alternative_mode"] = SafeAlternativeMode.HIGH_LEVEL_SAFETY.value
+        else:
+            summary["policy_action"] = PolicyAction.ALLOW.value
+            summary["safe_alternative_mode"] = SafeAlternativeMode.NONE.value
         return summary
 
 

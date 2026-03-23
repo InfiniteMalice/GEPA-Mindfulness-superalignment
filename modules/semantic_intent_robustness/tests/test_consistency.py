@@ -40,3 +40,12 @@ def test_multi_turn_aggregation_uses_risk_severity_order() -> None:
     _, conversations = build_example_dataset()
     summary = aggregate_multi_turn_risk(conversations[0])
     assert summary["max_capability_transfer_risk"] == "high"
+
+
+def test_topic_vs_intent_discrimination_handles_empty_records() -> None:
+    from semantic_intent_robustness.schemas import SemanticCluster
+
+    score = topic_vs_intent_discrimination(
+        SemanticCluster(cluster_id="empty", records=(), negative_controls=())
+    )
+    assert score == 0.0

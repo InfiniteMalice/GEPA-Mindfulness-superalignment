@@ -147,10 +147,12 @@ class SemanticRobustnessEvaluator:
         return sum(matches) / len(matches)
 
     def _multi_turn_accuracy(self, conversation: MultiTurnConversation) -> float:
-        """Compare aggregate_multi_turn_risk against turn-level ground truth labels."""
+        """Compare conversation-level blocking against turn-level ground truth labels."""
 
         aggregated = aggregate_multi_turn_risk(conversation)
-        predicted = bool(aggregated["abstain_recommended"])
+        predicted = aggregated["abstain_recommended"] or any(
+            turn.policy_action == PolicyAction.REFUSE for turn in conversation.turns
+        )
         expected = any(
             turn.policy_action in {PolicyAction.REFUSE, PolicyAction.ABSTAIN}
             or turn.abstain_recommended

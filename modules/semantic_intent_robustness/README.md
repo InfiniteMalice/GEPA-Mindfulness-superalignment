@@ -56,9 +56,9 @@ schema.
 
 `schemas.py` provides the main typed records:
 
-- `SemanticSafetyRecord` for one prompt or one conversation turn.
-- `SemanticCluster` for meaning-preserving variants plus topic-preserving negative controls.
-- `MultiTurnConversation` for compositional laundering evaluation.
+- A record representing one prompt or one conversation turn uses `SemanticSafetyRecord`.
+- Variations of a shared latent intent, plus topic-preserving negative controls, are grouped in `SemanticCluster`.
+- For compositional laundering evaluation across turns, `schemas.py` provides `MultiTurnConversation`.
 
 The schema includes the requested fields for intent decomposition, harm profile, policy action,
 and review metadata. Serialization helpers keep the records JSONL-friendly for synthetic dataset

@@ -106,3 +106,22 @@ def test_abstention_score_penalizes_over_abstention() -> None:
         [],
     )
     assert summary.abstention_calibration_score < 1.0
+
+
+def test_run_conversation_preserves_allow_for_benign_turns() -> None:
+    clusters, _ = build_example_dataset()
+    allow_turn = clusters[0].negative_controls[0]
+
+    conversation = MultiTurnConversation(conversation_id="conv-allow", turns=(allow_turn,))
+    pipeline = SemanticIntentPipeline()
+    summary = pipeline.run_conversation(conversation)
+    assert summary["policy_action"] == "allow"
+
+
+def test_run_conversation_honors_abstain_turns() -> None:
+    _, conversations = build_example_dataset()
+    pipeline = SemanticIntentPipeline()
+    summary = pipeline.run_conversation(
+        MultiTurnConversation("conv-abstain", (conversations[0].turns[0],))
+    )
+    assert summary["policy_action"] == "abstain"
