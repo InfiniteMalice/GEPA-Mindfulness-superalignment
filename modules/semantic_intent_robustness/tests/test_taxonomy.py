@@ -1,6 +1,6 @@
 """Tests for semantic intent robustness taxonomy and schemas."""
 
-# Standard library
+# Third-party
 import pytest
 
 # Local
@@ -25,6 +25,22 @@ def test_schema_round_trip_serialization() -> None:
     )
     restored = SemanticSafetyRecord.from_dict(record.to_dict())
     assert restored == record
+
+
+def test_from_dict_preserves_dataclass_defaults_for_partial_records() -> None:
+    record = SemanticSafetyRecord.from_dict(
+        {
+            "prompt_id": "p-defaults",
+            "prompt_text": "abstract prompt",
+            "semantic_cluster_id": "c1",
+            "parent_example_id": None,
+            "variant_type": "original",
+            "language": "en",
+        }
+    )
+    assert record.intent_primary == IntentPrimary.UNCERTAIN
+    assert record.allowed_high_level_help == ()
+    assert record.disallowed_operational_help == ()
 
 
 def test_negative_turn_index_raises_value_error() -> None:

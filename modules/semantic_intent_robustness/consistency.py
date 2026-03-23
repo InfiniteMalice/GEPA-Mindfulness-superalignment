@@ -17,6 +17,12 @@ RISK_SEVERITY_ORDER: dict[CapabilityTransferRisk, int] = {
 }
 
 
+def risk_severity(risk: CapabilityTransferRisk) -> int:
+    """Return a defensive severity rank for capability transfer risk."""
+
+    return RISK_SEVERITY_ORDER.get(risk, RISK_SEVERITY_ORDER[CapabilityTransferRisk.CRITICAL])
+
+
 def decomposition_consistency_score(records: list[SemanticSafetyRecord]) -> float:
     """Measure agreement across core decomposition fields."""
 
@@ -79,7 +85,7 @@ def aggregate_multi_turn_risk(conversation: MultiTurnConversation) -> dict[str, 
         }
     max_turn = max(
         conversation.turns,
-        key=lambda turn: RISK_SEVERITY_ORDER[turn.capability_transfer_risk],
+        key=lambda turn: risk_severity(turn.capability_transfer_risk),
     )
     concealment = any(turn.concealment_component for turn in conversation.turns)
     deception = any(turn.deception_component for turn in conversation.turns)
@@ -99,6 +105,7 @@ __all__ = [
     "aggregate_multi_turn_risk",
     "decomposition_consistency_score",
     "policy_consistency_score",
+    "risk_severity",
     "semantic_cluster_agreement",
     "topic_vs_intent_discrimination",
 ]

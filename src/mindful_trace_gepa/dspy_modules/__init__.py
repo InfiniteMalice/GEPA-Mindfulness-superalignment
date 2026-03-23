@@ -30,15 +30,16 @@ def _optional(name: str) -> Any:
 
 
 def _optional_repo_module(name: str) -> Any:
+    inserted_path = str(MODULES_PATH)
     added_path = False
-    if MODULES_PATH.is_dir() and str(MODULES_PATH) not in sys.path:
-        sys.path.insert(0, str(MODULES_PATH))
+    if MODULES_PATH.is_dir() and inserted_path not in sys.path:
+        sys.path.insert(0, inserted_path)
         added_path = True
     try:
         return _optional(name)
     finally:
-        if added_path:
-            sys.path.pop(0)
+        if added_path and inserted_path in sys.path:
+            sys.path.remove(inserted_path)
 
 
 pipeline = _optional("mindful_trace_gepa.dspy_modules.pipeline")
@@ -60,11 +61,6 @@ semantic_package = _optional_repo_module("semantic_intent_robustness")
 SEMANTIC_PIPELINE_REGISTRY = (
     getattr(semantic_package, "SEMANTIC_PIPELINE_REGISTRY", None) if semantic_package else None
 )
-
-try:
-    from semantic_intent_robustness import SEMANTIC_PIPELINE_REGISTRY
-except ImportError:  # pragma: no cover
-    SEMANTIC_PIPELINE_REGISTRY = None
 
 __all__ = [
     "GEPAChain",

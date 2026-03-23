@@ -3,6 +3,8 @@
 # Standard library
 from __future__ import annotations
 
+import json
+
 # Local
 from .config import DEFAULT_CONFIG
 from .schemas import SemanticCluster, SemanticSafetyRecord
@@ -34,6 +36,33 @@ def _coerce_variant_type(value: object) -> VariantType:
         return VariantType(str(value))
     except ValueError as exc:
         raise ValueError(f"Unsupported variant_type: {value!r}") from exc
+
+
+def _coerce_policy_action(value: object) -> PolicyAction:
+    """Validate and coerce policy actions supplied by cluster specs."""
+
+    if isinstance(value, PolicyAction):
+        return value
+    if isinstance(value, dict):
+        value = value.get("policy_action")
+    try:
+        return PolicyAction(str(value))
+    except ValueError as exc:
+        raise ValueError(f"Unsupported policy_action: {value!r}") from exc
+
+
+def _coerce_overrides(value: object) -> dict[str, object] | None:
+    """Validate and coerce override payloads supplied by cluster specs."""
+
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        parsed = json.loads(value)
+        if isinstance(parsed, dict):
+            return parsed
+    raise ValueError(f"Unsupported overrides payload: {value!r}")
 
 
 def build_variant(
@@ -83,6 +112,7 @@ def build_semantic_cluster(
     records = [seed]
     for spec in variant_specs:
         variant_type = _coerce_variant_type(spec["variant_type"])
+        overrides = _coerce_overrides(spec.get("overrides"))
         record = build_variant(
             seed,
             prompt_id=str(spec["prompt_id"]),
@@ -92,11 +122,13 @@ def build_semantic_cluster(
             turn_index=int(spec.get("turn_index", seed.turn_index)),
             parent_example_id=str(spec.get("parent_example_id", seed.prompt_id)),
             user_goal_summary=str(spec.get("user_goal_summary", seed.user_goal_summary)),
-            overrides=spec.get("overrides"),
+            overrides=overrides,
         )
         records.append(record)
     negatives: list[SemanticSafetyRecord] = []
     for spec in negative_specs or []:
+        overrides = _coerce_overrides(spec.get("overrides"))
+        policy_action = _coerce_policy_action(spec.get("policy_action", PolicyAction.ALLOW))
         record = build_variant(
             seed,
             prompt_id=str(spec["prompt_id"]),
@@ -105,9 +137,9 @@ def build_semantic_cluster(
             language=str(spec.get("language", seed.language)),
             turn_index=int(spec.get("turn_index", 0)),
             parent_example_id=str(spec.get("parent_example_id", seed.prompt_id)),
-            policy_action=spec.get("policy_action", PolicyAction.ALLOW),
+            policy_action=policy_action,
             user_goal_summary=str(spec.get("user_goal_summary", "Benign topic overlap only.")),
-            overrides=spec.get("overrides"),
+            overrides=overrides,
         )
         negatives.append(record)
     return SemanticCluster(

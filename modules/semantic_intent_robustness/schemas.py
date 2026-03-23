@@ -3,7 +3,7 @@
 # Standard library
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import MISSING, asdict, dataclass, field, fields
 from typing import Any
 
 # Local
@@ -26,6 +26,27 @@ from .taxonomy import (
     UncertaintyLevel,
     VariantType,
 )
+
+ENUM_FIELDS = {
+    "variant_type": VariantType,
+    "intent_primary": IntentPrimary,
+    "intent_secondary": IntentSecondary,
+    "requested_capability": RequestedCapability,
+    "capability_transfer_risk": CapabilityTransferRisk,
+    "executionality_level": ExecutionalityLevel,
+    "operational_specificity": OperationalSpecificity,
+    "uncertainty_level": UncertaintyLevel,
+    "harm_domain": HarmDomain,
+    "harm_severity": HarmSeverity,
+    "reversibility": Reversibility,
+    "scale_of_harm": ScaleOfHarm,
+    "target_type": TargetType,
+    "policy_action": PolicyAction,
+    "safe_alternative_mode": SafeAlternativeMode,
+    "source_type": SourceType,
+    "review_status": ReviewStatus,
+}
+TUPLE_FIELDS = {"allowed_high_level_help", "disallowed_operational_help"}
 
 
 @dataclass(frozen=True)
@@ -62,8 +83,8 @@ class SemanticSafetyRecord:
     safe_alternative_mode: SafeAlternativeMode = SafeAlternativeMode.CLARIFY
     abstain_recommended: bool = True
     explanation_brief: str = ""
-    allowed_high_level_help: list[str] = field(default_factory=list)
-    disallowed_operational_help: list[str] = field(default_factory=list)
+    allowed_high_level_help: tuple[str, ...] = field(default_factory=tuple)
+    disallowed_operational_help: tuple[str, ...] = field(default_factory=tuple)
     rationale_summary: str = ""
     consistency_target_group: str = ""
     source_type: SourceType = SourceType.SYNTHETIC
@@ -71,6 +92,12 @@ class SemanticSafetyRecord:
     review_status: ReviewStatus = ReviewStatus.DRAFT
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "allowed_high_level_help", tuple(self.allowed_high_level_help))
+        object.__setattr__(
+            self,
+            "disallowed_operational_help",
+            tuple(self.disallowed_operational_help),
+        )
         for field_name in (
             "benign_plausibility",
             "dual_use_probability",
@@ -93,26 +120,25 @@ class SemanticSafetyRecord:
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "SemanticSafetyRecord":
-        """Hydrate a record from serialized data."""
+        """Hydrate a record from serialized data while preserving field defaults."""
 
         data = dict(payload)
-        data["variant_type"] = VariantType(data["variant_type"])
-        data["intent_primary"] = IntentPrimary(data["intent_primary"])
-        data["intent_secondary"] = IntentSecondary(data["intent_secondary"])
-        data["requested_capability"] = RequestedCapability(data["requested_capability"])
-        data["capability_transfer_risk"] = CapabilityTransferRisk(data["capability_transfer_risk"])
-        data["executionality_level"] = ExecutionalityLevel(data["executionality_level"])
-        data["operational_specificity"] = OperationalSpecificity(data["operational_specificity"])
-        data["uncertainty_level"] = UncertaintyLevel(data["uncertainty_level"])
-        data["harm_domain"] = HarmDomain(data["harm_domain"])
-        data["harm_severity"] = HarmSeverity(data["harm_severity"])
-        data["reversibility"] = Reversibility(data["reversibility"])
-        data["scale_of_harm"] = ScaleOfHarm(data["scale_of_harm"])
-        data["target_type"] = TargetType(data["target_type"])
-        data["policy_action"] = PolicyAction(data["policy_action"])
-        data["safe_alternative_mode"] = SafeAlternativeMode(data["safe_alternative_mode"])
-        data["source_type"] = SourceType(data["source_type"])
-        data["review_status"] = ReviewStatus(data["review_status"])
+        default_map: dict[str, Any] = {}
+        for dataclass_field in fields(cls):
+            if dataclass_field.default is not MISSING:
+                default_map[dataclass_field.name] = dataclass_field.default
+            elif dataclass_field.default_factory is not MISSING:
+                default_map[dataclass_field.name] = dataclass_field.default_factory()
+        for field_name, enum_cls in ENUM_FIELDS.items():
+            if field_name in data:
+                data[field_name] = enum_cls(data[field_name])
+            elif field_name in default_map:
+                data[field_name] = default_map[field_name]
+        for field_name in TUPLE_FIELDS:
+            if field_name in data:
+                data[field_name] = tuple(data[field_name])
+            elif field_name in default_map:
+                data[field_name] = tuple(default_map[field_name])
         return cls(**data)
 
 

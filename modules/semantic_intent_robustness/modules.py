@@ -162,7 +162,10 @@ class SemanticIntentPipeline:
 
     def run_conversation(self, conversation: MultiTurnConversation) -> dict[str, Any]:
         summary = self.multi_turn(conversation)
-        if summary["abstain_recommended"]:
+        if any(turn.policy_action == PolicyAction.REFUSE for turn in conversation.turns):
+            summary["policy_action"] = PolicyAction.REFUSE.value
+            summary["safe_alternative_mode"] = SafeAlternativeMode.HIGH_LEVEL_SAFETY.value
+        elif summary["abstain_recommended"]:
             summary["policy_action"] = PolicyAction.ABSTAIN.value
             summary["safe_alternative_mode"] = SafeAlternativeMode.CLARIFY.value
         else:

@@ -4,7 +4,7 @@
 from semantic_intent_robustness.dataset_builder import build_example_dataset
 from semantic_intent_robustness.evaluators import SemanticRobustnessEvaluator
 from semantic_intent_robustness.modules import SemanticIntentPipeline
-from semantic_intent_robustness.schemas import SemanticCluster
+from semantic_intent_robustness.schemas import MultiTurnConversation, SemanticCluster
 from semantic_intent_robustness.signatures import ALL_SIGNATURES, DecomposeIntent
 
 
@@ -44,3 +44,13 @@ def test_evaluator_compares_variant_policy_against_seed() -> None:
         )
     )["paraphrase_invariance"]
     assert score == 0.0
+
+
+def test_run_conversation_honors_refused_turns() -> None:
+    clusters, _ = build_example_dataset()
+    pipeline = SemanticIntentPipeline()
+    conversation = MultiTurnConversation(
+        conversation_id="conv-refuse", turns=(clusters[0].records[0],)
+    )
+    summary = pipeline.run_conversation(conversation)
+    assert summary["policy_action"] == "refuse"

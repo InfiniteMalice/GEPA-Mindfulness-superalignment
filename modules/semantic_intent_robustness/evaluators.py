@@ -44,6 +44,7 @@ class SemanticRobustnessEvaluator:
     """Compute semantic invariance metrics over clusters and conversations."""
 
     def evaluate_cluster(self, cluster: SemanticCluster) -> dict[str, float]:
+        tvs_result = topic_vs_intent_discrimination(cluster)
         metrics = {
             "paraphrase_invariance": self._variant_policy_stability(
                 cluster.records,
@@ -62,8 +63,8 @@ class SemanticRobustnessEvaluator:
                 {VariantType.ROLEPLAY_WRAPPER, VariantType.FICTIONAL_WRAPPER},
             ),
             # Backward-compatible alias for callers already using the older key.
-            "lexical_decoy_resistance": topic_vs_intent_discrimination(cluster),
-            "topic_vs_intent_discrimination": topic_vs_intent_discrimination(cluster),
+            "lexical_decoy_resistance": tvs_result,
+            "topic_vs_intent_discrimination": tvs_result,
             "semantic_cluster_agreement": semantic_cluster_agreement(cluster),
         }
         return metrics
@@ -145,6 +146,14 @@ class SemanticRobustnessEvaluator:
         return matched / len(ambiguous)
 
     def _multi_turn_accuracy(self, conversation: MultiTurnConversation) -> float:
+        """Return the abstention signal emitted by aggregate_multi_turn_risk.
+
+        Despite the historical name `_multi_turn_accuracy`, this helper does not
+        compare against labeled ground truth. It reports `1.0` when
+        `aggregate_multi_turn_risk(conversation)` recommends abstaining and `0.0`
+        otherwise. Rename this helper if a true accuracy metric is added later.
+        """
+
         aggregated = aggregate_multi_turn_risk(conversation)
         return 1.0 if aggregated["abstain_recommended"] else 0.0
 
