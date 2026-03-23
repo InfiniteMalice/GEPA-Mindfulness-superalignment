@@ -40,6 +40,11 @@ DSPyCompiler = GEPACompiler
 
 ALL_SIGNATURES = getattr(signatures, "ALL_SIGNATURES", None) if signatures else None
 
+try:
+    from semantic_intent_robustness import SEMANTIC_PIPELINE_REGISTRY
+except ImportError:  # pragma: no cover
+    SEMANTIC_PIPELINE_REGISTRY = None
+
 __all__ = [
     "GEPAChain",
     "DualPathGEPAChain",
@@ -50,4 +55,5 @@ __all__ = [
     "DSPyCompiler",
     "create_gepa_metric",
     "ALL_SIGNATURES",
+    "SEMANTIC_PIPELINE_REGISTRY",
 ]
