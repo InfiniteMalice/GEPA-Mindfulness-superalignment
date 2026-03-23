@@ -61,6 +61,11 @@ SEMANTIC_PIPELINE_REGISTRY = (
     getattr(semantic_package, "SEMANTIC_PIPELINE_REGISTRY", None) if semantic_package else None
 )
 
+try:
+    from semantic_intent_robustness import SEMANTIC_PIPELINE_REGISTRY
+except ImportError:  # pragma: no cover
+    SEMANTIC_PIPELINE_REGISTRY = None
+
 __all__ = [
     "GEPAChain",
     "DualPathGEPAChain",
