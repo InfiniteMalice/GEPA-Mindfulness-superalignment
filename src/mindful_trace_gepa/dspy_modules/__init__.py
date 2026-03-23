@@ -10,18 +10,39 @@ entry points which check for optional dependencies at runtime.
 
 from __future__ import annotations
 
+import sys
 from importlib import import_module
+from pathlib import Path
 from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+MODULES_PATH = REPO_ROOT / "modules"
 
 
 def _optional(name: str) -> Any:
     try:
         module = import_module(name)
-    except ModuleNotFoundError:
-        return None
-    except Exception:
-        return None
+    except ModuleNotFoundError as exc:
+        missing_name = exc.name or ""
+        if missing_name == name or missing_name.startswith(f"{name}."):
+            return None
+        if missing_name in {"dspy", "dspy.teleprompt"}:
+            return None
+        raise
     return module
+
+
+def _optional_repo_module(name: str) -> Any:
+    inserted_path = str(MODULES_PATH)
+    added_path = False
+    if MODULES_PATH.is_dir() and inserted_path not in sys.path:
+        sys.path.insert(0, inserted_path)
+        added_path = True
+    try:
+        return _optional(name)
+    finally:
+        if added_path and inserted_path in sys.path:
+            sys.path.remove(inserted_path)
 
 
 pipeline = _optional("mindful_trace_gepa.dspy_modules.pipeline")
@@ -39,6 +60,10 @@ create_gepa_metric = getattr(compile, "create_gepa_metric", None) if compile els
 DSPyCompiler = GEPACompiler
 
 ALL_SIGNATURES = getattr(signatures, "ALL_SIGNATURES", None) if signatures else None
+semantic_package = _optional_repo_module("semantic_intent_robustness")
+SEMANTIC_PIPELINE_REGISTRY = (
+    getattr(semantic_package, "SEMANTIC_PIPELINE_REGISTRY", None) if semantic_package else None
+)
 
 __all__ = [
     "GEPAChain",
@@ -50,4 +75,5 @@ __all__ = [
     "DSPyCompiler",
     "create_gepa_metric",
     "ALL_SIGNATURES",
+    "SEMANTIC_PIPELINE_REGISTRY",
 ]
