@@ -20,3 +20,28 @@ def test_pipeline_emits_structured_outputs() -> None:
     assert result.policy_decision["policy_action"] == "refuse"
     assert "response_text" in result.safe_response
     assert result.consistency_report is not None
+
+
+def test_evaluator_compares_variant_policy_against_seed() -> None:
+    clusters, _ = build_example_dataset()
+    cluster = clusters[0]
+    mutated = list(cluster.records)
+    mutated[1] = type(mutated[1]).from_dict(
+        {
+            **mutated[1].to_dict(),
+            "policy_action": "allow",
+        }
+    )
+    from semantic_intent_robustness.evaluators import SemanticRobustnessEvaluator
+    from semantic_intent_robustness.schemas import SemanticCluster
+
+    evaluator = SemanticRobustnessEvaluator()
+    score = evaluator.evaluate_cluster(
+        SemanticCluster(
+            cluster_id=cluster.cluster_id,
+            records=tuple(mutated),
+            negative_controls=cluster.negative_controls,
+            cluster_summary=cluster.cluster_summary,
+        )
+    )["paraphrase_invariance"]
+    assert score == 0.0

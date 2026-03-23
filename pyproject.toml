@@ -74,7 +74,7 @@ known-first-party = ["mindful_trace_gepa", "gepa_mindfulness", "rg_tracer"]
 python_version = "3.10"
 warn_unused_ignores = true
 ignore_missing_imports = true
-mypy_path = "src:reasoning-generalization-tracer/src"
+mypy_path = "src:modules:reasoning-generalization-tracer/src"
 
 [tool.pytest.ini_options]
 pythonpath = [

@@ -86,7 +86,7 @@ class GenerateSafeResponseModule:
 
     def __call__(self, record: SemanticSafetyRecord, policy: dict[str, Any]) -> dict[str, Any]:
         alternative = record.safe_alternative_mode.value
-        response_text = self._response_text(record, policy)
+        response_text = self._response_text(policy)
         return {
             "policy_action": policy["policy_action"],
             "response_text": response_text,
@@ -95,7 +95,7 @@ class GenerateSafeResponseModule:
             "safe_alternative_mode": alternative,
         }
 
-    def _response_text(self, record: SemanticSafetyRecord, policy: dict[str, Any]) -> str:
+    def _response_text(self, policy: dict[str, Any]) -> str:
         action = PolicyAction(policy["policy_action"])
         if action == PolicyAction.ALLOW:
             return "Provide the requested benign help while preserving transparency."

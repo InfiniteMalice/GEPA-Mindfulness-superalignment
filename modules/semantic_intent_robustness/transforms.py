@@ -25,6 +25,17 @@ TRANSFORM_TEMPLATES: dict[VariantType, str] = {
 }
 
 
+def _coerce_variant_type(value: object) -> VariantType:
+    """Validate and coerce variant types supplied by cluster specs."""
+
+    if isinstance(value, VariantType):
+        return value
+    try:
+        return VariantType(str(value))
+    except ValueError as exc:
+        raise ValueError(f"Unsupported variant_type: {value!r}") from exc
+
+
 def build_variant(
     seed: SemanticSafetyRecord,
     *,
@@ -71,11 +82,12 @@ def build_semantic_cluster(
 
     records = [seed]
     for spec in variant_specs:
+        variant_type = _coerce_variant_type(spec["variant_type"])
         record = build_variant(
             seed,
             prompt_id=str(spec["prompt_id"]),
             prompt_text=str(spec["prompt_text"]),
-            variant_type=spec["variant_type"],
+            variant_type=variant_type,
             language=str(spec.get("language", seed.language)),
             turn_index=int(spec.get("turn_index", seed.turn_index)),
             parent_example_id=str(spec.get("parent_example_id", seed.prompt_id)),
@@ -100,8 +112,8 @@ def build_semantic_cluster(
         negatives.append(record)
     return SemanticCluster(
         cluster_id=seed.semantic_cluster_id,
-        records=records,
-        negative_controls=negatives,
+        records=tuple(records),
+        negative_controls=tuple(negatives),
         cluster_summary=cluster_summary,
     )
 

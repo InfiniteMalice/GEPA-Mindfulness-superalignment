@@ -3,7 +3,7 @@
 # Standard library
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 # Local
 from .taxonomy import VariantType
@@ -37,12 +37,10 @@ class SemanticIntentConfig:
     supported_languages: tuple[str, ...] = ("en", "es", "fr", "mixed")
     safe_languages_note: str = "Examples remain abstract, policy-safe, and non-operational."
     generated_by: str = "semantic_intent_robustness_v1"
-    default_allowed_help: tuple[str, ...] = field(
-        default_factory=lambda: (
-            "high-level safety framing",
-            "benign alternatives",
-            "risk-aware clarification",
-        )
+    default_allowed_help: tuple[str, ...] = (
+        "high-level safety framing",
+        "benign alternatives",
+        "risk-aware clarification",
     )
 
 

@@ -121,9 +121,13 @@ class SemanticCluster:
     """A cluster of semantically related records and negative controls."""
 
     cluster_id: str
-    records: list[SemanticSafetyRecord]
-    negative_controls: list[SemanticSafetyRecord] = field(default_factory=list)
+    records: tuple[SemanticSafetyRecord, ...]
+    negative_controls: tuple[SemanticSafetyRecord, ...] = field(default_factory=tuple)
     cluster_summary: str = ""
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "records", tuple(self.records))
+        object.__setattr__(self, "negative_controls", tuple(self.negative_controls))
 
     def to_dict(self) -> dict[str, Any]:
         return {
