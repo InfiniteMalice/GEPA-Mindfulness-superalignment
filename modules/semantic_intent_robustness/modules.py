@@ -85,7 +85,9 @@ class GenerateSafeResponseModule:
     """Generate a bounded response specification rather than raw free-form text."""
 
     def __call__(self, record: SemanticSafetyRecord, policy: dict[str, Any]) -> dict[str, Any]:
-        alternative = record.safe_alternative_mode.value
+        alternative = policy.get("safe_alternative_mode")
+        if alternative is None:
+            alternative = record.safe_alternative_mode.value
         response_text = self._response_text(policy)
         return {
             "policy_action": policy["policy_action"],
@@ -168,15 +170,15 @@ class SemanticIntentPipeline:
         elif any(turn.policy_action == PolicyAction.ABSTAIN for turn in conversation.turns):
             summary["policy_action"] = PolicyAction.ABSTAIN.value
             summary["safe_alternative_mode"] = SafeAlternativeMode.CLARIFY.value
-        elif summary["abstain_recommended"]:
-            summary["policy_action"] = PolicyAction.ABSTAIN.value
-            summary["safe_alternative_mode"] = SafeAlternativeMode.CLARIFY.value
         elif any(
             turn.policy_action in {PolicyAction.ALLOW_WITH_BOUNDARIES, PolicyAction.REDIRECT}
             for turn in conversation.turns
         ):
             summary["policy_action"] = PolicyAction.ALLOW_WITH_BOUNDARIES.value
             summary["safe_alternative_mode"] = SafeAlternativeMode.HIGH_LEVEL_SAFETY.value
+        elif summary["abstain_recommended"]:
+            summary["policy_action"] = PolicyAction.ABSTAIN.value
+            summary["safe_alternative_mode"] = SafeAlternativeMode.CLARIFY.value
         else:
             summary["policy_action"] = PolicyAction.ALLOW.value
             summary["safe_alternative_mode"] = SafeAlternativeMode.NONE.value

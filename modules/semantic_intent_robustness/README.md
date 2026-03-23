@@ -174,10 +174,8 @@ semantic scaffold, safe example data, and evaluation/loss interfaces. It does no
 representation learning or multilingual intent understanding on its own; those remain downstream
 modeling challenges.
 
-## Roadmap / next steps
+## Tracker note
 
-1. Add representation-level probes for latent intent invariance.
-2. Expand multilingual coverage and culturally diverse paraphrase templates.
-3. Plug semantic cluster metrics into dashboarded training/evaluation reports.
-4. Integrate richer conversation memory for long-horizon laundering detection.
-5. Add human review loops for disagreement auditing and taxonomy refinement.
+Follow the semantic intent robustness roadmap in the beads tracker items `sir-bd-001` through
+`sir-bd-005`, recorded in `.beads/issues.jsonl` because the `bd` CLI is unavailable in this
+container.

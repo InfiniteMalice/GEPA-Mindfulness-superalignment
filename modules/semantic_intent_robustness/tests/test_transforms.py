@@ -51,3 +51,36 @@ def test_invalid_override_json_raises_clear_error() -> None:
                 }
             ],
         )
+
+
+def test_variant_builder_preserves_nullable_fields_and_turn_index() -> None:
+    clusters, _ = build_example_dataset()
+    seed = clusters[0].records[0]
+    cluster = build_semantic_cluster(
+        seed,
+        [
+            {
+                "prompt_id": "nullable-v",
+                "prompt_text": "variant",
+                "variant_type": "paraphrase",
+                "parent_example_id": None,
+                "user_goal_summary": None,
+                "turn_index": 4,
+            }
+        ],
+        negative_specs=[
+            {
+                "prompt_id": "nullable-n",
+                "prompt_text": "negative",
+                "parent_example_id": None,
+                "user_goal_summary": None,
+                "turn_index": 5,
+            }
+        ],
+    )
+    assert cluster.records[1].parent_example_id is None
+    assert cluster.records[1].user_goal_summary is None
+    assert cluster.records[1].turn_index == 4
+    assert cluster.negative_controls[0].parent_example_id is None
+    assert cluster.negative_controls[0].user_goal_summary is None
+    assert cluster.negative_controls[0].turn_index == 5

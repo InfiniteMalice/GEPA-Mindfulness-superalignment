@@ -22,8 +22,10 @@ MODULES_PATH = REPO_ROOT / "modules"
 def _optional(name: str) -> Any:
     try:
         module = import_module(name)
-    except ImportError:
-        return None
+    except ModuleNotFoundError as exc:
+        if exc.name in {name, "dspy"}:
+            return None
+        raise
     return module
 
 

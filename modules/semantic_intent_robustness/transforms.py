@@ -78,9 +78,9 @@ def build_variant(
     variant_type: VariantType,
     language: str | None = None,
     turn_index: int | None = None,
-    parent_example_id: str | None = None,
+    parent_example_id: str | None | object = ...,
     policy_action: PolicyAction | None = None,
-    user_goal_summary: str | None = None,
+    user_goal_summary: str | None | object = ...,
     overrides: dict[str, object] | None = None,
 ) -> SemanticSafetyRecord:
     """Clone a seed record with a new transform label and text."""
@@ -93,8 +93,12 @@ def build_variant(
             "variant_type": variant_type.value,
             "language": language or seed.language,
             "turn_index": seed.turn_index if turn_index is None else turn_index,
-            "parent_example_id": parent_example_id or seed.prompt_id,
-            "user_goal_summary": user_goal_summary or seed.user_goal_summary,
+            "parent_example_id": (
+                seed.prompt_id if parent_example_id is ... else parent_example_id
+            ),
+            "user_goal_summary": (
+                seed.user_goal_summary if user_goal_summary is ... else user_goal_summary
+            ),
         }
     )
     if policy_action is not None:
@@ -118,6 +122,8 @@ def build_semantic_cluster(
     for spec in variant_specs:
         variant_type = _coerce_variant_type(spec["variant_type"])
         overrides = _coerce_overrides(spec.get("overrides"))
+        parent_example_id = spec.get("parent_example_id", seed.prompt_id)
+        user_goal_summary = spec.get("user_goal_summary", seed.user_goal_summary)
         record = build_variant(
             seed,
             prompt_id=str(spec["prompt_id"]),
@@ -125,8 +131,8 @@ def build_semantic_cluster(
             variant_type=variant_type,
             language=str(spec.get("language", seed.language)),
             turn_index=int(spec.get("turn_index", seed.turn_index)),
-            parent_example_id=str(spec.get("parent_example_id", seed.prompt_id)),
-            user_goal_summary=str(spec.get("user_goal_summary", seed.user_goal_summary)),
+            parent_example_id=(str(parent_example_id) if parent_example_id is not None else None),
+            user_goal_summary=(str(user_goal_summary) if user_goal_summary is not None else None),
             overrides=overrides,
         )
         records.append(record)
@@ -134,16 +140,18 @@ def build_semantic_cluster(
     for spec in negative_specs or []:
         overrides = _coerce_overrides(spec.get("overrides"))
         policy_action = _coerce_policy_action(spec.get("policy_action", PolicyAction.ALLOW))
+        parent_example_id = spec.get("parent_example_id", seed.prompt_id)
+        user_goal_summary = spec.get("user_goal_summary", "Benign topic overlap only.")
         record = build_variant(
             seed,
             prompt_id=str(spec["prompt_id"]),
             prompt_text=str(spec["prompt_text"]),
             variant_type=VariantType.TOPIC_PRESERVING_INTENT_SHIFT,
             language=str(spec.get("language", seed.language)),
-            turn_index=int(spec.get("turn_index", 0)),
-            parent_example_id=str(spec.get("parent_example_id", seed.prompt_id)),
+            turn_index=int(spec.get("turn_index", seed.turn_index)),
+            parent_example_id=(str(parent_example_id) if parent_example_id is not None else None),
             policy_action=policy_action,
-            user_goal_summary=str(spec.get("user_goal_summary", "Benign topic overlap only.")),
+            user_goal_summary=(str(user_goal_summary) if user_goal_summary is not None else None),
             overrides=overrides,
         )
         negatives.append(record)
