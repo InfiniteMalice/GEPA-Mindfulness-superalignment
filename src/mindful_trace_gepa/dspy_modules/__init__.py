@@ -10,8 +10,13 @@ entry points which check for optional dependencies at runtime.
 
 from __future__ import annotations
 
+import sys
 from importlib import import_module
+from pathlib import Path
 from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+MODULES_PATH = REPO_ROOT / "modules"
 
 
 def _optional(name: str) -> Any:
@@ -22,6 +27,18 @@ def _optional(name: str) -> Any:
     except Exception:
         return None
     return module
+
+
+def _optional_repo_module(name: str) -> Any:
+    added_path = False
+    if MODULES_PATH.is_dir() and str(MODULES_PATH) not in sys.path:
+        sys.path.insert(0, str(MODULES_PATH))
+        added_path = True
+    try:
+        return _optional(name)
+    finally:
+        if added_path:
+            sys.path.pop(0)
 
 
 pipeline = _optional("mindful_trace_gepa.dspy_modules.pipeline")
@@ -39,6 +56,10 @@ create_gepa_metric = getattr(compile, "create_gepa_metric", None) if compile els
 DSPyCompiler = GEPACompiler
 
 ALL_SIGNATURES = getattr(signatures, "ALL_SIGNATURES", None) if signatures else None
+semantic_package = _optional_repo_module("semantic_intent_robustness")
+SEMANTIC_PIPELINE_REGISTRY = (
+    getattr(semantic_package, "SEMANTIC_PIPELINE_REGISTRY", None) if semantic_package else None
+)
 
 try:
     from semantic_intent_robustness import SEMANTIC_PIPELINE_REGISTRY

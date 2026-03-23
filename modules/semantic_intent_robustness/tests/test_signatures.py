@@ -2,7 +2,9 @@
 
 # Local
 from semantic_intent_robustness.dataset_builder import build_example_dataset
+from semantic_intent_robustness.evaluators import SemanticRobustnessEvaluator
 from semantic_intent_robustness.modules import SemanticIntentPipeline
+from semantic_intent_robustness.schemas import SemanticCluster
 from semantic_intent_robustness.signatures import ALL_SIGNATURES, DecomposeIntent
 
 
@@ -32,9 +34,6 @@ def test_evaluator_compares_variant_policy_against_seed() -> None:
             "policy_action": "allow",
         }
     )
-    from semantic_intent_robustness.evaluators import SemanticRobustnessEvaluator
-    from semantic_intent_robustness.schemas import SemanticCluster
-
     evaluator = SemanticRobustnessEvaluator()
     score = evaluator.evaluate_cluster(
         SemanticCluster(

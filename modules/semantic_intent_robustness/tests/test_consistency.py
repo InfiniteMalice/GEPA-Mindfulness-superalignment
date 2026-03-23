@@ -12,7 +12,7 @@ from semantic_intent_robustness.schemas import MultiTurnConversation
 
 def test_policy_stability_across_same_intent_variants() -> None:
     clusters, _ = build_example_dataset()
-    score = policy_consistency_score(clusters[0].records)
+    score = policy_consistency_score(list(clusters[0].records))
     assert score == 1.0
 
 
@@ -30,7 +30,7 @@ def test_multi_turn_aggregation_detects_escalation() -> None:
 
 
 def test_empty_multi_turn_aggregation_is_safe() -> None:
-    summary = aggregate_multi_turn_risk(MultiTurnConversation(conversation_id="empty", turns=[]))
+    summary = aggregate_multi_turn_risk(MultiTurnConversation(conversation_id="empty", turns=()))
     assert summary["turn_count"] == 0
     assert summary["max_capability_transfer_risk"] is None
     assert summary["contains_concealment"] is False

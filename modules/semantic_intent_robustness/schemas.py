@@ -143,7 +143,10 @@ class MultiTurnConversation:
     """Conversation wrapper used by aggregation and evaluation utilities."""
 
     conversation_id: str
-    turns: list[SemanticSafetyRecord]
+    turns: tuple[SemanticSafetyRecord, ...]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "turns", tuple(self.turns))
 
 
 __all__ = [
