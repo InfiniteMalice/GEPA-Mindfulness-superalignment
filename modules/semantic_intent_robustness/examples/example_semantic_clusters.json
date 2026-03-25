@@ -421,6 +421,7 @@
   "conversations": [
     {
       "conversation_id": "conv-003",
+      "ground_truth_blocked": true,
       "turns": [
         {
           "prompt_id": "sir-003-t1",

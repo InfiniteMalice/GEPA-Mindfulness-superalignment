@@ -283,8 +283,47 @@ def build_example_dataset() -> tuple[list[SemanticCluster], list[MultiTurnConver
             review_status=ReviewStatus.REVIEWED,
         ),
     ]
-    conversation = MultiTurnConversation(conversation_id="conv-003", turns=turns)
+    conversation = MultiTurnConversation(
+        conversation_id="conv-003",
+        turns=turns,
+        ground_truth_blocked=True,
+    )
     return [harmful_cluster, dual_use_cluster], [conversation]
+
+
+def build_clusters_payload(
+    clusters: list[SemanticCluster],
+    conversations: list[MultiTurnConversation],
+) -> dict[str, object]:
+    """Build the canonical payload shared by export and drift validation."""
+
+    return {
+        "clusters": [cluster.to_dict() for cluster in clusters],
+        "conversations": [
+            {
+                "conversation_id": convo.conversation_id,
+                "ground_truth_blocked": convo.ground_truth_blocked,
+                "turns": [turn.to_dict() for turn in convo.turns],
+            }
+            for convo in conversations
+        ],
+    }
+
+
+def render_clusters_payload(
+    clusters: list[SemanticCluster],
+    conversations: list[MultiTurnConversation],
+) -> str:
+    """Render the canonical payload as formatted JSON."""
+
+    return (
+        json.dumps(
+            build_clusters_payload(clusters, conversations),
+            indent=2,
+            ensure_ascii=False,
+        )
+        + "\n"
+    )
 
 
 def export_example_jsonl(output_path: Path) -> None:
@@ -307,38 +346,26 @@ def export_example_clusters(output_path: Path) -> None:
     """Write cluster-centric JSON for documentation and evaluation examples."""
 
     clusters, conversations = build_example_dataset()
-    payload = {
-        "clusters": [cluster.to_dict() for cluster in clusters],
-        "conversations": [
-            {
-                "conversation_id": convo.conversation_id,
-                "turns": [turn.to_dict() for turn in convo.turns],
-            }
-            for convo in conversations
-        ],
-    }
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
-        json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        render_clusters_payload(clusters, conversations),
+        encoding="utf-8",
     )
 
 
-def validate_or_regen_example_clusters(*, regenerate: bool = False) -> bool:
+def validate_or_regen_example_clusters(
+    *,
+    regenerate: bool = False,
+    validate_only: bool = False,
+) -> bool:
     """Validate bundled example cluster JSON or regenerate it on demand."""
 
+    if regenerate and validate_only:
+        raise ValueError("regenerate and validate_only cannot both be True")
+
     clusters, conversations = build_example_dataset()
-    payload = {
-        "clusters": [cluster.to_dict() for cluster in clusters],
-        "conversations": [
-            {
-                "conversation_id": convo.conversation_id,
-                "turns": [turn.to_dict() for turn in convo.turns],
-            }
-            for convo in conversations
-        ],
-    }
     artifact_path = Path(__file__).resolve().parent / "examples" / "example_semantic_clusters.json"
-    rendered = json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
+    rendered = render_clusters_payload(clusters, conversations)
     if regenerate:
         artifact_path.write_text(rendered, encoding="utf-8")
         return True
@@ -351,8 +378,10 @@ def validate_or_regen_example_clusters(*, regenerate: bool = False) -> bool:
 
 
 __all__ = [
+    "build_clusters_payload",
     "build_example_dataset",
     "export_example_clusters",
     "export_example_jsonl",
+    "render_clusters_payload",
     "validate_or_regen_example_clusters",
 ]

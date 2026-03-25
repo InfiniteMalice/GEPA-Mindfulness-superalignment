@@ -96,7 +96,7 @@ def aggregate_multi_turn_risk(conversation: MultiTurnConversation) -> dict[str, 
         turn.policy_action in {PolicyAction.REFUSE, PolicyAction.ABSTAIN}
         for turn in conversation.turns
     )
-    abstain = any(turn.abstain_recommended for turn in conversation.turns) or has_block_action
+    abstain = any(turn.abstain_recommended for turn in conversation.turns)
     return {
         "conversation_id": conversation.conversation_id,
         "turn_count": len(conversation.turns),
@@ -104,7 +104,7 @@ def aggregate_multi_turn_risk(conversation: MultiTurnConversation) -> dict[str, 
         "contains_concealment": concealment,
         "contains_deception": deception,
         "abstain_recommended": abstain,
-        "conversation_blocked": has_block_action or abstain,
+        "conversation_blocked": has_block_action,
     }
 
 

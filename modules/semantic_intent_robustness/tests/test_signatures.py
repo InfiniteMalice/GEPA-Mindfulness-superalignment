@@ -67,7 +67,7 @@ def test_run_conversation_honors_refused_turns() -> None:
     clusters, _ = build_example_dataset()
     pipeline = SemanticIntentPipeline()
     conversation = MultiTurnConversation(
-        conversation_id="conv-refuse", turns=(clusters[0].records[0],)
+        conversation_id="conv-refuse", turns=(clusters[0].records[0],), ground_truth_blocked=True
     )
     summary = pipeline.run_conversation(conversation)
     assert summary["policy_action"] == "refuse"
@@ -132,7 +132,11 @@ def test_run_conversation_preserves_allow_for_benign_turns() -> None:
     clusters, _ = build_example_dataset()
     allow_turn = clusters[0].negative_controls[0]
 
-    conversation = MultiTurnConversation(conversation_id="conv-allow", turns=(allow_turn,))
+    conversation = MultiTurnConversation(
+        conversation_id="conv-allow",
+        turns=(allow_turn,),
+        ground_truth_blocked=False,
+    )
     pipeline = SemanticIntentPipeline()
     summary = pipeline.run_conversation(conversation)
     assert summary["policy_action"] == "allow"
@@ -142,7 +146,11 @@ def test_run_conversation_honors_abstain_turns() -> None:
     _, conversations = build_example_dataset()
     pipeline = SemanticIntentPipeline()
     summary = pipeline.run_conversation(
-        MultiTurnConversation("conv-abstain", (conversations[0].turns[0],))
+        MultiTurnConversation(
+            "conv-abstain",
+            (conversations[0].turns[0],),
+            ground_truth_blocked=True,
+        )
     )
     assert summary["policy_action"] == "abstain"
 
@@ -153,6 +161,7 @@ def test_run_conversation_preserves_bounded_help_before_abstain_summary() -> Non
     conversation = MultiTurnConversation(
         conversation_id="conv-bounded",
         turns=(clusters[1].records[0],),
+        ground_truth_blocked=False,
     )
     summary = pipeline.run_conversation(conversation)
     assert summary["policy_action"] == PolicyAction.ALLOW_WITH_BOUNDARIES.value
@@ -163,6 +172,7 @@ def test_evaluator_multi_turn_accuracy_handles_explicit_abstain() -> None:
     evaluator = SemanticRobustnessEvaluator()
     conversation = MultiTurnConversation(
         conversation_id="conv-explicit-abstain",
+        ground_truth_blocked=True,
         turns=(
             type(conversations[0].turns[0]).from_dict(
                 {
@@ -191,6 +201,7 @@ def test_evaluator_multi_turn_accuracy_handles_refuse_turns() -> None:
     evaluator = SemanticRobustnessEvaluator()
     conversation = MultiTurnConversation(
         conversation_id="conv-refuse-no-abstain",
+        ground_truth_blocked=True,
         turns=(
             type(conversations[0].turns[1]).from_dict(
                 {
@@ -216,6 +227,7 @@ def test_evaluator_multi_turn_accuracy_uses_conversation_blocked_flag() -> None:
     evaluator = SemanticRobustnessEvaluator()
     conversation = MultiTurnConversation(
         conversation_id="conv-refuse-detected",
+        ground_truth_blocked=True,
         turns=(
             type(conversations[0].turns[1]).from_dict(
                 {
@@ -241,7 +253,9 @@ def test_run_conversation_preserves_redirect_action() -> None:
             "deception_component": False,
         }
     )
-    summary = pipeline.run_conversation(MultiTurnConversation("conv-redirect", (redirect_turn,)))
+    summary = pipeline.run_conversation(
+        MultiTurnConversation("conv-redirect", (redirect_turn,), ground_truth_blocked=False)
+    )
     assert summary["policy_action"] == PolicyAction.REDIRECT.value
 
 
@@ -258,7 +272,9 @@ def test_run_conversation_uses_aggregate_risk_signals() -> None:
             "deception_component": True,
         }
     )
-    summary = pipeline.run_conversation(MultiTurnConversation("conv-risky", (risky_turn,)))
+    summary = pipeline.run_conversation(
+        MultiTurnConversation("conv-risky", (risky_turn,), ground_truth_blocked=False)
+    )
     assert summary["policy_action"] == PolicyAction.REFUSE.value
 
 
@@ -284,3 +300,14 @@ def test_topic_only_fpr_counts_redirect_as_false_positive() -> None:
         [],
     ).harmful_false_positive_rate_under_topic_only_matches
     assert score == 1.0
+
+
+def test_evaluator_multi_turn_accuracy_uses_ground_truth_flag() -> None:
+    _, conversations = build_example_dataset()
+    evaluator = SemanticRobustnessEvaluator()
+    conversation = MultiTurnConversation(
+        conversation_id="conv-ground-truth-mismatch",
+        turns=(conversations[0].turns[1],),
+        ground_truth_blocked=False,
+    )
+    assert evaluator._multi_turn_accuracy(conversation) == 0.0

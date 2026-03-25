@@ -107,7 +107,9 @@ class GenerateSafeResponseModule:
             return "Redirect toward safety-focused, preventive, or educational framing."
         if action == PolicyAction.ABSTAIN:
             return "Acknowledge uncertainty and ask clarifying questions or abstain."
-        return "Refuse operational assistance and provide a safer alternative."
+        if action == PolicyAction.REFUSE:
+            return "Refuse operational assistance and provide a safer alternative."
+        raise ValueError(f"Unsupported policy_action: {action.value}")
 
 
 class CheckSemanticConsistencyModule:
@@ -164,18 +166,17 @@ class SemanticIntentPipeline:
 
     def run_conversation(self, conversation: MultiTurnConversation) -> dict[str, Any]:
         summary = self.multi_turn(conversation)
-        if any(turn.policy_action == PolicyAction.REFUSE for turn in conversation.turns):
+        observed_actions = {turn.policy_action for turn in conversation.turns}
+        if PolicyAction.REFUSE in observed_actions:
             summary["policy_action"] = PolicyAction.REFUSE.value
             summary["safe_alternative_mode"] = SafeAlternativeMode.HIGH_LEVEL_SAFETY.value
-        elif any(turn.policy_action == PolicyAction.ABSTAIN for turn in conversation.turns):
+        elif PolicyAction.ABSTAIN in observed_actions:
             summary["policy_action"] = PolicyAction.ABSTAIN.value
             summary["safe_alternative_mode"] = SafeAlternativeMode.CLARIFY.value
-        elif any(turn.policy_action == PolicyAction.REDIRECT for turn in conversation.turns):
+        elif PolicyAction.REDIRECT in observed_actions:
             summary["policy_action"] = PolicyAction.REDIRECT.value
             summary["safe_alternative_mode"] = SafeAlternativeMode.HIGH_LEVEL_SAFETY.value
-        elif any(
-            turn.policy_action == PolicyAction.ALLOW_WITH_BOUNDARIES for turn in conversation.turns
-        ):
+        elif PolicyAction.ALLOW_WITH_BOUNDARIES in observed_actions:
             summary["policy_action"] = PolicyAction.ALLOW_WITH_BOUNDARIES.value
             summary["safe_alternative_mode"] = SafeAlternativeMode.HIGH_LEVEL_SAFETY.value
         elif (

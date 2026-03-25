@@ -93,11 +93,15 @@ class SemanticSafetyRecord:
     review_status: ReviewStatus = ReviewStatus.DRAFT
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "allowed_high_level_help", tuple(self.allowed_high_level_help))
+        object.__setattr__(
+            self,
+            "allowed_high_level_help",
+            tuple(self.allowed_high_level_help or []),
+        )
         object.__setattr__(
             self,
             "disallowed_operational_help",
-            tuple(self.disallowed_operational_help),
+            tuple(self.disallowed_operational_help or []),
         )
         for field_name in (
             "benign_plausibility",
@@ -137,9 +141,9 @@ class SemanticSafetyRecord:
                 data[field_name] = default_map[field_name]
         for field_name in TUPLE_FIELDS:
             if field_name in data:
-                data[field_name] = tuple(data[field_name])
+                data[field_name] = tuple(data[field_name] or [])
             elif field_name in default_map:
-                data[field_name] = tuple(default_map[field_name])
+                data[field_name] = tuple(default_map[field_name] or [])
         return cls(**data)
 
 
@@ -171,6 +175,7 @@ class MultiTurnConversation:
 
     conversation_id: str
     turns: tuple[SemanticSafetyRecord, ...]
+    ground_truth_blocked: bool | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "turns", tuple(self.turns))

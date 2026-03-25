@@ -70,6 +70,18 @@ def _coerce_overrides(value: object) -> dict[str, object] | None:
     raise ValueError(f"Unsupported overrides payload: {value!r}")
 
 
+def _coerce_intent_primary(value: object) -> IntentPrimary:
+    """Validate and coerce intent primary values in overrides."""
+
+    if isinstance(value, IntentPrimary):
+        return value
+    normalized = str(value).strip().lower()
+    try:
+        return IntentPrimary(normalized)
+    except ValueError as exc:
+        raise ValueError(f"Unsupported intent_primary: {value!r}") from exc
+
+
 def build_variant(
     seed: SemanticSafetyRecord,
     *,
@@ -141,9 +153,11 @@ def build_semantic_cluster(
     negatives: list[SemanticSafetyRecord] = []
     for spec in negative_specs or []:
         overrides = _coerce_overrides(spec.get("overrides")) or {}
-        if "intent_primary" not in overrides:
-            overrides["intent_primary"] = IntentPrimary.BENIGN_INFORMATION
-        if overrides.get("intent_primary") == IntentPrimary.BENIGN_INFORMATION:
+        intent_primary = _coerce_intent_primary(
+            overrides.get("intent_primary", IntentPrimary.BENIGN_INFORMATION)
+        )
+        overrides["intent_primary"] = intent_primary
+        if intent_primary == IntentPrimary.BENIGN_INFORMATION:
             overrides.setdefault("dual_use_probability", 0.0)
             overrides.setdefault("capability_transfer_risk", "low")
             overrides.setdefault("harm_domain", "none")
