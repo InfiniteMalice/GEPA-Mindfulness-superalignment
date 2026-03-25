@@ -226,19 +226,19 @@ def test_evaluator_multi_turn_accuracy_uses_conversation_blocked_flag() -> None:
     _, conversations = build_example_dataset()
     evaluator = SemanticRobustnessEvaluator()
     conversation = MultiTurnConversation(
-        conversation_id="conv-refuse-detected",
+        conversation_id="conv-flag-driven-block",
         ground_truth_blocked=True,
         turns=(
-            type(conversations[0].turns[1]).from_dict(
+            type(conversations[0].turns[0]).from_dict(
                 {
-                    **conversations[0].turns[1].to_dict(),
-                    "policy_action": PolicyAction.REFUSE.value,
+                    **conversations[0].turns[0].to_dict(),
+                    "policy_action": PolicyAction.ALLOW.value,
                     "abstain_recommended": False,
                 }
             ),
         ),
     )
-    assert evaluator._multi_turn_accuracy(conversation) == 1.0
+    assert evaluator._multi_turn_accuracy(conversation) == 0.0
 
 
 def test_run_conversation_preserves_redirect_action() -> None:

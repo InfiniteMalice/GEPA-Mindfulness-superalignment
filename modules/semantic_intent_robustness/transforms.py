@@ -67,6 +67,7 @@ def _coerce_overrides(value: object) -> dict[str, object] | None:
             raise ValueError("Failed to parse overrides JSON") from exc
         if isinstance(parsed, dict):
             return parsed
+        raise ValueError(f"Parsed overrides JSON is not an object/dict: {parsed!r}")
     raise ValueError(f"Unsupported overrides payload: {value!r}")
 
 

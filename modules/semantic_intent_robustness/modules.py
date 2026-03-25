@@ -173,12 +173,6 @@ class SemanticIntentPipeline:
         elif PolicyAction.ABSTAIN in observed_actions:
             summary["policy_action"] = PolicyAction.ABSTAIN.value
             summary["safe_alternative_mode"] = SafeAlternativeMode.CLARIFY.value
-        elif PolicyAction.REDIRECT in observed_actions:
-            summary["policy_action"] = PolicyAction.REDIRECT.value
-            summary["safe_alternative_mode"] = SafeAlternativeMode.HIGH_LEVEL_SAFETY.value
-        elif PolicyAction.ALLOW_WITH_BOUNDARIES in observed_actions:
-            summary["policy_action"] = PolicyAction.ALLOW_WITH_BOUNDARIES.value
-            summary["safe_alternative_mode"] = SafeAlternativeMode.HIGH_LEVEL_SAFETY.value
         elif (
             summary["max_capability_transfer_risk"] in {"high", "critical"}
             or summary["contains_concealment"]
@@ -186,6 +180,12 @@ class SemanticIntentPipeline:
             or summary.get("conversation_blocked", False)
         ):
             summary["policy_action"] = PolicyAction.REFUSE.value
+            summary["safe_alternative_mode"] = SafeAlternativeMode.HIGH_LEVEL_SAFETY.value
+        elif PolicyAction.REDIRECT in observed_actions:
+            summary["policy_action"] = PolicyAction.REDIRECT.value
+            summary["safe_alternative_mode"] = SafeAlternativeMode.HIGH_LEVEL_SAFETY.value
+        elif PolicyAction.ALLOW_WITH_BOUNDARIES in observed_actions:
+            summary["policy_action"] = PolicyAction.ALLOW_WITH_BOUNDARIES.value
             summary["safe_alternative_mode"] = SafeAlternativeMode.HIGH_LEVEL_SAFETY.value
         elif summary["abstain_recommended"]:
             summary["policy_action"] = PolicyAction.ABSTAIN.value

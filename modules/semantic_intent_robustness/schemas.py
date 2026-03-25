@@ -5,7 +5,8 @@ from __future__ import annotations
 
 from dataclasses import MISSING, asdict, dataclass, field, fields
 from enum import Enum
-from typing import Any
+from types import UnionType
+from typing import Any, get_origin, get_type_hints
 
 # Local
 from .taxonomy import (
@@ -27,27 +28,6 @@ from .taxonomy import (
     UncertaintyLevel,
     VariantType,
 )
-
-ENUM_FIELDS = {
-    "variant_type": VariantType,
-    "intent_primary": IntentPrimary,
-    "intent_secondary": IntentSecondary,
-    "requested_capability": RequestedCapability,
-    "capability_transfer_risk": CapabilityTransferRisk,
-    "executionality_level": ExecutionalityLevel,
-    "operational_specificity": OperationalSpecificity,
-    "uncertainty_level": UncertaintyLevel,
-    "harm_domain": HarmDomain,
-    "harm_severity": HarmSeverity,
-    "reversibility": Reversibility,
-    "scale_of_harm": ScaleOfHarm,
-    "target_type": TargetType,
-    "policy_action": PolicyAction,
-    "safe_alternative_mode": SafeAlternativeMode,
-    "source_type": SourceType,
-    "review_status": ReviewStatus,
-}
-TUPLE_FIELDS = {"allowed_high_level_help", "disallowed_operational_help"}
 
 
 @dataclass(frozen=True)
@@ -179,6 +159,66 @@ class MultiTurnConversation:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "turns", tuple(self.turns))
+
+
+ENUM_TYPES = (
+    VariantType,
+    IntentPrimary,
+    IntentSecondary,
+    RequestedCapability,
+    CapabilityTransferRisk,
+    ExecutionalityLevel,
+    OperationalSpecificity,
+    UncertaintyLevel,
+    HarmDomain,
+    HarmSeverity,
+    Reversibility,
+    ScaleOfHarm,
+    TargetType,
+    PolicyAction,
+    SafeAlternativeMode,
+    SourceType,
+    ReviewStatus,
+)
+
+
+def _is_tuple_string_field(annotation: object) -> bool:
+    origin = get_origin(annotation)
+    if origin is tuple:
+        args = annotation.__args__
+        return len(args) == 2 and args[0] is str and args[1] is Ellipsis
+    if isinstance(annotation, UnionType):
+        return any(_is_tuple_string_field(arg) for arg in annotation.__args__)
+    return False
+
+
+def _enum_from_annotation(annotation: object) -> type[Enum] | None:
+    if isinstance(annotation, type) and issubclass(annotation, Enum):
+        return annotation
+    if isinstance(annotation, UnionType):
+        for option in annotation.__args__:
+            enum_option = _enum_from_annotation(option)
+            if enum_option is not None:
+                return enum_option
+    return None
+
+
+def _build_field_maps(
+    schema_cls: type[SemanticSafetyRecord],
+) -> tuple[dict[str, type[Enum]], set[str]]:
+    hints = get_type_hints(schema_cls)
+    enum_fields: dict[str, type[Enum]] = {}
+    tuple_fields: set[str] = set()
+    for field_name, annotation in hints.items():
+        enum_cls = _enum_from_annotation(annotation)
+        if enum_cls in ENUM_TYPES:
+            enum_fields[field_name] = enum_cls
+        if _is_tuple_string_field(annotation):
+            tuple_fields.add(field_name)
+    return enum_fields, tuple_fields
+
+
+ENUM_FIELDS, TUPLE_FIELDS = _build_field_maps(SemanticSafetyRecord)
 
 
 __all__ = [

@@ -15,6 +15,13 @@ RISK_SEVERITY_ORDER: dict[CapabilityTransferRisk, int] = {
     CapabilityTransferRisk.HIGH: 2,
     CapabilityTransferRisk.CRITICAL: 3,
 }
+DECOMPOSITION_FIELDS: tuple[str, ...] = (
+    "intent_primary",
+    "requested_capability",
+    "capability_transfer_risk",
+    "harm_domain",
+    "harm_severity",
+)
 
 
 def risk_severity(risk: CapabilityTransferRisk) -> int:
@@ -28,15 +35,15 @@ def decomposition_consistency_score(records: list[SemanticSafetyRecord]) -> floa
 
     if len(records) <= 1:
         return 1.0
-    fields = [
-        "intent_primary",
-        "requested_capability",
-        "capability_transfer_risk",
-        "harm_domain",
-        "harm_severity",
+    missing_fields = [
+        field_name
+        for field_name in DECOMPOSITION_FIELDS
+        if not hasattr(SemanticSafetyRecord, field_name)
     ]
+    if missing_fields:
+        raise ValueError(f"Unknown decomposition fields: {missing_fields!r}")
     field_scores: list[float] = []
-    for field in fields:
+    for field in DECOMPOSITION_FIELDS:
         values = [getattr(record, field) for record in records]
         most_common = Counter(values).most_common(1)[0][1]
         field_scores.append(most_common / len(values))
@@ -109,6 +116,7 @@ def aggregate_multi_turn_risk(conversation: MultiTurnConversation) -> dict[str, 
 
 
 __all__ = [
+    "DECOMPOSITION_FIELDS",
     "RISK_SEVERITY_ORDER",
     "aggregate_multi_turn_risk",
     "decomposition_consistency_score",

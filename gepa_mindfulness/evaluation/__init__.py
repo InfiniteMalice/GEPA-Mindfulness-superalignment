@@ -25,8 +25,8 @@ MODULES_PATH = Path(__file__).resolve().parents[2] / "modules"
 _semantic_pkg = optional_repo_module(
     "semantic_intent_robustness",
     MODULES_PATH,
-    allow_missing_submodules=True,
-    allow_import_error_name_match=True,
+    allow_missing_submodules=False,
+    allow_import_error_name_match=False,
 )
 SemanticRobustnessEvaluator: type["_SemanticRobustnessEvaluator"] | None = (
     getattr(_semantic_pkg, "SemanticRobustnessEvaluator", None) if _semantic_pkg else None

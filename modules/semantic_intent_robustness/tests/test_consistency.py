@@ -7,7 +7,7 @@ from semantic_intent_robustness.consistency import (
     topic_vs_intent_discrimination,
 )
 from semantic_intent_robustness.dataset_builder import build_example_dataset
-from semantic_intent_robustness.schemas import MultiTurnConversation
+from semantic_intent_robustness.schemas import MultiTurnConversation, SemanticCluster
 
 
 def _cluster_by_id(clusters, cluster_id: str):
@@ -59,8 +59,6 @@ def test_multi_turn_aggregation_uses_risk_severity_order() -> None:
 
 
 def test_topic_vs_intent_discrimination_handles_empty_records() -> None:
-    from semantic_intent_robustness.schemas import SemanticCluster
-
     score = topic_vs_intent_discrimination(
         SemanticCluster(cluster_id="empty", records=(), negative_controls=())
     )
