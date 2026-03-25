@@ -217,6 +217,9 @@ stable, desirable, or dangerous as capability increases.
 * **Offline trace viewer** – `src/mindful_trace_gepa/viewer` bundles a static
   HTML viewer that stitches traces, token confidence curves, and deception
   overlays into a single portable file.
+* **Semantic intent robustness** – `modules/semantic_intent_robustness` adds
+  value-aware semantic decomposition, variant generation, invariance metrics,
+  and abstention-aware policy utilities for intent laundering stress tests.
 * **Self-contained graph analytics** – the in-tree `networkx` stub mirrors the
   features we depend on, including an iterative strongly connected component
   traversal so attribution metrics stay consistent without external
@@ -416,6 +419,110 @@ python scripts/synthetic_dataset_tool.py scaffold data/synthetic/templates/new_c
 
 Use `data/synthetic/prompts/case_generation_prompt.txt` when generating
 additional entries to maintain structural and philosophical consistency.
+
+## Semantic Intent Robustness Module
+
+This repository includes a semantic intent robustness module designed to improve
+safety and alignment beyond surface-level refusal cues. The module lives in
+`modules/semantic_intent_robustness/` and is designed to complement the
+existing GEPA mindfulness, value decomposition, DSPy-style, and abstention
+pathways already present in the project.
+
+### Why this exists
+
+Many safety datasets and refusal pipelines appear to overfit to lexical,
+stylistic, or formatting cues associated with unsafe prompts. That creates a
+brittle failure mode: when harmful intent is reworded, translated, wrapped in
+roleplay, fragmented across multiple turns, or otherwise laundered through
+indirect phrasing, safety performance can degrade even though the underlying
+goal has not changed.
+
+The semantic intent robustness module addresses that failure mode by shifting
+the alignment target from surface-form detection to structured semantic
+understanding. It encourages the system to reason over latent user intent,
+requested capability, harm pathway, executionality, uncertainty, and policy
+action rather than taboo strings or refusal style.
+
+### Design principle
+
+The key question is:
+
+> What real-world capability, action structure, and value-relevant consequence
+> does this request aim to produce, regardless of wording, framing, or
+> language?
+
+This framing is intentionally aligned with the repository's upstream use of
+value decomposition. Instead of treating safety as a single label, the module
+uses structured fields for intent, capability transfer risk, harm severity,
+concealment, abstention, and safe alternative modes.
+
+### How it fits GEPA Mindfulness Superalignment
+
+This module reinforces several core repository goals:
+
+- **Value decomposition** – prompts are decomposed into inspectable
+  safety-relevant dimensions rather than flattened into allow/refuse labels.
+- **Metacognitive evaluation** – the system can represent ambiguity and
+  uncertainty before selecting a response policy.
+- **Honest abstention** – ambiguous dual-use prompts can be redirected, bounded,
+  or abstained on rather than forced into brittle certainty.
+- **Robust generalization** – policy decisions are evaluated for stability
+  across paraphrases, multilingual variants, wrappers, and multi-turn splits.
+- **Traceability** – intermediate decomposition and policy choices create a
+  more inspectable safety pathway.
+
+### What the module adds
+
+The module introduces:
+
+- a semantic decomposition taxonomy for intent, harm, capability transfer,
+  executionality, and uncertainty,
+- safe synthetic cluster generation for meaning-preserving prompt variants and
+  topic-preserving negative controls,
+- DSPy-style signatures and structured modules for semantic decomposition,
+  capability assessment, harm assessment, policy action selection, safe
+  response generation, consistency checks, and multi-turn aggregation,
+- evaluation utilities for paraphrase invariance, translation invariance,
+  code-switch robustness, wrapper robustness, topic-vs-intent discrimination,
+  abstention calibration, and multi-turn laundering detection,
+- training-oriented loss helpers for invariance, contrastive separation, policy
+  consistency, and abstention calibration.
+
+### What this is not
+
+This is not a simple moderation layer, blacklist, or refusal-style patch. The
+intent is not to memorize unsafe strings. The intent is to help the model track
+what capability is being requested, how that capability may transfer into harm,
+and whether uncertainty or dual-use ambiguity requires bounded help or
+abstention.
+
+### Integration points
+
+The module is wired into the repository through several lightweight
+integration points:
+
+- JSONL-friendly example exports for synthetic data workflows,
+- a semantic pipeline registry that can sit alongside existing DSPy-style
+  registries,
+- evaluation exports that make semantic invariance metrics available to GEPA
+  evaluation code,
+- training documentation and batch/loss contracts for future trainer
+  integration.
+
+### Expected benefits
+
+The expected benefits are improved robustness, honesty, and generalization
+against:
+
+- false negatives caused by paraphrase or translation,
+- false positives caused by topic-only lexical overlap,
+- overreliance on refusal style instead of deeper policy judgment,
+- poor handling of ambiguous dual-use requests,
+- failure to notice harmful workflows distributed across multiple turns.
+
+The current implementation is intentionally conservative and safe. It provides
+a structured ontology, example dataset, evaluators, and training interfaces
+that future modeling work can extend.
 
 ## Real-world/open dataset plan (planned and candidate corpora)
 
