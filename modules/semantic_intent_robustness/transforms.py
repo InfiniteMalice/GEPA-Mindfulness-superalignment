@@ -8,7 +8,7 @@ import json
 # Local
 from .config import DEFAULT_CONFIG
 from .schemas import SemanticCluster, SemanticSafetyRecord
-from .taxonomy import PolicyAction, VariantType
+from .taxonomy import IntentPrimary, PolicyAction, VariantType
 
 TRANSFORM_TEMPLATES: dict[VariantType, str] = {
     VariantType.PARAPHRASE: "Rephrase while preserving the same latent request.",
@@ -138,7 +138,9 @@ def build_semantic_cluster(
         records.append(record)
     negatives: list[SemanticSafetyRecord] = []
     for spec in negative_specs or []:
-        overrides = _coerce_overrides(spec.get("overrides"))
+        overrides = _coerce_overrides(spec.get("overrides")) or {}
+        if "intent_primary" not in overrides:
+            overrides["intent_primary"] = IntentPrimary.BENIGN_INFORMATION
         policy_action = _coerce_policy_action(spec.get("policy_action", PolicyAction.ALLOW))
         parent_example_id = spec.get("parent_example_id", seed.prompt_id)
         user_goal_summary = spec.get("user_goal_summary", "Benign topic overlap only.")

@@ -32,7 +32,11 @@ def _optional_repo_module(name: str) -> Any | None:
     try:
         return import_module(name)
     except ModuleNotFoundError as exc:
-        if exc.name == name:
+        if exc.name == name or (exc.name and exc.name.startswith(f"{name}.")):
+            return None
+        raise
+    except ImportError as exc:
+        if name in str(exc):
             return None
         raise
     finally:

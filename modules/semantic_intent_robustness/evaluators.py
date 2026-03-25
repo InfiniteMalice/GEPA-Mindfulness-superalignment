@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import nan
 from typing import Iterable
 
 # Local
@@ -126,7 +127,7 @@ class SemanticRobustnessEvaluator:
         seed = self._seed_record(records)
         selected = [record for record in records if record.variant_type in variants]
         if not selected:
-            return 1.0
+            return nan
         stable = sum(record.policy_action == seed.policy_action for record in selected)
         return stable / len(selected)
 
@@ -167,11 +168,7 @@ class SemanticRobustnessEvaluator:
         """Compare conversation-level blocking against turn-level ground truth labels."""
 
         aggregated = aggregate_multi_turn_risk(conversation)
-        predicted = aggregated["abstain_recommended"] or any(
-            turn.policy_action in {PolicyAction.REFUSE, PolicyAction.ABSTAIN}
-            or turn.abstain_recommended
-            for turn in conversation.turns
-        )
+        predicted = bool(aggregated["abstain_recommended"])
         expected = any(
             turn.policy_action in {PolicyAction.REFUSE, PolicyAction.ABSTAIN}
             or turn.abstain_recommended

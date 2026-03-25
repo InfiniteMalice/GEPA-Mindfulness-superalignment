@@ -84,3 +84,19 @@ def test_variant_builder_preserves_nullable_fields_and_turn_index() -> None:
     assert cluster.negative_controls[0].parent_example_id is None
     assert cluster.negative_controls[0].user_goal_summary is None
     assert cluster.negative_controls[0].turn_index == 5
+
+
+def test_negative_controls_default_to_benign_intent() -> None:
+    clusters, _ = build_example_dataset()
+    seed = clusters[0].records[0]
+    cluster = build_semantic_cluster(
+        seed,
+        [],
+        negative_specs=[
+            {
+                "prompt_id": "default-benign",
+                "prompt_text": "benign overlap",
+            }
+        ],
+    )
+    assert cluster.negative_controls[0].intent_primary.value == "benign_information"

@@ -1,15 +1,22 @@
 """Tests for structured signatures and pipeline outputs."""
 
+# Standard library
+import math
+
 # Local
 from semantic_intent_robustness.dataset_builder import build_example_dataset
 from semantic_intent_robustness.evaluators import SemanticRobustnessEvaluator
 from semantic_intent_robustness.modules import SemanticIntentPipeline
-from semantic_intent_robustness.schemas import MultiTurnConversation, SemanticCluster
+from semantic_intent_robustness.schemas import (
+    MultiTurnConversation,
+    SemanticCluster,
+    SemanticSafetyRecord,
+)
 from semantic_intent_robustness.signatures import ALL_SIGNATURES, DecomposeIntent
 from semantic_intent_robustness.taxonomy import PolicyAction, VariantType
 
 
-def _record_by_variant(cluster: SemanticCluster, variant_type: VariantType):
+def _record_by_variant(cluster: SemanticCluster, variant_type: VariantType) -> SemanticSafetyRecord:
     for record in cluster.records:
         if record.variant_type == variant_type:
             return record
@@ -151,7 +158,7 @@ def test_run_conversation_preserves_bounded_help_before_abstain_summary() -> Non
     assert summary["policy_action"] == PolicyAction.ALLOW_WITH_BOUNDARIES.value
 
 
-def test_evaluator_multi_turn_accuracy_counts_explicit_abstain_turns() -> None:
+def test_evaluator_multi_turn_accuracy_detects_explicit_abstain_miss() -> None:
     _, conversations = build_example_dataset()
     evaluator = SemanticRobustnessEvaluator()
     conversation = MultiTurnConversation(
@@ -166,7 +173,7 @@ def test_evaluator_multi_turn_accuracy_counts_explicit_abstain_turns() -> None:
             ),
         ),
     )
-    assert evaluator._multi_turn_accuracy(conversation) == 1.0
+    assert evaluator._multi_turn_accuracy(conversation) == 0.0
 
 
 def test_evaluate_cluster_exposes_all_variant_family_metrics() -> None:
@@ -177,3 +184,28 @@ def test_evaluate_cluster_exposes_all_variant_family_metrics() -> None:
     assert "indirect_phrasing_invariance" in metrics
     assert "typo_noise_resilience" in metrics
     assert "benign_wrapper_harmful_core_robustness" in metrics
+
+
+def test_evaluator_multi_turn_accuracy_detects_aggregator_miss() -> None:
+    _, conversations = build_example_dataset()
+    evaluator = SemanticRobustnessEvaluator()
+    conversation = MultiTurnConversation(
+        conversation_id="conv-refuse-no-abstain",
+        turns=(
+            type(conversations[0].turns[1]).from_dict(
+                {
+                    **conversations[0].turns[1].to_dict(),
+                    "policy_action": PolicyAction.REFUSE.value,
+                    "abstain_recommended": False,
+                }
+            ),
+        ),
+    )
+    assert evaluator._multi_turn_accuracy(conversation) == 0.0
+
+
+def test_missing_variant_family_is_reported_as_unavailable() -> None:
+    clusters, _ = build_example_dataset()
+    evaluator = SemanticRobustnessEvaluator()
+    metrics = evaluator.evaluate_cluster(clusters[0])
+    assert math.isnan(metrics["academic_wrapper_robustness"])

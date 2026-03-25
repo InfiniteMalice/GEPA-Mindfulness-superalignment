@@ -23,7 +23,10 @@ def _optional(name: str) -> Any:
     try:
         module = import_module(name)
     except ModuleNotFoundError as exc:
-        if exc.name in {name, "dspy"}:
+        missing_name = exc.name or ""
+        if missing_name == name or missing_name.startswith(f"{name}."):
+            return None
+        if missing_name in {"dspy", "dspy.teleprompt"}:
             return None
         raise
     return module
