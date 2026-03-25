@@ -16,3 +16,11 @@ All modules assume Python 3.10+ with `torch`, `transformers`, and `trl`.
 ## Repository workflows
 
 See beads/README.md and AGENTS.md for repository-level workflows.
+
+## Semantic intent robustness integration
+
+The repository also ships `modules/semantic_intent_robustness` for semantic
+invariance training and evaluation. Use its `SemanticBatch` and
+`compute_loss_breakdown()` helpers to add invariance, topic-vs-intent
+contrastive, policy consistency, and abstention calibration objectives to
+existing trainers without rewriting the core GEPA loop.
