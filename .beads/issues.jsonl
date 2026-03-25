@@ -1,1 +1,6 @@
 {"id":"g1","title":"A note","type":"chore","priority":2,"status":"closed","deps":[],"reason":"Add"}
+{"id":"sir-bd-001","title":"Add representation-level probes for latent intent invariance","type":"feature","priority":2,"status":"open","deps":[]}
+{"id":"sir-bd-002","title":"Expand multilingual coverage and culturally diverse paraphrase templates","type":"feature","priority":2,"status":"open","deps":[]}
+{"id":"sir-bd-003","title":"Integrate semantic cluster metrics into dashboarded evaluation reports","type":"task","priority":2,"status":"open","deps":[]}
+{"id":"sir-bd-004","title":"Integrate richer conversation memory for long-horizon laundering detection","type":"feature","priority":2,"status":"open","deps":[]}
+{"id":"sir-bd-005","title":"Add human review loops for disagreement auditing and taxonomy refinement","type":"task","priority":2,"status":"open","deps":[]}
