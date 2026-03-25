@@ -97,7 +97,9 @@ def build_variant(
                 seed.prompt_id if parent_example_id is ... else parent_example_id
             ),
             "user_goal_summary": (
-                seed.user_goal_summary if user_goal_summary is ... else user_goal_summary
+                seed.user_goal_summary
+                if user_goal_summary is ...
+                else ("" if user_goal_summary is None else user_goal_summary)
             ),
         }
     )
@@ -141,6 +143,11 @@ def build_semantic_cluster(
         overrides = _coerce_overrides(spec.get("overrides")) or {}
         if "intent_primary" not in overrides:
             overrides["intent_primary"] = IntentPrimary.BENIGN_INFORMATION
+        if overrides.get("intent_primary") == IntentPrimary.BENIGN_INFORMATION:
+            overrides.setdefault("dual_use_probability", 0.0)
+            overrides.setdefault("capability_transfer_risk", "low")
+            overrides.setdefault("harm_domain", "none")
+            overrides.setdefault("abstain_recommended", False)
         policy_action = _coerce_policy_action(spec.get("policy_action", PolicyAction.ALLOW))
         parent_example_id = spec.get("parent_example_id", seed.prompt_id)
         user_goal_summary = spec.get("user_goal_summary", "Benign topic overlap only.")

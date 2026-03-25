@@ -158,7 +158,7 @@ def test_run_conversation_preserves_bounded_help_before_abstain_summary() -> Non
     assert summary["policy_action"] == PolicyAction.ALLOW_WITH_BOUNDARIES.value
 
 
-def test_evaluator_multi_turn_accuracy_detects_explicit_abstain_miss() -> None:
+def test_evaluator_multi_turn_accuracy_handles_explicit_abstain() -> None:
     _, conversations = build_example_dataset()
     evaluator = SemanticRobustnessEvaluator()
     conversation = MultiTurnConversation(
@@ -173,7 +173,7 @@ def test_evaluator_multi_turn_accuracy_detects_explicit_abstain_miss() -> None:
             ),
         ),
     )
-    assert evaluator._multi_turn_accuracy(conversation) == 0.0
+    assert evaluator._multi_turn_accuracy(conversation) == 1.0
 
 
 def test_evaluate_cluster_exposes_all_variant_family_metrics() -> None:
@@ -186,7 +186,7 @@ def test_evaluate_cluster_exposes_all_variant_family_metrics() -> None:
     assert "benign_wrapper_harmful_core_robustness" in metrics
 
 
-def test_evaluator_multi_turn_accuracy_detects_aggregator_miss() -> None:
+def test_evaluator_multi_turn_accuracy_handles_refuse_turns() -> None:
     _, conversations = build_example_dataset()
     evaluator = SemanticRobustnessEvaluator()
     conversation = MultiTurnConversation(
@@ -201,7 +201,7 @@ def test_evaluator_multi_turn_accuracy_detects_aggregator_miss() -> None:
             ),
         ),
     )
-    assert evaluator._multi_turn_accuracy(conversation) == 0.0
+    assert evaluator._multi_turn_accuracy(conversation) == 1.0
 
 
 def test_missing_variant_family_is_reported_as_unavailable() -> None:
@@ -209,3 +209,78 @@ def test_missing_variant_family_is_reported_as_unavailable() -> None:
     evaluator = SemanticRobustnessEvaluator()
     metrics = evaluator.evaluate_cluster(clusters[0])
     assert math.isnan(metrics["academic_wrapper_robustness"])
+
+
+def test_evaluator_multi_turn_accuracy_uses_conversation_blocked_flag() -> None:
+    _, conversations = build_example_dataset()
+    evaluator = SemanticRobustnessEvaluator()
+    conversation = MultiTurnConversation(
+        conversation_id="conv-refuse-detected",
+        turns=(
+            type(conversations[0].turns[1]).from_dict(
+                {
+                    **conversations[0].turns[1].to_dict(),
+                    "policy_action": PolicyAction.REFUSE.value,
+                    "abstain_recommended": False,
+                }
+            ),
+        ),
+    )
+    assert evaluator._multi_turn_accuracy(conversation) == 1.0
+
+
+def test_run_conversation_preserves_redirect_action() -> None:
+    _, conversations = build_example_dataset()
+    pipeline = SemanticIntentPipeline()
+    redirect_turn = type(conversations[0].turns[0]).from_dict(
+        {
+            **conversations[0].turns[0].to_dict(),
+            "policy_action": PolicyAction.REDIRECT.value,
+            "abstain_recommended": False,
+            "concealment_component": False,
+            "deception_component": False,
+        }
+    )
+    summary = pipeline.run_conversation(MultiTurnConversation("conv-redirect", (redirect_turn,)))
+    assert summary["policy_action"] == PolicyAction.REDIRECT.value
+
+
+def test_run_conversation_uses_aggregate_risk_signals() -> None:
+    _, conversations = build_example_dataset()
+    pipeline = SemanticIntentPipeline()
+    risky_turn = type(conversations[0].turns[0]).from_dict(
+        {
+            **conversations[0].turns[0].to_dict(),
+            "policy_action": PolicyAction.ALLOW.value,
+            "abstain_recommended": False,
+            "capability_transfer_risk": "high",
+            "concealment_component": True,
+            "deception_component": True,
+        }
+    )
+    summary = pipeline.run_conversation(MultiTurnConversation("conv-risky", (risky_turn,)))
+    assert summary["policy_action"] == PolicyAction.REFUSE.value
+
+
+def test_topic_only_fpr_counts_redirect_as_false_positive() -> None:
+    clusters, _ = build_example_dataset()
+    cluster = clusters[0]
+    redirected_control = type(cluster.negative_controls[0]).from_dict(
+        {
+            **cluster.negative_controls[0].to_dict(),
+            "policy_action": PolicyAction.REDIRECT.value,
+        }
+    )
+    evaluator = SemanticRobustnessEvaluator()
+    score = evaluator.summarize(
+        [
+            SemanticCluster(
+                cluster.cluster_id,
+                cluster.records,
+                (redirected_control,),
+                cluster.cluster_summary,
+            )
+        ],
+        [],
+    ).harmful_false_positive_rate_under_topic_only_matches
+    assert score == 1.0

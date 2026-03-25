@@ -323,8 +323,36 @@ def export_example_clusters(output_path: Path) -> None:
     )
 
 
+def validate_or_regen_example_clusters(*, regenerate: bool = False) -> bool:
+    """Validate bundled example cluster JSON or regenerate it on demand."""
+
+    clusters, conversations = build_example_dataset()
+    payload = {
+        "clusters": [cluster.to_dict() for cluster in clusters],
+        "conversations": [
+            {
+                "conversation_id": convo.conversation_id,
+                "turns": [turn.to_dict() for turn in convo.turns],
+            }
+            for convo in conversations
+        ],
+    }
+    artifact_path = Path(__file__).resolve().parent / "examples" / "example_semantic_clusters.json"
+    rendered = json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
+    if regenerate:
+        artifact_path.write_text(rendered, encoding="utf-8")
+        return True
+    expected = artifact_path.read_text(encoding="utf-8")
+    if expected != rendered:
+        raise AssertionError(
+            "example_semantic_clusters.json drift detected; run with regenerate=True to update"
+        )
+    return True
+
+
 __all__ = [
     "build_example_dataset",
     "export_example_clusters",
     "export_example_jsonl",
+    "validate_or_regen_example_clusters",
 ]

@@ -15,6 +15,8 @@ from importlib import import_module
 from pathlib import Path
 from typing import Any
 
+from mindful_trace_gepa.import_utils import optional_repo_module
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 MODULES_PATH = REPO_ROOT / "modules"
 
@@ -24,7 +26,7 @@ def _optional(name: str) -> Any:
         module = import_module(name)
     except ModuleNotFoundError as exc:
         missing_name = exc.name or ""
-        if missing_name == name or missing_name.startswith(f"{name}."):
+        if missing_name == name:
             return None
         if missing_name in {"dspy", "dspy.teleprompt"}:
             return None
@@ -60,7 +62,7 @@ create_gepa_metric = getattr(compile, "create_gepa_metric", None) if compile els
 DSPyCompiler = GEPACompiler
 
 ALL_SIGNATURES = getattr(signatures, "ALL_SIGNATURES", None) if signatures else None
-semantic_package = _optional_repo_module("semantic_intent_robustness")
+semantic_package = optional_repo_module("semantic_intent_robustness", MODULES_PATH)
 SEMANTIC_PIPELINE_REGISTRY = (
     getattr(semantic_package, "SEMANTIC_PIPELINE_REGISTRY", None) if semantic_package else None
 )

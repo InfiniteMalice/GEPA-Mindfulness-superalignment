@@ -177,5 +177,4 @@ modeling challenges.
 ## Tracker note
 
 Follow the semantic intent robustness roadmap in the beads tracker items `sir-bd-001` through
-`sir-bd-005`, recorded in `.beads/issues.jsonl` because the `bd` CLI is unavailable in this
-container.
+`sir-bd-005` using the `bd` CLI.

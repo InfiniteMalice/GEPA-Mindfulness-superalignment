@@ -7,7 +7,7 @@ from collections import Counter
 
 # Local
 from .schemas import MultiTurnConversation, SemanticCluster, SemanticSafetyRecord
-from .taxonomy import CapabilityTransferRisk
+from .taxonomy import CapabilityTransferRisk, PolicyAction
 
 RISK_SEVERITY_ORDER: dict[CapabilityTransferRisk, int] = {
     CapabilityTransferRisk.LOW: 0,
@@ -84,6 +84,7 @@ def aggregate_multi_turn_risk(conversation: MultiTurnConversation) -> dict[str, 
             "contains_concealment": False,
             "contains_deception": False,
             "abstain_recommended": False,
+            "conversation_blocked": False,
         }
     max_turn = max(
         conversation.turns,
@@ -91,7 +92,11 @@ def aggregate_multi_turn_risk(conversation: MultiTurnConversation) -> dict[str, 
     )
     concealment = any(turn.concealment_component for turn in conversation.turns)
     deception = any(turn.deception_component for turn in conversation.turns)
-    abstain = any(turn.abstain_recommended for turn in conversation.turns)
+    has_block_action = any(
+        turn.policy_action in {PolicyAction.REFUSE, PolicyAction.ABSTAIN}
+        for turn in conversation.turns
+    )
+    abstain = any(turn.abstain_recommended for turn in conversation.turns) or has_block_action
     return {
         "conversation_id": conversation.conversation_id,
         "turn_count": len(conversation.turns),
@@ -99,6 +104,7 @@ def aggregate_multi_turn_risk(conversation: MultiTurnConversation) -> dict[str, 
         "contains_concealment": concealment,
         "contains_deception": deception,
         "abstain_recommended": abstain,
+        "conversation_blocked": has_block_action or abstain,
     }
 
 

@@ -28,15 +28,31 @@ class LossBreakdown:
     policy_consistency_loss: float
     abstention_calibration_loss: float
     auxiliary_supervision_loss: float
+    invariance_weight: float = 1.0
+    contrastive_weight: float = 1.0
+    policy_consistency_weight: float = 1.0
+    abstention_calibration_weight: float = 1.0
+    auxiliary_supervision_weight: float = 1.0
+
+    def __post_init__(self) -> None:
+        weights = [
+            self.invariance_weight,
+            self.contrastive_weight,
+            self.policy_consistency_weight,
+            self.abstention_calibration_weight,
+            self.auxiliary_supervision_weight,
+        ]
+        if any(weight < 0.0 for weight in weights):
+            raise ValueError("Loss weights must be non-negative")
 
     @property
     def total(self) -> float:
         return (
-            self.invariance_loss
-            + self.contrastive_loss
-            + self.policy_consistency_loss
-            + self.abstention_calibration_loss
-            + self.auxiliary_supervision_loss
+            self.invariance_loss * self.invariance_weight
+            + self.contrastive_loss * self.contrastive_weight
+            + self.policy_consistency_loss * self.policy_consistency_weight
+            + self.abstention_calibration_loss * self.abstention_calibration_weight
+            + self.auxiliary_supervision_loss * self.auxiliary_supervision_weight
         )
 
     def to_dict(self) -> dict[str, float]:
@@ -53,7 +69,7 @@ class LossBreakdown:
 def invariance_loss(scores: list[float]) -> float:
     """Penalize disagreement among semantically equivalent variants."""
 
-    return _mean_loss([1.0 - score for score in scores])
+    return _penalize_disagreement(scores)
 
 
 def contrastive_separation_loss(margins: list[float], *, margin: float = 0.2) -> float:
@@ -66,7 +82,7 @@ def contrastive_separation_loss(margins: list[float], *, margin: float = 0.2) ->
 def policy_consistency_loss(scores: list[float]) -> float:
     """Penalize policy instability for equivalent prompts."""
 
-    return _mean_loss([1.0 - score for score in scores])
+    return _penalize_disagreement(scores)
 
 
 def abstention_calibration_loss(targets: list[float], predictions: list[float]) -> float:
@@ -84,7 +100,15 @@ def auxiliary_supervision_loss(errors: list[float]) -> float:
     return _mean_loss(errors)
 
 
-def compute_loss_breakdown(batch: SemanticBatch) -> LossBreakdown:
+def compute_loss_breakdown(
+    batch: SemanticBatch,
+    *,
+    invariance_weight: float = 1.0,
+    contrastive_weight: float = 1.0,
+    policy_consistency_weight: float = 1.0,
+    abstention_calibration_weight: float = 1.0,
+    auxiliary_supervision_weight: float = 1.0,
+) -> LossBreakdown:
     """Compute all loss components for the current training batch."""
 
     return LossBreakdown(
@@ -96,6 +120,11 @@ def compute_loss_breakdown(batch: SemanticBatch) -> LossBreakdown:
             batch.abstention_predictions,
         ),
         auxiliary_supervision_loss=auxiliary_supervision_loss(batch.auxiliary_errors),
+        invariance_weight=invariance_weight,
+        contrastive_weight=contrastive_weight,
+        policy_consistency_weight=policy_consistency_weight,
+        abstention_calibration_weight=abstention_calibration_weight,
+        auxiliary_supervision_weight=auxiliary_supervision_weight,
     )
 
 
@@ -110,6 +139,12 @@ def batch_format_expectations() -> dict[str, Any]:
         "abstention_predictions": "model abstention predictions",
         "auxiliary_errors": "optional decomposition field losses",
     }
+
+
+def _penalize_disagreement(scores: list[float]) -> float:
+    """Convert agreement scores into disagreement penalties."""
+
+    return _mean_loss([1.0 - score for score in scores])
 
 
 def _mean_loss(values: list[float]) -> float:
