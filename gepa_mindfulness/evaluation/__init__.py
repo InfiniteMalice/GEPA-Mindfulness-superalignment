@@ -30,7 +30,7 @@ try:
         allow_import_error_name_match=False,
     )
 except ModuleNotFoundError as exc:
-    if exc.name == "semantic_intent_robustness.evaluators":
+    if exc.name in {"semantic_intent_robustness.evaluators", "semantic_intent_robustness"}:
         _semantic_evaluator_module = None
     else:
         raise

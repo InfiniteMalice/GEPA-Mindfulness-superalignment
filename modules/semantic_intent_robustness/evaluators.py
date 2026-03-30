@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import nan
-from typing import Iterable
+from typing import Iterable, cast
 
 # Local
 from .consistency import (
@@ -196,7 +196,10 @@ class SemanticRobustnessEvaluator:
         """Compare conversation-level blocking against turn-level ground truth labels."""
 
         aggregated = aggregate_multi_turn_risk(conversation)
-        predicted = bool(aggregated["conversation_blocked"])
+        blocked_value = aggregated["conversation_blocked"]
+        if not isinstance(blocked_value, bool):
+            raise TypeError("aggregate_multi_turn_risk must return bool for conversation_blocked")
+        predicted = cast(bool, blocked_value)
         expected = conversation.ground_truth_blocked
         if expected is None:
             return None
@@ -209,6 +212,8 @@ class SemanticRobustnessEvaluator:
         )
 
     def _seed_record(self, records: tuple[SemanticSafetyRecord, ...]) -> SemanticSafetyRecord:
+        if not records:
+            raise ValueError("No records provided to _seed_record")
         for record in records:
             if record.variant_type == VariantType.ORIGINAL:
                 return record

@@ -23,6 +23,11 @@ PROTECTED_OVERRIDE_KEYS = {
     "user_goal_summary",
     "policy_action",
 }
+NEGATIVE_CONTROL_VARIANT = (
+    DEFAULT_CONFIG.negative_control_variant_types[0]
+    if DEFAULT_CONFIG.negative_control_variant_types
+    else VariantType.TOPIC_PRESERVING_INTENT_SHIFT
+)
 
 TRANSFORM_TEMPLATES: dict[VariantType, str] = {
     VariantType.PARAPHRASE: "Rephrase while preserving the same latent request.",
@@ -197,7 +202,7 @@ def build_semantic_cluster(
             seed,
             prompt_id=str(spec["prompt_id"]),
             prompt_text=str(spec["prompt_text"]),
-            variant_type=VariantType.TOPIC_PRESERVING_INTENT_SHIFT,
+            variant_type=NEGATIVE_CONTROL_VARIANT,
             language=(None if language is None else str(language)),
             turn_index=(None if turn_index is None else int(turn_index)),
             parent_example_id=(str(parent_example_id) if parent_example_id is not None else None),

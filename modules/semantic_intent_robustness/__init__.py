@@ -27,6 +27,7 @@ _EXPORT_TO_MODULE: dict[str, str] = {
     "decomposition_consistency_score": ".consistency",
     "export_example_clusters": ".dataset_builder",
     "export_example_jsonl": ".dataset_builder",
+    "validate_or_regen_example_clusters": ".dataset_builder",
     "policy_consistency_score": ".consistency",
     "semantic_cluster_agreement": ".consistency",
     "topic_vs_intent_discrimination": ".consistency",

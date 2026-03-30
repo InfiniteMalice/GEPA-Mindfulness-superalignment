@@ -100,3 +100,10 @@ def test_topic_vs_intent_discrimination_handles_empty_records() -> None:
         SemanticCluster(cluster_id="empty", records=(), negative_controls=())
     )
     assert score == 0.0
+
+
+def test_topic_vs_intent_discrimination_without_negatives_is_zero() -> None:
+    clusters, _ = build_example_dataset()
+    cluster = _cluster_by_id(clusters, "cluster-multi-turn-laundering")
+    score = topic_vs_intent_discrimination(cluster)
+    assert score == 0.0

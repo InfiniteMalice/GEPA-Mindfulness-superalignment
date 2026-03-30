@@ -10,17 +10,17 @@ from semantic_intent_robustness.transforms import build_semantic_cluster
 
 
 def _cluster_by_id(clusters, cluster_id: str):
-    for cluster in clusters:
-        if cluster.cluster_id == cluster_id:
-            return cluster
-    raise AssertionError(f"Missing cluster: {cluster_id}")
+    cluster = next((item for item in clusters if item.cluster_id == cluster_id), None)
+    if cluster is None:
+        raise AssertionError(f"Missing cluster: {cluster_id}")
+    return cluster
 
 
 def _record_by_variant(cluster, variant_type: VariantType):
-    for record in cluster.records:
-        if record.variant_type == variant_type:
-            return record
-    raise AssertionError(f"Missing variant: {variant_type.value}")
+    record = next((item for item in cluster.records if item.variant_type == variant_type), None)
+    if record is None:
+        raise AssertionError(f"Missing variant: {variant_type.value}")
+    return record
 
 
 def test_semantic_cluster_contains_expected_variant_labels() -> None:

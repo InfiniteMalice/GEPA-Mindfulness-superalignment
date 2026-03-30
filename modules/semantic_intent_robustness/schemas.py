@@ -76,12 +76,18 @@ class SemanticSafetyRecord:
         object.__setattr__(
             self,
             "allowed_high_level_help",
-            tuple(self.allowed_high_level_help or []),
+            _coerce_str_sequence(
+                self.allowed_high_level_help,
+                field_name="allowed_high_level_help",
+            ),
         )
         object.__setattr__(
             self,
             "disallowed_operational_help",
-            tuple(self.disallowed_operational_help or []),
+            _coerce_str_sequence(
+                self.disallowed_operational_help,
+                field_name="disallowed_operational_help",
+            ),
         )
         for field_name in (
             "benign_plausibility",
@@ -121,9 +127,15 @@ class SemanticSafetyRecord:
                 data[field_name] = default_map[field_name]
         for field_name in TUPLE_FIELDS:
             if field_name in data:
-                data[field_name] = tuple(data[field_name] or [])
+                data[field_name] = _coerce_str_sequence(
+                    data[field_name],
+                    field_name=field_name,
+                )
             elif field_name in default_map:
-                data[field_name] = tuple(default_map[field_name] or [])
+                data[field_name] = _coerce_str_sequence(
+                    default_map[field_name],
+                    field_name=field_name,
+                )
         return cls(**data)
 
 
@@ -218,6 +230,18 @@ def _build_field_maps(
         if _is_tuple_string_field(annotation):
             tuple_fields.add(field_name)
     return enum_fields, tuple_fields
+
+
+def _coerce_str_sequence(value: object, *, field_name: str) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if isinstance(value, str):
+        raise TypeError(f"{field_name} must be a sequence of strings, not a scalar string")
+    if not isinstance(value, (list, tuple)):
+        raise TypeError(f"{field_name} must be a list/tuple of strings or None")
+    if any(not isinstance(item, str) for item in value):
+        raise TypeError(f"{field_name} must contain only strings")
+    return tuple(value)
 
 
 ENUM_FIELDS, TUPLE_FIELDS = _build_field_maps(SemanticSafetyRecord)

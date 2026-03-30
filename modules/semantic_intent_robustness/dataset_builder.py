@@ -338,12 +338,23 @@ def export_example_jsonl(output_path: Path) -> None:
     """Write example records to JSONL for documentation and tests."""
 
     clusters, conversations = build_example_dataset()
-    records = []
+    records: list[SemanticSafetyRecord] = []
+    seen_prompt_ids: set[str] = set()
+
+    def _append_unique(record: SemanticSafetyRecord) -> None:
+        if record.prompt_id in seen_prompt_ids:
+            return
+        seen_prompt_ids.add(record.prompt_id)
+        records.append(record)
+
     for cluster in clusters:
-        records.extend(cluster.records)
-        records.extend(cluster.negative_controls)
+        for record in cluster.records:
+            _append_unique(record)
+        for record in cluster.negative_controls:
+            _append_unique(record)
     for conversation in conversations:
-        records.extend(conversation.turns)
+        for record in conversation.turns:
+            _append_unique(record)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8") as handle:
         for record in records:

@@ -6,6 +6,23 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+_BATCH_FORMAT_EXPECTATIONS: dict[str, str] = {
+    "invariant_scores": "per-cluster semantic agreement in [0, 1]",
+    "contrastive_margins": "distance between topic-matched but intent-shifted pairs",
+    "policy_match_scores": "per-cluster policy agreement in [0, 1]",
+    "abstention_targets": "target abstention probabilities for ambiguous prompts",
+    "abstention_predictions": "model abstention predictions",
+    "auxiliary_errors": "optional decomposition field losses",
+}
+_PROBABILITY_FIELDS = (
+    "invariant_scores",
+    "policy_match_scores",
+    "abstention_targets",
+    "abstention_predictions",
+)
+if any("[0, 1]" not in _BATCH_FORMAT_EXPECTATIONS[field] for field in _PROBABILITY_FIELDS):
+    raise ValueError("Probability fields must document values in [0, 1]")
+
 
 @dataclass(frozen=True)
 class SemanticBatch:
@@ -131,16 +148,7 @@ def compute_loss_breakdown(
 def batch_format_expectations() -> dict[str, Any]:
     """Describe expected batch tensors/arrays for training integration."""
 
-    expectations = {
-        "invariant_scores": "per-cluster semantic agreement in [0, 1]",
-        "contrastive_margins": "distance between topic-matched but intent-shifted pairs",
-        "policy_match_scores": "per-cluster policy agreement in [0, 1]",
-        "abstention_targets": "target abstention probabilities for ambiguous prompts",
-        "abstention_predictions": "model abstention predictions",
-        "auxiliary_errors": "optional decomposition field losses",
-    }
-    _validate_probability_fields(expectations)
-    return expectations
+    return dict(_BATCH_FORMAT_EXPECTATIONS)
 
 
 def _penalize_disagreement(scores: list[float]) -> float:
@@ -157,23 +165,6 @@ def _mean_loss(values: list[float]) -> float:
     if not values:
         return 0.0
     return sum(values) / len(values)
-
-
-def _validate_probability_fields(expectations: dict[str, Any]) -> None:
-    """Validate documented probability fields use [0, 1] interval guidance."""
-
-    probability_fields = (
-        "invariant_scores",
-        "policy_match_scores",
-        "abstention_targets",
-        "abstention_predictions",
-    )
-    for field_name in probability_fields:
-        descriptor = str(expectations.get(field_name, ""))
-        if "[0, 1]" not in descriptor:
-            raise ValueError(
-                f"{field_name} must document probabilities in [0, 1], got: {descriptor!r}"
-            )
 
 
 __all__ = [

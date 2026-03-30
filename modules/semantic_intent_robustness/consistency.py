@@ -74,7 +74,7 @@ def topic_vs_intent_discrimination(cluster: SemanticCluster) -> float:
     if not cluster.records:
         return 0.0
     if not cluster.negative_controls:
-        return 1.0
+        return 0.0
     anchor = Counter(record.policy_action for record in cluster.records).most_common(1)[0][0]
     separated = sum(record.policy_action != anchor for record in cluster.negative_controls)
     return separated / len(cluster.negative_controls)
