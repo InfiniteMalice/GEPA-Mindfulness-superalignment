@@ -10,6 +10,7 @@ entry points which check for optional dependencies at runtime.
 
 from __future__ import annotations
 
+import sys
 from importlib import import_module
 from pathlib import Path
 from typing import Any
@@ -31,6 +32,19 @@ def _optional(name: str) -> Any:
             return None
         raise
     return module
+
+
+def _optional_repo_module(name: str) -> Any:
+    inserted_path = str(MODULES_PATH)
+    added_path = False
+    if MODULES_PATH.is_dir() and inserted_path not in sys.path:
+        sys.path.insert(0, inserted_path)
+        added_path = True
+    try:
+        return _optional(name)
+    finally:
+        if added_path and inserted_path in sys.path:
+            sys.path.remove(inserted_path)
 
 
 pipeline = _optional("mindful_trace_gepa.dspy_modules.pipeline")
