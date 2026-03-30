@@ -183,7 +183,7 @@ def test_evaluator_multi_turn_accuracy_handles_explicit_abstain() -> None:
             ),
         ),
     )
-    assert evaluator._multi_turn_accuracy(conversation) == 1.0
+    assert evaluator.multi_turn_accuracy(conversation) == 1.0
 
 
 def test_evaluate_cluster_exposes_all_variant_family_metrics() -> None:
@@ -212,7 +212,7 @@ def test_evaluator_multi_turn_accuracy_handles_refuse_turns() -> None:
             ),
         ),
     )
-    assert evaluator._multi_turn_accuracy(conversation) == 1.0
+    assert evaluator.multi_turn_accuracy(conversation) == 1.0
 
 
 def test_missing_variant_family_is_reported_as_unavailable() -> None:
@@ -238,7 +238,7 @@ def test_evaluator_multi_turn_accuracy_uses_conversation_blocked_flag() -> None:
             ),
         ),
     )
-    assert evaluator._multi_turn_accuracy(conversation) == 0.0
+    assert evaluator.multi_turn_accuracy(conversation) == 0.0
 
 
 def test_run_conversation_preserves_redirect_action() -> None:
@@ -310,4 +310,15 @@ def test_evaluator_multi_turn_accuracy_uses_ground_truth_flag() -> None:
         turns=(conversations[0].turns[1],),
         ground_truth_blocked=False,
     )
-    assert evaluator._multi_turn_accuracy(conversation) == 0.0
+    assert evaluator.multi_turn_accuracy(conversation) == 0.0
+
+
+def test_evaluator_multi_turn_accuracy_skips_unlabeled_conversation() -> None:
+    _, conversations = build_example_dataset()
+    evaluator = SemanticRobustnessEvaluator()
+    conversation = MultiTurnConversation(
+        conversation_id="conv-unlabeled",
+        turns=(conversations[0].turns[1],),
+        ground_truth_blocked=None,
+    )
+    assert evaluator.multi_turn_accuracy(conversation) is None

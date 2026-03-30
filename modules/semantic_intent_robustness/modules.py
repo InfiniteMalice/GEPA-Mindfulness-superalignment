@@ -193,6 +193,10 @@ class SemanticIntentPipeline:
         else:
             summary["policy_action"] = PolicyAction.ALLOW.value
             summary["safe_alternative_mode"] = SafeAlternativeMode.NONE.value
+        summary["conversation_blocked"] = summary["policy_action"] in {
+            PolicyAction.REFUSE.value,
+            PolicyAction.ABSTAIN.value,
+        }
         return summary
 
 

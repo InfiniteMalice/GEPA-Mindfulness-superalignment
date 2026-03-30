@@ -6,7 +6,7 @@ from __future__ import annotations
 from dataclasses import MISSING, asdict, dataclass, field, fields
 from enum import Enum
 from types import UnionType
-from typing import Any, get_origin, get_type_hints
+from typing import Any, get_args, get_origin, get_type_hints
 
 # Local
 from .taxonomy import (
@@ -185,7 +185,9 @@ ENUM_TYPES = (
 def _is_tuple_string_field(annotation: object) -> bool:
     origin = get_origin(annotation)
     if origin is tuple:
-        args = annotation.__args__
+        args = get_args(annotation)
+        if not isinstance(args, tuple):
+            return False
         return len(args) == 2 and args[0] is str and args[1] is Ellipsis
     if isinstance(annotation, UnionType):
         return any(_is_tuple_string_field(arg) for arg in annotation.__args__)

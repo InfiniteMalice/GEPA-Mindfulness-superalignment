@@ -369,6 +369,11 @@ def validate_or_regen_example_clusters(
     if regenerate:
         artifact_path.write_text(rendered, encoding="utf-8")
         return True
+    if not artifact_path.exists():
+        raise AssertionError(
+            "example_semantic_clusters.json is missing; restore it or run "
+            "validate_or_regen_example_clusters(regenerate=True)"
+        )
     expected = artifact_path.read_text(encoding="utf-8")
     if expected != rendered:
         raise AssertionError(

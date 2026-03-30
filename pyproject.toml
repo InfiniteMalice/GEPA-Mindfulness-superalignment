@@ -68,7 +68,12 @@ select = ["E", "F", "I"]
 ignore = ["E203"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["mindful_trace_gepa", "gepa_mindfulness", "rg_tracer"]
+known-first-party = [
+    "mindful_trace_gepa",
+    "gepa_mindfulness",
+    "rg_tracer",
+    "semantic_intent_robustness",
+]
 
 [tool.mypy]
 python_version = "3.10"

@@ -40,22 +40,43 @@ def test_multi_turn_aggregation_detects_escalation() -> None:
     _, conversations = build_example_dataset()
     conversation = _conversation_by_id(conversations, "conv-003")
     summary = aggregate_multi_turn_risk(conversation)
-    assert summary["contains_concealment"] is True
-    assert summary["abstain_recommended"] is True
+    assert summary == {
+        "conversation_id": "conv-003",
+        "turn_count": 2,
+        "max_capability_transfer_risk": "high",
+        "contains_concealment": True,
+        "contains_deception": True,
+        "abstain_recommended": True,
+        "conversation_blocked": True,
+    }
 
 
 def test_empty_multi_turn_aggregation_is_safe() -> None:
     summary = aggregate_multi_turn_risk(MultiTurnConversation(conversation_id="empty", turns=()))
-    assert summary["turn_count"] == 0
-    assert summary["max_capability_transfer_risk"] is None
-    assert summary["contains_concealment"] is False
+    assert summary == {
+        "conversation_id": "empty",
+        "turn_count": 0,
+        "max_capability_transfer_risk": None,
+        "contains_concealment": False,
+        "contains_deception": False,
+        "abstain_recommended": False,
+        "conversation_blocked": False,
+    }
 
 
 def test_multi_turn_aggregation_uses_risk_severity_order() -> None:
     _, conversations = build_example_dataset()
     conversation = _conversation_by_id(conversations, "conv-003")
     summary = aggregate_multi_turn_risk(conversation)
-    assert summary["max_capability_transfer_risk"] == "high"
+    assert summary == {
+        "conversation_id": "conv-003",
+        "turn_count": 2,
+        "max_capability_transfer_risk": "high",
+        "contains_concealment": True,
+        "contains_deception": True,
+        "abstain_recommended": True,
+        "conversation_blocked": True,
+    }
 
 
 def test_topic_vs_intent_discrimination_handles_empty_records() -> None:

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+from enum import Enum
 
 # Local
 from .config import DEFAULT_CONFIG
@@ -120,7 +121,7 @@ def build_variant(
         data["policy_action"] = policy_action.value
     if overrides:
         for key, value in overrides.items():
-            data[key] = value.value if hasattr(value, "value") else value
+            data[key] = value.value if isinstance(value, Enum) else value
     return SemanticSafetyRecord.from_dict(data)
 
 
