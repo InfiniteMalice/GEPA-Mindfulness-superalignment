@@ -3,7 +3,7 @@
 # Standard library
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 _BATCH_FORMAT_EXPECTATIONS: dict[str, str] = {
@@ -33,7 +33,7 @@ class SemanticBatch:
     policy_match_scores: list[float]
     abstention_targets: list[float]
     abstention_predictions: list[float]
-    auxiliary_errors: list[float]
+    auxiliary_errors: list[float] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

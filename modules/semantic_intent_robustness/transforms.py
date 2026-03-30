@@ -16,6 +16,8 @@ from .taxonomy import IntentPrimary, PolicyAction, VariantType
 PROTECTED_OVERRIDE_KEYS = {
     "prompt_id",
     "prompt_text",
+    "semantic_cluster_id",
+    "conversation_id",
     "variant_type",
     "language",
     "turn_index",

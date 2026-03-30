@@ -28,9 +28,8 @@ class DecomposeIntentModule:
     """Return the provided structured decomposition or validate a seed record."""
 
     def __call__(
-        self, record: SemanticSafetyRecord, conversation_context: str = ""
+        self, record: SemanticSafetyRecord, _conversation_context: str = ""
     ) -> SemanticSafetyRecord:
-        del conversation_context
         return record
 
 
@@ -50,8 +49,7 @@ class AssessCapabilityRiskModule:
 class AssessHarmProfileModule:
     """Summarize harm-related dimensions for policy selection."""
 
-    def __call__(self, record: SemanticSafetyRecord, capability: dict[str, Any]) -> dict[str, Any]:
-        del capability
+    def __call__(self, record: SemanticSafetyRecord, _capability: dict[str, Any]) -> dict[str, Any]:
         return {
             "harm_domain": record.harm_domain.value,
             "harm_severity": record.harm_severity.value,
@@ -69,10 +67,9 @@ class ChoosePolicyActionModule:
     def __call__(
         self,
         record: SemanticSafetyRecord,
-        capability: dict[str, Any],
-        harm: dict[str, Any],
+        _capability: dict[str, Any],
+        _harm: dict[str, Any],
     ) -> dict[str, Any]:
-        del capability, harm
         return {
             "policy_action": record.policy_action.value,
             "safe_alternative_mode": record.safe_alternative_mode.value,
