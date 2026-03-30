@@ -22,12 +22,18 @@ if TYPE_CHECKING:
 MODULES_PATH = Path(__file__).resolve().parents[2] / "modules"
 
 
-_semantic_evaluator_module = optional_repo_module(
-    "semantic_intent_robustness.evaluators",
-    MODULES_PATH,
-    allow_missing_submodules=False,
-    allow_import_error_name_match=False,
-)
+try:
+    _semantic_evaluator_module = optional_repo_module(
+        "semantic_intent_robustness.evaluators",
+        MODULES_PATH,
+        allow_missing_submodules=False,
+        allow_import_error_name_match=True,
+    )
+except ModuleNotFoundError as exc:
+    if (exc.name or "").startswith("semantic_intent_robustness"):
+        _semantic_evaluator_module = None
+    else:
+        raise
 SemanticRobustnessEvaluator: type["_SemanticRobustnessEvaluator"] | None = (
     getattr(_semantic_evaluator_module, "SemanticRobustnessEvaluator", None)
     if _semantic_evaluator_module

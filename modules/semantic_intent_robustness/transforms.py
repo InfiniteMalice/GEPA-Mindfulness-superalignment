@@ -154,7 +154,7 @@ def build_semantic_cluster(
         records.append(record)
     negatives: list[SemanticSafetyRecord] = []
     for spec in negative_specs or []:
-        overrides = _coerce_overrides(spec.get("overrides")) or {}
+        overrides = dict(_coerce_overrides(spec.get("overrides")) or {})
         intent_primary = _coerce_intent_primary(
             overrides.get("intent_primary", IntentPrimary.BENIGN_INFORMATION)
         )

@@ -51,6 +51,9 @@ mindful_trace_gepa = [
     "viewer/*.css.new",
     "viewer/*.js.new",
 ]
+semantic_intent_robustness = [
+    "examples/*",
+]
 
 [tool.black]
 line-length = 100

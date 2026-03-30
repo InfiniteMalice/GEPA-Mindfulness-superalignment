@@ -28,7 +28,7 @@ def _optional(name: str) -> Any:
         missing_name = exc.name or ""
         if missing_name == name:
             return None
-        if missing_name in {"dspy", "dspy.teleprompt"}:
+        if missing_name == "dspy" or missing_name.startswith("dspy."):
             return None
         raise
     return module

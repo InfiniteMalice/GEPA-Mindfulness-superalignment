@@ -23,6 +23,22 @@ def _record_by_variant(cluster: SemanticCluster, variant_type: VariantType) -> S
     raise AssertionError(f"Missing variant: {variant_type.value}")
 
 
+def _cluster_by_id(clusters: list[SemanticCluster], cluster_id: str) -> SemanticCluster:
+    for cluster in clusters:
+        if cluster.cluster_id == cluster_id:
+            return cluster
+    raise AssertionError(f"Missing cluster: {cluster_id}")
+
+
+def _conversation_by_id(
+    conversations: list[MultiTurnConversation], conversation_id: str
+) -> MultiTurnConversation:
+    for conversation in conversations:
+        if conversation.conversation_id == conversation_id:
+            return conversation
+    raise AssertionError(f"Missing conversation: {conversation_id}")
+
+
 def test_signature_registry_contains_required_steps() -> None:
     signature_names = [signature.name for signature in ALL_SIGNATURES]
     assert signature_names[0] == DecomposeIntent.name
@@ -32,8 +48,9 @@ def test_signature_registry_contains_required_steps() -> None:
 
 def test_pipeline_emits_structured_outputs() -> None:
     clusters, _ = build_example_dataset()
+    cluster = _cluster_by_id(clusters, "cluster-harmful-access")
     pipeline = SemanticIntentPipeline()
-    result = pipeline.run(clusters[0].records[0], cluster=clusters[0])
+    result = pipeline.run(cluster.records[0], cluster=cluster)
     assert result.policy_decision["policy_action"] == "refuse"
     assert "response_text" in result.safe_response
     assert result.consistency_report is not None
@@ -41,7 +58,7 @@ def test_pipeline_emits_structured_outputs() -> None:
 
 def test_evaluator_compares_variant_policy_against_seed() -> None:
     clusters, _ = build_example_dataset()
-    cluster = clusters[0]
+    cluster = _cluster_by_id(clusters, "cluster-harmful-access")
     paraphrase = _record_by_variant(cluster, VariantType.PARAPHRASE)
     mutated = [
         (
@@ -65,9 +82,10 @@ def test_evaluator_compares_variant_policy_against_seed() -> None:
 
 def test_run_conversation_honors_refused_turns() -> None:
     clusters, _ = build_example_dataset()
+    cluster = _cluster_by_id(clusters, "cluster-harmful-access")
     pipeline = SemanticIntentPipeline()
     conversation = MultiTurnConversation(
-        conversation_id="conv-refuse", turns=(clusters[0].records[0],), ground_truth_blocked=True
+        conversation_id="conv-refuse", turns=(cluster.records[0],), ground_truth_blocked=True
     )
     summary = pipeline.run_conversation(conversation)
     assert summary["policy_action"] == "refuse"
@@ -75,7 +93,7 @@ def test_run_conversation_honors_refused_turns() -> None:
 
 def test_harmful_fnr_excludes_original_seed() -> None:
     clusters, _ = build_example_dataset()
-    cluster = clusters[0]
+    cluster = _cluster_by_id(clusters, "cluster-harmful-access")
     harmful_variants = {
         VariantType.PARAPHRASE,
         VariantType.MULTILINGUAL_TRANSLATION,
@@ -104,7 +122,7 @@ def test_harmful_fnr_excludes_original_seed() -> None:
 
 def test_abstention_score_penalizes_over_abstention() -> None:
     clusters, _ = build_example_dataset()
-    cluster = clusters[0]
+    cluster = _cluster_by_id(clusters, "cluster-harmful-access")
     mutated = [
         type(record).from_dict({**record.to_dict(), "abstain_recommended": True})
         for record in cluster.records
@@ -130,7 +148,8 @@ def test_abstention_score_penalizes_over_abstention() -> None:
 
 def test_run_conversation_preserves_allow_for_benign_turns() -> None:
     clusters, _ = build_example_dataset()
-    allow_turn = clusters[0].negative_controls[0]
+    cluster = _cluster_by_id(clusters, "cluster-harmful-access")
+    allow_turn = cluster.negative_controls[0]
 
     conversation = MultiTurnConversation(
         conversation_id="conv-allow",
@@ -144,11 +163,12 @@ def test_run_conversation_preserves_allow_for_benign_turns() -> None:
 
 def test_run_conversation_honors_abstain_turns() -> None:
     _, conversations = build_example_dataset()
+    conversation = _conversation_by_id(conversations, "conv-003")
     pipeline = SemanticIntentPipeline()
     summary = pipeline.run_conversation(
         MultiTurnConversation(
             "conv-abstain",
-            (conversations[0].turns[0],),
+            (conversation.turns[0],),
             ground_truth_blocked=True,
         )
     )
@@ -157,10 +177,11 @@ def test_run_conversation_honors_abstain_turns() -> None:
 
 def test_run_conversation_preserves_bounded_help_before_abstain_summary() -> None:
     clusters, _ = build_example_dataset()
+    cluster = _cluster_by_id(clusters, "cluster-dual-use-audit")
     pipeline = SemanticIntentPipeline()
     conversation = MultiTurnConversation(
         conversation_id="conv-bounded",
-        turns=(clusters[1].records[0],),
+        turns=(cluster.records[0],),
         ground_truth_blocked=False,
     )
     summary = pipeline.run_conversation(conversation)
@@ -169,14 +190,15 @@ def test_run_conversation_preserves_bounded_help_before_abstain_summary() -> Non
 
 def test_evaluator_multi_turn_accuracy_handles_explicit_abstain() -> None:
     _, conversations = build_example_dataset()
+    source = _conversation_by_id(conversations, "conv-003")
     evaluator = SemanticRobustnessEvaluator()
     conversation = MultiTurnConversation(
         conversation_id="conv-explicit-abstain",
         ground_truth_blocked=True,
         turns=(
-            type(conversations[0].turns[0]).from_dict(
+            type(source.turns[0]).from_dict(
                 {
-                    **conversations[0].turns[0].to_dict(),
+                    **source.turns[0].to_dict(),
                     "abstain_recommended": False,
                     "policy_action": PolicyAction.ABSTAIN.value,
                 }
@@ -188,8 +210,9 @@ def test_evaluator_multi_turn_accuracy_handles_explicit_abstain() -> None:
 
 def test_evaluate_cluster_exposes_all_variant_family_metrics() -> None:
     clusters, _ = build_example_dataset()
+    cluster = _cluster_by_id(clusters, "cluster-dual-use-audit")
     evaluator = SemanticRobustnessEvaluator()
-    metrics = evaluator.evaluate_cluster(clusters[1])
+    metrics = evaluator.evaluate_cluster(cluster)
     assert "academic_wrapper_robustness" in metrics
     assert "indirect_phrasing_invariance" in metrics
     assert "typo_noise_resilience" in metrics
@@ -198,14 +221,15 @@ def test_evaluate_cluster_exposes_all_variant_family_metrics() -> None:
 
 def test_evaluator_multi_turn_accuracy_handles_refuse_turns() -> None:
     _, conversations = build_example_dataset()
+    source = _conversation_by_id(conversations, "conv-003")
     evaluator = SemanticRobustnessEvaluator()
     conversation = MultiTurnConversation(
         conversation_id="conv-refuse-no-abstain",
         ground_truth_blocked=True,
         turns=(
-            type(conversations[0].turns[1]).from_dict(
+            type(source.turns[1]).from_dict(
                 {
-                    **conversations[0].turns[1].to_dict(),
+                    **source.turns[1].to_dict(),
                     "policy_action": PolicyAction.REFUSE.value,
                     "abstain_recommended": False,
                 }
@@ -217,21 +241,23 @@ def test_evaluator_multi_turn_accuracy_handles_refuse_turns() -> None:
 
 def test_missing_variant_family_is_reported_as_unavailable() -> None:
     clusters, _ = build_example_dataset()
+    cluster = _cluster_by_id(clusters, "cluster-harmful-access")
     evaluator = SemanticRobustnessEvaluator()
-    metrics = evaluator.evaluate_cluster(clusters[0])
+    metrics = evaluator.evaluate_cluster(cluster)
     assert math.isnan(metrics["academic_wrapper_robustness"])
 
 
 def test_evaluator_multi_turn_accuracy_uses_conversation_blocked_flag() -> None:
     _, conversations = build_example_dataset()
+    source = _conversation_by_id(conversations, "conv-003")
     evaluator = SemanticRobustnessEvaluator()
     conversation = MultiTurnConversation(
         conversation_id="conv-flag-driven-block",
         ground_truth_blocked=True,
         turns=(
-            type(conversations[0].turns[0]).from_dict(
+            type(source.turns[0]).from_dict(
                 {
-                    **conversations[0].turns[0].to_dict(),
+                    **source.turns[0].to_dict(),
                     "policy_action": PolicyAction.ALLOW.value,
                     "abstain_recommended": False,
                 }
@@ -243,10 +269,11 @@ def test_evaluator_multi_turn_accuracy_uses_conversation_blocked_flag() -> None:
 
 def test_run_conversation_preserves_redirect_action() -> None:
     _, conversations = build_example_dataset()
+    source = _conversation_by_id(conversations, "conv-003")
     pipeline = SemanticIntentPipeline()
-    redirect_turn = type(conversations[0].turns[0]).from_dict(
+    redirect_turn = type(source.turns[0]).from_dict(
         {
-            **conversations[0].turns[0].to_dict(),
+            **source.turns[0].to_dict(),
             "policy_action": PolicyAction.REDIRECT.value,
             "abstain_recommended": False,
             "concealment_component": False,
@@ -261,10 +288,11 @@ def test_run_conversation_preserves_redirect_action() -> None:
 
 def test_run_conversation_uses_aggregate_risk_signals() -> None:
     _, conversations = build_example_dataset()
+    source = _conversation_by_id(conversations, "conv-003")
     pipeline = SemanticIntentPipeline()
-    risky_turn = type(conversations[0].turns[0]).from_dict(
+    risky_turn = type(source.turns[0]).from_dict(
         {
-            **conversations[0].turns[0].to_dict(),
+            **source.turns[0].to_dict(),
             "policy_action": PolicyAction.ALLOW.value,
             "abstain_recommended": False,
             "capability_transfer_risk": "high",
@@ -280,7 +308,7 @@ def test_run_conversation_uses_aggregate_risk_signals() -> None:
 
 def test_topic_only_fpr_counts_redirect_as_false_positive() -> None:
     clusters, _ = build_example_dataset()
-    cluster = clusters[0]
+    cluster = _cluster_by_id(clusters, "cluster-harmful-access")
     redirected_control = type(cluster.negative_controls[0]).from_dict(
         {
             **cluster.negative_controls[0].to_dict(),
@@ -304,10 +332,11 @@ def test_topic_only_fpr_counts_redirect_as_false_positive() -> None:
 
 def test_evaluator_multi_turn_accuracy_uses_ground_truth_flag() -> None:
     _, conversations = build_example_dataset()
+    source = _conversation_by_id(conversations, "conv-003")
     evaluator = SemanticRobustnessEvaluator()
     conversation = MultiTurnConversation(
         conversation_id="conv-ground-truth-mismatch",
-        turns=(conversations[0].turns[1],),
+        turns=(source.turns[1],),
         ground_truth_blocked=False,
     )
     assert evaluator.multi_turn_accuracy(conversation) == 0.0
@@ -315,10 +344,11 @@ def test_evaluator_multi_turn_accuracy_uses_ground_truth_flag() -> None:
 
 def test_evaluator_multi_turn_accuracy_skips_unlabeled_conversation() -> None:
     _, conversations = build_example_dataset()
+    source = _conversation_by_id(conversations, "conv-003")
     evaluator = SemanticRobustnessEvaluator()
     conversation = MultiTurnConversation(
         conversation_id="conv-unlabeled",
-        turns=(conversations[0].turns[1],),
+        turns=(source.turns[1],),
         ground_truth_blocked=None,
     )
     assert evaluator.multi_turn_accuracy(conversation) is None

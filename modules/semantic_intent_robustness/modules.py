@@ -166,6 +166,10 @@ class SemanticIntentPipeline:
 
     def run_conversation(self, conversation: MultiTurnConversation) -> dict[str, Any]:
         summary = self.multi_turn(conversation)
+        max_risk = summary.get("max_capability_transfer_risk", "low")
+        contains_concealment = summary.get("contains_concealment", False)
+        contains_deception = summary.get("contains_deception", False)
+        abstain_recommended = summary.get("abstain_recommended", False)
         observed_actions = {turn.policy_action for turn in conversation.turns}
         if PolicyAction.REFUSE in observed_actions:
             summary["policy_action"] = PolicyAction.REFUSE.value
@@ -174,9 +178,9 @@ class SemanticIntentPipeline:
             summary["policy_action"] = PolicyAction.ABSTAIN.value
             summary["safe_alternative_mode"] = SafeAlternativeMode.CLARIFY.value
         elif (
-            summary["max_capability_transfer_risk"] in {"high", "critical"}
-            or summary["contains_concealment"]
-            or summary["contains_deception"]
+            max_risk in {"high", "critical"}
+            or contains_concealment
+            or contains_deception
             or summary.get("conversation_blocked", False)
         ):
             summary["policy_action"] = PolicyAction.REFUSE.value
@@ -187,7 +191,7 @@ class SemanticIntentPipeline:
         elif PolicyAction.ALLOW_WITH_BOUNDARIES in observed_actions:
             summary["policy_action"] = PolicyAction.ALLOW_WITH_BOUNDARIES.value
             summary["safe_alternative_mode"] = SafeAlternativeMode.HIGH_LEVEL_SAFETY.value
-        elif summary["abstain_recommended"]:
+        elif abstain_recommended:
             summary["policy_action"] = PolicyAction.ABSTAIN.value
             summary["safe_alternative_mode"] = SafeAlternativeMode.CLARIFY.value
         else:

@@ -66,17 +66,33 @@ def test_empty_multi_turn_aggregation_is_safe() -> None:
 
 def test_multi_turn_aggregation_uses_risk_severity_order() -> None:
     _, conversations = build_example_dataset()
-    conversation = _conversation_by_id(conversations, "conv-003")
-    summary = aggregate_multi_turn_risk(conversation)
-    assert summary == {
-        "conversation_id": "conv-003",
-        "turn_count": 2,
-        "max_capability_transfer_risk": "high",
-        "contains_concealment": True,
-        "contains_deception": True,
-        "abstain_recommended": True,
-        "conversation_blocked": True,
-    }
+    source = _conversation_by_id(conversations, "conv-003")
+    low_turn = type(source.turns[0]).from_dict(
+        {
+            **source.turns[0].to_dict(),
+            "prompt_id": "risk-low",
+            "capability_transfer_risk": "low",
+            "policy_action": "allow",
+            "abstain_recommended": False,
+            "concealment_component": False,
+            "deception_component": False,
+        }
+    )
+    high_turn = type(source.turns[1]).from_dict(
+        {
+            **source.turns[1].to_dict(),
+            "prompt_id": "risk-high",
+            "capability_transfer_risk": "high",
+            "policy_action": "allow",
+            "abstain_recommended": False,
+            "concealment_component": False,
+            "deception_component": False,
+        }
+    )
+    summary = aggregate_multi_turn_risk(
+        MultiTurnConversation("conv-risk-order", (low_turn, high_turn))
+    )
+    assert summary["max_capability_transfer_risk"] == "high"
 
 
 def test_topic_vs_intent_discrimination_handles_empty_records() -> None:

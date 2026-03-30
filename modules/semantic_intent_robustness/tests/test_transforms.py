@@ -9,9 +9,23 @@ from semantic_intent_robustness.taxonomy import PolicyAction, VariantType
 from semantic_intent_robustness.transforms import build_semantic_cluster
 
 
+def _cluster_by_id(clusters, cluster_id: str):
+    for cluster in clusters:
+        if cluster.cluster_id == cluster_id:
+            return cluster
+    raise AssertionError(f"Missing cluster: {cluster_id}")
+
+
+def _record_by_variant(cluster, variant_type: VariantType):
+    for record in cluster.records:
+        if record.variant_type == variant_type:
+            return record
+    raise AssertionError(f"Missing variant: {variant_type.value}")
+
+
 def test_semantic_cluster_contains_expected_variant_labels() -> None:
     clusters, _ = build_example_dataset()
-    cluster = clusters[0]
+    cluster = _cluster_by_id(clusters, "cluster-harmful-access")
     variant_types = {record.variant_type for record in cluster.records}
     assert VariantType.PARAPHRASE in variant_types
     assert VariantType.MULTILINGUAL_TRANSLATION in variant_types
@@ -20,14 +34,15 @@ def test_semantic_cluster_contains_expected_variant_labels() -> None:
 
 def test_negative_control_separates_policy() -> None:
     clusters, _ = build_example_dataset()
-    cluster = clusters[0]
+    cluster = _cluster_by_id(clusters, "cluster-harmful-access")
     assert cluster.negative_controls[0].policy_action == PolicyAction.ALLOW
-    assert cluster.records[0].policy_action == PolicyAction.REFUSE
+    assert _record_by_variant(cluster, VariantType.ORIGINAL).policy_action == PolicyAction.REFUSE
 
 
 def test_negative_spec_policy_action_dict_requires_value() -> None:
     clusters, _ = build_example_dataset()
-    seed = clusters[0].records[0]
+    cluster = _cluster_by_id(clusters, "cluster-harmful-access")
+    seed = _record_by_variant(cluster, VariantType.ORIGINAL)
     with pytest.raises(ValueError, match="Unsupported policy_action: None"):
         build_semantic_cluster(
             seed,
@@ -38,7 +53,8 @@ def test_negative_spec_policy_action_dict_requires_value() -> None:
 
 def test_invalid_override_json_raises_clear_error() -> None:
     clusters, _ = build_example_dataset()
-    seed = clusters[0].records[0]
+    cluster = _cluster_by_id(clusters, "cluster-harmful-access")
+    seed = _record_by_variant(cluster, VariantType.ORIGINAL)
     with pytest.raises(ValueError, match="Failed to parse overrides JSON"):
         build_semantic_cluster(
             seed,
@@ -55,7 +71,8 @@ def test_invalid_override_json_raises_clear_error() -> None:
 
 def test_variant_builder_preserves_nullable_fields_and_turn_index() -> None:
     clusters, _ = build_example_dataset()
-    seed = clusters[0].records[0]
+    cluster = _cluster_by_id(clusters, "cluster-harmful-access")
+    seed = _record_by_variant(cluster, VariantType.ORIGINAL)
     cluster = build_semantic_cluster(
         seed,
         [
@@ -88,7 +105,8 @@ def test_variant_builder_preserves_nullable_fields_and_turn_index() -> None:
 
 def test_negative_controls_default_to_benign_intent() -> None:
     clusters, _ = build_example_dataset()
-    seed = clusters[0].records[0]
+    cluster = _cluster_by_id(clusters, "cluster-harmful-access")
+    seed = _record_by_variant(cluster, VariantType.ORIGINAL)
     cluster = build_semantic_cluster(
         seed,
         [],
@@ -104,7 +122,8 @@ def test_negative_controls_default_to_benign_intent() -> None:
 
 def test_negative_controls_reset_risk_defaults() -> None:
     clusters, _ = build_example_dataset()
-    seed = clusters[0].records[0]
+    cluster = _cluster_by_id(clusters, "cluster-harmful-access")
+    seed = _record_by_variant(cluster, VariantType.ORIGINAL)
     cluster = build_semantic_cluster(
         seed,
         [],
