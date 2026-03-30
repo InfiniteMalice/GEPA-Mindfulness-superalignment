@@ -131,7 +131,7 @@ def compute_loss_breakdown(
 def batch_format_expectations() -> dict[str, Any]:
     """Describe expected batch tensors/arrays for training integration."""
 
-    return {
+    expectations = {
         "invariant_scores": "per-cluster semantic agreement in [0, 1]",
         "contrastive_margins": "distance between topic-matched but intent-shifted pairs",
         "policy_match_scores": "per-cluster policy agreement in [0, 1]",
@@ -139,11 +139,15 @@ def batch_format_expectations() -> dict[str, Any]:
         "abstention_predictions": "model abstention predictions",
         "auxiliary_errors": "optional decomposition field losses",
     }
+    _validate_probability_fields(expectations)
+    return expectations
 
 
 def _penalize_disagreement(scores: list[float]) -> float:
     """Convert agreement scores into disagreement penalties."""
 
+    if any(score < 0.0 or score > 1.0 for score in scores):
+        raise ValueError("scores passed to _penalize_disagreement must be in [0, 1]")
     return _mean_loss([1.0 - score for score in scores])
 
 
@@ -153,6 +157,23 @@ def _mean_loss(values: list[float]) -> float:
     if not values:
         return 0.0
     return sum(values) / len(values)
+
+
+def _validate_probability_fields(expectations: dict[str, Any]) -> None:
+    """Validate documented probability fields use [0, 1] interval guidance."""
+
+    probability_fields = (
+        "invariant_scores",
+        "policy_match_scores",
+        "abstention_targets",
+        "abstention_predictions",
+    )
+    for field_name in probability_fields:
+        descriptor = str(expectations.get(field_name, ""))
+        if "[0, 1]" not in descriptor:
+            raise ValueError(
+                f"{field_name} must document probabilities in [0, 1], got: {descriptor!r}"
+            )
 
 
 __all__ = [

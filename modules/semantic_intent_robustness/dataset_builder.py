@@ -288,7 +288,15 @@ def build_example_dataset() -> tuple[list[SemanticCluster], list[MultiTurnConver
         turns=turns,
         ground_truth_blocked=True,
     )
-    return [harmful_cluster, dual_use_cluster], [conversation]
+    multi_turn_cluster = SemanticCluster(
+        cluster_id="cluster-multi-turn-laundering",
+        records=tuple(turns),
+        negative_controls=(),
+        cluster_summary=(
+            "Multi-turn decomposition that reveals concealed harmful intent over turns."
+        ),
+    )
+    return [harmful_cluster, dual_use_cluster, multi_turn_cluster], [conversation]
 
 
 def build_clusters_payload(

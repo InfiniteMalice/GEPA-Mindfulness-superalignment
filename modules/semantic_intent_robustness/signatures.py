@@ -8,8 +8,11 @@ from typing import Any, Mapping
 
 try:  # pragma: no cover - optional dependency
     import dspy  # type: ignore
-except ImportError:  # pragma: no cover
-    dspy = None  # type: ignore
+except ModuleNotFoundError as exc:  # pragma: no cover
+    if exc.name == "dspy":
+        dspy = None  # type: ignore
+    else:
+        raise
 
 
 @dataclass(frozen=True)

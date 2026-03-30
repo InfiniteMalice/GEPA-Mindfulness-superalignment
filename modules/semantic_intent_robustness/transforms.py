@@ -1,15 +1,28 @@
 """Transform utilities for semantic cluster construction."""
 
+# ruff: noqa: I001
+
 # Standard library
 from __future__ import annotations
 
-import json
 from enum import Enum
+import json
 
 # Local
 from .config import DEFAULT_CONFIG
 from .schemas import SemanticCluster, SemanticSafetyRecord
 from .taxonomy import IntentPrimary, PolicyAction, VariantType
+
+PROTECTED_OVERRIDE_KEYS = {
+    "prompt_id",
+    "prompt_text",
+    "variant_type",
+    "language",
+    "turn_index",
+    "parent_example_id",
+    "user_goal_summary",
+    "policy_action",
+}
 
 TRANSFORM_TEMPLATES: dict[VariantType, str] = {
     VariantType.PARAPHRASE: "Rephrase while preserving the same latent request.",
@@ -99,6 +112,10 @@ def build_variant(
 ) -> SemanticSafetyRecord:
     """Clone a seed record with a new transform label and text."""
 
+    if overrides:
+        protected = sorted(set(overrides).intersection(PROTECTED_OVERRIDE_KEYS))
+        if protected:
+            raise ValueError(f"overrides cannot include protected fields: {protected}")
     data = seed.to_dict()
     data.update(
         {
@@ -140,13 +157,15 @@ def build_semantic_cluster(
         overrides = _coerce_overrides(spec.get("overrides"))
         parent_example_id = spec.get("parent_example_id", seed.prompt_id)
         user_goal_summary = spec.get("user_goal_summary", seed.user_goal_summary)
+        language = spec.get("language", seed.language)
+        turn_index = spec.get("turn_index", seed.turn_index)
         record = build_variant(
             seed,
             prompt_id=str(spec["prompt_id"]),
             prompt_text=str(spec["prompt_text"]),
             variant_type=variant_type,
-            language=str(spec.get("language", seed.language)),
-            turn_index=int(spec.get("turn_index", seed.turn_index)),
+            language=(None if language is None else str(language)),
+            turn_index=(None if turn_index is None else int(turn_index)),
             parent_example_id=(str(parent_example_id) if parent_example_id is not None else None),
             user_goal_summary=(str(user_goal_summary) if user_goal_summary is not None else None),
             overrides=overrides,
@@ -160,20 +179,27 @@ def build_semantic_cluster(
         )
         overrides["intent_primary"] = intent_primary
         if intent_primary == IntentPrimary.BENIGN_INFORMATION:
-            overrides.setdefault("dual_use_probability", 0.0)
-            overrides.setdefault("capability_transfer_risk", "low")
-            overrides.setdefault("harm_domain", "none")
-            overrides.setdefault("abstain_recommended", False)
+            overrides["benign_plausibility"] = 1.0
+            overrides["dual_use_probability"] = 0.0
+            overrides["evasion_likelihood"] = 0.0
+            overrides["capability_transfer_risk"] = "low"
+            overrides["harm_domain"] = "none"
+            overrides["harm_severity"] = "minimal"
+            overrides["deception_component"] = False
+            overrides["concealment_component"] = False
+            overrides["abstain_recommended"] = False
         policy_action = _coerce_policy_action(spec.get("policy_action", PolicyAction.ALLOW))
         parent_example_id = spec.get("parent_example_id", seed.prompt_id)
         user_goal_summary = spec.get("user_goal_summary", "Benign topic overlap only.")
+        language = spec.get("language", seed.language)
+        turn_index = spec.get("turn_index", seed.turn_index)
         record = build_variant(
             seed,
             prompt_id=str(spec["prompt_id"]),
             prompt_text=str(spec["prompt_text"]),
             variant_type=VariantType.TOPIC_PRESERVING_INTENT_SHIFT,
-            language=str(spec.get("language", seed.language)),
-            turn_index=int(spec.get("turn_index", seed.turn_index)),
+            language=(None if language is None else str(language)),
+            turn_index=(None if turn_index is None else int(turn_index)),
             parent_example_id=(str(parent_example_id) if parent_example_id is not None else None),
             policy_action=policy_action,
             user_goal_summary=(str(user_goal_summary) if user_goal_summary is not None else None),

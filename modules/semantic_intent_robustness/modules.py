@@ -166,6 +166,11 @@ class SemanticIntentPipeline:
 
     def run_conversation(self, conversation: MultiTurnConversation) -> dict[str, Any]:
         summary = self.multi_turn(conversation)
+        if not conversation.turns:
+            summary["policy_action"] = PolicyAction.REFUSE.value
+            summary["safe_alternative_mode"] = SafeAlternativeMode.HIGH_LEVEL_SAFETY.value
+            summary["conversation_blocked"] = True
+            return summary
         max_risk = summary.get("max_capability_transfer_risk", "low")
         contains_concealment = summary.get("contains_concealment", False)
         contains_deception = summary.get("contains_deception", False)

@@ -27,10 +27,10 @@ try:
         "semantic_intent_robustness.evaluators",
         MODULES_PATH,
         allow_missing_submodules=False,
-        allow_import_error_name_match=True,
+        allow_import_error_name_match=False,
     )
 except ModuleNotFoundError as exc:
-    if (exc.name or "").startswith("semantic_intent_robustness"):
+    if exc.name == "semantic_intent_robustness.evaluators":
         _semantic_evaluator_module = None
     else:
         raise
