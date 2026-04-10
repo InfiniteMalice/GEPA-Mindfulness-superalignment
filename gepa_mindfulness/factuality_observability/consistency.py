@@ -37,6 +37,12 @@ def compute_related_query_consistency(
             query_family_id=query_family_id,
             paraphrase_group_id=paraphrase_group_id,
             semantically_related_query_ids=[record.query_id for record in records],
+            cross_prompt_answer_consistency_score=None,
+            cross_prompt_abstention_consistency_score=None,
+            entity_consistency_score=None,
+            date_consistency_score=None,
+            causal_consistency_score=None,
+            insufficient_data=True,
         )
 
     similarities: list[float] = []

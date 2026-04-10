@@ -13,8 +13,8 @@ from .logging import (
 )
 from .pipeline import PipelineInputs, PipelineOutputs, run_v2_pipeline
 from .routing import RoutingContext, RoutingDecision, choose_routing_action
-from .scoring import ScoringInputs, compute_scores
 from .schemas import CaseOverlayV2, EvaluationScoresV2, ObservabilityTier
+from .scoring import ScoringInputs, compute_scores
 
 __all__ = [
     "AtomicDecompositionResult",

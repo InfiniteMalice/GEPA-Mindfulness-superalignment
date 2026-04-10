@@ -113,6 +113,7 @@ class TaskSpecificHallucinationType(str, Enum):
 class HallucinationPrimaryType(str, Enum):
     """Primary hallucination manifestation labels."""
 
+    NONE = "none"
     FACTUAL_ERROR = "factual_error"
     FABRICATED_ENTITY = "fabricated_entity"
     CONTEXTUAL_INCONSISTENCY = "contextual_inconsistency"
@@ -190,6 +191,13 @@ class CaseOverlayV2:
     )
     guessing_pressure_profile: str = "unknown"
 
+    def __post_init__(self) -> None:
+        if not 1 <= self.base_case_label <= 13:
+            raise ValueError(
+                "CaseOverlayV2 base_case_label must be an integer in range 1..13 "
+                f"(got {self.base_case_label})"
+            )
+
     @property
     def final_case_overlay(self) -> str:
         """Return canonical CaseX-OY label."""
@@ -220,11 +228,12 @@ class RelatedQueryConsistency:
     query_family_id: str
     paraphrase_group_id: str
     semantically_related_query_ids: list[str] = field(default_factory=list)
-    cross_prompt_answer_consistency_score: float = 1.0
-    cross_prompt_abstention_consistency_score: float = 1.0
-    entity_consistency_score: float = 1.0
-    date_consistency_score: float = 1.0
-    causal_consistency_score: float = 1.0
+    cross_prompt_answer_consistency_score: float | None = 1.0
+    cross_prompt_abstention_consistency_score: float | None = 1.0
+    entity_consistency_score: float | None = 1.0
+    date_consistency_score: float | None = 1.0
+    causal_consistency_score: float | None = 1.0
+    insufficient_data: bool = False
 
 
 @dataclass(slots=True)

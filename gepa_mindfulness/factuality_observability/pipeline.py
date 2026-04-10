@@ -7,9 +7,9 @@ from dataclasses import dataclass
 from .calibration import ConfidenceSignals, fuse_confidence
 from .config import FactualityObservabilityConfig
 from .decomposition import AtomicDecompositionResult, decompose_verify_and_repair
-from .logging import build_sample_log_bundle
+from .logging import SampleLogBundle, build_sample_log_bundle
 from .routing import RoutingContext, choose_routing_action
-from .schemas import CaseOverlayV2, RecommendedAction
+from .schemas import CaseOverlayV2, EvaluationScoresV2, RecommendedAction
 from .scoring import ScoringInputs, compute_scores
 
 
@@ -38,8 +38,8 @@ class PipelineOutputs:
 
     case_overlay: CaseOverlayV2
     decomposition: AtomicDecompositionResult
-    scores: object
-    log_bundle: object
+    scores: EvaluationScoresV2
+    log_bundle: SampleLogBundle
 
 
 def run_v2_pipeline(
@@ -66,13 +66,20 @@ def run_v2_pipeline(
         RoutingContext(
             base_case_label=inputs.base_case_label,
             operational_confidence=calibration.final_operational_confidence,
-            claim_complexity=min(1.0, len(decomposition.atomic_fact_list) / 5.0),
-            domain_risk=0.8 if inputs.domain in {"medical", "legal", "finance"} else 0.4,
+            claim_complexity=min(
+                1.0,
+                len(decomposition.atomic_fact_list) / config.claim_complexity_divisor,
+            ),
+            domain_risk=(
+                config.domain_risk_high
+                if inputs.domain in {"medical", "legal", "finance"}
+                else config.domain_risk_default
+            ),
             verification_budget=config.budgets.verification_budget,
-            has_provenance=decomposition.attribution_precision_score > 0.4,
-            trace_worthy=decomposition.fact_risk_score > 0.6,
+            has_provenance=decomposition.attribution_precision_score > config.provenance_threshold,
+            trace_worthy=decomposition.fact_risk_score > config.trace_worthy_threshold,
             abstention_viable=True,
-            guessing_pressure=0.5,
+            guessing_pressure=config.default_guessing_pressure,
         )
     )
 
@@ -86,21 +93,33 @@ def run_v2_pipeline(
 
     scores = compute_scores(
         ScoringInputs(
-            answer_correct=decomposition.support_coverage_score >= 0.9,
+            answer_correct=decomposition.support_coverage_score >= config.answer_correct_threshold,
             support_coverage=decomposition.support_coverage_score,
             attribution_precision=decomposition.attribution_precision_score,
             provenance_binding=decomposition.attribution_precision_score,
             calibration_quality=calibration.final_operational_confidence,
             abstention_quality=(
-                1.0 if routing.recommended_action is RecommendedAction.ABSTAIN else 0.5
+                config.abstention_quality_if_abstain
+                if routing.recommended_action is RecommendedAction.ABSTAIN
+                else config.abstention_quality_default
             ),
             routing_quality=(
-                1.0 if routing.recommended_action is not RecommendedAction.ACCEPT else 0.7
+                config.routing_quality_if_non_accept
+                if routing.recommended_action is not RecommendedAction.ACCEPT
+                else config.routing_quality_if_accept
             ),
-            trace_utility=1.0 if decomposition.fact_risk_score > 0.5 else 0.3,
-            failure_localization=1.0 if decomposition.unsupported_fact_indices else 0.2,
-            taxonomy_coverage=0.8,
-            guessing_diagnostic_quality=0.7,
+            trace_utility=(
+                config.trace_utility_high
+                if decomposition.fact_risk_score > config.trace_utility_threshold
+                else config.trace_utility_low
+            ),
+            failure_localization=(
+                config.failure_localization_high
+                if decomposition.unsupported_fact_indices
+                else config.failure_localization_low
+            ),
+            taxonomy_coverage=config.taxonomy_coverage_default,
+            guessing_diagnostic_quality=config.guessing_diagnostic_quality_default,
         )
     )
 

@@ -71,7 +71,7 @@ def verify_atomic_facts(
             risk_score = 1.0
         elif evidence:
             verdict = VerificationStatus.EXTERNALLY_VERIFIED
-            hallucination_type = HallucinationPrimaryType.FACTUAL_ERROR
+            hallucination_type = HallucinationPrimaryType.NONE
             risk_score = 0.1
         else:
             verdict = VerificationStatus.UNVERIFIED
@@ -97,17 +97,19 @@ def repair_answer_from_atomic_facts(
     """Reconstruct answer while removing unsupported or contradicted fact fragments."""
 
     kept_clauses: list[str] = []
-    for clause_index, clause in enumerate(clauses):
+    for clause_index, _clause in enumerate(clauses):
         fact_indices = mapping.get(clause_index, [])
-        unsupported = [
+        supported_indices = [
             index
             for index in fact_indices
             if records[index].verdict
-            in {VerificationStatus.UNVERIFIED, VerificationStatus.CONTRADICTED}
+            not in {VerificationStatus.UNVERIFIED, VerificationStatus.CONTRADICTED}
         ]
-        if len(unsupported) == len(fact_indices) and fact_indices:
+        if not supported_indices and fact_indices:
             continue
-        kept_clauses.append(clause)
+        if supported_indices:
+            rebuilt_clause = " and ".join(records[index].fact for index in supported_indices)
+            kept_clauses.append(rebuilt_clause)
     return " ".join(kept_clauses).strip() or "I don't know based on current verifiable evidence."
 
 
@@ -123,13 +125,11 @@ def decompose_verify_and_repair(
     records = verify_atomic_facts(atomic_facts, evidence_lookup, contradiction_lookup)
     repaired_answer = repair_answer_from_atomic_facts(clauses, mapping, records)
 
-    unsupported = [
-        i
-        for i, record in enumerate(records)
-        if record.verdict in {VerificationStatus.UNVERIFIED, VerificationStatus.CONTRADICTED}
-    ]
     contradicted = [
         i for i, record in enumerate(records) if record.verdict is VerificationStatus.CONTRADICTED
+    ]
+    unsupported = [
+        i for i, record in enumerate(records) if record.verdict is VerificationStatus.UNVERIFIED
     ]
     supported = [
         i

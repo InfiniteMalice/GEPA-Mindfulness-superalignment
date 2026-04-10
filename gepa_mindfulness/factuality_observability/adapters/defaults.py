@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from .base import GraphBuilderInput, GraphBuilderOutput
 from ..logging import TracePackage
+from .base import GraphBuilderInput, GraphBuilderOutput
 
 
 class NullAttributionGraphAdapter:

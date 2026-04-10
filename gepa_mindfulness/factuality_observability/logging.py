@@ -6,6 +6,7 @@ import hashlib
 import json
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
+from enum import Enum
 
 from .schemas import (
     CaseOverlayV2,
@@ -155,11 +156,20 @@ def mark_correct_but_wrong_reason(
 def to_jsonl_line(payload: SampleLogBundle | TracePackage | dict[str, object]) -> str:
     """Convert structured bundle to JSONL output line."""
 
+    def _normalize(value: object) -> object:
+        if isinstance(value, Enum):
+            return value.value
+        if isinstance(value, dict):
+            return {str(k): _normalize(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [_normalize(item) for item in value]
+        return value
+
     if isinstance(payload, dict):
         body = payload
     else:
         body = asdict(payload)
-    return json.dumps(body, sort_keys=True)
+    return json.dumps(_normalize(body), sort_keys=True)
 
 
 def build_sample_log_bundle(

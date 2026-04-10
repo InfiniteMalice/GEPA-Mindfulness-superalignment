@@ -32,3 +32,13 @@ def test_related_query_consistency_analysis() -> None:
         ],
     )
     assert consistency.cross_prompt_answer_consistency_score == 1.0
+
+
+def test_related_query_consistency_insufficient_data() -> None:
+    consistency = compute_related_query_consistency(
+        query_family_id="fam2",
+        paraphrase_group_id="para2",
+        records=[QueryRecord(query_id="q3", answer="Unknown", abstained=True)],
+    )
+    assert consistency.insufficient_data is True
+    assert consistency.cross_prompt_answer_consistency_score is None

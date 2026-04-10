@@ -53,7 +53,17 @@ def fuse_confidence(signals: ConfidenceSignals) -> CalibrationOutput:
         confidence = 0.3 * confidence + 0.7 * signals.external_verification_confidence
         used_signals.append("external_verification_confidence")
 
-    if "external_verification_confidence" in used_signals:
+    if (
+        "external_verification_confidence" in used_signals
+        and "mechanistic_risk_indicator" in used_signals
+    ):
+        tier = ObservabilityTier.O5
+    elif (
+        "external_verification_confidence" in used_signals
+        and "structured_provenance_confidence" in used_signals
+    ):
+        tier = ObservabilityTier.O4
+    elif "external_verification_confidence" in used_signals:
         tier = ObservabilityTier.O3
     elif (
         "latent_uncertainty_signal" in used_signals
@@ -64,11 +74,6 @@ def fuse_confidence(signals: ConfidenceSignals) -> CalibrationOutput:
         tier = ObservabilityTier.O1
     else:
         tier = ObservabilityTier.O0
-
-    if {"external_verification_confidence", "mechanistic_risk_indicator"}.issubset(used_signals):
-        tier = ObservabilityTier.O5
-    elif "external_verification_confidence" in used_signals:
-        tier = ObservabilityTier.O4
 
     return CalibrationOutput(
         final_operational_confidence=_clip(confidence),

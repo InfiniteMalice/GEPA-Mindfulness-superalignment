@@ -22,3 +22,10 @@ domain:
     default: medium
     medical: high
     finance: high
+claim_complexity_divisor: 5.0
+domain_risk_high: 0.8
+domain_risk_default: 0.4
+provenance_threshold: 0.4
+trace_worthy_threshold: 0.6
+default_guessing_pressure: 0.5
+answer_correct_threshold: 0.9
