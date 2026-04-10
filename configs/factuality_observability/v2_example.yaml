@@ -1,0 +1,24 @@
+thresholds:
+  entropy_thresholds:
+    default: 1.2
+    medical: 0.9
+  semantic_entropy_thresholds:
+    default: 0.7
+    legal: 0.6
+  disagreement_thresholds:
+    default: 0.3
+  trace_capture_thresholds:
+    default: 0.6
+    science: 0.5
+budgets:
+  verification_budget: 5
+  trace_storage_budget: 50
+domain:
+  domain_threshold_scale:
+    default: 1.0
+    medical: 0.8
+    finance: 0.85
+  domain_risk_level:
+    default: medium
+    medical: high
+    finance: high
