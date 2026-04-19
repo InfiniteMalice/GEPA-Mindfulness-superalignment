@@ -108,18 +108,34 @@ def build_trace_package(
     final_case_overlay: str = "Case0-O0",
     suspected_failure_mode: SuspectedFailureMode = SuspectedFailureMode.UNKNOWN,
     suspected_spurious_path: bool = False,
+    token_count: int | None = None,
 ) -> TracePackage:
-    """Create a trace package that degrades gracefully when telemetry is absent."""
+    """Create a trace package that degrades gracefully when telemetry is absent.
+    
+    Args:
+        sample_id: ...
+        model_id: ...
+        prompt: ...
+        answer: ...
+        atomic_fact_list: ...
+        evidence_per_fact: ...
+        per_token_uncertainty_series: ...
+        final_case_overlay: ...
+        suspected_failure_mode: ...
+        suspected_spurious_path: ...
+        token_count: Expected length of per_token_uncertainty_series. If not provided,
+            will fall back to a naive whitespace tokenization count.
+    """
 
     trace_id = deterministic_trace_package_id(sample_id, model_id, answer)
-    token_count = len(answer.split())
+    resolved_token_count = token_count if token_count is not None else len(answer.split())
     if (
         per_token_uncertainty_series is not None
-        and len(per_token_uncertainty_series) != token_count
+        and len(per_token_uncertainty_series) != resolved_token_count
     ):
         raise ValueError(
             "per_token_uncertainty_series length must match token_count in build_trace_package: "
-            f"{len(per_token_uncertainty_series)} != {token_count}"
+            f"{len(per_token_uncertainty_series)} != {resolved_token_count}"
         )
     uncertainty = per_token_uncertainty_series or []
     artifacts = ["sample_metadata", "atomic_fact_map", "evidence_map"]
@@ -131,7 +147,7 @@ def build_trace_package(
         sample_metadata={"sample_id": sample_id, "model_id": model_id},
         prompt_text=prompt,
         answer_text=answer,
-        tokenization_map={"tokens": list(range(len(answer.split())))},
+        tokenization_map={"tokens": list(range(resolved_token_count))},
         atomic_fact_map={idx: fact for idx, fact in enumerate(atomic_fact_list)},
         evidence_map={idx: evidence for idx, evidence in enumerate(evidence_per_fact)},
         critical_span_annotations={"answer_spans": [[0, max(0, len(answer) - 1)]]},

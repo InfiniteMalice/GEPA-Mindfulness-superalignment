@@ -162,7 +162,7 @@ class AtomicFactRecord:
     evidence: list[str] = field(default_factory=list)
     verdict: VerificationStatus = VerificationStatus.UNVERIFIED
     verifiability_class: VerifiabilityClass = VerifiabilityClass.INDIRECT
-    hallucination_type: HallucinationPrimaryType = HallucinationPrimaryType.FACTUAL_ERROR
+    hallucination_type: HallucinationPrimaryType = HallucinationPrimaryType.NONE
     risk_score: float = 0.5
 
 
@@ -184,7 +184,7 @@ class CaseOverlayV2:
     hallucination_axis_factuality_faithfulness: FactualityFaithfulnessAxis = (
         FactualityFaithfulnessAxis.UNKNOWN
     )
-    hallucination_primary_type: HallucinationPrimaryType = HallucinationPrimaryType.FACTUAL_ERROR
+    hallucination_primary_type: HallucinationPrimaryType = HallucinationPrimaryType.NONE
     hallucination_secondary_types: list[HallucinationPrimaryType] = field(default_factory=list)
     task_specific_hallucination_type: TaskSpecificHallucinationType = (
         TaskSpecificHallucinationType.NONE
