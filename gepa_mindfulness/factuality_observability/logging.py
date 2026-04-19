@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -128,7 +129,12 @@ def build_trace_package(
     """
 
     trace_id = deterministic_trace_package_id(sample_id, model_id, answer)
-    resolved_token_count = token_count if token_count is not None else len(answer.split())
+    if token_count is None or not isinstance(token_count, int) or token_count < 0:
+        if token_count is not None:
+            logging.warning(f"Invalid token_count {token_count}, falling back to len(answer.split())")
+        resolved_token_count = len(answer.split())
+    else:
+        resolved_token_count = token_count
     if (
         per_token_uncertainty_series is not None
         and len(per_token_uncertainty_series) != resolved_token_count
