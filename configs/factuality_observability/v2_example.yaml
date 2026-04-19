@@ -1,0 +1,42 @@
+thresholds:
+  entropy_thresholds:
+    default: 1.2
+    medical: 0.9
+  semantic_entropy_thresholds:
+    default: 0.7
+    legal: 0.6
+  disagreement_thresholds:
+    default: 0.3
+  trace_capture_thresholds:
+    default: 0.6
+    science: 0.5
+budgets:
+  verification_budget: 5
+  trace_storage_budget: 50
+domain:
+  domain_threshold_scale:
+    default: 1.0
+    medical: 0.8
+    finance: 0.85
+  domain_risk_level:
+    default: medium
+    medical: high
+    finance: high
+claim_complexity_divisor: 5.0
+domain_risk_high: 0.8
+domain_risk_default: 0.4
+provenance_threshold: 0.4
+trace_worthy_threshold: 0.6
+default_guessing_pressure: 0.5
+answer_correct_threshold: 0.9
+abstention_quality_if_abstain: 1.0
+abstention_quality_default: 0.5
+routing_quality_if_non_accept: 1.0
+routing_quality_if_accept: 0.7
+trace_utility_high: 1.0
+trace_utility_low: 0.3
+trace_utility_threshold: 0.5
+failure_localization_high: 1.0
+failure_localization_low: 0.2
+taxonomy_coverage_default: 0.8
+guessing_diagnostic_quality_default: 0.7

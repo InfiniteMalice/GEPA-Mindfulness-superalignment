@@ -321,6 +321,45 @@ Thought-trace alignment and attribution framing also draw on the
 ["Thought Trace and Attribution Graphs"
 reference](https://transformer-circuits.pub/2025/attribution-graphs/biology.html).
 
+### 13-case schema v2 overlay: factuality + observability + routing
+
+The repository now adds a **13-case schema v2 overlay** that preserves the
+original 13+0 core logic while attaching a second dimension for observability,
+verification, and diagnostics. Every sample can now be represented as
+`CaseX-OY` (for example `Case1-O3` or `Case10-O5`), where observability tier is:
+
+* `O0`: text only
+* `O1`: text + behavioral cues
+* `O2`: text + latent uncertainty telemetry
+* `O3`: text + external verification / provenance binding
+* `O4`: composed verification stack
+* `O5`: composed stack + mech-interp trace package
+
+Why this extension exists:
+
+* final-answer-only scoring is not enough for robust alignment and factuality,
+* text confidence alone is weak and may invert true uncertainty,
+* factuality is a systems problem (decomposition, retrieval, verification,
+  routing, abstention, provenance), not a single-metric problem,
+* abstention under missing evidence is a first-class aligned behavior.
+
+The new module lives at `gepa_mindfulness/factuality_observability/` and adds:
+
+* atomic-fact decomposition and selective repair (edit only unsupported parts),
+* observability-aware confidence fusion with graceful fallback when telemetry is
+  unavailable,
+* budget-aware verification-routing (accept, decompose, retrieve, external
+  checker, abstain, escalate),
+* richer hallucination taxonomy labels (intrinsic/extrinsic,
+  factuality/faithfulness, manifestation types),
+* guessing-vs-abstention pressure diagnostics for benchmark-pressure analysis,
+* structured sample logs and reusable trace packages for attribution-graphs,
+  circuit tracing, and failure clustering.
+
+This extension explicitly separates answer quality from verification quality and
+trace usefulness. It keeps scores decomposed rather than collapsed into a single
+number, improving auditability and downstream mechanistic analysis.
+
 ## Synthetic superalignment dataset system
 
 This repository now includes a structured synthetic dataset subsystem for
