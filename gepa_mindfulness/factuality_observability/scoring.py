@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from .schemas import EvaluationScoresV2
@@ -25,6 +26,8 @@ class ScoringInputs:
 
 
 def _clamp(value: float) -> float:
+    if not math.isfinite(value):
+        return 0.0
     return max(0.0, min(1.0, value))
 
 

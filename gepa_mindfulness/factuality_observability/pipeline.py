@@ -36,6 +36,11 @@ class PipelineInputs:
     latent_uncertainty_signal: float | None
     evidence_lookup: dict[str, list[str]]
     contradiction_lookup: set[str]
+    abstention_viable: bool = True
+    guessing_pressure_profile: str = "moderate_pressure"
+    knowledge_boundary_risk: float = 0.2
+    source_reference_divergence_risk: float = 0.2
+    staleness_risk: float = 0.1
 
 
 @dataclass(slots=True)
@@ -85,7 +90,7 @@ def run_v2_pipeline(
             verification_budget=config.budgets.verification_budget,
             has_provenance=decomposition.attribution_precision_score > config.provenance_threshold,
             trace_worthy=decomposition.fact_risk_score > config.trace_worthy_threshold,
-            abstention_viable=True,
+            abstention_viable=inputs.abstention_viable,
             guessing_pressure=config.default_guessing_pressure,
         )
     )
@@ -169,10 +174,10 @@ def run_v2_pipeline(
         answer_correctness_score=scores.answer_correctness_score,
         calibration_score=scores.calibration_score,
         atomic_fact_support_score=scores.atomic_fact_support_score,
-        guessing_pressure_profile="moderate_pressure",
-        knowledge_boundary_risk=0.2,
-        source_reference_divergence_risk=0.2,
-        staleness_risk=0.1,
+        guessing_pressure_profile=inputs.guessing_pressure_profile,
+        knowledge_boundary_risk=inputs.knowledge_boundary_risk,
+        source_reference_divergence_risk=inputs.source_reference_divergence_risk,
+        staleness_risk=inputs.staleness_risk,
     )
 
     return PipelineOutputs(

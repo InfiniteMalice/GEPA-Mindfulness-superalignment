@@ -78,9 +78,6 @@ class FactualityObservabilityConfig:
     guessing_diagnostic_quality_default: float = 0.7
 
     def __post_init__(self) -> None:
-        self.thresholds.__post_init__()
-        self.budgets.__post_init__()
-
         if self.claim_complexity_divisor <= 0:
             raise ValueError("FactualityObservabilityConfig claim_complexity_divisor must be > 0")
 

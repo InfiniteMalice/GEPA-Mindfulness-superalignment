@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import copy
+
 from ..logging import TracePackage
 from .base import GraphBuilderInput, GraphBuilderOutput
 
@@ -14,9 +16,9 @@ class NullAttributionGraphAdapter:
             trace_package_id=trace_package.trace_package_id,
             prompt_text=trace_package.prompt_text,
             answer_text=trace_package.answer_text,
-            atomic_fact_map=trace_package.atomic_fact_map,
-            evidence_map=trace_package.evidence_map,
-            critical_span_annotations=trace_package.critical_span_annotations,
+            atomic_fact_map=copy.deepcopy(trace_package.atomic_fact_map),
+            evidence_map=copy.deepcopy(trace_package.evidence_map),
+            critical_span_annotations=copy.deepcopy(trace_package.critical_span_annotations),
             case_overlay=trace_package.final_case_overlay,
         )
 
