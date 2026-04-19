@@ -192,9 +192,14 @@ class CaseOverlayV2:
     guessing_pressure_profile: str = "unknown"
 
     def __post_init__(self) -> None:
-        if not 1 <= self.base_case_label <= 13:
+        if not isinstance(self.base_case_label, int):
+            raise TypeError(
+                "CaseOverlayV2 base_case_label must be int for valid final_case_overlay "
+                f"(got {type(self.base_case_label).__name__})"
+            )
+        if not 0 <= self.base_case_label <= 13:
             raise ValueError(
-                "CaseOverlayV2 base_case_label must be an integer in range 1..13 "
+                "CaseOverlayV2 base_case_label must be an integer in range 0..13 "
                 f"(got {self.base_case_label})"
             )
 

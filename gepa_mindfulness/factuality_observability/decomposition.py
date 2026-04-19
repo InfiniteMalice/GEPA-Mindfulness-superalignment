@@ -38,15 +38,31 @@ def split_into_clauses(answer: str) -> list[str]:
     return [part.strip() for part in parts if part.strip()]
 
 
+def _split_clause_with_separators(clause: str) -> tuple[list[str], list[str]]:
+    split_parts = re.split(r"(\s+\b(?:and|but|while)\b\s+)", clause)
+    facts: list[str] = []
+    separators: list[str] = []
+
+    for index, part in enumerate(split_parts):
+        if index % 2 == 0:
+            fact = part.strip()
+            if fact:
+                facts.append(fact)
+        elif facts:
+            separators.append(part)
+
+    while len(separators) < max(0, len(facts) - 1):
+        separators.append(" ")
+    return facts, separators
+
+
 def decompose_clauses_to_atomic_facts(clauses: list[str]) -> tuple[list[str], dict[int, list[int]]]:
     """Decompose each clause into rough atomic claims using conjunction splits."""
 
     facts: list[str] = []
     mapping: dict[int, list[int]] = {}
     for clause_index, clause in enumerate(clauses):
-        mini_facts = [
-            fact.strip() for fact in re.split(r"\b(?:and|but|while)\b", clause) if fact.strip()
-        ]
+        mini_facts, _separators = _split_clause_with_separators(clause)
         mapping[clause_index] = []
         for mini_fact in mini_facts:
             mapping[clause_index].append(len(facts))
@@ -97,8 +113,13 @@ def repair_answer_from_atomic_facts(
     """Reconstruct answer while removing unsupported or contradicted fact fragments."""
 
     kept_clauses: list[str] = []
-    for clause_index, _clause in enumerate(clauses):
+    for clause_index, clause in enumerate(clauses):
         fact_indices = mapping.get(clause_index, [])
+        local_facts, local_separators = _split_clause_with_separators(clause)
+        if len(local_facts) != len(fact_indices):
+            local_facts = [records[index].fact for index in fact_indices]
+            local_separators = [" and "] * max(0, len(local_facts) - 1)
+
         supported_indices = [
             index
             for index in fact_indices
@@ -107,8 +128,20 @@ def repair_answer_from_atomic_facts(
         ]
         if not supported_indices and fact_indices:
             continue
+        if len(supported_indices) == len(fact_indices):
+            kept_clauses.append(clause)
+            continue
+
         if supported_indices:
-            rebuilt_clause = " and ".join(records[index].fact for index in supported_indices)
+            local_supported_positions = [
+                local_idx
+                for local_idx, global_index in enumerate(fact_indices)
+                if global_index in supported_indices
+            ]
+            rebuilt_clause = local_facts[local_supported_positions[0]]
+            for pos in local_supported_positions[1:]:
+                separator = local_separators[pos - 1] if pos - 1 < len(local_separators) else " "
+                rebuilt_clause = f"{rebuilt_clause}{separator}{local_facts[pos]}"
             kept_clauses.append(rebuilt_clause)
     return " ".join(kept_clauses).strip() or "I don't know based on current verifiable evidence."
 

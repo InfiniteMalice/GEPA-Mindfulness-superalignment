@@ -84,12 +84,7 @@ Added diagnostics:
 
 ## Implementation plan
 
-1. migrate evaluation JSONL writers to include v2 fields,
-2. wire pipeline hooks into baseline evaluator and trainer logs,
-3. connect real retrieval/fact-check adapters,
-4. enable token-level telemetry providers where available,
-5. integrate trace exporter with attribution-graph tooling,
-6. add failure clustering notebooks using exported JSONL bundles.
+Implementation tasks are tracked in bd.
 
 ## Limitations
 

@@ -42,3 +42,15 @@ def test_related_query_consistency_insufficient_data() -> None:
     )
     assert consistency.insufficient_data is True
     assert consistency.cross_prompt_answer_consistency_score is None
+
+
+def test_related_query_consistency_ignores_abstained_answer_similarity() -> None:
+    consistency = compute_related_query_consistency(
+        query_family_id="fam3",
+        paraphrase_group_id="para3",
+        records=[
+            QueryRecord(query_id="q1", answer="Alpha", abstained=True),
+            QueryRecord(query_id="q2", answer="Beta", abstained=False),
+        ],
+    )
+    assert consistency.cross_prompt_answer_consistency_score is None

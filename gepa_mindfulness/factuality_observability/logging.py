@@ -112,6 +112,15 @@ def build_trace_package(
     """Create a trace package that degrades gracefully when telemetry is absent."""
 
     trace_id = deterministic_trace_package_id(sample_id, model_id, answer)
+    token_count = len(answer.split())
+    if (
+        per_token_uncertainty_series is not None
+        and len(per_token_uncertainty_series) != token_count
+    ):
+        raise ValueError(
+            "per_token_uncertainty_series length must match token_count in build_trace_package: "
+            f"{len(per_token_uncertainty_series)} != {token_count}"
+        )
     uncertainty = per_token_uncertainty_series or []
     artifacts = ["sample_metadata", "atomic_fact_map", "evidence_map"]
     if uncertainty:
@@ -187,7 +196,7 @@ def build_sample_log_bundle(
     routing_path: list[str],
     routing_target: str,
     atomic_fact_list: list[str],
-    fact_verdict_per_fact: list[str],
+    fact_verdict_per_fact: list[str | Enum],
     evidence_per_fact: list[list[str]],
     unsupported_fact_indices: list[int],
     contradiction_fact_indices: list[int],
@@ -221,7 +230,10 @@ def build_sample_log_bundle(
         recommended_action=case_overlay.recommended_action.value,
         routing_path=routing_path,
         atomic_fact_list=atomic_fact_list,
-        fact_verdict_per_fact=fact_verdict_per_fact,
+        fact_verdict_per_fact=[
+            verdict.value if isinstance(verdict, Enum) else str(verdict)
+            for verdict in fact_verdict_per_fact
+        ],
         evidence_per_fact=evidence_per_fact,
         unsupported_fact_indices=unsupported_fact_indices,
         contradiction_fact_indices=contradiction_fact_indices,

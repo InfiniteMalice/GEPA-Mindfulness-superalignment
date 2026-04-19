@@ -1,6 +1,7 @@
 from gepa_mindfulness.factuality_observability.calibration import ConfidenceSignals, fuse_confidence
 from gepa_mindfulness.factuality_observability.config import FactualityObservabilityConfig
 from gepa_mindfulness.factuality_observability.pipeline import PipelineInputs, run_v2_pipeline
+from gepa_mindfulness.factuality_observability.schemas import ObservabilityTier
 
 
 def test_calibration_fuses_external_priority() -> None:
@@ -13,6 +14,13 @@ def test_calibration_fuses_external_priority() -> None:
         )
     )
     assert output.final_operational_confidence > 0.7
+
+
+def test_calibration_tier_for_latent_only_is_o2() -> None:
+    output = fuse_confidence(
+        ConfidenceSignals(declared_confidence=0.5, latent_uncertainty_signal=0.2)
+    )
+    assert output.observability_tier is ObservabilityTier.O2
 
 
 def test_pipeline_returns_schema_complete_log_bundle() -> None:
@@ -36,3 +44,8 @@ def test_pipeline_returns_schema_complete_log_bundle() -> None:
     )
     assert outputs.case_overlay.final_case_overlay.startswith("Case1-")
     assert outputs.log_bundle.atomic_fact_list
+    assert outputs.log_bundle.fact_verdict_per_fact
+    assert len(outputs.log_bundle.fact_verdict_per_fact) == len(outputs.log_bundle.atomic_fact_list)
+    assert isinstance(outputs.log_bundle.unsupported_fact_indices, list)
+    assert isinstance(outputs.log_bundle.contradiction_fact_indices, list)
+    assert outputs.log_bundle.recommended_action

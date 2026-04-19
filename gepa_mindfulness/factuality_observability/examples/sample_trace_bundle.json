@@ -7,24 +7,52 @@
   "prompt_text": "Who discovered penicillin?",
   "answer_text": "Alexander Fleming discovered penicillin in 1928.",
   "tokenization_map": {
-    "tokens": [0, 1, 2, 3, 4, 5]
+    "tokens": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
   },
   "atomic_fact_map": {
     "0": "Alexander Fleming discovered penicillin in 1928"
   },
   "evidence_map": {
-    "0": ["Encyclopedia entry"]
+    "0": [
+      "Encyclopedia entry"
+    ]
   },
   "critical_span_annotations": {
-    "answer_spans": [[0, 47]]
+    "answer_spans": [
+      [
+        0,
+        47
+      ]
+    ]
   },
-  "per_token_uncertainty_series": [0.1, 0.08, 0.12, 0.1, 0.07, 0.09],
-  "retrieval_and_provenance_links": ["ctx:enc-001"],
+  "per_token_uncertainty_series": [
+    0.1,
+    0.08,
+    0.12,
+    0.1,
+    0.07,
+    0.09
+  ],
+  "retrieval_and_provenance_links": [
+    "ctx:enc-001"
+  ],
   "model_internal_summaries": {},
   "final_case_overlay": "Case1-O3",
   "suspected_failure_mode": "unknown",
   "suspected_spurious_path": false,
-  "supported_trace_artifacts": ["sample_metadata", "atomic_fact_map", "evidence_map"],
+  "supported_trace_artifacts": [
+    "sample_metadata",
+    "atomic_fact_map",
+    "evidence_map",
+    "token_uncertainty"
+  ],
   "downstream_graph_status": "queued",
   "graph_candidate_priority": 0.3
 }

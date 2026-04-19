@@ -1,3 +1,5 @@
+import pytest
+
 from gepa_mindfulness.factuality_observability.logging import build_trace_package
 
 
@@ -23,3 +25,16 @@ def test_trace_package_generation_graceful_without_telemetry() -> None:
     assert trace.trace_package_id.startswith("trace-")
     assert trace.trace_package_id == trace_2.trace_package_id
     assert trace.per_token_uncertainty_series == []
+
+
+def test_trace_package_raises_on_uncertainty_length_mismatch() -> None:
+    with pytest.raises(ValueError):
+        build_trace_package(
+            sample_id="s1",
+            model_id="m1",
+            prompt="Q",
+            answer="two tokens",
+            atomic_fact_list=["fact"],
+            evidence_per_fact=[["source"]],
+            per_token_uncertainty_series=[0.1],
+        )

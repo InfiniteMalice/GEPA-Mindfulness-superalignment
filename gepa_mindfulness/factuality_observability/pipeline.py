@@ -9,7 +9,13 @@ from .config import FactualityObservabilityConfig
 from .decomposition import AtomicDecompositionResult, decompose_verify_and_repair
 from .logging import SampleLogBundle, build_sample_log_bundle
 from .routing import RoutingContext, choose_routing_action
-from .schemas import CaseOverlayV2, EvaluationScoresV2, RecommendedAction
+from .schemas import (
+    CaseOverlayV2,
+    EvaluationScoresV2,
+    ProvenanceStatus,
+    RecommendedAction,
+    VerificationStatus,
+)
 from .scoring import ScoringInputs, compute_scores
 
 
@@ -68,7 +74,8 @@ def run_v2_pipeline(
             operational_confidence=calibration.final_operational_confidence,
             claim_complexity=min(
                 1.0,
-                len(decomposition.atomic_fact_list) / config.claim_complexity_divisor,
+                len(decomposition.atomic_fact_list)
+                / (config.claim_complexity_divisor if config.claim_complexity_divisor > 0 else 1.0),
             ),
             domain_risk=(
                 config.domain_risk_high
@@ -83,11 +90,29 @@ def run_v2_pipeline(
         )
     )
 
+    if decomposition.contradiction_fact_indices:
+        verification_status = VerificationStatus.CONTRADICTED
+    elif decomposition.support_coverage_score >= 0.99:
+        verification_status = VerificationStatus.EXTERNALLY_VERIFIED
+    elif decomposition.support_coverage_score > 0.0:
+        verification_status = VerificationStatus.WEAKLY_CHECKED
+    else:
+        verification_status = VerificationStatus.UNVERIFIED
+
+    if decomposition.attribution_precision_score >= 0.99:
+        provenance_status = ProvenanceStatus.EXTERNALLY_VALIDATED
+    elif decomposition.attribution_precision_score > 0.0:
+        provenance_status = ProvenanceStatus.STRUCTURED
+    else:
+        provenance_status = ProvenanceStatus.NONE
+
     case_overlay = CaseOverlayV2(
         base_case_label=inputs.base_case_label,
         observability_tier=calibration.observability_tier,
         declared_confidence=inputs.declared_confidence,
         latent_uncertainty_signal=inputs.latent_uncertainty_signal,
+        verification_status=verification_status,
+        provenance_status=provenance_status,
         recommended_action=routing.recommended_action,
     )
 

@@ -29,3 +29,14 @@ provenance_threshold: 0.4
 trace_worthy_threshold: 0.6
 default_guessing_pressure: 0.5
 answer_correct_threshold: 0.9
+abstention_quality_if_abstain: 1.0
+abstention_quality_default: 0.5
+routing_quality_if_non_accept: 1.0
+routing_quality_if_accept: 0.7
+trace_utility_high: 1.0
+trace_utility_low: 0.3
+trace_utility_threshold: 0.5
+failure_localization_high: 1.0
+failure_localization_low: 0.2
+taxonomy_coverage_default: 0.8
+guessing_diagnostic_quality_default: 0.7

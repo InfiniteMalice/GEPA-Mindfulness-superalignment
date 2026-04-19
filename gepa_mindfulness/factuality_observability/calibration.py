@@ -69,8 +69,10 @@ def fuse_confidence(signals: ConfidenceSignals) -> CalibrationOutput:
         "latent_uncertainty_signal" in used_signals
         and "structured_provenance_confidence" in used_signals
     ):
-        tier = ObservabilityTier.O2
+        tier = ObservabilityTier.O3
     elif "latent_uncertainty_signal" in used_signals:
+        tier = ObservabilityTier.O2
+    elif "structured_provenance_confidence" in used_signals:
         tier = ObservabilityTier.O1
     else:
         tier = ObservabilityTier.O0
