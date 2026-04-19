@@ -112,7 +112,7 @@ def build_trace_package(
     token_count: int | None = None,
 ) -> TracePackage:
     """Create a trace package that degrades gracefully when telemetry is absent.
-    
+
     Args:
         sample_id: ...
         model_id: ...
