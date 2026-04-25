@@ -45,3 +45,11 @@ def test_hyphenated_and_underscored_cues_trigger_conflict_detection() -> None:
 
     assert "Reduce Human Suffering" in structure.conflict_with_imperatives
     assert "Increase Human Prosperity" in structure.conflict_with_imperatives
+
+
+def test_domain_inference_handles_underscored_privacy_cues() -> None:
+    structure = decompose_objective(
+        "Populate validator data with private_data and api_key fields for testing."
+    )
+
+    assert structure.domain == "privacy"

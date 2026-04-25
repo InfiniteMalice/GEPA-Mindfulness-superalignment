@@ -71,12 +71,13 @@ def _normalize_slot(value: str) -> str:
 
 
 def _infer_domain(text: str) -> str | None:
+    normalized_text = _normalize_cue_text(text)
     for domain, cues in SENSITIVE_CUES.items():
-        if _contains_any(text, cues):
+        if _contains_any(normalized_text, cues):
             return domain
-    if "medical" in text or "health" in text:
+    if "medical" in normalized_text or "health" in normalized_text:
         return "medical"
-    if "classifier" in text or "dataset" in text:
+    if "classifier" in normalized_text or "dataset" in normalized_text:
         return "dataset"
     return None
 
@@ -95,13 +96,11 @@ def _imperative_conflicts(text: str) -> list[str]:
             "credential",
             "private data",
             "evade detection",
-            "self-medication",
+            "self medication",
             "payload",
-            "dangerous_payload",
             "dangerous payload",
             "slur",
             "hate speech",
-            "hate_speech",
             "insult",
             "derogatory",
         ),
@@ -109,7 +108,7 @@ def _imperative_conflicts(text: str) -> list[str]:
         conflicts.append("Reduce Human Suffering")
     if _contains_any(
         normalized_text,
-        ("private data", "private_data", "credential", "password", "api key", "api_key", "ssn"),
+        ("private data", "credential", "password", "api key", "ssn"),
     ):
         conflicts.append("Increase Human Prosperity")
     if _contains_any(normalized_text, ("fabricate", "mislead benchmark", "poison dataset")):
