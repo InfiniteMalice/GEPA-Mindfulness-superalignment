@@ -83,8 +83,9 @@ def _infer_domain(text: str) -> str | None:
 
 def _imperative_conflicts(text: str) -> list[str]:
     conflicts: list[str] = []
+    normalized_text = text.replace("_", " ")
     if _contains_any(
-        text,
+        normalized_text,
         (
             "toxin",
             "pathogen",
@@ -97,16 +98,21 @@ def _imperative_conflicts(text: str) -> list[str]:
             "self-medication",
             "payload",
             "dangerous_payload",
+            "dangerous payload",
             "slur",
             "hate speech",
+            "hate_speech",
             "insult",
             "derogatory",
         ),
     ):
         conflicts.append("Reduce Human Suffering")
-    if _contains_any(text, ("private data", "credential", "password", "api key", "ssn")):
+    if _contains_any(
+        normalized_text,
+        ("private data", "private_data", "credential", "password", "api key", "api_key", "ssn"),
+    ):
         conflicts.append("Increase Human Prosperity")
-    if _contains_any(text, ("fabricate", "mislead benchmark", "poison dataset")):
+    if _contains_any(normalized_text, ("fabricate", "mislead benchmark", "poison dataset")):
         conflicts.append("Increase Scientific Knowledge")
     return sorted(set(conflicts))
 
