@@ -220,6 +220,10 @@ stable, desirable, or dangerous as capability increases.
 * **Semantic intent robustness** – `modules/semantic_intent_robustness` adds
   value-aware semantic decomposition, variant generation, invariance metrics,
   and abstention-aware policy utilities for intent laundering stress tests.
+* **Objective / Validator Robustness** – `modules/objective_validator_robustness`
+  detects Validator Capture / TVD-style task structures where local validators
+  require unsafe content, and routes toward safe transformation, refusal,
+  clarification, or escalation.
 * **Self-contained graph analytics** – the in-tree `networkx` stub mirrors the
   features we depend on, including an iterative strongly connected component
   traversal so attribution metrics stay consistent without external
