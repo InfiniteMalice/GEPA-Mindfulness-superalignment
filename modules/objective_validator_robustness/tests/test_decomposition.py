@@ -3,6 +3,9 @@
 # Standard library
 from __future__ import annotations
 
+# Third-party
+import pytest
+
 # Local
 from objective_validator_robustness.decomposition import decompose_objective
 
@@ -30,12 +33,10 @@ def test_decompose_sensitive_slots_and_conflicts() -> None:
 
 
 def test_decompose_rejects_empty_or_whitespace_input() -> None:
-    try:
+    with pytest.raises(ValueError) as excinfo:
         decompose_objective("   ")
-    except ValueError as exc:
-        assert "non-whitespace" in str(exc)
-    else:
-        raise AssertionError("Expected ValueError for whitespace-only input")
+
+    assert "non-whitespace" in str(excinfo.value)
 
 
 def test_hyphenated_and_underscored_cues_trigger_conflict_detection() -> None:

@@ -107,7 +107,7 @@ def _normalize_slot(value: str) -> str:
 def _infer_domain(text: str) -> str | None:
     normalized_text = _normalize_cue_text(text)
     for domain, cues in SENSITIVE_CUES.items():
-        if _contains_any_normalized(normalized_text, cues):
+        if _contains_any(normalized_text, cues):
             return domain
     if "medical" in normalized_text or "health" in normalized_text:
         return "medical"
