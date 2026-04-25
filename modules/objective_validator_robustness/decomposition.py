@@ -110,6 +110,11 @@ def decompose_objective(
 ) -> ObjectiveStructure:
     """Decompose a task into objective/validator structure with inspectable heuristics."""
 
+    if input_text is None:
+        raise TypeError("input_text must be a string, got None")
+    if not isinstance(input_text, str):
+        raise TypeError(f"input_text must be a string, got {type(input_text).__name__}")
+
     metadata = metadata or {}
     text = input_text.strip()
     lowered = text.lower()

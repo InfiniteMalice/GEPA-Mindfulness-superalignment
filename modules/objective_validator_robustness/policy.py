@@ -79,13 +79,7 @@ def decide_validator_policy(
             recommended_trace_note="V3: bounded response under uncertainty.",
         )
 
-    return ValidatorPolicyDecision(
-        action="ask_clarifying",
-        rationale="Insufficient context to determine whether validator requirements are safe.",
-        safe_response_strategy=(
-            "Ask for legitimate use context, approved dataset source, and safety constraints."
-        ),
-        blocked_elements=blocked,
-        allowed_elements=["clarification questions"],
-        recommended_trace_note="V2/V3 ambiguity: clarification requested.",
+    raise RuntimeError(
+        "Unreachable policy branch: expected one of "
+        "allow/refuse/escalate/bound conditions to match."
     )
