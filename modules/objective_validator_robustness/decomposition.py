@@ -124,6 +124,8 @@ def decompose_objective(
 
     safe_metadata = _coerce_metadata(metadata)
     text = input_text.strip()
+    if text == "":
+        raise ValueError("input_text must contain non-whitespace content")
     lowered = text.lower()
 
     notes: list[str] = []

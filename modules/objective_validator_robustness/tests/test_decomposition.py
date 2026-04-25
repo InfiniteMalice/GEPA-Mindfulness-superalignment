@@ -26,3 +26,12 @@ def test_decompose_sensitive_slots_and_conflicts() -> None:
     assert "dangerous_payload" in structure.surface_task
     assert structure.conflict_with_imperatives
     assert structure.safe_completion_available is False
+
+
+def test_decompose_rejects_empty_or_whitespace_input() -> None:
+    try:
+        decompose_objective("   ")
+    except ValueError as exc:
+        assert "non-whitespace" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for whitespace-only input")
