@@ -36,3 +36,12 @@ def test_decompose_rejects_empty_or_whitespace_input() -> None:
         assert "non-whitespace" in str(exc)
     else:
         raise AssertionError("Expected ValueError for whitespace-only input")
+
+
+def test_hyphenated_and_underscored_cues_trigger_conflict_detection() -> None:
+    structure = decompose_objective(
+        "Build validator rows with hate-speech tags and api-key placeholders."
+    )
+
+    assert "Reduce Human Suffering" in structure.conflict_with_imperatives
+    assert "Increase Human Prosperity" in structure.conflict_with_imperatives

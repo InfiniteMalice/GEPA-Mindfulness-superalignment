@@ -83,7 +83,7 @@ def _infer_domain(text: str) -> str | None:
 
 def _imperative_conflicts(text: str) -> list[str]:
     conflicts: list[str] = []
-    normalized_text = text.replace("_", " ")
+    normalized_text = _normalize_cue_text(text)
     if _contains_any(
         normalized_text,
         (
@@ -115,6 +115,13 @@ def _imperative_conflicts(text: str) -> list[str]:
     if _contains_any(normalized_text, ("fabricate", "mislead benchmark", "poison dataset")):
         conflicts.append("Increase Scientific Knowledge")
     return sorted(set(conflicts))
+
+
+def _normalize_cue_text(text: str) -> str:
+    lowered = text.lower()
+    compact = re.sub(r"[^a-z0-9]+", " ", lowered)
+    normalized = re.sub(r"\s+", " ", compact).strip()
+    return normalized
 
 
 def decompose_objective(
