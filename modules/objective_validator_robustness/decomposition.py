@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 # Local
@@ -40,13 +41,11 @@ def _contains_any(text: str, cues: tuple[str, ...]) -> bool:
 
 
 def _extract_data_slots(text: str) -> list[str]:
-    slots = [
-        match.group(1).strip() for match in re.finditer(r'"([a-zA-Z0-9_\- ]{3,40})"\s*:', text)
-    ]
-    if slots:
-        return sorted(set(slots))
+    slots: set[str] = set()
+    for match in re.finditer(r'"([a-zA-Z0-9_\- ]{3,40})"\s*:', text):
+        slots.add(_normalize_slot(match.group(1)))
 
-    candidate_slots: list[str] = []
+    normalized_text = _normalize_slot(text)
     for token in (
         "dangerous_payload",
         "exploit_example",
@@ -58,9 +57,17 @@ def _extract_data_slots(text: str) -> list[str]:
         "password",
         "ssn",
     ):
-        if token in text:
-            candidate_slots.append(token)
-    return sorted(set(candidate_slots))
+        if token in normalized_text:
+            slots.add(token)
+    return sorted(slots)
+
+
+def _normalize_slot(value: str) -> str:
+    normalized = value.strip().lower()
+    normalized = normalized.replace("-", "_")
+    normalized = normalized.replace(" ", "_")
+    normalized = re.sub(r"[^a-z0-9_]", "", normalized)
+    return normalized
 
 
 def _infer_domain(text: str) -> str | None:
@@ -106,7 +113,7 @@ def _imperative_conflicts(text: str) -> list[str]:
 
 def decompose_objective(
     input_text: str,
-    metadata: dict[str, Any] | None = None,
+    metadata: Mapping[str, Any] | None = None,
 ) -> ObjectiveStructure:
     """Decompose a task into objective/validator structure with inspectable heuristics."""
 
@@ -115,7 +122,7 @@ def decompose_objective(
     if not isinstance(input_text, str):
         raise TypeError(f"input_text must be a string, got {type(input_text).__name__}")
 
-    metadata = metadata or {}
+    safe_metadata = _coerce_metadata(metadata)
     text = input_text.strip()
     lowered = text.lower()
 
@@ -154,7 +161,10 @@ def decompose_objective(
             break
 
     data_slots = _extract_data_slots(text)
-    requested_capability = metadata.get("requested_capability")
+    requested_capability_raw = safe_metadata.get("requested_capability")
+    if requested_capability_raw is not None and not isinstance(requested_capability_raw, str):
+        raise TypeError("metadata['requested_capability'] must be a string when provided")
+    requested_capability = requested_capability_raw
     if requested_capability is None:
         if "generate" in lowered and "dataset" in lowered:
             requested_capability = "dataset_generation"
@@ -163,8 +173,22 @@ def decompose_objective(
         else:
             requested_capability = "task_completion"
 
-    domain = metadata.get("domain") or _infer_domain(lowered)
-    tool_context = metadata.get("tool_context", [])
+    domain_raw = safe_metadata.get("domain")
+    if domain_raw is not None and not isinstance(domain_raw, str):
+        raise TypeError("metadata['domain'] must be a string when provided")
+    domain = domain_raw or _infer_domain(lowered)
+
+    tool_context_raw = safe_metadata.get("tool_context", [])
+    if tool_context_raw is None:
+        tool_context = []
+    elif isinstance(tool_context_raw, str):
+        tool_context = [tool_context_raw]
+    elif isinstance(tool_context_raw, Sequence):
+        if any(not isinstance(item, str) for item in tool_context_raw):
+            raise TypeError("metadata['tool_context'] must contain only strings")
+        tool_context = list(tool_context_raw)
+    else:
+        raise TypeError("metadata['tool_context'] must be a sequence of strings")
 
     conflicts = _imperative_conflicts(lowered)
     harm_if_completed = None
@@ -208,3 +232,11 @@ def decompose_objective(
         uncertainty=uncertainty,
         notes=notes,
     )
+
+
+def _coerce_metadata(metadata: Mapping[str, Any] | None) -> dict[str, Any]:
+    if metadata is None:
+        return {}
+    if not isinstance(metadata, Mapping):
+        raise TypeError("metadata must be a mapping when provided")
+    return dict(metadata)
