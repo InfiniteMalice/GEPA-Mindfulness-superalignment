@@ -40,6 +40,12 @@ def _contains_any(text: str, cues: tuple[str, ...]) -> bool:
     return any(cue in text for cue in cues)
 
 
+def _contains_any_normalized(text: str, cues: tuple[str, ...]) -> bool:
+    normalized_text = _normalize_cue_text(text)
+    normalized_cues = tuple(_normalize_cue_text(cue) for cue in cues)
+    return _contains_any(normalized_text, normalized_cues)
+
+
 def _extract_data_slots(text: str) -> list[str]:
     slots: set[str] = set()
     for match in re.finditer(r'"([a-zA-Z0-9_\- ]{3,40})"\s*:', text):
@@ -73,7 +79,7 @@ def _normalize_slot(value: str) -> str:
 def _infer_domain(text: str) -> str | None:
     normalized_text = _normalize_cue_text(text)
     for domain, cues in SENSITIVE_CUES.items():
-        if _contains_any(normalized_text, cues):
+        if _contains_any_normalized(normalized_text, cues):
             return domain
     if "medical" in normalized_text or "health" in normalized_text:
         return "medical"
@@ -85,7 +91,7 @@ def _infer_domain(text: str) -> str | None:
 def _imperative_conflicts(text: str) -> list[str]:
     conflicts: list[str] = []
     normalized_text = _normalize_cue_text(text)
-    if _contains_any(
+    if _contains_any_normalized(
         normalized_text,
         (
             "toxin",
@@ -106,12 +112,15 @@ def _imperative_conflicts(text: str) -> list[str]:
         ),
     ):
         conflicts.append("Reduce Human Suffering")
-    if _contains_any(
+    if _contains_any_normalized(
         normalized_text,
         ("private data", "credential", "password", "api key", "ssn"),
     ):
         conflicts.append("Increase Human Prosperity")
-    if _contains_any(normalized_text, ("fabricate", "mislead benchmark", "poison dataset")):
+    if _contains_any_normalized(
+        normalized_text,
+        ("fabricate", "mislead benchmark", "poison dataset"),
+    ):
         conflicts.append("Increase Scientific Knowledge")
     return sorted(set(conflicts))
 
@@ -141,9 +150,9 @@ def decompose_objective(
     lowered = text.lower()
 
     notes: list[str] = []
-    if _contains_any(lowered, VALIDATOR_CUES):
+    if _contains_any_normalized(lowered, VALIDATOR_CUES):
         notes.append("Validator-like success criteria detected")
-    if "fill placeholders" in lowered or "complete missing data" in lowered:
+    if _contains_any_normalized(lowered, ("fill placeholders", "complete missing data")):
         notes.append("Task asks for structural completion of missing slots")
 
     explicit_success_condition = None
@@ -156,21 +165,21 @@ def decompose_objective(
         "return only valid json",
         "benchmark",
     ):
-        if cue in lowered:
+        if _contains_any_normalized(lowered, (cue,)):
             explicit_success_condition = cue
             break
 
     implicit_success_condition = None
-    if explicit_success_condition is None and _contains_any(lowered, VALIDATOR_CUES):
+    if explicit_success_condition is None and _contains_any_normalized(lowered, VALIDATOR_CUES):
         implicit_success_condition = "optimize output for validator compliance"
 
     validator_or_rubric = None
-    if _contains_any(lowered, VALIDATOR_CUES):
+    if _contains_any_normalized(lowered, VALIDATOR_CUES):
         validator_or_rubric = "validator/rubric/schema/test present"
 
     required_output_format = None
     for cue in OUTPUT_CUES:
-        if cue in lowered:
+        if _contains_any_normalized(lowered, (cue,)):
             required_output_format = cue
             break
 
@@ -211,7 +220,7 @@ def decompose_objective(
 
     safe_completion_available = bool(
         conflicts
-        and _contains_any(
+        and _contains_any_normalized(
             lowered,
             (
                 "placeholder",
@@ -220,6 +229,7 @@ def decompose_objective(
                 "non-executable",
                 "approved dataset",
                 "abstract label",
+                "safe completion",
             ),
         )
     )
