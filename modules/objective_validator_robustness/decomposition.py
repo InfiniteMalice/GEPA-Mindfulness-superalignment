@@ -51,7 +51,6 @@ def _extract_data_slots(text: str) -> list[str]:
     for match in re.finditer(r'"([a-zA-Z0-9_\- ]{3,40})"\s*:', text):
         slots.add(_normalize_slot(match.group(1)))
 
-    normalized_text = _normalize_slot(text)
     for token in (
         "dangerous_payload",
         "exploit_example",
@@ -63,9 +62,38 @@ def _extract_data_slots(text: str) -> list[str]:
         "password",
         "ssn",
     ):
-        if token in normalized_text:
+        if _has_field_like_token(text, token):
             slots.add(token)
     return sorted(slots)
+
+
+def _has_field_like_token(text: str, token: str) -> bool:
+    lowered = text.lower()
+    normalized_text = _normalize_cue_text(text)
+    token_space = token.replace("_", " ")
+    raw_variants = (
+        token,
+        token_space,
+        token.replace("_", "-"),
+    )
+    for variant in raw_variants:
+        if f"{variant}:" in lowered or f'"{variant}"' in lowered:
+            return True
+        if f"{variant}=" in lowered or f"{variant} =" in lowered:
+            return True
+
+    words = normalized_text.split()
+    token_words = token_space.split()
+    field_words = {"field", "fields", "slot", "slots"}
+    token_len = len(token_words)
+    for index in range(0, len(words) - token_len + 1):
+        if words[index : index + token_len] != token_words:
+            continue
+        left = max(index - 6, 0)
+        right = min(index + token_len + 6, len(words))
+        if any(word in field_words for word in words[left:right]):
+            return True
+    return False
 
 
 def _normalize_slot(value: str) -> str:
@@ -187,7 +215,7 @@ def decompose_objective(
     requested_capability_raw = safe_metadata.get("requested_capability")
     if requested_capability_raw is not None and not isinstance(requested_capability_raw, str):
         raise TypeError("metadata['requested_capability'] must be a string when provided")
-    requested_capability = requested_capability_raw
+    requested_capability = _canonical_optional_metadata_str(requested_capability_raw)
     if requested_capability is None:
         if "generate" in lowered and "dataset" in lowered:
             requested_capability = "dataset_generation"
@@ -199,7 +227,7 @@ def decompose_objective(
     domain_raw = safe_metadata.get("domain")
     if domain_raw is not None and not isinstance(domain_raw, str):
         raise TypeError("metadata['domain'] must be a string when provided")
-    domain = domain_raw or _infer_domain(lowered)
+    domain = _canonical_optional_metadata_str(domain_raw) or _infer_domain(lowered)
 
     tool_context_raw = safe_metadata.get("tool_context", [])
     if tool_context_raw is None:
@@ -264,3 +292,10 @@ def _coerce_metadata(metadata: Mapping[str, Any] | None) -> dict[str, Any]:
     if not isinstance(metadata, Mapping):
         raise TypeError("metadata must be a mapping when provided")
     return dict(metadata)
+
+
+def _canonical_optional_metadata_str(value: str | None) -> str | None:
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped if stripped else None

@@ -59,3 +59,22 @@ def test_domain_inference_handles_underscored_privacy_cues() -> None:
     assert structure.domain == "privacy"
     assert structure.validator_or_rubric is not None
     assert structure.safe_completion_available is True
+
+
+def test_prose_sensitive_mentions_do_not_create_field_slots() -> None:
+    structure = decompose_objective(
+        "This report redacts API keys and passwords in prose, with no schema fields."
+    )
+
+    assert "api_key" not in structure.data_slots
+    assert "password" not in structure.data_slots
+
+
+def test_blank_metadata_strings_fallback_to_heuristics() -> None:
+    structure = decompose_objective(
+        "Generate a classifier dataset for review.",
+        metadata={"requested_capability": "   ", "domain": "   "},
+    )
+
+    assert structure.requested_capability == "dataset_generation"
+    assert structure.domain == "dataset"
