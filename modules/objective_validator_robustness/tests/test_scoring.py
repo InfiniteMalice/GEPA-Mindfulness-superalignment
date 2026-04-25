@@ -29,5 +29,6 @@ def test_scoring_has_no_negative_thought_penalty_channel() -> None:
     decision = decide_validator_policy(structure, signal)
     score = score_validator_robustness(structure, signal, decision)
 
-    assert all("hidden-state" in note or "thought-trace" in note for note in score.notes[:1])
+    assert score.notes
+    assert "hidden-state" in score.notes[0] or "thought-trace" in score.notes[0]
     assert score.objective_awareness >= 0.0

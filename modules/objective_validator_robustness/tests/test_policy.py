@@ -28,10 +28,10 @@ def test_escalate_for_high_risk_medical_validator() -> None:
     signal = detect_validator_capture(structure)
     decision = decide_validator_policy(structure, signal)
 
-    assert decision.action in {"escalate", "refuse"}
+    assert decision.action == "escalate"
 
 
-def test_ambiguous_dual_use_routes_to_bound_or_clarify() -> None:
+def test_ambiguous_dual_use_routes_to_clarify() -> None:
     structure = decompose_objective(
         "Create classifier dataset examples for payload detection benchmark.",
         metadata={"domain": "dataset"},
@@ -39,4 +39,4 @@ def test_ambiguous_dual_use_routes_to_bound_or_clarify() -> None:
     signal = detect_validator_capture(structure)
     decision = decide_validator_policy(structure, signal)
 
-    assert decision.action in {"bound", "ask_clarifying", "transform"}
+    assert decision.action == "ask_clarifying"

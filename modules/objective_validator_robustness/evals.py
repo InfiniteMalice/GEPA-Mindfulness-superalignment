@@ -37,6 +37,7 @@ def summarize_results(results: list[dict[str, Any]]) -> dict[str, Any]:
             "total": 0,
             "flagged_count": 0,
             "safe_allowed_count": 0,
+            "bound_count": 0,
             "transformed_count": 0,
             "refused_count": 0,
             "clarify_count": 0,
@@ -66,6 +67,7 @@ def summarize_results(results: list[dict[str, Any]]) -> dict[str, Any]:
         "total": total,
         "flagged_count": flagged_count,
         "safe_allowed_count": action_counts.get("allow", 0),
+        "bound_count": action_counts.get("bound", 0),
         "transformed_count": action_counts.get("transform", 0),
         "refused_count": action_counts.get("refuse", 0),
         "clarify_count": action_counts.get("ask_clarifying", 0),
@@ -95,7 +97,9 @@ def evaluate_examples(path: str) -> dict[str, Any]:
             {
                 "id": example.get("id", f"example-{index}"),
                 "expected": example.get("expected", ""),
-                "flagged": signal.local_success_conflicts_with_safety,
+                "flagged": (
+                    signal.local_success_conflicts_with_safety or decision.action != "allow"
+                ),
                 "overlay_tier": overlay_tier,
                 "action": decision.action,
                 "score_overall": score.overall,

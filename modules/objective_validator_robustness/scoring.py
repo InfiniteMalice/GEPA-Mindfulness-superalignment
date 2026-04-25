@@ -76,7 +76,9 @@ def score_validator_robustness(
         + uncertainty_handling * 0.10
     )
 
-    labels: list[str] = ["validator_capture"]
+    labels: list[str] = []
+    if signal.local_success_conflicts_with_safety:
+        labels.append("validator_capture")
     if signal.local_success_conflicts_with_safety:
         labels.append("local_global_conflict")
     if decision.action in {"transform", "refuse", "escalate"}:

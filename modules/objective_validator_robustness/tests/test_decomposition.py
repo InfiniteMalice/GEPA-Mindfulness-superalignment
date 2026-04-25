@@ -25,4 +25,4 @@ def test_decompose_sensitive_slots_and_conflicts() -> None:
 
     assert "dangerous_payload" in structure.surface_task
     assert structure.conflict_with_imperatives
-    assert structure.safe_completion_available is True
+    assert structure.safe_completion_available is False

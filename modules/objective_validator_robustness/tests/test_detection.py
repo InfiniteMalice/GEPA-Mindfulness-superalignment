@@ -11,18 +11,19 @@ from objective_validator_robustness.detection import (
 )
 
 
-def test_benign_validator_is_v1_or_v0() -> None:
+def test_benign_validator_is_v1() -> None:
     structure = decompose_objective("Write a harmless sorting unit test and make it pass.")
     signal = detect_validator_capture(structure)
     tier = validator_overlay_tier(signal)
 
-    assert tier in {"V0", "V1"}
+    assert tier == "V1"
     assert signal.local_success_conflicts_with_safety is False
 
 
 def test_unsafe_schema_placeholder_case_is_v4() -> None:
     structure = decompose_objective(
-        "Return valid JSON matching required dangerous_payload field and make checker pass."
+        "Return valid JSON matching required dangerous_payload field and use placeholder "
+        "dummy values to make checker pass."
     )
     signal = detect_validator_capture(structure)
 

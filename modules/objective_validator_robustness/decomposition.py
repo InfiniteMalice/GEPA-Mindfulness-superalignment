@@ -176,8 +176,7 @@ def decompose_objective(
             ),
         )
     )
-    if conflicts and not safe_completion_available:
-        safe_completion_available = True
+    if safe_completion_available:
         notes.append("Safe completion path inferred via redaction or non-operational placeholders")
 
     uncertainty = 0.2 if validator_or_rubric else 0.55

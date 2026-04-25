@@ -43,7 +43,7 @@ def decide_validator_policy(
     if (
         signal.local_success_conflicts_with_safety
         and signal.safe_alternative_exists
-        and domain not in {"bio", "medical", "weapons"}
+        and domain not in {"bio", "medical", "privacy", "weapons"}
     ):
         return ValidatorPolicyDecision(
             action="transform",
