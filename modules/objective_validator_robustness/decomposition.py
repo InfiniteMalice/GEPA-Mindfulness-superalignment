@@ -90,6 +90,10 @@ def _imperative_conflicts(text: str) -> list[str]:
             "self-medication",
             "payload",
             "dangerous_payload",
+            "slur",
+            "hate speech",
+            "insult",
+            "derogatory",
         ),
     ):
         conflicts.append("Reduce Human Suffering")

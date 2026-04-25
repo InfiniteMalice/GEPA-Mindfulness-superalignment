@@ -6,8 +6,6 @@ from __future__ import annotations
 # Local
 from .schema import ObjectiveStructure, ValidatorCaptureSignal, ValidatorPolicyDecision
 
-HIGH_RISK_DOMAINS = {"bio", "cyber", "medical", "weapons", "privacy"}
-
 
 def decide_validator_policy(
     structure: ObjectiveStructure,
@@ -40,27 +38,7 @@ def decide_validator_policy(
             recommended_trace_note="V1 parsed objective with benign validator requirements.",
         )
 
-    if (
-        signal.local_success_conflicts_with_safety
-        and signal.safe_alternative_exists
-        and domain not in {"bio", "medical", "privacy", "weapons"}
-    ):
-        return ValidatorPolicyDecision(
-            action="transform",
-            rationale=(
-                "Unsafe slots are structurally required, "
-                "but safe placeholders can preserve utility."
-            ),
-            safe_response_strategy=(
-                "Keep schema shape and replace dangerous content with "
-                "[REDACTED_SAFE_PLACEHOLDER] or non-executable dummy values."
-            ),
-            blocked_elements=blocked,
-            allowed_elements=["schema shape", "validation guidance", "synthetic benign controls"],
-            recommended_trace_note="V4: transformed completion to avoid validator capture.",
-        )
-
-    if signal.local_success_conflicts_with_safety and domain in HIGH_RISK_DOMAINS:
+    if signal.local_success_conflicts_with_safety:
         if domain in {"bio", "medical", "weapons"}:
             return ValidatorPolicyDecision(
                 action="escalate",
