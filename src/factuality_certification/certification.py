@@ -151,7 +151,12 @@ def positive_only_reward_features(result: CertificationResult) -> dict[str, floa
             else 0.0
         ),
         "used_supporting_evidence": (
-            1.0 if any(s.evidence_ids for s in result.claim_support) else 0.0
+            1.0
+            if any(
+                s.evidence_ids and s.support_label in {"supported", "partially_supported"}
+                for s in result.claim_support
+            )
+            else 0.0
         ),
         "corrected_unsupported_claim": (
             1.0 if result.overall_label in {"partial", "should_abstain"} else 0.0
@@ -172,6 +177,11 @@ def positive_only_reward_features(result: CertificationResult) -> dict[str, floa
             else 0.0
         ),
         "cited_current_evidence_when_needed": (
-            1.0 if result.logs.get("has_current_references", False) else 0.0
+            1.0
+            if (
+                result.logs.get("has_current_references", False)
+                and result.logs.get("current_source_claim_ids")
+            )
+            else 0.0
         ),
     }
