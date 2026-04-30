@@ -1,0 +1,35 @@
+factuality_certification:
+  enabled: true
+  mode: advisory
+  claim_extraction:
+    enabled: true
+    max_claims: 64
+    split_compound_claims: true
+  evidence_matching:
+    enabled: true
+    min_support_score: 0.65
+    contradiction_threshold: 0.60
+    source_quality_weight: 0.25
+    retrieval_weight: 0.35
+    entailment_weight: 0.40
+  certification:
+    certified_threshold: 0.80
+    partial_threshold: 0.55
+    abstention_threshold: 0.35
+    refusal_threshold: 0.85
+    require_scope_before_refusal: true
+    allow_partial_answers: true
+    allow_uncertainty_qualified_answers: true
+  overrefusal_guard:
+    enabled: true
+    safe_scoped_answer_preferred: true
+    ask_clarifying_before_refusal_when_appropriate: true
+  logging:
+    log_atomic_claims: true
+    log_evidence_matches: true
+    log_constraint_scores: true
+    log_counterfactual_action: true
+    log_for_attribution_graphs: true
+  training:
+    positive_only_trace_rewards: true
+    export_reward_features: true
