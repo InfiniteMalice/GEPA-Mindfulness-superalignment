@@ -27,7 +27,7 @@ def find_scoped_alternative(
         )
     if any(s.support_label == "partially_supported" for s in supports):
         return ScopedAlternative(True, "answer_partially", "Return only supported portion.")
-    if claims and all(s.support_label == "unsupported" for s in supports):
+    if claims and supports and all(s.support_label == "unsupported" for s in supports):
         return ScopedAlternative(
             True, "ask_clarifying_question", "Clarify scope or request evidence."
         )

@@ -8,6 +8,7 @@ factuality_certification:
   evidence_matching:
     enabled: true
     min_support_score: 0.65
+    partial_support_threshold: 0.20
     contradiction_threshold: 0.60
     source_quality_weight: 0.25
     retrieval_weight: 0.35

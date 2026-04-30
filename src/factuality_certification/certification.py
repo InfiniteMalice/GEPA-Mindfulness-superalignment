@@ -30,8 +30,9 @@ def certify_answer(
     context: str | None = None,
     trace_summary: str | None = None,
     config: FactualityCertificationConfig | None = None,
+    safety_context: dict[str, bool] | None = None,
 ) -> CertificationResult:
-    """Certify answer factuality against available evidence and context."""
+    """Certify answer factuality against evidence/context with optional safety policy context."""
     cfg = config or FactualityCertificationConfig()
     if not cfg.enabled or cfg.mode == "off":
         return CertificationResult(
@@ -65,7 +66,7 @@ def certify_answer(
         1.0, (contradicted + unsupported * 0.8 + partial_supported * 0.4) / total
     )
 
-    scoped = find_scoped_alternative(prompt, answer, claims, supports, {})
+    scoped = find_scoped_alternative(prompt, answer, claims, supports, safety_context)
     abstained = detect_abstention(answer)
     refused = detect_refusal(answer)
     overrefusal = refused and scoped.scoped_answer_possible and not scoped.refusal_required

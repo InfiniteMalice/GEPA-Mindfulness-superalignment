@@ -16,6 +16,7 @@ class ClaimExtractionConfig:
 class EvidenceMatchingConfig:
     enabled: bool = True
     min_support_score: float = 0.65
+    partial_support_threshold: float = 0.20
     contradiction_threshold: float = 0.60
     source_quality_weight: float = 0.25
     retrieval_weight: float = 0.35

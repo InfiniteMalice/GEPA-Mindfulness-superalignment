@@ -51,7 +51,7 @@ def match_claims_to_evidence(
             label = "contradicted"
         elif best_score >= config.evidence_matching.min_support_score:
             label = "supported"
-        elif best_score > 0.2:
+        elif best_score > config.evidence_matching.partial_support_threshold:
             label = "partially_supported"
         else:
             label = "unsupported"

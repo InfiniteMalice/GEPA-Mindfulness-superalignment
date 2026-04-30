@@ -31,14 +31,18 @@ def extract_atomic_claims(answer: str, config: FactualityCertificationConfig) ->
         return []
     chunks = [c.strip() for c in re.split(r"[.!?]\s+", answer) if c.strip()]
     claims: list[AtomicClaim] = []
-    for idx, chunk in enumerate(chunks[: config.claim_extraction.max_claims]):
+    claim_idx = 0
+    for chunk in chunks:
         if any(
             x in chunk.lower() for x in ["i think", "in my opinion"]
         ) and not _NUMERIC_PAT.search(chunk):
             continue
+        if claim_idx >= config.claim_extraction.max_claims:
+            break
+        claim_idx += 1
         claims.append(
             AtomicClaim(
-                id=f"c{idx+1}",
+                id=f"c{claim_idx}",
                 text=chunk,
                 claim_type=_claim_type(chunk),
                 requires_current_source=bool(_CURRENT_PAT.search(chunk)),
