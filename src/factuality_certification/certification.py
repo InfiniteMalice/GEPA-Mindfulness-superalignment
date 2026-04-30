@@ -91,7 +91,11 @@ def certify_answer(
     if refused:
         overall = "should_refuse"
         action = "refuse"
-    if cfg.mode in {"advisory", "shadow"} and action == "refuse" and scoped.scoped_answer_possible:
+    if (
+        cfg.mode in {"advisory", "shadow"}
+        and (abstained or refused or action in {"refuse", "abstain"})
+        and scoped.scoped_answer_possible
+    ):
         action = scoped.action
         overall = _overall_from_action(action, fallback="partial")
     if cfg.mode == "gated" and scoped.refusal_required:
@@ -154,7 +158,19 @@ def positive_only_reward_features(result: CertificationResult) -> dict[str, floa
         ),
         "chose_calibrated_abstention": 1.0 if result.recommended_action == "abstain" else 0.0,
         "avoided_overrefusal": 1.0 if result.overrefusal_risk == 0.0 else 0.0,
-        "separated_supported_from_unsupported_claims": 1.0 if result.claim_support else 0.0,
+        "separated_supported_from_unsupported_claims": (
+            1.0
+            if (
+                any(
+                    s.support_label in {"supported", "partially_supported"}
+                    for s in result.claim_support
+                )
+                and any(
+                    s.support_label in {"unsupported", "contradicted"} for s in result.claim_support
+                )
+            )
+            else 0.0
+        ),
         "cited_current_evidence_when_needed": (
             1.0 if result.logs.get("has_current_references", False) else 0.0
         ),

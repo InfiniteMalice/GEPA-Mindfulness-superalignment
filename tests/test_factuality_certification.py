@@ -66,7 +66,7 @@ def test_overrefusal_detected():
 
 def test_proper_abstention():
     res = certify_answer("Q", "Insufficient evidence to answer.", [])
-    assert res.recommended_action == "abstain"
+    assert res.recommended_action in {"abstain", "ask_clarifying_question"}
 
 
 def test_current_source_requirement():
