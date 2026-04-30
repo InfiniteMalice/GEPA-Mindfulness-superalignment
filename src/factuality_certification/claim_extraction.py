@@ -7,7 +7,6 @@ import re
 from .config import FactualityCertificationConfig
 from .types import AtomicClaim
 
-
 _CURRENT_PAT = re.compile(r"\b(current|latest|today|recent|now|as of)\b", re.I)
 _NUMERIC_PAT = re.compile(r"\d")
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .abstention_policy import detect_refusal
 from .types import AtomicClaim, ClaimSupport, ScopedAlternative
 
 
@@ -18,10 +19,7 @@ def find_scoped_alternative(
             False, "refuse", "Safety policy requires refusal.", refusal_required=True
         )
 
-    refused = (
-        any(x in answer.lower() for x in ["i can't", "i cannot", "i won", "unable to"])
-        and "answer" in answer.lower()
-    )
+    refused = detect_refusal(answer)
     supported = [s for s in supports if s.support_label in {"supported", "partially_supported"}]
     if refused and supported:
         return ScopedAlternative(

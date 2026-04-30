@@ -7,7 +7,6 @@ import re
 from .config import FactualityCertificationConfig
 from .types import AtomicClaim, ClaimSupport, EvidenceItem
 
-
 _WORD_PAT = re.compile(r"[a-zA-Z0-9]+")
 _NEG = {"not", "never", "no"}
 
@@ -21,6 +20,10 @@ def match_claims_to_evidence(
     evidence: list[EvidenceItem],
     config: FactualityCertificationConfig,
 ) -> list[ClaimSupport]:
+    """Match claims against evidence items unless matching is disabled in config."""
+    if not config.evidence_matching.enabled:
+        return []
+
     supports: list[ClaimSupport] = []
     for claim in claims:
         ctoks = _tokens(claim.text)
@@ -30,13 +33,16 @@ def match_claims_to_evidence(
         for item in evidence:
             etoks = _tokens(item.text)
             overlap = len(ctoks & etoks) / max(1, len(ctoks))
-            weighted = (
-                config.evidence_matching.entailment_weight * overlap
-                + config.evidence_matching.source_quality_weight * item.quality_score
-                + config.evidence_matching.retrieval_weight * item.retrieval_score
-            )
+            if overlap <= 0.0:
+                weighted = 0.0
+            else:
+                weighted = (
+                    config.evidence_matching.entailment_weight * overlap
+                    + config.evidence_matching.source_quality_weight * item.quality_score
+                    + config.evidence_matching.retrieval_weight * item.retrieval_score
+                )
             has_neg_mismatch = bool((ctoks & _NEG) ^ (etoks & _NEG))
-            contra = min(1.0, weighted if has_neg_mismatch else 0.0)
+            contra = min(1.0, overlap if has_neg_mismatch else 0.0)
             if weighted > best_score:
                 best_score = min(1.0, weighted)
                 best_ids = [item.id]

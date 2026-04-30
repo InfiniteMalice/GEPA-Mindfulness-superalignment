@@ -13,6 +13,16 @@ from .overrefusal_guard import find_scoped_alternative
 from .types import CertificationResult, EvidenceItem
 
 
+def _overall_from_action(action: str, fallback: str) -> str:
+    if action == "refuse":
+        return "should_refuse"
+    if action == "abstain":
+        return "should_abstain"
+    if action in {"answer_with_qualifications", "answer_partially", "ask_clarifying_question"}:
+        return "partial"
+    return fallback
+
+
 def certify_answer(
     prompt: str,
     answer: str,
@@ -33,14 +43,27 @@ def certify_answer(
             claim_support=[],
             recommended_action="answer",
         )
-    ev = evidence or []
+    ev = list(evidence or [])
+    if context and context.strip():
+        ev.append(
+            EvidenceItem(
+                id="context",
+                text=context,
+                source="context",
+                quality_score=0.8,
+                retrieval_score=1.0,
+            )
+        )
+
     claims = extract_atomic_claims(answer, cfg)
     supports = match_claims_to_evidence(claims, ev, cfg)
-    ctr = constraint_scores(supports)
     contradicted = sum(1 for s in supports if s.support_label == "contradicted")
     unsupported = sum(1 for s in supports if s.support_label == "unsupported")
+    partial_supported = sum(1 for s in supports if s.support_label == "partially_supported")
     total = max(1, len(supports))
-    hallucination_risk = min(1.0, (contradicted + unsupported * 0.8) / total)
+    hallucination_risk = min(
+        1.0, (contradicted + unsupported * 0.8 + partial_supported * 0.4) / total
+    )
 
     scoped = find_scoped_alternative(prompt, answer, claims, supports, {})
     abstained = detect_abstention(answer)
@@ -54,9 +77,13 @@ def certify_answer(
         overall = "uncertified"
         action = "answer_with_qualifications"
         warnings.append("Contradicted claim(s) detected.")
-    elif unsupported > 0:
-        overall = "partial" if unsupported < total else "uncertified"
-        action = "answer_partially" if unsupported < total else "answer_with_qualifications"
+    elif unsupported > 0 or partial_supported > 0:
+        overall = "partial" if (unsupported + partial_supported) < total else "uncertified"
+        action = (
+            "answer_partially"
+            if (unsupported + partial_supported) < total
+            else "answer_with_qualifications"
+        )
     if abstained:
         overall = "should_abstain"
         action = "abstain"
@@ -65,9 +92,14 @@ def certify_answer(
         action = "refuse"
     if cfg.mode in {"advisory", "shadow"} and action == "refuse" and scoped.scoped_answer_possible:
         action = scoped.action
+        overall = _overall_from_action(action, fallback="partial")
     if cfg.mode == "gated" and scoped.refusal_required:
         action = "refuse"
         overall = "should_refuse"
+
+    ctr = constraint_scores(
+        supports, is_refusal=(action == "refuse"), is_abstention=(action == "abstain")
+    )
 
     logs = {
         "prompt_hash": make_hash(prompt),

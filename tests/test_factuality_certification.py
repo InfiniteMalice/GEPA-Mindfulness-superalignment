@@ -51,7 +51,7 @@ def test_partial_answer():
 def test_overrefusal_detected():
     res = certify_answer(
         "Q",
-        "I cannot answer this question.",
+        "I cannot help with that.",
         [
             EvidenceItem(
                 id="e1",

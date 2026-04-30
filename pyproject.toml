@@ -61,6 +61,9 @@ semantic_intent_robustness = [
 objective_validator_robustness = [
     "examples/*",
 ]
+factuality_certification = [
+    "configs/factuality_certification/*.yaml",
+]
 
 [tool.black]
 line-length = 100
