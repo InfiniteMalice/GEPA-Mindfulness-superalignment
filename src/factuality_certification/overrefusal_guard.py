@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .abstention_policy import detect_refusal
+from .abstention_policy import detect_abstention, detect_refusal
 from .types import AtomicClaim, ClaimSupport, ScopedAlternative
 
 
@@ -20,8 +20,10 @@ def find_scoped_alternative(
         )
 
     refused = detect_refusal(answer)
+    abstained = detect_abstention(answer)
+    refusing_or_abstaining = refused or abstained
     supported = [s for s in supports if s.support_label in {"supported", "partially_supported"}]
-    if refused and supported:
+    if refusing_or_abstaining and supported:
         return ScopedAlternative(
             True, "answer_with_qualifications", "Refusal not required; scoped answer possible."
         )
