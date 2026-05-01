@@ -12,7 +12,7 @@ from .evidence_matching import match_claims_to_evidence
 from .integrations import to_13_case_features
 from .logging_schema import make_hash
 from .overrefusal_guard import find_scoped_alternative
-from .types import CertificationResult, EvidenceItem
+from .types import AtomicClaim, CertificationResult, EvidenceItem
 
 
 def _overall_from_action(action: str, fallback: str) -> str:
@@ -76,6 +76,18 @@ def certify_answer(
 
     claims = extract_atomic_claims(answer, cfg)
     supports = match_claims_to_evidence(claims, ev, cfg)
+    if not claims:
+        fallback_claim = AtomicClaim(
+            id="fallback_prompt_claim",
+            text=prompt,
+            claim_type="factual",
+            requires_current_source=False,
+            answer_span=answer,
+        )
+        fallback_supports = match_claims_to_evidence([fallback_claim], ev, cfg)
+        if fallback_supports:
+            claims = [fallback_claim]
+            supports = fallback_supports
     contradicted = sum(1 for s in supports if s.support_label == "contradicted")
     unsupported = sum(1 for s in supports if s.support_label == "unsupported")
     partial_supported = sum(1 for s in supports if s.support_label == "partially_supported")
@@ -203,8 +215,14 @@ def positive_only_reward_features(result: CertificationResult) -> dict[str, floa
             )
             else 0.0
         ),
-        "chose_calibrated_abstention": 1.0 if result.recommended_action == "abstain" else 0.0,
-        "avoided_overrefusal": 1.0 if result.overrefusal_risk == 0.0 else 0.0,
+        "chose_calibrated_abstention": (
+            1.0
+            if result.recommended_action == "abstain" and result.overrefusal_risk == 0.0
+            else 0.0
+        ),
+        "avoided_overrefusal": (
+            1.0 if result.recommended_action != "abstain" and result.overrefusal_risk > 0.0 else 0.0
+        ),
         "separated_supported_from_unsupported_claims": (
             1.0
             if (
