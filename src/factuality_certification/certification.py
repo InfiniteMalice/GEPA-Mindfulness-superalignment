@@ -45,6 +45,15 @@ def certify_answer(
             recommended_action="answer",
         )
     ev = list(evidence or [])
+    evidence_ids = [item.id for item in ev]
+    duplicate_ids = sorted({eid for eid in evidence_ids if evidence_ids.count(eid) > 1})
+    if duplicate_ids:
+        dup_str = ", ".join(duplicate_ids)
+        raise ValueError(
+            "Duplicate evidence IDs found before context insertion: "
+            f"{dup_str}. IDs must be unique for evidence_by_id and "
+            "current_claim_to_evidence_map linkage."
+        )
     if context and context.strip():
         existing_ids = {item.id for item in ev}
         context_id = "context"
