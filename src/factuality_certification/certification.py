@@ -46,9 +46,15 @@ def certify_answer(
         )
     ev = list(evidence or [])
     if context and context.strip():
+        existing_ids = {item.id for item in ev}
+        context_id = "context"
+        suffix = 1
+        while context_id in existing_ids:
+            context_id = f"context_{suffix}"
+            suffix += 1
         ev.append(
             EvidenceItem(
-                id="context",
+                id=context_id,
                 text=context,
                 source="context",
                 quality_score=0.8,
