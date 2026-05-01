@@ -126,12 +126,15 @@ def certify_answer(
     evidence_by_id = {item.id: item for item in ev}
     claim_to_current_evidence_ids: dict[str, list[str]] = {}
     for support in supports:
+        if support.support_label == "unsupported":
+            continue
         current_ids = [
             eid
             for eid in support.evidence_ids
             if evidence_by_id.get(eid) is not None and bool(evidence_by_id[eid].timestamp)
         ]
-        claim_to_current_evidence_ids[support.claim_id] = current_ids
+        if current_ids:
+            claim_to_current_evidence_ids[support.claim_id] = current_ids
 
     logs = {
         "prompt_hash": make_hash(prompt),
