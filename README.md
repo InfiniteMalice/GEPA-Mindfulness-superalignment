@@ -799,3 +799,16 @@ MIT License.
 ## Repository workflows
 
 See beads/README.md and AGENTS.md for repository-level workflows.
+
+## GeoCert-Inspired Factuality Certification and Over-Refusal Guard
+
+This repository includes an optional `factuality_certification` module inspired by constraint-based
+certification (not a formal truth-proof). It certifies answers relative to available evidence and
+context, supports `off` / `shadow` / `advisory` / `gated` / `training` modes, and is designed to
+reduce hallucinations without collapsing into over-refusal.
+
+- Prefer scoped, useful answers over blanket refusals.
+- Distinguish refusal, abstention, partial answers, and uncertainty-qualified answers.
+- Preserve positive-only thought-trace reward principles (no penalties on hidden/internal traces).
+
+See `src/factuality_certification/README.md` and `configs/factuality_certification/*.yaml`.

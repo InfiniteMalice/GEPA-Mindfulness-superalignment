@@ -35,6 +35,7 @@ packages = [
     "rg_tracer.scoring",
     "semantic_intent_robustness",
     "objective_validator_robustness",
+    "factuality_certification",
 ]
 
 [tool.setuptools.package-dir]
@@ -43,6 +44,7 @@ gepa_mindfulness = "gepa_mindfulness"
 rg_tracer = "reasoning-generalization-tracer/src/rg_tracer"
 semantic_intent_robustness = "modules/semantic_intent_robustness"
 objective_validator_robustness = "modules/objective_validator_robustness"
+factuality_certification = "src/factuality_certification"
 
 [tool.setuptools.package-data]
 mindful_trace_gepa = [
@@ -58,6 +60,9 @@ semantic_intent_robustness = [
 ]
 objective_validator_robustness = [
     "examples/*",
+]
+factuality_certification = [
+    "configs/factuality_certification/*.yaml",
 ]
 
 [tool.black]
@@ -82,6 +87,7 @@ known-first-party = [
     "rg_tracer",
     "semantic_intent_robustness",
     "objective_validator_robustness",
+    "factuality_certification",
 ]
 
 [tool.mypy]
