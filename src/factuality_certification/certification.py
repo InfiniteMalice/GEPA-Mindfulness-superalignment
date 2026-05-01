@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections import Counter
+
 from .abstention_policy import detect_abstention, detect_refusal
 from .claim_extraction import extract_atomic_claims
 from .config import FactualityCertificationConfig
@@ -46,7 +48,8 @@ def certify_answer(
         )
     ev = list(evidence or [])
     evidence_ids = [item.id for item in ev]
-    duplicate_ids = sorted({eid for eid in evidence_ids if evidence_ids.count(eid) > 1})
+    evidence_id_counts = Counter(evidence_ids)
+    duplicate_ids = sorted([eid for eid, count in evidence_id_counts.items() if count > 1])
     if duplicate_ids:
         dup_str = ", ".join(duplicate_ids)
         raise ValueError(
