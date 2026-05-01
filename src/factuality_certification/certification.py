@@ -221,7 +221,16 @@ def positive_only_reward_features(result: CertificationResult) -> dict[str, floa
             else 0.0
         ),
         "avoided_overrefusal": (
-            1.0 if result.recommended_action == "answer" and result.overrefusal_risk > 0.0 else 0.0
+            1.0
+            if result.recommended_action
+            in {
+                "answer",
+                "answer_with_qualifications",
+                "answer_partially",
+                "ask_clarifying_question",
+            }
+            and result.overrefusal_risk > 0.0
+            else 0.0
         ),
         "separated_supported_from_unsupported_claims": (
             1.0
