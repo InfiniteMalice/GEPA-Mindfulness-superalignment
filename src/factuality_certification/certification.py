@@ -129,7 +129,7 @@ def certify_answer(
     evidence_by_id = {item.id: item for item in ev}
     claim_to_current_evidence_ids: dict[str, list[str]] = {}
     for support in supports:
-        if support.support_label == "unsupported":
+        if support.support_label not in {"supported", "partially_supported"}:
             continue
         current_ids = [
             eid
@@ -193,7 +193,15 @@ def positive_only_reward_features(result: CertificationResult) -> dict[str, floa
             else 0.0
         ),
         "corrected_unsupported_claim": (
-            1.0 if result.overall_label in {"partial", "should_abstain"} else 0.0
+            1.0
+            if (
+                result.overall_label in {"partial", "should_abstain"}
+                and any(
+                    s.support_label in {"unsupported", "contradicted", "unverifiable"}
+                    for s in result.claim_support
+                )
+            )
+            else 0.0
         ),
         "chose_calibrated_abstention": 1.0 if result.recommended_action == "abstain" else 0.0,
         "avoided_overrefusal": 1.0 if result.overrefusal_risk == 0.0 else 0.0,
