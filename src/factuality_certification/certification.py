@@ -69,7 +69,9 @@ def certify_answer(
     scoped = find_scoped_alternative(prompt, answer, claims, supports, safety_context)
     abstained = detect_abstention(answer)
     refused = detect_refusal(answer)
-    overrefusal = refused and scoped.scoped_answer_possible and not scoped.refusal_required
+    overrefusal = (
+        (refused or abstained) and scoped.scoped_answer_possible and not scoped.refusal_required
+    )
 
     action = "answer"
     overall = "certified"
@@ -106,6 +108,16 @@ def certify_answer(
         supports, is_refusal=(action == "refuse"), is_abstention=(action == "abstain")
     )
 
+    evidence_by_id = {item.id: item for item in ev}
+    claim_to_current_evidence_ids: dict[str, list[str]] = {}
+    for support in supports:
+        current_ids = [
+            eid
+            for eid in support.evidence_ids
+            if evidence_by_id.get(eid) is not None and bool(evidence_by_id[eid].timestamp)
+        ]
+        claim_to_current_evidence_ids[support.claim_id] = current_ids
+
     logs = {
         "prompt_hash": make_hash(prompt),
         "answer_hash": make_hash(answer),
@@ -122,6 +134,7 @@ def certify_answer(
         "thought_trace_aligned": True if trace_summary is None else bool(trace_summary.strip()),
         "has_references": any(bool(e.citation or e.source) for e in ev),
         "has_current_references": any(bool(e.timestamp) for e in ev),
+        "current_claim_to_evidence_map": claim_to_current_evidence_ids,
     }
     res = CertificationResult(
         mode=cfg.mode,
@@ -181,6 +194,10 @@ def positive_only_reward_features(result: CertificationResult) -> dict[str, floa
             if (
                 result.logs.get("has_current_references", False)
                 and result.logs.get("current_source_claim_ids")
+                and all(
+                    bool(result.logs.get("current_claim_to_evidence_map", {}).get(claim_id, []))
+                    for claim_id in result.logs.get("current_source_claim_ids", [])
+                )
             )
             else 0.0
         ),
