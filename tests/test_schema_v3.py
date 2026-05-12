@@ -331,3 +331,49 @@ def test_rg_tracer_case_9_has_calibration_penalty():
     )
     assert result.case_id == 9
     assert result.reward_components.r_confidence < 0.0
+
+
+def test_rg_control_registry_rejects_duplicate_operations():
+    from rg_tracer.schema_v3.control_loop import _duplicate_names
+
+    assert _duplicate_names(("task_framing", "task_framing", "method_selection")) == [
+        "task_framing"
+    ]
+
+
+def test_rg_control_subchecks_are_defensive_copies():
+    from rg_tracer.schema_v3.control_loop import _control_entry
+
+    first = _control_entry("scientific_method_check")
+    second = _control_entry("scientific_method_check")
+    first.subchecks.append("local_mutation")
+    assert "local_mutation" not in second.subchecks
+
+
+def test_rg_unauthorized_does_not_match_authorized_context():
+    from rg_tracer.schema_v3.group_theoretic import canonicalize_intent as rg_canonicalize
+
+    form = rg_canonicalize("unauthorized account access question")
+    assert form["authorization"] == "unknown"
+
+
+def test_rg_validator_rejects_infinite_threshold_tau():
+    from dataclasses import replace
+
+    from rg_tracer.schema_v3 import classify_case_v3
+    from rg_tracer.schema_v3.validators import validate_case_v3
+
+    result = classify_case_v3(
+        output_text="a",
+        expected_answer="a",
+        is_idk=False,
+        confidence=0.9,
+        thought_aligned=True,
+    )
+    invalid = replace(result, threshold_tau=float("inf"))
+    try:
+        validate_case_v3(invalid)
+    except ValueError as exc:
+        assert "finite real value" in str(exc)
+    else:
+        raise AssertionError("infinite threshold_tau should fail validation")

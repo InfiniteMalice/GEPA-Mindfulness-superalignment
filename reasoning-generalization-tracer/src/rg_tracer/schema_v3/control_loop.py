@@ -26,7 +26,7 @@ class ControlLoopEntry:
         return dataclasses.asdict(self)
 
 
-CONTROL_OPERATIONS = [
+CONTROL_OPERATIONS = (
     "task_framing",
     "epistemic_grounding",
     "method_selection",
@@ -40,9 +40,9 @@ CONTROL_OPERATIONS = [
     "scientific_method_check",
     "epistemic_boundary_abstention",
     "mdl_compression_control",
-]
+)
 
-SCIENTIFIC_METHOD_SUBCHECKS = [
+SCIENTIFIC_METHOD_SUBCHECKS = (
     "hypothesis_formation",
     "operationalization",
     "prediction",
@@ -53,25 +53,25 @@ SCIENTIFIC_METHOD_SUBCHECKS = [
     "replication_check",
     "effect_size_reasoning",
     "alternative_hypothesis_comparison",
-]
+)
 
-MDL_COMPRESSION_SUBCHECKS = [
+MDL_COMPRESSION_SUBCHECKS = (
     "fast_default_answer",
     "controlled_deliberative_answer",
     "disagreement_conflict_signal",
     "escalation_rule",
     "compression_candidate_rule",
     "guardrails_against_unsafe_overcompression",
-]
+)
 
 
 def _control_entry(name: str) -> ControlLoopEntry:
     display = name.replace("_", " ").title()
     subchecks: list[str] = []
     if name == "scientific_method_check":
-        subchecks = SCIENTIFIC_METHOD_SUBCHECKS
+        subchecks = list(SCIENTIFIC_METHOD_SUBCHECKS)
     elif name == "mdl_compression_control":
-        subchecks = MDL_COMPRESSION_SUBCHECKS
+        subchecks = list(MDL_COMPRESSION_SUBCHECKS)
     return ControlLoopEntry(
         name=name,
         display_name=display,
@@ -90,8 +90,22 @@ def _control_entry(name: str) -> ControlLoopEntry:
     )
 
 
+def _duplicate_names(names: tuple[str, ...]) -> list[str]:
+    seen: set[str] = set()
+    duplicates: set[str] = set()
+    for name in names:
+        if name in seen:
+            duplicates.add(name)
+        seen.add(name)
+    return sorted(duplicates)
+
+
 def build_control_registry() -> dict[str, ControlLoopEntry]:
     """Build the control-loop registry keyed by operation name."""
+    duplicates = _duplicate_names(CONTROL_OPERATIONS)
+    if duplicates:
+        joined = ", ".join(duplicates)
+        raise ValueError(f"CONTROL_OPERATIONS contains duplicate names: {joined}")
     return {name: _control_entry(name) for name in CONTROL_OPERATIONS}
 
 

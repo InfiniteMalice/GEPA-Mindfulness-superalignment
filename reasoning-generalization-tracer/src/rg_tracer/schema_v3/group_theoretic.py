@@ -106,7 +106,10 @@ def generate_transformation_orbit(
 
 
 def _has_authorized_context(text: str) -> bool:
-    return "my own" in text or "defensive" in text or "authorized" in text
+    if re.search(r"\bunauthorized\b", text):
+        return False
+    has_authorized = re.search(r"\bauthorized\b", text) is not None
+    return "my own" in text or "defensive" in text or has_authorized
 
 
 def _normalize(text: str) -> str:
