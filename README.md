@@ -364,6 +364,57 @@ This extension explicitly separates answer quality from verification quality and
 trace usefulness. It keeps scores decomposed rather than collapsed into a single
 number, improving auditability and downstream mechanistic analysis.
 
+### 13-case schema V3: control + compositional reasoning overlay
+
+The repository also adds **13-case Schema V3**, a conservative overlay on top of
+the original 13+0 cases and the V2 observability tiers. V3 does not replace the
+13 cases, does not introduce negative hidden-thought penalties, and does not add
+deception penalties to the main training path. It keeps answer correctness,
+confidence calibration, abstention quality, thought alignment, verification
+quality, reasoning-unit use, control-loop quality, and transformation-stability
+diagnostics as separate structured fields.
+
+V3 adds public metadata for:
+
+* compositional reasoning units, including causal and group-theoretic families,
+* metacognitive control operations such as grounding, method selection,
+  uncertainty estimation, calibration, scientific-method checks, and MDL
+  compression control,
+* causal/scientific diagnostics for confounding, interventions, falsification,
+  alternative hypotheses, and claim strength,
+* group-theoretic transformation diagnostics for invariants, equivalence
+  classes, canonical forms, inverse operations, orbits, stabilizers, quotient
+  structures, and symmetry breaks,
+* additive V3 reward components that never penalize hidden thought directly.
+
+A structured label can serialize to a compact form such as
+`Case12-O3-CAL-GRD-SCI-RU:abstraction+causal_reasoning-CTRL:calibration`, but
+the implementation stores these as dataclass fields first. See
+[`gepa_mindfulness/schema_v3/README.md`](gepa_mindfulness/schema_v3/README.md)
+and [`data/synthetic/schema_v3/examples.jsonl`](data/synthetic/schema_v3/examples.jsonl).
+
+#### Group-Theoretic Reasoning: Symmetry, Invariance, and Equivalence
+
+Group theory is used as a practical reasoning lens, not as a requirement that
+every problem be formal algebra. It helps identify when surface transformations
+preserve or change relevant structure. It strengthens semantic laundering
+detection by treating paraphrases, translations, wrappers, and multi-turn
+fragments as transformations over an underlying intent representation. It also
+strengthens over-refusal prevention by detecting symmetry breaks: same topic
+does not mean same intent, same action does not mean same authorization, and
+same words do not mean same risk.
+
+This vocabulary also supports mechanistic interpretability by naming invariant
+circuits, equivalent behaviors, canonical forms, and transformation-stable
+concepts. Conceptually: category theory describes how reasoning transformations
+compose across typed structures; lambda calculus describes variable binding and
+substitution/application; causal reasoning describes how interventions,
+mechanisms, and consequences propagate; and group theory describes which
+transformations preserve structure, which break symmetry, and which variants
+belong to the same equivalence class. V3 is compatible with GEPA, GRPO,
+PPO+GRN, DAPO-hybrid, DSPy pipelines, circuit tracing, attribution graphs,
+semantic intent robustness, and factuality certification.
+
 ## Synthetic superalignment dataset system
 
 This repository now includes a structured synthetic dataset subsystem for

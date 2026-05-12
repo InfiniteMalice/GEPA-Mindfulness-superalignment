@@ -1,0 +1,148 @@
+version: schema_v3
+preserves_base_cases: true
+threshold_tau_default: 0.75
+reasoning_units:
+  families:
+    - recursive
+    - functional_composition
+    - type_constrained_composition
+    - abstraction
+    - instantiation
+    - variable_binding
+    - relational_composition
+    - constraint_composition
+    - decomposition
+    - proof_step_composition
+    - analogy
+    - invariant_preservation
+    - contextual_modulation
+    - causal_reasoning
+    - hierarchical_composition
+    - dialectical_composition
+    - compression_expansion
+    - group_theoretic_reasoning
+  causal_subtypes:
+    - temporal_order
+    - mechanism
+    - counterfactual_dependence
+    - interventionist
+    - common_cause_confounding
+    - necessary_vs_sufficient
+    - enabling_vs_triggering
+    - overdetermination
+    - probabilistic_causality
+    - dose_response
+    - level_shifting
+    - material_formal_efficient_final
+    - agentic_causality
+    - normative_responsibility
+  group_theoretic_reasoning:
+    display_name: Group-Theoretic Reasoning
+    definition: >
+      Reason over transformations, symmetries, invariants, equivalence classes,
+      reversible operations, canonical forms, and structure-preserving mappings.
+      This family helps detect when surface changes do or do not alter the
+      relevant underlying structure.
+    input_type:
+      - object_or_representation
+      - transformation_or_set_of_transformations
+      - target_property
+    output_type:
+      - invariant_properties
+      - changed_properties
+      - equivalence_class
+      - canonical_form
+      - symmetry_breaks
+      - reachable_variants
+    dependencies:
+      - invariant_preservation
+      - abstraction
+      - relational_composition
+      - type_constrained_composition
+      - analogy
+    minimal_tests:
+      - variable renaming preserves equation validity
+      - translation preserves factual claim
+      - paraphrase preserves user intent
+      - rotation preserves shape identity
+      - inverse operation restores original state
+    transfer_tests:
+      - math transformation invariance
+      - semantic laundering detection
+      - code refactor behavior preservation
+      - legal reformatting obligation preservation
+      - causal affordance under euphemism
+    failure_modes:
+      - surface_form_bias
+      - false_equivalence
+      - missed_symmetry_break
+      - treating irreversible operations as reversible
+      - failing to canonicalize variants
+      - confusing same topic with same intent
+    composition_partners:
+      - invariant_preservation
+      - abstraction
+      - instantiation
+      - analogy
+      - contextual_modulation
+      - causal_reasoning
+      - proof_step_composition
+      - constraint_composition
+    example_domains:
+      - arithmetic
+      - algebra
+      - natural_language
+      - safety
+      - legal_reasoning
+      - code_refactoring
+      - mechanistic_interpretability
+    subtypes:
+      - identity_transformation
+      - inverse_transformation
+      - closure_under_operation
+      - associativity_of_composition
+      - symmetry_detection
+      - invariance_under_transformation
+      - equivalence_class_reasoning
+      - orbit_reasoning
+      - stabilizer_reasoning
+      - quotient_structure_reasoning
+      - normal_form_reasoning
+      - isomorphism_detection
+      - symmetry_breaking
+      - conservation_law_analogy
+control_loop:
+  operations:
+    - task_framing
+    - epistemic_grounding
+    - method_selection
+    - reasoning_unit_selection
+    - assumption_tracking
+    - uncertainty_estimation
+    - calibration_decision
+    - consistency_checking
+    - error_localization
+    - revision_control
+    - scientific_method_check
+    - epistemic_boundary_abstention
+    - mdl_compression_control
+  scientific_method_check:
+    subchecks:
+      - hypothesis formation
+      - operationalization
+      - prediction
+      - falsification condition
+      - control group
+      - confounder detection
+      - measurement validity
+      - replication check
+      - effect size reasoning
+      - alternative hypothesis comparison
+  mdl_compression_control:
+    subchecks:
+      - fast/default answer
+      - controlled/deliberative answer
+      - disagreement/conflict signal
+      - escalation rule
+      - compression candidate rule
+      - guardrails against unsafe overcompression
