@@ -31,8 +31,10 @@ packages = [
     "mindful_trace_gepa",
     "mindful_trace_gepa.value_decomp",
     "gepa_mindfulness",
+    "gepa_mindfulness.schema_v3",
     "rg_tracer",
     "rg_tracer.scoring",
+    "rg_tracer.schema_v3",
     "semantic_intent_robustness",
     "objective_validator_robustness",
     "factuality_certification",
@@ -63,6 +65,13 @@ objective_validator_robustness = [
 ]
 factuality_certification = [
     "configs/factuality_certification/*.yaml",
+]
+"gepa_mindfulness.schema_v3" = [
+    "registry.yaml",
+    "README.md",
+]
+"rg_tracer.schema_v3" = [
+    "registry.yaml",
 ]
 
 [tool.black]
