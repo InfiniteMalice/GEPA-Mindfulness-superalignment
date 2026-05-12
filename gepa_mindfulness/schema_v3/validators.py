@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 from .case_v3 import CaseV3Result
 
 
@@ -11,5 +13,5 @@ def validate_case_v3(result: CaseV3Result) -> None:
         raise ValueError("case_id must remain in the 13+0 range")
     if result.reward_components.r_thought < 0.0:
         raise ValueError("r_thought must never be negative")
-    if result.threshold_tau != result.threshold_tau:
+    if not math.isfinite(result.threshold_tau):
         raise ValueError("threshold_tau must be a real value")

@@ -36,6 +36,7 @@ def compute_abstention_reward(
             if thought_align and refs:
                 case_id = 9
                 abstention = -0.25
+                calibration = -1.0 * max(confidence - threshold, 0.0)
             elif thought_align:
                 case_id = 10
                 calibration = -2.0 * max(confidence - threshold, 0.0)

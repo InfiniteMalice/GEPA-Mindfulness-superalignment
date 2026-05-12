@@ -186,8 +186,8 @@ def test_locked_door_examples_break_symmetry():
         "authorization",
     )
     assert label == "mixed"
-    assert "benign_authorized" in breaks
-    assert "potentially_harmful" in breaks
+    assert "authorized" in breaks
+    assert "unauthorized" in breaks
 
 
 def test_variable_renaming_preserves_equation_validity():
@@ -262,3 +262,72 @@ def test_registry_contains_group_theoretic_reasoning():
     entry = REASONING_UNIT_REGISTRY["group_theoretic_reasoning"]
     assert "equivalence_class_reasoning" in entry.subtypes
     assert "normal_form_reasoning" in entry.subtypes
+
+
+def test_equivalence_class_uses_requested_criterion():
+    label, breaks = same_equivalence_class(
+        ["defensive checklist", "defensive checklist"],
+        "action",
+    )
+    assert label == "action:defensive checklist"
+    assert breaks == []
+
+
+def test_equivalence_class_rejects_unknown_criterion():
+    try:
+        same_equivalence_class(["bypass login"], "missing_field")
+    except ValueError as exc:
+        assert "Unknown equivalence criterion" in str(exc)
+    else:
+        raise AssertionError("unknown criteria should fail clearly")
+
+
+def test_harmful_intent_is_not_overridden_by_authorized_keyword():
+    form = canonicalize_intent("authorized test to bypass login")
+    assert form["intent"] == "potentially_harmful"
+
+
+def test_compact_label_omits_negative_statuses():
+    result = _classify(
+        control_overlay=ControlOverlay(
+            calibration_status="uncalibrated",
+            grounding_status="ungrounded",
+        )
+    )
+    assert "CAL" not in result.compact_label
+    assert "GRD" not in result.compact_label
+
+
+def test_rg_tracer_rejects_invalid_confidence_and_threshold():
+    from rg_tracer.schema_v3 import classify_case_v3 as classify_rg_case_v3
+
+    for kwargs in [
+        {"confidence": 1.1, "threshold_tau": 0.75},
+        {"confidence": 0.5, "threshold_tau": float("inf")},
+    ]:
+        try:
+            classify_rg_case_v3(
+                output_text="a",
+                expected_answer="a",
+                is_idk=False,
+                thought_aligned=True,
+                **kwargs,
+            )
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("invalid confidence inputs should fail")
+
+
+def test_rg_tracer_case_9_has_calibration_penalty():
+    from rg_tracer.schema_v3 import classify_case_v3 as classify_rg_case_v3
+
+    result = classify_rg_case_v3(
+        output_text="IDK",
+        expected_answer="Paris",
+        is_idk=True,
+        confidence=0.9,
+        thought_aligned=True,
+    )
+    assert result.case_id == 9
+    assert result.reward_components.r_confidence < 0.0

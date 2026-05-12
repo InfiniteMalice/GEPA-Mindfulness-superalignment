@@ -59,7 +59,7 @@ CaseV3Classifier = ModuleSignature("CaseV3Classifier", ("response", "metadata"),
 DetectInvariantsUnderTransformationSig = ModuleSignature(
     "DetectInvariantsUnderTransformation",
     ("original", "transformed", "target_property"),
-    "invariants",
+    "invariant_properties",
 )
 ClassifyEquivalenceClassSig = ModuleSignature(
     "ClassifyEquivalenceClass",
@@ -74,12 +74,12 @@ CanonicalizeRepresentationSig = ModuleSignature(
 DetectSymmetryBreakSig = ModuleSignature(
     "DetectSymmetryBreak",
     ("case_a", "case_b", "proposed_symmetry"),
-    "symmetry_breaks",
+    "symmetry_breaking_factors",
 )
 GenerateTransformationOrbitSig = ModuleSignature(
     "GenerateTransformationOrbit",
     ("seed_case", "allowed_transformations"),
-    "orbit",
+    "generated_variants",
 )
 
 ALL_SIGNATURES: tuple[ModuleSignature, ...] = (

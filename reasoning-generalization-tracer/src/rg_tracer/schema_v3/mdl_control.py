@@ -13,7 +13,7 @@ def mdl_control_gate(
     causal_conflict: bool = False,
 ) -> MDLControlOverlay:
     """Escalate when a fast/default answer conflicts with controlled checks."""
-    conflict = bool(grounding_conflict or causal_conflict)
+    conflict = grounding_conflict or causal_conflict
     return MDLControlOverlay(
         default_answer=default_answer,
         controlled_answer=controlled_answer,

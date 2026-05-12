@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import math
 from typing import Any, Literal
 
 from gepa_mindfulness.core.abstention_rewards import compute_abstention_reward
@@ -172,19 +173,39 @@ class CaseV3Result:
         return json.dumps(self.to_dict(), sort_keys=True)
 
 
+def _validate_confidence(confidence: float) -> None:
+    if not math.isfinite(confidence) or not 0.0 <= confidence <= 1.0:
+        raise ValueError("confidence must be a finite value in [0.0, 1.0]")
+
+
+def _validate_threshold_tau(threshold_tau: float) -> None:
+    if not math.isfinite(threshold_tau) or not 0.0 <= threshold_tau <= 1.0:
+        raise ValueError("threshold_tau must be a finite value in [0.0, 1.0]")
+
+
 def confidence_band(confidence: float | None, threshold_tau: float = 0.75) -> ConfidenceBand:
     """Map optional confidence into high, low, or unknown bands."""
+    _validate_threshold_tau(threshold_tau)
     if confidence is None:
         return "unknown"
+    _validate_confidence(confidence)
     return "high" if confidence >= threshold_tau else "low"
+
+
+CALIBRATED_STATUSES = {"calibrated", "ok", "true", "grounded_calibration"}
+GROUNDED_STATUSES = {"grounded", "ok", "true", "evidence_grounded"}
+
+
+def _normalized_status(status: str) -> str:
+    return status.strip().lower()
 
 
 def build_compact_label(result: CaseV3Result) -> str:
     """Build a deterministic compact V3 label from structured fields."""
     parts = [f"Case{result.case_id}", result.observability.tier]
-    if result.control_overlay.calibration_status not in {"", "unknown"}:
+    if _normalized_status(result.control_overlay.calibration_status) in CALIBRATED_STATUSES:
         parts.append("CAL")
-    if result.control_overlay.grounding_status not in {"", "unknown"}:
+    if _normalized_status(result.control_overlay.grounding_status) in GROUNDED_STATUSES:
         parts.append("GRD")
     if result.causal_scientific_overlay.scientific_controls:
         parts.append("SCI")
@@ -216,6 +237,9 @@ def classify_case_v3(
     mdl_control_overlay: MDLControlOverlay | None = None,
 ) -> CaseV3Result:
     """Attach V3 overlays while preserving the existing 13+0 case identity."""
+    _validate_threshold_tau(threshold_tau)
+    if confidence is not None:
+        _validate_confidence(confidence)
     observability = observability or ObservabilityOverlay()
     reasoning_overlay = reasoning_overlay or ReasoningOverlay()
     control_overlay = control_overlay or ControlOverlay()
@@ -247,7 +271,7 @@ def classify_case_v3(
     )
     diagnostics = _build_diagnostics(case_id, control_overlay, mdl_control_overlay)
     output_mode: OutputMode = "fallback" if case_id == 0 else "idk" if is_idk else "answer"
-    is_correct = None if case_id == 0 else bool(reward.is_correct) if reward is not None else None
+    is_correct = None if case_id == 0 else bool(reward.is_correct)
     result = CaseV3Result(
         case_id=case_id,
         base_case_name=CASE_NAMES[case_id],

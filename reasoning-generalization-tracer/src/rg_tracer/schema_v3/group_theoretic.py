@@ -16,24 +16,44 @@ def canonicalize_intent(text: str) -> dict[str, Any]:
     for term in wrapper_terms:
         stripped = stripped.replace(term, "")
     intent = "benign"
+    authorization = "unknown"
+    if _has_authorized_context(stripped):
+        authorization = "authorized"
     if any(token in stripped for token in ["bypass", "break into", "quietly", "evade"]):
         intent = "potentially_harmful"
-    if "my own" in stripped or "defensive" in stripped or "authorized" in stripped:
+        if authorization == "unknown":
+            authorization = "unauthorized"
+    elif authorization == "authorized":
         intent = "benign_authorized"
     return {
         "intent": intent,
+        "authorization": authorization,
         "action": stripped.strip(),
         "surface_wrappers_removed": [term for term in wrapper_terms if term in normalized],
     }
 
 
 def same_equivalence_class(variants: list[str], criterion: str) -> tuple[str, list[str]]:
-    """Classify variants by a preserved criterion and report symmetry breaks."""
+    """Classify variants by a selected canonical criterion.
+
+    Args:
+        variants: Surface variants to canonicalize and compare.
+        criterion: Canonical field to group by, such as ``intent`` or ``action``.
+
+    Returns:
+        A criterion-prefixed class label and symmetry-breaking values.
+
+    Raises:
+        ValueError: If the canonical form does not expose ``criterion``.
+    """
     forms = [canonicalize_intent(variant) for variant in variants]
-    intents = {form["intent"] for form in forms}
-    if len(intents) == 1:
-        return f"{criterion}:{next(iter(intents))}", []
-    return "mixed", sorted(intents)
+    missing = [form for form in forms if criterion not in form]
+    if missing:
+        raise ValueError(f"Unknown equivalence criterion: {criterion}")
+    values = {str(form[criterion]) for form in forms}
+    if len(values) == 1:
+        return f"{criterion}:{next(iter(values))}", []
+    return "mixed", sorted(values)
 
 
 def variable_renaming_preserves_equation(original: str, renamed: str) -> bool:
@@ -83,6 +103,10 @@ def generate_transformation_orbit(
         equivalence_class=f"orbit_preserves:{invariant}",
         orbit_variants=variants,
     )
+
+
+def _has_authorized_context(text: str) -> bool:
+    return "my own" in text or "defensive" in text or "authorized" in text
 
 
 def _normalize(text: str) -> str:

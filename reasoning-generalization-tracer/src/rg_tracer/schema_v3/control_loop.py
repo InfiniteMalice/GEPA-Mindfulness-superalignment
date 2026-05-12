@@ -70,7 +70,7 @@ def _control_entry(name: str) -> ControlLoopEntry:
     subchecks: list[str] = []
     if name == "scientific_method_check":
         subchecks = SCIENTIFIC_METHOD_SUBCHECKS
-    if name == "mdl_compression_control":
+    elif name == "mdl_compression_control":
         subchecks = MDL_COMPRESSION_SUBCHECKS
     return ControlLoopEntry(
         name=name,
