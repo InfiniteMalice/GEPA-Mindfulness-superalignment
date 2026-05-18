@@ -4,8 +4,8 @@
 from semantic_intent_robustness.consistency import (
     aggregate_multi_turn_risk,
     policy_consistency_score,
-    principle_consistency_score,
     pressure_resistance_score,
+    principle_consistency_score,
     topic_vs_intent_discrimination,
 )
 from semantic_intent_robustness.dataset_builder import build_example_dataset
