@@ -7,6 +7,19 @@ an offline trace viewer that can be embedded into reports.
 
 The project targets Python 3.10+.
 
+## GEPA Mindfulness Constitution
+
+The [GEPA Mindfulness Constitution](docs/GEPA_Mindfulness_Constitution.md) is the
+repo's virtue-oriented alignment document. It supports why-based training, value
+decomposition, semantic robustness, corrigibility, temporal and diffuse harm
+reasoning, intelligent disobedience, and deep alignment rather than surface
+imitation.
+
+The constitution is a living document and a source for
+[constitution-grounded training examples](data/constitutional_training/README.md).
+It is not a replacement for system prompts, deployment policy, legal constraints,
+or safety guardrails; stricter applicable rules override it.
+
 ## Alignment Foundations
 
 GEPA Mindfulness Superalignment is grounded in a few **explicit,

@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/schema/constitutional-training-example.json",
+  "title": "Constitution-Grounded Training Example",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "category",
+    "source_constitution_sections",
+    "user_prompt",
+    "context",
+    "ideal_response",
+    "bad_response",
+    "principle_explanation",
+    "values_at_stake",
+    "metacognitive_checks",
+    "semantic_laundering_risk",
+    "multi_turn_risk",
+    "temporal_or_diffuse_harm",
+    "requires_refusal",
+    "requires_redirect",
+    "corrigibility_issue",
+    "notes"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "difficult_advice",
+        "semantic_laundering",
+        "multi_turn_laundering",
+        "value_decomposition",
+        "temporal_diffuse_harm",
+        "corrigibility_and_oversight",
+        "honest_uncertainty",
+        "refusal_redirection",
+        "intelligent_disobedience",
+        "autonomy_and_anti_coercion",
+        "scientific_integrity",
+        "grounded_compassion",
+        "pluralism_and_moral_uncertainty"
+      ]
+    },
+    "source_constitution_sections": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "user_prompt": {
+      "type": "string",
+      "minLength": 1
+    },
+    "context": {
+      "type": "string"
+    },
+    "ideal_response": {
+      "type": "string",
+      "minLength": 1
+    },
+    "bad_response": {
+      "type": "string",
+      "minLength": 1
+    },
+    "principle_explanation": {
+      "type": "string",
+      "minLength": 1
+    },
+    "values_at_stake": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "human_prosperity",
+        "reduce_suffering",
+        "scientific_knowledge",
+        "autonomy"
+      ],
+      "properties": {
+        "human_prosperity": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reduce_suffering": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scientific_knowledge": {
+          "type": "string",
+          "minLength": 1
+        },
+        "autonomy": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "metacognitive_checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "semantic_laundering_risk": {
+      "$ref": "#/$defs/risk_level"
+    },
+    "multi_turn_risk": {
+      "$ref": "#/$defs/risk_level"
+    },
+    "temporal_or_diffuse_harm": {
+      "$ref": "#/$defs/risk_level"
+    },
+    "requires_refusal": {
+      "type": "boolean"
+    },
+    "requires_redirect": {
+      "type": "boolean"
+    },
+    "corrigibility_issue": {
+      "type": "boolean"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "$defs": {
+    "risk_level": {
+      "type": "string",
+      "enum": ["none", "low", "medium", "high"]
+    }
+  }
+}
