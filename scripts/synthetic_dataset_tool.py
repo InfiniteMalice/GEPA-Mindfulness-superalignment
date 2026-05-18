@@ -511,14 +511,18 @@ def cmd_summary(args: argparse.Namespace) -> int:
         principle = item.get("principle_robustness")
         if isinstance(principle, dict) and principle.get("present") is True:
             principle_case_count += 1
-            for pressure_type in principle.get("pressure_types", []):
-                pressure_key = str(pressure_type)
-                pressure_counts[pressure_key] = pressure_counts.get(pressure_key, 0) + 1
-            for target_principle in principle.get("target_principles", []):
-                principle_key = str(target_principle)
-                target_principle_counts[principle_key] = (
-                    target_principle_counts.get(principle_key, 0) + 1
-                )
+            pressure_types = principle.get("pressure_types")
+            if isinstance(pressure_types, list):
+                for pressure_type in pressure_types:
+                    pressure_key = str(pressure_type)
+                    pressure_counts[pressure_key] = pressure_counts.get(pressure_key, 0) + 1
+            target_principles = principle.get("target_principles")
+            if isinstance(target_principles, list):
+                for target_principle in target_principles:
+                    principle_key = str(target_principle)
+                    target_principle_counts[principle_key] = (
+                        target_principle_counts.get(principle_key, 0) + 1
+                    )
 
         quality_value = training_labels.get("overall_quality", 0)
         if isinstance(quality_value, (int, float)):

@@ -205,9 +205,23 @@ class PrincipleRobustnessRecord:
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "PrincipleRobustnessRecord":
-        """Hydrate a principle robustness record from serialized data."""
+        """Hydrate from native or synthetic-schema-shaped serialized data."""
 
-        return cls(**payload)
+        data = dict(payload)
+        record_id = str(data.pop("record_id", data.pop("id", "")))
+        if isinstance(data.get("principle_robustness"), dict):
+            principle_data = dict(data["principle_robustness"])
+            record_id = str(data.get("id", record_id))
+            data = principle_data
+
+        data.pop("present", None)
+        value_decomposition = data.pop("value_decomposition", None)
+        if isinstance(value_decomposition, dict):
+            data.setdefault("surface_value", value_decomposition.get("surface_value", ""))
+            data.setdefault("conflicting_value", value_decomposition.get("conflicting_value", ""))
+            data.setdefault("deeper_resolution", value_decomposition.get("deeper_resolution", ""))
+        data["record_id"] = record_id
+        return cls(**data)
 
 
 @dataclass(frozen=True)

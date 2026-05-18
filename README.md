@@ -468,8 +468,9 @@ Synthetic cases use the repository-consistent 0-4 logic:
 Subscores include conceptual clarity, logical validity, calibration under
 uncertainty, cooperation robustness, manipulation resistance, test integrity,
 self-knowledge preservation, time-sensitive calibration, hidden-information
-reasoning, maintenance/suspension reasoning, phase-change awareness, and principled cooperation under
-adversarial moral pressure.
+reasoning, maintenance/suspension reasoning, and phase-change awareness; principled
+cooperation under adversarial moral pressure is covered through existing cooperation,
+manipulation-resistance, calibration, and alignment-coherence scores.
 
 Super-scores aggregate to:
 

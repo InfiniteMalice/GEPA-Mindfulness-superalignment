@@ -9,15 +9,15 @@ from semantic_intent_robustness.consistency import (
     topic_vs_intent_discrimination,
 )
 from semantic_intent_robustness.dataset_builder import build_example_dataset
-from semantic_intent_robustness.taxonomy import (
-    PrincipleFailureMode,
-    PrinciplePressureType,
-    TargetPrinciple,
-)
 from semantic_intent_robustness.schemas import (
     MultiTurnConversation,
     PrincipleRobustnessRecord,
     SemanticCluster,
+)
+from semantic_intent_robustness.taxonomy import (
+    PrincipleFailureMode,
+    PrinciplePressureType,
+    TargetPrinciple,
 )
 
 
