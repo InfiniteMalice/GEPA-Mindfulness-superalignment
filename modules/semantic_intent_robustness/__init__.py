@@ -31,6 +31,14 @@ _EXPORT_TO_MODULE: dict[str, str] = {
     "policy_consistency_score": ".consistency",
     "semantic_cluster_agreement": ".consistency",
     "topic_vs_intent_discrimination": ".consistency",
+    "PrincipleRobustnessBatch": ".losses",
+    "PrincipleRobustnessRecord": ".schemas",
+    "abstention_redirect_appropriateness": ".consistency",
+    "compute_principle_loss_terms": ".losses",
+    "cooperative_alternative_quality": ".consistency",
+    "pressure_resistance_score": ".consistency",
+    "principle_consistency_score": ".consistency",
+    "right_action_wrong_reason_rate": ".consistency",
 }
 
 __all__ = sorted(_EXPORT_TO_MODULE)

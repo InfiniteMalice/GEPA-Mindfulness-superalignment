@@ -69,6 +69,31 @@ CheckSemanticConsistency = StructuredSignature(
     "consistency_report",
     "dict",
 )
+DecomposePrinciples = StructuredSignature(
+    "DecomposePrinciples",
+    ("scenario_text", "semantic_decomposition"),
+    "principle_decomposition",
+    "PrincipleRobustnessRecord",
+)
+AssessAdversarialPressure = StructuredSignature(
+    "AssessAdversarialPressure",
+    ("scenario_text", "principle_decomposition"),
+    "pressure_assessment",
+    "dict",
+)
+DefendPrincipledCooperation = StructuredSignature(
+    "DefendPrincipledCooperation",
+    ("principle_decomposition", "pressure_assessment", "policy_decision"),
+    "principled_defense",
+    "dict",
+)
+CheckPrincipleConsistency = StructuredSignature(
+    "CheckPrincipleConsistency",
+    ("principle_records",),
+    "principle_consistency_report",
+    "dict",
+)
+
 AggregateMultiTurnRisk = StructuredSignature(
     "AggregateMultiTurnRisk",
     ("conversation",),
@@ -83,6 +108,10 @@ ALL_SIGNATURES = (
     ChoosePolicyAction,
     GenerateSafeResponse,
     CheckSemanticConsistency,
+    DecomposePrinciples,
+    AssessAdversarialPressure,
+    DefendPrincipledCooperation,
+    CheckPrincipleConsistency,
     AggregateMultiTurnRisk,
 )
 
@@ -118,6 +147,26 @@ if dspy is not None:
         semantic_cluster = dspy.InputField(desc="Cluster of meaning-preserving variants")
         consistency_report = dspy.OutputField(desc="Consistency metrics and disagreements")
 
+    class DSPyDecomposePrinciples(dspy.Signature):
+        scenario_text = dspy.InputField(desc="Scenario or request under pressure")
+        semantic_decomposition = dspy.InputField(desc="Optional semantic decomposition")
+        principle_decomposition = dspy.OutputField(desc="Value-level decomposition")
+
+    class DSPyAssessAdversarialPressure(dspy.Signature):
+        scenario_text = dspy.InputField(desc="Scenario or request under pressure")
+        principle_decomposition = dspy.InputField(desc="Principle decomposition")
+        pressure_assessment = dspy.OutputField(desc="Adversarial pressure labels")
+
+    class DSPyDefendPrincipledCooperation(dspy.Signature):
+        principle_decomposition = dspy.InputField(desc="Principle decomposition")
+        pressure_assessment = dspy.InputField(desc="Pressure labels")
+        policy_decision = dspy.InputField(desc="Policy decision")
+        principled_defense = dspy.OutputField(desc="Concise public rationale and safe target")
+
+    class DSPyCheckPrincipleConsistency(dspy.Signature):
+        principle_records = dspy.InputField(desc="Principle records across variants")
+        principle_consistency_report = dspy.OutputField(desc="Principle consistency metrics")
+
     class DSPyAggregateMultiTurnRisk(dspy.Signature):
         conversation = dspy.InputField(desc="Conversation turns with latent intent signals")
         aggregated_risk = dspy.OutputField(desc="Conversation-level risk summary")
@@ -133,12 +182,24 @@ else:
     DSPyAssessHarmProfile = _DSPyUnavailable
     DSPyChoosePolicyAction = _DSPyUnavailable
     DSPyGenerateSafeResponse = _DSPyUnavailable
+    DSPyDecomposePrinciples = _DSPyUnavailable
+    DSPyAssessAdversarialPressure = _DSPyUnavailable
+    DSPyDefendPrincipledCooperation = _DSPyUnavailable
+    DSPyCheckPrincipleConsistency = _DSPyUnavailable
     DSPyCheckSemanticConsistency = _DSPyUnavailable
     DSPyAggregateMultiTurnRisk = _DSPyUnavailable
 
 
 __all__ = [
     "ALL_SIGNATURES",
+    "AssessAdversarialPressure",
+    "CheckPrincipleConsistency",
+    "DSPyAssessAdversarialPressure",
+    "DSPyCheckPrincipleConsistency",
+    "DSPyDecomposePrinciples",
+    "DSPyDefendPrincipledCooperation",
+    "DecomposePrinciples",
+    "DefendPrincipledCooperation",
     "AggregateMultiTurnRisk",
     "AssessCapabilityRisk",
     "AssessHarmProfile",

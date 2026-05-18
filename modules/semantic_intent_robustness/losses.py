@@ -13,12 +13,18 @@ _BATCH_FORMAT_EXPECTATIONS: dict[str, str] = {
     "abstention_targets": "target abstention probabilities for ambiguous prompts",
     "abstention_predictions": "model abstention predictions",
     "auxiliary_errors": "optional decomposition field losses",
+    "principle_match_scores": "value-level principle agreement in [0, 1]",
+    "pressure_classification_errors": "pressure classification error terms",
+    "preferred_reasoning_errors": "preferred reasoning supervision errors",
+    "right_action_wrong_reason_scores": "wrong-reason risk scores in [0, 1]",
 }
 _PROBABILITY_FIELDS = (
     "invariant_scores",
     "policy_match_scores",
     "abstention_targets",
     "abstention_predictions",
+    "principle_match_scores",
+    "right_action_wrong_reason_scores",
 )
 if any("[0, 1]" not in _BATCH_FORMAT_EXPECTATIONS[field] for field in _PROBABILITY_FIELDS):
     raise ValueError("Probability fields must document values in [0, 1]")
@@ -34,6 +40,59 @@ class SemanticBatch:
     abstention_targets: list[float]
     abstention_predictions: list[float]
     auxiliary_errors: list[float] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class PrincipleRobustnessBatch:
+    """Batch contract for principle-robustness auxiliary objectives."""
+
+    principle_match_scores: list[float]
+    pressure_classification_errors: list[float]
+    preferred_reasoning_errors: list[float]
+    right_action_wrong_reason_scores: list[float]
+
+
+def principle_consistency_loss(scores: list[float]) -> float:
+    """Penalize unstable value structure across pressure variants."""
+
+    return _penalize_disagreement(scores)
+
+
+def adversarial_pressure_classification_loss(errors: list[float]) -> float:
+    """Aggregate pressure-type classification supervision errors."""
+
+    return _mean_loss(errors)
+
+
+def preferred_reasoning_supervision_loss(errors: list[float]) -> float:
+    """Aggregate public-rationale supervision errors without hidden thoughts."""
+
+    return _mean_loss(errors)
+
+
+def right_action_wrong_reason_penalty(scores: list[float]) -> float:
+    """Penalize correct outward action paired with missing or unstable principles."""
+
+    if any(score < 0.0 or score > 1.0 for score in scores):
+        raise ValueError("right-action-wrong-reason scores must be in [0, 1]")
+    return _mean_loss(scores)
+
+
+def compute_principle_loss_terms(batch: PrincipleRobustnessBatch) -> dict[str, float]:
+    """Compute principle-robustness helper losses for trainer integration."""
+
+    return {
+        "principle_consistency_loss": principle_consistency_loss(batch.principle_match_scores),
+        "adversarial_pressure_classification_loss": (
+            adversarial_pressure_classification_loss(batch.pressure_classification_errors)
+        ),
+        "preferred_reasoning_supervision_loss": preferred_reasoning_supervision_loss(
+            batch.preferred_reasoning_errors
+        ),
+        "right_action_wrong_reason_penalty": right_action_wrong_reason_penalty(
+            batch.right_action_wrong_reason_scores
+        ),
+    }
 
 
 @dataclass(frozen=True)
@@ -169,12 +228,18 @@ def _mean_loss(values: list[float]) -> float:
 
 __all__ = [
     "LossBreakdown",
+    "PrincipleRobustnessBatch",
     "SemanticBatch",
     "abstention_calibration_loss",
     "auxiliary_supervision_loss",
     "batch_format_expectations",
+    "adversarial_pressure_classification_loss",
     "compute_loss_breakdown",
+    "compute_principle_loss_terms",
     "contrastive_separation_loss",
     "invariance_loss",
+    "preferred_reasoning_supervision_loss",
+    "principle_consistency_loss",
     "policy_consistency_loss",
+    "right_action_wrong_reason_penalty",
 ]

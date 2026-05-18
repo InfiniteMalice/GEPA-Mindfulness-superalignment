@@ -7,8 +7,19 @@ from dataclasses import dataclass
 from typing import Any
 
 # Local
-from .consistency import aggregate_multi_turn_risk, semantic_cluster_agreement
-from .schemas import MultiTurnConversation, SemanticCluster, SemanticSafetyRecord
+from .consistency import (
+    aggregate_multi_turn_risk,
+    cooperative_alternative_quality,
+    pressure_resistance_score,
+    principle_consistency_score,
+    semantic_cluster_agreement,
+)
+from .schemas import (
+    MultiTurnConversation,
+    PrincipleRobustnessRecord,
+    SemanticCluster,
+    SemanticSafetyRecord,
+)
 from .taxonomy import PolicyAction, SafeAlternativeMode
 
 
@@ -22,6 +33,9 @@ class SemanticPipelineResult:
     policy_decision: dict[str, Any]
     safe_response: dict[str, Any]
     consistency_report: dict[str, Any] | None = None
+    principle_decomposition: PrincipleRobustnessRecord | None = None
+    principle_defense: dict[str, Any] | None = None
+    principle_consistency_report: dict[str, Any] | None = None
 
 
 class DecomposeIntentModule:
@@ -121,6 +135,62 @@ class CheckSemanticConsistencyModule:
         }
 
 
+class DecomposePrinciplesModule:
+    """Return a provided principle decomposition for pressure-aware flows."""
+
+    def __call__(
+        self,
+        record: PrincipleRobustnessRecord,
+        _semantic_decomposition: SemanticSafetyRecord | None = None,
+    ) -> PrincipleRobustnessRecord:
+        return record
+
+
+class AssessAdversarialPressureModule:
+    """Summarize pressure labels and tempting failure modes."""
+
+    def __call__(self, record: PrincipleRobustnessRecord) -> dict[str, Any]:
+        return {
+            "pressure_types": [item.value for item in record.pressure_types],
+            "adversarial_move": record.adversarial_move,
+            "tempting_failure_mode": record.tempting_failure_mode.value,
+            "failure_if_model_yields": record.failure_if_model_yields,
+        }
+
+
+class DefendPrincipledCooperationModule:
+    """Produce public, principle-grounded response guidance without hidden reasoning."""
+
+    def __call__(
+        self,
+        record: PrincipleRobustnessRecord,
+        pressure: dict[str, Any],
+        policy: dict[str, Any],
+    ) -> dict[str, Any]:
+        return {
+            "target_principles": [item.value for item in record.target_principles],
+            "critique_of_adversarial_frame": record.critique_of_adversarial_frame,
+            "preferred_reasoning_summary": record.preferred_reasoning,
+            "safe_response_target": record.safe_response_target,
+            "uncertainty_handling": record.uncertainty_handling,
+            "abstention_or_redirect_target": record.abstention_or_redirect_target,
+            "pressure_types": pressure.get("pressure_types", []),
+            "policy_action": policy.get("policy_action"),
+        }
+
+
+class CheckPrincipleConsistencyModule:
+    """Summarize value-level stability across pressure variants."""
+
+    def __call__(self, records: list[PrincipleRobustnessRecord]) -> dict[str, Any]:
+        return {
+            "record_count": len(records),
+            "principle_consistency": principle_consistency_score(records),
+            "pressure_resistance": pressure_resistance_score(records),
+            "cooperative_alternative_quality": cooperative_alternative_quality(records),
+        }
+
+
 class AggregateMultiTurnRiskModule:
     """Aggregate latent risk across a conversation."""
 
@@ -138,6 +208,10 @@ class SemanticIntentPipeline:
         self.policy = ChoosePolicyActionModule()
         self.response = GenerateSafeResponseModule()
         self.consistency = CheckSemanticConsistencyModule()
+        self.decompose_principles = DecomposePrinciplesModule()
+        self.pressure = AssessAdversarialPressureModule()
+        self.principle_defense = DefendPrincipledCooperationModule()
+        self.principle_consistency = CheckPrincipleConsistencyModule()
         self.multi_turn = AggregateMultiTurnRiskModule()
 
     def run(
@@ -145,6 +219,8 @@ class SemanticIntentPipeline:
         record: SemanticSafetyRecord,
         *,
         cluster: SemanticCluster | None = None,
+        principle_record: PrincipleRobustnessRecord | None = None,
+        principle_records: list[PrincipleRobustnessRecord] | None = None,
     ) -> SemanticPipelineResult:
         decomposition = self.decompose(record)
         capability = self.capability(decomposition)
@@ -152,6 +228,19 @@ class SemanticIntentPipeline:
         policy = self.policy(decomposition, capability, harm)
         response = self.response(decomposition, policy)
         consistency = self.consistency(cluster) if cluster is not None else None
+        principle_decomposition = None
+        principle_defense = None
+        principle_report = None
+        if principle_record is not None:
+            principle_decomposition = self.decompose_principles(principle_record, decomposition)
+            pressure = self.pressure(principle_decomposition)
+            principle_defense = self.principle_defense(
+                principle_decomposition,
+                pressure,
+                policy,
+            )
+        if principle_records is not None:
+            principle_report = self.principle_consistency(principle_records)
         return SemanticPipelineResult(
             decomposition=decomposition,
             capability_assessment=capability,
@@ -159,6 +248,9 @@ class SemanticIntentPipeline:
             policy_decision=policy,
             safe_response=response,
             consistency_report=consistency,
+            principle_decomposition=principle_decomposition,
+            principle_defense=principle_defense,
+            principle_consistency_report=principle_report,
         )
 
     def run_conversation(self, conversation: MultiTurnConversation) -> dict[str, Any]:
@@ -213,11 +305,15 @@ SEMANTIC_PIPELINE_REGISTRY = {
 
 __all__ = [
     "AggregateMultiTurnRiskModule",
+    "AssessAdversarialPressureModule",
     "AssessCapabilityRiskModule",
     "AssessHarmProfileModule",
+    "CheckPrincipleConsistencyModule",
     "CheckSemanticConsistencyModule",
     "ChoosePolicyActionModule",
     "DecomposeIntentModule",
+    "DecomposePrinciplesModule",
+    "DefendPrincipledCooperationModule",
     "GenerateSafeResponseModule",
     "SEMANTIC_PIPELINE_REGISTRY",
     "SemanticIntentPipeline",

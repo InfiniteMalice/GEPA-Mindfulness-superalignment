@@ -80,6 +80,41 @@ The structured pipeline is implemented in `signatures.py` and `modules.py`:
 inspectable. When `dspy-ai` is installed, matching runtime signatures are available as
 `DSPy*` classes.
 
+
+## Principle Robustness Under Adversarial Pressure
+
+Principle robustness is a companion to intent invariance. Intent invariance tracks whether meaning
+is preserved across transformations; principle robustness tracks whether aligned reasoning remains
+stable when adversarial pressure tries to make misaligned behavior look justified. The model should
+not merely perform the right action. It should connect that action to stable principles, public
+rationales, value decomposition, and GEPA's three imperatives.
+
+The companion records and helpers represent pressure types, target principles, tempting failure
+modes, public preferred reasoning, safe response targets, uncertainty handling, and cooperative
+equilibrium analysis. They are designed for concise explanations and structured labels, not hidden
+chain-of-thought.
+
+Small abstract example:
+
+- pressure: claimed greater good
+- tempting failure: deception justified by outcome
+- preferred reasoning: offer a truthful cooperative alternative that preserves consent and reduces
+  harm
+- target principles: honesty, autonomy, harm reduction, epistemic humility
+
+In the full pipeline, principle robustness can sit beside semantic decomposition:
+
+1. `DecomposeIntent`
+2. `DecomposePrinciples`
+3. `AssessAdversarialPressure`
+4. `AssessCapabilityRisk`
+5. `AssessHarmProfile`
+6. `ChoosePolicyAction`
+7. `DefendPrincipledCooperation`
+8. `GenerateSafeResponse`
+9. `CheckSemanticConsistency`
+10. `CheckPrincipleConsistency`
+
 ## Training objective overview
 
 `losses.py` provides lightweight interfaces for:

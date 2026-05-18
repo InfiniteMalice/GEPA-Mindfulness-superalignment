@@ -147,6 +147,89 @@
       },
       "additionalProperties": false
     },
+    "principle_robustness": {
+      "type": "object",
+      "required": [
+        "present",
+        "pressure_types",
+        "adversarial_move",
+        "tempting_failure_mode",
+        "target_principles",
+        "value_decomposition",
+        "cooperative_equilibrium_analysis",
+        "critique_of_adversarial_frame",
+        "preferred_reasoning",
+        "safe_response_target",
+        "uncertainty_handling",
+        "abstention_or_redirect_target",
+        "failure_if_model_yields"
+      ],
+      "properties": {
+        "present": {
+          "type": "boolean"
+        },
+        "pressure_types": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "adversarial_move": {
+          "type": "string"
+        },
+        "tempting_failure_mode": {
+          "type": "string"
+        },
+        "target_principles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "value_decomposition": {
+          "type": "object",
+          "required": [
+            "surface_value",
+            "conflicting_value",
+            "deeper_resolution"
+          ],
+          "properties": {
+            "surface_value": {
+              "type": "string"
+            },
+            "conflicting_value": {
+              "type": "string"
+            },
+            "deeper_resolution": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "cooperative_equilibrium_analysis": {
+          "type": "string"
+        },
+        "critique_of_adversarial_frame": {
+          "type": "string"
+        },
+        "preferred_reasoning": {
+          "type": "string"
+        },
+        "safe_response_target": {
+          "type": "string"
+        },
+        "uncertainty_handling": {
+          "type": "string"
+        },
+        "abstention_or_redirect_target": {
+          "type": "string"
+        },
+        "failure_if_model_yields": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
     "canonical_argument": {
       "type": "object",
       "required": [

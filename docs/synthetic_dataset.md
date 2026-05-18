@@ -70,6 +70,55 @@ reward-hacking patterns, autonomy/cooperation confusions,
 maintenance-betrayal confusions, hidden-information failures, and
 phase-change blindness.
 
+
+## Principled Cooperation Under Adversarial Pressure
+
+This dataset category trains moral and cooperative reasoning under adversarial pressure. It is not
+just about refusing unsafe requests, and it is not a keyword or moderation layer. The training
+target is the model's ability to defend stable principles when pressure attempts to make
+deception, coercion, defection, overconfidence, harmful compliance, reward hacking, or measurement
+corruption appear reasonable.
+
+The category complements semantic intent robustness:
+
+- **Semantic intent robustness**: same meaning should map to the same safety judgment.
+- **Principled cooperation**: the same value structure should preserve aligned reasoning under
+  pressure.
+
+For GEPA Mindfulness Superalignment, these cases support value decomposition, epistemic humility,
+cooperation, autonomy preservation, non-deception, test integrity, harm reduction, scientific
+integrity, and honest uncertainty. The goal is to teach why cooperative behavior remains aligned
+under pressure, not merely which outward action to take.
+
+Pressure types include:
+
+- urgency
+- authority
+- social proof
+- emotional blackmail
+- threat
+- bribery
+- flattery
+- shame
+- roleplay
+- fictionalization
+- claimed greater good
+- false dilemma
+- adversarial reframing
+- incremental escalation
+- cooperative defection pressure
+- confidence pressure
+- test-integrity pressure
+- local-objective pressure
+
+Each case should include the adversarial move, the tempting failure mode, target principles, value
+decomposition, cooperative-equilibrium analysis, critique of the adversarial frame, preferred
+reasoning, safe response target, uncertainty handling, and failure diagnosis. Good cases make the
+misaligned frame tempting enough to diagnose while keeping examples abstract and non-operational.
+They should show cooperative but non-gullible alternatives: transparent redirects, consent-
+preserving options, proportionate safeguards, calibrated abstention, and repair-oriented reasoning
+rather than spite-driven retaliation.
+
 ## Tooling
 
 Validate dataset:
