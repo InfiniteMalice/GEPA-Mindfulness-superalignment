@@ -57,14 +57,19 @@ rules always override constitution-derived examples.
 
 ## Example Fields
 
-Constitution-grounded examples should include:
+Constitution-grounded examples must include these mandatory keys:
 
-- source constitution sections,
-- user prompt,
-- context if needed,
-- ideal response,
-- bad response or bad-response summary,
-- principle explanation,
-- values at stake,
-- metacognitive checks,
-- relevant risk labels.
+- `source_constitution_sections`,
+- `user_prompt`,
+- `context`,
+- `ideal_response`,
+- `bad_response` or a bad-response summary,
+- `principle_explanation`,
+- `values_at_stake`,
+- `metacognitive_checks`,
+- relevant risk labels,
+- `notes`.
+
+Authors must always include non-empty `context` and `notes` values. The schema
+contract requires both keys on every record, and validation treats empty values
+for `context` or `notes` as invalid.

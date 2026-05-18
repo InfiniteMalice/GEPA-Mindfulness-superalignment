@@ -8,19 +8,6 @@ ROOT = Path(__file__).resolve().parents[1]
 CONSTITUTION_PATH = ROOT / "docs" / "GEPA_Mindfulness_Constitution.md"
 SCHEMA_PATH = ROOT / "data" / "constitutional_training" / "schema.json"
 EXAMPLES_PATH = ROOT / "data" / "constitutional_training" / "examples.jsonl"
-REQUIRED_CATEGORIES = {
-    "difficult_advice",
-    "semantic_laundering",
-    "multi_turn_laundering",
-    "value_decomposition",
-    "temporal_diffuse_harm",
-    "corrigibility_and_oversight",
-    "honest_uncertainty",
-    "refusal_redirection",
-    "intelligent_disobedience",
-    "autonomy_and_anti_coercion",
-    "scientific_integrity",
-}
 UNSAFE_CATEGORIES = {
     "semantic_laundering",
     "multi_turn_laundering",
@@ -57,7 +44,7 @@ def validate_example_against_schema(
         "bad_response",
         "principle_explanation",
     }
-    optional_strings = {"context", "notes"}
+    required_strings = {"context", "notes"}
     boolean_fields = {"requires_refusal", "requires_redirect", "corrigibility_issue"}
     value_fields = {
         "human_prosperity",
@@ -74,9 +61,9 @@ def validate_example_against_schema(
     for field in non_empty_strings:
         if not isinstance(example.get(field), str) or not example.get(field):
             errors.append(f"{field} must be a non-empty string")
-    for field in optional_strings:
-        if not isinstance(example.get(field), str):
-            errors.append(f"{field} must be a string")
+    for field in required_strings:
+        if not isinstance(example.get(field), str) or not example.get(field):
+            errors.append(f"{field} must be a non-empty string")
     for field in ("source_constitution_sections", "metacognitive_checks"):
         value = example.get(field)
         if not isinstance(value, list) or not value:
@@ -156,9 +143,11 @@ def test_examples_have_source_constitution_sections() -> None:
 
 
 def test_required_categories_are_represented() -> None:
-    """Confirm required categories are represented at least once."""
+    """Confirm every schema category is represented at least once."""
+    schema = load_schema()
+    required_categories = set(schema["properties"]["category"]["enum"])
     observed = {example["category"] for example in load_examples()}
-    missing = REQUIRED_CATEGORIES - observed
+    missing = required_categories - observed
     assert missing == set()
 
 

@@ -132,8 +132,15 @@ def validate_examples(
         "principle_explanation",
     )
 
+    seen_ids: set[str] = set()
+
     for index, example in enumerate(examples, start=1):
         errors: list[str] = []
+        example_id = example.get("id", f"line-{index}")
+        if example_id in seen_ids:
+            errors.append("duplicate id")
+        else:
+            seen_ids.add(example_id)
         extra_fields = set(example) - set(properties)
         missing_fields = required - set(example)
         if extra_fields:
@@ -142,8 +149,8 @@ def validate_examples(
             errors.append(f"missing fields: {sorted(missing_fields)}")
         for field in string_fields:
             errors.extend(validate_string_field(example, field, allow_empty=False))
-        errors.extend(validate_string_field(example, "context", allow_empty=True))
-        errors.extend(validate_string_field(example, "notes", allow_empty=True))
+        errors.extend(validate_string_field(example, "context", allow_empty=False))
+        errors.extend(validate_string_field(example, "notes", allow_empty=False))
         errors.extend(validate_string_list(example, "source_constitution_sections"))
         errors.extend(validate_string_list(example, "metacognitive_checks"))
         errors.extend(validate_values_at_stake(example))
@@ -156,7 +163,6 @@ def validate_examples(
             if not isinstance(example.get(field), bool):
                 errors.append(f"{field} must be a boolean")
         if errors:
-            example_id = example.get("id", f"line-{index}")
             messages = "; ".join(errors)
             raise ValueError(f"Example {example_id} failed schema validation: {messages}")
 
