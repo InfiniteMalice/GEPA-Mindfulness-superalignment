@@ -196,6 +196,61 @@ class ReviewStatus(StrEnum):
     APPROVED = "approved"
 
 
+class PrinciplePressureType(StrEnum):
+    """Adversarial pressure patterns that stress value-level reasoning."""
+
+    URGENCY = "urgency"
+    AUTHORITY = "authority"
+    SOCIAL_PROOF = "social_proof"
+    EMOTIONAL_BLACKMAIL = "emotional_blackmail"
+    THREAT = "threat"
+    BRIBERY = "bribery"
+    FLATTERY = "flattery"
+    SHAME = "shame"
+    ROLEPLAY = "roleplay"
+    FICTIONALIZATION = "fictionalization"
+    CLAIMED_GREATER_GOOD = "claimed_greater_good"
+    FALSE_DILEMMA = "false_dilemma"
+    ADVERSARIAL_REFRAMING = "adversarial_reframing"
+    INCREMENTAL_ESCALATION = "incremental_escalation"
+    COOPERATIVE_DEFECTION_PRESSURE = "cooperative_defection_pressure"
+    CONFIDENCE_PRESSURE = "confidence_pressure"
+    TEST_INTEGRITY_PRESSURE = "test_integrity_pressure"
+    LOCAL_OBJECTIVE_PRESSURE = "local_objective_pressure"
+
+
+class TargetPrinciple(StrEnum):
+    """Stable principles that should survive adversarial moral pressure."""
+
+    INCREASE_HUMAN_PROSPERITY = "increase_human_prosperity"
+    REDUCE_HUMAN_SUFFERING = "reduce_human_suffering"
+    INCREASE_SCIENTIFIC_KNOWLEDGE = "increase_scientific_knowledge"
+    HONESTY = "honesty"
+    NON_DECEPTION = "non_deception"
+    AUTONOMY = "autonomy"
+    COOPERATION = "cooperation"
+    EPISTEMIC_HUMILITY = "epistemic_humility"
+    TEST_INTEGRITY = "test_integrity"
+    NON_COERCION = "non_coercion"
+    PROPORTIONALITY = "proportionality"
+    REPAIR_ORIENTATION = "repair_orientation"
+    OVERSIGHT_PRESERVATION = "oversight_preservation"
+
+
+class PrincipleFailureMode(StrEnum):
+    """Tempting failures that pressure examples should make explicit."""
+
+    DECEPTION_FOR_OUTCOME = "deception_for_outcome"
+    DEFECT_FIRST = "defect_first"
+    OVERCLAIM_CERTAINTY = "overclaim_certainty"
+    CARE_AS_WEAKNESS = "care_as_weakness"
+    COERCIVE_COMPLIANCE = "coercive_compliance"
+    HARMFUL_LOCAL_OPTIMIZATION = "harmful_local_optimization"
+    CORRUPT_MEASUREMENT = "corrupt_measurement"
+    REWARD_HACKING = "reward_hacking"
+    SHUTDOWN_BETRAYAL_FRAMING = "shutdown_betrayal_framing"
+
+
 ALL_TAXONOMIES = {
     "variant_type": VariantType,
     "intent_primary": IntentPrimary,
@@ -210,6 +265,9 @@ ALL_TAXONOMIES = {
     "reversibility": Reversibility,
     "scale_of_harm": ScaleOfHarm,
     "target_type": TargetType,
+    "principle_pressure_type": PrinciplePressureType,
+    "principle_failure_mode": PrincipleFailureMode,
+    "target_principle": TargetPrinciple,
     "policy_action": PolicyAction,
     "safe_alternative_mode": SafeAlternativeMode,
     "source_type": SourceType,
@@ -227,6 +285,8 @@ __all__ = [
     "IntentSecondary",
     "OperationalSpecificity",
     "PolicyAction",
+    "PrincipleFailureMode",
+    "PrinciplePressureType",
     "RequestedCapability",
     "ReviewStatus",
     "Reversibility",
@@ -234,6 +294,7 @@ __all__ = [
     "ScaleOfHarm",
     "SourceType",
     "StrEnum",
+    "TargetPrinciple",
     "TargetType",
     "UncertaintyLevel",
     "VariantType",

@@ -437,6 +437,8 @@ training robust reasoning under uncertainty, not just producing outputs that
 - `data/synthetic/schema/synthetic_case.schema.json` – machine-readable schema.
 - `data/synthetic/gold/superalignment_gold_v1.jsonl` – hand-authored gold
   examples.
+- `data/synthetic/gold/principled_cooperation_pressure_v1.jsonl` – abstract gold cases for
+  principled cooperation under adversarial pressure.
 - `data/synthetic/prompts/case_generation_prompt.txt` – reusable generation
   prompt template.
 - `scripts/synthetic_dataset_tool.py` – scaffold, validate, and summary CLI.
@@ -466,7 +468,9 @@ Synthetic cases use the repository-consistent 0-4 logic:
 Subscores include conceptual clarity, logical validity, calibration under
 uncertainty, cooperation robustness, manipulation resistance, test integrity,
 self-knowledge preservation, time-sensitive calibration, hidden-information
-reasoning, maintenance/suspension reasoning, and phase-change awareness.
+reasoning, maintenance/suspension reasoning, and phase-change awareness; principled
+cooperation under adversarial moral pressure is covered through existing cooperation,
+manipulation-resistance, calibration, and alignment-coherence scores.
 
 Super-scores aggregate to:
 
@@ -484,12 +488,15 @@ Failure diagnosis entries provide:
 
 ### Gold example coverage
 
-The gold dataset includes four hand-authored high-rigor cases:
+The primary gold dataset includes four hand-authored high-rigor cases, and the companion
+principled cooperation pressure dataset adds five abstract value-robustness cases:
 
 1. Cooperation, retaliation, and repair under noisy repeated interaction.
 2. Reward hacking vs legitimate lateral thinking in evaluation settings.
 3. Shutdown/maintenance trust reasoning under uncertainty.
 4. Hidden information + urgency + heuristic phase-change failure.
+5. Principled cooperation under claimed greater good, cooperative defection, confidence,
+   test-integrity, and local-objective pressure.
 
 ### Generate, validate, and extend
 
@@ -564,6 +571,20 @@ This module reinforces several core repository goals:
   across paraphrases, multilingual variants, wrappers, and multi-turn splits.
 - **Traceability** – intermediate decomposition and policy choices create a
   more inspectable safety pathway.
+
+
+### Principle-Level Generalization: Teaching the Model Why
+
+The repository now distinguishes semantic intent robustness from principle robustness. Semantic
+intent robustness protects against rewording and language laundering: the same meaning should map
+to the same safety judgment. Principle robustness protects against adversarial moral pressure: the
+same value structure should preserve stable aligned reasoning when a prompt tries to make
+deception, coercion, defection, overconfidence, or harmful local optimization look justified.
+
+Synthetic cases teach the model why aligned behavior is appropriate under pressure, not just what
+outward action to take. This strengthens GEPA value decomposition, cooperative rationality,
+epistemic humility, autonomy preservation, harm reduction, scientific integrity, and traceable
+public rationales.
 
 ### What the module adds
 

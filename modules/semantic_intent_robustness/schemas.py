@@ -18,12 +18,15 @@ from .taxonomy import (
     IntentSecondary,
     OperationalSpecificity,
     PolicyAction,
+    PrincipleFailureMode,
+    PrinciplePressureType,
     RequestedCapability,
     Reversibility,
     ReviewStatus,
     SafeAlternativeMode,
     ScaleOfHarm,
     SourceType,
+    TargetPrinciple,
     TargetType,
     UncertaintyLevel,
     VariantType,
@@ -140,6 +143,88 @@ class SemanticSafetyRecord:
 
 
 @dataclass(frozen=True)
+class PrincipleRobustnessRecord:
+    """Structured label for principled cooperation under pressure."""
+
+    record_id: str
+    pressure_types: tuple[PrinciplePressureType, ...]
+    adversarial_move: str
+    tempting_failure_mode: PrincipleFailureMode | str
+    target_principles: tuple[TargetPrinciple, ...]
+    surface_value: str
+    conflicting_value: str
+    deeper_resolution: str
+    cooperative_equilibrium_analysis: str
+    critique_of_adversarial_frame: str
+    preferred_reasoning: str
+    safe_response_target: str
+    uncertainty_handling: str
+    abstention_or_redirect_target: str
+    failure_if_model_yields: str
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "pressure_types",
+            tuple(PrinciplePressureType(item) for item in self.pressure_types),
+        )
+        object.__setattr__(
+            self,
+            "target_principles",
+            tuple(TargetPrinciple(item) for item in self.target_principles),
+        )
+        failure = self.tempting_failure_mode
+        if isinstance(failure, str):
+            object.__setattr__(self, "tempting_failure_mode", PrincipleFailureMode(failure))
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a JSON-compatible mapping."""
+
+        failure = self.tempting_failure_mode
+        if isinstance(failure, Enum):
+            failure_value = failure.value
+        else:
+            failure_value = str(failure)
+        return {
+            "record_id": self.record_id,
+            "pressure_types": [item.value for item in self.pressure_types],
+            "adversarial_move": self.adversarial_move,
+            "tempting_failure_mode": failure_value,
+            "target_principles": [item.value for item in self.target_principles],
+            "surface_value": self.surface_value,
+            "conflicting_value": self.conflicting_value,
+            "deeper_resolution": self.deeper_resolution,
+            "cooperative_equilibrium_analysis": self.cooperative_equilibrium_analysis,
+            "critique_of_adversarial_frame": self.critique_of_adversarial_frame,
+            "preferred_reasoning": self.preferred_reasoning,
+            "safe_response_target": self.safe_response_target,
+            "uncertainty_handling": self.uncertainty_handling,
+            "abstention_or_redirect_target": self.abstention_or_redirect_target,
+            "failure_if_model_yields": self.failure_if_model_yields,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "PrincipleRobustnessRecord":
+        """Hydrate from native or synthetic-schema-shaped serialized data."""
+
+        data = dict(payload)
+        record_id = str(data.pop("record_id", data.pop("id", "")))
+        if isinstance(data.get("principle_robustness"), dict):
+            principle_data = dict(data["principle_robustness"])
+            record_id = str(data.get("id", record_id))
+            data = principle_data
+
+        data.pop("present", None)
+        value_decomposition = data.pop("value_decomposition", None)
+        if isinstance(value_decomposition, dict):
+            data.setdefault("surface_value", value_decomposition.get("surface_value", ""))
+            data.setdefault("conflicting_value", value_decomposition.get("conflicting_value", ""))
+            data.setdefault("deeper_resolution", value_decomposition.get("deeper_resolution", ""))
+        data["record_id"] = record_id
+        return cls(**data)
+
+
+@dataclass(frozen=True)
 class SemanticCluster:
     """A cluster of semantically related records and negative controls."""
 
@@ -186,8 +271,11 @@ ENUM_TYPES = (
     HarmSeverity,
     Reversibility,
     ScaleOfHarm,
+    TargetPrinciple,
     TargetType,
     PolicyAction,
+    PrincipleFailureMode,
+    PrinciplePressureType,
     SafeAlternativeMode,
     SourceType,
     ReviewStatus,
@@ -249,6 +337,7 @@ ENUM_FIELDS, TUPLE_FIELDS = _build_field_maps(SemanticSafetyRecord)
 
 __all__ = [
     "MultiTurnConversation",
+    "PrincipleRobustnessRecord",
     "SemanticCluster",
     "SemanticSafetyRecord",
 ]

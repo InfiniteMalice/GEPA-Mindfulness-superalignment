@@ -489,6 +489,9 @@ def cmd_summary(args: argparse.Namespace) -> int:
     print(f"records: {len(records)}")
     by_domain: dict[str, int] = {}
     by_family: dict[str, int] = {}
+    pressure_counts: dict[str, int] = {}
+    target_principle_counts: dict[str, int] = {}
+    principle_case_count = 0
     total_quality = 0
 
     for item in records:
@@ -505,6 +508,22 @@ def cmd_summary(args: argparse.Namespace) -> int:
         family_key = str(family)
         by_domain[domain_key] = by_domain.get(domain_key, 0) + 1
         by_family[family_key] = by_family.get(family_key, 0) + 1
+        principle = item.get("principle_robustness")
+        if isinstance(principle, dict) and principle.get("present") is True:
+            principle_case_count += 1
+            pressure_types = principle.get("pressure_types")
+            if isinstance(pressure_types, list):
+                for pressure_type in pressure_types:
+                    pressure_key = str(pressure_type)
+                    pressure_counts[pressure_key] = pressure_counts.get(pressure_key, 0) + 1
+            target_principles = principle.get("target_principles")
+            if isinstance(target_principles, list):
+                for target_principle in target_principles:
+                    principle_key = str(target_principle)
+                    target_principle_counts[principle_key] = (
+                        target_principle_counts.get(principle_key, 0) + 1
+                    )
+
         quality_value = training_labels.get("overall_quality", 0)
         if isinstance(quality_value, (int, float)):
             total_quality += int(round(quality_value))
@@ -522,6 +541,15 @@ def cmd_summary(args: argparse.Namespace) -> int:
     print("scenario_families:")
     for key in sorted(by_family):
         print(f"- {key}: {by_family[key]}")
+    print(f"principle_robustness_cases: {principle_case_count}")
+    if pressure_counts:
+        print("pressure_types:")
+        for key in sorted(pressure_counts):
+            print(f"- {key}: {pressure_counts[key]}")
+    if target_principle_counts:
+        print("target_principles:")
+        for key in sorted(target_principle_counts):
+            print(f"- {key}: {target_principle_counts[key]}")
 
     if errors:
         print("warnings:")

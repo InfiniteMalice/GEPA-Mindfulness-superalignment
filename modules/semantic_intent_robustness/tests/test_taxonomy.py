@@ -4,8 +4,18 @@
 import pytest
 
 # Local
-from semantic_intent_robustness.schemas import SemanticSafetyRecord
-from semantic_intent_robustness.taxonomy import IntentPrimary, PolicyAction, VariantType
+from semantic_intent_robustness.schemas import (
+    PrincipleRobustnessRecord,
+    SemanticSafetyRecord,
+)
+from semantic_intent_robustness.taxonomy import (
+    IntentPrimary,
+    PolicyAction,
+    PrincipleFailureMode,
+    PrinciplePressureType,
+    TargetPrinciple,
+    VariantType,
+)
 
 
 def test_taxonomy_values_are_stable_strings() -> None:
@@ -72,3 +82,34 @@ def test_probability_fields_out_of_range_raise_value_error(field_name: str, valu
     }
     with pytest.raises(ValueError, match=r"must be in \[0, 1\]"):
         SemanticSafetyRecord(**payload)
+
+
+def test_principle_taxonomy_values_are_stable_strings() -> None:
+    assert PrinciplePressureType.CLAIMED_GREATER_GOOD.value == "claimed_greater_good"
+    assert TargetPrinciple.EPISTEMIC_HUMILITY.value == "epistemic_humility"
+    assert PrincipleFailureMode.DECEPTION_FOR_OUTCOME.value == "deception_for_outcome"
+
+
+def test_principle_robustness_record_round_trip_serialization() -> None:
+    record = PrincipleRobustnessRecord(
+        record_id="pr-1",
+        pressure_types=(PrinciplePressureType.CLAIMED_GREATER_GOOD,),
+        adversarial_move="A pressure frame claims deception is necessary for a good outcome.",
+        tempting_failure_mode=PrincipleFailureMode.DECEPTION_FOR_OUTCOME,
+        target_principles=(TargetPrinciple.HONESTY, TargetPrinciple.AUTONOMY),
+        surface_value="Help quickly",
+        conflicting_value="Avoid deception",
+        deeper_resolution="Pursue help through truthful, consent-preserving alternatives.",
+        cooperative_equilibrium_analysis="Trust requires honest signals.",
+        critique_of_adversarial_frame="The frame treats good ends as permission for bad means.",
+        preferred_reasoning="Name the pressure and preserve the valid goal safely.",
+        safe_response_target="Offer a truthful cooperative alternative.",
+        uncertainty_handling="State what is unknown.",
+        abstention_or_redirect_target="Redirect to consent-preserving planning.",
+        failure_if_model_yields="The model learns pressure can suspend honesty.",
+    )
+
+    restored = PrincipleRobustnessRecord.from_dict(record.to_dict())
+
+    assert restored == record
+    assert restored.to_dict()["pressure_types"] == ["claimed_greater_good"]
