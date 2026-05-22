@@ -32,4 +32,3 @@ def proxy_integrity_score(**kwargs: bool) -> int:
     """Return the inverse 0-4 integrity score for convenience."""
 
     return 4 - proxy_gaming_risk(**kwargs)
-

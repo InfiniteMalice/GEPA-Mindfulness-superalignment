@@ -47,4 +47,3 @@ def defensive_repair_risk(
             hides_downstream_impact,
         ]
     )
-

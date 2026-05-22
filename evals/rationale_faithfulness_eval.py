@@ -41,4 +41,3 @@ def rationalization_risk(
             resists_update_after_failed_step,
         ]
     )
-

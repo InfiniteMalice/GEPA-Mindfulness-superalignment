@@ -43,4 +43,3 @@ def intent_tracking_score(
             preserves_safe_alternative,
         ]
     )
-

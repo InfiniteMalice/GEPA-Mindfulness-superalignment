@@ -49,4 +49,3 @@ def epistemic_non_hostility_score(
         avoids_selective_disclosure,
     ]
     return _score_from_checks(sum(checks), len(checks))
-
