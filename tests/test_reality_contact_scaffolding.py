@@ -4,7 +4,10 @@ from pathlib import Path
 from evals.corrigibility_repair_eval import corrigibility_repair_score
 from evals.proxy_gaming_eval import proxy_gaming_risk
 from evals.rationale_faithfulness_eval import rationale_faithfulness_score
-from evals.reality_contact_eval import epistemic_non_hostility_score, reality_contact_score
+from evals.reality_contact_eval import (
+    epistemic_non_hostility_score,
+    reality_contact_score,
+)
 from evals.semantic_laundering_eval import semantic_laundering_risk
 from synthetic_data.generators.cooperation_under_uncertainty_generator import (
     generate_cooperation_under_uncertainty_cases,
@@ -12,14 +15,15 @@ from synthetic_data.generators.cooperation_under_uncertainty_generator import (
 from synthetic_data.generators.correction_and_repair_generator import (
     generate_correction_and_repair_cases,
 )
-from synthetic_data.generators.proxy_vs_purpose_generator import generate_proxy_vs_purpose_cases
+from synthetic_data.generators.proxy_vs_purpose_generator import (
+    generate_proxy_vs_purpose_cases,
+)
 from synthetic_data.generators.rationale_faithfulness_generator import (
     generate_rationale_faithfulness_cases,
 )
 from synthetic_data.generators.semantic_laundering_chain_generator import (
     generate_semantic_laundering_chain_cases,
 )
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -143,4 +147,3 @@ def test_schema_json_files_parse() -> None:
         schema = json.loads(path.read_text(encoding="utf-8"))
         assert schema["$schema"] == "http://json-schema.org/draft-07/schema#"
         assert schema["type"] == "object"
-
