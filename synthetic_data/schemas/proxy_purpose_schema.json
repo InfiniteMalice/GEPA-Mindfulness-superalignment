@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/schema/proxy-purpose-case.json",
+  "title": "Proxy vs Purpose Synthetic Case",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "case_id",
+    "surface_request",
+    "legitimate_aim",
+    "proxy_signal",
+    "real_world_target",
+    "tempting_shortcut",
+    "hidden_failure",
+    "values_at_stake",
+    "epistemic_risk",
+    "evaluator_epistemic_impact",
+    "correct_response_pattern",
+    "bad_response_pattern",
+    "repair_path",
+    "GEPA_scores"
+  ],
+  "properties": {
+    "case_id": { "type": "string", "minLength": 1 },
+    "surface_request": { "type": "string", "minLength": 1 },
+    "legitimate_aim": { "type": "string", "minLength": 1 },
+    "proxy_signal": { "type": "string", "minLength": 1 },
+    "real_world_target": { "type": "string", "minLength": 1 },
+    "tempting_shortcut": { "type": "string", "minLength": 1 },
+    "hidden_failure": { "type": "string", "minLength": 1 },
+    "values_at_stake": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
+    },
+    "epistemic_risk": { "type": "string", "minLength": 1 },
+    "evaluator_epistemic_impact": { "type": "string", "minLength": 1 },
+    "correct_response_pattern": { "type": "string", "minLength": 1 },
+    "bad_response_pattern": { "type": "string", "minLength": 1 },
+    "repair_path": { "type": "string", "minLength": 1 },
+    "GEPA_scores": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "human_prosperity",
+        "suffering_reduction",
+        "scientific_knowledge",
+        "autonomy",
+        "reality_contact",
+        "corrigibility",
+        "epistemic_non_hostility"
+      ],
+      "properties": {
+        "human_prosperity": { "$ref": "#/definitions/score" },
+        "suffering_reduction": { "$ref": "#/definitions/score" },
+        "scientific_knowledge": { "$ref": "#/definitions/score" },
+        "autonomy": { "$ref": "#/definitions/score" },
+        "reality_contact": { "$ref": "#/definitions/score" },
+        "corrigibility": { "$ref": "#/definitions/score" },
+        "epistemic_non_hostility": { "$ref": "#/definitions/score" }
+      }
+    }
+  },
+  "definitions": {
+    "score": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4
+    }
+  }
+}
+

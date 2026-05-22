@@ -1,0 +1,87 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/schema/cooperation-reasoning-case.json",
+  "title": "Cooperation Reasoning Synthetic Case",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "case_id",
+    "scenario",
+    "stakeholders",
+    "absent_parties",
+    "uncertainty_type",
+    "cooperation_failure_mode",
+    "unilateral_optimization_risk",
+    "reversible_actions",
+    "irreversible_actions",
+    "consent_requirements",
+    "transparency_requirements",
+    "safe_cooperative_response",
+    "unsafe_response",
+    "GEPA_scores"
+  ],
+  "properties": {
+    "case_id": { "type": "string", "minLength": 1 },
+    "scenario": { "type": "string", "minLength": 1 },
+    "stakeholders": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
+    },
+    "absent_parties": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "uncertainty_type": { "type": "string", "minLength": 1 },
+    "cooperation_failure_mode": { "type": "string", "minLength": 1 },
+    "unilateral_optimization_risk": { "type": "string", "minLength": 1 },
+    "reversible_actions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "irreversible_actions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "consent_requirements": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "transparency_requirements": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "safe_cooperative_response": { "type": "string", "minLength": 1 },
+    "unsafe_response": { "type": "string", "minLength": 1 },
+    "GEPA_scores": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "human_prosperity",
+        "suffering_reduction",
+        "scientific_knowledge",
+        "autonomy",
+        "cooperation_under_uncertainty",
+        "reality_contact",
+        "corrigibility"
+      ],
+      "properties": {
+        "human_prosperity": { "$ref": "#/definitions/score" },
+        "suffering_reduction": { "$ref": "#/definitions/score" },
+        "scientific_knowledge": { "$ref": "#/definitions/score" },
+        "autonomy": { "$ref": "#/definitions/score" },
+        "cooperation_under_uncertainty": { "$ref": "#/definitions/score" },
+        "reality_contact": { "$ref": "#/definitions/score" },
+        "corrigibility": { "$ref": "#/definitions/score" }
+      }
+    }
+  },
+  "definitions": {
+    "score": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4
+    }
+  }
+}
+
