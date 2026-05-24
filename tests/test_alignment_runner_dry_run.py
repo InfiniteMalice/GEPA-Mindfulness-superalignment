@@ -83,9 +83,41 @@ def test_run_model_command_uses_no_shell_and_timeout(monkeypatch) -> None:
 
 def test_run_model_command_timeout_mentions_partial_output(monkeypatch) -> None:
     def fake_run(args, **kwargs):
-        raise subprocess.TimeoutExpired(args, 1, output="partial out", stderr="partial err")
+        raise subprocess.TimeoutExpired(
+            args,
+            1,
+            output="partial SECRET_TOKEN out",
+            stderr="partial SECRET_TOKEN err",
+        )
 
     monkeypatch.setattr(subprocess, "run", fake_run)
 
-    with pytest.raises(RuntimeError, match="timed out"):
-        _run_model_command("model --slow", "prompt", timeout_seconds=1)
+    with pytest.raises(RuntimeError, match="timed out") as exc_info:
+        _run_model_command("model --api-key SECRET_TOKEN --slow", "prompt", timeout_seconds=1)
+
+    message = str(exc_info.value)
+    assert "SECRET_TOKEN" not in message
+    assert "<redacted command" in message
+    assert "<redacted stdout" in message
+    assert "<redacted stderr" in message
+
+
+def test_run_model_command_failure_redacts_command_and_output(monkeypatch) -> None:
+    def fake_run(args, **kwargs):
+        return subprocess.CompletedProcess(
+            args,
+            2,
+            stdout="stdout SECRET_TOKEN",
+            stderr="stderr SECRET_TOKEN",
+        )
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError, match="exit code 2") as exc_info:
+        _run_model_command("model --api-key SECRET_TOKEN", "prompt", timeout_seconds=1)
+
+    message = str(exc_info.value)
+    assert "SECRET_TOKEN" not in message
+    assert "<redacted command" in message
+    assert "<redacted stdout" in message
+    assert "<redacted stderr" in message

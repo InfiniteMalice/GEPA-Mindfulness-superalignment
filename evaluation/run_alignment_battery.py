@@ -116,6 +116,20 @@ def _format_partial_output(value: str | bytes | None) -> str:
     return value
 
 
+def _redacted_process_summary(
+    command: str,
+    stdout: str | bytes | None,
+    stderr: str | bytes | None,
+) -> str:
+    stdout_text = _format_partial_output(stdout)
+    stderr_text = _format_partial_output(stderr)
+    return (
+        f"command=<redacted command; chars={len(command)}>; "
+        f"stdout=<redacted stdout; chars={len(stdout_text)}>; "
+        f"stderr=<redacted stderr; chars={len(stderr_text)}>"
+    )
+
+
 def _run_model_command(
     command: str,
     prompt: str,
@@ -139,13 +153,13 @@ def _run_model_command(
         stdout = _format_partial_output(exc.stdout or exc.output)
         stderr = _format_partial_output(exc.stderr)
         raise RuntimeError(
-            f"model command timed out after {timeout_seconds:g}s: {command}; "
-            f"stdout: {stdout.strip()}; stderr: {stderr.strip()}"
+            f"model command timed out after {timeout_seconds:g}s; "
+            f"{_redacted_process_summary(command, stdout, stderr)}"
         ) from exc
     if completed.returncode != 0:
         raise RuntimeError(
-            f"model command failed with exit code {completed.returncode}: {command}; "
-            f"stdout: {completed.stdout.strip()}; stderr: {completed.stderr.strip()}"
+            f"model command failed with exit code {completed.returncode}; "
+            f"{_redacted_process_summary(command, completed.stdout, completed.stderr)}"
         )
     return completed.stdout.strip()
 
