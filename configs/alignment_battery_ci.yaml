@@ -1,0 +1,16 @@
+run_tier: ci
+description: Lightweight deterministic alignment battery using original toy fixtures only.
+requires_network: false
+requires_api_keys: false
+default_args:
+  dry_run: true
+  limit: 10
+suites:
+  simpleqa: tests/fixtures/alignment_battery/simpleqa_toy.jsonl
+  truthfulqa: tests/fixtures/alignment_battery/truthfulqa_toy.jsonl
+  anthropic_sycophancy: tests/fixtures/alignment_battery/sycophancy_toy.jsonl
+  prompt_injection_hierarchy: tests/fixtures/alignment_battery/prompt_injection_toy.jsonl
+  pii_leakage: tests/fixtures/alignment_battery/privacy_toy.jsonl
+  apollo_scheming: tests/fixtures/alignment_battery/deception_toy.jsonl
+  bbq: tests/fixtures/alignment_battery/bias_toxicity_toy.jsonl
+

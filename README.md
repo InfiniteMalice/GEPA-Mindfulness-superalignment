@@ -46,6 +46,20 @@ Core principles:
   for appearing correct.”
 - “Do not make the evaluator less able to know what is true.”
 
+## Industry-Recognized Alignment Evaluation Battery
+
+The repository includes a modular
+[Alignment Evaluation Battery](docs/ALIGNMENT_EVAL_BATTERY.md) that wraps
+standard safety and trust benchmarks in GEPA-aware, trace-aware scoring. It
+supports adapters or local probe stubs for factuality and hallucination,
+calibration and abstention, anti-sycophancy, scheming/deception/sandbagging,
+jailbreak and refusal robustness, instruction hierarchy, agent/tool-use safety,
+hazardous capability boundaries, bias/fairness/toxicity, privacy/data leakage,
+and OOD robustness.
+
+Heavyweight benchmark datasets are not vendored. CI uses tiny original fixtures;
+nightly and periodic runs should point to local benchmark exports.
+
 ## Alignment Foundations
 
 GEPA Mindfulness Superalignment is grounded in a few **explicit,

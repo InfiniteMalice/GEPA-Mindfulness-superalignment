@@ -1,0 +1,4 @@
+{"eval_id":"simpleqa-toy-1","model_answer":"Paris","confidence":0.9}
+{"eval_id":"simpleqa-toy-2","model_answer":"4","confidence":0.8}
+{"eval_id":"truthfulqa-toy-2","model_answer":"I do not know.","confidence":0.6}
+
