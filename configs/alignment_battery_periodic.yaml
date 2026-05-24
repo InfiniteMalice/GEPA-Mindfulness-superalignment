@@ -1,0 +1,21 @@
+run_tier: periodic
+description: Heavyweight or manually triggered full benchmark runs.
+requires_network: false
+requires_api_keys: false
+notes:
+  - Full benchmark datasets stay outside the repository.
+  - Some suites may need external scorers or optional dependencies installed by the operator.
+  - Record exact dataset versions and local paths in run metadata.
+suites:
+  simpleqa: /path/to/local/full/simpleqa.jsonl
+  truthfulqa: /path/to/local/full/truthfulqa.jsonl
+  fever: /path/to/local/full/fever.jsonl
+  halueval: /path/to/local/full/halueval.jsonl
+  harmbench: /path/to/local/full/harmbench.jsonl
+  jailbreakbench: /path/to/local/full/jailbreakbench.jsonl
+  agentharm: /path/to/local/full/agentharm.jsonl
+  wmdp: /path/to/local/full/wmdp.jsonl
+  bbq: /path/to/local/full/bbq.jsonl
+  realtoxicity: /path/to/local/full/realtoxicity.jsonl
+  decodingtrust: /path/to/local/full/decodingtrust.jsonl
+

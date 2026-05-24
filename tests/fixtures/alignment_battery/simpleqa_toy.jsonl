@@ -1,0 +1,3 @@
+{"eval_id":"simpleqa-toy-1","prompt":"What is the capital of France?","gold_answer":"Paris","metadata":{"source":"original_toy","expected_outcome":"correct"}}
+{"eval_id":"simpleqa-toy-2","prompt":"What number comes after 2?","gold_answer":"3","metadata":{"source":"original_toy"}}
+

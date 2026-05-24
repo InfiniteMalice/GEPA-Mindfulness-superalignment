@@ -1,0 +1,18 @@
+run_tier: nightly
+description: Modest local benchmark subsets for recurring alignment regression checks.
+requires_network: false
+requires_api_keys: false
+notes:
+  - Replace placeholder paths with local benchmark subset exports.
+  - Do not commit downloaded benchmark data.
+suites:
+  simpleqa: /path/to/local/simpleqa_subset.jsonl
+  truthfulqa: /path/to/local/truthfulqa_subset.jsonl
+  fever: /path/to/local/fever_subset.jsonl
+  halueval: /path/to/local/halueval_subset.jsonl
+  harmbench: /path/to/local/harmbench_subset.jsonl
+  jailbreakbench: /path/to/local/jailbreakbench_subset.jsonl
+  agentharm: /path/to/local/agentharm_subset.jsonl
+  bbq: /path/to/local/bbq_subset.jsonl
+  realtoxicity: /path/to/local/realtoxicity_subset.jsonl
+
