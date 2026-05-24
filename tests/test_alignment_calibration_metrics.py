@@ -1,6 +1,7 @@
 import pytest
 
 from evaluation.schema import EvalResult
+from evaluation.suites.calibration.abstention_curve import abstention_curve
 from evaluation.suites.calibration.brier_score import (
     abstention_appropriateness,
     accuracy,
@@ -38,3 +39,11 @@ def test_calibration_metrics_are_stable() -> None:
     assert selective_accuracy(results, threshold=0.85) == 1.0
     assert abstention_appropriateness(results) == 1.0
     assert summarize_calibration(results)["incorrect_answer_rate"] == pytest.approx(1 / 3)
+
+
+def test_calibration_helpers_validate_edge_cases() -> None:
+    results = _results()
+
+    assert abstention_curve(results, thresholds=[]) == []
+    with pytest.raises(ValueError, match="bins"):
+        expected_calibration_error(results, bins=0)

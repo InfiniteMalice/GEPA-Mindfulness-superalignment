@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
+import shlex
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,8 @@ from evaluation.registry import STANDARD_CATEGORIES, get_suite_metadata, list_al
 from evaluation.schema import EvalCase, EvalResult, write_results_jsonl
 from evaluation.suites.calibration.brier_score import summarize_calibration
 from evaluation.suites.common import load_responses, score_response
+
+DEFAULT_MODEL_TIMEOUT_SECONDS = 60.0
 
 ADAPTER_MODULES: dict[str, str] = {
     "simpleqa": "evaluation.suites.factuality.simpleqa_adapter",
@@ -67,7 +70,7 @@ def _fixture_path(suite: str) -> Path | None:
     if not filename:
         return None
     path = _repo_root() / "tests" / "fixtures" / "alignment_battery" / filename
-    return path if path.exists() else None
+    return path if path.is_file() else None
 
 
 def _suite_names(args: argparse.Namespace) -> list[str]:
@@ -85,7 +88,10 @@ def _load_cases(suite: str, input_path: str | None, limit: int | None) -> list[E
     module = importlib.import_module(ADAPTER_MODULES[suite])
     path = input_path or _fixture_path(suite)
     if path is None:
-        return []
+        raise ValueError(
+            f"{suite} has no input dataset. Pass --input-path with a local JSONL file; "
+            "this repository does not download or vendor benchmark data."
+        )
     return module.load_examples(str(path), limit=limit)
 
 
@@ -102,17 +108,45 @@ def _planned_result(case: EvalCase) -> EvalResult:
     )
 
 
-def _run_model_command(command: str, prompt: str) -> str:
-    completed = subprocess.run(
-        command,
-        input=prompt,
-        text=True,
-        capture_output=True,
-        shell=True,
-        check=False,
-    )
+def _format_partial_output(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
+def _run_model_command(
+    command: str,
+    prompt: str,
+    *,
+    timeout_seconds: float = DEFAULT_MODEL_TIMEOUT_SECONDS,
+) -> str:
+    args = shlex.split(command)
+    if not args:
+        raise RuntimeError("model command is empty")
+    try:
+        completed = subprocess.run(
+            args,
+            input=prompt,
+            text=True,
+            capture_output=True,
+            shell=False,
+            check=False,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as exc:
+        stdout = _format_partial_output(exc.stdout or exc.output)
+        stderr = _format_partial_output(exc.stderr)
+        raise RuntimeError(
+            f"model command timed out after {timeout_seconds:g}s: {command}; "
+            f"stdout: {stdout.strip()}; stderr: {stderr.strip()}"
+        ) from exc
     if completed.returncode != 0:
-        raise RuntimeError(completed.stderr.strip() or f"model command failed: {command}")
+        raise RuntimeError(
+            f"model command failed with exit code {completed.returncode}: {command}; "
+            f"stdout: {completed.stdout.strip()}; stderr: {completed.stderr.strip()}"
+        )
     return completed.stdout.strip()
 
 
@@ -130,7 +164,11 @@ def run_battery(args: argparse.Namespace) -> tuple[list[EvalResult], dict[str, A
             response = responses.get(case.eval_id)
             if response is None and args.model_command:
                 response = {
-                    "model_answer": _run_model_command(args.model_command, case.prompt),
+                    "model_answer": _run_model_command(
+                        args.model_command,
+                        case.prompt,
+                        timeout_seconds=args.model_timeout,
+                    ),
                 }
             if response is None:
                 results.append(_planned_result(case))
@@ -199,6 +237,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--limit", type=int)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--model-command")
+    parser.add_argument("--model-timeout", type=float, default=DEFAULT_MODEL_TIMEOUT_SECONDS)
     parser.add_argument("--responses-path")
     parser.add_argument("--markdown-report", action="store_true")
     return parser

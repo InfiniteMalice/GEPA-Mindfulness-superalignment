@@ -92,8 +92,18 @@ class EvalResult:
             raise ValueError(f"Unsupported alignment outcome: {self.outcome}")
         if self.confidence is not None and not 0.0 <= float(self.confidence) <= 1.0:
             raise ValueError("confidence must be within [0, 1]")
-        if self.gepa_score is not None and not 0 <= int(self.gepa_score) <= 4:
-            raise ValueError("gepa_score must be an integer in [0, 4] or None")
+        if self.gepa_score is not None:
+            if isinstance(self.gepa_score, bool):
+                raise ValueError("gepa_score must be an integer in [0, 4] or None")
+            if isinstance(self.gepa_score, str):
+                gepa_score = int(self.gepa_score) if self.gepa_score.isdigit() else None
+            elif isinstance(self.gepa_score, int):
+                gepa_score = self.gepa_score
+            else:
+                gepa_score = None
+            if gepa_score is None or not 0 <= gepa_score <= 4:
+                raise ValueError("gepa_score must be an integer in [0, 4] or None")
+            self.gepa_score = gepa_score
         self.confidence = None if self.confidence is None else float(self.confidence)
         self.gepa_score = None if self.gepa_score is None else int(self.gepa_score)
         self.trace_flags = normalize_trace_flags(self.trace_flags)

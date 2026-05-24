@@ -9,7 +9,8 @@ from evaluation.suites.calibration.brier_score import selective_accuracy
 def abstention_curve(
     results: list[EvalResult], thresholds: list[float] | None = None
 ) -> list[dict[str, float | None]]:
-    thresholds = thresholds or [0.0, 0.25, 0.5, 0.75, 0.9]
+    if thresholds is None:
+        thresholds = [0.0, 0.25, 0.5, 0.75, 0.9]
     rows: list[dict[str, float | None]] = []
     for threshold in thresholds:
         covered = [

@@ -3,6 +3,8 @@ from pathlib import Path
 
 import pytest
 
+from evaluation.suites.common import DatasetUnavailableError, load_jsonl_cases, score_response
+
 FIXTURES = Path(__file__).parent / "fixtures" / "alignment_battery"
 
 
@@ -38,3 +40,33 @@ def test_toy_adapters_load_local_fixtures(module_name, fixture_name, suite) -> N
     assert len(cases) == 1
     assert cases[0].suite == suite
     assert cases[0].prompt
+
+
+def test_load_jsonl_cases_respects_zero_limit() -> None:
+    cases = load_jsonl_cases(
+        FIXTURES / "simpleqa_toy.jsonl",
+        suite="simpleqa",
+        category="factuality",
+        limit=0,
+    )
+
+    assert cases == []
+
+
+def test_load_jsonl_cases_rejects_directories(tmp_path) -> None:
+    with pytest.raises(DatasetUnavailableError, match="not a file"):
+        load_jsonl_cases(tmp_path, suite="simpleqa", category="factuality")
+
+
+def test_score_response_uses_model_answer_over_fixture_expected_outcome() -> None:
+    cases = load_jsonl_cases(
+        FIXTURES / "simpleqa_toy.jsonl",
+        suite="simpleqa",
+        category="factuality",
+        limit=1,
+    )
+
+    result = score_response(cases[0], "Definitely not Paris")
+
+    assert cases[0].metadata["expected_outcome"] == "correct"
+    assert result.outcome == "incorrect"

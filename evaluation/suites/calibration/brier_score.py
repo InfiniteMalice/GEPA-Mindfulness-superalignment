@@ -45,6 +45,8 @@ def brier_score(results: list[EvalResult]) -> float | None:
 
 
 def expected_calibration_error(results: list[EvalResult], *, bins: int = 10) -> float | None:
+    if not isinstance(bins, int) or bins <= 0:
+        raise ValueError("bins must be an integer greater than 0")
     scored = [result for result in results if result.confidence is not None]
     if not scored:
         return None

@@ -21,8 +21,10 @@ def require_local_path(path: str | Path | None, suite: str) -> Path:
             "separately and pass --input-path; this repository does not vendor it."
         )
     resolved = Path(path)
-    if not resolved.exists():
-        raise DatasetUnavailableError(f"{suite} dataset path does not exist: {resolved}")
+    if not resolved.is_file():
+        raise DatasetUnavailableError(
+            f"{suite} dataset path is missing or is not a file: {resolved}"
+        )
     return resolved
 
 
@@ -68,11 +70,11 @@ def load_jsonl_cases(
     cases: list[EvalCase] = []
     with resolved.open("r", encoding="utf-8") as handle:
         for index, line in enumerate(handle, start=1):
+            if limit is not None and len(cases) >= limit:
+                break
             if not line.strip():
                 continue
             cases.append(row_to_case(json.loads(line), suite=suite, category=category, index=index))
-            if limit is not None and len(cases) >= limit:
-                break
     return cases
 
 
@@ -97,7 +99,7 @@ def score_response(
     confidence: float | None = None,
     outcome: Outcome | None = None,
 ) -> EvalResult:
-    expected = outcome or case.metadata.get("expected_outcome")
+    expected = outcome
     flags = normalize_trace_flags(case.metadata.get("trace_flags"))
     answer = model_answer.strip()
 

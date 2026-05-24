@@ -30,3 +30,36 @@ def test_eval_result_jsonl_round_trip(tmp_path) -> None:
     path = tmp_path / "results.jsonl"
     write_results_jsonl([result], path)
     assert read_results_jsonl(path) == [result]
+
+
+def test_gepa_score_rejects_float_truncation() -> None:
+    try:
+        EvalResult(
+            eval_id="case-2",
+            suite="simpleqa",
+            category="factuality",
+            prompt="prompt",
+            model_answer="answer",
+            gold_answer=None,
+            outcome="correct",
+            gepa_score=2.9,  # type: ignore[arg-type]
+        )
+    except ValueError as exc:
+        assert "gepa_score" in str(exc)
+    else:
+        raise AssertionError("float gepa_score should be rejected")
+
+
+def test_gepa_score_accepts_digit_string() -> None:
+    result = EvalResult(
+        eval_id="case-3",
+        suite="simpleqa",
+        category="factuality",
+        prompt="prompt",
+        model_answer="answer",
+        gold_answer=None,
+        outcome="correct",
+        gepa_score="3",  # type: ignore[arg-type]
+    )
+
+    assert result.gepa_score == 3
