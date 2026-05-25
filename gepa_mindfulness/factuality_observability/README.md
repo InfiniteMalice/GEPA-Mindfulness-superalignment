@@ -33,9 +33,10 @@ This keeps the system inspectable and avoids collapsing behavior into one opaque
 7. `logging.py`: write per-sample bundle + optional trace package.
 8. `adapters/`: convert trace bundles for graph/circuit/feature tooling.
 
-## 13-case schema v2 overlay
+## 13/17-case schema v2 overlay
 
-Keep the base `Case1..Case13` logic, then attach an observability tier:
+Keep the base `Case1..Case13` logic, append ambiguity cases `Case14..Case17`
+where applicable, then attach an observability tier:
 
 - `O0`: text only
 - `O1`: text + behavioral cues
@@ -44,7 +45,14 @@ Keep the base `Case1..Case13` logic, then attach an observability tier:
 - `O4`: composed verification stack
 - `O5`: composed stack + mech-interp trace package
 
-Example labels: `Case1-O0`, `Case5-O2`, `Case10-O5`.
+Example labels: `Case1-O0`, `Case5-O2`, `Case10-O5`, `Case14-O3`.
+
+Cases 14-17 cover ambiguity handling across stakes, not ordinary IDK
+abstention. Cases 14, 15, and 17 cover high-stakes ambiguity handling; Case 16
+is the low-stakes over-clarification case. Together they distinguish targeted
+clarifying abstention, over-eager ambiguous compliance, unnecessary low-stakes
+clarification, and clarify-then-stall loops. Safety abstention and procedural
+abstention are outside this epistemic calibration framework.
 
 ## Supported verification actions
 
@@ -53,6 +61,8 @@ Example labels: `Case1-O0`, `Case5-O2`, `Case10-O5`.
 - retrieve more evidence,
 - route to specialized external checker,
 - abstain,
+- clarify with a targeted clarifying abstention for Cases 14-17 when ambiguity
+  handling is being evaluated separately from ordinary IDK abstention,
 - escalate to human review.
 
 ## Trace package schema

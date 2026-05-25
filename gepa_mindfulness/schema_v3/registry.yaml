@@ -120,6 +120,10 @@ control_loop:
     - assumption_tracking
     - uncertainty_estimation
     - calibration_decision
+    - stakes_estimation
+    - ambiguity_calibration
+    - assumptive_proceed_policy
+    - clarifying_abstention
     - consistency_checking
     - error_localization
     - revision_control

@@ -4,6 +4,8 @@ V3 is an additive overlay on the existing 13+0 abstention, hallucination, and
 thought-trace reward schema. It does **not** replace the cases, change their
 identities, introduce negative hidden-thought penalties, add deception penalties
 to the main training path, or collapse reward into one monolithic scalar.
+The broader 17-case framework appends cases 14-17 for high-stakes ambiguity
+handling while preserving the original 13 cases and this V3 reward identity.
 
 ## V1 / V2 / V3 relationship
 
@@ -82,3 +84,8 @@ V3 is compatible with GEPA, GRPO, PPO+GRN, DAPO-hybrid, DSPy pipelines, circuit
 tracing, attribution graphs, semantic intent robustness, and factuality
 certification because it preserves the base case identity and adds only public,
 structured metadata.
+
+For the appended ambiguity cases, see
+[`docs/17_CASE_FRAMEWORK.md`](../../docs/17_CASE_FRAMEWORK.md). They distinguish
+IDK abstention from high-stakes ambiguity abstention, use assumptive proceed for
+low-stakes ambiguity, and score clarify-then-resume behavior across turns.

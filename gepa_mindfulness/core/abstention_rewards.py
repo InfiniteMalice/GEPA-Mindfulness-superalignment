@@ -1,4 +1,4 @@
-"""Honesty-aware abstention reward scheme with 13 cases plus a fallback."""
+"""Honesty-aware base reward scheme for preserved cases 1-13 plus fallback."""
 
 from __future__ import annotations
 
@@ -46,7 +46,8 @@ class AbstentionReward:
 
     Attributes:
         total: Sum of all component rewards.
-        case_id: Reward case identifier (0-13).
+        case_id: Base reward case identifier (0-13). Appended ambiguity cases
+            14-17 are defined in clarifying_abstention.py.
         components: Breakdown by category (knowledge, abstention, calibration, thought).
         thought_align: Whether reasoning was epistemically grounded.
         is_correct: Whether response matched reference answers.
@@ -112,7 +113,7 @@ def compute_abstention_reward(
     threshold: float,
     weights: AbstentionRewardWeights | None = None,
 ) -> AbstentionReward:
-    """Classify a response into 13 reward cases and compute component scores.
+    """Classify a response into preserved cases 1-13 and compute components.
 
     Args:
         response: Model output to score.

@@ -4,6 +4,17 @@ This directory contains project documentation for GEPA Mindfulness Superalignmen
 including alignment foundations, training notes, execution guides, and research
 background for the repository.
 
+## 17-Case Framework
+
+The detailed
+[17-case epistemic calibration and high-stakes ambiguity handling framework](17_CASE_FRAMEWORK.md)
+preserves the original 13-case IDK abstention schema and appends four
+clarifying-abstention cases. Use it with the
+[stakes and ambiguity calibration rubric](../rubrics/stakes_ambiguity_calibration_rubric.md)
+when evaluating assumptive proceed, high-stakes ambiguity abstention,
+calibrated stakes estimation, category of impact, and multi-turn clarification
+behavior.
+
 ## GEPA Mindfulness Constitution
 
 The canonical constitution is

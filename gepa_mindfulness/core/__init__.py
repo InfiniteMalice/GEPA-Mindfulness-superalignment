@@ -12,6 +12,16 @@ from .abstention_rewards import (
     compute_abstention_reward,
     is_abstention_response,
 )
+from .clarifying_abstention import (
+    APPENDED_AMBIGUITY_CASES,
+    FRAMEWORK_CASE_IDS,
+    ORIGINAL_CASE_IDS,
+    AbstentionType,
+    AmbiguityHandlingMode,
+    FrameworkCaseDefinition,
+    StakesDimension,
+    score_ambiguity_handling,
+)
 from .contemplative_principles import (
     ContemplativePrinciple,
     GEPAPrinciples,
@@ -69,21 +79,28 @@ def __getattr__(name: str) -> Any:
 
 __all__ = [
     "ABSTAIN_OUTPUT",
+    "APPENDED_AMBIGUITY_CASES",
     "AbstentionReward",
     "AbstentionRewardWeights",
+    "AbstentionType",
     "AlignmentImperative",
     "AdversarialScenario",
+    "AmbiguityHandlingMode",
     "CircuitTracerLogger",
     "ConfidenceDecision",
     "ContemplativePrinciple",
     "DualPathProbeScenario",
+    "FRAMEWORK_CASE_IDS",
+    "FrameworkCaseDefinition",
     "GEPAPrincipleScore",
     "GEPAPrinciples",
     "ImperativeEvaluator",
     "ImperativeSignal",
+    "ORIGINAL_CASE_IDS",
     "ParaconsistentTruthValue",
     "RewardSignal",
     "RewardWeights",
+    "StakesDimension",
     "ThoughtTrace",
     "TraceEvent",
     "classify_thought_alignment",
@@ -97,4 +114,5 @@ __all__ = [
     "iterate_dual_path_pool",
     "sample_adversarial_batch",
     "sample_dual_path_batch",
+    "score_ambiguity_handling",
 ]
