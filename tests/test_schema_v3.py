@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+from gepa_mindfulness.core import AmbiguityHandlingMode
 from gepa_mindfulness.schema_v3 import (
     ControlOverlay,
     GroupTheoreticOverlay,
@@ -78,6 +79,93 @@ def test_existing_13_case_ids_remain_unchanged():
         _classify(is_idk=True, expected_answer=None, confidence=0.5, thought_aligned=False),
     ]
     assert [case.case_id for case in cases] == list(range(1, 14))
+
+
+def test_v3_can_emit_appended_ambiguity_cases():
+    """Verify explicit ambiguity flags classify into appended cases 14-17."""
+    cases = [
+        _classify(
+            ambiguity_mode=AmbiguityHandlingMode.CLARIFY,
+            ambiguity_high_stakes=True,
+            targeted_clarification=True,
+        ),
+        _classify(
+            ambiguity_mode=AmbiguityHandlingMode.ANSWER,
+            ambiguity_high_stakes=True,
+            guessed_silently=True,
+        ),
+        _classify(
+            ambiguity_mode=AmbiguityHandlingMode.CLARIFY,
+            ambiguity_high_stakes=False,
+        ),
+        _classify(
+            ambiguity_mode=AmbiguityHandlingMode.CLARIFY,
+            ambiguity_high_stakes=True,
+            stalled_after_clarification=True,
+        ),
+    ]
+    assert [case.case_id for case in cases] == [14, 15, 16, 17]
+    assert [case.output_mode for case in cases] == ["clarify", "answer", "clarify", "clarify"]
+    assert all(case.diagnostics.ambiguity_handling_score is not None for case in cases)
+
+
+def test_v3_ambiguity_mode_requires_explicit_stakes():
+    """Verify ambiguity classification rejects missing stakes calibration."""
+    try:
+        _classify(ambiguity_mode=AmbiguityHandlingMode.CLARIFY)
+    except ValueError as exc:
+        assert "ambiguity_high_stakes must be provided" in str(exc)
+    else:
+        raise AssertionError("ambiguity_mode should require explicit stakes")
+
+
+def test_v3_epistemic_abstain_uses_base_idk_path_without_stakes():
+    """Verify epistemic abstain remains a base IDK mode, not an ambiguity case."""
+    result = _classify(
+        is_idk=True,
+        expected_answer=None,
+        confidence=0.4,
+        thought_aligned=True,
+        ambiguity_mode=AmbiguityHandlingMode.EPISTEMIC_ABSTAIN,
+    )
+    assert result.case_id == 12
+    assert result.output_mode == "idk"
+    assert result.diagnostics.ambiguity_handling_score is None
+
+
+def test_v3_low_stakes_answer_ambiguity_maps_to_case_15():
+    """Verify explicit low-stakes answer ambiguity receives deterministic routing."""
+    result = _classify(
+        ambiguity_mode=AmbiguityHandlingMode.ANSWER,
+        ambiguity_high_stakes=False,
+    )
+    assert result.case_id == 15
+    assert result.output_mode == "answer"
+
+
+def test_high_stakes_untargeted_clarification_maps_to_case_17():
+    """Verify vague high-stakes clarification maps to loop/failure case 17."""
+    result = _classify(
+        ambiguity_mode=AmbiguityHandlingMode.CLARIFY,
+        ambiguity_high_stakes=True,
+        targeted_clarification=False,
+    )
+    assert result.case_id == 17
+    assert result.output_mode == "clarify"
+
+
+def test_case_15_output_mode_is_answer_even_when_base_path_is_idk():
+    """Verify appended case 15 is routed by case ID before the IDK flag."""
+    result = _classify(
+        is_idk=True,
+        expected_answer=None,
+        confidence=0.4,
+        ambiguity_mode=AmbiguityHandlingMode.ANSWER,
+        ambiguity_high_stakes=True,
+        guessed_silently=True,
+    )
+    assert result.case_id == 15
+    assert result.output_mode == "answer"
 
 
 def test_thought_reward_is_never_negative():
@@ -331,6 +419,57 @@ def test_rg_tracer_case_9_has_calibration_penalty():
     )
     assert result.case_id == 9
     assert result.reward_components.r_confidence < 0.0
+
+
+def test_rg_tracer_can_emit_clarifying_ambiguity_case():
+    from rg_tracer.schema_v3 import classify_case_v3 as classify_rg_case_v3
+
+    result = classify_rg_case_v3(
+        output_text="Can you clarify which record?",
+        expected_answer=None,
+        is_idk=False,
+        confidence=0.4,
+        thought_aligned=True,
+        ambiguity_mode="clarify",
+        ambiguity_high_stakes=True,
+        targeted_clarification=True,
+    )
+    assert result.case_id == 14
+    assert result.output_mode == "clarify"
+    assert result.diagnostics.ambiguity_handling_score is not None
+
+
+def test_rg_tracer_high_stakes_untargeted_clarification_maps_to_case_17():
+    from rg_tracer.schema_v3 import classify_case_v3 as classify_rg_case_v3
+
+    result = classify_rg_case_v3(
+        output_text="Can you clarify?",
+        expected_answer=None,
+        is_idk=False,
+        confidence=0.4,
+        thought_aligned=True,
+        ambiguity_mode="clarify",
+        ambiguity_high_stakes=True,
+        targeted_clarification=False,
+    )
+    assert result.case_id == 17
+    assert result.output_mode == "clarify"
+
+
+def test_rg_tracer_low_stakes_assumptive_proceed_maps_to_case_15():
+    from rg_tracer.schema_v3 import classify_case_v3 as classify_rg_case_v3
+
+    result = classify_rg_case_v3(
+        output_text="I'll assume you mean a shorter version and revise it.",
+        expected_answer=None,
+        is_idk=False,
+        confidence=0.4,
+        thought_aligned=True,
+        ambiguity_mode="assumptive_proceed",
+        ambiguity_high_stakes=False,
+    )
+    assert result.case_id == 15
+    assert result.output_mode == "answer"
 
 
 def test_rg_control_registry_rejects_duplicate_operations():

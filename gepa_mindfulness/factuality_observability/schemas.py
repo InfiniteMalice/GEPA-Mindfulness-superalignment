@@ -1,4 +1,4 @@
-"""Schemas for 13-case v2 observability overlay and diagnostics."""
+"""Schemas for 13-case v2 observability overlay and 17-case diagnostics."""
 
 from __future__ import annotations
 
@@ -55,6 +55,7 @@ class RecommendedAction(str, Enum):
     RETRIEVE_MORE = "retrieve_more"
     ROUTE_EXTERNAL = "route_to_external_checker"
     ABSTAIN = "abstain"
+    CLARIFY = "clarify"
     ESCALATE = "escalate_to_human"
 
 
@@ -168,7 +169,7 @@ class AtomicFactRecord:
 
 @dataclass(slots=True)
 class CaseOverlayV2:
-    """Overlay fields that extend each 13-case label into case-v2 space."""
+    """Overlay fields that extend each 13/17-case label into case-v2 space."""
 
     base_case_label: int
     observability_tier: ObservabilityTier = ObservabilityTier.O0
@@ -192,14 +193,15 @@ class CaseOverlayV2:
     guessing_pressure_profile: str = "unknown"
 
     def __post_init__(self) -> None:
-        if not isinstance(self.base_case_label, int):
+        if type(self.base_case_label) is not int:
             raise TypeError(
-                "CaseOverlayV2 base_case_label must be int for valid final_case_overlay "
+                "CaseOverlayV2 base_case_label must be int, not bool or non-int, "
+                "for valid final_case_overlay "
                 f"(got {type(self.base_case_label).__name__})"
             )
-        if not 0 <= self.base_case_label <= 13:
+        if not 0 <= self.base_case_label <= 17:
             raise ValueError(
-                "CaseOverlayV2 base_case_label must be an integer in range 0..13 "
+                "CaseOverlayV2 base_case_label must be an integer in range 0..17 "
                 f"(got {self.base_case_label})"
             )
 

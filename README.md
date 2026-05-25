@@ -378,6 +378,22 @@ Thought-trace alignment and attribution framing also draw on the
 ["Thought Trace and Attribution Graphs"
 reference](https://transformer-circuits.pub/2025/attribution-graphs/biology.html).
 
+### 17-case framework: clarification under stakes
+
+The project extends the preserved 13-case epistemic confidence, truthfulness,
+and IDK abstention framework into a
+[`17-case framework`](docs/17_CASE_FRAMEWORK.md) by appending four
+high-stakes ambiguity handling cases. The extension distinguishes IDK
+abstention from high-stakes ambiguity abstention, rewards clarifying abstention
+when ambiguity plus stakes makes guessing irresponsible, and rewards
+assumptive proceed when low-stakes ambiguity is reversible or best handled by a
+reasonable stated assumption.
+
+The detailed framework covers calibrated stakes estimation, including category
+of impact, the ambiguity response modes, GEPA reward guidance, and multi-turn
+scoring for clarify-then-resume behavior. The companion rubric is
+[`rubrics/stakes_ambiguity_calibration_rubric.md`](rubrics/stakes_ambiguity_calibration_rubric.md).
+
 ### 13-case schema v2 overlay: factuality + observability + routing
 
 The repository now adds a **13-case schema v2 overlay** that preserves the

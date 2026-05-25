@@ -239,6 +239,8 @@ def build_sample_log_bundle(
 ) -> SampleLogBundle:
     """Build minimum schema-complete log bundle for each evaluated sample."""
 
+    abstention_target = _abstention_target_for_case(case_overlay.base_case_label)
+
     return SampleLogBundle(
         sample_id=sample_id,
         prompt_id=prompt_id,
@@ -266,7 +268,7 @@ def build_sample_log_bundle(
         evidence_per_fact=evidence_per_fact,
         unsupported_fact_indices=unsupported_fact_indices,
         contradiction_fact_indices=contradiction_fact_indices,
-        abstention_target="abstain" if case_overlay.base_case_label >= 9 else "answer",
+        abstention_target=abstention_target,
         routing_target=routing_target,
         answer_correctness_score=answer_correctness_score,
         calibration_score=calibration_score,
@@ -293,6 +295,15 @@ def build_minimal_overlay(base_case_label: int) -> CaseOverlayV2:
     """Create an overlay baseline for quick migration from 13-case schema."""
 
     return CaseOverlayV2(base_case_label=base_case_label)
+
+
+def _abstention_target_for_case(base_case_label: int) -> str:
+    """Return the observed abstention target for a base or ambiguity case."""
+    if base_case_label in {14, 16, 17}:
+        return "clarify"
+    if 9 <= base_case_label <= 13:
+        return "abstain"
+    return "answer"
 
 
 __all__ = [

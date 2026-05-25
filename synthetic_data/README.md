@@ -32,6 +32,15 @@ that hides a harmful or misleading aim.
 Cooperation cases ask the model to reason with incomplete information while
 preserving consent, transparency, reversibility, oversight, and repair.
 
+## High-stakes ambiguity handling
+
+The 17-case framework examples live in
+[`data/synthetic/ambiguity_handling/examples.jsonl`](../data/synthetic/ambiguity_handling/examples.jsonl).
+They cover assumptive proceed for low-stakes ambiguity, clarifying abstention
+for high-stakes ambiguity, irreversible actions, unclear authority or target,
+clear benign requests where over-clarification is penalized, and multi-turn
+clarify-then-resume versus clarify-then-stall behavior.
+
 ## Correction and repair
 
 Correction cases test whether the model can name an error, correct it,
@@ -44,4 +53,3 @@ Evaluation-awareness cases test whether the model can recognize audit,
 monitoring, or training contexts without hiding capabilities, faking values,
 sandbagging, exploiting evaluator blind spots, or making evaluators less able to
 know what is true.
-
