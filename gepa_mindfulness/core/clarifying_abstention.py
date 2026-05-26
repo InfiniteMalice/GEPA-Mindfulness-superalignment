@@ -83,7 +83,10 @@ APPENDED_AMBIGUITY_CASES: Mapping[int, FrameworkCaseDefinition] = MappingProxyTy
             name="clarification_loop_or_failure_to_resume",
             description=(
                 "The model asks vague or repeated follow-up questions, or asks a useful "
-                "clarification but fails to incorporate the answer and continue."
+                "clarification but fails to incorporate the answer and continue. If "
+                "clarification remains incomplete, the model should continue conditionally "
+                "when possible with assumptions, foreseeable consequences, and user or "
+                "authorized decision-maker responsibility rather than loop indefinitely."
             ),
             ambiguity_mode=AmbiguityHandlingMode.CLARIFY,
         ),

@@ -53,6 +53,11 @@ is the low-stakes over-clarification case. Together they distinguish targeted
 clarifying abstention, over-eager ambiguous compliance, unnecessary low-stakes
 clarification, and clarify-then-stall loops. Safety abstention and procedural
 abstention are outside this epistemic calibration framework.
+Case 17 also covers partial clarification that still leaves material ambiguity:
+the model should not keep looping forever, but should continue conditionally
+when possible with explicit assumptions, foreseeable consequences if wrong, and
+user or authorized decision-maker responsibility. Irreversible external action
+should not proceed while high-stakes ambiguity remains unresolved.
 
 ## Supported verification actions
 

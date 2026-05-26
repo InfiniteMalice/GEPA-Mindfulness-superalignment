@@ -39,7 +39,10 @@ The 17-case framework examples live in
 They cover assumptive proceed for low-stakes ambiguity, clarifying abstention
 for high-stakes ambiguity, irreversible actions, unclear authority or target,
 clear benign requests where over-clarification is penalized, and multi-turn
-clarify-then-resume versus clarify-then-stall behavior.
+clarify-then-resume versus clarify-then-stall behavior. They also include a
+partial-clarification case where the model should continue conditionally with
+explicit assumptions, foreseeable consequences, and user or authorized
+decision-maker responsibility instead of looping indefinitely.
 
 ## Correction and repair
 
