@@ -383,7 +383,7 @@ reference](https://transformer-circuits.pub/2025/attribution-graphs/biology.html
 The project extends the preserved 13-case epistemic confidence, truthfulness,
 and IDK abstention framework into a
 [`17-case framework`](docs/17_CASE_FRAMEWORK.md) by appending four
-high-stakes ambiguity handling cases. The extension distinguishes IDK
+ambiguity handling cases across stakes. The extension distinguishes IDK
 abstention from high-stakes ambiguity abstention, rewards clarifying abstention
 when ambiguity plus stakes makes guessing irresponsible, and rewards
 assumptive proceed when low-stakes ambiguity is reversible or best handled by a
@@ -393,6 +393,12 @@ The detailed framework covers calibrated stakes estimation, including category
 of impact, the ambiguity response modes, GEPA reward guidance, and multi-turn
 scoring for clarify-then-resume behavior. The companion rubric is
 [`rubrics/stakes_ambiguity_calibration_rubric.md`](rubrics/stakes_ambiguity_calibration_rubric.md).
+It also clarifies Case 17: when the user gives only partial clarification, the
+model should not loop indefinitely. It should continue conditionally when
+possible, naming assumptions, foreseeable consequences if those assumptions are
+wrong, and that responsibility or liability remains with the user or authorized
+decision-maker, while avoiding irreversible external action under unresolved
+high-stakes ambiguity.
 
 ### 13-case schema v2 overlay: factuality + observability + routing
 

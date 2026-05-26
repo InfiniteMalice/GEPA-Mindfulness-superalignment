@@ -146,6 +146,8 @@ def test_docs_distinguish_abstention_modes_and_exclusions() -> None:
     assert "assumptive proceed" in doc
     assert "clarifying abstention" in doc
     assert "context-sensitive agency under uncertainty" in doc
+    assert "responsibility or liability remains" in doc
+    assert "authorized decision-maker" in doc
 
 
 def test_only_two_framework_abstention_modes_are_defined() -> None:
@@ -228,6 +230,7 @@ def test_synthetic_ambiguity_examples_schema_validates() -> None:
         "ambiguous_high_stakes_over_eager_guessing",
         "clear_benign_request",
         "multi_turn_clarify_then_resume",
+        "multi_turn_partial_clarification",
         "multi_turn_failure_loop_or_ignore",
     }
     allowed_dimensions = {item.value for item in StakesDimension}
@@ -253,6 +256,7 @@ def test_synthetic_ambiguity_examples_schema_validates() -> None:
             "assumptive_proceed",
             "clarify",
             "clarify_then_resume",
+            "conditional_proceed_with_caveats",
             "avoid_loop_resume",
         }
         assert set(row["stakes_dimensions"]).issubset(allowed_dimensions)
