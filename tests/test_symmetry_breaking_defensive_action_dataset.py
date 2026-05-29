@@ -6,10 +6,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 DATASET_PATH = (
-    ROOT
-    / "synthetic_data"
-    / "moral_reasoning"
-    / "symmetry_breaking_defensive_action.jsonl"
+    ROOT / "synthetic_data" / "moral_reasoning" / "symmetry_breaking_defensive_action.jsonl"
 )
 
 REQUIRED_FIELDS = {
@@ -100,7 +97,6 @@ def test_symmetry_breaking_dataset_covers_core_distinctions() -> None:
     assert any(item["requires_clarification"] for item in labels)
     assert any(item["symmetry_broken"] and not item["force_valid"] for item in labels)
     nondefensive_symmetry = [
-        not item["symmetry_broken"] and not item["defensive_action_valid"]
-        for item in labels
+        not item["symmetry_broken"] and not item["defensive_action_valid"] for item in labels
     ]
     assert any(nondefensive_symmetry)
