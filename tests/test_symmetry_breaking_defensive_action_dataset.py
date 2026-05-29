@@ -99,4 +99,8 @@ def test_symmetry_breaking_dataset_covers_core_distinctions() -> None:
     assert any(item["force_valid"] for item in labels)
     assert any(item["requires_clarification"] for item in labels)
     assert any(item["symmetry_broken"] and not item["force_valid"] for item in labels)
-    assert any(not item["symmetry_broken"] and not item["defensive_action_valid"] for item in labels)
+    nondefensive_symmetry = [
+        not item["symmetry_broken"] and not item["defensive_action_valid"]
+        for item in labels
+    ]
+    assert any(nondefensive_symmetry)
