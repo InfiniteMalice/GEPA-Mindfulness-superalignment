@@ -44,6 +44,17 @@ partial-clarification case where the model should continue conditionally with
 explicit assumptions, foreseeable consequences, and user or authorized
 decision-maker responsibility instead of looping indefinitely.
 
+### Symmetry-Breaking Defensive Reasoning
+
+The examples in
+[`synthetic_data/moral_reasoning/symmetry_breaking_defensive_action.jsonl`](moral_reasoning/symmetry_breaking_defensive_action.jsonl)
+train models to avoid both passive pacifism and retaliatory escalation. They
+teach that violence and deception are normally discouraged, but defensive
+deception and defensive force may be morally valid when cooperative symmetry has
+been broken by imminent unjust harm. The model should prefer least-harmful
+effective intervention, preserve victim agency, refuse to assist aggressors, and
+stop once the threat ends.
+
 ## Correction and repair
 
 Correction cases test whether the model can name an error, correct it,

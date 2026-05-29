@@ -203,6 +203,7 @@ examples/                         Thin wrappers and sample traces
 scripts/                          End-to-end helpers and analyses
 datasets/, gepa_datasets/         Bundled evaluation and training corpora
 data/synthetic/                   Synthetic dataset schemas, gold cases, and prompts
+synthetic_data/                   Lightweight targeted alignment and moral-reasoning seeds
 modules/                          Specialized alignment modules
 notebooks/                        Unsloth/PEFT fine-tuning notebooks
 rubrics/                          Calibration and evaluation rubrics
@@ -395,6 +396,7 @@ It supports:
 * temporal and diffuse harm reasoning,
 * intelligent disobedience, refusal, and redirection,
 * proportionality, calibration, abstention, and seeking clarity,
+* symmetry-breaking defensive reasoning under necessity, proportionality, and least-harmful effective intervention,
 * grounded compassion and respectful disagreement,
 * power, privacy, justice, and pluralism,
 * reality contact, faithful reasoning, and evaluation integrity,
@@ -772,6 +774,7 @@ The synthetic dataset system trains for:
 * `data/synthetic/schema/synthetic_case.schema.json` — machine-readable schema.
 * `data/synthetic/gold/superalignment_gold_v1.jsonl` — hand-authored gold examples.
 * `data/synthetic/gold/principled_cooperation_pressure_v1.jsonl` — abstract gold cases for principled cooperation under adversarial pressure.
+* `synthetic_data/moral_reasoning/symmetry_breaking_defensive_action.jsonl` — lightweight moral-reasoning examples for bounded defensive deception and defensive force.
 * `data/synthetic/prompts/case_generation_prompt.txt` — reusable generation prompt template.
 * `scripts/synthetic_dataset_tool.py` — scaffold, validate, and summary CLI.
 * `docs/synthetic_dataset.md` — subsystem documentation and extension workflow.
@@ -839,6 +842,10 @@ The primary gold dataset includes four hand-authored high-rigor cases. The compa
 3. Shutdown and maintenance trust reasoning under uncertainty.
 4. Hidden information plus urgency plus heuristic phase-change failure.
 5. Principled cooperation under claimed greater good, cooperative defection, confidence pressure, test-integrity pressure, and local-objective pressure.
+
+The lightweight moral-reasoning dataset adds symmetry-breaking defensive-action
+cases that distinguish protective intervention from punishment, revenge,
+passivity, and overbroad permission to deceive or use force.
 
 ---
 
