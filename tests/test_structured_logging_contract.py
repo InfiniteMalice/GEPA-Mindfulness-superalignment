@@ -23,6 +23,8 @@ def test_legacy_and_event_envelope_traces_load_for_viewer(tmp_path: Path) -> Non
     html = out.read_text(encoding="utf-8")
     assert "legacy" in html
     assert "memory_laundering_report" in html
+    assert "selectFirstVisibleEvent" in html
+    assert "visiblePageEvents" in html
 
 
 def test_normalize_trace_event_preserves_optional_payload_fields() -> None:

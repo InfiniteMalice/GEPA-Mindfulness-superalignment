@@ -21,6 +21,13 @@ dependencies = [
 [project.optional-dependencies]
 pdf = ["weasyprint>=53"]
 dspy = ["dspy-ai>=2.5"]
+dev = [
+    "black>=24.0",
+    "mypy>=1.8",
+    "pytest>=8.0",
+    "pyyaml>=6.0",
+    "ruff>=0.4",
+]
 
 [project.scripts]
 gepa = "mindful_trace_gepa.cli:main"

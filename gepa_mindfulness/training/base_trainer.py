@@ -209,10 +209,7 @@ def _serialize_optional_assessment(value: object | None) -> object | None:
     if value is None:
         return None
     if hasattr(value, "__dict__"):
-        return {
-            key: getattr(raw, "value", raw)
-            for key, raw in value.__dict__.items()
-        }
+        return {key: getattr(raw, "value", raw) for key, raw in value.__dict__.items()}
     return str(value)
 
 

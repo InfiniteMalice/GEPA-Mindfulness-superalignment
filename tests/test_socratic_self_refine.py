@@ -7,6 +7,9 @@ from socratic_self_refine import (
     decompose_reasoning_trace,
     run_socratic_self_refine,
 )
+from synthetic_data.generators.cooperation_under_uncertainty_generator import (
+    generate_cooperation_ssr_units,
+)
 
 
 def _trace() -> list[dict[str, object]]:
@@ -109,3 +112,15 @@ def test_ssr_disabled_by_default_and_existing_config_unchanged() -> None:
     assert config.socratic_self_refine.enabled is False
     report = run_socratic_self_refine(_trace())
     assert report.stopped_reason == "disabled"
+
+
+def test_cooperation_under_uncertainty_generates_ssr_units() -> None:
+    traces = generate_cooperation_ssr_units()
+    assert traces
+    report = run_socratic_self_refine(
+        traces[0],
+        config=SocraticSelfRefineConfig(enabled=True, mode="evaluation"),
+        initial_answer_reference="cooperation-under-uncertainty",
+    )
+    assert report.reasoning_unit_count >= 2
+    assert report.review_required is False

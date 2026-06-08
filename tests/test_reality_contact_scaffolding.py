@@ -10,6 +10,8 @@ from evals.reality_contact_eval import (
 )
 from evals.semantic_laundering_eval import semantic_laundering_risk
 from synthetic_data.generators.cooperation_under_uncertainty_generator import (
+    generate_cooperation_cpt_candidates,
+    generate_cooperation_ssr_units,
     generate_cooperation_under_uncertainty_cases,
 )
 from synthetic_data.generators.correction_and_repair_generator import (
@@ -90,6 +92,23 @@ def test_cooperation_cases_include_required_keys() -> None:
         assert required <= set(case)
         assert "reality_contact" in case["GEPA_scores"]
         assert "cooperation_under_uncertainty" in case["GEPA_scores"]
+
+
+def test_cooperation_cases_expose_cpt_and_ssr_scaffolds() -> None:
+    cpt_candidates = generate_cooperation_cpt_candidates()
+    ssr_units = generate_cooperation_ssr_units()
+
+    assert cpt_candidates
+    assert ssr_units
+    assert all(
+        candidate.metadata.get("synthetic_source") == "cooperation_under_uncertainty"
+        for candidate in cpt_candidates
+    )
+    assert all(
+        unit.get("metadata", {}).get("synthetic_source") == "cooperation_under_uncertainty"
+        for trace in ssr_units
+        for unit in trace
+    )
 
 
 def test_eval_scoring_helpers_return_values_in_0_to_4() -> None:

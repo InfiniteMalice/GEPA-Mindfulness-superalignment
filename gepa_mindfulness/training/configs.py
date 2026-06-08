@@ -584,9 +584,7 @@ class TrainingConfig:
     cognitive_pairwise_training: CognitivePairwiseTrainingConfig = field(
         default_factory=CognitivePairwiseTrainingConfig
     )
-    socratic_self_refine: SocraticSelfRefineConfig = field(
-        default_factory=SocraticSelfRefineConfig
-    )
+    socratic_self_refine: SocraticSelfRefineConfig = field(default_factory=SocraticSelfRefineConfig)
     structured_logging: StructuredLoggingConfig = field(default_factory=StructuredLoggingConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
     seed: int = 42

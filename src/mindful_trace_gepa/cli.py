@@ -509,8 +509,7 @@ def handle_cpt_build(args: argparse.Namespace) -> None:
     )
 
     candidates = [
-        ReasoningTraceCandidate(**row)
-        for row in read_jsonl(_resolve_cli_path(args.input))
+        ReasoningTraceCandidate(**row) for row in read_jsonl(_resolve_cli_path(args.input))
     ]
     config = CognitivePairwiseTrainingConfig(
         enabled=True,

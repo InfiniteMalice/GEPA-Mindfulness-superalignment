@@ -195,12 +195,16 @@
     nextBtn.disabled = currentPage >= maxPage;
   }
 
-  function renderTimeline() {
-    timelineList.innerHTML = "";
-    const visibleEvents = pageEvents.filter((evt) => {
+  function visiblePageEvents() {
+    return pageEvents.filter((evt) => {
       const type = evt.event_type || evt.stage || "legacy_trace_event";
       return eventTypeFilter === "all" || type === eventTypeFilter;
     });
+  }
+
+  function renderTimeline() {
+    timelineList.innerHTML = "";
+    const visibleEvents = visiblePageEvents();
     visibleEvents.forEach((evt, index) => {
       const li = document.createElement("li");
       const type = evt.event_type || evt.stage || evt.module || "event";
@@ -272,6 +276,16 @@
     if (items[index]) {
       items[index].classList.add("active");
     }
+  }
+
+  function selectFirstVisibleEvent() {
+    const visibleEvents = visiblePageEvents();
+    if (!visibleEvents.length) {
+      eventText.textContent = "";
+      eventMeta.innerHTML = "";
+      return;
+    }
+    selectEventByObject(visibleEvents[0], 0);
   }
 
   function renderTokens() {
@@ -447,7 +461,7 @@
     pageEvents = await loadPage(currentPage);
     selectedIndex = 0;
     renderTimeline();
-    selectEvent(0);
+    selectFirstVisibleEvent();
     updateControls();
   }
 

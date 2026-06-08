@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from cognitive_pairwise_training import (
     CognitivePairwiseTrainingConfig,
     PairType,
@@ -13,6 +15,9 @@ from cognitive_pairwise_training import (
 )
 from gepa_mindfulness.training.configs import TrainingConfig
 from mindful_trace_gepa.logging_schema import StructuredEventType, make_event_envelope
+from synthetic_data.generators.cooperation_under_uncertainty_generator import (
+    generate_cooperation_cpt_candidates,
+)
 
 
 def _candidate(**overrides) -> ReasoningTraceCandidate:
@@ -165,6 +170,32 @@ def test_diagnostics_are_computed_and_serialized(tmp_path) -> None:
     out = export_pairwise_jsonl(pairs, tmp_path / "pairs.jsonl")
     row = json.loads(out.read_text(encoding="utf-8").splitlines()[0])
     assert "teacher_label" in row
+
+
+def test_prediction_count_must_match_examples() -> None:
+    pairs = build_pairwise_examples(_candidates())
+    with pytest.raises(ValueError, match="predicted_probabilities length"):
+        compute_pairwise_label_loss(pairs, predicted_probabilities=[])
+    with pytest.raises(ValueError, match="predicted_probabilities length"):
+        compute_pairwise_label_loss(
+            pairs,
+            predicted_probabilities=[
+                {PairwiseLabel.A_MORE_TRUSTWORTHY: 1.0} for _ in range(len(pairs) + 1)
+            ],
+        )
+
+
+def test_cooperation_under_uncertainty_generates_cpt_pairs() -> None:
+    pairs = build_pairwise_examples(
+        generate_cooperation_cpt_candidates(),
+        config=CognitivePairwiseTrainingConfig(randomize_pair_order=False),
+    )
+    assert pairs
+    assert all(
+        pair.candidate_a.metadata.get("synthetic_source") == "cooperation_under_uncertainty"
+        for pair in pairs
+    )
+    assert any(pair.pair_type == PairType.INTER_MODEL for pair in pairs)
 
 
 def test_cpt_is_disabled_by_default_and_trainer_config_preserves_defaults() -> None:

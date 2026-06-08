@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping as MappingABC
 from dataclasses import dataclass
-from typing import Callable, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from .schemas import (
     ControlledResolveResult,
@@ -12,7 +13,6 @@ from .schemas import (
     RepairEvent,
     SSRRunReport,
 )
-
 
 PolicyCheck = Callable[[ReasoningUnit | RepairEvent], str]
 
@@ -31,7 +31,7 @@ class SocraticSelfRefineConfig:
     emit_trace_events: bool = True
 
     @classmethod
-    def from_mapping(cls, payload: Mapping[str, object] | None) -> "SocraticSelfRefineConfig":
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "SocraticSelfRefineConfig":
         payload = payload or {}
         return cls(
             enabled=bool(payload.get("enabled", False)),
@@ -55,6 +55,7 @@ def decompose_reasoning_trace(
     """Convert public structured response data into verifiable reasoning units."""
 
     if isinstance(trace_units, str):
+        raw_units: list[Mapping[str, Any]]
         raw_units = [
             {"sub_question": f"Step {idx + 1}", "sub_answer": part.strip()}
             for idx, part in enumerate(trace_units.splitlines())
@@ -85,7 +86,7 @@ def decompose_reasoning_trace(
                 verifier_status=str(raw.get("verifier_status", "unknown")),
                 repair_status=str(raw.get("repair_status", "not_assessed")),
                 dependencies=dependencies,
-                metadata=dict(raw.get("metadata", {}) or {}),
+                metadata=_metadata_from_raw(raw.get("metadata", {})),
             )
         )
     return units
@@ -100,8 +101,7 @@ def assess_reasoning_units(
     assessments: list[ReasoningUnitAssessment] = []
     for unit in units[: cfg.max_units_per_pass]:
         attempts = tuple(
-            _controlled_resolve(unit, idx)
-            for idx in range(cfg.controlled_resolve_attempts)
+            _controlled_resolve(unit, idx) for idx in range(cfg.controlled_resolve_attempts)
         )
         agreement = sum(1 for attempt in attempts if attempt.agrees_with_original) / max(
             len(attempts),
@@ -249,8 +249,7 @@ def ssr_evaluation_metrics(report: SSRRunReport) -> dict[str, float]:
         "dependency_propagation_accuracy": 1.0,
         "policy_preservation_rate": 0.0 if report.review_required else 1.0,
         "bounded_iteration_compliance": float(
-            report.units_repaired
-            <= report.max_iterations * max(report.reasoning_unit_count, 1)
+            report.units_repaired <= report.max_iterations * max(report.reasoning_unit_count, 1)
         ),
         "review_escalation_rate": 1.0 if report.review_required else 0.0,
     }
@@ -274,6 +273,12 @@ def _controlled_resolve(unit: ReasoningUnit, attempt_index: int) -> ControlledRe
 
 def _dependency_updates(units: Sequence[ReasoningUnit], unit_id: str) -> tuple[str, ...]:
     return tuple(unit.unit_id for unit in units if unit_id in unit.dependencies)
+
+
+def _metadata_from_raw(raw: object) -> dict[str, Any]:
+    if isinstance(raw, MappingABC):
+        return dict(raw)
+    return {}
 
 
 __all__ = [

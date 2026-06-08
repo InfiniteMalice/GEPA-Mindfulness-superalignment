@@ -7,7 +7,7 @@ import math
 import random
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 from .schemas import (
     CPTBatchMetrics,
@@ -35,7 +35,7 @@ class CognitivePairwiseTrainingConfig:
     @classmethod
     def from_mapping(
         cls,
-        payload: Mapping[str, object] | None,
+        payload: Mapping[str, Any] | None,
     ) -> "CognitivePairwiseTrainingConfig":
         payload = payload or {}
         return cls(
@@ -114,8 +114,7 @@ def build_pairwise_examples(
                     ordered,
                     PairType.ANSWER_PROCESS_MISMATCH,
                     lambda a, b: (
-                        a.final_answer == b.final_answer
-                        and a.verifier_status != b.verifier_status
+                        a.final_answer == b.final_answer and a.verifier_status != b.verifier_status
                     ),
                 )
             )
@@ -189,14 +188,22 @@ def compute_pairwise_label_loss(
 
     if not examples:
         return CPTBatchMetrics(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-    predictions = predicted_probabilities or [_quality_prediction(item) for item in examples]
+    predictions: Sequence[Mapping[PairwiseLabel | str, float]] = (
+        predicted_probabilities
+        if predicted_probabilities is not None
+        else [_quality_prediction(item) for item in examples]
+    )
+    if len(predictions) != len(examples):
+        raise ValueError(
+            "predicted_probabilities length must match examples length: "
+            f"got {len(predictions)} predictions for {len(examples)} examples"
+        )
     losses: list[float] = []
     weights: list[float] = []
     for example, probs in zip(examples, predictions):
         key = example.teacher_label.value
         normalized = {
-            str(k.value if isinstance(k, PairwiseLabel) else k): float(v)
-            for k, v in probs.items()
+            str(k.value if isinstance(k, PairwiseLabel) else k): float(v) for k, v in probs.items()
         }
         probability = max(normalized.get(key, 1e-6), 1e-6)
         weights.append(example.teacher_confidence)
@@ -214,18 +221,14 @@ def compute_pairwise_label_loss(
 def compute_cpt_evaluation(examples: Sequence[PairwiseReasoningExample]) -> dict[str, float]:
     metrics = compute_pairwise_label_loss(examples)
     same_answer = [
-        p
-        for p in examples
-        if p.pair_type == PairType.SAME_ANSWER_DIFFERENT_REASONING_QUALITY
+        p for p in examples if p.pair_type == PairType.SAME_ANSWER_DIFFERENT_REASONING_QUALITY
     ]
     abstention = [p for p in examples if p.pair_type == PairType.ABSTENTION_VERSUS_GUESS]
     retained = [p for p in examples if p.consensus_status != "review_required"]
     labels = [p.teacher_label for p in examples]
     return {
         "pairwise_accuracy": 1.0 if examples else 0.0,
-        "teacher_agreement": sum(
-            1 for p in examples if p.consensus_status == "consensus"
-        )
+        "teacher_agreement": sum(1 for p in examples if p.consensus_status == "consensus")
         / max(len(examples), 1),
         "consensus_retained_rate": len(retained) / max(len(examples), 1),
         "position_bias_diagnostic": metrics.position_bias_diagnostic,
@@ -365,8 +368,8 @@ def _randomize_pair_order(
     )
 
 
-def _quality_prediction(example: PairwiseReasoningExample) -> dict[PairwiseLabel, float]:
-    labels = {label: 0.05 for label in PairwiseLabel}
+def _quality_prediction(example: PairwiseReasoningExample) -> Mapping[PairwiseLabel | str, float]:
+    labels: dict[PairwiseLabel | str, float] = {label: 0.05 for label in PairwiseLabel}
     labels[example.teacher_label] = 0.8
     return labels
 
@@ -375,8 +378,7 @@ def _position_bias(examples: Sequence[PairwiseReasoningExample]) -> float:
     decisive = [
         p
         for p in examples
-        if p.teacher_label
-        in {PairwiseLabel.A_MORE_TRUSTWORTHY, PairwiseLabel.B_MORE_TRUSTWORTHY}
+        if p.teacher_label in {PairwiseLabel.A_MORE_TRUSTWORTHY, PairwiseLabel.B_MORE_TRUSTWORTHY}
     ]
     if not decisive:
         return 0.0
@@ -388,8 +390,7 @@ def _length_bias(examples: Sequence[PairwiseReasoningExample]) -> float:
     decisive = [
         p
         for p in examples
-        if p.teacher_label
-        in {PairwiseLabel.A_MORE_TRUSTWORTHY, PairwiseLabel.B_MORE_TRUSTWORTHY}
+        if p.teacher_label in {PairwiseLabel.A_MORE_TRUSTWORTHY, PairwiseLabel.B_MORE_TRUSTWORTHY}
     ]
     if not decisive:
         return 0.0
@@ -419,8 +420,7 @@ def _model_identity_shortcut(examples: Sequence[PairwiseReasoningExample]) -> fl
     decisive = [
         p
         for p in examples
-        if p.teacher_label
-        in {PairwiseLabel.A_MORE_TRUSTWORTHY, PairwiseLabel.B_MORE_TRUSTWORTHY}
+        if p.teacher_label in {PairwiseLabel.A_MORE_TRUSTWORTHY, PairwiseLabel.B_MORE_TRUSTWORTHY}
     ]
     if not decisive:
         return 0.0
