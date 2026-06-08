@@ -8,7 +8,10 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Dict, Literal
 
-import yaml
+try:
+    import yaml
+except ModuleNotFoundError:  # pragma: no cover - exercised when optional deps are absent
+    yaml = None
 
 from gepa_mindfulness.core.rewards import (
     GEPARewardCalculator,
@@ -232,7 +235,8 @@ class GRPOConfig(BaseTrainerConfig):
 
 def load_trainer_config(path: Path | str) -> BaseTrainerConfig:
     path = Path(path)
-    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+    raw = path.read_text(encoding="utf-8")
+    payload = yaml.safe_load(raw) if yaml is not None else _fallback_load_mapping(raw)
     if not isinstance(payload, dict):
         raise ValueError("Configuration file must define a mapping")
     trainer_type = payload.get("trainer_type", "ppo")
@@ -244,7 +248,25 @@ def load_trainer_config(path: Path | str) -> BaseTrainerConfig:
 
 
 def load_config_dict(path: Path) -> Dict[str, Any]:
-    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+    raw = path.read_text(encoding="utf-8")
+    payload = yaml.safe_load(raw) if yaml is not None else _fallback_load_mapping(raw)
+    if not isinstance(payload, dict):
+        raise ValueError("Configuration file must define a mapping")
+    return payload
+
+
+def _fallback_load_mapping(raw: str) -> Dict[str, Any]:
+    stripped = raw.strip()
+    if not stripped or stripped == "{}":
+        return {}
+    try:
+        import json
+
+        payload = json.loads(stripped)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            "pyyaml is required to load non-trivial YAML configuration files"
+        ) from exc
     if not isinstance(payload, dict):
         raise ValueError("Configuration file must define a mapping")
     return payload

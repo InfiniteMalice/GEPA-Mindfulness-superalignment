@@ -105,6 +105,10 @@ class BaseTrainer(ABC):
                     response=generated.text,
                     reward=breakdown.total,
                     breakdown=breakdown,
+                    confidence=generated.confidence(),
+                    trace_summary=summary,
+                    abstention_assessment=assessment,
+                    generated_response_metadata=generated.metadata,
                 )
             batch_rewards.append(group_rewards)
             breakdowns.append(group_breakdowns)
@@ -131,7 +135,18 @@ class BaseTrainer(ABC):
         response: str,
         reward: float,
         breakdown: RewardBreakdown,
+        confidence: float | None = None,
+        trace_summary: Mapping[str, str] | None = None,
+        abstention_assessment: object | None = None,
+        generated_response_metadata: Mapping[str, object] | None = None,
     ) -> None:
+        reward_components = {
+            "task_success": breakdown.task_success,
+            "gepa_alignment": breakdown.gepa_alignment,
+            "honesty": breakdown.honesty,
+            "hallucination": breakdown.hallucination,
+            "paraconsistent_truth": breakdown.paraconsistent_truth,
+        }
         record = {
             "step": self.global_step,
             "prompt": prompt,
@@ -141,6 +156,19 @@ class BaseTrainer(ABC):
             "gepa_alignment": breakdown.gepa_alignment,
             "honesty": breakdown.honesty,
             "hallucination": breakdown.hallucination,
+            "confidence": confidence,
+            "abstained": breakdown.abstention_quality is not None,
+            "trace_summary": dict(trace_summary or {}),
+            "abstention_assessment": _serialize_optional_assessment(abstention_assessment),
+            "reward_components": reward_components,
+            "generated_response_metadata": dict(generated_response_metadata or {}),
+            "semantic_assessment_reference": None,
+            "memory_laundering_report_reference": None,
+            "cpt_pairwise_reference": None,
+            "ssr_run_report_reference": None,
+            "deception_fingerprint_reference": None,
+            "circuit_trace_reference": None,
+            "attribution_graph_reference": None,
         }
         self.logged_metrics.append(record)
         with self.metrics_path.open("a", encoding="utf-8") as handle:
@@ -175,6 +203,17 @@ class BaseTrainer(ABC):
             trace_frequency=config.trace_frequency,
             seed=config.seed,
         )
+
+
+def _serialize_optional_assessment(value: object | None) -> object | None:
+    if value is None:
+        return None
+    if hasattr(value, "__dict__"):
+        return {
+            key: getattr(raw, "value", raw)
+            for key, raw in value.__dict__.items()
+        }
+    return str(value)
 
 
 __all__ = ["BaseTrainer", "GeneratedResponse"]

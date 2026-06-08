@@ -5,6 +5,10 @@ self-contained file for offline analysis. The builder (`builder.py`) stitches
 `trace.jsonl`, `tokens.jsonl`, deception scores, and dual-path metadata into a
 single HTML page.
 
+The viewer accepts both legacy trace rows and structured event-envelope rows. When an envelope is present, it displays the event type, stable IDs, and optional payload fields such as semantic-intent decisions, memory write/retrieval decisions, CPT pair labels, SSR repair reports, deception references, circuit references, and attribution references.
+
+Token telemetry is labeled as synthetic or measured when those fields are available. Circuit telemetry distinguishes unavailable `null` values from measured zero. The event-type filter can narrow a trace without requiring every run to emit every event type.
+
 Panels include:
 
 - **Timeline** – GEPA checkpoints with timestamps.

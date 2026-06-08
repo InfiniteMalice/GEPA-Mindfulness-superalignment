@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List
 
+from mindful_trace_gepa.logging_schema import normalize_trace_event
+
 VIEWER_DIR = Path(__file__).resolve().parent
 
 
@@ -35,8 +37,9 @@ def build_viewer_html(
     script = load_static_asset("viewer.js")
     css = load_static_asset("viewer.css")
 
+    normalized_trace = [normalize_trace_event(event) for event in trace_events]
     payload = {
-        "trace": trace_events,
+        "trace": normalized_trace,
         "tokens": token_events,
         "deception": deception or {},
         "paired": dual_path_payload or {},

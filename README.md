@@ -4,6 +4,17 @@ GEPA Mindfulness Superalignment pairs GEPA-inspired reflective reasoning with tr
 
 The project targets **Python 3.10+**.
 
+## Memory Safety, CPT, SSR, and Structured Logs
+
+The repository includes opt-in scaffolding for four longitudinal reflective-stability surfaces:
+
+- `modules/semantic_intent_robustness/memory_safety.py` protects persistence boundaries so untrusted claims, instructions, summaries, or retrieved documents cannot silently become durable authority, identity, policy, or tool-selection state.
+- `modules/cognitive_pairwise_training/` provides Cognitive Pairwise Training inspired pair construction, JSONL export, and diagnostics for metacognitive mid-training before downstream RL.
+- `modules/socratic_self_refine/` provides a bounded Socratic Self-Refine inspired evaluation/inference scaffold for step-level verification and selective repair.
+- `src/mindful_trace_gepa/logging_schema.py` defines a backward-compatible structured event envelope for semantic, memory, CPT, SSR, deception, attribution, and review events.
+
+All new runtime behavior is disabled by default except structured logging compatibility helpers. These additions do not expand, renumber, or redefine the 17-case epistemic schema and do not collapse decomposed rewards into a monolithic scalar.
+
 ---
 
 ## Quick Start: How to Use This Repo

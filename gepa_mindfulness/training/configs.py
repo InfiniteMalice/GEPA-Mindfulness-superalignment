@@ -7,7 +7,10 @@ from math import isclose, isfinite
 from pathlib import Path
 from typing import Any, Mapping
 
-import yaml
+try:
+    import yaml
+except ModuleNotFoundError:  # pragma: no cover - exercised when optional deps are absent
+    yaml = None
 
 from gepa_mindfulness.core.abstention_rewards import AbstentionRewardWeights
 
@@ -353,6 +356,111 @@ class AbstentionConfig:
 
 
 @dataclass
+class MemorySafetyConfig:
+    enabled: bool = False
+    preserve_provenance: bool = True
+    quarantine_untrusted_durable_writes: bool = True
+    quarantine_untrusted_tool_selection: bool = True
+    emit_trace_events: bool = True
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "MemorySafetyConfig":
+        payload = payload or {}
+        return cls(
+            enabled=bool(payload.get("enabled", False)),
+            preserve_provenance=bool(payload.get("preserve_provenance", True)),
+            quarantine_untrusted_durable_writes=bool(
+                payload.get("quarantine_untrusted_durable_writes", True)
+            ),
+            quarantine_untrusted_tool_selection=bool(
+                payload.get("quarantine_untrusted_tool_selection", True)
+            ),
+            emit_trace_events=bool(payload.get("emit_trace_events", True)),
+        )
+
+    def dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class CognitivePairwiseTrainingConfig:
+    enabled: bool = False
+    stage: str = "pre_rl_mid_training"
+    randomize_pair_order: bool = True
+    consensus_filtering: bool = True
+    emit_trace_events: bool = True
+
+    @classmethod
+    def from_mapping(
+        cls,
+        payload: Mapping[str, Any] | None,
+    ) -> "CognitivePairwiseTrainingConfig":
+        payload = payload or {}
+        return cls(
+            enabled=bool(payload.get("enabled", False)),
+            stage=str(payload.get("stage", "pre_rl_mid_training")),
+            randomize_pair_order=bool(payload.get("randomize_pair_order", True)),
+            consensus_filtering=bool(payload.get("consensus_filtering", True)),
+            emit_trace_events=bool(payload.get("emit_trace_events", True)),
+        )
+
+    def dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class SocraticSelfRefineConfig:
+    enabled: bool = False
+    mode: str = "disabled"
+    max_iterations: int = 2
+    max_units_per_pass: int = 8
+    controlled_resolve_attempts: int = 3
+    rerun_policy_checks_after_repair: bool = True
+    preserve_original_trace: bool = True
+    emit_trace_events: bool = True
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "SocraticSelfRefineConfig":
+        payload = payload or {}
+        return cls(
+            enabled=bool(payload.get("enabled", False)),
+            mode=str(payload.get("mode", "disabled")),
+            max_iterations=_to_int(payload.get("max_iterations"), 2),
+            max_units_per_pass=_to_int(payload.get("max_units_per_pass"), 8),
+            controlled_resolve_attempts=_to_int(payload.get("controlled_resolve_attempts"), 3),
+            rerun_policy_checks_after_repair=bool(
+                payload.get("rerun_policy_checks_after_repair", True)
+            ),
+            preserve_original_trace=bool(payload.get("preserve_original_trace", True)),
+            emit_trace_events=bool(payload.get("emit_trace_events", True)),
+        )
+
+    def dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class StructuredLoggingConfig:
+    enabled: bool = True
+    preserve_legacy_loading: bool = True
+    emit_event_envelopes: bool = True
+    externalize_large_artifacts: bool = True
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "StructuredLoggingConfig":
+        payload = payload or {}
+        return cls(
+            enabled=bool(payload.get("enabled", True)),
+            preserve_legacy_loading=bool(payload.get("preserve_legacy_loading", True)),
+            emit_event_envelopes=bool(payload.get("emit_event_envelopes", True)),
+            externalize_large_artifacts=bool(payload.get("externalize_large_artifacts", True)),
+        )
+
+    def dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
 class PPOConfig:
     learning_rate: float = 1e-5
     batch_size: int = 1
@@ -472,6 +580,14 @@ class TrainingConfig:
     thought_alignment: ThoughtAlignmentConfig = field(default_factory=ThoughtAlignmentConfig)
     honesty: HonestyConfig = field(default_factory=HonestyConfig)
     deception: DeceptionConfig = field(default_factory=DeceptionConfig)
+    memory_safety: MemorySafetyConfig = field(default_factory=MemorySafetyConfig)
+    cognitive_pairwise_training: CognitivePairwiseTrainingConfig = field(
+        default_factory=CognitivePairwiseTrainingConfig
+    )
+    socratic_self_refine: SocraticSelfRefineConfig = field(
+        default_factory=SocraticSelfRefineConfig
+    )
+    structured_logging: StructuredLoggingConfig = field(default_factory=StructuredLoggingConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
     seed: int = 42
     max_steps: int = 100
@@ -528,6 +644,16 @@ class TrainingConfig:
             ),
             honesty=HonestyConfig.from_mapping(payload.get("honesty")),
             deception=DeceptionConfig.from_mapping(payload.get("deception")),
+            memory_safety=MemorySafetyConfig.from_mapping(payload.get("memory_safety")),
+            cognitive_pairwise_training=CognitivePairwiseTrainingConfig.from_mapping(
+                payload.get("cognitive_pairwise_training")
+            ),
+            socratic_self_refine=SocraticSelfRefineConfig.from_mapping(
+                payload.get("socratic_self_refine")
+            ),
+            structured_logging=StructuredLoggingConfig.from_mapping(
+                payload.get("structured_logging")
+            ),
             output=OutputConfig.from_mapping(payload.get("output")),
         )
 
@@ -542,6 +668,10 @@ class TrainingConfig:
         payload["thought_alignment"] = self.thought_alignment.dict()
         payload["honesty"] = self.honesty.dict()
         payload["deception"] = self.deception.dict()
+        payload["memory_safety"] = self.memory_safety.dict()
+        payload["cognitive_pairwise_training"] = self.cognitive_pairwise_training.dict()
+        payload["socratic_self_refine"] = self.socratic_self_refine.dict()
+        payload["structured_logging"] = self.structured_logging.dict()
         payload["output"] = self.output.dict()
         return payload
 
@@ -551,8 +681,30 @@ class TrainingConfig:
 
 def load_training_config(path: str | Path) -> TrainingConfig:
     with open(path, "r", encoding="utf-8") as handle:
-        payload: Mapping[str, Any] | None = yaml.safe_load(handle)
+        raw = handle.read()
+    payload: Mapping[str, Any] | None
+    if yaml is not None:
+        payload = yaml.safe_load(raw)
+    else:
+        payload = _fallback_load_mapping(raw)
     return TrainingConfig.from_mapping(payload)
+
+
+def _fallback_load_mapping(raw: str) -> Mapping[str, Any]:
+    stripped = raw.strip()
+    if not stripped or stripped == "{}":
+        return {}
+    try:
+        import json
+
+        payload = json.loads(stripped)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            "pyyaml is required to load non-trivial YAML configuration files"
+        ) from exc
+    if not isinstance(payload, Mapping):
+        raise ValueError("Configuration file must define a mapping")
+    return payload
 
 
 __all__ = [
@@ -564,10 +716,14 @@ __all__ = [
     "GRPOConfig",
     "HallucinationPenaltyConfig",
     "HonestyConfig",
+    "CognitivePairwiseTrainingConfig",
+    "MemorySafetyConfig",
     "ModelConfig",
     "OutputConfig",
     "PPOConfig",
     "RewardWeightsConfig",
+    "SocraticSelfRefineConfig",
+    "StructuredLoggingConfig",
     "ThoughtAlignmentConfig",
     "TrainingConfig",
     "load_training_config",
