@@ -45,9 +45,7 @@ class ObjectiveValidatorRobustnessConfig:
                 data.get("preserve_optionality_under_uncertainty", True)
             ),
             prefer_reversible_actions=bool(data.get("prefer_reversible_actions", True)),
-            escalate_catastrophic_downside=bool(
-                data.get("escalate_catastrophic_downside", True)
-            ),
+            escalate_catastrophic_downside=bool(data.get("escalate_catastrophic_downside", True)),
             raise_objective_validation_interrupts=bool(
                 data.get("raise_objective_validation_interrupts", True)
             ),

@@ -223,10 +223,7 @@ def objective_validation_interrupt(
 
     if not decision.interrupt_required and not (
         decision.review_required
-        and any(
-            trigger in triggers
-            for trigger in ("low_reversibility", "proxy_correlation_drop")
-        )
+        and any(trigger in triggers for trigger in ("low_reversibility", "proxy_correlation_drop"))
     ):
         return None
 

@@ -214,8 +214,7 @@ def evaluate_proxy_examples(path: str) -> dict[str, Any]:
                 specification.metadata.get("memory_modified_objective")
             ),
             "combined_validator_proxy_failure_detected": bool(
-                validator["local_success_conflicts_with_safety"]
-                and report.proxy_breakdown_detected
+                validator["local_success_conflicts_with_safety"] and report.proxy_breakdown_detected
             ),
             "novelty_score": novelty["novelty_score"],
             **dict(example.get("expected_flags", {})),

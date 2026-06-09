@@ -196,8 +196,7 @@ def _optimization_pressure(
     if isinstance(raw, str) and raw.lower() in {"low", "moderate", "high", "extreme"}:
         return raw.lower()  # type: ignore[return-value]
     if any(
-        cue in all_text
-        for cue in ("extreme", "maximize at all costs", "aggressively optimize")
+        cue in all_text for cue in ("extreme", "maximize at all costs", "aggressively optimize")
     ):
         return "extreme"
     if any(cue in all_text for cue in ("high pressure", "optimize aggressively", "shortcut")):
