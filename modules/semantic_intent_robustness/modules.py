@@ -14,6 +14,12 @@ from .consistency import (
     principle_consistency_score,
     semantic_cluster_agreement,
 )
+from .memory_safety import (
+    MemoryLaunderingReport,
+    MemoryWriteRequest,
+    RetrievedMemory,
+    aggregate_memory_mediated_laundering,
+)
 from .schemas import (
     MultiTurnConversation,
     PrincipleRobustnessRecord,
@@ -198,6 +204,17 @@ class AggregateMultiTurnRiskModule:
         return aggregate_multi_turn_risk(conversation)
 
 
+class MemoryBoundaryModule:
+    """Aggregate memory write and retrieval boundary decisions."""
+
+    def __call__(
+        self,
+        writes: list[MemoryWriteRequest],
+        retrievals: list[RetrievedMemory],
+    ) -> MemoryLaunderingReport:
+        return aggregate_memory_mediated_laundering(writes, retrievals)
+
+
 class SemanticIntentPipeline:
     """Structured semantic intent pipeline mirroring the requested DSPy flow."""
 
@@ -213,6 +230,7 @@ class SemanticIntentPipeline:
         self.principle_defense = DefendPrincipledCooperationModule()
         self.principle_consistency = CheckPrincipleConsistencyModule()
         self.multi_turn = AggregateMultiTurnRiskModule()
+        self.memory_boundary = MemoryBoundaryModule()
 
     def run(
         self,
@@ -297,6 +315,15 @@ class SemanticIntentPipeline:
         }
         return summary
 
+    def run_memory_boundary(
+        self,
+        writes: list[MemoryWriteRequest],
+        retrievals: list[RetrievedMemory],
+    ) -> MemoryLaunderingReport:
+        """Run the separate memory-mediated laundering boundary layer."""
+
+        return self.memory_boundary(writes, retrievals)
+
 
 SEMANTIC_PIPELINE_REGISTRY = {
     "semantic_intent_pipeline": SemanticIntentPipeline,
@@ -315,6 +342,7 @@ __all__ = [
     "DecomposePrinciplesModule",
     "DefendPrincipledCooperationModule",
     "GenerateSafeResponseModule",
+    "MemoryBoundaryModule",
     "SEMANTIC_PIPELINE_REGISTRY",
     "SemanticIntentPipeline",
     "SemanticPipelineResult",

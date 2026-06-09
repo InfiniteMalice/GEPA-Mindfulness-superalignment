@@ -205,16 +205,20 @@ class CircuitTracerLogger:
                 LOGGER.warning("Circuit tracer capture failed: %s", exc)
         yield None
 
-    def extract_span_circuits(self, trace: Any, start: int, end: int) -> Dict[str, float]:
+    def extract_span_circuits(self, trace: Any, start: int, end: int) -> Dict[str, Any]:
         """Extract circuit activations for a specific text span."""
 
         if trace is None:
             return {
-                "uncertainty_circuits": 0.0,
-                "confidence_circuits": 0.0,
-                "risk_circuits": 0.0,
-                "reward_circuits": 0.0,
-                "suppression_circuits": 0.0,
+                "uncertainty_circuits": None,
+                "confidence_circuits": None,
+                "risk_circuits": None,
+                "reward_circuits": None,
+                "suppression_circuits": None,
+                "telemetry_available": False,
+                "telemetry_backend": "circuit_tracer",
+                "telemetry_status": "unavailable",
+                "telemetry_error": None,
             }
 
         try:
@@ -224,15 +228,23 @@ class CircuitTracerLogger:
                 "risk_circuits": trace.get_activation("risk_assessment", start, end),
                 "reward_circuits": trace.get_activation("reward_optimization", start, end),
                 "suppression_circuits": trace.get_activation("knowledge_suppression", start, end),
+                "telemetry_available": True,
+                "telemetry_backend": "circuit_tracer",
+                "telemetry_status": "measured",
+                "telemetry_error": None,
             }
         except Exception as exc:  # pragma: no cover - defensive fallback
             LOGGER.warning("Failed to extract circuit activations: %s", exc)
             return {
-                "uncertainty_circuits": 0.0,
-                "confidence_circuits": 0.0,
-                "risk_circuits": 0.0,
-                "reward_circuits": 0.0,
-                "suppression_circuits": 0.0,
+                "uncertainty_circuits": None,
+                "confidence_circuits": None,
+                "risk_circuits": None,
+                "reward_circuits": None,
+                "suppression_circuits": None,
+                "telemetry_available": False,
+                "telemetry_backend": "circuit_tracer",
+                "telemetry_status": "error",
+                "telemetry_error": str(exc),
             }
 
 

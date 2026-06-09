@@ -16,3 +16,31 @@ model:
   reward_model: distilbert-base-uncased
 dual_path_batch: 2
 confidence_threshold: 0.75
+semantic_intent_robustness:
+  enabled: false
+memory_safety:
+  enabled: false
+  preserve_provenance: true
+  quarantine_untrusted_durable_writes: true
+  quarantine_untrusted_tool_selection: true
+  emit_trace_events: true
+cognitive_pairwise_training:
+  enabled: false
+  stage: pre_rl_mid_training
+  randomize_pair_order: true
+  consensus_filtering: true
+  emit_trace_events: true
+socratic_self_refine:
+  enabled: false
+  mode: disabled
+  max_iterations: 2
+  max_units_per_pass: 8
+  controlled_resolve_attempts: 3
+  rerun_policy_checks_after_repair: true
+  preserve_original_trace: true
+  emit_trace_events: true
+structured_logging:
+  enabled: true
+  preserve_legacy_loading: true
+  emit_event_envelopes: true
+  externalize_large_artifacts: true

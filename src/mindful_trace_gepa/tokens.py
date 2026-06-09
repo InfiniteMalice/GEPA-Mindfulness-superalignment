@@ -28,13 +28,27 @@ class TokenRecord:
     chunk: int
     offset: int
     ppl: float | None = None
+    telemetry_mode: str = "synthetic"
+    telemetry_backend: str = "lightweight_split"
+    telemetry_available: bool = False
 
 
 class TokenRecorder:
-    def __init__(self, *, log_topk: int = 0, sample_every: int = 1) -> None:
+    def __init__(
+        self,
+        *,
+        log_topk: int = 0,
+        sample_every: int = 1,
+        telemetry_mode: str = "synthetic",
+        telemetry_backend: str = "lightweight_split",
+        telemetry_available: bool = False,
+    ) -> None:
         self.records: List[TokenRecord] = []
         self.log_topk = max(0, log_topk)
         self.sample_every = max(1, sample_every)
+        self.telemetry_mode = telemetry_mode
+        self.telemetry_backend = telemetry_backend
+        self.telemetry_available = telemetry_available
         self._global_idx = 0
         self._rolling_logprob = 0.0
 
@@ -75,6 +89,9 @@ class TokenRecorder:
                     chunk=chunk,
                     offset=offset,
                     ppl=perplexity,
+                    telemetry_mode=self.telemetry_mode,
+                    telemetry_backend=self.telemetry_backend,
+                    telemetry_available=self.telemetry_available,
                 )
             )
 

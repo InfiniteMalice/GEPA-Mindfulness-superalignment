@@ -11,6 +11,21 @@ The module is intentionally not a keyword moderation patch. It asks a more durab
 what real-world capability and value-relevant consequence does the request aim to produce,
 regardless of wording, framing, or language?
 
+## Memory-Mediated Laundering
+
+Persistent memory creates a separate trust boundary from ordinary per-prompt semantic analysis. Untrusted content can be written, summarized, or retrieved later with undeserved authority unless provenance and trust labels survive both the write and retrieval boundary.
+
+`memory_safety.py` adds deterministic, inspectable helpers for this boundary:
+
+- untrusted instructions cannot be silently promoted to durable memory;
+- protected policy, constitutional commitments, and system-protected state cannot be overridden by ordinary memory writes or retrievals;
+- writes that alter goals, durable priorities, identity, authority, or policy are quarantined for review;
+- memories without provenance are quarantined;
+- untrusted memories cannot silently bias tool selection;
+- ordinary unverified factual memories may be used only as bounded context, not authority.
+
+This is not a new abstention category and remains outside the 17-case framework. Reports are intended for logs, monitoring, attribution analysis, reflective-stability review, and peer review. They do not automatically attach reward penalties.
+
 ## Threat model
 
 The module focuses on common semantic robustness failure modes:

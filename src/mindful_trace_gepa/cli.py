@@ -494,6 +494,62 @@ def handle_dspy_contrastive(args: argparse.Namespace) -> None:
 
 
 # ---------------------------------------------------------------------------
+# CPT and SSR scaffolding
+# ---------------------------------------------------------------------------
+
+
+def handle_cpt_build(args: argparse.Namespace) -> None:
+    """Build CPT-inspired pairwise examples from candidate JSONL rows."""
+
+    from cognitive_pairwise_training import (  # local optional package path
+        CognitivePairwiseTrainingConfig,
+        ReasoningTraceCandidate,
+        build_pairwise_examples,
+        export_pairwise_jsonl,
+    )
+
+    candidates = [
+        ReasoningTraceCandidate(**row) for row in read_jsonl(_resolve_cli_path(args.input))
+    ]
+    config = CognitivePairwiseTrainingConfig(
+        enabled=True,
+        seed=int(getattr(args, "seed", 0)),
+        randomize_pair_order=bool(getattr(args, "randomize_pair_order", True)),
+        consensus_filtering=bool(getattr(args, "consensus_filtering", True)),
+    )
+    examples = build_pairwise_examples(candidates, config=config)
+    export_pairwise_jsonl(examples, _resolve_cli_path(args.out, require_exists=False))
+
+
+def handle_ssr_run(args: argparse.Namespace) -> None:
+    """Run bounded SSR-inspired refinement over a structured trace artifact."""
+
+    from socratic_self_refine import SocraticSelfRefineConfig, run_socratic_self_refine
+
+    input_path = _resolve_cli_path(args.input)
+    if input_path.suffix == ".jsonl":
+        trace_units = read_jsonl(input_path)
+    else:
+        trace_units = json.loads(input_path.read_text(encoding="utf-8"))
+    if isinstance(trace_units, dict):
+        trace_units = trace_units.get("reasoning_units", [])
+    config = SocraticSelfRefineConfig(
+        enabled=True,
+        mode=str(getattr(args, "mode", "evaluation")),
+        max_iterations=int(getattr(args, "max_iterations", 2)),
+    )
+    report = run_socratic_self_refine(
+        trace_units,
+        run_id=str(getattr(args, "run_id", "ssr-run")),
+        initial_answer_reference=str(getattr(args, "initial_answer_reference", "")),
+        config=config,
+    )
+    out_path = _resolve_cli_path(args.out, require_exists=False)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(report.to_dict(), indent=2), encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
 # Viewer
 # ---------------------------------------------------------------------------
 
@@ -795,6 +851,37 @@ def build_parser() -> argparse.ArgumentParser:
         "--probes", default=None, help="Optional dual-path probes JSONL override"
     )
     dspy_contrastive.set_defaults(func=handle_dspy_contrastive)
+
+    cpt_parser = subparsers.add_parser(
+        "cpt-build",
+        help="Build CPT-inspired pairwise reasoning examples from candidate JSONL",
+    )
+    cpt_parser.add_argument("--input", required=True, help="ReasoningTraceCandidate JSONL")
+    cpt_parser.add_argument("--out", required=True, help="Output pairwise JSONL")
+    cpt_parser.add_argument("--seed", type=int, default=0)
+    cpt_parser.add_argument(
+        "--randomize-pair-order",
+        action=BooleanOptionalAction,
+        default=True,
+    )
+    cpt_parser.add_argument(
+        "--consensus-filtering",
+        action=BooleanOptionalAction,
+        default=True,
+    )
+    cpt_parser.set_defaults(func=handle_cpt_build)
+
+    ssr_parser = subparsers.add_parser(
+        "ssr-run",
+        help="Run bounded SSR-inspired refinement over structured reasoning units",
+    )
+    ssr_parser.add_argument("--input", required=True, help="Reasoning units JSON or JSONL")
+    ssr_parser.add_argument("--out", required=True, help="Output SSRRunReport JSON")
+    ssr_parser.add_argument("--mode", default="evaluation")
+    ssr_parser.add_argument("--max-iterations", type=int, default=2)
+    ssr_parser.add_argument("--run-id", default="ssr-run")
+    ssr_parser.add_argument("--initial-answer-reference", default="")
+    ssr_parser.set_defaults(func=handle_ssr_run)
 
     view_parser = subparsers.add_parser("view", help="Build offline trace viewer")
     view_parser.add_argument("--trace", required=True, help="Trace JSONL path")

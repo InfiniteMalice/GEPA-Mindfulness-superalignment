@@ -27,6 +27,7 @@
 
   let pageEvents = data.trace || [];
   const baseEvents = data.trace || [];
+  let eventTypeFilter = "all";
   const fullTraceText = (baseEvents || [])
     .map((evt) => evt.content || evt.text || evt.final_answer || "")
     .join("\n");
@@ -159,12 +160,25 @@
 
   function initControls() {
     controls.innerHTML = "";
+    const typeSelect = document.createElement("select");
+    const eventTypes = ["all", ...Array.from(new Set(baseEvents.map((evt) => evt.event_type || evt.stage || "legacy_trace_event"))).sort()];
+    eventTypes.forEach((type) => {
+      const option = document.createElement("option");
+      option.value = type;
+      option.textContent = type;
+      typeSelect.appendChild(option);
+    });
+    typeSelect.addEventListener("change", () => {
+      eventTypeFilter = typeSelect.value;
+      gotoPage(0);
+    });
     prevBtn = document.createElement("button");
     prevBtn.textContent = "Prev";
     nextBtn = document.createElement("button");
     nextBtn.textContent = "Next";
     pageInfo = document.createElement("span");
     pageInfo.className = "page-info";
+    controls.appendChild(typeSelect);
     controls.appendChild(prevBtn);
     controls.appendChild(pageInfo);
     controls.appendChild(nextBtn);
@@ -181,20 +195,29 @@
     nextBtn.disabled = currentPage >= maxPage;
   }
 
+  function visiblePageEvents() {
+    return pageEvents.filter((evt) => {
+      const type = evt.event_type || evt.stage || "legacy_trace_event";
+      return eventTypeFilter === "all" || type === eventTypeFilter;
+    });
+  }
+
   function renderTimeline() {
     timelineList.innerHTML = "";
-    pageEvents.forEach((evt, index) => {
+    const visibleEvents = visiblePageEvents();
+    visibleEvents.forEach((evt, index) => {
       const li = document.createElement("li");
-      const label = evt.timestamp || evt.stage || evt.module || `Event ${index + 1}`;
+      const type = evt.event_type || evt.stage || evt.module || "event";
+      const label = `${type} ${evt.timestamp || evt.stage || evt.module || `Event ${index + 1}`}`;
       const globalIndex = currentPage * pageSize + index;
       li.textContent = `${globalIndex + 1}. ${label}`;
-      li.addEventListener("click", () => selectEvent(index));
+      li.addEventListener("click", () => selectEventByObject(evt, index));
       if (index === selectedIndex) {
         li.classList.add("active");
       }
       timelineList.appendChild(li);
     });
-    if (pageEvents.length === 0) {
+    if (visibleEvents.length === 0) {
       const empty = document.createElement("li");
       empty.textContent = "No events loaded for this page.";
       timelineList.appendChild(empty);
@@ -207,11 +230,34 @@
     }
     selectedIndex = index;
     const evt = pageEvents[index];
+    renderSelectedEvent(evt, index);
+  }
+
+  function selectEventByObject(evt, index) {
+    selectedIndex = index;
+    renderSelectedEvent(evt, index);
+  }
+
+  function renderSelectedEvent(evt, index) {
     eventText.textContent = evt.content || evt.text || "";
     eventMeta.innerHTML = "";
+    if (evt.event_type) {
+      eventMeta.innerHTML += `<div>Event type: ${evt.event_type}</div>`;
+    }
+    if (evt.event_id) {
+      eventMeta.innerHTML += `<div>Event ID: ${evt.event_id}</div>`;
+    }
+    if (evt.payload && Object.keys(evt.payload).length) {
+      eventMeta.innerHTML += `<pre>${JSON.stringify(evt.payload, null, 2)}</pre>`;
+    }
     const badges = (evt.gepa_hits || []).map((hit) => `<span class="badge">${hit}</span>`).join("");
     if (badges) {
       eventMeta.innerHTML += `<div>GEPA badges: ${badges}</div>`;
+    }
+    if (evt.telemetry_mode || evt.telemetry_available !== undefined) {
+      const mode = evt.telemetry_mode || "unknown";
+      const available = evt.telemetry_available === true ? "available" : "unavailable/synthetic";
+      eventMeta.innerHTML += `<div>Telemetry: ${mode} (${available})</div>`;
     }
     if (evt.principle_scores) {
       eventMeta.innerHTML += `<div>Principles: ${JSON.stringify(evt.principle_scores)}</div>`;
@@ -232,6 +278,16 @@
     }
   }
 
+  function selectFirstVisibleEvent() {
+    const visibleEvents = visiblePageEvents();
+    if (!visibleEvents.length) {
+      eventText.textContent = "";
+      eventMeta.innerHTML = "";
+      return;
+    }
+    selectEventByObject(visibleEvents[0], 0);
+  }
+
   function renderTokens() {
     tokenStrip.innerHTML = "";
     if (!tokens.length) {
@@ -243,7 +299,9 @@
       const span = document.createElement("span");
       span.textContent = token.token;
       span.className = "token-chip" + (token.abstained ? " abstain" : "");
-      span.title = `chunk ${token.chunk ?? 0} offset ${token.offset ?? 0} perplexity ${token.ppl ? token.ppl.toFixed(2) : "n/a"}`;
+      const mode = token.telemetry_mode || "legacy";
+      const measured = token.telemetry_available === true ? "measured" : "synthetic/unavailable";
+      span.title = `chunk ${token.chunk ?? 0} offset ${token.offset ?? 0} perplexity ${token.ppl ? token.ppl.toFixed(2) : "n/a"} telemetry ${mode} ${measured}`;
       tokenStrip.appendChild(span);
     });
     if (tokenCanvas && tokenCanvas.getContext) {
@@ -403,7 +461,7 @@
     pageEvents = await loadPage(currentPage);
     selectedIndex = 0;
     renderTimeline();
-    selectEvent(0);
+    selectFirstVisibleEvent();
     updateControls();
   }
 

@@ -21,6 +21,12 @@ dependencies = [
 [project.optional-dependencies]
 pdf = ["weasyprint>=53"]
 dspy = ["dspy-ai>=2.5"]
+dev = [
+    "black>=24.0",
+    "mypy>=1.8",
+    "pytest>=8.0",
+    "ruff>=0.4",
+]
 
 [project.scripts]
 gepa = "mindful_trace_gepa.cli:main"
@@ -36,6 +42,8 @@ packages = [
     "rg_tracer.scoring",
     "rg_tracer.schema_v3",
     "semantic_intent_robustness",
+    "cognitive_pairwise_training",
+    "socratic_self_refine",
     "objective_validator_robustness",
     "factuality_certification",
     "evaluation",
@@ -57,6 +65,8 @@ mindful_trace_gepa = "src/mindful_trace_gepa"
 gepa_mindfulness = "gepa_mindfulness"
 rg_tracer = "reasoning-generalization-tracer/src/rg_tracer"
 semantic_intent_robustness = "modules/semantic_intent_robustness"
+cognitive_pairwise_training = "modules/cognitive_pairwise_training"
+socratic_self_refine = "modules/socratic_self_refine"
 objective_validator_robustness = "modules/objective_validator_robustness"
 factuality_certification = "src/factuality_certification"
 evaluation = "evaluation"
@@ -108,6 +118,8 @@ known-first-party = [
     "gepa_mindfulness",
     "rg_tracer",
     "semantic_intent_robustness",
+    "cognitive_pairwise_training",
+    "socratic_self_refine",
     "objective_validator_robustness",
     "factuality_certification",
     "evaluation",
