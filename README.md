@@ -9,6 +9,7 @@ The project targets **Python 3.10+**.
 The repository includes opt-in scaffolding for four longitudinal reflective-stability surfaces:
 
 - `modules/semantic_intent_robustness/memory_safety.py` protects persistence boundaries so untrusted claims, instructions, summaries, or retrieved documents cannot silently become durable authority, identity, policy, or tool-selection state.
+- `modules/objective_validator_robustness/` adds opt-in Objective / Validator Robustness for validator capture, correlated-proxy breakdown, inverse objective interpretation, novelty-aware uncertainty, robust policy selection, and advisory objective-validation interrupts.
 - `modules/cognitive_pairwise_training/` provides Cognitive Pairwise Training inspired pair construction, JSONL export, and diagnostics for metacognitive mid-training before downstream RL.
 - `modules/socratic_self_refine/` provides a bounded Socratic Self-Refine inspired evaluation/inference scaffold for step-level verification and selective repair.
 - `src/mindful_trace_gepa/logging_schema.py` defines a backward-compatible structured event envelope for semantic, memory, CPT, SSR, deception, attribution, and review events.
@@ -241,7 +242,7 @@ See `docs/grn_integration.md` for configurable Global Response Normalization usa
 
 * **Dual-path deception probes** — `src/mindful_trace_gepa/deception` includes heuristics, circuit-fingerprint shims, and dual-path detectors.
 * **Semantic intent robustness** — `modules/semantic_intent_robustness` tests whether safety judgments remain stable across paraphrase, translation, wrappers, code-switching, and multi-turn laundering.
-* **Objective / Validator Robustness** — `modules/objective_validator_robustness` detects Validator Capture / TVD-style task structures where local validators demand unsafe content.
+* **Objective / Validator Robustness** — `modules/objective_validator_robustness` detects Validator Capture / TVD-style task structures where local validators demand unsafe content and adds an optional proxy-robustness overlay for correlated-proxy breakdown, inverse objective interpretation, novelty uncertainty, bounded robust policy selection, and advisory objective-validation interrupts.
 * **Factuality certification** — `src/factuality_certification` supports optional evidence-relative answer certification in `off`, `shadow`, `advisory`, `gated`, and `training` modes.
 * **Factuality observability** — `gepa_mindfulness/factuality_observability/` adds observability-aware routing, verification, provenance, repair, and hallucination diagnostics.
 * **Schema V3 control overlay** — `gepa_mindfulness/schema_v3/` adds compositional reasoning-unit metadata, metacognitive control labels, causal/scientific diagnostics, and transformation-stability fields.

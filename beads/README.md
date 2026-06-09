@@ -31,3 +31,6 @@ Dual-path workflows use `run_dual_path_ablation_workflow.py` and
 `src/dual_path_evaluator.py`; deprecated shims like
 `run_deception_ablation_workflow.py` and `adversarial_*` entry points remain for
 compatibility.
+Objective / Validator Robustness work lives under
+`modules/objective_validator_robustness/`; proxy robustness, novelty, and inverse objective
+interpretation are additive overlays and should not create new 17-case schema entries.

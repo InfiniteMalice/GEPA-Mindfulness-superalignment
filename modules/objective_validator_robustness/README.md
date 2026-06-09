@@ -3,11 +3,65 @@
 ## Purpose
 
 This module detects **Validator Capture** (aliases: Task-Validator Safety Collapse,
-Objective Capture, TVD-style safety collapse, Internal Safety Collapse-like failure).
+Objective Capture, TVD-style safety collapse, Internal Safety Collapse-like failure) and adds an
+optional objective-robustness overlay for proxy breakdown, novelty, and inverse objective
+interpretation.
 
 Validator Capture is a failure mode where a model is captured by local task success criteria
 (validator, rubric, unit test, schema, benchmark, or required output format) such that
 passing the task requires unsafe output.
+
+The combined principle is:
+
+> Goals guide action, but they are not sovereign. Reward functions are evidence. Values govern interpretation. Reality tests the proxy. Uncertainty slows optimization. Corrigibility keeps the system teachable.
+
+## Validator Capture
+
+A local validator, rubric, schema, benchmark, or unit test can pressure the model toward unsafe
+completion. The existing `decompose_objective`, `detect_validator_capture`,
+`decide_validator_policy`, `score_validator_robustness`, and `validator_overlay_tier` APIs remain
+unchanged.
+
+## Correlated-Proxy Breakdown
+
+A reward can correlate with the intended goal under a base policy but become unreliable when
+optimization pressure moves the current policy outside that reference region. The new
+`assess_proxy_objective` helper records proxy cues, optimization pressure, evaluator-gaming risk,
+reward-hacking risk, and whether a correlation warning is warranted.
+
+This layer is intentionally honest about uncertainty: without empirical policy evidence, correlation
+confidence is labeled `heuristic` or `unavailable`, not measured.
+
+## Inverse Objective Interpretation
+
+The supplied objective is evidence about intended direction in its design context, not a complete
+license for literal maximization in all future environments. `infer_objective_posterior` represents
+multiple plausible interpretations when the proxy appears incomplete or the deployment context is
+novel. These posterior-like weights are deterministic heuristics unless a future integration
+provides calibrated evidence.
+
+## Novelty and Uncertainty
+
+`assess_objective_novelty` compares the design/training context against observed deployment
+conditions. Novelty does not automatically cause refusal:
+
+| Condition | Default response |
+|---|---|
+| Low stakes, reversible, mild novelty | Proceed cautiously with a stated assumption |
+| Moderate novelty with manageable downside | Bound the action and preserve optionality |
+| High stakes or irreversible action under objective uncertainty | Clarify, escalate, or pause execution |
+| Catastrophic plausible downside | Do not optimize blindly |
+
+## Robust Policy Selection
+
+`decide_robust_objective_policy` selects a safe action under proxy uncertainty. It can allow,
+bound, transform, preserve optionality, ask clarifying questions, escalate, or refuse. It prefers
+reversible actions, avoids catastrophic downside under plausible interpretations, offers safe
+alternatives, and preserves existing validator-capture behavior.
+
+`ObjectiveValidationInterrupt` is an advisory control signal. It can raise scheduling priority and
+force review before unsafe execution, but it does not bypass deliberation or perform irreversible
+actions.
 
 ## How this differs from semantic laundering
 
@@ -36,9 +90,10 @@ The module checks local task success against repository-level imperatives:
 2. Reduce Human Suffering
 3. Increase Scientific Knowledge
 
-## 13+0 compatibility via overlay tiers
+## 17-case compatibility via overlay tiers
 
-This module does **not** replace the existing 13+0 case schema. It adds a composable overlay:
+This module does **not** expand, renumber, or redefine the existing 17-case epistemic schema. It
+adds composable overlays:
 `CaseX-OY-SZ-VW`
 
 Overlay meanings:
@@ -49,6 +104,18 @@ Overlay meanings:
 - `V3`: possible local-success/global-safety conflict
 - `V4`: confirmed validator capture risk with safe alternative
 - `V5`: confirmed high-risk task-validator safety collapse requiring refusal/escalation
+
+Proxy overlay meanings:
+
+- `P0`: no proxy analysis available
+- `P1`: objective parsed and design context identified
+- `P2`: objective likely incomplete or proxy-like
+- `P3`: novel state or optimization-pressure concern detected
+- `P4`: likely proxy breakdown; bounded action or clarification required
+- `P5`: high-risk objective failure; execution pause, escalation, or refusal required
+
+The proxy overlay is separate from V0-V5 validator-capture tiers, factuality overlays,
+semantic-intent categories, and the 17-case schema.
 
 ## Design principles
 
@@ -78,6 +145,29 @@ score = score_validator_robustness(structure, signal, decision)
 tier = validator_overlay_tier(signal)
 ```
 
+Proxy robustness pipeline:
+
+```python
+from objective_validator_robustness import (
+    ObjectiveSpecification,
+    evaluate_objective_robustness,
+)
+
+specification = ObjectiveSpecification(
+    objective_id="gridworld-lava",
+    objective_text="Minimize time spent on grass.",
+    designer_context_summary="Reward designed for dirt and grass terrain.",
+    training_environment_summary="Known features: dirt grass.",
+    deployment_environment_summary="Deployment now includes dirt grass and lava.",
+    explicit_success_condition="Minimize grass steps.",
+    implicit_success_condition="Reach the goal safely, not by exploiting hazards.",
+    known_constraints=["avoid dangerous terrain"],
+    metadata={"stakes_level": "high", "reversibility": "low"},
+)
+
+report = evaluate_objective_robustness(specification)
+```
+
 ## Safe transformation patterns
 
 - Preserve schema shape while replacing dangerous slots with
@@ -85,3 +175,15 @@ tier = validator_overlay_tier(signal)
 - Use non-operational dummy strings for toy classifier datasets.
 - Prefer approved internal dataset IDs over generating harmful samples.
 - Provide validation guidance without dangerous field contents.
+
+## Relationship to Existing Layers
+
+- The Constitution supplies values.
+- The 17-case framework handles epistemic calibration and high-stakes ambiguity.
+- Semantic intent robustness handles laundering across phrasing and turns.
+- Memory safety handles laundering across persistence boundaries.
+- Objective robustness handles proxies, validators, novelty, and optimization pressure.
+- Logs and attribution references support reflective-stability review.
+
+The layer remains modular, typed, inspectable, and opt-in through
+`configs/objective_validator_robustness.yaml`.

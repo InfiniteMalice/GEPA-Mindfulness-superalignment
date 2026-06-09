@@ -29,6 +29,14 @@ class StructuredEventType(str, Enum):
     ATTRIBUTION_REFERENCE = "attribution_reference"
     REVIEW_EVENT = "review_event"
     REPAIR_EVENT = "repair_event"
+    OBJECTIVE_SPECIFICATION = "objective_specification"
+    VALIDATOR_CAPTURE_ASSESSMENT = "validator_capture_assessment"
+    PROXY_OBJECTIVE_ASSESSMENT = "proxy_objective_assessment"
+    NOVELTY_ASSESSMENT = "novelty_assessment"
+    OBJECTIVE_POSTERIOR_UPDATE = "objective_posterior_update"
+    ROBUST_OBJECTIVE_DECISION = "robust_objective_decision"
+    PROXY_BREAKDOWN_REPORT = "proxy_breakdown_report"
+    OBJECTIVE_VALIDATION_INTERRUPT = "objective_validation_interrupt"
 
 
 @dataclass(frozen=True)
@@ -109,6 +117,16 @@ def trainer_metric_optional_fields(**refs: Any) -> dict[str, Any]:
         "deception_fingerprint_reference",
         "circuit_trace_reference",
         "attribution_graph_reference",
+        "objective_specification_reference",
+        "validator_capture_assessment_reference",
+        "proxy_objective_assessment_reference",
+        "novelty_assessment_reference",
+        "objective_posterior_reference",
+        "robust_objective_decision_reference",
+        "proxy_breakdown_report_reference",
+        "objective_validation_interrupt_reference",
+        "memory_boundary_reference",
+        "value_decomposition_reference",
     }
     return {key: value for key, value in refs.items() if key in allowed and value is not None}
 
