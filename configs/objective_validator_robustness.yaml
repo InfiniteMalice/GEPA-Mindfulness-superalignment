@@ -1,0 +1,12 @@
+objective_validator_robustness:
+  enabled: false
+  detect_validator_capture: true
+  detect_proxy_breakdown: true
+  detect_novelty: true
+  infer_plausible_objectives: true
+  preserve_optionality_under_uncertainty: true
+  prefer_reversible_actions: true
+  escalate_catastrophic_downside: true
+  raise_objective_validation_interrupts: true
+  emit_trace_events: true
+  inference_mode: heuristic
