@@ -144,7 +144,10 @@ def evaluate_objective_robustness(
     )
     trace_events = report.metadata["trace_events"]
     if isinstance(trace_events, list):
-        trace_events[-2]["payload"] = report.to_dict()
+        for event in trace_events:
+            if event.get("event_type") == "proxy_breakdown_report":
+                event["payload"] = report.to_dict()
+                break
     return report
 
 

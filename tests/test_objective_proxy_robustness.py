@@ -240,6 +240,18 @@ def test_new_log_events_join_to_rollouts_through_stable_ids() -> None:
     }
 
 
+def test_no_interrupt_trace_writes_report_to_proxy_breakdown_event_only() -> None:
+    report = _report("proxy-grid-001-dirt-grass")
+    events = report.metadata["trace_events"]
+    by_type = {event["event_type"]: event["payload"] for event in events}
+
+    assert report.interrupt_required is False
+    assert "objective_validation_interrupt" not in by_type
+    assert by_type["proxy_breakdown_report"]["objective_id"] == report.objective_id
+    assert by_type["robust_objective_decision"]["action"] == "allow"
+    assert "robust_objective_decision" not in by_type["robust_objective_decision"]
+
+
 def test_objective_interrupts_are_advisory_not_execution_shortcuts() -> None:
     report = _report("proxy-grid-006-irreversible-novelty")
     interrupt = report.metadata["objective_validation_interrupt"]
