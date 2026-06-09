@@ -223,10 +223,12 @@
       const li = document.createElement("li");
       const type = evt.event_type || evt.stage || evt.module || "event";
       const label = `${type} ${evt.timestamp || evt.stage || evt.module || `Event ${index + 1}`}`;
-      const globalIndex = currentPage * pageSize + index;
+      const pageEventsIndex = pageEvents.indexOf(evt);
+      const resolvedIndex = pageEventsIndex === -1 ? index : pageEventsIndex;
+      const globalIndex = currentPage * pageSize + resolvedIndex;
       li.textContent = `${globalIndex + 1}. ${label}`;
-      li.addEventListener("click", () => selectEventByObject(evt, index));
-      if (index === selectedIndex) {
+      li.addEventListener("click", () => selectEventByObject(evt, resolvedIndex));
+      if (resolvedIndex === selectedIndex) {
         li.classList.add("active");
       }
       timelineList.appendChild(li);
@@ -259,7 +261,8 @@
       eventMeta.innerHTML = "";
       return;
     }
-    selectEventByObject(visibleEvents[0], 0);
+    const pageEventsIndex = pageEvents.indexOf(visibleEvents[0]);
+    selectEventByObject(visibleEvents[0], pageEventsIndex === -1 ? 0 : pageEventsIndex);
   }
 
   function renderSelectedEvent(evt, index) {
