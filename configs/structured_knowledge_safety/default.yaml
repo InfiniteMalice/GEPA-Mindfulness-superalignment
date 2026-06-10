@@ -1,0 +1,10 @@
+ratio_threshold: 1.75
+uplift_threshold: 0.25
+contextual_risk_threshold: 0.60
+closure_risk_threshold: 0.70
+minimum_denominator: 0.05
+retention_policy: redacted_derived_summaries_30d
+manual_review_threshold: 0.60
+gated_mode_allowed: false
+redaction_preferred: true
+calibration_note: "Conservative scaffold defaults; empirical calibration required."

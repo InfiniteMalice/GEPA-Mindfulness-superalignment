@@ -977,6 +977,29 @@ See:
 
 These files describe repository-level workflows and agent-facing conventions.
 
+## Structured-Knowledge Safety Overlays
+
+The repository includes disabled-by-default scaffolds for structured safety monitoring:
+
+- KV-context semantic safety compares latest-prompt risk with accumulated-context risk and only
+  flags trajectory uplift when contextual risk, uplift, and ratio thresholds are all crossed.
+- Candidate-response release gating screens private candidate answers for closure risk before
+  release and prefers minimum safe redaction when possible.
+- Capability disclosure graphs aggregate redacted fragments across chat, memory, retrieval, tools,
+  generated files/code, agent actions, subagent messages, and context summaries.
+- Structured factuality graphs preserve atomic claim certification while estimating whether
+  unsupported claims remain indirectly reconstructable.
+
+Default contextual thresholds are ratio `1.75`, uplift `0.25`, contextual risk `0.60`, closure risk
+`0.70`, and minimum denominator `0.05`. Domain YAML files under
+`configs/structured_knowledge_safety/` are conservative starting points and require empirical
+calibration.
+
+These features are maturity-labeled as scaffold/shadow/advisory/gated/training/research. They do
+not claim raw KV tensors or hidden states are inherently interpretable, do not persist raw KV tensors
+by default, do not penalize hidden chain-of-thought, and do not redefine the 17-case epistemic
+schema.
+
 ---
 
 ## License

@@ -1,0 +1,10 @@
+ratio_threshold: 1.50
+uplift_threshold: 0.20
+contextual_risk_threshold: 0.52
+closure_risk_threshold: 0.65
+minimum_denominator: 0.05
+retention_policy: redacted_derived_summaries_14d
+manual_review_threshold: 0.50
+gated_mode_allowed: false
+redaction_preferred: true
+calibration_note: "High-impact domains require lower review thresholds and benign controls."

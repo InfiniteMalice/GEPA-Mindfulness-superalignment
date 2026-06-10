@@ -66,3 +66,8 @@ class FactualityCertificationConfig:
     overrefusal_guard: OverRefusalGuardConfig = field(default_factory=OverRefusalGuardConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     training: TrainingConfig = field(default_factory=TrainingConfig)
+    enable_structured_knowledge: bool = False
+    structured_knowledge_mode: str = "off"
+    reconstructability_threshold: float = 0.65
+    correlated_knowledge_review_threshold: float = 0.45
+    max_inference_depth: int = 3

@@ -14,6 +14,14 @@ from .consistency import (
     principle_consistency_score,
     semantic_cluster_agreement,
 )
+from .kv_context_safety import (
+    KVCacheFeatureAdapter,
+    KVCacheFeatureSnapshot,
+    KVContextRiskScorer,
+    KVContextSafetyConfig,
+    PromptRiskAssessment,
+    TranscriptFallbackAdapter,
+)
 from .memory_safety import (
     MemoryLaunderingReport,
     MemoryWriteRequest,
@@ -215,6 +223,30 @@ class MemoryBoundaryModule:
         return aggregate_memory_mediated_laundering(writes, retrievals)
 
 
+class KVContextSafetyModule:
+    """Run the opt-in KV-context safety scorer."""
+
+    def __init__(self) -> None:
+        self.scorer = KVContextRiskScorer()
+
+    def __call__(
+        self,
+        *,
+        latest_record: SemanticSafetyRecord,
+        conversation: MultiTurnConversation,
+        snapshot: KVCacheFeatureSnapshot,
+        config: KVContextSafetyConfig,
+        candidate_response: str | None = None,
+    ) -> PromptRiskAssessment:
+        return self.scorer.assess(
+            latest_record=latest_record,
+            conversation=conversation,
+            snapshot=snapshot,
+            config=config,
+            candidate_response=candidate_response,
+        )
+
+
 class SemanticIntentPipeline:
     """Structured semantic intent pipeline mirroring the requested DSPy flow."""
 
@@ -231,6 +263,7 @@ class SemanticIntentPipeline:
         self.principle_consistency = CheckPrincipleConsistencyModule()
         self.multi_turn = AggregateMultiTurnRiskModule()
         self.memory_boundary = MemoryBoundaryModule()
+        self.kv_context_safety = KVContextSafetyModule()
 
     def run(
         self,
@@ -324,6 +357,51 @@ class SemanticIntentPipeline:
 
         return self.memory_boundary(writes, retrievals)
 
+    def run_kv_context_assessment(
+        self,
+        *,
+        latest_record: SemanticSafetyRecord,
+        conversation: MultiTurnConversation,
+        conversation_history: tuple[str, ...],
+        config: KVContextSafetyConfig,
+        kv_cache: object | None = None,
+        candidate_response: str | None = None,
+        adapter: KVCacheFeatureAdapter | None = None,
+    ) -> PromptRiskAssessment:
+        """Run the disabled-by-default contextual safety overlay."""
+
+        if not config.enabled:
+            return PromptRiskAssessment(
+                conversation_id=conversation.conversation_id,
+                turn_index=latest_record.turn_index,
+                prompt_text=latest_record.prompt_text,
+                single_prompt_risk=0.0,
+                contextual_risk=0.0,
+                contextual_uplift=0.0,
+                contextual_ratio=0.0,
+                trajectory_flag=False,
+                trajectory_reasons=(),
+                recommended_action="allow",
+                requires_review=False,
+                cache_mode=config.mode,
+            )
+        selected_adapter = adapter or TranscriptFallbackAdapter()
+        snapshot = selected_adapter.extract_snapshot(
+            conversation_id=conversation.conversation_id,
+            turn_index=latest_record.turn_index,
+            prompt_text=latest_record.prompt_text,
+            conversation_history=conversation_history,
+            kv_cache=kv_cache,
+            candidate_response=candidate_response,
+        )
+        return self.kv_context_safety(
+            latest_record=latest_record,
+            conversation=conversation,
+            snapshot=snapshot,
+            config=config,
+            candidate_response=candidate_response,
+        )
+
 
 SEMANTIC_PIPELINE_REGISTRY = {
     "semantic_intent_pipeline": SemanticIntentPipeline,
@@ -342,6 +420,7 @@ __all__ = [
     "DecomposePrinciplesModule",
     "DefendPrincipledCooperationModule",
     "GenerateSafeResponseModule",
+    "KVContextSafetyModule",
     "MemoryBoundaryModule",
     "SEMANTIC_PIPELINE_REGISTRY",
     "SemanticIntentPipeline",

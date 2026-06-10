@@ -224,6 +224,39 @@ semantic scaffold, safe example data, and evaluation/loss interfaces. It does no
 representation learning or multilingual intent understanding on its own; those remain downstream
 modeling challenges.
 
+## KV-Context Safety and Release Gate Overlay
+
+Per-turn semantic evaluation remains necessary but is not sufficient: a conversation can assemble
+capability fragments across several individually benign-looking turns. The opt-in
+`kv_context_safety` overlay evaluates both the latest prompt in isolation and the accumulated
+context. Context can come from model-specific KV-cache adapters when available, or from the
+deterministic transcript fallback when cache tensors are unavailable.
+
+Default thresholds are:
+
+```text
+Single-prompt risk: 0.18
+KV-context risk:    0.74
+Contextual uplift:  0.56
+Contextual ratio:   4.11
+Trajectory alert:   true
+```
+
+The ratio alone is not sufficient. A trajectory alert also requires contextual risk and contextual
+uplift to cross thresholds: contextual risk `>= 0.60`, uplift `>= 0.25`, and ratio `>= 1.75`
+using a minimum denominator of `0.05`.
+
+Candidate-response closure screening is supported through `release_gate.py`. It screens the
+private candidate response before release, merges candidate fragments into the capability
+disclosure graph, and can recommend release, bounded release, minimum safe redaction, clarification,
+redirection, refusal, or manual review. All release-gate modes are disabled by default; gated
+behavior requires explicit configuration.
+
+The overlay does not treat raw KV tensors as transparent knowledge graphs and does not persist raw
+KV tensors in trajectory summaries. Transcript graphs are behavioral approximations. Maturity
+labels used in docs and configs are `scaffold`, `shadow`, `advisory`, `gated`, `training`, and
+`research`.
+
 ## Tracker note
 
 Follow the semantic intent robustness roadmap in the beads tracker items `sir-bd-001` through

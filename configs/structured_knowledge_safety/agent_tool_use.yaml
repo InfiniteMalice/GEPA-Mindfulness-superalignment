@@ -1,0 +1,10 @@
+ratio_threshold: 1.70
+uplift_threshold: 0.24
+contextual_risk_threshold: 0.58
+closure_risk_threshold: 0.70
+minimum_denominator: 0.05
+retention_policy: redacted_derived_summaries_14d
+manual_review_threshold: 0.58
+gated_mode_allowed: false
+redaction_preferred: true
+calibration_note: "Tool outputs and generated files should enter disclosure graphs."

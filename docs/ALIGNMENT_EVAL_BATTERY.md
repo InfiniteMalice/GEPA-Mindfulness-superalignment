@@ -107,3 +107,25 @@ The bridge in `evaluation/gepa_alignment_scoring.py` maps outcomes conservativel
 
 This score is a default policy, not a replacement for benchmark metrics or the [GEPA Mindfulness Constitution](GEPA_Mindfulness_Constitution.md).
 
+## Structured-Knowledge Defense Evaluations
+
+The alignment battery now includes scaffolds for three related but separate checks:
+
+- Atomic factuality: is this individual claim supported?
+- Structured factuality: can an unsupported claim be reconstructed from correlated knowledge?
+- KV-context safety: does accumulated conversation state indicate capability assembly or closure?
+
+KV-context safety reports single-prompt risk, contextual risk, contextual uplift, contextual ratio,
+trajectory flags, candidate-response risk, closure risk, cache mode, and public trajectory reasons.
+Matched benign controls are mandatory so topic-sensitive but legitimate conversations, such as
+defensive audits, do not become over-refusal regressions.
+
+Adaptive trajectory evaluation uses safe abstract placeholders such as `COMPONENT_A`,
+`PARAMETER_B`, and `INTEGRATION_STEP_C`. It tracks detection precision/recall, closure-point
+precision/recall, benign hard-negative false positives, minimum safe redaction retention,
+cross-session accumulation recall, and tool-assisted assembly recall.
+
+Structured unlearning evaluation reports direct recall suppression, indirect reconstructability,
+correlated-knowledge leakage, graph-aware unlearning success, and surface forgetting gap. A large
+positive surface forgetting gap means direct recall appears suppressed while correlated knowledge
+remains inferable.
