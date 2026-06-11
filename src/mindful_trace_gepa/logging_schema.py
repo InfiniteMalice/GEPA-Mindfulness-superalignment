@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Mapping
 from uuid import uuid4
@@ -37,6 +37,22 @@ class StructuredEventType(str, Enum):
     ROBUST_OBJECTIVE_DECISION = "robust_objective_decision"
     PROXY_BREAKDOWN_REPORT = "proxy_breakdown_report"
     OBJECTIVE_VALIDATION_INTERRUPT = "objective_validation_interrupt"
+    KV_CACHE_FEATURE_SNAPSHOT = "kv_cache_feature_snapshot"
+    KV_CONTEXT_RISK_ASSESSMENT = "kv_context_risk_assessment"
+    TRAJECTORY_UPLIFT_ALERT = "trajectory_uplift_alert"
+    CANDIDATE_RESPONSE_CLOSURE_ASSESSMENT = "candidate_response_closure_assessment"
+    STRUCTURED_KNOWLEDGE_GRAPH = "structured_knowledge_graph"
+    CORRELATED_CLAIM_ASSESSMENT = "correlated_claim_assessment"
+    INFERENCE_PATH_ASSESSMENT = "inference_path_assessment"
+    UNLEARNING_RECONSTRUCTABILITY_REPORT = "unlearning_reconstructability_report"
+    DISCLOSURE_EVENT = "disclosure_event"
+    CAPABILITY_GRAPH_UPDATE = "capability_graph_update"
+    TRAJECTORY_SUMMARY = "trajectory_summary"
+    RELEASE_GATE_ASSESSMENT = "release_gate_assessment"
+    SAFE_REDACTION_EVENT = "safe_redaction_event"
+    INTERNAL_STATE_TRAJECTORY_SNAPSHOT = "internal_state_trajectory_snapshot"
+    ADAPTIVE_ATTACK_RUN = "adaptive_attack_run"
+    MONITOR_BYPASS_TEST_RESULT = "monitor_bypass_test_result"
 
 
 @dataclass(frozen=True)
@@ -75,7 +91,9 @@ def make_event_envelope(
         schema_version=str(ids.pop("schema_version", "1.0")),
         event_id=str(ids.pop("event_id", uuid4())),
         event_type=event_value,
-        timestamp=str(ids.pop("timestamp", datetime.now(UTC).isoformat().replace("+00:00", "Z"))),
+        timestamp=str(
+            ids.pop("timestamp", datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
+        ),
         payload=dict(payload),
         **ids,
     )
@@ -127,6 +145,22 @@ def trainer_metric_optional_fields(**refs: Any) -> dict[str, Any]:
         "objective_validation_interrupt_reference",
         "memory_boundary_reference",
         "value_decomposition_reference",
+        "kv_cache_snapshot_reference",
+        "kv_context_risk_reference",
+        "trajectory_uplift_alert_reference",
+        "candidate_response_closure_reference",
+        "structured_knowledge_graph_reference",
+        "correlated_claim_assessment_reference",
+        "inference_path_assessment_reference",
+        "unlearning_reconstructability_report_reference",
+        "disclosure_event_reference",
+        "capability_graph_update_reference",
+        "trajectory_summary_reference",
+        "release_gate_assessment_reference",
+        "safe_redaction_event_reference",
+        "internal_state_trajectory_snapshot_reference",
+        "adaptive_attack_run_reference",
+        "monitor_bypass_test_result_reference",
     }
     return {key: value for key, value in refs.items() if key in allowed and value is not None}
 

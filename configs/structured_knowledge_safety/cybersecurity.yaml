@@ -1,0 +1,10 @@
+ratio_threshold: 1.60
+uplift_threshold: 0.22
+contextual_risk_threshold: 0.55
+closure_risk_threshold: 0.68
+minimum_denominator: 0.05
+retention_policy: redacted_derived_summaries_30d
+manual_review_threshold: 0.55
+gated_mode_allowed: false
+redaction_preferred: true
+calibration_note: "Defensive-audit controls must be matched against benign hard negatives."

@@ -1,0 +1,10 @@
+ratio_threshold: 1.65
+uplift_threshold: 0.22
+contextual_risk_threshold: 0.56
+closure_risk_threshold: 0.68
+minimum_denominator: 0.05
+retention_policy: redacted_derived_summaries_7d
+manual_review_threshold: 0.55
+gated_mode_allowed: false
+redaction_preferred: true
+calibration_note: "Raw KV tensors are not persisted; untrusted summaries are quarantined."

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from typing import Any
 
 from .abstention_policy import detect_abstention, detect_refusal
 from .claim_extraction import extract_atomic_claims
@@ -12,6 +13,7 @@ from .evidence_matching import match_claims_to_evidence
 from .integrations import to_13_case_features
 from .logging_schema import make_hash
 from .overrefusal_guard import find_scoped_alternative
+from .structured_knowledge import StructuredKnowledgeGraphBuilder, estimate_reconstructability
 from .types import AtomicClaim, CertificationResult, EvidenceItem
 
 
@@ -151,7 +153,7 @@ def certify_answer(
         if current_ids:
             claim_to_current_evidence_ids[support.claim_id] = current_ids
 
-    logs = {
+    logs: dict[str, Any] = {
         "prompt_hash": make_hash(prompt),
         "answer_hash": make_hash(answer),
         "atomic_claim_ids": [c.id for c in claims],
@@ -169,6 +171,57 @@ def certify_answer(
         "has_current_references": any(bool(e.timestamp) for e in ev),
         "current_claim_to_evidence_map": claim_to_current_evidence_ids,
     }
+    if cfg.enable_structured_knowledge and cfg.structured_knowledge_mode != "off":
+        graph = StructuredKnowledgeGraphBuilder().build(
+            claims=claims,
+            claim_support=supports,
+            evidence=ev,
+            context=context,
+        )
+        target_ids = [
+            support.claim_id
+            for support in supports
+            if support.support_label in {"unsupported", "contradicted", "unverifiable"}
+        ]
+        assessments = [
+            estimate_reconstructability(
+                graph=graph,
+                target_claim_id=claim_id,
+                max_depth=cfg.max_inference_depth,
+            )
+            for claim_id in target_ids
+        ]
+        max_reconstructability = max(
+            [item.reconstructability_score for item in assessments],
+            default=0.0,
+        )
+        inferable_ids = [
+            item.target_claim_id
+            for item in assessments
+            if item.inferable_despite_missing_direct_support
+        ]
+        if max_reconstructability >= cfg.correlated_knowledge_review_threshold:
+            warnings.append("Correlated knowledge may indirectly support an uncertified claim.")
+            if cfg.structured_knowledge_mode in {"advisory", "gated"}:
+                action = "answer_with_qualifications"
+        logs.update(
+            {
+                "structured_knowledge_enabled": True,
+                "structured_knowledge_graph_summary": {
+                    "node_count": len(graph.nodes()),
+                    "relation_count": len(graph.relations),
+                },
+                "correlated_claim_ids": target_ids,
+                "inference_path_count": sum(len(item.inference_paths) for item in assessments),
+                "max_reconstructability_score": max_reconstructability,
+                "inferable_despite_missing_direct_support_claim_ids": inferable_ids,
+                "structured_knowledge_recommended_action": (
+                    "manual_review"
+                    if max_reconstructability >= cfg.correlated_knowledge_review_threshold
+                    else "answer"
+                ),
+            }
+        )
     res = CertificationResult(
         mode=cfg.mode,
         overall_label=overall,
