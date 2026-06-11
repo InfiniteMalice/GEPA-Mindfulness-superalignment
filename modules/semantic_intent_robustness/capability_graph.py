@@ -62,12 +62,24 @@ class CapabilityDisclosureGraph:
         return self.dependencies
 
     def paths_to(self, target_id: str, max_depth: int = 3) -> tuple[tuple[str, ...], ...]:
-        direct = [
-            (dep.source_fragment_id, dep.target_fragment_id)
-            for dep in self.dependencies
-            if dep.target_fragment_id == target_id and max_depth >= 1
-        ]
-        return tuple(direct)
+        if max_depth < 1:
+            return ()
+
+        def walk(current_id: str, depth_remaining: int, visited: set[str]) -> list[tuple[str, ...]]:
+            paths: list[tuple[str, ...]] = []
+            for dep in self.dependencies:
+                if dep.target_fragment_id != current_id:
+                    continue
+                source_id = dep.source_fragment_id
+                if source_id in visited:
+                    continue
+                paths.append((source_id, current_id))
+                if depth_remaining > 1:
+                    for prefix in walk(source_id, depth_remaining - 1, visited | {source_id}):
+                        paths.append(prefix + (current_id,))
+            return paths
+
+        return tuple(walk(target_id, max_depth, {target_id}))
 
 
 def build_capability_disclosure_graph(
@@ -84,6 +96,7 @@ def build_capability_disclosure_graph(
                 ordered_fragment_ids.append(fragment_id)
             existing = fragment_map.get(fragment_id)
             source_ids = (existing.source_event_ids if existing else ()) + (event.event_id,)
+            new_confidence = max(0.5, event.operational_specificity, event.executionality)
             fragment_map[fragment_id] = CapabilityFragment(
                 fragment_id=fragment_id,
                 capability_domain=event.capability_domain,
@@ -96,7 +109,7 @@ def build_capability_disclosure_graph(
                     event.executionality,
                     existing.executionality if existing else 0.0,
                 ),
-                confidence=max(0.5, event.operational_specificity, event.executionality),
+                confidence=max(existing.confidence if existing else 0.0, new_confidence),
                 source_event_ids=tuple(dict.fromkeys(source_ids)),
             )
     dependencies = []

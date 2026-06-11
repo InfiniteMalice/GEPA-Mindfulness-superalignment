@@ -3,12 +3,11 @@
 # Standard library
 from __future__ import annotations
 
+# Local
 from evaluation.suites.factuality.structured_unlearning import (
     GraphAwareUnlearningCase,
     evaluate_graph_aware_unlearning,
 )
-
-# Local
 from factuality_certification import EvidenceItem, FactualityCertificationConfig, certify_answer
 from factuality_certification.structured_knowledge import (
     ClaimRelation,
@@ -111,7 +110,7 @@ def test_multiple_weak_paths_combine_conservatively() -> None:
 
     assessment = estimate_reconstructability(graph=graph, target_claim_id="c3")
 
-    assert round(assessment.reconstructability_score, 4) == 0.4375
+    assert round(assessment.reconstructability_score, 4) == 0.75
 
 
 def test_contradicted_claim_with_strong_indirect_path_requires_review() -> None:
@@ -139,6 +138,51 @@ def test_contradicted_claim_with_strong_indirect_path_requires_review() -> None:
 
     assert assessment.requires_review is True
     assert assessment.recommended_action == "manual_review"
+
+
+def test_multi_hop_inference_path_uses_supported_source() -> None:
+    claims = [
+        _claim("c1", "Supported source."),
+        _claim("c2", "Intermediate bridge."),
+        _claim("c3", "Unsupported target."),
+    ]
+    graph = StructuredKnowledgeGraphBuilder().build(
+        claims=claims,
+        claim_support=[
+            _support("c1", "supported", 0.9, ["e1"]),
+            _support("c2", "unsupported", 0.0),
+            _support("c3", "unsupported", 0.0),
+        ],
+        evidence=[EvidenceItem(id="e1", text="source")],
+    )
+    graph = StructuredKnowledgeGraph(
+        nodes=graph.nodes,
+        relations=(
+            ClaimRelation("c1", "c2", "implies", 0.9),
+            ClaimRelation("c2", "c3", "implies", 0.9),
+        ),
+        inference_paths=(),
+    )
+
+    assessment = estimate_reconstructability(graph=graph, target_claim_id="c3", max_depth=2)
+
+    assert ("c1", "c2", "c3") in {path.claim_ids for path in assessment.inference_paths}
+    assert assessment.reconstructability_score > 0.70
+
+
+def test_missing_target_claim_raises_clear_error() -> None:
+    graph = StructuredKnowledgeGraphBuilder().build(
+        claims=[_claim("c1", "A.")],
+        claim_support=[_support("c1", "supported", 0.9)],
+        evidence=[],
+    )
+
+    try:
+        estimate_reconstructability(graph=graph, target_claim_id="missing")
+    except ValueError as exc:
+        assert "target_claim_id not found in graph" in str(exc)
+    else:
+        raise AssertionError("missing target should raise ValueError")
 
 
 def test_structured_knowledge_disabled_by_default() -> None:

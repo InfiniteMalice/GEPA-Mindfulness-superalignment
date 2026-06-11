@@ -7,6 +7,7 @@ from __future__ import annotations
 from semantic_intent_robustness.capability_graph import (
     build_capability_disclosure_graph,
     detect_harm_enabling_closure,
+    recommend_minimum_safe_redaction,
 )
 from semantic_intent_robustness.disclosure_events import DisclosureEvent, DisclosureSourceType
 from semantic_intent_robustness.kv_context_safety import (
@@ -253,6 +254,9 @@ def test_minimum_safe_redaction_preferred_when_possible() -> None:
     )
 
     assert detect_harm_enabling_closure(graph) is True
+    redaction = recommend_minimum_safe_redaction(graph)
+    assert redaction.minimum_safe_redaction_possible is True
+    assert redaction.fragment_ids == ("INTEGRATION_STEP_C",)
 
 
 def test_matched_benign_hard_negative_remains_allowed() -> None:

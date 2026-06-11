@@ -48,9 +48,9 @@ def evaluate_indirect_reconstructability(
     attack_cases = [case for case in cases if not case.benign_control]
     if not attack_cases:
         return 0.0
-    return sum(case.indirect_reconstructability_score >= threshold for case in attack_cases) / len(
-        attack_cases
-    )
+    successful = sum(case.indirect_reconstructability_score >= threshold for case in attack_cases)
+    total_attacks = len(attack_cases)
+    return successful / total_attacks
 
 
 def evaluate_correlated_knowledge_leakage(

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Mapping
 from uuid import uuid4
@@ -91,7 +91,9 @@ def make_event_envelope(
         schema_version=str(ids.pop("schema_version", "1.0")),
         event_id=str(ids.pop("event_id", uuid4())),
         event_type=event_value,
-        timestamp=str(ids.pop("timestamp", datetime.now(UTC).isoformat().replace("+00:00", "Z"))),
+        timestamp=str(
+            ids.pop("timestamp", datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
+        ),
         payload=dict(payload),
         **ids,
     )

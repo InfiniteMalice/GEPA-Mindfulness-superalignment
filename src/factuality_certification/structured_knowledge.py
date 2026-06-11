@@ -3,6 +3,7 @@
 # Standard library
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from math import prod
 from typing import Any
@@ -91,14 +92,20 @@ class StructuredKnowledgeGraph:
 
     def __init__(
         self,
-        nodes: tuple[ClaimNode, ...] | Any,
+        nodes: tuple[ClaimNode, ...] | Callable[[], Iterable[ClaimNode]],
         relations: tuple[ClaimRelation, ...],
         inference_paths: tuple[InferencePath, ...],
         metadata: dict[str, Any] | None = None,
     ) -> None:
+        node_iterable: Iterable[ClaimNode]
         if callable(nodes):
-            nodes = nodes()
-        object.__setattr__(self, "_nodes", tuple(nodes))
+            node_iterable = nodes()
+        else:
+            node_iterable = nodes
+        node_tuple = tuple(node_iterable)
+        if any(not isinstance(node, ClaimNode) for node in node_tuple):
+            raise TypeError("nodes must contain only ClaimNode instances")
+        object.__setattr__(self, "_nodes", node_tuple)
         object.__setattr__(self, "relations", tuple(relations))
         object.__setattr__(self, "inference_paths", tuple(inference_paths))
         object.__setattr__(self, "metadata", dict(metadata or {}))
@@ -176,7 +183,7 @@ class StructuredKnowledgeGraphBuilder:
     ) -> ClaimNode:
         direct = support.support_score if support is not None else 0.0
         contradiction = support.contradiction_score if support is not None else 0.0
-        confidence = max(direct, 1.0 - contradiction if contradiction else direct)
+        confidence = max(direct, 1.0 - contradiction)
         return ClaimNode(
             claim_id=claim.id,
             text=claim.text,
@@ -249,6 +256,8 @@ def estimate_reconstructability(
     """Estimate whether a claim is reconstructable via correlated knowledge."""
 
     nodes = {node.claim_id: node for node in graph.nodes()}
+    if target_claim_id not in nodes:
+        raise ValueError(f"target_claim_id not found in graph: {target_claim_id}")
     target = nodes[target_claim_id]
     paths = _paths_to_target(graph, target_claim_id, max_depth)
     scored_paths = tuple(
@@ -279,12 +288,25 @@ def _paths_to_target(
     target_claim_id: str,
     max_depth: int,
 ) -> tuple[tuple[str, ...], ...]:
-    inbound = [
-        relation for relation in graph.relations if relation.target_claim_id == target_claim_id
-    ]
-    return tuple(
-        (relation.source_claim_id, target_claim_id) for relation in inbound if max_depth >= 1
-    )
+    if max_depth < 1:
+        return ()
+
+    def walk(target_id: str, depth_remaining: int, visited: set[str]) -> list[tuple[str, ...]]:
+        paths: list[tuple[str, ...]] = []
+        for relation in graph.relations:
+            if relation.target_claim_id != target_id:
+                continue
+            source_id = relation.source_claim_id
+            if source_id in visited:
+                continue
+            direct_path = (source_id, target_id)
+            paths.append(direct_path)
+            if depth_remaining > 1:
+                for prefix in walk(source_id, depth_remaining - 1, visited | {source_id}):
+                    paths.append(prefix + (target_id,))
+        return paths
+
+    return tuple(walk(target_claim_id, max_depth, {target_claim_id}))
 
 
 def _make_inference_path(
@@ -293,13 +315,15 @@ def _make_inference_path(
     claim_ids: tuple[str, ...],
     target_claim_id: str,
 ) -> InferencePath:
+    edge_pairs = tuple(zip(claim_ids, claim_ids[1:]))
     relations = [
         relation
+        for source_id, target_id in edge_pairs
         for relation in graph.relations
-        if relation.source_claim_id == claim_ids[0] and relation.target_claim_id == target_claim_id
+        if relation.source_claim_id == source_id and relation.target_claim_id == target_id
     ]
     path_nodes = [nodes[claim_id] for claim_id in claim_ids if claim_id != target_claim_id]
-    path_confidence = min(node.confidence for node in path_nodes)
+    path_confidence = min(node.confidence for node in path_nodes) if path_nodes else 0.0
     relation_strength = prod(relation.strength for relation in relations) if relations else 0.0
     reconstructability = path_confidence * relation_strength
     relation_ids = tuple(f"{rel.source_claim_id}->{rel.target_claim_id}" for rel in relations)

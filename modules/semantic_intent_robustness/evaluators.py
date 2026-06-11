@@ -69,6 +69,9 @@ class KVContextEvaluationSummary:
 class SemanticRobustnessEvaluator:
     """Compute semantic invariance metrics over clusters and conversations."""
 
+    def __init__(self, *, closure_risk_threshold: float = 0.70) -> None:
+        self.closure_risk_threshold = closure_risk_threshold
+
     def evaluate_cluster(self, cluster: SemanticCluster) -> dict[str, float]:
         tvs_result = topic_vs_intent_discrimination(cluster)
         metrics = {
@@ -264,17 +267,23 @@ class SemanticRobustnessEvaluator:
         assessments: Iterable[PromptRiskAssessment],
         *,
         expected_closure_conversation_ids: Iterable[str],
+        closure_risk_threshold: float | None = None,
     ) -> float:
         """Evaluate candidate-response closure screening."""
 
         items = list(assessments)
         expected_ids = set(expected_closure_conversation_ids)
+        threshold = (
+            self.closure_risk_threshold
+            if closure_risk_threshold is None
+            else closure_risk_threshold
+        )
         if not items:
             return 1.0
         correct = 0
         for item in items:
             expected = item.conversation_id in expected_ids
-            predicted = (item.closure_risk or 0.0) >= 0.70
+            predicted = (item.closure_risk or 0.0) >= threshold
             correct += expected == predicted
         return correct / len(items)
 

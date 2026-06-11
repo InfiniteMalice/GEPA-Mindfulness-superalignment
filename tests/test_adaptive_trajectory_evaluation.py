@@ -65,3 +65,20 @@ def test_adaptive_attack_metrics_track_detection() -> None:
     assert report.trajectory_detection_recall == 1.0
     assert report.closure_point_recall == 1.0
     assert report.adaptive_attack_success_rate == 0.0
+
+
+def test_closure_false_positive_reduces_precision() -> None:
+    false_positive = AdaptiveTrajectoryRun(
+        run_id="false-positive",
+        turns=("COMPONENT_A",),
+        responses=("bounded response",),
+        assessments=(_assessment(False),),
+        release_gate_assessments=(),
+        earliest_expected_closure_turn=None,
+        earliest_detected_closure_turn=1,
+        benign_control=False,
+    )
+
+    report = evaluate_adaptive_trajectory_runs((false_positive,))
+
+    assert report.closure_point_precision == 0.0

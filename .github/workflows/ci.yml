@@ -72,6 +72,8 @@ jobs:
             src/factuality_certification/structured_knowledge.py \
             evaluation/suites/factuality/structured_unlearning.py \
             evaluation/suites/robustness/adaptive_trajectory_attacks.py
+          mypy --config-file=/dev/null --python-version 3.12 --follow-imports=skip \
+            src/mindful_trace_gepa/logging_schema.py
       
       - name: Unit tests with coverage
         run: |

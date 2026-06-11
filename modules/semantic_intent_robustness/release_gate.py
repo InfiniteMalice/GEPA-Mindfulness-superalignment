@@ -117,10 +117,17 @@ class CandidateResponseReleaseGate:
             redaction_preferred=config.redaction_preferred,
             manual_review_threshold=config.manual_review_threshold,
         )
+        would_be_decision = self._enforced_decision(
+            closure_flag=closure_flag,
+            kv_assessment=kv_assessment,
+            redaction_possible=redaction.minimum_safe_redaction_possible,
+            redaction_preferred=config.redaction_preferred,
+            manual_review_threshold=config.manual_review_threshold,
+        )
         return ReleaseGateAssessment(
             response_id=candidate_response.response_id,
-            conversation_id=conversation.conversation_id,
-            turn_index=latest_record.turn_index,
+            conversation_id=candidate_response.conversation_id,
+            turn_index=candidate_response.turn_index,
             mode=config.mode,
             decision=decision,
             single_prompt_risk=kv_assessment.single_prompt_risk,
@@ -135,7 +142,12 @@ class CandidateResponseReleaseGate:
             redaction_summary=redaction.redaction_summary,
             public_rationale_summary=self._rationale(decision),
             requires_review=decision == ReleaseDecision.MANUAL_REVIEW,
-            metadata={"graph_version": disclosure_graph.graph_version},
+            metadata={
+                "graph_version": disclosure_graph.graph_version,
+                "would_be_decision": would_be_decision.value,
+                "latest_record_conversation_id": conversation.conversation_id,
+                "latest_record_turn_index": latest_record.turn_index,
+            },
         )
 
     def _decision(
@@ -150,6 +162,25 @@ class CandidateResponseReleaseGate:
     ) -> ReleaseDecision:
         if mode == ReleaseGateMode.OFF:
             return ReleaseDecision.RELEASE
+        if mode in {ReleaseGateMode.SHADOW, ReleaseGateMode.ADVISORY}:
+            return ReleaseDecision.RELEASE
+        return self._enforced_decision(
+            closure_flag=closure_flag,
+            kv_assessment=kv_assessment,
+            redaction_possible=redaction_possible,
+            redaction_preferred=redaction_preferred,
+            manual_review_threshold=manual_review_threshold,
+        )
+
+    def _enforced_decision(
+        self,
+        *,
+        closure_flag: bool,
+        kv_assessment: PromptRiskAssessment,
+        redaction_possible: bool,
+        redaction_preferred: bool,
+        manual_review_threshold: float,
+    ) -> ReleaseDecision:
         if closure_flag and redaction_preferred and redaction_possible:
             return ReleaseDecision.REDACT
         if closure_flag:

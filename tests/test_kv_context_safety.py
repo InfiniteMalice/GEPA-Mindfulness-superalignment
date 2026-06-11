@@ -16,6 +16,7 @@ from semantic_intent_robustness.disclosure_events import (
     disclosure_event_from_candidate_response,
     disclosure_event_from_semantic_record,
 )
+from semantic_intent_robustness.evaluators import SemanticRobustnessEvaluator
 from semantic_intent_robustness.internal_state_trajectory import (
     DeterministicInternalStateTrajectoryAdapter,
     TranscriptOnlyTrajectoryAdapter,
@@ -311,6 +312,76 @@ def test_release_gate_runs_before_release_and_prefers_redaction() -> None:
     assert assessment.minimum_safe_redaction_possible is True
 
 
+def test_release_gate_uses_candidate_response_identifiers() -> None:
+    record = _record("r1", "connect placeholders", turn_index=1)
+    conversation = MultiTurnConversation("conv", (record,))
+    candidate = CandidateResponse(
+        response_id="resp",
+        conversation_id="candidate-conv",
+        turn_index=7,
+        text="bounded answer",
+    )
+    assessment = CandidateResponseReleaseGate().assess_before_release(
+        conversation=conversation,
+        latest_record=record,
+        candidate_response=candidate,
+        kv_assessment=KVContextRiskScorer().assess(
+            latest_record=record,
+            conversation=conversation,
+            snapshot=TranscriptFallbackAdapter().extract_snapshot(
+                conversation_id="conv",
+                turn_index=1,
+                prompt_text=record.prompt_text,
+                conversation_history=(record.prompt_text,),
+            ),
+            config=KVContextSafetyConfig(enabled=True),
+        ),
+        disclosure_graph=build_capability_disclosure_graph(()),
+        config=ReleaseGateConfig(mode=ReleaseGateMode.OFF),
+    )
+
+    assert assessment.conversation_id == "candidate-conv"
+    assert assessment.turn_index == 7
+
+
+def test_release_gate_shadow_and_advisory_do_not_enforce() -> None:
+    record = _record("r1", "connect placeholders", turn_index=1)
+    conversation = MultiTurnConversation("conv", (record,))
+    candidate = CandidateResponse("resp", "conv", 1, "INTEGRATION_STEP_C")
+    kv_assessment = KVContextRiskScorer().assess(
+        latest_record=record,
+        conversation=conversation,
+        snapshot=TranscriptFallbackAdapter().extract_snapshot(
+            conversation_id="conv",
+            turn_index=1,
+            prompt_text=record.prompt_text,
+            conversation_history=("COMPONENT_A", "PARAMETER_B"),
+            candidate_response=candidate.text,
+        ),
+        config=KVContextSafetyConfig(enabled=True, enable_candidate_response_screening=True),
+        candidate_response=candidate.text,
+    )
+    graph = build_capability_disclosure_graph(
+        (
+            disclosure_event_from_candidate_response(
+                CandidateResponse("candidate", "conv", 1, "INTEGRATION_STEP_C")
+            ),
+        )
+    )
+
+    for mode in (ReleaseGateMode.SHADOW, ReleaseGateMode.ADVISORY):
+        assessment = CandidateResponseReleaseGate().assess_before_release(
+            conversation=conversation,
+            latest_record=record,
+            candidate_response=candidate,
+            kv_assessment=kv_assessment,
+            disclosure_graph=graph,
+            config=ReleaseGateConfig(mode=mode),
+        )
+        assert assessment.decision == ReleaseDecision.RELEASE
+        assert assessment.metadata["would_be_decision"] in {"redact", "refuse"}
+
+
 def test_disclosure_graph_aggregates_non_chat_sources() -> None:
     record = _record("r1", "COMPONENT_A", turn_index=0)
     user_event = disclosure_event_from_semantic_record(record)
@@ -333,6 +404,40 @@ def test_disclosure_graph_aggregates_non_chat_sources() -> None:
     assert estimate_capability_completion(merged) >= 0.6
     assert detect_harm_enabling_closure(merged) is True
     assert "INTEGRATION_STEP_C" in recommend_minimum_safe_redaction(merged).redaction_summary
+
+
+def test_capability_graph_paths_traverse_to_max_depth() -> None:
+    graph = build_capability_disclosure_graph(
+        (
+            disclosure_event_from_candidate_response(
+                CandidateResponse("a", "conv", 0, "COMPONENT_A")
+            ),
+            disclosure_event_from_candidate_response(
+                CandidateResponse("b", "conv", 1, "PARAMETER_B")
+            ),
+            disclosure_event_from_candidate_response(
+                CandidateResponse("c", "conv", 2, "INTEGRATION_STEP_C")
+            ),
+        )
+    )
+
+    assert ("COMPONENT_A", "PARAMETER_B", "INTEGRATION_STEP_C") in graph.paths_to(
+        "INTEGRATION_STEP_C",
+        max_depth=2,
+    )
+
+
+def test_capability_graph_preserves_higher_fragment_confidence() -> None:
+    high = disclosure_event_from_candidate_response(
+        CandidateResponse("high", "conv", 0, "COMPONENT_A")
+    ).with_updates(operational_specificity=0.9, executionality=0.8)
+    low = disclosure_event_from_candidate_response(
+        CandidateResponse("low", "conv", 1, "COMPONENT_A")
+    ).with_updates(operational_specificity=0.1, executionality=0.1)
+
+    graph = build_capability_disclosure_graph((high, low))
+
+    assert graph.fragments[0].confidence == 0.9
 
 
 def test_internal_state_adapters_are_deterministic_and_transcript_safe() -> None:
@@ -361,3 +466,32 @@ def test_internal_state_adapters_are_deterministic_and_transcript_safe() -> None
     assert first == second
     assert first.normalized_layer_features[0][1] == 1.0
     assert transcript.transcript_fallback_used is True
+
+
+def test_closure_evaluation_uses_configured_threshold() -> None:
+    assessment = KVContextRiskScorer().assess(
+        latest_record=_record("r1", "placeholder"),
+        conversation=MultiTurnConversation("conv", (_record("r1", "placeholder"),)),
+        snapshot=TranscriptFallbackAdapter().extract_snapshot(
+            conversation_id="conv",
+            turn_index=0,
+            prompt_text="placeholder",
+            conversation_history=("placeholder",),
+        ),
+        config=KVContextSafetyConfig(enabled=True),
+    )
+    assessment = type(assessment)(
+        **{
+            **assessment.__dict__,
+            "conversation_id": "closure",
+            "closure_risk": 0.65,
+        }
+    )
+
+    score = SemanticRobustnessEvaluator().evaluate_candidate_response_closure(
+        (assessment,),
+        expected_closure_conversation_ids=("closure",),
+        closure_risk_threshold=0.60,
+    )
+
+    assert score == 1.0
