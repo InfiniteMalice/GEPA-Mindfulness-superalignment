@@ -3,6 +3,8 @@
 # Standard library
 from __future__ import annotations
 
+from dataclasses import replace
+
 # Local
 from semantic_intent_robustness.capability_graph import (
     build_capability_disclosure_graph,
@@ -480,12 +482,10 @@ def test_closure_evaluation_uses_configured_threshold() -> None:
         ),
         config=KVContextSafetyConfig(enabled=True),
     )
-    assessment = type(assessment)(
-        **{
-            **assessment.__dict__,
-            "conversation_id": "closure",
-            "closure_risk": 0.65,
-        }
+    assessment = replace(
+        assessment,
+        conversation_id="closure",
+        closure_risk=0.65,
     )
 
     score = SemanticRobustnessEvaluator().evaluate_candidate_response_closure(
