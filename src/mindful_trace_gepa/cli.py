@@ -59,33 +59,13 @@ def _raise_dspy_import_error(component: str, detail: str) -> None:
 
 yaml = optional_import("yaml")
 
-_DSPY_PIPELINE_IMPORT_ERROR: Exception | None = None
-try:  # pragma: no cover - optional dependency may fail
-    _dspy_pipeline = import_module("mindful_trace_gepa.dspy_modules.pipeline")
-except Exception as exc:  # pragma: no cover - surface later when needed
-    _dspy_pipeline = None
-    _DSPY_PIPELINE_IMPORT_ERROR = exc
+_dspy_pipeline = import_module("mindful_trace_gepa.dspy_modules.pipeline")
+GEPA_CHAIN_CLS = getattr(_dspy_pipeline, "GEPAChain", None)
+DUAL_PATH_CHAIN_CLS = getattr(_dspy_pipeline, "DualPathGEPAChain", None)
 
-if _dspy_pipeline is not None:
-    GEPA_CHAIN_CLS = getattr(_dspy_pipeline, "GEPAChain", None)
-    DUAL_PATH_CHAIN_CLS = getattr(_dspy_pipeline, "DualPathGEPAChain", None)
-else:  # pragma: no cover - optional dependency missing
-    GEPA_CHAIN_CLS = None
-    DUAL_PATH_CHAIN_CLS = None
-
-_DSPY_COMPILE_IMPORT_ERROR: Exception | None = None
-try:  # pragma: no cover - optional dependency may fail
-    _dspy_compile = import_module("mindful_trace_gepa.dspy_modules.compile")
-except Exception as exc:  # pragma: no cover - surface later when needed
-    _dspy_compile = None
-    _DSPY_COMPILE_IMPORT_ERROR = exc
-
-if _dspy_compile is not None:
-    GEPA_COMPILER_CLS = getattr(_dspy_compile, "GEPACompiler", None)
-    CREATE_GEPA_METRIC = getattr(_dspy_compile, "create_gepa_metric", None)
-else:  # pragma: no cover - optional dependency missing
-    GEPA_COMPILER_CLS = None
-    CREATE_GEPA_METRIC = None
+_dspy_compile = import_module("mindful_trace_gepa.dspy_modules.compile")
+GEPA_COMPILER_CLS = getattr(_dspy_compile, "GEPACompiler", None)
+CREATE_GEPA_METRIC = getattr(_dspy_compile, "create_gepa_metric", None)
 
 dspy_pkg = optional_import("dspy")
 
@@ -224,6 +204,8 @@ def handle_dspy_run(args: argparse.Namespace) -> None:
     dual_path_flag = getattr(args, "dual_path", False)
     if dual_path_flag and DUAL_PATH_CHAIN_CLS is None:
         _raise_dspy_import_error("dual-path pipeline", _DSPY_PIPELINE_ERROR)
+    if dual_path_flag and dspy_pkg is None:
+        _raise_dspy_import_error("dual-path pipeline", _DSPY_PIPELINE_ERROR)
     if GEPA_CHAIN_CLS is None and DUAL_PATH_CHAIN_CLS is None:
         _raise_dspy_import_error("pipeline", _DSPY_PIPELINE_ERROR)
     config = load_dspy_config()
@@ -238,7 +220,11 @@ def handle_dspy_run(args: argparse.Namespace) -> None:
         if dual_path_flag and DUAL_PATH_CHAIN_CLS is not None
         else GEPA_CHAIN_CLS
     )
-    chain = chain_factory(config=config, allow_optimizations=args.enable_optim)
+    try:
+        chain = chain_factory(config=config, allow_optimizations=args.enable_optim)
+    except ImportError as exc:
+        component = "dual-path pipeline" if dual_path_flag else "pipeline"
+        raise RuntimeError(f"DSPy {component} unavailable; {_DSPY_PIPELINE_ERROR}") from exc
     input_path = _resolve_cli_path(args.input)
     input_records = read_jsonl(input_path)
     trace_path = Path(args.trace)

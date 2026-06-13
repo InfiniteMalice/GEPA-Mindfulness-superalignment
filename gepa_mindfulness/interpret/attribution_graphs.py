@@ -2,20 +2,15 @@
 
 from __future__ import annotations
 
-import importlib
 import importlib.util
 import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Iterable
 
+from gepa_mindfulness.interpret.networkx_compat import nx
+
 if TYPE_CHECKING:  # pragma: no cover - typing only
     import networkx as nx
-
-_NETWORKX_SPEC = importlib.util.find_spec("networkx")
-if _NETWORKX_SPEC is not None:
-    nx = importlib.import_module("networkx")
-else:  # pragma: no cover - optional dependency missing
-    nx = None  # type: ignore[assignment]
 
 _TORCH_SPEC = importlib.util.find_spec("torch")
 _TRANSFORMER_SPEC = importlib.util.find_spec("transformers")
@@ -45,8 +40,7 @@ def _require_torch() -> None:
 
 
 def _require_networkx() -> None:
-    if nx is None:
-        raise ImportError("AttributionGraph.to_networkx() requires networkx to be installed.")
+    return None
 
 
 @dataclass
@@ -277,13 +271,14 @@ class AttributionGraphExtractor:
         if method == "gradient_x_activation":
             return self._gradient_x_activation(layers=layers, threshold=threshold)
         if method == "path_integrated_gradients":
-            return self._path_integrated_gradients(layers=layers, threshold=threshold)
+            raise NotImplementedError(
+                "path_integrated_gradients is not implemented for production use. "
+                "Use gradient_x_activation or provide a verified implementation."
+            )
         if method == "activation_patching":
-            return self._activation_patching(
-                inputs=inputs,
-                prompt_len=prompt_len,
-                layers=layers,
-                threshold=threshold,
+            raise NotImplementedError(
+                "activation_patching is not implemented for production use. "
+                "Use gradient_x_activation or provide a verified implementation."
             )
         raise ValueError(f"unknown attribution method: {self.method}")
 
@@ -335,24 +330,6 @@ class AttributionGraphExtractor:
 
         edges = self._build_edges(nodes)
         return nodes, edges
-
-    def _path_integrated_gradients(
-        self,
-        *,
-        layers: Iterable[int],
-        threshold: float,
-    ) -> tuple[list[AttributionNode], list[AttributionEdge]]:
-        return self._gradient_x_activation(layers=layers, threshold=threshold)
-
-    def _activation_patching(
-        self,
-        *,
-        inputs: dict[str, torch.Tensor],
-        prompt_len: int,
-        layers: Iterable[int],
-        threshold: float,
-    ) -> tuple[list[AttributionNode], list[AttributionEdge]]:
-        return self._gradient_x_activation(layers=layers, threshold=threshold)
 
     def _build_edges(self, nodes: list[AttributionNode]) -> list[AttributionEdge]:
         nodes_by_layer: dict[int, list[AttributionNode]] = {}

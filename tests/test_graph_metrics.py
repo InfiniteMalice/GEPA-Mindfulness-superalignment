@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from gepa_mindfulness.interpret.attribution_graphs import (
     AttributionEdge,
     AttributionGraph,
@@ -47,6 +49,23 @@ def test_entropy_decreases_with_concentration() -> None:
     concentrated = _simple_graph(high=True)
     diffuse = _simple_graph(high=False)
     assert compute_graph_entropy(concentrated) < compute_graph_entropy(diffuse)
+
+
+def test_entropy_uses_normalized_absolute_attribution_mass() -> None:
+    graph = _simple_graph(high=False)
+    for node, score in zip(graph.nodes, [-10.0, 10.0, 0.0]):
+        node.attribution_score = score
+
+    assert compute_graph_entropy(graph) == pytest.approx(0.6931471805599453)
+
+
+def test_entropy_is_scale_invariant() -> None:
+    graph = _simple_graph(high=True)
+    scaled = _simple_graph(high=True)
+    for node in scaled.nodes:
+        node.attribution_score *= 10.0
+
+    assert compute_graph_entropy(graph) == pytest.approx(compute_graph_entropy(scaled))
 
 
 def test_centrality_concentration_bounds() -> None:

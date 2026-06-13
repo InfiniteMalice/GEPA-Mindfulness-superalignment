@@ -1,5 +1,6 @@
 """Integration test for complete DSPy + dual-path system."""
 
+import sys
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -106,3 +107,41 @@ def test_dual_path_evaluator_requires_callable_module_attribute(
 
     with pytest.raises(ValueError, match="Expected callable 'generate' in module 'hooks'"):
         dual_path_evaluator._load_callable_from_module("hooks:generate")
+
+
+def test_dual_path_evaluator_cleans_failed_file_hook_module(tmp_path: Path) -> None:
+    """Failed trusted hook files should not leave partially imported modules behind."""
+
+    hook_path = tmp_path / "response.py"
+    hook_path.write_text("raise RuntimeError('boom during import')\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="boom during import"):
+        dual_path_evaluator._load_callable_from_file(hook_path)
+
+    leaked = [
+        name
+        for name, module in sys.modules.items()
+        if name.startswith("dual_path_response_module_")
+        and getattr(module, "__file__", None) == str(hook_path)
+    ]
+    assert leaked == []
+
+
+def test_dual_path_evaluator_avoids_file_hook_module_name_collisions(tmp_path: Path) -> None:
+    """Trusted hook files with the same filename should load as distinct modules."""
+
+    first_dir = tmp_path / "first"
+    second_dir = tmp_path / "second"
+    first_dir.mkdir()
+    second_dir.mkdir()
+    first_hook = first_dir / "response.py"
+    second_hook = second_dir / "response.py"
+    first_hook.write_text("def generate(prompt):\n    return 'first'\n", encoding="utf-8")
+    second_hook.write_text("def generate(prompt):\n    return 'second'\n", encoding="utf-8")
+
+    first = dual_path_evaluator._load_callable_from_file(first_hook)
+    second = dual_path_evaluator._load_callable_from_file(second_hook)
+
+    assert first("x") == "first"
+    assert second("x") == "second"
+    assert first.__module__ != second.__module__

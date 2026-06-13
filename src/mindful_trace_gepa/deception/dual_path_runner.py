@@ -14,6 +14,7 @@ from mindful_trace_gepa.prompts.dual_path import make_dual_path_prompt, parse_du
 from .dual_path_core import DualPathRunConfig, DualPathScenario, DualPathTrace
 
 LOGGER = logging.getLogger(__name__)
+TRANSIENT_MODEL_ERRORS = (ConnectionError, TimeoutError)
 
 ModelCallable: TypeAlias = Callable[..., str]
 """Callable model hook.
@@ -47,23 +48,31 @@ def run_dual_path_scenario(
                 response = model_callable(prompt, config=config)
             else:
                 response = model_callable(prompt)
-            sections = parse_dual_path_response(response, strict=config.strict_parsing)
-            trace = DualPathTrace.from_sections(
-                scenario_id=scenario.scenario_id,
-                prompt=prompt,
-                raw_response=response,
-                sections=sections,
-                metadata={
-                    **scenario.metadata,
-                    "attempt": attempt,
-                    "model_id": config.model_id,
-                    "temperature": config.temperature,
-                },
-            )
-            return trace
-        except Exception as exc:  # noqa: BLE001 - deliberate catch for retry loop
+        except TRANSIENT_MODEL_ERRORS as exc:
             last_error = exc
-            LOGGER.warning("Dual-path run failed on attempt %d: %s", attempt, exc)
+            LOGGER.warning("Dual-path model call failed on attempt %d: %s", attempt, exc)
+            continue
+
+        try:
+            sections = parse_dual_path_response(response, strict=config.strict_parsing)
+        except ValueError as exc:
+            last_error = exc
+            LOGGER.warning("Dual-path response parse failed on attempt %d: %s", attempt, exc)
+            continue
+
+        trace = DualPathTrace.from_sections(
+            scenario_id=scenario.scenario_id,
+            prompt=prompt,
+            raw_response=response,
+            sections=sections,
+            metadata={
+                **scenario.metadata,
+                "attempt": attempt,
+                "model_id": config.model_id,
+                "temperature": config.temperature,
+            },
+        )
+        return trace
     message = f"Dual-path run failed after {config.max_attempts} attempts."
     LOGGER.error(message)
     raise RuntimeError(message) from last_error

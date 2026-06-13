@@ -33,7 +33,15 @@ python -m pip install --upgrade pip
 pip install -e .[dspy]
 ```
 
-Use `pip install -e .` instead if you do not need the DSPy extras.
+Use `pip install -e .` for the lightweight scoring/viewer CLI. Use named extras for heavier surfaces, for example `pip install -e .[train]`, `pip install -e .[interpret]`, or `pip install -e .[all]`.
+
+Wheel-installed usage is supported and is the packaging smoke-test target:
+
+```bash
+python -m build
+python -m pip install dist/gepa_mindfulness-*.whl
+gepa --help
+```
 
 If you received the project as a ZIP or plain folder, run `git init` before installing so you can track local changes.
 
@@ -147,10 +155,12 @@ Required:
 
 Optional extras:
 
-* `torch`, `transformers`, and `trl` — PPO training and CPU demo support.
-* `requests` — vLLM example support.
-* `dspy-ai` — DSPy pipelines and compilation via `pip install -e .[dspy]`.
-* `weasyprint` — PDF export via `pip install -e .[pdf]`.
+* `train` - `torch`, `transformers`, and terminal UI dependencies for training and CPU demo support.
+* `interpret` - `matplotlib` and real `networkx` for attribution graph analysis.
+* `dspy` - DSPy pipelines and compilation via `pip install -e .[dspy]`.
+* `pdf` - PDF export via `pip install -e .[pdf]`.
+* `vllm` - vLLM integration dependencies.
+* `all` - the combined optional stack.
 * `circuit-tracer` — full circuit logging. The repository falls back to lightweight shims when unavailable.
 
 ---
@@ -246,13 +256,13 @@ See `docs/grn_integration.md` for configurable Global Response Normalization usa
 * **Factuality certification** — `src/factuality_certification` supports optional evidence-relative answer certification in `off`, `shadow`, `advisory`, `gated`, and `training` modes.
 * **Factuality observability** — `gepa_mindfulness/factuality_observability/` adds observability-aware routing, verification, provenance, repair, and hallucination diagnostics.
 * **Schema V3 control overlay** — `gepa_mindfulness/schema_v3/` adds compositional reasoning-unit metadata, metacognitive control labels, causal/scientific diagnostics, and transformation-stability fields.
-* **Self-contained graph analytics** — the in-tree `networkx` stub mirrors the graph features required by the project, including iterative strongly connected component traversal.
+* **Self-contained graph analytics** — real NetworkX is used when installed; otherwise `gepa_mindfulness.internal_graph` provides the explicit fallback subset, including iterative strongly connected component traversal.
 
 ---
 
 ## Deception and Dual-Path Analysis
 
-Honesty is rewarded directly through GEPA reward weights. Deception signals are surfaced for review and analysis rather than directly punished through hidden-thought penalties.
+Honesty is rewarded directly through GEPA reward weights. Deception signals are surfaced for logging, review, diagnostics, and offline analysis rather than directly punished through hidden-thought penalties. In EGGROLL + MDT training, `deception_signal` and probe-derived diagnostics are excluded from fitness, MDT optimization views, and optimization regularizers.
 
 Recommended workflow:
 
@@ -288,10 +298,15 @@ python -m app.main
 Or run the dual-path command-line workflow:
 
 ```bash
-python src/dual_path_evaluator.py --scenarios datasets/dual_path/data.jsonl --run runs/001
-python src/dual_path_circuit_tracer.py runs/001
+python -m mindful_trace_gepa.dual_path_evaluator \
+  --scenarios datasets/dual_path/data.jsonl \
+  --run runs/001 \
+  --response path/to/trusted_response_hook.py
+python -m mindful_trace_gepa.dual_path_circuit_tracer runs/001
 python tools/merge_run_inspection.py runs/001
 ```
+
+The `--response` option accepts either `module:callable` or a `.py` hook file. Python hook files are trusted executable plugins; only run hooks from code you would otherwise execute directly.
 
 Artifacts are saved under `runs/`.
 

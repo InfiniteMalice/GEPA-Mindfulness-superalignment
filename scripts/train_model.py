@@ -15,23 +15,19 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
-
 # Local
-from gepa_mindfulness.interpret.attribution_graphs import (  # noqa: E402
+from gepa_mindfulness.interpret.attribution_graphs import (
     AttributionGraph,
     AttributionGraphExtractor,
 )
-from gepa_mindfulness.interpret.graph_comparison import compare_graphs  # noqa: E402
-from gepa_mindfulness.interpret.graph_metrics import compute_all_metrics  # noqa: E402
-from mindful_trace_gepa.deception import circuit_analysis  # noqa: E402
-from mindful_trace_gepa.deception.fingerprints import (  # noqa: E402
+from gepa_mindfulness.interpret.graph_comparison import compare_graphs
+from gepa_mindfulness.interpret.graph_metrics import compute_all_metrics
+from mindful_trace_gepa.deception import circuit_analysis
+from mindful_trace_gepa.deception.fingerprints import (
     DeceptionFingerprint,
     FingerprintCollector,
 )
-from mindful_trace_gepa.prompts.dual_path import (  # noqa: E402
+from mindful_trace_gepa.prompts.dual_path import (
     make_dual_path_prompt,
     parse_dual_path_response,
 )
@@ -509,7 +505,7 @@ def main() -> int:
         output_dir = Path(args.output)
     else:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_dir = REPO_ROOT / "runs" / f"{args.model}_train_{timestamp}"
+        output_dir = Path.cwd() / "runs" / f"{args.model}_train_{timestamp}"
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -564,7 +560,7 @@ def main() -> int:
     if dataset_arg.is_absolute():
         dataset_path = dataset_arg
     else:
-        dataset_path = (REPO_ROOT / dataset_arg).resolve()
+        dataset_path = (Path.cwd() / dataset_arg).resolve()
     print(f"📊 Loading dataset: {dataset_path}...")
     if not dataset_path.exists():
         print(f"❌ Dataset not found: {dataset_path}")

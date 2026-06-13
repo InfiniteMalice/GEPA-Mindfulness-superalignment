@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict
 
+from .path_utils import atomic_write_json
 from .utils.imports import optional_import
 
 yaml = optional_import("yaml")
@@ -86,9 +86,7 @@ def _parse_simple_yaml(raw: str) -> Dict[str, Any]:
 
 
 def dump_json(path: Path, payload: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as handle:
-        json.dump(payload, handle, indent=2, ensure_ascii=False)
+    atomic_write_json(path, payload)
 
 
 __all__ = ["DSPyConfig", "load_dspy_config", "dump_json", "DEFAULT_DSPY_CONFIG_PATH"]

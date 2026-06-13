@@ -17,7 +17,7 @@ class EggrollLogRecord:
     fitness_normalized: float | None
     task_reward: float | None
     ethics_score: float | None
-    deception_penalty: float | None
+    deception_signal: float | None
     mdt_embedding: Sequence[float] | None
     grn_summary: Mapping[str, Any] | None
     attribution_metadata: Mapping[str, Any] | None
@@ -38,7 +38,7 @@ class EggrollMDTLogger:
         fitness_normalized: float | None,
         task_reward: float | None,
         ethics_score: float | None,
-        deception_penalty: float | None,
+        deception_signal: float | None,
         mdt_embedding: Sequence[float] | None,
         grn_summary: Mapping[str, Any] | None,
         attribution_metadata: Mapping[str, Any] | None,
@@ -51,7 +51,7 @@ class EggrollMDTLogger:
             fitness_normalized=fitness_normalized,
             task_reward=task_reward,
             ethics_score=ethics_score,
-            deception_penalty=deception_penalty,
+            deception_signal=deception_signal,
             mdt_embedding=list(mdt_embedding) if mdt_embedding is not None else None,
             grn_summary=grn_summary,
             attribution_metadata=attribution_metadata,

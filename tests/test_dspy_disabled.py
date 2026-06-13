@@ -36,3 +36,26 @@ def test_dspy_disabled_pipeline_produces_checkpoints(tmp_path: Path) -> None:
     assert trace_path.exists()
     contents = trace_path.read_text(encoding="utf-8").strip().splitlines()
     assert contents, "Trace JSONL should not be empty"
+
+
+def test_dual_path_dspy_run_missing_dspy_raises_friendly_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import mindful_trace_gepa.cli as cli
+
+    monkeypatch.setattr(cli, "dspy_pkg", None)
+
+    args = SimpleNamespace(
+        input="unused.jsonl",
+        trace="unused.jsonl",
+        context=None,
+        model=None,
+        enable_optim=False,
+        dual_path=True,
+        enable_value_decomp=False,
+        enable_dvgr=False,
+        use_grn_value_decomp=False,
+    )
+
+    with pytest.raises(RuntimeError, match="DSPy dual-path pipeline unavailable"):
+        handle_dspy_run(args)

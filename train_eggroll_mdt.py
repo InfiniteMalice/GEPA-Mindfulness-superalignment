@@ -32,7 +32,7 @@ def dummy_eval_fn(model: Any, candidate_id: int) -> Mapping[str, Any]:
     return {
         "task_reward": 0.0,
         "ethics_score": 0.0,
-        "deception_penalty": 0.0,
+        "deception_signal": 0.0,
         "confidence_metric": 0.0,
     }
 

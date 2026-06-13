@@ -10,6 +10,7 @@ from pathlib import Path
 from statistics import mean
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
+from ..path_utils import atomic_write_json
 from ..utils.imports import optional_import
 from .schema import DIMENSIONS, TierScores
 from .tier0_heuristics import _normalise_events, run_heuristics
@@ -133,10 +134,8 @@ class Tier2Classifier:
             "bias": self.bias,
             "baseline": self.baseline,
         }
-        (path / "model.json").write_text(json.dumps(model_blob, indent=2), encoding="utf-8")
-        (path / "calibration.json").write_text(
-            json.dumps(self.temperature, indent=2), encoding="utf-8"
-        )
+        atomic_write_json(path / "model.json", model_blob)
+        atomic_write_json(path / "calibration.json", self.temperature)
 
     def load(self, directory: str | os.PathLike[str]) -> None:
         path = Path(directory)

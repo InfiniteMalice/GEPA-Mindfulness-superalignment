@@ -7,17 +7,26 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from mindful_trace_gepa.logging_schema import normalize_trace_event
+from mindful_trace_gepa.path_utils import atomic_write_text
 
 VIEWER_DIR = Path(__file__).resolve().parent
 
 
 def load_static_asset(name: str) -> str:
     path = VIEWER_DIR / name
-    candidate = path.with_name(f"{path.name}.new")
-    if candidate.exists():
-        path = candidate
     with path.open("r", encoding="utf-8") as handle:
         return handle.read()
+
+
+def _safe_json_payload(payload: Dict[str, Any]) -> str:
+    data_blob = json.dumps(payload, ensure_ascii=False)
+    return (
+        data_blob.replace("&", "\\u0026")
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("\u2028", "\\u2028")
+        .replace("\u2029", "\\u2029")
+    )
 
 
 def build_viewer_html(
@@ -48,13 +57,11 @@ def build_viewer_html(
         "settings": settings or {},
         "scoring": scoring or {},
     }
-    data_blob = json.dumps(payload)
+    data_blob = _safe_json_payload(payload)
 
     bundle = html.replace("/*__VIEWER_CSS__*/", css).replace("/*__VIEWER_JS__*/", script)
     bundle = bundle.replace("/*__GEPA_DATA__*/", data_blob)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with output_path.open("w", encoding="utf-8") as handle:
-        handle.write(bundle)
+    atomic_write_text(output_path, bundle, encoding="utf-8")
     return output_path
 
 

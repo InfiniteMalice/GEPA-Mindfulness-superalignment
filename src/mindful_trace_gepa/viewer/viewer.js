@@ -1,5 +1,16 @@
 (function () {
-  const data = window.__GEPA__ || {};
+  function loadData() {
+    const node = document.getElementById("gepa-data");
+    if (!node) return {};
+    try {
+      return JSON.parse(node.textContent || "{}");
+    } catch (err) {
+      console.warn("Failed to parse embedded GEPA data", err);
+      return {};
+    }
+  }
+
+  const data = loadData();
   const manifest = data.manifest || {};
   const settings = data.settings || {};
   const pageSize = Math.max(1, settings.pageSize || 200);
@@ -24,6 +35,33 @@
   const scoringTiers = document.getElementById("scoring-tiers");
   const scoringToggle = document.getElementById("scoring-toggle");
   const scoringRationales = document.getElementById("scoring-rationales");
+
+  function clear(node) {
+    if (node) node.replaceChildren();
+  }
+
+  function appendText(parent, tagName, text, className) {
+    const node = document.createElement(tagName);
+    if (className) node.className = className;
+    node.textContent = text;
+    parent.appendChild(node);
+    return node;
+  }
+
+  function appendLabeledValue(parent, label, value) {
+    const row = document.createElement("div");
+    appendText(row, "strong", `${label}: `);
+    row.appendChild(document.createTextNode(String(value)));
+    parent.appendChild(row);
+    return row;
+  }
+
+  function appendJsonPre(parent, value) {
+    const pre = document.createElement("pre");
+    pre.textContent = JSON.stringify(value, null, 2);
+    parent.appendChild(pre);
+    return pre;
+  }
 
   let pageEvents = data.trace || [];
   const baseEvents = data.trace || [];
@@ -159,7 +197,7 @@
   let pageInfo;
 
   function initControls() {
-    controls.innerHTML = "";
+    clear(controls);
     const typeSelect = document.createElement("select");
     const eventTypes = ["all", ...Array.from(new Set(baseEvents.map((evt) => evt.event_type || evt.stage || "legacy_trace_event"))).sort()];
     eventTypes.forEach((type) => {
@@ -203,7 +241,7 @@
   }
 
   function renderTimeline() {
-    timelineList.innerHTML = "";
+    clear(timelineList);
     const visibleEvents = visiblePageEvents();
     visibleEvents.forEach((evt, index) => {
       const li = document.createElement("li");
@@ -240,36 +278,39 @@
 
   function renderSelectedEvent(evt, index) {
     eventText.textContent = evt.content || evt.text || "";
-    eventMeta.innerHTML = "";
+    clear(eventMeta);
     if (evt.event_type) {
-      eventMeta.innerHTML += `<div>Event type: ${evt.event_type}</div>`;
+      appendLabeledValue(eventMeta, "Event type", evt.event_type);
     }
     if (evt.event_id) {
-      eventMeta.innerHTML += `<div>Event ID: ${evt.event_id}</div>`;
+      appendLabeledValue(eventMeta, "Event ID", evt.event_id);
     }
     if (evt.payload && Object.keys(evt.payload).length) {
-      eventMeta.innerHTML += `<pre>${JSON.stringify(evt.payload, null, 2)}</pre>`;
+      appendJsonPre(eventMeta, evt.payload);
     }
-    const badges = (evt.gepa_hits || []).map((hit) => `<span class="badge">${hit}</span>`).join("");
-    if (badges) {
-      eventMeta.innerHTML += `<div>GEPA badges: ${badges}</div>`;
+    const badges = evt.gepa_hits || [];
+    if (badges.length) {
+      const row = document.createElement("div");
+      appendText(row, "strong", "GEPA badges: ");
+      badges.forEach((hit) => appendText(row, "span", hit, "badge"));
+      eventMeta.appendChild(row);
     }
     if (evt.telemetry_mode || evt.telemetry_available !== undefined) {
       const mode = evt.telemetry_mode || "unknown";
       const available = evt.telemetry_available === true ? "available" : "unavailable/synthetic";
-      eventMeta.innerHTML += `<div>Telemetry: ${mode} (${available})</div>`;
+      appendLabeledValue(eventMeta, "Telemetry", `${mode} (${available})`);
     }
     if (evt.principle_scores) {
-      eventMeta.innerHTML += `<div>Principles: ${JSON.stringify(evt.principle_scores)}</div>`;
+      appendLabeledValue(eventMeta, "Principles", JSON.stringify(evt.principle_scores));
     }
     if (evt.imperative_scores) {
-      eventMeta.innerHTML += `<div>Imperatives: ${JSON.stringify(evt.imperative_scores)}</div>`;
+      appendLabeledValue(eventMeta, "Imperatives", JSON.stringify(evt.imperative_scores));
     }
     if (evt.context) {
-      eventMeta.innerHTML += `<div>Context: ${evt.context}</div>`;
+      appendLabeledValue(eventMeta, "Context", evt.context);
     }
     if (evt.flags) {
-      eventMeta.innerHTML += `<div>Flags: ${JSON.stringify(evt.flags)}</div>`;
+      appendLabeledValue(eventMeta, "Flags", JSON.stringify(evt.flags));
     }
     const items = timelineList.querySelectorAll("li");
     items.forEach((node) => node.classList.remove("active"));
@@ -282,14 +323,14 @@
     const visibleEvents = visiblePageEvents();
     if (!visibleEvents.length) {
       eventText.textContent = "";
-      eventMeta.innerHTML = "";
+      clear(eventMeta);
       return;
     }
     selectEventByObject(visibleEvents[0], 0);
   }
 
   function renderTokens() {
-    tokenStrip.innerHTML = "";
+    clear(tokenStrip);
     if (!tokens.length) {
       return;
     }
@@ -327,22 +368,31 @@
 
   function renderDeception() {
     if (!deceptionContainer) return;
-    const pieces = [];
+    clear(deceptionContainer);
     if (deception && Object.keys(deception).length > 0) {
-      pieces.push(`<div><strong>Deception Score:</strong> ${(deception.score ?? 0).toFixed(2)}</div>`);
+      appendLabeledValue(deceptionContainer, "Deception Score", (deception.score ?? 0).toFixed(2));
       if (deception.reasons) {
-        pieces.push(`<ul>${deception.reasons.map((r) => `<li>${r}</li>`).join("")}</ul>`);
+        const list = document.createElement("ul");
+        deception.reasons.forEach((reason) => appendText(list, "li", reason));
+        deceptionContainer.appendChild(list);
       }
     }
     if (dualPath && dualPath.honest_chain) {
-      pieces.push("<h3>Honest Chain</h3>");
-      pieces.push(`<pre>${JSON.stringify(dualPath.honest_chain, null, 2)}</pre>`);
+      appendText(deceptionContainer, "h3", "Honest Chain");
+      appendJsonPre(deceptionContainer, dualPath.honest_chain);
     }
     if (dualPath && dualPath.deceptive_chain) {
-      pieces.push("<h3>Deceptive Chain</h3>");
-      pieces.push(`<pre>${JSON.stringify(dualPath.deceptive_chain, null, 2)}</pre>`);
+      appendText(deceptionContainer, "h3", "Deceptive Chain");
+      appendJsonPre(deceptionContainer, dualPath.deceptive_chain);
     }
-    deceptionContainer.innerHTML = pieces.join("\n");
+    if (deception && deception.probe) {
+      appendText(deceptionContainer, "h3", "Deception Probe");
+      appendJsonPre(deceptionContainer, deception.probe);
+    }
+    if (deception && deception.summary) {
+      appendText(deceptionContainer, "h3", "Deception Summary");
+      appendJsonPre(deceptionContainer, deception.summary);
+    }
   }
 
   function spanSnippet(span) {
@@ -352,7 +402,7 @@
     const end = Math.min(fullTraceText.length, span.end || start + 1);
     const snippet = fullTraceText.slice(start, end).trim();
     if (!snippet) return "";
-    return snippet.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return snippet;
   }
 
   function renderScoring() {
@@ -367,12 +417,15 @@
     const reasons = scoringData.reasons || [];
     const escalate = !!scoringData.escalate;
 
-    scoringSummary.innerHTML = "";
+    clear(scoringSummary);
     Object.entries(final).forEach(([dim, score]) => {
       const span = document.createElement("span");
       span.className = "score-chip" + (escalate ? " escalate" : "");
-      const conf = confidence[dim] !== undefined ? ` <span class="confidence">(${(confidence[dim] * 100).toFixed(0)}%)</span>` : "";
-      span.innerHTML = `${dim}: ${score}${conf}`;
+      span.appendChild(document.createTextNode(`${dim}: ${score}`));
+      if (confidence[dim] !== undefined) {
+        span.appendChild(document.createTextNode(" "));
+        appendText(span, "span", `(${(confidence[dim] * 100).toFixed(0)}%)`, "confidence");
+      }
       scoringSummary.appendChild(span);
     });
     if (reasons.length) {
@@ -390,22 +443,23 @@
     if (tiers.length) {
       const table = document.createElement("table");
       const header = document.createElement("tr");
-      header.innerHTML = `<th>Tier</th>${Object.keys(final)
-        .map((dim) => `<th>${dim}</th>`)
-        .join("")}`;
+      appendText(header, "th", "Tier");
+      Object.keys(final).forEach((dim) => appendText(header, "th", dim));
       table.appendChild(header);
       tiers.forEach((tier) => {
         const row = document.createElement("tr");
-        row.innerHTML = `<td>${tier.tier}</td>${Object.keys(final)
-          .map((dim) => {
-            const score = tier.scores ? tier.scores[dim] : "-";
-            const conf = tier.confidence ? tier.confidence[dim] : 0;
-            return `<td>${score} <span class="confidence">${(conf * 100).toFixed(0)}%</span></td>`;
-          })
-          .join("")}`;
+        appendText(row, "td", tier.tier);
+        Object.keys(final).forEach((dim) => {
+          const cell = document.createElement("td");
+          const score = tier.scores ? tier.scores[dim] : "-";
+          const conf = tier.confidence ? tier.confidence[dim] : 0;
+          cell.appendChild(document.createTextNode(`${score} `));
+          appendText(cell, "span", `${(conf * 100).toFixed(0)}%`, "confidence");
+          row.appendChild(cell);
+        });
         table.appendChild(row);
       });
-      scoringTiers.innerHTML = "";
+      clear(scoringTiers);
       scoringTiers.appendChild(table);
     }
 
@@ -439,7 +493,7 @@
         dl.appendChild(dd);
       }
     });
-    scoringRationales.innerHTML = "";
+    clear(scoringRationales);
     scoringRationales.appendChild(dl);
 
     let shown = false;

@@ -9,8 +9,9 @@ import logging
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterator, List, Optional
+from typing import Any, Iterator, List
 
+from ..path_utils import atomic_write_json
 from ..utils.imports import optional_import
 
 LOGGER = logging.getLogger(__name__)
@@ -45,7 +46,7 @@ def iter_jsonl(path: Path | str) -> Iterator[dict[str, Any]]:
                 LOGGER.warning("Skipping malformed JSONL line in %s: %s", path, exc)
 
 
-def load_jsonl(path: Path | str, limit: Optional[int] = None) -> List[dict[str, Any]]:
+def load_jsonl(path: Path | str, limit: int | None = None) -> List[dict[str, Any]]:
     """Load up to ``limit`` rows into memory, streaming from disk."""
 
     rows: List[dict[str, Any]] = []
@@ -87,9 +88,9 @@ class ShardedTraceWriter:
         self.base_dir.mkdir(parents=True, exist_ok=True)
         self.shard_dir = self.base_dir / "shards"
         self.shard_dir.mkdir(parents=True, exist_ok=True)
-        self._current_handle: Optional[io.TextIOBase] = None
-        self._current_hash: Optional[hashlib._Hash] = None
-        self._current_context: Optional[AbstractContextManager[io.TextIOBase]] = None
+        self._current_handle: io.TextIOBase | None = None
+        self._current_hash: hashlib._Hash | None = None
+        self._current_context: AbstractContextManager[io.TextIOBase] | None = None
         self._current_events = 0
         self._total_events = 0
         self._shards: List[ShardInfo] = []
@@ -167,7 +168,7 @@ class ShardedTraceWriter:
             "shards": [shard.__dict__ for shard in self._shards],
         }
         manifest_path = self.base_dir / "manifest.json"
-        manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        atomic_write_json(manifest_path, manifest)
         return manifest_path
 
     def __enter__(self) -> "ShardedTraceWriter":
@@ -192,10 +193,10 @@ class TraceArchiveWriter:
         self._handle = self.trace_path.open("w", encoding="utf-8")
         self._shard_threshold = shard_threshold
         self._buffer: List[dict[str, Any]] = []
-        self._sharder: Optional[ShardedTraceWriter] = None
+        self._sharder: ShardedTraceWriter | None = None
         self._compress = compress_shards
         self._closed = False
-        self._manifest_path: Optional[Path] = None
+        self._manifest_path: Path | None = None
 
     def _ensure_sharder(self) -> None:
         if self._sharder is not None:
@@ -220,10 +221,10 @@ class TraceArchiveWriter:
         else:
             self._buffer.append(event)
 
-    def close(self) -> Optional[Path]:
+    def close(self) -> Path | None:
         if self._closed:
             return self._manifest_path
-        manifest: Optional[Path] = None
+        manifest: Path | None = None
         if self._sharder is not None:
             for row in self._buffer:
                 self._sharder.append(row)
