@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import asdict, dataclass, replace
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, List, Sequence
 
@@ -67,7 +67,7 @@ class TokenRecorder:
 
     def record_text(self, text: str, abstained: bool = False) -> None:
         tokens = text.split()
-        now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         for token in tokens or [""]:
             logprob = -math.log1p(self._global_idx + 1)
             confidence = max(0.0, 1.0 + logprob / 5.0)
