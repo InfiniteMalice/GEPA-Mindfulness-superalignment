@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterator, List, Optional
 
+from ..path_utils import atomic_write_json
 from ..utils.imports import optional_import
 
 LOGGER = logging.getLogger(__name__)
@@ -167,7 +168,7 @@ class ShardedTraceWriter:
             "shards": [shard.__dict__ for shard in self._shards],
         }
         manifest_path = self.base_dir / "manifest.json"
-        manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        atomic_write_json(manifest_path, manifest)
         return manifest_path
 
     def __enter__(self) -> "ShardedTraceWriter":

@@ -13,6 +13,7 @@ from typing import Any
 
 from mindful_trace_gepa.deception.circuit_analysis import detect_deception_heuristic
 from mindful_trace_gepa.deception.fingerprints import DeceptionFingerprint, FingerprintCollector
+from mindful_trace_gepa.path_utils import atomic_write_json
 
 LOGGER = logging.getLogger(__name__)
 
@@ -45,10 +46,7 @@ def _write_trace_report(trace_dir: Path, total: int) -> None:
         "traces_processed": total,
         "circuits_identified": 0,
     }
-    (trace_dir / "trace_report.json").write_text(
-        json.dumps(report, indent=2),
-        encoding="utf-8",
-    )
+    atomic_write_json(trace_dir / "trace_report.json", report)
 
 
 def _safe_int(value: Any, default: int = 0) -> int:

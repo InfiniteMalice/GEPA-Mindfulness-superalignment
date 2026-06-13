@@ -9,6 +9,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Iterable, List, Sequence
 
+from .path_utils import atomic_write_text
+
 
 @dataclass
 class TokenTopK:
@@ -103,13 +105,12 @@ class TokenRecorder:
             self._global_idx = max(self._global_idx, inferred_global)
 
     def dump_jsonl(self, path: Path) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("w", encoding="utf-8") as handle:
-            for record in self.records:
-                payload = asdict(record)
-                payload["topk"] = [asdict(top) for top in record.topk]
-                json.dump(payload, handle)
-                handle.write("\n")
+        lines: list[str] = []
+        for record in self.records:
+            payload = asdict(record)
+            payload["topk"] = [asdict(top) for top in record.topk]
+            lines.append(json.dumps(payload))
+        atomic_write_text(path, "\n".join(lines) + ("\n" if lines else ""))
 
 
 __all__ = ["TokenRecorder", "TokenRecord", "TokenTopK"]

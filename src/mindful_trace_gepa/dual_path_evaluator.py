@@ -17,7 +17,7 @@ from mindful_trace_gepa.deception.dual_path_runner import (
     load_scenarios,
     run_dual_path_batch,
 )
-from mindful_trace_gepa.path_utils import ensure_dir, require_file
+from mindful_trace_gepa.path_utils import atomic_write_json, ensure_dir, require_file
 
 
 def _load_records(path: Path) -> list[dict[str, Any]]:
@@ -122,7 +122,7 @@ def run_cli(args: argparse.Namespace) -> None:
         "traces": len(traces),
         "output_dir": str(output_dir),
     }
-    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    atomic_write_json(summary_path, summary)
 
 
 def build_parser() -> argparse.ArgumentParser:

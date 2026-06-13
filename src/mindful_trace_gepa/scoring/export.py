@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
+
+from mindful_trace_gepa.path_utils import atomic_write_json
 
 from .schema import AggregateScores
 
@@ -24,7 +25,7 @@ def write_scoring_artifacts(
         blob["trace"] = str(trace_path)
     if extras:
         blob.update(extras)
-    path.write_text(json.dumps(blob, indent=2), encoding="utf-8")
+    atomic_write_json(path, blob)
     return path
 
 

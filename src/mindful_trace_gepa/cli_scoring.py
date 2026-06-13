@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, cast
 
+from .path_utils import atomic_write_json, atomic_write_text
 from .scoring import (
     LLMJudge,
     aggregate_tiers,
@@ -124,7 +125,7 @@ def handle_judge_run(args: argparse.Namespace) -> None:
     judge = LLMJudge(JudgeConfig(model=args.model or "gpt-sim-judge", mock=args.mock))
     tier = judge.score_trace(events)
     payload = tier.to_dict()
-    Path(args.out).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    atomic_write_json(Path(args.out), payload)
 
 
 def handle_classifier_train(args: argparse.Namespace) -> None:
@@ -147,7 +148,7 @@ def handle_classifier_train(args: argparse.Namespace) -> None:
         "feature_names": classifier.feature_names,
         "num_examples": len(rows),
     }
-    (out_path / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+    atomic_write_json(out_path / "metrics.json", metrics)
 
 
 def handle_lowconf_triage(args: argparse.Namespace) -> None:
@@ -168,7 +169,7 @@ def handle_lowconf_triage(args: argparse.Namespace) -> None:
                 }
             )
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text("\n".join(json.dumps(row) for row in rows), encoding="utf-8")
+    atomic_write_text(out_path, "\n".join(json.dumps(row) for row in rows))
 
 
 def register_cli(subparsers: argparse._SubParsersAction) -> None:
@@ -359,9 +360,7 @@ if click_module is not None:
 
         out_path = Path(out)
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        with out_path.open("w", encoding="utf-8") as handle:
-            for row in triage_rows:
-                handle.write(json.dumps(row) + "\n")
+        atomic_write_text(out_path, "".join(json.dumps(row) + "\n" for row in triage_rows))
         _echo(f"Exported {len(triage_rows)} items to {out_path}")
 
     @click_module.command()
@@ -376,10 +375,8 @@ if click_module is not None:
         except Exception as exc:  # pragma: no cover - resilience guard
             out_path = Path(out)
             out_path.mkdir(parents=True, exist_ok=True)
-            (out_path / "model.pt").write_text("# Placeholder model", encoding="utf-8")
-            (out_path / "calibration.json").write_text(
-                json.dumps({"temperature": 1.0}), encoding="utf-8"
-            )
+            atomic_write_text(out_path / "model.pt", "# Placeholder model")
+            atomic_write_json(out_path / "calibration.json", {"temperature": 1.0}, indent=None)
             _echo(
                 "Classifier training failed; emitted placeholder artifacts instead.",
                 err=True,
