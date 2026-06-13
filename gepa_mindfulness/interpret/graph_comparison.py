@@ -2,28 +2,20 @@
 
 from __future__ import annotations
 
-import importlib
-import importlib.util
 from typing import TYPE_CHECKING
 
 import numpy as np
 
 from gepa_mindfulness.interpret.attribution_graphs import AttributionGraph
 from gepa_mindfulness.interpret.graph_metrics import compute_all_metrics
+from gepa_mindfulness.interpret.networkx_compat import nx
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     import networkx as nx
 
-_NETWORKX_SPEC = importlib.util.find_spec("networkx")
-if _NETWORKX_SPEC is not None:
-    nx = importlib.import_module("networkx")
-else:  # pragma: no cover - optional dependency missing
-    nx = None  # type: ignore[assignment]
-
 
 def _require_networkx() -> None:
-    if nx is None:
-        raise ImportError("Graph comparison requires networkx to be installed.")
+    return None
 
 
 def compare_graphs(graph_a: AttributionGraph, graph_b: AttributionGraph) -> dict[str, float]:
@@ -54,8 +46,8 @@ def compute_structural_similarity(graph_a: nx.DiGraph, graph_b: nx.DiGraph) -> f
         return 0.0
 
     try:
-        eig_a = np.sort(nx.laplacian_spectrum(graph_a))
-        eig_b = np.sort(nx.laplacian_spectrum(graph_b))
+        eig_a = np.sort(_laplacian_spectrum(graph_a))
+        eig_b = np.sort(_laplacian_spectrum(graph_b))
     except nx.NetworkXError:
         return 0.0
 
@@ -77,15 +69,13 @@ def compute_attribution_similarity(graph_a: nx.DiGraph, graph_b: nx.DiGraph) -> 
     if graph_a.number_of_nodes() == 0 or graph_b.number_of_nodes() == 0:
         return 0.0
 
-    attrs_a = np.array([graph_a.nodes[node]["attribution"] for node in graph_a.nodes], dtype=float)
-    attrs_b = np.array([graph_b.nodes[node]["attribution"] for node in graph_b.nodes], dtype=float)
-
-    max_a = float(attrs_a.max()) if attrs_a.size else 0.0
-    max_b = float(attrs_b.max()) if attrs_b.size else 0.0
-    max_val = max(max_a, max_b, 1.0)
-    bins = np.linspace(0.0, max_val, 11)
-    hist_a, _ = np.histogram(attrs_a, bins=bins, density=True)
-    hist_b, _ = np.histogram(attrs_b, bins=bins, density=True)
+    attrs_a = _normalised_attribution_masses(graph_a)
+    attrs_b = _normalised_attribution_masses(graph_b)
+    if attrs_a.size == 0 or attrs_b.size == 0:
+        return 0.0
+    bins = np.linspace(0.0, 1.0, 11)
+    hist_a, _ = np.histogram(attrs_a, bins=bins, weights=attrs_a)
+    hist_b, _ = np.histogram(attrs_b, bins=bins, weights=attrs_b)
     distance = np.abs(hist_a - hist_b).sum() / 2.0
     similarity = 1.0 - distance
     if not np.isfinite(similarity):
@@ -115,10 +105,13 @@ def find_distinctive_subgraphs(
     *,
     min_frequency: float = 0.3,
 ) -> dict[str, list[nx.DiGraph]]:
-    """Return placeholder results for distinctive subgraph mining."""
+    """Distinctive subgraph mining is not yet a supported public API."""
 
     _ = (honest_graphs, deceptive_graphs, min_frequency)
-    return {"honest_patterns": [], "deceptive_patterns": []}
+    raise NotImplementedError(
+        "find_distinctive_subgraphs is not implemented. "
+        "Use graph-level comparison metrics until a verified miner is available."
+    )
 
 
 def _cosine_similarity(vec_a: np.ndarray, vec_b: np.ndarray) -> float:
@@ -128,3 +121,30 @@ def _cosine_similarity(vec_a: np.ndarray, vec_b: np.ndarray) -> float:
     if denom == 0.0:
         return 0.0
     return float(np.dot(vec_a, vec_b) / denom)
+
+
+def _laplacian_spectrum(graph: nx.DiGraph) -> np.ndarray:
+    nodes = list(graph.nodes)
+    size = len(nodes)
+    if size == 0:
+        return np.zeros(0)
+    index = {node: idx for idx, node in enumerate(nodes)}
+    adjacency = np.zeros((size, size), dtype=float)
+    try:
+        edges = graph.edges(data=True)
+    except TypeError:
+        edges = graph.edges()
+    for source, target, attrs in edges:
+        weight = float(attrs.get("weight", 1.0))
+        adjacency[index[source], index[target]] += weight
+    adjacency = (adjacency + adjacency.T) / 2.0
+    degree = np.diag(adjacency.sum(axis=1))
+    return np.linalg.eigvalsh(degree - adjacency)
+
+
+def _normalised_attribution_masses(graph: nx.DiGraph) -> np.ndarray:
+    attrs = np.abs(np.array([graph.nodes[node]["attribution"] for node in graph.nodes], dtype=float))
+    total = attrs.sum()
+    if np.isclose(total, 0.0):
+        return np.zeros(0)
+    return attrs / total

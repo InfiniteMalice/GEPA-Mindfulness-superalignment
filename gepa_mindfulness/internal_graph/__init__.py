@@ -1,4 +1,4 @@
-"""Minimal subset of NetworkX used for attribution graph comparisons."""
+"""Internal graph fallback for the NetworkX subset used by attribution tooling."""
 
 from __future__ import annotations
 
@@ -239,41 +239,45 @@ def is_strongly_connected(graph: DiGraph) -> bool:
 
 
 def strongly_connected_components(graph: DiGraph) -> Iterator[Set[Hashable]]:
-    """Yield node sets for each strongly connected component using Tarjan's algorithm."""
-    index_counter = [0]
-    stack: list[Hashable] = []
-    lowlinks: Dict[Hashable, int] = {}
-    index: Dict[Hashable, int] = {}
-    on_stack: Set[Hashable] = set()
+    """Yield node sets for each strongly connected component iteratively."""
+
+    visited: Set[Hashable] = set()
+    order: list[Hashable] = []
+
+    for start in graph.nodes:
+        if start in visited:
+            continue
+        visited.add(start)
+        stack: list[tuple[Hashable, Iterator[Hashable]]] = [(start, graph.neighbors(start))]
+        while stack:
+            node, neighbors = stack[-1]
+            for neighbor in neighbors:
+                if neighbor in visited:
+                    continue
+                visited.add(neighbor)
+                stack.append((neighbor, graph.neighbors(neighbor)))
+                break
+            else:
+                order.append(node)
+                stack.pop()
+
+    assigned: Set[Hashable] = set()
     components: list[Set[Hashable]] = []
-
-    def strongconnect(node: Hashable) -> None:
-        index[node] = index_counter[0]
-        lowlinks[node] = index_counter[0]
-        index_counter[0] += 1
-        stack.append(node)
-        on_stack.add(node)
-
-        for neighbor in graph.neighbors(node):
-            if neighbor not in index:
-                strongconnect(neighbor)
-                lowlinks[node] = min(lowlinks[node], lowlinks[neighbor])
-            elif neighbor in on_stack:
-                lowlinks[node] = min(lowlinks[node], index[neighbor])
-
-        if lowlinks[node] == index[node]:
-            component: Set[Hashable] = set()
-            while True:
-                w = stack.pop()
-                on_stack.remove(w)
-                component.add(w)
-                if w == node:
-                    break
-            components.append(component)
-
-    for node in graph.nodes:
-        if node not in index:
-            strongconnect(node)
+    for start in reversed(order):
+        if start in assigned:
+            continue
+        component: Set[Hashable] = set()
+        stack = [start]
+        assigned.add(start)
+        while stack:
+            node = stack.pop()
+            component.add(node)
+            for predecessor in graph.predecessors(node):
+                if predecessor in assigned:
+                    continue
+                assigned.add(predecessor)
+                stack.append(predecessor)
+        components.append(component)
 
     return iter(components)
 

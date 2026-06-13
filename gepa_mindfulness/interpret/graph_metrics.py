@@ -2,23 +2,14 @@
 
 from __future__ import annotations
 
-import importlib
-import importlib.util
-
 import numpy as np
 
 from gepa_mindfulness.interpret.attribution_graphs import AttributionGraph
-
-_NETWORKX_SPEC = importlib.util.find_spec("networkx")
-if _NETWORKX_SPEC is not None:
-    nx = importlib.import_module("networkx")
-else:  # pragma: no cover - optional dependency missing
-    nx = None  # type: ignore[assignment]
+from gepa_mindfulness.interpret.networkx_compat import nx
 
 
 def _require_networkx() -> None:
-    if nx is None:
-        raise ImportError("Graph metrics require networkx to be installed.")
+    return None
 
 
 def compute_path_coherence(graph: AttributionGraph) -> float:
@@ -65,12 +56,15 @@ def compute_graph_entropy(graph: AttributionGraph) -> float:
     if network.number_of_nodes() == 0:
         return 0.0
 
-    attrs = np.array([network.nodes[node]["attribution"] for node in network.nodes], dtype=float)
-    if np.allclose(attrs, 0.0):
+    attrs = np.abs(
+        np.array([network.nodes[node]["attribution"] for node in network.nodes], dtype=float)
+    )
+    total = attrs.sum()
+    if np.isclose(total, 0.0):
         return 0.0
 
-    safe = np.clip(attrs, 1e-12, None)
-    entropy = -np.sum(safe * np.log(safe))
+    probabilities = attrs[attrs > 0.0] / total
+    entropy = -np.sum(probabilities * np.log(probabilities))
     return float(entropy)
 
 

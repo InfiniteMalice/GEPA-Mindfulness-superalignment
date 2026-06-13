@@ -36,33 +36,20 @@ def test_gradient_activation_nodes(tiny_model, dummy_tokenizer) -> None:
         assert edge.target_node.layer == edge.source_node.layer + 1
 
 
-def test_alternative_methods_share_nodes(tiny_model, dummy_tokenizer) -> None:
+@pytest.mark.parametrize("method", ["path_integrated_gradients", "activation_patching"])
+def test_unsupported_attribution_methods_raise_clear_error(
+    tiny_model, dummy_tokenizer, method: str
+) -> None:
     prompt, response = _prompt_response()
-    base_graph = extract_attribution_graph(
-        model=tiny_model,
-        tokenizer=dummy_tokenizer,
-        prompt=prompt,
-        response=response,
-        method="gradient_x_activation",
-        layers=[0, 1],
-    )
-    pig_graph = extract_attribution_graph(
-        model=tiny_model,
-        tokenizer=dummy_tokenizer,
-        prompt=prompt,
-        response=response,
-        method="path_integrated_gradients",
-        layers=[0, 1],
-    )
-    patch_graph = extract_attribution_graph(
-        model=tiny_model,
-        tokenizer=dummy_tokenizer,
-        prompt=prompt,
-        response=response,
-        method="activation_patching",
-        layers=[0, 1],
-    )
-    assert len(base_graph.nodes) == len(pig_graph.nodes) == len(patch_graph.nodes)
+    with pytest.raises(NotImplementedError, match=method):
+        extract_attribution_graph(
+            model=tiny_model,
+            tokenizer=dummy_tokenizer,
+            prompt=prompt,
+            response=response,
+            method=method,
+            layers=[0, 1],
+        )
 
 
 def test_extraction_runtime_reasonable(tiny_model, dummy_tokenizer) -> None:

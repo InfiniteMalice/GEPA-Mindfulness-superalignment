@@ -19,6 +19,17 @@ def test_matplotlib_import_uses_installed_dependency() -> None:
     assert not (module_path.is_relative_to(repo_root) and ".venv" not in module_path.parts)
 
 
+def test_networkx_import_uses_installed_dependency() -> None:
+    """The repository must not shadow the real networkx package."""
+
+    import networkx
+
+    repo_root = Path(__file__).resolve().parents[1]
+    module_path = Path(networkx.__file__).resolve()
+
+    assert not (module_path.is_relative_to(repo_root) and ".venv" not in module_path.parts)
+
+
 def test_pyproject_uses_discovery_and_declares_build_tooling() -> None:
     """Packaging config should avoid stale package lists and include wheel tooling."""
 
