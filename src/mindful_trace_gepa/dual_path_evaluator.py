@@ -43,10 +43,13 @@ def _load_callable_from_module(module_path: str) -> ModelCallable:
     if ":" not in module_path:
         raise ValueError("Expected module path in 'module:callable' format.")
     module_name, _, attr_name = module_path.partition(":")
-    module = importlib.import_module(module_name)
+    try:
+        module = importlib.import_module(module_name)
+    except (ImportError, ModuleNotFoundError) as exc:
+        raise ValueError(f"Unable to import module '{module_name}': {exc}") from exc
     callable_obj = getattr(module, attr_name, None)
     if callable_obj is None or not callable(callable_obj):
-        raise ValueError(f"Callable '{attr_name}' not found in module '{module_name}'.")
+        raise ValueError(f"Expected callable '{attr_name}' in module '{module_name}'.")
     return callable_obj
 
 
@@ -78,9 +81,11 @@ def _resolve_model_callable(response: str | None) -> ModelCallable:
         raise ValueError(
             "No model hook provided. Pass --response module:callable or a .py file path."
         )
+    response_path = Path(response)
+    if response_path.suffix == ".py" and (response_path.drive or response_path.is_absolute()):
+        return _load_callable_from_file(response_path)
     if ":" in response:
         return _load_callable_from_module(response)
-    response_path = Path(response)
     if response_path.suffix == ".py":
         return _load_callable_from_file(response_path)
     raise ValueError("Unsupported --response value. Use module:callable or a .py file path.")

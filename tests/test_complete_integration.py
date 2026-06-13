@@ -1,6 +1,7 @@
 """Integration test for complete DSPy + dual-path system."""
 
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
@@ -9,6 +10,7 @@ pytest.importorskip(
     reason="mindful_trace_gepa package is required for integration tests.",
 )
 
+from mindful_trace_gepa import dual_path_evaluator
 from mindful_trace_gepa.deception.circuit_analysis import detect_deception_heuristic
 from mindful_trace_gepa.dual_path_evaluator import main as canonical_dual_path_main
 from mindful_trace_gepa.prompts.dual_path import (
@@ -64,3 +66,31 @@ def test_dual_path_evaluator_has_package_entrypoint() -> None:
     """The dual-path evaluator should have a package-owned canonical entry point."""
 
     assert callable(canonical_dual_path_main)
+
+
+def test_dual_path_evaluator_resolves_windows_file_path_before_module(monkeypatch) -> None:
+    """Windows absolute .py response hooks should not be parsed as module specs."""
+
+    expected = Mock()
+    monkeypatch.setattr(dual_path_evaluator, "_load_callable_from_file", expected)
+
+    dual_path_evaluator._resolve_model_callable("C:\\hooks\\response.py")
+
+    expected.assert_called_once_with(Path("C:\\hooks\\response.py"))
+
+
+def test_dual_path_evaluator_normalizes_missing_module() -> None:
+    """Missing response modules should produce ValueError for consistent CLI exits."""
+
+    with pytest.raises(ValueError, match="Unable to import module 'missing_response_hook'"):
+        dual_path_evaluator._load_callable_from_module("missing_response_hook:generate")
+
+
+def test_dual_path_evaluator_requires_callable_module_attribute(monkeypatch) -> None:
+    """Existing but non-callable response hook attributes should fail consistently."""
+
+    module = type("Module", (), {"generate": "not-callable"})()
+    monkeypatch.setattr(dual_path_evaluator.importlib, "import_module", lambda _: module)
+
+    with pytest.raises(ValueError, match="Expected callable 'generate' in module 'hooks'"):
+        dual_path_evaluator._load_callable_from_module("hooks:generate")

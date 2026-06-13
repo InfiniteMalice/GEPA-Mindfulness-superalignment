@@ -2,7 +2,10 @@
 
 from pathlib import Path
 
-import tomllib
+try:
+    import tomllib
+except ImportError:  # pragma: no cover - exercised on Python 3.10
+    import tomli as tomllib
 
 
 def test_matplotlib_import_uses_installed_dependency() -> None:
@@ -13,7 +16,7 @@ def test_matplotlib_import_uses_installed_dependency() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     module_path = Path(matplotlib.__file__).resolve()
 
-    assert not module_path.is_relative_to(repo_root)
+    assert not (module_path.is_relative_to(repo_root) and ".venv" not in module_path.parts)
 
 
 def test_pyproject_uses_discovery_and_declares_build_tooling() -> None:
