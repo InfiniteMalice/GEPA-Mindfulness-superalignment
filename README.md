@@ -298,8 +298,11 @@ python -m app.main
 Or run the dual-path command-line workflow:
 
 ```bash
-python -m mindful_trace_gepa.dual_path_evaluator --scenarios datasets/dual_path/data.jsonl --run runs/001
-python src/dual_path_circuit_tracer.py runs/001
+python -m mindful_trace_gepa.dual_path_evaluator \
+  --scenarios datasets/dual_path/data.jsonl \
+  --run runs/001 \
+  --response path/to/trusted_response_hook.py
+python -m mindful_trace_gepa.dual_path_circuit_tracer runs/001
 python tools/merge_run_inspection.py runs/001
 ```
 
