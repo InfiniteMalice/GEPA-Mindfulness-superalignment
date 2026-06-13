@@ -11,17 +11,34 @@ requires-python = ">=3.10"
 authors = [{ name = "GEPA Mindfulness" }]
 dependencies = [
     "click>=8.1",
-    "matplotlib>=3.7",
     "pyyaml>=6.0",
     "tomli>=2.0; python_version < '3.11'",
+]
+
+[project.optional-dependencies]
+base = []
+train = [
     "torch>=2.9.0",
     "textual>=0.20",
     "transformers>=4.37",
 ]
-
-[project.optional-dependencies]
+interpret = [
+    "matplotlib>=3.7",
+    "networkx>=3.0",
+]
 pdf = ["weasyprint>=53"]
 dspy = ["dspy-ai>=2.5"]
+vllm = ["vllm>=0.6"]
+all = [
+    "dspy-ai>=2.5",
+    "matplotlib>=3.7",
+    "networkx>=3.0",
+    "torch>=2.9.0",
+    "textual>=0.20",
+    "transformers>=4.37",
+    "vllm>=0.6",
+    "weasyprint>=53",
+]
 dev = [
     "build>=1.2",
     "black>=24.0",

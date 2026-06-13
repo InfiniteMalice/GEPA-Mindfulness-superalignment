@@ -33,3 +33,28 @@ def test_pyproject_uses_discovery_and_declares_build_tooling() -> None:
     assert isinstance(packages_config, dict)
     assert "find" in packages_config
     assert any(dependency.startswith("build>=") for dependency in dev_deps)
+
+
+def test_source_tree_import_shims_are_removed() -> None:
+    """Clean installs must not depend on root-level import mutation shims."""
+
+    repo_root = Path(__file__).resolve().parents[1]
+
+    assert not (repo_root / "sitecustomize.py").exists()
+    assert not (repo_root / "mindful_trace_gepa" / "__init__.py").exists()
+
+
+def test_base_dependencies_stay_light_and_heavy_stacks_are_extras() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text(encoding="utf-8"))
+    dependencies = pyproject["project"]["dependencies"]
+    optional = pyproject["project"]["optional-dependencies"]
+    base_names = {dependency.split(">=")[0].split("==")[0] for dependency in dependencies}
+
+    assert "torch" not in base_names
+    assert "transformers" not in base_names
+    assert "matplotlib" not in base_names
+    for extra in ("base", "train", "interpret", "dspy", "pdf", "vllm", "all"):
+        assert extra in optional
+    assert any(dependency.startswith("torch") for dependency in optional["train"])
+    assert any(dependency.startswith("matplotlib") for dependency in optional["interpret"])
