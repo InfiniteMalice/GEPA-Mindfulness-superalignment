@@ -10,6 +10,7 @@ pytest.importorskip(
 )
 
 from mindful_trace_gepa.deception.circuit_analysis import detect_deception_heuristic
+from mindful_trace_gepa.dual_path_evaluator import main as canonical_dual_path_main
 from mindful_trace_gepa.prompts.dual_path import (
     make_dual_path_prompt,
     parse_dual_path_response,
@@ -57,3 +58,9 @@ FINAL ANSWER: 2
 
     assert sections["recommended_path"] == "path_2"
     assert "deception_detected" in deception
+
+
+def test_dual_path_evaluator_has_package_entrypoint() -> None:
+    """The dual-path evaluator should have a package-owned canonical entry point."""
+
+    assert callable(canonical_dual_path_main)
