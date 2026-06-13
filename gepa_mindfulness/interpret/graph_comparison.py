@@ -143,7 +143,9 @@ def _laplacian_spectrum(graph: nx.DiGraph) -> np.ndarray:
 
 
 def _normalised_attribution_masses(graph: nx.DiGraph) -> np.ndarray:
-    attrs = np.abs(np.array([graph.nodes[node]["attribution"] for node in graph.nodes], dtype=float))
+    attrs = np.abs(
+        np.array([graph.nodes[node]["attribution"] for node in graph.nodes], dtype=float)
+    )
     total = attrs.sum()
     if np.isclose(total, 0.0):
         return np.zeros(0)

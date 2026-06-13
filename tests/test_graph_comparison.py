@@ -77,9 +77,9 @@ def test_attribution_similarity_is_scale_invariant() -> None:
     base = _graph_with_scale(1.0)
     scaled = _graph_with_scale(10.0)
 
-    assert compute_attribution_similarity(base.to_networkx(), scaled.to_networkx()) == pytest.approx(
-        1.0
-    )
+    assert compute_attribution_similarity(
+        base.to_networkx(), scaled.to_networkx()
+    ) == pytest.approx(1.0)
 
 
 def test_attribution_similarity_handles_negative_values() -> None:

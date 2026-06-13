@@ -118,7 +118,9 @@ class EGGROLLMDTTrainer:
             size = param.numel()
             slice_ = vector[pointer : pointer + size]
             if slice_.numel() != size:
-                raise ValueError("Parameter vector exhausted before all model parameters were filled")
+                raise ValueError(
+                    "Parameter vector exhausted before all model parameters were filled"
+                )
             source = slice_.view(shape).to(device=param.device, dtype=param.dtype)
             with torch.no_grad():
                 param.copy_(source)
@@ -173,7 +175,9 @@ class EGGROLLMDTTrainer:
             views.append(torch.tensor(attribution, device=self.device).unsqueeze(1))
         return views
 
-    def _build_diagnostic_views(self, eval_results: list[Mapping[str, Any]]) -> list["torch.Tensor"]:
+    def _build_diagnostic_views(
+        self, eval_results: list[Mapping[str, Any]]
+    ) -> list["torch.Tensor"]:
         deception = []
         probes = []
         for result in eval_results:
