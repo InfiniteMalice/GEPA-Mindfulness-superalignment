@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import math
 from typing import Any, Callable, Mapping
 
 from ..geometry import (
@@ -46,7 +47,12 @@ class EGGROLLConfig:
 
 
 class EGGROLLMDTTrainer:
-    """Minimal low-rank ES loop with MDT-aware regularisation."""
+    """Minimal low-rank ES loop with MDT-aware regularisation.
+
+    Deception and probe-derived values are diagnostic-only signals. They may be logged,
+    normalized, and inspected offline, but they are intentionally excluded from fitness,
+    MDT optimization views, and optimization regularizers.
+    """
 
     def __init__(
         self,
@@ -61,7 +67,9 @@ class EGGROLLMDTTrainer:
         self.eval_fn = eval_fn
         self.config = config
         self.device = device or "cpu"
+        self._validate_config_basics()
         self._init_params()
+        self._validate_config_against_model()
         self.conf_grn = build_grn(GRNSettings(enabled=config.use_grn_for_confidence))
         self.probe_grn = build_grn(GRNSettings(enabled=config.use_grn_for_probes))
         self.fitness_grn = build_grn(GRNSettings(enabled=config.use_grn_for_fitness, dim=-1))
@@ -71,6 +79,29 @@ class EGGROLLMDTTrainer:
             self.probe_grn.to(self.device)
         if self.fitness_grn is not None:
             self.fitness_grn.to(self.device)
+
+    def _validate_config_basics(self) -> None:
+        if self.config.population_size < 2:
+            raise ValueError("population_size must be at least 2")
+        if self.config.generations < 1:
+            raise ValueError("generations must be at least 1")
+        if self.config.rank < 1:
+            raise ValueError("rank must be at least 1")
+        if not math.isfinite(float(self.config.sigma)) or self.config.sigma <= 0:
+            raise ValueError("sigma must be finite and greater than 0")
+        for field_name in ("mean_lr", "cov_lr"):
+            value = float(getattr(self.config, field_name))
+            if not math.isfinite(value) or value < 0:
+                raise ValueError(f"{field_name} must be finite and non-negative")
+        if not math.isfinite(float(self.config.geometry_weight)):
+            raise ValueError("geometry_weight must be finite")
+
+    def _validate_config_against_model(self) -> None:
+        param_count = int(self.mean_vector.numel())
+        if self.config.rank > param_count:
+            raise ValueError(
+                f"rank must not exceed parameter count ({self.config.rank} > {param_count})"
+            )
 
     def _init_params(self) -> None:
         params = [param.detach().clone().flatten() for param in self.model.parameters()]
@@ -82,14 +113,18 @@ class EGGROLLMDTTrainer:
 
     def _vector_to_params(self, vector: "torch.Tensor") -> None:
         pointer = 0
-        new_params = []
-        for shape, param in zip(self.param_shapes, self.model.parameters()):
+        parameters = list(self.model.parameters())
+        for shape, param in zip(self.param_shapes, parameters):
             size = param.numel()
             slice_ = vector[pointer : pointer + size]
-            new_params.append(slice_.view_as(param))
+            if slice_.numel() != size:
+                raise ValueError("Parameter vector exhausted before all model parameters were filled")
+            source = slice_.view(shape).to(device=param.device, dtype=param.dtype)
+            with torch.no_grad():
+                param.copy_(source)
             pointer += size
-        for target, source in zip(self.model.parameters(), new_params):
-            target.data = source.to(target.device)
+        if pointer != vector.numel():
+            raise ValueError("Parameter vector contains unused values after model assignment")
 
     def _sample_perturbation(self) -> tuple["torch.Tensor", "torch.Tensor"]:
         z = torch.randn(self.config.rank, device=self.device)
@@ -118,26 +153,39 @@ class EGGROLLMDTTrainer:
             return normalized
         return module(tensor)
 
-    def _build_views(self, eval_results: list[Mapping[str, Any]]) -> list["torch.Tensor"]:
+    def _build_optimization_views(
+        self, eval_results: list[Mapping[str, Any]]
+    ) -> list["torch.Tensor"]:
         task = []
         ethics = []
-        deception = []
         confidence = []
         attribution = []
         for result in eval_results:
             task.append(float(result.get("task_reward", 0.0)))
             ethics.append(float(result.get("ethics_score", 0.0)))
-            deception.append(float(result.get("deception_penalty", 0.0)))
             confidence.append(float(result.get("confidence_metric", 0.0)))
             attribution.append(float(result.get("attribution_score", 0.0)))
         views = []
         views.append(torch.tensor(task, device=self.device).unsqueeze(1))
         views.append(torch.tensor(ethics, device=self.device).unsqueeze(1))
-        views.append(torch.tensor(deception, device=self.device).unsqueeze(1))
         views.append(torch.tensor(confidence, device=self.device).unsqueeze(1))
         if any(item != 0.0 for item in attribution):
             views.append(torch.tensor(attribution, device=self.device).unsqueeze(1))
         return views
+
+    def _build_diagnostic_views(self, eval_results: list[Mapping[str, Any]]) -> list["torch.Tensor"]:
+        deception = []
+        probes = []
+        for result in eval_results:
+            deception.append(float(result.get("deception_signal", 0.0)))
+            probes.append(float(result.get("probe_score", 0.0)))
+        return [
+            torch.tensor(deception, device=self.device).unsqueeze(1),
+            torch.tensor(probes, device=self.device).unsqueeze(1),
+        ]
+
+    def _build_views(self, eval_results: list[Mapping[str, Any]]) -> list["torch.Tensor"]:
+        return self._build_optimization_views(eval_results)
 
     def _compute_mdt_embedding(self, views: list["torch.Tensor"]) -> "torch.Tensor":
         standardized = MultiViewDatasetView(views).standardize()
@@ -164,8 +212,7 @@ class EGGROLLMDTTrainer:
         for result in eval_results:
             reward = float(result.get("task_reward", 0.0))
             ethics = float(result.get("ethics_score", 0.0))
-            deception_penalty = float(result.get("deception_penalty", 0.0))
-            base_scores.append(reward + ethics - deception_penalty)
+            base_scores.append(reward + ethics)
         base_tensor = torch.tensor(base_scores, device=self.device)
         reg = self._compute_geometry_regularizer(embedding)
         fitness = base_tensor + reg
@@ -199,9 +246,11 @@ class EGGROLLMDTTrainer:
                         result["probe_logits"], self.probe_grn
                     )
                     probe_mean = result["probe_logits"].abs().mean().item()
-                    result["deception_penalty"] = float(probe_mean)
+                    result["probe_score"] = float(probe_mean)
+                    result["deception_signal"] = float(probe_mean)
                 eval_results.append(result)
-            views = self._build_views(eval_results)
+            views = self._build_optimization_views(eval_results)
+            diagnostic_views = self._build_diagnostic_views(eval_results)
             embedding = self._compute_mdt_embedding(views)
             fitness = self._compute_fitness(eval_results, embedding)
             noise_std = fitness.std().clamp(min=1e-6)
@@ -220,6 +269,7 @@ class EGGROLLMDTTrainer:
                     "generation": generation,
                     "fitness": fitness.detach().cpu(),
                     "embedding": embedding.detach().cpu(),
+                    "diagnostic_views": [view.detach().cpu() for view in diagnostic_views],
                     "eval_results": eval_results,
                 }
             )
