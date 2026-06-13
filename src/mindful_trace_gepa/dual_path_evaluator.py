@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib
 import importlib.util
 import json
@@ -60,20 +61,26 @@ def _load_callable_from_file(file_path: Path) -> ModelCallable:
         raise ValueError(str(exc)) from exc
     except IsADirectoryError as exc:
         raise ValueError(str(exc)) from exc
-    module_name = f"dual_path_response_module_{file_path.stem}"
+    resolved_path = file_path.resolve()
+    path_digest = hashlib.sha256(str(resolved_path).encode("utf-8")).hexdigest()[:16]
+    module_name = f"dual_path_response_module_{file_path.stem}_{path_digest}"
     spec = importlib.util.spec_from_file_location(module_name, file_path)
     if spec is None or spec.loader is None:
         raise ValueError(f"Unable to load module from {file_path}.")
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    for attr_name in ("generate", "model_callable"):
-        callable_obj = getattr(module, attr_name, None)
-        if callable_obj is not None and callable(callable_obj):
-            return callable_obj
-    raise ValueError(
-        "No callable found in response module. Expected 'generate' or 'model_callable'."
-    )
+    try:
+        spec.loader.exec_module(module)
+        for attr_name in ("generate", "model_callable"):
+            callable_obj = getattr(module, attr_name, None)
+            if callable_obj is not None and callable(callable_obj):
+                return callable_obj
+        raise ValueError(
+            "No callable found in response module. Expected 'generate' or 'model_callable'."
+        )
+    except Exception:
+        sys.modules.pop(module_name, None)
+        raise
 
 
 def _resolve_model_callable(response: str | None) -> ModelCallable:
@@ -128,7 +135,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--response",
         default=None,
-        help="Response hook as module:callable or path to a .py file with generate().",
+        help=(
+            "Trusted executable response hook as module:callable or path to a .py file "
+            "with generate()."
+        ),
     )
     return parser
 

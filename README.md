@@ -303,6 +303,8 @@ python src/dual_path_circuit_tracer.py runs/001
 python tools/merge_run_inspection.py runs/001
 ```
 
+The `--response` option accepts either `module:callable` or a `.py` hook file. Python hook files are trusted executable plugins; only run hooks from code you would otherwise execute directly.
+
 Artifacts are saved under `runs/`.
 
 ---
