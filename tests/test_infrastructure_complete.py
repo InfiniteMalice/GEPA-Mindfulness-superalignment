@@ -1,6 +1,7 @@
 """Test that all infrastructure files exist and are valid."""
 
 import json
+import os
 from pathlib import Path
 
 import yaml
@@ -51,7 +52,8 @@ def test_scripts_exist():
     # Check executability
     for script in ["labels_export.py", "labels_import.py", "train_classifier.py"]:
         path = Path("scripts") / script
-        assert path.stat().st_mode & 0o111  # executable bit
+        if os.name != "nt":
+            assert path.stat().st_mode & 0o111  # executable bit
 
 
 def test_docs_exist():

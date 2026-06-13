@@ -385,6 +385,14 @@
       appendText(deceptionContainer, "h3", "Deceptive Chain");
       appendJsonPre(deceptionContainer, dualPath.deceptive_chain);
     }
+    if (deception && deception.probe) {
+      appendText(deceptionContainer, "h3", "Deception Probe");
+      appendJsonPre(deceptionContainer, deception.probe);
+    }
+    if (deception && deception.summary) {
+      appendText(deceptionContainer, "h3", "Deception Summary");
+      appendJsonPre(deceptionContainer, deception.summary);
+    }
   }
 
   function spanSnippet(span) {
