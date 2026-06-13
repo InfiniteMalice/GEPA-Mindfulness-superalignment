@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from mindful_trace_gepa.path_utils import atomic_write_json
-
+from ..path_utils import atomic_write_json
 from .schema import AggregateScores
 
 

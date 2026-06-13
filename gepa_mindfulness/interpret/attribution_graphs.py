@@ -331,24 +331,6 @@ class AttributionGraphExtractor:
         edges = self._build_edges(nodes)
         return nodes, edges
 
-    def _path_integrated_gradients(
-        self,
-        *,
-        layers: Iterable[int],
-        threshold: float,
-    ) -> tuple[list[AttributionNode], list[AttributionEdge]]:
-        return self._gradient_x_activation(layers=layers, threshold=threshold)
-
-    def _activation_patching(
-        self,
-        *,
-        inputs: dict[str, torch.Tensor],
-        prompt_len: int,
-        layers: Iterable[int],
-        threshold: float,
-    ) -> tuple[list[AttributionNode], list[AttributionEdge]]:
-        return self._gradient_x_activation(layers=layers, threshold=threshold)
-
     def _build_edges(self, nodes: list[AttributionNode]) -> list[AttributionEdge]:
         nodes_by_layer: dict[int, list[AttributionNode]] = {}
         for node in nodes:

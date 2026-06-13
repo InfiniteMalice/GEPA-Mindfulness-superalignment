@@ -104,6 +104,25 @@ def test_attribution_similarity_handles_negative_values() -> None:
     assert similarity < 1.0
 
 
+def test_structural_similarity_accepts_fallback_two_tuple_edges() -> None:
+    class TwoTupleEdgeGraph:
+        nodes = ["a", "b"]
+
+        def number_of_nodes(self) -> int:
+            return 2
+
+        def edges(self, data: bool = False):
+            if data:
+                raise TypeError("data keyword is unsupported")
+            return [("a", "b")]
+
+    graph = TwoTupleEdgeGraph()
+
+    similarity = compute_structural_similarity(graph, graph)
+
+    assert 0.0 <= similarity <= 1.0
+
+
 def test_distinctive_subgraphs_is_explicitly_unsupported() -> None:
     graph = _graph_with_scale(1.0)
 

@@ -49,7 +49,7 @@ def _run_demo(
     output_dir: Path | None = None,
 ) -> int:
     config_path = CONFIG_MAP[trainer]
-    run_root = repo_root or Path.cwd()
+    run_root = (repo_root or Path.cwd()).resolve()
     resolved_output = output_dir or (Path.cwd() / "runs" / f"{trainer}_cpu_demo")
     run_root.mkdir(parents=True, exist_ok=True)
     resolved_output = resolved_output.resolve()

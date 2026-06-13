@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from importlib import import_module
 from types import ModuleType
-from typing import Optional
 
 
-def optional_import(name: str) -> Optional[ModuleType]:
+def optional_import(name: str) -> ModuleType | None:
     """Attempt to import *name*, returning ``None`` if unavailable."""
 
     try:

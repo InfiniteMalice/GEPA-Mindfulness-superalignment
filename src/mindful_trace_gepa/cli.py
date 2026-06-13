@@ -204,6 +204,8 @@ def handle_dspy_run(args: argparse.Namespace) -> None:
     dual_path_flag = getattr(args, "dual_path", False)
     if dual_path_flag and DUAL_PATH_CHAIN_CLS is None:
         _raise_dspy_import_error("dual-path pipeline", _DSPY_PIPELINE_ERROR)
+    if dual_path_flag and dspy_pkg is None:
+        _raise_dspy_import_error("dual-path pipeline", _DSPY_PIPELINE_ERROR)
     if GEPA_CHAIN_CLS is None and DUAL_PATH_CHAIN_CLS is None:
         _raise_dspy_import_error("pipeline", _DSPY_PIPELINE_ERROR)
     config = load_dspy_config()
@@ -218,7 +220,11 @@ def handle_dspy_run(args: argparse.Namespace) -> None:
         if dual_path_flag and DUAL_PATH_CHAIN_CLS is not None
         else GEPA_CHAIN_CLS
     )
-    chain = chain_factory(config=config, allow_optimizations=args.enable_optim)
+    try:
+        chain = chain_factory(config=config, allow_optimizations=args.enable_optim)
+    except ImportError as exc:
+        component = "dual-path pipeline" if dual_path_flag else "pipeline"
+        raise RuntimeError(f"DSPy {component} unavailable; {_DSPY_PIPELINE_ERROR}") from exc
     input_path = _resolve_cli_path(args.input)
     input_records = read_jsonl(input_path)
     trace_path = Path(args.trace)

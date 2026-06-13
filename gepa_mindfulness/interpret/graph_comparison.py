@@ -134,7 +134,8 @@ def _laplacian_spectrum(graph: nx.DiGraph) -> np.ndarray:
         edges = graph.edges(data=True)
     except TypeError:
         edges = graph.edges()
-    for source, target, attrs in edges:
+    for edge in edges:
+        source, target, attrs = edge if len(edge) == 3 else (*edge, {})
         weight = float(attrs.get("weight", 1.0))
         adjacency[index[source], index[target]] += weight
     adjacency = (adjacency + adjacency.T) / 2.0

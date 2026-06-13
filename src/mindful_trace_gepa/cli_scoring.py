@@ -169,7 +169,7 @@ def handle_lowconf_triage(args: argparse.Namespace) -> None:
                 }
             )
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write_text(out_path, "\n".join(json.dumps(row) for row in rows))
+    atomic_write_text(out_path, "".join(json.dumps(row) + "\n" for row in rows))
 
 
 def register_cli(subparsers: argparse._SubParsersAction) -> None:

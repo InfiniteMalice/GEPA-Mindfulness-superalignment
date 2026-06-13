@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import json
-import os
-import tempfile
 from pathlib import Path
 from typing import Any, Dict, List
 
 from mindful_trace_gepa.logging_schema import normalize_trace_event
+from mindful_trace_gepa.path_utils import atomic_write_text
 
 VIEWER_DIR = Path(__file__).resolve().parent
 
@@ -62,18 +61,7 @@ def build_viewer_html(
 
     bundle = html.replace("/*__VIEWER_CSS__*/", css).replace("/*__VIEWER_JS__*/", script)
     bundle = bundle.replace("/*__GEPA_DATA__*/", data_blob)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(
-        "w",
-        encoding="utf-8",
-        dir=output_path.parent,
-        prefix=f".{output_path.name}.",
-        suffix=".tmp",
-        delete=False,
-    ) as handle:
-        handle.write(bundle)
-        temp_name = handle.name
-    os.replace(temp_name, output_path)
+    atomic_write_text(output_path, bundle, encoding="utf-8")
     return output_path
 
 

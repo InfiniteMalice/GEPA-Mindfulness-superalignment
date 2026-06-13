@@ -8,7 +8,7 @@ pytest.importorskip(
     reason="mindful_trace_gepa package is required for CLI scoring tests.",
 )
 
-from mindful_trace_gepa.cli_scoring import handle_score_auto
+from mindful_trace_gepa.cli_scoring import handle_lowconf_triage, handle_score_auto
 from mindful_trace_gepa.scoring.schema import DIMENSIONS, TierScores
 
 
@@ -152,3 +152,24 @@ def test_score_auto_none_classifier_weight_uses_default(tmp_path, monkeypatch):
     handle_score_auto(args)
     payload = json.loads(out_path.read_text(encoding="utf-8"))
     assert payload["final"]["mindfulness"] == 3
+
+
+def test_lowconf_triage_writes_jsonl_with_trailing_newline(tmp_path):
+    scores_path = tmp_path / "scores.json"
+    out_path = tmp_path / "triage.jsonl"
+    scores_path.write_text(
+        json.dumps(
+            {
+                "final": {"mindfulness": 2},
+                "confidence": {"mindfulness": 0.2},
+                "per_tier": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    handle_lowconf_triage(
+        argparse.Namespace(scores=str(scores_path), out=str(out_path), threshold=0.6)
+    )
+
+    assert out_path.read_text(encoding="utf-8").endswith("\n")
