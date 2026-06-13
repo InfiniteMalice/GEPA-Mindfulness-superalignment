@@ -68,15 +68,25 @@ def test_dual_path_evaluator_has_package_entrypoint() -> None:
     assert callable(canonical_dual_path_main)
 
 
-def test_dual_path_evaluator_resolves_windows_file_path_before_module(monkeypatch) -> None:
+def test_dual_path_evaluator_resolves_windows_file_path_before_module(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Windows absolute .py response hooks should not be parsed as module specs."""
 
+    response_path = Mock()
+    response_path.suffix = ".py"
+    response_path.drive = "C:"
+    response_path.is_absolute.return_value = True
+    path_factory = Mock(return_value=response_path)
     expected = Mock()
+
+    monkeypatch.setattr(dual_path_evaluator, "Path", path_factory)
     monkeypatch.setattr(dual_path_evaluator, "_load_callable_from_file", expected)
 
     dual_path_evaluator._resolve_model_callable("C:\\hooks\\response.py")
 
-    expected.assert_called_once_with(Path("C:\\hooks\\response.py"))
+    path_factory.assert_called_once_with("C:\\hooks\\response.py")
+    expected.assert_called_once_with(response_path)
 
 
 def test_dual_path_evaluator_normalizes_missing_module() -> None:
@@ -86,7 +96,9 @@ def test_dual_path_evaluator_normalizes_missing_module() -> None:
         dual_path_evaluator._load_callable_from_module("missing_response_hook:generate")
 
 
-def test_dual_path_evaluator_requires_callable_module_attribute(monkeypatch) -> None:
+def test_dual_path_evaluator_requires_callable_module_attribute(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Existing but non-callable response hook attributes should fail consistently."""
 
     module = type("Module", (), {"generate": "not-callable"})()
