@@ -45,7 +45,8 @@ def build_dual_path_command(
 ) -> CommandRequest:
     argv: list[str] = [
         "python",
-        "src/dual_path_evaluator.py",
+        "-m",
+        "mindful_trace_gepa.dual_path_evaluator",
         "--scenarios",
         dataset_path,
         "--run",

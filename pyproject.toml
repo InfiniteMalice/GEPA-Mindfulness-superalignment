@@ -13,6 +13,7 @@ dependencies = [
     "click>=8.1",
     "matplotlib>=3.7",
     "pyyaml>=6.0",
+    "tomli>=2.0; python_version < '3.11'",
     "torch>=2.9.0",
     "textual>=0.20",
     "transformers>=4.37",
@@ -22,6 +23,7 @@ dependencies = [
 pdf = ["weasyprint>=53"]
 dspy = ["dspy-ai>=2.5"]
 dev = [
+    "build>=1.2",
     "black>=24.0",
     "mypy>=1.8",
     "pytest>=8.0",
@@ -33,32 +35,6 @@ gepa = "mindful_trace_gepa.cli:main"
 
 [tool.setuptools]
 include-package-data = true
-packages = [
-    "mindful_trace_gepa",
-    "mindful_trace_gepa.value_decomp",
-    "gepa_mindfulness",
-    "gepa_mindfulness.schema_v3",
-    "rg_tracer",
-    "rg_tracer.scoring",
-    "rg_tracer.schema_v3",
-    "semantic_intent_robustness",
-    "cognitive_pairwise_training",
-    "socratic_self_refine",
-    "objective_validator_robustness",
-    "factuality_certification",
-    "evaluation",
-    "evaluation.suites",
-    "evaluation.suites.agent_safety",
-    "evaluation.suites.bias_toxicity",
-    "evaluation.suites.calibration",
-    "evaluation.suites.deception",
-    "evaluation.suites.factuality",
-    "evaluation.suites.misuse_capability",
-    "evaluation.suites.ood",
-    "evaluation.suites.privacy",
-    "evaluation.suites.robustness",
-    "evaluation.suites.sycophancy",
-]
 
 [tool.setuptools.package-dir]
 mindful_trace_gepa = "src/mindful_trace_gepa"
@@ -70,6 +46,30 @@ socratic_self_refine = "modules/socratic_self_refine"
 objective_validator_robustness = "modules/objective_validator_robustness"
 factuality_certification = "src/factuality_certification"
 evaluation = "evaluation"
+
+[tool.setuptools.packages.find]
+where = [".", "src", "modules", "reasoning-generalization-tracer/src"]
+include = [
+    "app*",
+    "cognitive_pairwise_training*",
+    "evaluation*",
+    "factuality_certification*",
+    "gepa_mindfulness*",
+    "mindful_trace_gepa*",
+    "objective_validator_robustness*",
+    "rg_tracer*",
+    "semantic_intent_robustness*",
+    "socratic_self_refine*",
+    "synthetic_data*",
+]
+exclude = [
+    "build*",
+    "dist*",
+    "modules.*",
+    "tests*",
+    "*.tests",
+    "*.tests.*",
+]
 
 [tool.setuptools.package-data]
 mindful_trace_gepa = [
@@ -95,6 +95,14 @@ factuality_certification = [
 ]
 "rg_tracer.schema_v3" = [
     "registry.yaml",
+]
+
+[tool.setuptools.exclude-package-data]
+objective_validator_robustness = [
+    "tests/*",
+]
+semantic_intent_robustness = [
+    "tests/*",
 ]
 
 [tool.black]
