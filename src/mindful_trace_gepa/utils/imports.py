@@ -12,12 +12,7 @@ def optional_import(name: str) -> Optional[ModuleType]:
 
     try:
         module = import_module(name)
-    except ModuleNotFoundError:
-        return None
-    except Exception:
-        # Some optional dependencies raise custom errors during import when
-        # system libraries are missing (e.g. Cairo for WeasyPrint). Treat
-        # those the same as an unavailable module.
+    except (ImportError, OSError):
         return None
     return module
 

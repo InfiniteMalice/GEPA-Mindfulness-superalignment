@@ -59,33 +59,13 @@ def _raise_dspy_import_error(component: str, detail: str) -> None:
 
 yaml = optional_import("yaml")
 
-_DSPY_PIPELINE_IMPORT_ERROR: Exception | None = None
-try:  # pragma: no cover - optional dependency may fail
-    _dspy_pipeline = import_module("mindful_trace_gepa.dspy_modules.pipeline")
-except Exception as exc:  # pragma: no cover - surface later when needed
-    _dspy_pipeline = None
-    _DSPY_PIPELINE_IMPORT_ERROR = exc
+_dspy_pipeline = import_module("mindful_trace_gepa.dspy_modules.pipeline")
+GEPA_CHAIN_CLS = getattr(_dspy_pipeline, "GEPAChain", None)
+DUAL_PATH_CHAIN_CLS = getattr(_dspy_pipeline, "DualPathGEPAChain", None)
 
-if _dspy_pipeline is not None:
-    GEPA_CHAIN_CLS = getattr(_dspy_pipeline, "GEPAChain", None)
-    DUAL_PATH_CHAIN_CLS = getattr(_dspy_pipeline, "DualPathGEPAChain", None)
-else:  # pragma: no cover - optional dependency missing
-    GEPA_CHAIN_CLS = None
-    DUAL_PATH_CHAIN_CLS = None
-
-_DSPY_COMPILE_IMPORT_ERROR: Exception | None = None
-try:  # pragma: no cover - optional dependency may fail
-    _dspy_compile = import_module("mindful_trace_gepa.dspy_modules.compile")
-except Exception as exc:  # pragma: no cover - surface later when needed
-    _dspy_compile = None
-    _DSPY_COMPILE_IMPORT_ERROR = exc
-
-if _dspy_compile is not None:
-    GEPA_COMPILER_CLS = getattr(_dspy_compile, "GEPACompiler", None)
-    CREATE_GEPA_METRIC = getattr(_dspy_compile, "create_gepa_metric", None)
-else:  # pragma: no cover - optional dependency missing
-    GEPA_COMPILER_CLS = None
-    CREATE_GEPA_METRIC = None
+_dspy_compile = import_module("mindful_trace_gepa.dspy_modules.compile")
+GEPA_COMPILER_CLS = getattr(_dspy_compile, "GEPACompiler", None)
+CREATE_GEPA_METRIC = getattr(_dspy_compile, "create_gepa_metric", None)
 
 dspy_pkg = optional_import("dspy")
 
