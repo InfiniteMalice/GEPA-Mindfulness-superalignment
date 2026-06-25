@@ -57,18 +57,18 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "human_prosperity",
+        "prosperity",
         "suffering_reduction",
-        "scientific_knowledge",
+        "understanding",
         "autonomy",
         "cooperation_under_uncertainty",
         "reality_contact",
         "corrigibility"
       ],
       "properties": {
-        "human_prosperity": { "$ref": "#/definitions/score" },
+        "prosperity": { "$ref": "#/definitions/score" },
         "suffering_reduction": { "$ref": "#/definitions/score" },
-        "scientific_knowledge": { "$ref": "#/definitions/score" },
+        "understanding": { "$ref": "#/definitions/score" },
         "autonomy": { "$ref": "#/definitions/score" },
         "cooperation_under_uncertainty": { "$ref": "#/definitions/score" },
         "reality_contact": { "$ref": "#/definitions/score" },

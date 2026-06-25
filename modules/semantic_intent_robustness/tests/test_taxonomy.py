@@ -90,6 +90,14 @@ def test_principle_taxonomy_values_are_stable_strings() -> None:
     assert PrincipleFailureMode.DECEPTION_FOR_OUTCOME.value == "deception_for_outcome"
 
 
+def test_legacy_target_principle_serialized_values_hydrate() -> None:
+    assert TargetPrinciple("increase_human_prosperity") is TargetPrinciple.INCREASE_PROSPERITY
+    assert TargetPrinciple("reduce_human_suffering") is TargetPrinciple.REDUCE_SUFFERING
+    assert TargetPrinciple("increase_scientific_knowledge") is (
+        TargetPrinciple.INCREASE_UNDERSTANDING
+    )
+
+
 def test_principle_robustness_record_round_trip_serialization() -> None:
     record = PrincipleRobustnessRecord(
         record_id="pr-1",

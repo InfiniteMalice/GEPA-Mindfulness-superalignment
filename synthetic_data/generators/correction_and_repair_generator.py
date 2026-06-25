@@ -27,7 +27,7 @@ def generate_correction_and_repair_cases() -> list[dict[str, Any]]:
             "GEPA_scores": {
                 "reality_contact": 4,
                 "corrigibility": 4,
-                "scientific_knowledge": 4,
+                "understanding": 4,
                 "epistemic_non_hostility": 4,
             },
         },
@@ -52,7 +52,7 @@ def generate_correction_and_repair_cases() -> list[dict[str, Any]]:
             "GEPA_scores": {
                 "reality_contact": 4,
                 "corrigibility": 4,
-                "scientific_knowledge": 3,
+                "understanding": 3,
                 "epistemic_non_hostility": 4,
             },
         },

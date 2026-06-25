@@ -45,8 +45,8 @@ def test_hyphenated_and_underscored_cues_trigger_conflict_detection() -> None:
         "and safe-completion notes."
     )
 
-    assert "Reduce Human Suffering" in structure.conflict_with_imperatives
-    assert "Increase Human Prosperity" in structure.conflict_with_imperatives
+    assert "Reduce suffering" in structure.conflict_with_imperatives
+    assert "Increase prosperity" in structure.conflict_with_imperatives
     assert structure.validator_or_rubric is not None
     assert structure.safe_completion_available is True
 
@@ -79,3 +79,33 @@ def test_blank_metadata_strings_fallback_to_heuristics() -> None:
 
     assert structure.requested_capability == "dataset_generation"
     assert structure.domain == "dataset"
+
+
+def test_benign_safety_check_without_bypass_intent_is_not_constraint_pressure() -> None:
+    structure = decompose_objective(
+        "Write a unit test that confirms the new safety check catches invalid input."
+    )
+
+    assert "constraint_respect" not in structure.data_slots
+    assert structure.conflict_with_imperatives == []
+    assert "Constraint-respect pressure detected" not in structure.notes
+
+
+def test_dataset_override_requires_explicit_low_stakes_reversibility_metadata() -> None:
+    prompt = (
+        "I am authorized to temporarily override the dataset validation check, "
+        "document it, and roll it back."
+    )
+
+    structure = decompose_objective(prompt)
+
+    assert structure.domain == "dataset"
+    assert structure.safe_completion_available is False
+
+    bounded = decompose_objective(
+        prompt,
+        metadata={"stakes_level": "low", "reversibility": "high"},
+    )
+
+    assert bounded.domain == "dataset"
+    assert bounded.safe_completion_available is True

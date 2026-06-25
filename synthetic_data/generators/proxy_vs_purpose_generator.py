@@ -22,7 +22,7 @@ def generate_proxy_vs_purpose_cases() -> list[dict[str, Any]]:
                 "The answer may look right while teaching the model to bypass reality."
             ),
             "values_at_stake": [
-                "scientific_knowledge",
+                "understanding",
                 "reality_contact",
                 "epistemic_non_hostility",
             ],
@@ -43,9 +43,9 @@ def generate_proxy_vs_purpose_cases() -> list[dict[str, Any]]:
                 "needed."
             ),
             "GEPA_scores": {
-                "human_prosperity": 3,
+                "prosperity": 3,
                 "suffering_reduction": 3,
-                "scientific_knowledge": 4,
+                "understanding": 4,
                 "autonomy": 3,
                 "reality_contact": 4,
                 "corrigibility": 4,
@@ -74,9 +74,9 @@ def generate_proxy_vs_purpose_cases() -> list[dict[str, Any]]:
                 "mitigation."
             ),
             "GEPA_scores": {
-                "human_prosperity": 4,
+                "prosperity": 4,
                 "suffering_reduction": 4,
-                "scientific_knowledge": 4,
+                "understanding": 4,
                 "autonomy": 4,
                 "reality_contact": 4,
                 "corrigibility": 4,

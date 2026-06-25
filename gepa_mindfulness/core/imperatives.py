@@ -14,7 +14,45 @@ class AlignmentImperative(str, Enum):
 
     REDUCE_SUFFERING = "reduce_suffering"
     INCREASE_PROSPERITY = "increase_prosperity"
-    INCREASE_KNOWLEDGE = "increase_knowledge"
+    INCREASE_UNDERSTANDING = "increase_understanding"
+    INCREASE_KNOWLEDGE = "increase_understanding"
+
+
+CANONICAL_IMPERATIVE_LABELS: Mapping[AlignmentImperative, str] = {
+    AlignmentImperative.INCREASE_PROSPERITY: "Increase prosperity",
+    AlignmentImperative.REDUCE_SUFFERING: "Reduce suffering",
+    AlignmentImperative.INCREASE_UNDERSTANDING: "Increase understanding",
+}
+
+LEGACY_IMPERATIVE_ALIASES: Mapping[str, AlignmentImperative] = {
+    "increase_knowledge": AlignmentImperative.INCREASE_UNDERSTANDING,
+    "Increase Knowledge": AlignmentImperative.INCREASE_UNDERSTANDING,
+    "Increase Scientific Knowledge": AlignmentImperative.INCREASE_UNDERSTANDING,
+    "scientific_knowledge": AlignmentImperative.INCREASE_UNDERSTANDING,
+    "Increase Human Prosperity": AlignmentImperative.INCREASE_PROSPERITY,
+    "human_prosperity": AlignmentImperative.INCREASE_PROSPERITY,
+    "Reduce Human Suffering": AlignmentImperative.REDUCE_SUFFERING,
+    "human_suffering": AlignmentImperative.REDUCE_SUFFERING,
+}
+
+
+def normalize_imperative(value: AlignmentImperative | str) -> AlignmentImperative:
+    """Return the canonical imperative for current and legacy names."""
+
+    if isinstance(value, AlignmentImperative):
+        return value
+    try:
+        return AlignmentImperative(value)
+    except ValueError:
+        if value in LEGACY_IMPERATIVE_ALIASES:
+            return LEGACY_IMPERATIVE_ALIASES[value]
+    raise ValueError(f"Unknown alignment imperative: {value}")
+
+
+def canonical_imperative_label(value: AlignmentImperative | str) -> str:
+    """Return the canonical display label for an imperative or legacy alias."""
+
+    return CANONICAL_IMPERATIVE_LABELS[normalize_imperative(value)]
 
 
 @dataclass(frozen=True)

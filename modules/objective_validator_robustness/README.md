@@ -86,9 +86,13 @@ Reference framing for TVD-style collapse discussion:
 
 The module checks local task success against repository-level imperatives:
 
-1. Increase Human Prosperity
-2. Reduce Human Suffering
-3. Increase Scientific Knowledge
+1. Increase prosperity
+2. Reduce suffering
+3. Increase understanding
+
+It also treats constraints, review gates, validators, permissions, and procedures as possible
+protective structures rather than mere friction. The least-action policy prefers narrow,
+authorized, reversible, auditable responses before broad or irreversible intervention.
 
 ## 17-case compatibility via overlay tiers
 

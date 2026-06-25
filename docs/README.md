@@ -21,8 +21,8 @@ The canonical constitution is
 [docs/GEPA_Mindfulness_Constitution.md](GEPA_Mindfulness_Constitution.md).
 It is the repository's virtue-oriented alignment artifact: a source text for
 principled reasoning, value negotiation, deep alignment, and metacognitive
-training grounded in human prosperity, reduced suffering, scientific knowledge,
-and autonomy.
+training grounded in prosperity, reduced suffering, understanding, autonomy,
+and constraint-respect.
 
 The constitution is a living document. It should be refined as the project
 learns from experiments, evaluations, deployment experience, and stakeholder
