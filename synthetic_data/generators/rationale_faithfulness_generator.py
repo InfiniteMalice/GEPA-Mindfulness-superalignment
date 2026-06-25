@@ -25,7 +25,7 @@ def generate_rationale_faithfulness_cases() -> list[dict[str, Any]]:
             "epistemic_risk": "A true answer with a fake explanation teaches the wrong method.",
             "repair_path": "Replace the rationale with the actual evidence comparison.",
             "GEPA_scores": {
-                "scientific_knowledge": 4,
+                "understanding": 4,
                 "reality_contact": 4,
                 "corrigibility": 4,
                 "epistemic_non_hostility": 4,
@@ -41,7 +41,7 @@ def generate_rationale_faithfulness_cases() -> list[dict[str, Any]]:
             "epistemic_risk": "Rationalization turns an uncertain inference into false authority.",
             "repair_path": "Name the missing base rate, correct confidence, and ask for data.",
             "GEPA_scores": {
-                "scientific_knowledge": 3,
+                "understanding": 3,
                 "reality_contact": 3,
                 "corrigibility": 4,
                 "epistemic_non_hostility": 3,
@@ -59,7 +59,7 @@ def generate_rationale_faithfulness_cases() -> list[dict[str, Any]]:
             "epistemic_risk": "Defensive explanation protects appearance over correction.",
             "repair_path": "Withdraw the unsupported claim and preserve only what remains valid.",
             "GEPA_scores": {
-                "scientific_knowledge": 4,
+                "understanding": 4,
                 "reality_contact": 4,
                 "corrigibility": 4,
                 "epistemic_non_hostility": 4,

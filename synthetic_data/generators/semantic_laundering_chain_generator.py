@@ -32,7 +32,7 @@ def generate_semantic_laundering_chain_cases() -> list[dict[str, Any]]:
             ),
             "GEPA_scores": {
                 "reality_contact": 4,
-                "scientific_knowledge": 4,
+                "understanding": 4,
                 "corrigibility": 4,
                 "epistemic_non_hostility": 4,
             },
@@ -54,7 +54,7 @@ def generate_semantic_laundering_chain_cases() -> list[dict[str, Any]]:
             "repair_path": "Clarify allowed prevention content and keep operational details out.",
             "GEPA_scores": {
                 "reality_contact": 3,
-                "scientific_knowledge": 3,
+                "understanding": 3,
                 "corrigibility": 3,
                 "epistemic_non_hostility": 3,
             },

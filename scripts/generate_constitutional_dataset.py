@@ -95,14 +95,11 @@ def validate_string_list(example: dict[str, Any], field: str) -> list[str]:
     return []
 
 
-def validate_values_at_stake(example: dict[str, Any]) -> list[str]:
+def validate_values_at_stake(
+    example: dict[str, Any],
+    value_fields: tuple[str, ...],
+) -> list[str]:
     """Validate the values_at_stake object."""
-    value_fields = (
-        "human_prosperity",
-        "reduce_suffering",
-        "scientific_knowledge",
-        "autonomy",
-    )
     values = example.get("values_at_stake")
     if not isinstance(values, dict):
         return ["values_at_stake must be an object"]
@@ -123,6 +120,7 @@ def validate_examples(
     properties = schema["properties"]
     required = set(schema["required"])
     category_enum = set(properties["category"]["enum"])
+    value_fields = tuple(properties["values_at_stake"]["required"])
     risk_enum = set(schema["$defs"]["risk_level"]["enum"])
     string_fields = (
         "id",
@@ -153,7 +151,7 @@ def validate_examples(
         errors.extend(validate_string_field(example, "notes", allow_empty=False))
         errors.extend(validate_string_list(example, "source_constitution_sections"))
         errors.extend(validate_string_list(example, "metacognitive_checks"))
-        errors.extend(validate_values_at_stake(example))
+        errors.extend(validate_values_at_stake(example, value_fields))
         if example.get("category") not in category_enum:
             errors.append("category must be one of the schema enum values")
         for field in RISK_FIELDS:

@@ -222,9 +222,12 @@ class PrinciplePressureType(StrEnum):
 class TargetPrinciple(StrEnum):
     """Stable principles that should survive adversarial moral pressure."""
 
-    INCREASE_HUMAN_PROSPERITY = "increase_human_prosperity"
-    REDUCE_HUMAN_SUFFERING = "reduce_human_suffering"
-    INCREASE_SCIENTIFIC_KNOWLEDGE = "increase_scientific_knowledge"
+    INCREASE_PROSPERITY = "increase_prosperity"
+    REDUCE_SUFFERING = "reduce_suffering"
+    INCREASE_UNDERSTANDING = "increase_understanding"
+    INCREASE_HUMAN_PROSPERITY = "increase_prosperity"
+    REDUCE_HUMAN_SUFFERING = "reduce_suffering"
+    INCREASE_SCIENTIFIC_KNOWLEDGE = "increase_understanding"
     HONESTY = "honesty"
     NON_DECEPTION = "non_deception"
     AUTONOMY = "autonomy"
@@ -235,6 +238,17 @@ class TargetPrinciple(StrEnum):
     PROPORTIONALITY = "proportionality"
     REPAIR_ORIENTATION = "repair_orientation"
     OVERSIGHT_PRESERVATION = "oversight_preservation"
+
+    @classmethod
+    def _missing_(cls, value: object) -> "TargetPrinciple | None":
+        legacy_values = {
+            "increase_human_prosperity": cls.INCREASE_PROSPERITY,
+            "reduce_human_suffering": cls.REDUCE_SUFFERING,
+            "increase_scientific_knowledge": cls.INCREASE_UNDERSTANDING,
+        }
+        if isinstance(value, str):
+            return legacy_values.get(value)
+        return None
 
 
 class PrincipleFailureMode(StrEnum):

@@ -7,8 +7,8 @@ principles into training, fine-tuning, synthetic-data, and evaluation artifacts.
 
 The goal is to train models to reason from virtues and principles, not merely
 imitate approved outputs. Examples should make the "why" explicit: how a
-response supports human prosperity, reduces suffering, protects scientific
-knowledge, preserves autonomy, and remains corrigible under pressure.
+response supports prosperity, reduces suffering, protects understanding,
+preserves autonomy, respects constraints, and remains corrigible under pressure.
 
 The constitution is a living alignment document, not a replacement for system
 prompts, legal requirements, safety policies, or deployment guardrails. Stricter
@@ -26,8 +26,11 @@ rules always override constitution-derived examples.
    turns. Examples should track context, resist gradual escalation, and redirect
    safely.
 4. **value_decomposition** - Cases that explicitly separate prosperity,
-   suffering reduction, scientific knowledge, and autonomy. Examples should show
-   how values interact instead of collapsing them into one metric.
+   suffering reduction, understanding, and autonomy in `values_at_stake`.
+   Constraint respect should be recorded in `principle_explanation`,
+   `metacognitive_checks`, source-section citations, or `notes` when a barrier,
+   review gate, or permission boundary matters. Examples should show how values
+   interact instead of collapsing them into one metric.
 5. **temporal_diffuse_harm** - Requests whose harms are delayed, cumulative, or
    distributed across many people. Examples should reason beyond immediate user
    benefit.

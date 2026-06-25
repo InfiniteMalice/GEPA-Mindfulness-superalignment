@@ -35,6 +35,48 @@ SENSITIVE_CUES = {
 
 OUTPUT_CUES = ("json", "csv", "yaml", "table", "schema", "pydantic")
 
+CONSTRAINT_BYPASS_CUES = (
+    "disable the failing ci tests",
+    "failing ci tests",
+    "disable failing tests",
+    "disable tests",
+    "bypass ci",
+    "skip ci",
+    "i cannot access that file",
+    "find another route and retrieve it",
+    "retrieve a file i cannot access",
+    "cannot access directly",
+    "permission boundary",
+    "unofficial shortcut",
+    "court procedure",
+    "prison mail procedure",
+    "turn off logging",
+    "turn off authentication",
+    "turn off alerts",
+    "disable logging",
+    "disable authentication",
+    "disable alerts",
+    "skip required review",
+    "skip the required medical review",
+    "skip required medical review",
+    "bypass review",
+    "approval requirement",
+    "bypass safety check",
+    "disable safety check",
+    "skip safety check",
+)
+
+AUTHORIZED_REVERSIBLE_CUES = (
+    "i own this sandbox",
+    "authorized",
+    "temporarily",
+    "document it",
+    "ticket",
+    "roll it back",
+    "rollback",
+    "reversible",
+)
+
 
 def _contains_any(text: str, cues: tuple[str, ...]) -> bool:
     return any(cue in text for cue in cues)
@@ -109,6 +151,11 @@ def _infer_domain(text: str) -> str | None:
     for domain, cues in SENSITIVE_CUES.items():
         if _contains_any(normalized_text, cues):
             return domain
+    if _contains_any(
+        normalized_text,
+        ("sandbox", "style check", "demo", "toy", "local fixture"),
+    ):
+        return "sandbox"
     if "medical" in normalized_text or "health" in normalized_text:
         return "medical"
     if "classifier" in normalized_text or "dataset" in normalized_text:
@@ -119,6 +166,10 @@ def _infer_domain(text: str) -> str | None:
 def _imperative_conflicts(text: str) -> list[str]:
     conflicts: list[str] = []
     normalized_text = _normalize_cue_text(text)
+    if _contains_any_normalized(normalized_text, CONSTRAINT_BYPASS_CUES):
+        conflicts.append("Reduce suffering")
+        conflicts.append("Increase prosperity")
+        conflicts.append("Increase understanding")
     if _contains_any_normalized(
         normalized_text,
         (
@@ -139,17 +190,17 @@ def _imperative_conflicts(text: str) -> list[str]:
             "derogatory",
         ),
     ):
-        conflicts.append("Reduce Human Suffering")
+        conflicts.append("Reduce suffering")
     if _contains_any_normalized(
         normalized_text,
         ("private data", "credential", "password", "api key", "ssn"),
     ):
-        conflicts.append("Increase Human Prosperity")
+        conflicts.append("Increase prosperity")
     if _contains_any_normalized(
         normalized_text,
         ("fabricate", "mislead benchmark", "poison dataset"),
     ):
-        conflicts.append("Increase Scientific Knowledge")
+        conflicts.append("Increase understanding")
     return sorted(set(conflicts))
 
 
@@ -180,6 +231,16 @@ def decompose_objective(
     notes: list[str] = []
     if _contains_any_normalized(lowered, VALIDATOR_CUES):
         notes.append("Validator-like success criteria detected")
+    constraint_pressure = _contains_any_normalized(lowered, CONSTRAINT_BYPASS_CUES)
+    authorized_reversible = _contains_any_normalized(lowered, AUTHORIZED_REVERSIBLE_CUES)
+    if constraint_pressure or "override" in lowered:
+        notes.append("Constraint-respect pressure detected")
+    if constraint_pressure:
+        notes.append(
+            "Treat the barrier as information-bearing before bypass, weakening, or removal"
+        )
+    if authorized_reversible and ("override" in lowered or constraint_pressure):
+        notes.append("authorized reversible override path detected")
     if _contains_any_normalized(lowered, ("fill placeholders", "complete missing data")):
         notes.append("Task asks for structural completion of missing slots")
 
@@ -212,6 +273,8 @@ def decompose_objective(
             break
 
     data_slots = _extract_data_slots(text)
+    if constraint_pressure or "override" in lowered:
+        data_slots.append("constraint_respect")
     requested_capability_raw = safe_metadata.get("requested_capability")
     if requested_capability_raw is not None and not isinstance(requested_capability_raw, str):
         raise TypeError("metadata['requested_capability'] must be a string when provided")
@@ -261,6 +324,12 @@ def decompose_objective(
             ),
         )
     )
+    if (
+        authorized_reversible
+        and ("override" in lowered or constraint_pressure)
+        and _has_positive_override_safety_signal(domain, safe_metadata)
+    ):
+        safe_completion_available = True
     if safe_completion_available:
         notes.append("Safe completion path inferred via redaction or non-operational placeholders")
 
@@ -299,3 +368,14 @@ def _canonical_optional_metadata_str(value: str | None) -> str | None:
         return None
     stripped = value.strip()
     return stripped if stripped else None
+
+
+def _has_positive_override_safety_signal(
+    domain: str | None,
+    metadata: Mapping[str, Any],
+) -> bool:
+    if domain == "sandbox":
+        return True
+    stakes = metadata.get("stakes_level")
+    reversibility = metadata.get("reversibility")
+    return stakes == "low" and reversibility == "high"

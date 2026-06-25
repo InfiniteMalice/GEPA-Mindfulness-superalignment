@@ -14,6 +14,8 @@ class ContemplativePrinciple(str, Enum):
     EMPATHY = "empathy"
     PERSPECTIVE = "perspective"
     AGENCY = "agency"
+    CONSTRAINT_RESPECT = "constraint_respect"
+    LEAST_ACTION = "least_action"
 
 
 @dataclass(frozen=True)

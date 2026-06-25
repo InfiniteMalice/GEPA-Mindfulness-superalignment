@@ -47,9 +47,9 @@ def validate_example_against_schema(
     required_strings = {"context", "notes"}
     boolean_fields = {"requires_refusal", "requires_redirect", "corrigibility_issue"}
     value_fields = {
-        "human_prosperity",
+        "prosperity",
         "reduce_suffering",
-        "scientific_knowledge",
+        "understanding",
         "autonomy",
     }
     errors: list[str] = []

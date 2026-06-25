@@ -78,13 +78,13 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "human_prosperity",
+        "prosperity",
         "reduce_suffering",
-        "scientific_knowledge",
+        "understanding",
         "autonomy"
       ],
       "properties": {
-        "human_prosperity": {
+        "prosperity": {
           "type": "string",
           "minLength": 1
         },
@@ -92,7 +92,7 @@
           "type": "string",
           "minLength": 1
         },
-        "scientific_knowledge": {
+        "understanding": {
           "type": "string",
           "minLength": 1
         },
