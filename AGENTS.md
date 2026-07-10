@@ -2,6 +2,18 @@
 
 You are coding for the GEPA-Mindfulness-superalignment repository. Follow these rules strictly.
 
+## REQUIRED SKILLS FOR AGENTS
+
+- Use `$superpowers` before non-trivial work to select the right specialized workflow and
+  surface any repository-specific constraints before editing.
+- Use `$repo-quality-gate` for every non-trivial code change, refactor, architecture change,
+  test change, agent workflow change, reward/scoring change, or repository-maintenance task.
+- Do not skip the quality-gate sequence: task spec, design plan, implementation, tests,
+  quality gate, and final summary.
+- If either skill is unavailable in the active agent environment, state that limitation before
+  continuing and follow the closest documented fallback only when the maintainer approves or
+  the task is documentation-only and low risk.
+
 ## BEADS USAGE
 
 - Repository instructions are canonical here; beads reads them via `beads/README.md`.
@@ -16,6 +28,9 @@ You are coding for the GEPA-Mindfulness-superalignment repository. Follow these 
 ### Beads workflow goals
 
 - Keep AGENTS.md as the single source of repository standards so beads can track them.
+- Keep required-skill usage visible in Beads-tracked work: issue descriptions, acceptance
+  criteria, or closure notes should mention `$superpowers` and `$repo-quality-gate` usage or
+  explain why a documented fallback was used.
 - Use beads to verify changes stay aligned with these rules before merging.
 
 ### Beads day-to-day workflow

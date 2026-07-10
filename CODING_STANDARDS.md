@@ -31,6 +31,20 @@ adhere to these standards without exception.
 - No unused imports
 - Black formatting compliance
 - Comprehensive type hints
+- Agent-assisted changes must use `$superpowers` and `$repo-quality-gate`
+
+---
+
+## Agent Skill Gate
+
+For any non-trivial code change, refactor, architecture change, test change, workflow change,
+reward/scoring change, or repository-maintenance task, agents must invoke `$superpowers` before
+editing and must run the `$repo-quality-gate` workflow through final verification.
+
+At minimum, each such change needs a task spec, design plan, implementation notes, tests or a
+documented manual verification path, and a final quality-gate summary. If either skill is not
+available in the active environment, the agent must disclose that limitation and use a documented
+fallback only with maintainer approval or for low-risk documentation-only work.
 
 ---
 
@@ -451,6 +465,8 @@ class TestMindfulScore(unittest.TestCase):
 
 Before committing code, verify:
 
+- [ ] `$superpowers` was used, or the fallback reason is documented
+- [ ] `$repo-quality-gate` was used through final verification
 - [ ] Python lines ≤ 100 characters
 - [ ] Imports organized in 3 sections (stdlib, 3rd-party, local)
 - [ ] Imports alphabetically sorted within sections

@@ -15,6 +15,9 @@ the CLI remains unavailable.
 ## Workflow expectations
 
 - Keep `AGENTS.md` as the canonical source of repository rules; beads monitors that file.
+- Treat `$superpowers` and `$repo-quality-gate` as required skills for non-trivial Beads-tracked
+  work. Issue descriptions, acceptance criteria, or closure notes should mention that the skills
+  were used or explain the approved fallback.
 - Run `bd status` before committing to verify the repository link and ingestion state.
 - After updating `AGENTS.md`, rerun `bd onboard` if beads requests refreshed instructions.
 

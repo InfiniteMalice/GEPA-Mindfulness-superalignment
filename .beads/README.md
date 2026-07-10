@@ -83,6 +83,9 @@ bd create "Try out Beads"
 ## Repository note
 
 Paths are relative to the repository root unless noted.
+Non-trivial Beads-tracked work must use `$superpowers` before planning and
+`$repo-quality-gate` through final verification. If either skill is unavailable, record the
+limitation and approved fallback in the issue notes before closing the work.
 Dual-path workflows use `run_dual_path_ablation_workflow.py` and
 `src/dual_path_evaluator.py`; deprecated shims like
 `run_deception_ablation_workflow.py` and `adversarial_*` entry points remain for
