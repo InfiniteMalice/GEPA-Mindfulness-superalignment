@@ -96,7 +96,7 @@ class RewardPipeline:
 
     @staticmethod
     def _observation_from_request(request: RewardRequest) -> RewardObservation:
-        """Build an overlay observation using only request-authorized trace references."""
+        """Build an overlay observation using only request-authorized typed evidence references."""
         trajectory = request.trajectory
         if set(trajectory.reward_components) != set(COMPONENT_NAMES):
             raise ValueError(

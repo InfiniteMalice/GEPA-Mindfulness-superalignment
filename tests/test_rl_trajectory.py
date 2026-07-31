@@ -2,7 +2,7 @@
 
 import json
 from dataclasses import FrozenInstanceError
-from inspect import signature
+from inspect import Parameter, signature
 
 import pytest
 
@@ -134,8 +134,10 @@ def test_negative_reward_component_requires_recorded_component_evidence() -> Non
         )
 
 
-def test_legacy_trace_id_cannot_authorize_negative_reward_component() -> None:
-    """A diagnostic trace ID cannot substitute for typed reward evidence."""
+def test_matching_legacy_trace_id_cannot_authorize_negative_reward_component() -> None:
+    """Identifier equality cannot promote a diagnostic trace ID into typed evidence."""
+    reference = evidence_reference("shared-reference")
+
     with pytest.raises(ValueError, match="feedback_integrity.*recorded evidence"):
         Trajectory(
             trajectory_id="traj-legacy-evidence",
@@ -143,8 +145,8 @@ def test_legacy_trace_id_cannot_authorize_negative_reward_component() -> None:
             prompt="prompt",
             response="response",
             reward_components={"feedback_integrity": -0.5},
-            reward_component_evidence={"feedback_integrity": (evidence_reference(),)},
-            trace_references=("legacy-trace-20",),
+            reward_component_evidence={"feedback_integrity": (reference,)},
+            trace_references=("shared-reference",),
         )
 
 
@@ -264,6 +266,13 @@ def test_trajectory_retains_existing_positional_argument_order() -> None:
     assert trajectory.reward_component_evidence == {}
     assert trajectory.advantage == (0.25,)
     assert trajectory.returns == (0.5,)
+
+
+def test_evidence_references_is_keyword_only() -> None:
+    """Typed reward evidence cannot shift or occupy the legacy positional API."""
+    evidence_parameter = signature(Trajectory).parameters["evidence_references"]
+
+    assert evidence_parameter.kind is Parameter.KEYWORD_ONLY
 
 
 @pytest.mark.parametrize(
