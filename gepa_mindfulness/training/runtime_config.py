@@ -17,6 +17,8 @@ except ModuleNotFoundError:  # pragma: no cover - exercised without optional dep
     yaml = None
 
 _CUDA_DEVICE = re.compile(r"cuda(?::[0-9]+)?$")
+_CANONICAL_DATASET_KEYS = {"format", "train_path", "validation_path"}
+_LEGACY_DATASET_KEYS = {"path", "test_split", "train_split", "val_split"}
 
 
 def _mapping(value: Any, name: str) -> Mapping[str, Any]:
@@ -314,6 +316,7 @@ def _translate_legacy_config(payload: Mapping[str, Any]) -> RLRunConfig:
     ppo = _optional_mapping(payload.get("ppo"), "ppo")
     model = _optional_mapping(payload.get("model"), "model")
     dataset = _optional_mapping(payload.get("dataset"), "dataset")
+    _validate_legacy_dataset(dataset)
     output = _optional_mapping(payload.get("output"), "output")
     trainer_name = payload.get("trainer_type")
     if trainer_name is None:
@@ -396,10 +399,10 @@ def _is_canonical(payload: Mapping[str, Any]) -> bool:
         return True
     dataset = payload.get("dataset")
     if isinstance(dataset, Mapping):
-        canonical_dataset_keys = {"format", "train_path", "validation_path"}
-        if set(dataset).intersection(canonical_dataset_keys):
+        dataset_keys = set(dataset)
+        if dataset_keys.intersection(_CANONICAL_DATASET_KEYS):
             return True
-        if "path" in dataset:
+        if "path" in dataset and dataset_keys.issubset(_LEGACY_DATASET_KEYS):
             return False
     legacy_keys = {
         "device",
@@ -429,6 +432,27 @@ def _merge_legacy(*payloads: Mapping[str, Any]) -> dict[str, Any]:
     for payload in payloads:
         merged.update(payload)
     return merged
+
+
+def _validate_legacy_dataset(dataset: Mapping[str, Any]) -> None:
+    dataset_keys = set(dataset)
+    allowed_keys = _CANONICAL_DATASET_KEYS | _LEGACY_DATASET_KEYS
+    unknown = sorted(dataset_keys.difference(allowed_keys))
+    if unknown:
+        raise ValueError(f"legacy dataset contains unknown keys: {', '.join(unknown)}")
+    if "path" in dataset and dataset_keys.intersection(_CANONICAL_DATASET_KEYS):
+        raise ValueError("legacy dataset cannot mix path with canonical dataset keys")
+    # The runtime consumes the resolved path only; validate split metadata before omitting it.
+    for key in ("train_split", "val_split", "test_split"):
+        if key not in dataset:
+            continue
+        value = dataset[key]
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise TypeError(f"legacy dataset.{key} must be a number")
+        if not math.isfinite(float(value)):
+            raise ValueError(f"legacy dataset.{key} must be finite")
+        if not 0.0 <= value <= 1.0:
+            raise ValueError(f"legacy dataset.{key} must be between zero and one")
 
 
 def _legacy_integer(value: Any, default: int) -> Any:

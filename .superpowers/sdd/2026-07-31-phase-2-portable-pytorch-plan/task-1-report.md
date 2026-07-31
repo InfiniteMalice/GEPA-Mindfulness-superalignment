@@ -203,3 +203,62 @@ GREEN output: `45 passed in 1.02s`; exit code 0.
 ### Fix commit
 
 `fix: reject mixed canonical legacy RL config`
+
+## Review fix round 3/5
+
+### Disposition
+
+- Inventoried the repository's legacy dataset mappings. The two training configs use exactly
+  `path`, `train_split`, `val_split`, and `test_split`; these keys now form the explicit legacy
+  dataset classification allowlist.
+- A dataset containing `path` is legacy only when every nested key belongs to that allowlist.
+  Adding a typo, an unknown key, or any canonical dataset key routes the whole file through strict
+  canonical parsing and produces an unknown-key error.
+- The direct legacy translator independently rejects unknown and mixed canonical dataset keys, so
+  callers cannot bypass the loader's classification gate.
+- Legacy split metadata is type-, finiteness-, and range-validated. The canonical runtime consumes
+  only the resolved training path, so valid split metadata is intentionally omitted after
+  validation; this compatibility decision is documented beside the validator.
+- Real legacy config translation and canonical dataset parsing remain covered and unchanged.
+
+### TDD evidence
+
+RED command:
+
+```powershell
+& 'C:\Users\evanh\Documents\Codex\work\g\Scripts\python.exe' -m pytest tests/test_rl_runtime_config.py tests/test_config.py tests/test_training_configs.py -q
+```
+
+RED output: `5 failed, 53 passed, 5 warnings in 1.76s`; exit code 1. Failures covered `path` plus a
+typo, three invalid split values, and an unknown nested key passed directly to the translator.
+
+GREEN command:
+
+```powershell
+& 'C:\Users\evanh\Documents\Codex\work\g\Scripts\python.exe' -m pytest tests/test_rl_runtime_config.py tests/test_config.py tests/test_training_configs.py -q
+```
+
+GREEN output: `58 passed in 1.42s`; exit code 0 with no warning summary.
+
+### Static checks
+
+- Black check: `6 files would be left unchanged`; exit code 0.
+- Ruff: `All checks passed!`; exit code 0.
+- Compileall for `runtime_config.py`: exit code 0.
+- Changed Python line-length check: all lines at most 100 characters; exit code 0.
+- `git diff --check`: exit code 0.
+
+### Self-review
+
+- The legacy allowlist is defined once and shared by classification and translation validation.
+- Unknown nested data cannot be silently ignored by either public entry point.
+- Invalid dataset container and path types continue to fail at the strict mapping/string boundary;
+  split metadata now has equivalent strict checks.
+- Frozen configs, canonical unknown-key/device/numeric validation, loader return types, warning
+  attribution, partial canonical configs, real legacy translation, and CPU examples are preserved.
+- Documentation precision review found no BLOCK or WARN; the accepted legacy keys and intentional
+  split-metadata disposition are explicit and verified.
+
+### Fix commit
+
+`fix: validate legacy RL dataset compatibility`

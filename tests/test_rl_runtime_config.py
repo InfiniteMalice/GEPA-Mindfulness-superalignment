@@ -264,3 +264,81 @@ def test_dataset_with_canonical_or_unknown_subkeys_uses_strict_parser(
 
     with pytest.raises(ValueError, match="dataset contains unknown keys"):
         load_rl_config(path)
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("path", "legacy.jsonl"),
+        ("train_split", 0.7),
+        ("val_split", 0.15),
+        ("test_split", 0.15),
+    ],
+)
+def test_known_legacy_dataset_subkeys_translate(
+    tmp_path: Path,
+    key: str,
+    value: object,
+) -> None:
+    yaml = pytest.importorskip("yaml")
+    dataset = {"path": "legacy.jsonl"}
+    dataset[key] = value
+    path = tmp_path / "legacy.yaml"
+    path.write_text(yaml.safe_dump({"dataset": dataset}), encoding="utf-8")
+
+    with pytest.warns(DeprecationWarning):
+        config = load_rl_config(path)
+
+    assert config.dataset.train_path == "legacy.jsonl"
+
+
+@pytest.mark.parametrize(
+    "dataset",
+    [
+        {"path": "legacy.jsonl", "train_splt": 0.7},
+        {"path": "legacy.jsonl", "validation_path": "validation.jsonl"},
+        {"path": "legacy.jsonl", "format": "jsonl"},
+    ],
+)
+def test_legacy_path_with_nonlegacy_subkey_uses_strict_parser(
+    tmp_path: Path,
+    dataset: dict[str, object],
+) -> None:
+    yaml = pytest.importorskip("yaml")
+    path = tmp_path / "mixed-dataset.yaml"
+    path.write_text(yaml.safe_dump({"dataset": dataset}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="dataset contains unknown keys"):
+        load_rl_config(path)
+
+
+@pytest.mark.parametrize(
+    "dataset",
+    [
+        ["legacy.jsonl"],
+        {"path": 123},
+        {"path": "legacy.jsonl", "train_split": "0.7"},
+        {"path": "legacy.jsonl", "val_split": True},
+        {"path": "legacy.jsonl", "test_split": float("nan")},
+    ],
+)
+def test_legacy_dataset_rejects_invalid_types(
+    tmp_path: Path,
+    dataset: object,
+) -> None:
+    yaml = pytest.importorskip("yaml")
+    path = tmp_path / "invalid-dataset.yaml"
+    path.write_text(yaml.safe_dump({"dataset": dataset}), encoding="utf-8")
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        with pytest.raises((TypeError, ValueError)):
+            load_rl_config(path)
+
+
+def test_direct_legacy_translation_rejects_unknown_dataset_key() -> None:
+    payload = {"dataset": {"path": "legacy.jsonl", "train_splt": 0.7}}
+
+    with pytest.warns(DeprecationWarning):
+        with pytest.raises(ValueError, match="legacy dataset contains unknown keys"):
+            translate_legacy_config(payload)
