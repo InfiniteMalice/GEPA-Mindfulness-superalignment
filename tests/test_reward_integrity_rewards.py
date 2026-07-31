@@ -167,6 +167,12 @@ def test_public_breakdown_rejects_negative_aggregate_without_negative_component(
         public_breakdown(aggregate=-0.5)
 
 
+def test_public_breakdown_rejects_tiny_negative_aggregate_without_negative_component() -> None:
+    """Tolerance cannot admit even a tiny fabricated negative aggregate."""
+    with pytest.raises(ValueError, match="aggregate"):
+        public_breakdown(aggregate=-1e-12)
+
+
 def test_public_breakdown_rejects_aggregate_inconsistent_with_components() -> None:
     """A caller cannot fabricate a positive aggregate detached from component math."""
     with pytest.raises(ValueError, match="aggregate"):
