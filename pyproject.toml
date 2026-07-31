@@ -89,6 +89,9 @@ exclude = [
 ]
 
 [tool.setuptools.package-data]
+gepa_mindfulness = [
+    "data/*.json",
+]
 mindful_trace_gepa = [
     "viewer/*.html",
     "viewer/*.css",

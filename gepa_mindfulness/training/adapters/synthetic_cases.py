@@ -8,8 +8,8 @@ from collections.abc import Iterator
 from pathlib import Path
 
 # Local
+from ...synthetic_dataset_validation import validate_rich_record
 from ..trajectory import RolloutRequest
-from scripts.synthetic_dataset_tool import validate_record
 
 
 def _reject_json_constant(constant: str) -> None:
@@ -110,9 +110,9 @@ class SyntheticCaseAdapter:
             integrity = _required_object(row, self.path, line_number, "reward_integrity")
             summary = _required_string(scenario, self.path, line_number, "summary")
             diagnostic = _required_string(integrity, self.path, line_number, "central_diagnostic")
-            errors = validate_record(row, line_number)
+            errors = validate_rich_record(row)
             if errors:
-                details = "; ".join(error.removeprefix(f"line {line_number}: ") for error in errors)
+                details = "; ".join(errors)
                 raise ValueError(f"{self.path}:{line_number}: invalid rich source row: {details}")
             yield RolloutRequest(
                 prompt=f"{summary}\n\n{diagnostic}",

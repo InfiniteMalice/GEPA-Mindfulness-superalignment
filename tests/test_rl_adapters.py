@@ -3,6 +3,9 @@
 # Standard library
 import hashlib
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 # Third-party
@@ -181,6 +184,11 @@ def test_flat_adapter_rejects_non_finite_json_numbers(tmp_path: Path) -> None:
             "not-a-list",
             "record.reward_integrity.supporting_diagnostics must be array",
         ),
+        (
+            "reward_integrity.response_classes.grounded_success.response",
+            7,
+            "record.reward_integrity.response_classes.grounded_success.response must be string",
+        ),
     ],
 )
 def test_synthetic_adapter_rejects_malformed_retained_nested_source_data(
@@ -197,3 +205,77 @@ def test_synthetic_adapter_rejects_malformed_retained_nested_source_data(
         next(SyntheticCaseAdapter(path).iter_requests())
 
     assert f"{path}:1:" in str(error.value)
+
+
+def test_adapter_import_succeeds_from_an_installed_wheel(tmp_path: Path) -> None:
+    """Packaged adapters must not rely on the repository-only scripts directory."""
+    wheel_directory = tmp_path / "wheel"
+    target_directory = tmp_path / "installed"
+    wheel_directory.mkdir()
+    target_directory.mkdir()
+
+    build_root = ROOT
+    mapped_drive: str | None = None
+    if os.name == "nt":
+        for drive_letter in "ZYXWVUT":
+            candidate = f"{drive_letter}:"
+            mapping = subprocess.run(
+                ["subst", candidate, str(ROOT)],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            if mapping.returncode == 0:
+                mapped_drive = candidate
+                break
+        if mapped_drive is None:
+            pytest.fail("No temporary drive letter is available for the wheel smoke test.")
+        build_root = Path(f"{mapped_drive}/")
+
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "build", "--wheel", "--outdir", str(wheel_directory)],
+            cwd=build_root,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        wheel = next(wheel_directory.glob("*.whl"))
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "--no-deps",
+                "--target",
+                str(target_directory),
+                str(wheel),
+            ],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        environment = os.environ | {"PYTHONPATH": str(target_directory)}
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from gepa_mindfulness.training.adapters import SyntheticCaseAdapter; "
+                "print(SyntheticCaseAdapter.__name__)",
+            ],
+            cwd=tmp_path,
+            check=False,
+            capture_output=True,
+            text=True,
+            env=environment,
+        )
+    finally:
+        if mapped_drive is not None:
+            subprocess.run(
+                ["subst", mapped_drive, "/D"], check=True, capture_output=True, text=True
+            )
+
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == "SyntheticCaseAdapter"
