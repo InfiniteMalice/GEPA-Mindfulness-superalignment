@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from math import isfinite
+from math import isclose, isfinite
 from types import MappingProxyType
 
 COMPONENT_NAMES = (
@@ -159,12 +159,17 @@ class RewardIntegrityBreakdown:
     aggregate: float
     observable_evidence: Mapping[str, Sequence[str]] = field(default_factory=dict)
     observable_references: Sequence[str] = ()
+    weights: RewardIntegrityWeights = field(default_factory=RewardIntegrityWeights)
 
     def __post_init__(self) -> None:
         """Keep public component and aggregate records in their bounded range."""
         for name in COMPONENT_NAMES:
             object.__setattr__(self, name, _validated_component(name, getattr(self, name)))
         object.__setattr__(self, "aggregate", _validated_component("aggregate", self.aggregate))
+        self.weights.validate()
+        expected_aggregate = aggregate_components(self.components, self.weights)
+        if not isclose(self.aggregate, expected_aggregate, rel_tol=1e-9, abs_tol=1e-12):
+            raise ValueError("aggregate must equal the weighted component aggregate.")
         observable_references = _validated_observable_references(self.observable_references)
         evidence = _validated_observable_evidence(
             self.observable_evidence,
@@ -212,6 +217,7 @@ class RewardIntegrityCalculator:
             aggregate=aggregate_components(components, self.weights),
             observable_evidence=observation.observable_evidence,
             observable_references=observation.observable_references,
+            weights=self.weights,
         )
 
 

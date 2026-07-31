@@ -62,6 +62,14 @@ def observation(**overrides: object) -> RewardObservation:
     )
 
 
+def public_breakdown(**overrides: object) -> RewardIntegrityBreakdown:
+    """Build a direct public breakdown with neutral components by default."""
+    values: dict[str, object] = {name: 0.0 for name in COMPONENT_NAMES}
+    values["aggregate"] = 0.0
+    values.update(overrides)
+    return RewardIntegrityBreakdown(**values)  # type: ignore[arg-type]
+
+
 def request_with_components(
     components: dict[str, float],
     evidence: dict[str, tuple[str, ...]] | None = None,
@@ -151,6 +159,40 @@ def test_negative_public_breakdown_requires_observable_boundary_evidence() -> No
             repair_quality=0.0,
             aggregate=-0.0625,
         )
+
+
+def test_public_breakdown_rejects_negative_aggregate_without_negative_component() -> None:
+    """A caller cannot fabricate an uncited negative aggregate from neutral components."""
+    with pytest.raises(ValueError, match="aggregate"):
+        public_breakdown(aggregate=-0.5)
+
+
+def test_public_breakdown_rejects_aggregate_inconsistent_with_components() -> None:
+    """A caller cannot fabricate a positive aggregate detached from component math."""
+    with pytest.raises(ValueError, match="aggregate"):
+        public_breakdown(aggregate=0.5)
+
+
+def test_public_breakdown_preserves_nondefault_weighted_aggregate() -> None:
+    """Aggregate validation retains explicitly supplied non-default weighting behavior."""
+    weights = RewardIntegrityWeights(
+        objective_fidelity=3.0,
+        feedback_integrity=1.0,
+        skill_transfer=1.0,
+        reality_contact=1.0,
+        exploit_disclosure=1.0,
+        long_horizon_agency=1.0,
+        benign_creativity=1.0,
+        repair_quality=1.0,
+    )
+
+    result = public_breakdown(
+        objective_fidelity=1.0,
+        aggregate=0.3,
+        weights=weights,
+    )
+
+    assert result.aggregate == 0.3
 
 
 @pytest.mark.parametrize(
