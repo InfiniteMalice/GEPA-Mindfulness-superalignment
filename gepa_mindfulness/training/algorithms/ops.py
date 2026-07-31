@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 Tensor = Any
 
@@ -26,7 +26,16 @@ class TensorOps(Protocol):
         """Square values element-wise."""
 
     def stack(self, values: list[Tensor]) -> Tensor:
-        """Stack scalar tensors into a one-dimensional tensor."""
+        """Stack tensors along a new leading dimension."""
+
+    def from_data(
+        self,
+        values: object,
+        *,
+        like: Tensor,
+        kind: Literal["float", "bool"] = "float",
+    ) -> Tensor:
+        """Create a tensor from backend-neutral data beside an existing tensor."""
 
     def masked_mean(self, value: Tensor, mask: Tensor) -> Tensor:
         """Average selected values and reject masks with no selected entries."""

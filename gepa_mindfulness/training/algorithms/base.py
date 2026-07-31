@@ -6,6 +6,7 @@ import math
 from dataclasses import dataclass
 
 from gepa_mindfulness.training.runtime_config import AlgorithmConfig
+from gepa_mindfulness.training.trajectory import PolicyEvaluation, TrajectoryBatch
 
 from .ops import Tensor, TensorOps
 
@@ -51,6 +52,46 @@ def require_matching_shapes(reference: Tensor, *values: Tensor | None) -> None:
             raise ValueError("algorithm tensors must have matching shapes")
 
 
+def _required_trajectory_rows(batch: TrajectoryBatch, field_name: str) -> list[tuple[object, ...]]:
+    rows: list[tuple[object, ...]] = []
+    for trajectory in batch.trajectories:
+        values = getattr(trajectory, field_name)
+        if values is None:
+            raise ValueError(f"trajectory.{field_name} is required for the algorithm objective")
+        rows.append(tuple(values))
+    return rows
+
+
+def algorithm_batch_from_trajectories(
+    ops: TensorOps,
+    batch: TrajectoryBatch,
+    evaluation: PolicyEvaluation,
+    *,
+    require_value_targets: bool,
+) -> AlgorithmBatch:
+    """Adapt immutable trajectory records to backend tensors beside an evaluation tensor."""
+    if not batch.trajectories:
+        raise ValueError("algorithm batches must contain at least one trajectory")
+    if batch.response_token_masks is None:
+        raise ValueError("response_token_masks are required for the algorithm objective")
+    if len(batch.response_token_masks) != len(batch.trajectories):
+        raise ValueError("response_token_masks must align with trajectories")
+    old_log_probs = _required_trajectory_rows(batch, "old_log_probs")
+    advantages = _required_trajectory_rows(batch, "advantage")
+    returns = _required_trajectory_rows(batch, "returns") if require_value_targets else None
+    old_values = (
+        _required_trajectory_rows(batch, "value_predictions") if require_value_targets else None
+    )
+    like = evaluation.log_probs
+    return AlgorithmBatch(
+        old_log_probs=ops.from_data(old_log_probs, like=like),
+        advantages=ops.from_data(advantages, like=like),
+        mask=ops.from_data(batch.response_token_masks, like=like, kind="bool"),
+        returns=None if returns is None else ops.from_data(returns, like=like),
+        old_values=None if old_values is None else ops.from_data(old_values, like=like),
+    )
+
+
 @dataclass(frozen=True)
 class PolicyGradientConfig:
     """Shared objective coefficients independent of execution configuration."""
@@ -93,16 +134,23 @@ def clipped_policy_loss(
     return -ops.masked_mean(surrogate, batch.mask)
 
 
-def approximate_kl(
+def ppo_reference_kl(
     ops: TensorOps,
     log_probs: Tensor,
-    reference_log_probs: Tensor | None,
+    reference_log_probs: Tensor,
     mask: Tensor,
-    zero: Tensor,
 ) -> Tensor:
-    """Return the non-negative sampled reverse-KL estimator."""
-    if reference_log_probs is None:
-        return zero
+    """Return PPO's signed masked mean of current minus reference log-probability."""
+    return ops.masked_mean(log_probs - reference_log_probs, mask)
+
+
+def grpo_sampled_reverse_kl(
+    ops: TensorOps,
+    log_probs: Tensor,
+    reference_log_probs: Tensor,
+    mask: Tensor,
+) -> Tensor:
+    """Return GRPO's non-negative sampled reverse-KL estimator."""
     log_ratio = reference_log_probs - log_probs
     estimator = ops.exp(log_ratio) - log_ratio - 1.0
     return ops.masked_mean(estimator, mask)
@@ -126,9 +174,9 @@ def require_regularization_inputs(
     reference_log_probs: Tensor | None,
     entropy: Tensor | None,
 ) -> None:
-    """Prevent configured regularization terms from silently becoming zero."""
-    if config.kl_coef > 0.0 and reference_log_probs is None:
-        raise ValueError("reference_log_probs are required when kl_coef is positive")
+    """Require design-level diagnostics and configured regularization inputs."""
+    if reference_log_probs is None:
+        raise ValueError("reference_log_probs are required for reference-policy diagnostics")
     if config.entropy_coef > 0.0 and entropy is None:
         raise ValueError("entropy is required when entropy_coef is positive")
 
@@ -137,9 +185,11 @@ __all__ = [
     "AlgorithmBatch",
     "AlgorithmLoss",
     "PolicyGradientConfig",
-    "approximate_kl",
+    "algorithm_batch_from_trajectories",
     "clipped_policy_loss",
+    "grpo_sampled_reverse_kl",
     "optional_masked_mean",
+    "ppo_reference_kl",
     "require_matching_shapes",
     "require_regularization_inputs",
 ]

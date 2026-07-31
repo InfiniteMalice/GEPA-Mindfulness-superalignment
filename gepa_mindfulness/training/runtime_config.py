@@ -9,7 +9,7 @@ import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, cast
 
 try:
     import yaml
@@ -19,6 +19,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised without optional dep
 _CUDA_DEVICE = re.compile(r"cuda(?::[0-9]+)?$")
 _CANONICAL_DATASET_KEYS = {"format", "train_path", "validation_path"}
 _LEGACY_DATASET_KEYS = {"path", "test_split", "train_split", "val_split"}
+ZeroVariancePolicy = Literal["zero", "center_only", "skip"]
 
 
 def _mapping(value: Any, name: str) -> Mapping[str, Any]:
@@ -117,6 +118,8 @@ class AlgorithmConfig:
     kl_coef: float = 0.05
     clip_range: float = 0.2
     value_coef: float = 0.1
+    group_normalization_epsilon: float = 1e-8
+    zero_variance_policy: ZeroVariancePolicy = "zero"
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "AlgorithmConfig":
@@ -133,6 +136,8 @@ class AlgorithmConfig:
                 "kl_coef",
                 "clip_range",
                 "value_coef",
+                "group_normalization_epsilon",
+                "zero_variance_policy",
             },
             "algorithm",
         )
@@ -145,6 +150,18 @@ class AlgorithmConfig:
         kl_coef = _number(payload, "kl_coef", 0.05, "algorithm")
         clip_range = _number(payload, "clip_range", 0.2, "algorithm")
         value_coef = _number(payload, "value_coef", 0.1, "algorithm")
+        normalization_epsilon = _number(
+            payload,
+            "group_normalization_epsilon",
+            1e-8,
+            "algorithm",
+        )
+        zero_variance_policy = _string(
+            payload,
+            "zero_variance_policy",
+            "zero",
+            "algorithm",
+        )
         if name not in {"ppo", "grpo"}:
             raise ValueError("algorithm.name must be 'ppo' or 'grpo'")
         if learning_rate <= 0 or batch_size <= 0 or accumulation <= 0 or max_steps <= 0:
@@ -156,6 +173,12 @@ class AlgorithmConfig:
             raise ValueError("algorithm.group_size must be at least 2 for GRPO")
         if kl_coef < 0 or clip_range <= 0 or value_coef < 0:
             raise ValueError("algorithm coefficients must be non-negative and clip_range positive")
+        if normalization_epsilon <= 0.0:
+            raise ValueError("algorithm.group_normalization_epsilon must be positive")
+        if zero_variance_policy not in {"zero", "center_only", "skip"}:
+            raise ValueError(
+                "algorithm.zero_variance_policy must be 'zero', 'center_only', or 'skip'"
+            )
         return cls(
             name=name,
             learning_rate=learning_rate,
@@ -166,6 +189,8 @@ class AlgorithmConfig:
             kl_coef=kl_coef,
             clip_range=clip_range,
             value_coef=value_coef,
+            group_normalization_epsilon=normalization_epsilon,
+            zero_variance_policy=cast(ZeroVariancePolicy, zero_variance_policy),
         )
 
 
@@ -494,6 +519,7 @@ __all__ = [
     "RLRunConfig",
     "RewardConfig",
     "RuntimeConfig",
+    "ZeroVariancePolicy",
     "load_rl_config",
     "translate_legacy_config",
 ]

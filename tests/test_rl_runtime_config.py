@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from gepa_mindfulness.training.runtime_config import (
+    AlgorithmConfig,
     RLRunConfig,
     load_rl_config,
     translate_legacy_config,
@@ -44,6 +45,42 @@ def test_canonical_mapping_produces_frozen_nested_sections() -> None:
     assert config.algorithm.name == "ppo"
     with pytest.raises(FrozenInstanceError):
         config.runtime.device = "cuda"
+
+
+def test_grpo_normalization_config_has_approved_defaults() -> None:
+    config = AlgorithmConfig.from_mapping({"name": "grpo"})
+
+    assert config.group_normalization_epsilon == pytest.approx(1e-8)
+    assert config.zero_variance_policy == "zero"
+
+
+def test_grpo_normalization_config_accepts_canonical_values() -> None:
+    config = AlgorithmConfig.from_mapping(
+        {
+            "name": "grpo",
+            "group_normalization_epsilon": 1e-6,
+            "zero_variance_policy": "skip",
+        }
+    )
+
+    assert config.group_normalization_epsilon == pytest.approx(1e-6)
+    assert config.zero_variance_policy == "skip"
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"group_normalization_epsilon": 0.0},
+        {"group_normalization_epsilon": -1.0},
+        {"group_normalization_epsilon": float("nan")},
+        {"group_normalization_epsilon": True},
+        {"zero_variance_policy": "error"},
+        {"zero_variance_policy": 1},
+    ],
+)
+def test_grpo_normalization_config_rejects_invalid_values(payload: dict[str, object]) -> None:
+    with pytest.raises((TypeError, ValueError)):
+        AlgorithmConfig.from_mapping({"name": "grpo", **payload})
 
 
 @pytest.mark.parametrize(

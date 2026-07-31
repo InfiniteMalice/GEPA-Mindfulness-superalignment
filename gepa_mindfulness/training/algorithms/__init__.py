@@ -1,6 +1,6 @@
 """Portable PPO and GRPO tensor objectives."""
 
-from .base import AlgorithmBatch, AlgorithmLoss
+from .base import AlgorithmBatch, AlgorithmLoss, algorithm_batch_from_trajectories
 from .grpo import (
     GRPOAlgorithm,
     GRPOAlgorithmConfig,
@@ -19,6 +19,7 @@ __all__ = [
     "PPOAlgorithmConfig",
     "Tensor",
     "TensorOps",
+    "algorithm_batch_from_trajectories",
     "compute_gae",
     "compute_grpo_loss",
     "compute_group_advantages",

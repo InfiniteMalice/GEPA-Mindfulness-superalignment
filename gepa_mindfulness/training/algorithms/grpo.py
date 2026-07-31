@@ -4,18 +4,19 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Literal, Sequence
+from typing import Sequence
 
 from gepa_mindfulness.training.capability import Capability
-from gepa_mindfulness.training.runtime_config import AlgorithmConfig
-from gepa_mindfulness.training.trajectory import PolicyEvaluation
+from gepa_mindfulness.training.runtime_config import AlgorithmConfig, ZeroVariancePolicy
+from gepa_mindfulness.training.trajectory import PolicyEvaluation, TrajectoryBatch
 
 from .base import (
     AlgorithmBatch,
     AlgorithmLoss,
     PolicyGradientConfig,
-    approximate_kl,
+    algorithm_batch_from_trajectories,
     clipped_policy_loss,
+    grpo_sampled_reverse_kl,
     optional_masked_mean,
     require_matching_shapes,
     require_regularization_inputs,
@@ -27,35 +28,59 @@ from .ops import TensorOps
 class GRPOAlgorithmConfig(PolicyGradientConfig):
     """Coefficients used only by GRPO tensor mathematics."""
 
+    group_normalization_epsilon: float = 1e-8
+    zero_variance_policy: ZeroVariancePolicy = "zero"
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        epsilon = self.group_normalization_epsilon
+        if not isinstance(epsilon, (int, float)) or isinstance(epsilon, bool):
+            raise TypeError("group_normalization_epsilon must be a number")
+        if not math.isfinite(epsilon) or epsilon <= 0.0:
+            raise ValueError("group_normalization_epsilon must be finite and positive")
+        if self.zero_variance_policy not in {"zero", "center_only", "skip"}:
+            raise ValueError("zero_variance_policy must be 'zero', 'center_only', or 'skip'")
+
     @classmethod
     def from_runtime_config(cls, config: AlgorithmConfig) -> "GRPOAlgorithmConfig":
         """Adapt the canonical runtime section to objective-only settings."""
         if config.name != "grpo":
             raise ValueError("GRPO requires algorithm.name='grpo'")
-        return cls(**cls._runtime_values(config))
+        return cls(
+            **cls._runtime_values(config),
+            group_normalization_epsilon=config.group_normalization_epsilon,
+            zero_variance_policy=config.zero_variance_policy,
+        )
 
 
 def compute_group_advantages(
     rewards: Sequence[float],
     *,
-    zero_variance: Literal["zero", "error"] = "zero",
-) -> list[float]:
-    """Center and population-normalize rewards within one prompt group."""
+    epsilon: float = 1e-8,
+    zero_variance_policy: ZeroVariancePolicy = "zero",
+) -> list[float] | None:
+    """Normalize a prompt group, returning ``None`` when the group must be skipped."""
     if not rewards:
         raise ValueError("group rewards must not be empty")
+    if not isinstance(epsilon, (int, float)) or isinstance(epsilon, bool):
+        raise TypeError("epsilon must be a number")
+    if not math.isfinite(epsilon) or epsilon <= 0.0:
+        raise ValueError("epsilon must be finite and positive")
     numeric_rewards = [float(reward) for reward in rewards]
     if not all(math.isfinite(reward) for reward in numeric_rewards):
         raise ValueError("group rewards must be finite")
-    if zero_variance not in {"zero", "error"}:
-        raise ValueError("zero_variance must be 'zero' or 'error'")
+    if zero_variance_policy not in {"zero", "center_only", "skip"}:
+        raise ValueError("zero_variance_policy must be 'zero', 'center_only', or 'skip'")
     mean = math.fsum(numeric_rewards) / len(numeric_rewards)
     centered = [reward - mean for reward in numeric_rewards]
     variance = math.fsum(value * value for value in centered) / len(centered)
     if variance == 0.0:
-        if zero_variance == "error":
-            raise ValueError("group rewards have zero variance")
-        return [0.0] * len(numeric_rewards)
-    scale = math.sqrt(variance)
+        if zero_variance_policy == "skip":
+            return None
+        if zero_variance_policy == "center_only":
+            return centered
+        return [0.0 for _ in numeric_rewards]
+    scale = math.sqrt(variance) + epsilon
     return [value / scale for value in centered]
 
 
@@ -87,12 +112,12 @@ def compute_grpo_loss(
     )
     zero = policy_loss * 0.0
     entropy = optional_masked_mean(ops, evaluation.entropy, batch.mask, zero)
-    kl = approximate_kl(
+    reference_log_probs = evaluation.reference_log_probs
+    kl = grpo_sampled_reverse_kl(
         ops,
         evaluation.log_probs,
-        evaluation.reference_log_probs,
+        reference_log_probs,
         batch.mask,
-        zero,
     )
     total_loss = policy_loss + config.kl_coef * kl - config.entropy_coef * entropy
     return AlgorithmLoss(
@@ -130,20 +155,37 @@ class GRPOAlgorithm:
                 Capability.SUPPORTS_TOKEN_LOG_PROBS,
                 Capability.SUPPORTS_REFERENCE_LOG_PROBS,
                 Capability.SUPPORTS_BACKWARD,
+                Capability.SUPPORTS_GENERATION,
+                Capability.SUPPORTS_OPTIMIZER_STEP,
             }
+        )
+
+    def compute_group_advantages(self, rewards: Sequence[float]) -> list[float] | None:
+        """Normalize one group using the canonical runtime policy and epsilon."""
+        return compute_group_advantages(
+            rewards,
+            epsilon=self.config.group_normalization_epsilon,
+            zero_variance_policy=self.config.zero_variance_policy,
         )
 
     def compute_loss(
         self,
-        batch: AlgorithmBatch,
+        batch: TrajectoryBatch,
         evaluation: PolicyEvaluation,
     ) -> AlgorithmLoss:
-        return compute_grpo_loss(self.ops, batch, evaluation, self.config)
+        algorithm_batch = algorithm_batch_from_trajectories(
+            self.ops,
+            batch,
+            evaluation,
+            require_value_targets=False,
+        )
+        return compute_grpo_loss(self.ops, algorithm_batch, evaluation, self.config)
 
 
 __all__ = [
     "GRPOAlgorithm",
     "GRPOAlgorithmConfig",
+    "ZeroVariancePolicy",
     "compute_grpo_loss",
     "compute_group_advantages",
 ]
