@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import asdict, dataclass, field
 from math import isclose, isfinite
 from pathlib import Path
@@ -13,6 +14,8 @@ except ModuleNotFoundError:  # pragma: no cover - exercised when optional deps a
     yaml = None
 
 from gepa_mindfulness.core.abstention_rewards import AbstentionRewardWeights
+
+from .runtime_config import RLRunConfig, load_rl_config, translate_legacy_config
 
 _CORE_WEIGHTS = AbstentionRewardWeights()
 
@@ -678,6 +681,12 @@ class TrainingConfig:
 
 
 def load_training_config(path: str | Path) -> TrainingConfig:
+    warnings.warn(
+        "load_training_config is deprecated; use load_rl_config for canonical runtime "
+        "configuration.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     with open(path, "r", encoding="utf-8") as handle:
         raw = handle.read()
     payload: Mapping[str, Any] | None
@@ -725,4 +734,7 @@ __all__ = [
     "ThoughtAlignmentConfig",
     "TrainingConfig",
     "load_training_config",
+    "load_rl_config",
+    "RLRunConfig",
+    "translate_legacy_config",
 ]

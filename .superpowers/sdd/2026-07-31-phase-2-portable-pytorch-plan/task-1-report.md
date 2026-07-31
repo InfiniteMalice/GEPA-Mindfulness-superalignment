@@ -1,0 +1,88 @@
+# Task 1 report: canonical runtime configuration
+
+## Scope
+
+Added a frozen, strictly validated canonical RL configuration schema and two CPU-only PyTorch
+examples. The existing trainer and training configuration loader APIs remain available; they now
+emit `DeprecationWarning` at their legacy loader boundary and expose the canonical loader and
+translator.
+
+## TDD evidence
+
+RED command:
+
+```powershell
+& 'C:\Users\evanh\Documents\Codex\work\g\Scripts\python.exe' -m pytest tests/test_rl_runtime_config.py tests/test_config.py tests/test_training_configs.py -q
+```
+
+RED output: `ModuleNotFoundError: No module named 'gepa_mindfulness.training.runtime_config'`
+during collection of `tests/test_rl_runtime_config.py`; exit code 1.
+
+Initial GREEN command:
+
+```powershell
+& 'C:\Users\evanh\Documents\Codex\work\g\Scripts\python.exe' -m pytest tests/test_rl_runtime_config.py -q
+```
+
+Initial GREEN output: `8 passed in 1.19s`; exit code 0.
+
+Final GREEN command:
+
+```powershell
+& 'C:\Users\evanh\Documents\Codex\work\g\Scripts\python.exe' -m pytest tests/test_rl_runtime_config.py tests/test_config.py tests/test_training_configs.py -q
+```
+
+Final GREEN output: `17 passed in 0.67s`; exit code 0.
+
+## Compatibility behavior
+
+- `RLRunConfig.from_mapping()` only parses canonical nested sections and emits no warning.
+- `load_rl_config()` parses canonical files without warnings; flat or old nested files are routed
+  through `translate_legacy_config()`.
+- `translate_legacy_config()`, `load_trainer_config()`, and `load_training_config()` emit
+  `DeprecationWarning(..., stacklevel=2)`.
+- `load_trainer_config()` still returns the existing PPO/GRPO trainer dataclasses.
+- `load_training_config()` still returns the existing `TrainingConfig`.
+
+## Validation and checks
+
+- Canonical runtime, policy, algorithm, reward, dataset, checkpoint, and logging dataclasses are
+  frozen.
+- Every canonical section rejects unknown keys; invalid device strings and non-string device
+  values are rejected without coercion.
+- Both `configs/rl/pytorch_cpu_ppo.yaml` and `configs/rl/pytorch_cpu_grpo.yaml` are exercised by
+  the canonical loader test.
+- `black --check --line-length 100` passed for all changed Python files.
+- `ruff check` passed for all changed Python files.
+- `compileall -q` passed for the changed training modules.
+- Source line-length check confirmed all changed Python source lines are at most 100 characters.
+- `git diff --check` passed.
+
+`mypy gepa_mindfulness/training/runtime_config.py` could not complete because the configured
+Python 3.10 check parses the installed `numpy` stub, whose `type` statement requires Python 3.12.
+This is an environment/dependency incompatibility; it did not report a project-source error.
+
+## Self-review
+
+- Canonical parsing remains warning-free, while all newly introduced deprecation warnings are
+  limited to legacy loaders/translators.
+- Translation preserves flat `trainer_type` configurations and the existing nested `ppo`/`grpo`
+  shape, including the required GRPO group-size case.
+- The implementation adds no filesystem side effects beyond reading requested configuration files.
+- No documentation precision BLOCK applies: the new YAML files are concrete configuration
+  examples, and their observable behavior is covered by loader tests.
+
+## Changed files
+
+- `gepa_mindfulness/training/runtime_config.py`
+- `gepa_mindfulness/training/config.py`
+- `gepa_mindfulness/training/configs.py`
+- `configs/rl/pytorch_cpu_ppo.yaml`
+- `configs/rl/pytorch_cpu_grpo.yaml`
+- `tests/test_rl_runtime_config.py`
+- `tests/test_config.py`
+- `tests/test_training_configs.py`
+
+## Commit
+
+`feat: add canonical RL runtime config`

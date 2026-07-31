@@ -10,6 +10,8 @@ from gepa_mindfulness.training.config import (
     GRPOConfig,
     PPOConfig,
     RewardWeightsConfig,
+    RLRunConfig,
+    load_rl_config,
     load_trainer_config,
 )
 
@@ -36,7 +38,8 @@ def test_loads_grpo_config(tmp_path: Path) -> None:
     import yaml
 
     config_path.write_text(yaml.safe_dump(payload), encoding="utf-8")
-    config = load_trainer_config(config_path)
+    with pytest.warns(DeprecationWarning):
+        config = load_trainer_config(config_path)
     assert isinstance(config, GRPOConfig)
     assert config.group_size == 4
 
@@ -74,6 +77,21 @@ def test_loads_ppo_config(tmp_path: Path) -> None:
     import yaml
 
     config_path.write_text(yaml.safe_dump(payload), encoding="utf-8")
-    config = load_trainer_config(config_path)
+    with pytest.warns(DeprecationWarning):
+        config = load_trainer_config(config_path)
     assert isinstance(config, PPOConfig)
     assert config.value_coef == 0.1
+
+
+def test_config_module_exposes_canonical_runtime_loader(tmp_path: Path) -> None:
+    payload = {
+        "runtime": {"backend": "pytorch", "device": "cpu"},
+        "algorithm": {"name": "ppo"},
+    }
+    config_path = tmp_path / "canonical.yaml"
+    import yaml
+
+    config_path.write_text(yaml.safe_dump(payload), encoding="utf-8")
+    config = load_rl_config(config_path)
+
+    assert isinstance(config, RLRunConfig)

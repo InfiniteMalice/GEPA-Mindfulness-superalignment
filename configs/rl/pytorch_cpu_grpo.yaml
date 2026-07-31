@@ -1,0 +1,30 @@
+runtime:
+  backend: pytorch
+  device: cpu
+policy:
+  model_name: cpu-demo-model
+  max_new_tokens: 32
+algorithm:
+  name: grpo
+  learning_rate: 1.0e-5
+  batch_size: 2
+  gradient_accumulation_steps: 1
+  max_steps: 10
+  group_size: 4
+  kl_coef: 0.05
+reward:
+  weights:
+    alpha: 0.3
+    beta: 0.3
+    gamma: 0.2
+    delta: 0.2
+dataset:
+  train_path: gepa_mindfulness/examples/cpu_demo/prompts.txt
+  format: text
+checkpoint:
+  output_dir: runs/rl_cpu_grpo
+  save_steps: 10
+logging:
+  log_dir: runs/rl_cpu_grpo/logs
+  level: INFO
+seed: 42
