@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 from copy import deepcopy
+from enum import Enum
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import Any
@@ -157,12 +158,20 @@ class MalformedValueHead(nn.Module):
         return torch.zeros(shape, dtype=hidden.dtype, device=hidden.device) + self.anchor
 
 
-def _fake_lora_model() -> TinyCausalLM:
+class FakePeftType(str, Enum):
+    """PEFT-style adapter type used to exercise enum normalization."""
+
+    LORA = "LORA"
+    IA3 = "IA3"
+
+
+def _fake_lora_model(config: object | None = None) -> TinyCausalLM:
     model = TinyCausalLM()
     for parameter in model.parameters():
         parameter.requires_grad_(False)
     model.register_parameter("lora_adapter", nn.Parameter(torch.zeros(1)))
-    model.peft_config = {"default": SimpleNamespace(adapter_type="LORA")}
+    adapter_config = config or SimpleNamespace(adapter_type="LORA")
+    model.peft_config = {"default": adapter_config}
     return model
 
 
@@ -186,6 +195,62 @@ def _assert_nested_equal(left: object, right: object) -> None:
             _assert_nested_equal(left_item, right_item)
     else:
         assert left == right
+
+
+def _train_backend_step(backend: TorchPolicyBackend) -> int:
+    trajectory = backend.generate((RolloutRequest(prompt="calm breath", seed=17),))[0]
+    batch = TrajectoryBatch((trajectory,), ((True, True),))
+    backend.zero_grad()
+    evaluation = backend.evaluate(batch)
+    backend.backward(-(evaluation.log_probs + evaluation.value_predictions).mean())
+    return backend.optimizer_step().step
+
+
+def _backend_snapshot(backend: TorchPolicyBackend) -> dict[str, object]:
+    return {
+        "policy": _clone_state(backend.policy_model),
+        "reference": _clone_state(backend.reference_model),
+        "value_head": _clone_state(backend.value_head),
+        "optimizer": deepcopy(backend.optimizer.state_dict()),
+        "step": backend._step,
+        "max_new_tokens": backend.max_new_tokens,
+        "learning_rate": backend.learning_rate,
+        "cpu_rng_state": torch.get_rng_state().clone(),
+    }
+
+
+def _assert_backend_snapshot(
+    backend: TorchPolicyBackend,
+    snapshot: dict[str, object],
+) -> None:
+    _assert_nested_equal(snapshot["policy"], backend.policy_model.state_dict())
+    _assert_nested_equal(snapshot["reference"], backend.reference_model.state_dict())
+    _assert_nested_equal(snapshot["value_head"], backend.value_head.state_dict())
+    _assert_nested_equal(snapshot["optimizer"], backend.optimizer.state_dict())
+    assert backend._step == snapshot["step"]
+    assert backend.max_new_tokens == snapshot["max_new_tokens"]
+    assert backend.learning_rate == snapshot["learning_rate"]
+    _assert_nested_equal(snapshot["cpu_rng_state"], torch.get_rng_state())
+
+
+def _checkpoint_payload_before_divergence(
+    backend: TorchPolicyBackend,
+    tmp_path: Path,
+) -> tuple[dict[str, object], dict[str, object]]:
+    assert _train_backend_step(backend) == 1
+    source = tmp_path / "source.pt"
+    backend.save_checkpoint(source)
+    payload = torch.load(source, map_location="cpu", weights_only=True)
+    assert isinstance(payload, dict)
+
+    assert _train_backend_step(backend) == 2
+    with torch.no_grad():
+        for parameter in backend.reference_model.parameters():
+            parameter.add_(4.0)
+    backend.max_new_tokens += 3
+    backend.learning_rate *= 2.0
+    torch.manual_seed(2027)
+    return payload, _backend_snapshot(backend)
 
 
 @pytest.fixture
@@ -569,6 +634,92 @@ def test_checkpoint_load_rejects_incompatible_payload_without_mutation(
     _assert_nested_equal(policy_state, tiny_backend.policy_model.state_dict())
 
 
+def test_checkpoint_invalid_rng_length_is_rejected_without_any_mutation(
+    tiny_backend: TorchPolicyBackend,
+    tmp_path: Path,
+) -> None:
+    """A late-invalid CPU RNG state cannot partially restore older backend state."""
+    payload, snapshot = _checkpoint_payload_before_divergence(tiny_backend, tmp_path)
+    payload["cpu_rng_state"] = torch.zeros(1, dtype=torch.uint8)
+    checkpoint = tmp_path / "invalid-rng.pt"
+    torch.save(payload, checkpoint)
+
+    caught: Exception | None = None
+    try:
+        tiny_backend.load_checkpoint(checkpoint)
+    except Exception as error:  # noqa: BLE001 - the regression captures the public failure type
+        caught = error
+
+    _assert_backend_snapshot(tiny_backend, snapshot)
+    assert isinstance(caught, ValueError)
+    assert "cpu_rng_state" in str(caught)
+
+
+@pytest.mark.parametrize("corruption", ["parameter_ids", "state_tensor"])
+def test_checkpoint_malformed_optimizer_is_rejected_without_any_mutation(
+    tiny_backend: TorchPolicyBackend,
+    tmp_path: Path,
+    corruption: str,
+) -> None:
+    """Malformed optimizer identities or tensors cannot alter current backend state."""
+    payload, snapshot = _checkpoint_payload_before_divergence(tiny_backend, tmp_path)
+    optimizer_state = payload["optimizer_state"]
+    assert isinstance(optimizer_state, dict)
+    if corruption == "parameter_ids":
+        group = optimizer_state["param_groups"][0]
+        group["params"][0] = 999_999
+    else:
+        first_state = next(iter(optimizer_state["state"].values()))
+        first_state["exp_avg"] = torch.zeros(1)
+    checkpoint = tmp_path / f"invalid-optimizer-{corruption}.pt"
+    torch.save(payload, checkpoint)
+
+    caught: Exception | None = None
+    try:
+        tiny_backend.load_checkpoint(checkpoint)
+    except Exception as error:  # noqa: BLE001 - the regression captures the public failure type
+        caught = error
+
+    _assert_backend_snapshot(tiny_backend, snapshot)
+    assert isinstance(caught, ValueError)
+    assert "optimizer" in str(caught)
+
+
+def test_checkpoint_late_restore_failure_rolls_back_and_preserves_primary_error(
+    tiny_backend: TorchPolicyBackend,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A restore and rollback RNG failure preserves current state and the primary exception."""
+    payload, snapshot = _checkpoint_payload_before_divergence(tiny_backend, tmp_path)
+    checkpoint = tmp_path / "late-rng-failure.pt"
+    torch.save(payload, checkpoint)
+    original_set_rng_state = torch.set_rng_state
+    call_count = 0
+
+    def fail_primary_and_rollback(state: torch.Tensor) -> None:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise RuntimeError("primary RNG restore failure")
+        if call_count == 2:
+            raise RuntimeError("secondary rollback RNG failure")
+        original_set_rng_state(state)
+
+    monkeypatch.setattr(torch, "set_rng_state", fail_primary_and_rollback)
+    caught: Exception | None = None
+    try:
+        tiny_backend.load_checkpoint(checkpoint)
+    except Exception as error:  # noqa: BLE001 - cause identity is the behavior under test
+        caught = error
+
+    _assert_backend_snapshot(tiny_backend, snapshot)
+    assert isinstance(caught, ValueError)
+    assert isinstance(caught.__cause__, RuntimeError)
+    assert str(caught.__cause__) == "primary RNG restore failure"
+    assert call_count == 2
+
+
 def test_full_weight_capabilities_have_explicit_evidence(
     tiny_backend: TorchPolicyBackend,
 ) -> None:
@@ -613,10 +764,13 @@ def test_direct_lora_mode_rejects_an_ordinary_trainable_model() -> None:
         )
 
 
-def test_direct_lora_mode_accepts_verified_adapter_only_trainables() -> None:
+@pytest.mark.parametrize("peft_type", ["lora", FakePeftType.LORA])
+def test_direct_lora_mode_accepts_verified_adapter_only_trainables(
+    peft_type: str | FakePeftType,
+) -> None:
     """A PEFT-marked model with adapter-only trainables substantiates LoRA capability."""
     backend = TorchPolicyBackend(
-        policy_model=_fake_lora_model(),
+        policy_model=_fake_lora_model(SimpleNamespace(peft_type=peft_type)),
         tokenizer=TinyTokenizer(),
         training_mode="lora",
     )
@@ -630,6 +784,33 @@ def test_direct_lora_mode_accepts_verified_adapter_only_trainables() -> None:
         if parameter.requires_grad
     ]
     assert trainable == ["lora_adapter"]
+
+
+@pytest.mark.parametrize(
+    "peft_config",
+    [
+        {"default": SimpleNamespace(peft_type="IA3")},
+        {"default": SimpleNamespace()},
+        {"default": SimpleNamespace(peft_type="unknown")},
+        {
+            "lora": SimpleNamespace(peft_type=FakePeftType.LORA),
+            "other": SimpleNamespace(peft_type=FakePeftType.IA3),
+        },
+    ],
+)
+def test_direct_lora_mode_rejects_non_lora_or_ambiguous_peft_configs(
+    peft_config: dict[str, object],
+) -> None:
+    """LoRA-looking parameter names cannot override non-LoRA or missing config evidence."""
+    model = _fake_lora_model()
+    model.peft_config = peft_config
+
+    with pytest.raises(ValueError, match="PEFT LoRA.*config"):
+        TorchPolicyBackend(
+            policy_model=model,
+            tokenizer=TinyTokenizer(),
+            training_mode="lora",
+        )
 
 
 def test_factory_uses_injected_local_assets_and_runtime_config() -> None:
@@ -677,6 +858,7 @@ def test_factory_supports_lora_when_peft_is_available(
     class FakeLoraConfig:
         def __init__(self, **values: object) -> None:
             self.values = values
+            self.peft_type = FakePeftType.LORA
 
     def fake_get_peft_model(model: nn.Module, config: FakeLoraConfig) -> nn.Module:
         assert config.values["task_type"] == "CAUSAL_LM"
