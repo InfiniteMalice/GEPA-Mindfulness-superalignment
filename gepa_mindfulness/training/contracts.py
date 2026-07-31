@@ -19,10 +19,16 @@ class RewardRequest:
 
     def __post_init__(self) -> None:
         """Reject evidence that was not recorded in the trajectory trace."""
-        if not set(self.observable_references).issubset(self.trajectory.trace_references):
+        if not isinstance(self.observable_references, (list, tuple)) or not all(
+            isinstance(reference, str) for reference in self.observable_references
+        ):
+            raise ValueError("Expected observable references as a sequence of strings.")
+        observable_references = tuple(self.observable_references)
+        if not set(observable_references).issubset(self.trajectory.trace_references):
             raise ValueError(
                 "Each observable reference must be recorded in trajectory.trace_references."
             )
+        object.__setattr__(self, "observable_references", observable_references)
 
 
 @runtime_checkable

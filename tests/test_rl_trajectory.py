@@ -126,3 +126,60 @@ def test_reward_request_accepts_only_recorded_observable_evidence() -> None:
 
     with pytest.raises(ValueError, match="observable reference"):
         RewardRequest(trajectory=trajectory, observable_references=("private-reasoning",))
+
+
+def test_reward_request_copies_observable_references_before_validation() -> None:
+    """Later list mutation cannot introduce private evidence into a validated request."""
+    trajectory = Trajectory(
+        trajectory_id="traj-7",
+        case_id="case-1",
+        prompt="prompt",
+        response="response",
+        trace_references=("observation-1",),
+    )
+    references = ["observation-1"]
+
+    request = RewardRequest(trajectory=trajectory, observable_references=references)
+    references[0] = "private-reasoning"
+
+    assert request.observable_references == ("observation-1",)
+
+
+def test_trajectory_copies_trace_references_before_binding_negative_evidence() -> None:
+    """Later list mutation cannot invalidate a negative reward's recorded evidence."""
+    references = ["observation-1"]
+    trajectory = Trajectory(
+        trajectory_id="traj-8",
+        case_id="case-1",
+        prompt="prompt",
+        response="response",
+        reward_components={"feedback_integrity": -0.5},
+        reward_component_evidence={"feedback_integrity": ("observation-1",)},
+        trace_references=references,
+    )
+    references[0] = "private-reasoning"
+
+    assert trajectory.trace_references == ("observation-1",)
+
+
+def test_trajectory_retains_existing_positional_argument_order() -> None:
+    """Adding evidence cannot shift legacy positional advantage and return arguments."""
+    trajectory = Trajectory(
+        "traj-9",
+        "case-1",
+        "prompt",
+        "response",
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        {"feedback_integrity": 0.5},
+        (0.25,),
+        (0.5,),
+    )
+
+    assert trajectory.reward_component_evidence == {}
+    assert trajectory.advantage == (0.25,)
+    assert trajectory.returns == (0.5,)

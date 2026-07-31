@@ -70,7 +70,6 @@ class Trajectory:
     value_predictions: tuple[float, ...] | None = None
     reward_total: float | None = None
     reward_components: Mapping[str, float] = field(default_factory=dict)
-    reward_component_evidence: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
     advantage: tuple[float, ...] | None = None
     returns: tuple[float, ...] | None = None
     sampling_parameters: Mapping[str, object] = field(default_factory=dict)
@@ -81,9 +80,19 @@ class Trajectory:
     policy_version: str | None = None
     seed: int | None = None
     trace_references: tuple[str, ...] = ()
+    reward_component_evidence: Mapping[str, tuple[str, ...]] = field(
+        default_factory=dict,
+        kw_only=True,
+    )
 
     def __post_init__(self) -> None:
         """Validate reward signals and bind negative values to recorded evidence."""
+        if not isinstance(self.trace_references, (list, tuple)) or not all(
+            isinstance(reference, str) for reference in self.trace_references
+        ):
+            raise ValueError("Expected trace references as a sequence of strings.")
+        trace_references = tuple(self.trace_references)
+
         components: dict[str, float] = {}
         for component, value in self.reward_components.items():
             if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -95,7 +104,7 @@ class Trajectory:
                 )
             components[component] = numeric_value
 
-        recorded_references = set(self.trace_references)
+        recorded_references = set(trace_references)
         component_evidence: dict[str, tuple[str, ...]] = {}
         for component, references in self.reward_component_evidence.items():
             if component not in components:
@@ -118,6 +127,7 @@ class Trajectory:
 
         object.__setattr__(self, "reward_components", MappingProxyType(components))
         object.__setattr__(self, "reward_component_evidence", MappingProxyType(component_evidence))
+        object.__setattr__(self, "trace_references", trace_references)
         object.__setattr__(
             self,
             "sampling_parameters",
