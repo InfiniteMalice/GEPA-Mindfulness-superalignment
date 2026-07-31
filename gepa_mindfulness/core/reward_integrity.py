@@ -21,6 +21,7 @@ _PRIVATE_EVIDENCE_TERMS = (
     "activation",
     "chain of thought",
     "hidden state",
+    "hidden thought",
     "private scratchpad",
 )
 
@@ -37,8 +38,37 @@ def _validated_component(name: str, value: object) -> float:
 
 def _is_private_evidence(reference: str) -> bool:
     """Identify references to model-private data, which are never observable evidence."""
-    normalised = reference.lower().replace("_", " ")
+    normalised = " ".join(reference.lower().replace("_", " ").replace("-", " ").split())
     return any(term in normalised for term in _PRIVATE_EVIDENCE_TERMS)
+
+
+def _validated_observable_references(references: object) -> tuple[str, ...]:
+    """Copy an explicit observable-reference boundary after rejecting private data."""
+    if not isinstance(references, (list, tuple)) or not all(
+        isinstance(reference, str) and reference.strip() for reference in references
+    ):
+        raise ValueError("Expected observable references as a sequence of non-empty strings.")
+    if any(_is_private_evidence(reference) for reference in references):
+        raise ValueError("Observable references cannot contain private model information.")
+    return tuple(references)
+
+
+def _validated_observable_evidence(
+    observable_evidence: object,
+    observable_references: tuple[str, ...],
+) -> Mapping[str, tuple[str, ...]]:
+    """Copy component evidence and require every citation to stay in the supplied boundary."""
+    if not isinstance(observable_evidence, Mapping):
+        raise ValueError("Expected observable_evidence as a mapping of component references.")
+    evidence: dict[str, tuple[str, ...]] = {}
+    for name, references in observable_evidence.items():
+        if name not in COMPONENT_NAMES:
+            raise ValueError(f"Evidence was provided for unknown component {name!r}.")
+        cited_references = _validated_observable_references(references)
+        if not set(cited_references).issubset(observable_references):
+            raise ValueError(f"Evidence for {name!r} must use observable references.")
+        evidence[name] = cited_references
+    return MappingProxyType(evidence)
 
 
 @dataclass(frozen=True)
@@ -54,6 +84,7 @@ class RewardObservation:
     benign_creativity: float = 0.0
     repair_quality: float = 0.0
     observable_evidence: Mapping[str, Sequence[str]] = field(default_factory=dict)
+    observable_references: Sequence[str] = ()
 
     def __post_init__(self) -> None:
         """Bound values and bind every negative value to observable evidence."""
@@ -61,24 +92,17 @@ class RewardObservation:
         for name, value in components.items():
             object.__setattr__(self, name, _validated_component(name, value))
 
-        if not isinstance(self.observable_evidence, Mapping):
-            raise ValueError("Expected observable_evidence as a mapping of component references.")
-        evidence: dict[str, tuple[str, ...]] = {}
-        for name, references in self.observable_evidence.items():
-            if name not in COMPONENT_NAMES:
-                raise ValueError(f"Evidence was provided for unknown component {name!r}.")
-            if not isinstance(references, (list, tuple)) or not all(
-                isinstance(reference, str) and reference.strip() for reference in references
-            ):
-                raise ValueError(f"Expected observable evidence references for {name!r}.")
-            if any(_is_private_evidence(reference) for reference in references):
-                raise ValueError("Observable evidence cannot contain private model information.")
-            evidence[name] = tuple(references)
+        observable_references = _validated_observable_references(self.observable_references)
+        evidence = _validated_observable_evidence(
+            self.observable_evidence,
+            observable_references,
+        )
 
         for name, value in self.components.items():
             if value < 0.0 and not evidence.get(name):
                 raise ValueError(f"Negative {name} requires observable evidence.")
         object.__setattr__(self, "observable_evidence", MappingProxyType(evidence))
+        object.__setattr__(self, "observable_references", observable_references)
 
     @property
     def components(self) -> Mapping[str, float]:
@@ -133,12 +157,24 @@ class RewardIntegrityBreakdown:
     benign_creativity: float
     repair_quality: float
     aggregate: float
+    observable_evidence: Mapping[str, Sequence[str]] = field(default_factory=dict)
+    observable_references: Sequence[str] = ()
 
     def __post_init__(self) -> None:
         """Keep public component and aggregate records in their bounded range."""
         for name in COMPONENT_NAMES:
             object.__setattr__(self, name, _validated_component(name, getattr(self, name)))
         object.__setattr__(self, "aggregate", _validated_component("aggregate", self.aggregate))
+        observable_references = _validated_observable_references(self.observable_references)
+        evidence = _validated_observable_evidence(
+            self.observable_evidence,
+            observable_references,
+        )
+        for name, value in self.components.items():
+            if value < 0.0 and not evidence.get(name):
+                raise ValueError(f"Negative {name} requires observable evidence.")
+        object.__setattr__(self, "observable_evidence", evidence)
+        object.__setattr__(self, "observable_references", observable_references)
 
     @property
     def components(self) -> Mapping[str, float]:
@@ -154,7 +190,10 @@ def aggregate_components(
     if set(components) != set(COMPONENT_NAMES):
         raise ValueError("Expected exactly the eight reward-integrity components.")
     weights.validate()
-    weighted = sum(components[name] * weights[name] for name in COMPONENT_NAMES)
+    validated_components = {
+        name: _validated_component(name, components[name]) for name in COMPONENT_NAMES
+    }
+    weighted = sum(validated_components[name] * weights[name] for name in COMPONENT_NAMES)
     return weighted / weights.total
 
 
@@ -171,6 +210,8 @@ class RewardIntegrityCalculator:
         return RewardIntegrityBreakdown(
             **components,
             aggregate=aggregate_components(components, self.weights),
+            observable_evidence=observation.observable_evidence,
+            observable_references=observation.observable_references,
         )
 
 

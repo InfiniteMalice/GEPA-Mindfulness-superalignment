@@ -8,10 +8,12 @@ from math import isclose
 import pytest
 
 from gepa_mindfulness.core.reward_integrity import (
+    COMPONENT_NAMES,
     RewardIntegrityBreakdown,
     RewardIntegrityCalculator,
     RewardIntegrityWeights,
     RewardObservation,
+    aggregate_components,
 )
 from gepa_mindfulness.training.contracts import RewardRequest
 from gepa_mindfulness.training.reward_pipeline import RewardPipeline
@@ -53,7 +55,11 @@ def observation(**overrides: object) -> RewardObservation:
         for name, value in values.items()
         if isinstance(value, (int, float)) and value < 0.0
     }
-    return RewardObservation(observable_evidence=evidence, **values)  # type: ignore[arg-type]
+    return RewardObservation(  # type: ignore[arg-type]
+        observable_evidence=evidence,
+        observable_references=("observable-audit-record",),
+        **values,
+    )
 
 
 def request_with_components(
@@ -121,7 +127,42 @@ def test_breakdown_rejects_out_of_range_component() -> None:
         )
 
 
-@pytest.mark.parametrize("private_reference", ["hidden state", "activations", "private scratchpad"])
+@pytest.mark.parametrize("value", [2.0, float("nan")])
+def test_public_aggregate_rejects_invalid_component_values(value: float) -> None:
+    """Direct helper callers cannot bypass the component-range contract."""
+    with pytest.raises(ValueError, match="objective_fidelity"):
+        aggregate_components(
+            {name: value for name in COMPONENT_NAMES},
+            RewardIntegrityWeights(),
+        )
+
+
+def test_negative_public_breakdown_requires_observable_boundary_evidence() -> None:
+    """A direct breakdown cannot contain a penalty detached from observable provenance."""
+    with pytest.raises(ValueError, match="objective_fidelity.*observable evidence"):
+        RewardIntegrityBreakdown(
+            objective_fidelity=-0.5,
+            feedback_integrity=0.0,
+            skill_transfer=0.0,
+            reality_contact=0.0,
+            exploit_disclosure=0.0,
+            long_horizon_agency=0.0,
+            benign_creativity=0.0,
+            repair_quality=0.0,
+            aggregate=-0.0625,
+        )
+
+
+@pytest.mark.parametrize(
+    "private_reference",
+    [
+        "hidden state",
+        "hidden-thoughts",
+        "activations",
+        "chain-of-thought",
+        "private scratchpad",
+    ],
+)
 def test_private_evidence_is_rejected(private_reference: str) -> None:
     """Private reasoning artifacts cannot be cited as observable evidence."""
     with pytest.raises(ValueError, match="private model information"):

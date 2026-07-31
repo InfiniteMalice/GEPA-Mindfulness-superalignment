@@ -96,7 +96,11 @@ class RewardPipeline:
             if references:
                 evidence[name] = references
         components = {name: trajectory.reward_components.get(name, 0.0) for name in COMPONENT_NAMES}
-        return RewardObservation(observable_evidence=evidence, **components)
+        return RewardObservation(
+            observable_evidence=evidence,
+            observable_references=request.observable_references,
+            **components,
+        )
 
 
 __all__ = ["RewardPipeline", "RewardResult"]
