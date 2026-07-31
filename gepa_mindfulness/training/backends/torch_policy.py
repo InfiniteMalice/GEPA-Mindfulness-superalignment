@@ -562,6 +562,8 @@ class TorchPolicyBackend:
             raise ValueError("backend checkpoint optimizer state must be a mapping")
         saved_state = value["state"]
         current_state = current_optimizer_state["state"]
+        if current_state and set(saved_state) != set(current_state):
+            raise ValueError("backend checkpoint optimizer state has incompatible parameter IDs")
         for parameter_id, parameter_state in saved_state.items():
             if (
                 isinstance(parameter_id, bool)

@@ -255,9 +255,7 @@ def _checkpoint_payload_before_divergence(
     return payload, _backend_snapshot(backend)
 
 
-@pytest.fixture
-def tiny_backend() -> TorchPolicyBackend:
-    """Build a deterministic CPU backend without loading external assets."""
+def _new_tiny_backend() -> TorchPolicyBackend:
     torch.manual_seed(7)
     return TorchPolicyBackend(
         policy_model=TinyCausalLM(),
@@ -267,6 +265,12 @@ def tiny_backend() -> TorchPolicyBackend:
         max_new_tokens=2,
         model_identifier="tiny-local",
     )
+
+
+@pytest.fixture
+def tiny_backend() -> TorchPolicyBackend:
+    """Build a deterministic CPU backend without loading external assets."""
+    return _new_tiny_backend()
 
 
 def _trajectory(
@@ -748,6 +752,52 @@ def test_checkpoint_optimizer_structure_rejection_preserves_a_healthy_live_optim
     assert isinstance(caught, ValueError)
     assert "optimizer" in str(caught)
     assert _train_backend_step(tiny_backend) == 3
+
+
+@pytest.mark.parametrize("corruption", ["one_parameter", "all_parameters"])
+def test_checkpoint_missing_initialized_optimizer_entries_are_rejected_without_mutation(
+    tiny_backend: TorchPolicyBackend,
+    tmp_path: Path,
+    corruption: str,
+) -> None:
+    """A checkpoint cannot silently discard initialized AdamW parameter moments."""
+    payload, snapshot = _checkpoint_payload_before_divergence(tiny_backend, tmp_path)
+    optimizer_state = payload["optimizer_state"]
+    assert isinstance(optimizer_state, dict)
+    saved_state = optimizer_state["state"]
+    assert isinstance(saved_state, dict)
+    assert saved_state
+    if corruption == "one_parameter":
+        saved_state.pop(next(iter(saved_state)))
+    else:
+        saved_state.clear()
+    checkpoint = tmp_path / f"missing-optimizer-state-{corruption}.pt"
+    torch.save(payload, checkpoint)
+
+    with pytest.raises(ValueError, match="optimizer state.*parameter IDs"):
+        tiny_backend.load_checkpoint(checkpoint)
+
+    _assert_backend_snapshot(tiny_backend, snapshot)
+    assert _train_backend_step(tiny_backend) == 3
+
+
+def test_checkpoint_initialized_optimizer_restores_into_fresh_optimizer(
+    tiny_backend: TorchPolicyBackend,
+    tmp_path: Path,
+) -> None:
+    """A fresh optimizer may restore initialized moments from a compatible checkpoint."""
+    assert _train_backend_step(tiny_backend) == 1
+    checkpoint = tmp_path / "initialized-optimizer.pt"
+    tiny_backend.save_checkpoint(checkpoint)
+    expected_optimizer_state = deepcopy(tiny_backend.optimizer.state_dict())
+    fresh_backend = _new_tiny_backend()
+    assert fresh_backend.optimizer.state_dict()["state"] == {}
+
+    result = fresh_backend.load_checkpoint(checkpoint)
+
+    assert result.step == 1
+    _assert_nested_equal(expected_optimizer_state, fresh_backend.optimizer.state_dict())
+    assert _train_backend_step(fresh_backend) == 2
 
 
 def test_checkpoint_late_restore_failure_rolls_back_and_preserves_primary_error(
