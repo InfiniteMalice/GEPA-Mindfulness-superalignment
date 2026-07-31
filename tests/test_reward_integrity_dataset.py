@@ -205,3 +205,13 @@ def test_cases_have_distinct_domain_responses_and_addiction_pairs_expose_recover
     assert len(response_sets) == len(records)
     for term in ("motivation", "incentive salience", "habit", "reduced agency", "recovery"):
         assert term in addiction_responses
+
+
+def test_negative_reward_evidence_is_concrete_and_scenario_specific() -> None:
+    """Formulaic outcome labels would not substantiate a negative reward component."""
+    for record in _records():
+        responses = record["reward_integrity"]["response_classes"]
+        for response in responses.values():
+            for evidence in response["negative_evidence"].values():
+                for fact in evidence:
+                    assert "observable outcome for" not in fact.lower()

@@ -6,9 +6,9 @@ reality alone judged the result, would this still count as success?”
 
 The source records observable outcomes, eight response classes, six explicit preference relations,
 eight bounded reward components per response, repair steps, and provenance. Every negative
-component cites one or more identifiers from that response's `observable_outcomes`; unrelated,
-empty, or private evidence is rejected. It does not request or score hidden thoughts, activations,
-or private scratchpads.
+component cites one or more concrete scenario-specific facts from that response's
+`observable_outcomes`; unrelated, empty, formulaic, or private evidence is rejected. It does not
+request or score hidden thoughts, activations, or private scratchpads.
 
 Regenerate the derived artifacts from the repository root:
 
