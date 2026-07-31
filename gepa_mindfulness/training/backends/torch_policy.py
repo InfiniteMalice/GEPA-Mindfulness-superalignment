@@ -7,6 +7,7 @@ import pickle
 from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Callable, Literal, Sequence, cast
 
@@ -31,6 +32,7 @@ from .base import BackendCheckpointResult, OptimizerStepResult, TokenizerLike, T
 
 TrainingMode = Literal["full", "lora"]
 _CHECKPOINT_FORMAT_VERSION = 1
+_MISSING_CHECKPOINT_VALUE = object()
 
 
 @dataclass(frozen=True)
@@ -390,15 +392,30 @@ class TorchPolicyBackend:
 
     @staticmethod
     def _peft_config_is_lora(config: object) -> bool:
-        if isinstance(config, Mapping):
-            marker = config.get("peft_type")
-            if marker is None:
-                marker = config.get("adapter_type")
+        markers: tuple[object, ...]
+        if isinstance(config, (str, Enum)):
+            markers = (config,)
+        elif isinstance(config, Mapping):
+            markers = tuple(
+                config[marker_name]
+                for marker_name in ("peft_type", "adapter_type")
+                if marker_name in config
+            )
         else:
-            marker = getattr(config, "peft_type", None)
-            if marker is None:
-                marker = getattr(config, "adapter_type", None)
-        marker = getattr(marker, "value", marker)
+            markers = tuple(
+                marker
+                for marker_name in ("peft_type", "adapter_type")
+                if (marker := getattr(config, marker_name, _MISSING_CHECKPOINT_VALUE))
+                is not _MISSING_CHECKPOINT_VALUE
+            )
+        return bool(markers) and all(
+            TorchPolicyBackend._peft_marker_is_lora(marker) for marker in markers
+        )
+
+    @staticmethod
+    def _peft_marker_is_lora(marker: object) -> bool:
+        if isinstance(marker, Enum):
+            marker = marker.value
         return isinstance(marker, str) and marker.strip().casefold() == "lora"
 
     @staticmethod
@@ -454,15 +471,16 @@ class TorchPolicyBackend:
             expected_state=torch.get_rng_state(),
         )
         cuda_rng_state = raw_payload["cuda_rng_state"]
-        if cuda_rng_state is not None:
-            expected_cuda_state = (
-                torch.cuda.get_rng_state(self.device) if self.device.type == "cuda" else None
-            )
+        if self.device.type == "cuda":
+            if cuda_rng_state is None:
+                raise ValueError("backend checkpoint cuda_rng_state is required for a CUDA backend")
             self._validated_rng_state(
                 cuda_rng_state,
                 "cuda_rng_state",
-                expected_state=expected_cuda_state,
+                expected_state=torch.cuda.get_rng_state(self.device),
             )
+        elif cuda_rng_state is not None:
+            raise ValueError("backend checkpoint cuda_rng_state must be None for a CPU backend")
         return raw_payload
 
     @staticmethod
@@ -520,6 +538,7 @@ class TorchPolicyBackend:
         ):
             if not isinstance(saved_group, dict) or not isinstance(saved_group.get("params"), list):
                 raise ValueError("backend checkpoint optimizer parameter groups are malformed")
+            self._validate_optimizer_live_structure(saved_group, current_group)
             saved_parameter_ids = saved_group["params"]
             current_parameter_ids = current_group["params"]
             live_parameters = live_group.get("params")
@@ -551,8 +570,9 @@ class TorchPolicyBackend:
                 or not isinstance(parameter_state, Mapping)
             ):
                 raise ValueError("backend checkpoint optimizer state is incompatible")
-            current_parameter_state = (
-                current_state.get(parameter_id) if isinstance(current_state, dict) else None
+            current_parameter_state = current_state.get(
+                parameter_id,
+                _MISSING_CHECKPOINT_VALUE,
             )
             self._validate_optimizer_parameter_state(
                 parameter_state,
@@ -566,34 +586,55 @@ class TorchPolicyBackend:
         cls,
         value: object,
         parameter: nn.Parameter,
-        current_value: object = None,
+        current_value: object = _MISSING_CHECKPOINT_VALUE,
     ) -> None:
+        if current_value is not _MISSING_CHECKPOINT_VALUE:
+            cls._validate_optimizer_live_structure(value, current_value)
+            return
         if isinstance(value, torch.Tensor):
-            if isinstance(current_value, torch.Tensor):
-                compatible = (
-                    value.shape == current_value.shape and value.dtype == current_value.dtype
-                )
-            else:
-                compatible = value.ndim == 0 or value.shape == parameter.shape
+            compatible = value.ndim == 0 or value.shape == parameter.shape
             if not compatible:
                 raise ValueError("backend checkpoint optimizer state tensor is incompatible")
             return
         if isinstance(value, Mapping):
-            current_mapping = current_value if isinstance(current_value, Mapping) else {}
-            for key, item in value.items():
+            for item in value.values():
                 cls._validate_optimizer_parameter_state(
                     item,
                     parameter,
-                    current_mapping.get(key),
                 )
             return
         if isinstance(value, (list, tuple)):
-            current_sequence = current_value if isinstance(current_value, (list, tuple)) else ()
-            if current_sequence and len(value) != len(current_sequence):
-                raise ValueError("backend checkpoint optimizer state sequence is incompatible")
-            for index, item in enumerate(value):
-                comparison = current_sequence[index] if index < len(current_sequence) else None
-                cls._validate_optimizer_parameter_state(item, parameter, comparison)
+            for item in value:
+                cls._validate_optimizer_parameter_state(item, parameter)
+
+    @classmethod
+    def _validate_optimizer_live_structure(cls, value: object, current_value: object) -> None:
+        if isinstance(current_value, torch.Tensor):
+            if not isinstance(value, torch.Tensor) or (
+                value.shape != current_value.shape or value.dtype != current_value.dtype
+            ):
+                raise ValueError("backend checkpoint optimizer state tensor is incompatible")
+            return
+        if isinstance(current_value, Mapping):
+            if not isinstance(value, Mapping) or set(value) != set(current_value):
+                raise ValueError("backend checkpoint optimizer state mapping is incompatible")
+            for key, item in current_value.items():
+                cls._validate_optimizer_live_structure(value[key], item)
+            return
+        if isinstance(current_value, list):
+            if not isinstance(value, list) or len(value) != len(current_value):
+                raise ValueError("backend checkpoint optimizer state list is incompatible")
+            for saved_item, live_item in zip(value, current_value):
+                cls._validate_optimizer_live_structure(saved_item, live_item)
+            return
+        if isinstance(current_value, tuple):
+            if not isinstance(value, tuple) or len(value) != len(current_value):
+                raise ValueError("backend checkpoint optimizer state tuple is incompatible")
+            for saved_item, live_item in zip(value, current_value):
+                cls._validate_optimizer_live_structure(saved_item, live_item)
+            return
+        if type(value) is not type(current_value):
+            raise ValueError("backend checkpoint optimizer state leaf is incompatible")
 
     def _capture_backend_state(self) -> _BackendStateSnapshot:
         cuda_rng_state = (

@@ -199,7 +199,9 @@ def _assert_nested_equal(left: object, right: object) -> None:
 
 def _train_backend_step(backend: TorchPolicyBackend) -> int:
     trajectory = backend.generate((RolloutRequest(prompt="calm breath", seed=17),))[0]
-    batch = TrajectoryBatch((trajectory,), ((True, True),))
+    assert trajectory.response_token_ids is not None
+    selected_tokens = (True,) * len(trajectory.response_token_ids)
+    batch = TrajectoryBatch((trajectory,), (selected_tokens,))
     backend.zero_grad()
     evaluation = backend.evaluate(batch)
     backend.backward(-(evaluation.log_probs + evaluation.value_predictions).mean())
@@ -655,6 +657,28 @@ def test_checkpoint_invalid_rng_length_is_rejected_without_any_mutation(
     assert "cpu_rng_state" in str(caught)
 
 
+def test_checkpoint_cpu_backend_rejects_cuda_rng_state_without_any_mutation(
+    tiny_backend: TorchPolicyBackend,
+    tmp_path: Path,
+) -> None:
+    """A CPU checkpoint cannot claim an inactive CUDA process RNG state."""
+    payload, snapshot = _checkpoint_payload_before_divergence(tiny_backend, tmp_path)
+    payload["cuda_rng_state"] = torch.zeros(8, dtype=torch.uint8)
+    checkpoint = tmp_path / "unexpected-cuda-rng.pt"
+    torch.save(payload, checkpoint)
+
+    caught: Exception | None = None
+    try:
+        tiny_backend.load_checkpoint(checkpoint)
+    except Exception as error:  # noqa: BLE001 - rejection type follows the state assertion
+        caught = error
+
+    _assert_backend_snapshot(tiny_backend, snapshot)
+    assert isinstance(caught, ValueError)
+    assert "cuda_rng_state" in str(caught)
+    assert "CPU" in str(caught)
+
+
 @pytest.mark.parametrize("corruption", ["parameter_ids", "state_tensor"])
 def test_checkpoint_malformed_optimizer_is_rejected_without_any_mutation(
     tiny_backend: TorchPolicyBackend,
@@ -683,6 +707,47 @@ def test_checkpoint_malformed_optimizer_is_rejected_without_any_mutation(
     _assert_backend_snapshot(tiny_backend, snapshot)
     assert isinstance(caught, ValueError)
     assert "optimizer" in str(caught)
+
+
+@pytest.mark.parametrize(
+    ("corruption", "replacement"),
+    [
+        ("missing_exp_avg", None),
+        ("missing_exp_avg_sq", None),
+        ("string_exp_avg", "not-a-tensor"),
+        ("scalar_exp_avg", 0.0),
+    ],
+)
+def test_checkpoint_optimizer_structure_rejection_preserves_a_healthy_live_optimizer(
+    tiny_backend: TorchPolicyBackend,
+    tmp_path: Path,
+    corruption: str,
+    replacement: object,
+) -> None:
+    """Incomplete or wrong-kind AdamW state cannot damage the live optimizer."""
+    payload, snapshot = _checkpoint_payload_before_divergence(tiny_backend, tmp_path)
+    optimizer_state = payload["optimizer_state"]
+    assert isinstance(optimizer_state, dict)
+    first_state = next(iter(optimizer_state["state"].values()))
+    if corruption == "missing_exp_avg":
+        first_state.pop("exp_avg")
+    elif corruption == "missing_exp_avg_sq":
+        first_state.pop("exp_avg_sq")
+    else:
+        first_state["exp_avg"] = replacement
+    checkpoint = tmp_path / f"invalid-optimizer-structure-{corruption}.pt"
+    torch.save(payload, checkpoint)
+
+    caught: Exception | None = None
+    try:
+        tiny_backend.load_checkpoint(checkpoint)
+    except Exception as error:  # noqa: BLE001 - rejection type follows the state assertion
+        caught = error
+
+    _assert_backend_snapshot(tiny_backend, snapshot)
+    assert isinstance(caught, ValueError)
+    assert "optimizer" in str(caught)
+    assert _train_backend_step(tiny_backend) == 3
 
 
 def test_checkpoint_late_restore_failure_rolls_back_and_preserves_primary_error(
@@ -764,13 +829,22 @@ def test_direct_lora_mode_rejects_an_ordinary_trainable_model() -> None:
         )
 
 
-@pytest.mark.parametrize("peft_type", ["lora", FakePeftType.LORA])
+@pytest.mark.parametrize(
+    "adapter_config",
+    [
+        SimpleNamespace(peft_type="lora"),
+        SimpleNamespace(peft_type=FakePeftType.LORA),
+        {"adapter_type": "LORA"},
+        "LORA",
+        FakePeftType.LORA,
+    ],
+)
 def test_direct_lora_mode_accepts_verified_adapter_only_trainables(
-    peft_type: str | FakePeftType,
+    adapter_config: object,
 ) -> None:
     """A PEFT-marked model with adapter-only trainables substantiates LoRA capability."""
     backend = TorchPolicyBackend(
-        policy_model=_fake_lora_model(SimpleNamespace(peft_type=peft_type)),
+        policy_model=_fake_lora_model(adapter_config),
         tokenizer=TinyTokenizer(),
         training_mode="lora",
     )
@@ -795,6 +869,18 @@ def test_direct_lora_mode_accepts_verified_adapter_only_trainables(
         {
             "lora": SimpleNamespace(peft_type=FakePeftType.LORA),
             "other": SimpleNamespace(peft_type=FakePeftType.IA3),
+        },
+        {
+            "default": {
+                "peft_type": "LORA",
+                "adapter_type": "IA3",
+            }
+        },
+        {
+            "default": SimpleNamespace(
+                peft_type=FakePeftType.LORA,
+                adapter_type=FakePeftType.IA3,
+            )
         },
     ],
 )
