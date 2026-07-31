@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from types import MappingProxyType
 from typing import Iterable, Mapping
 
 
@@ -52,6 +53,10 @@ class BackendCapabilities:
     backend_name: str
     backend_version: str
     capabilities: Mapping[Capability, CapabilityEvidence] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        """Copy capability evidence into an immutable mapping."""
+        object.__setattr__(self, "capabilities", MappingProxyType(dict(self.capabilities)))
 
     @classmethod
     def unknown(cls, backend_name: str, backend_version: str) -> "BackendCapabilities":

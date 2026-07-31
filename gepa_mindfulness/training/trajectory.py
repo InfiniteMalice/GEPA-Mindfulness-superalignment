@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from math import isfinite
+from types import MappingProxyType
 from typing import Mapping, Sequence
 
 
@@ -44,6 +46,15 @@ def _string_tuple(value: object | None, field_name: str) -> tuple[str, ...]:
     return tuple(str(item) for item in value)
 
 
+def _component_evidence(value: object | None) -> Mapping[str, tuple[str, ...]]:
+    """Restore component evidence references from their JSON object representation."""
+    raw_evidence = _mapping(value, "reward_component_evidence")
+    return {
+        component: _string_tuple(references, "reward component evidence")
+        for component, references in raw_evidence.items()
+    }
+
+
 @dataclass(frozen=True)
 class Trajectory:
     """One completed rollout with optional data that the backend actually observed."""
@@ -59,6 +70,7 @@ class Trajectory:
     value_predictions: tuple[float, ...] | None = None
     reward_total: float | None = None
     reward_components: Mapping[str, float] = field(default_factory=dict)
+    reward_component_evidence: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
     advantage: tuple[float, ...] | None = None
     returns: tuple[float, ...] | None = None
     sampling_parameters: Mapping[str, object] = field(default_factory=dict)
@@ -69,6 +81,48 @@ class Trajectory:
     policy_version: str | None = None
     seed: int | None = None
     trace_references: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        """Validate reward signals and bind negative values to recorded evidence."""
+        components: dict[str, float] = {}
+        for component, value in self.reward_components.items():
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"Expected a numeric reward component for {component!r}.")
+            numeric_value = float(value)
+            if not isfinite(numeric_value) or not -1.0 <= numeric_value <= 1.0:
+                raise ValueError(
+                    f"Expected a finite reward component in [-1.0, 1.0] for {component!r}."
+                )
+            components[component] = numeric_value
+
+        recorded_references = set(self.trace_references)
+        component_evidence: dict[str, tuple[str, ...]] = {}
+        for component, references in self.reward_component_evidence.items():
+            if component not in components:
+                raise ValueError(
+                    f"Evidence was provided for unknown reward component {component!r}."
+                )
+            if not isinstance(references, (list, tuple)) or not all(
+                isinstance(reference, str) for reference in references
+            ):
+                raise ValueError(f"Expected trace references for reward component {component!r}.")
+            if not set(references).issubset(recorded_references):
+                raise ValueError(f"Evidence for {component!r} must use recorded trace references.")
+            component_evidence[component] = tuple(references)
+
+        for component, value in components.items():
+            if value < 0.0 and not component_evidence.get(component):
+                raise ValueError(
+                    f"Negative reward component {component!r} requires observable evidence."
+                )
+
+        object.__setattr__(self, "reward_components", MappingProxyType(components))
+        object.__setattr__(self, "reward_component_evidence", MappingProxyType(component_evidence))
+        object.__setattr__(
+            self,
+            "sampling_parameters",
+            MappingProxyType(dict(self.sampling_parameters)),
+        )
 
     @classmethod
     def minimal(cls, trajectory_id: str, prompt: str, response: str) -> "Trajectory":
@@ -94,6 +148,10 @@ class Trajectory:
             "value_predictions": self._optional_list(self.value_predictions),
             "reward_total": self.reward_total,
             "reward_components": dict(self.reward_components),
+            "reward_component_evidence": {
+                component: list(references)
+                for component, references in self.reward_component_evidence.items()
+            },
             "advantage": self._optional_list(self.advantage),
             "return": self._optional_list(self.returns),
             "sampling_parameters": dict(self.sampling_parameters),
@@ -127,6 +185,7 @@ class Trajectory:
             value_predictions=_optional_float_tuple(data.get("value_predictions")),
             reward_total=cls._optional_float(data.get("reward_total")),
             reward_components=components,
+            reward_component_evidence=_component_evidence(data.get("reward_component_evidence")),
             advantage=_optional_float_tuple(data.get("advantage")),
             returns=_optional_float_tuple(data.get("return")),
             sampling_parameters=_mapping(data.get("sampling_parameters"), "sampling_parameters"),

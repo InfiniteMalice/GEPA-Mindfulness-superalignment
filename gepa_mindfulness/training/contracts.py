@@ -2,11 +2,27 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, Sequence, runtime_checkable
 
 from .capability import BackendCapabilities, Capability
 from .trajectory import PolicyEvaluation, RolloutRequest, Trajectory, TrajectoryBatch
+
+
+@dataclass(frozen=True)
+class RewardRequest:
+    """A reward-scoring request restricted to trajectory-recorded observable evidence."""
+
+    trajectory: Trajectory
+    observable_references: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        """Reject evidence that was not recorded in the trajectory trace."""
+        if not set(self.observable_references).issubset(self.trajectory.trace_references):
+            raise ValueError(
+                "Each observable reference must be recorded in trajectory.trace_references."
+            )
 
 
 @runtime_checkable
@@ -50,7 +66,7 @@ class TrainablePolicyBackend(RolloutBackend, Protocol):
 class RewardProvider(Protocol):
     """A provider that scores an observable rollout request."""
 
-    def score(self, request: object) -> object:
+    def score(self, request: RewardRequest) -> object:
         """Return a reward result for the supplied request."""
 
 

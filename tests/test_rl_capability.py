@@ -43,3 +43,14 @@ def test_capability_reports_are_immutable() -> None:
 
     with pytest.raises(FrozenInstanceError):
         report.backend_name = "other"  # type: ignore[misc]
+
+
+def test_capability_report_evidence_cannot_be_mutated_after_construction() -> None:
+    """A caller cannot upgrade an unknown capability after validation begins."""
+    report = BackendCapabilities.unknown("mock", "1")
+
+    with pytest.raises(TypeError):
+        report.capabilities[Capability.SUPPORTS_BACKWARD] = CapabilityEvidence(
+            state=CapabilityState.SUPPORTED,
+            evidence="Untrusted post-construction mutation.",
+        )

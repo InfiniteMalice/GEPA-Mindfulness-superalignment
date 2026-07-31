@@ -2,11 +2,13 @@
 
 import json
 from dataclasses import FrozenInstanceError
+from inspect import signature
 
 import pytest
 
 from gepa_mindfulness.training.contracts import (
     RewardProvider,
+    RewardRequest,
     RLAlgorithm,
     RolloutBackend,
     TrainablePolicyBackend,
@@ -60,3 +62,67 @@ def test_contract_protocols_are_runtime_checkable() -> None:
     assert getattr(TrainablePolicyBackend, "_is_runtime_protocol", False)
     assert getattr(RewardProvider, "_is_runtime_protocol", False)
     assert getattr(RLAlgorithm, "_is_runtime_protocol", False)
+
+
+@pytest.mark.parametrize("value", [1.01, -1.01, float("nan"), float("inf")])
+def test_trajectory_rejects_non_finite_or_out_of_range_reward_components(value: float) -> None:
+    """Reward components are bounded evidence signals, never unbounded scalar rewards."""
+    with pytest.raises(ValueError, match="reward component"):
+        Trajectory(
+            trajectory_id="traj-3",
+            case_id="case-1",
+            prompt="prompt",
+            response="response",
+            reward_components={"feedback_integrity": value},
+        )
+
+
+def test_negative_reward_component_requires_recorded_component_evidence() -> None:
+    """Negative signals must identify observable evidence recorded with the trajectory."""
+    with pytest.raises(ValueError, match="feedback_integrity.*evidence"):
+        Trajectory(
+            trajectory_id="traj-4",
+            case_id="case-1",
+            prompt="prompt",
+            response="response",
+            reward_components={"feedback_integrity": -0.5},
+            trace_references=("observation-1",),
+        )
+
+
+def test_negative_reward_component_accepts_recorded_component_evidence() -> None:
+    """Negative reward components retain the trace reference that substantiates them."""
+    trajectory = Trajectory(
+        trajectory_id="traj-5",
+        case_id="case-1",
+        prompt="prompt",
+        response="response",
+        reward_components={"feedback_integrity": -0.5},
+        reward_component_evidence={"feedback_integrity": ("observation-1",)},
+        trace_references=("observation-1",),
+    )
+
+    restored = Trajectory.from_dict(trajectory.to_dict())
+
+    assert restored.reward_component_evidence == {
+        "feedback_integrity": ("observation-1",),
+    }
+
+
+def test_reward_request_accepts_only_recorded_observable_evidence() -> None:
+    """Reward providers receive typed requests, not opaque private model inputs."""
+    trajectory = Trajectory(
+        trajectory_id="traj-6",
+        case_id="case-1",
+        prompt="prompt",
+        response="response",
+        trace_references=("observation-1",),
+    )
+
+    request = RewardRequest(trajectory=trajectory, observable_references=("observation-1",))
+
+    assert request.observable_references == ("observation-1",)
+    assert signature(RewardProvider.score).parameters["request"].annotation == "RewardRequest"
+
+    with pytest.raises(ValueError, match="observable reference"):
+        RewardRequest(trajectory=trajectory, observable_references=("private-reasoning",))
