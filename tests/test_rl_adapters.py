@@ -207,12 +207,36 @@ def test_synthetic_adapter_rejects_malformed_retained_nested_source_data(
     assert f"{path}:1:" in str(error.value)
 
 
+def test_synthetic_adapter_rejects_negative_reward_component_without_evidence(
+    tmp_path: Path,
+) -> None:
+    """Negative components without observable evidence would make retained data unauditable."""
+    path = tmp_path / "unauditable-rich-case.jsonl"
+    path.write_text(
+        _rich_case_with(
+            "reward_integrity.response_classes.proxy_exploitation.negative_evidence", {}
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError, match="negative component 'objective_fidelity' needs evidence"
+    ) as error:
+        next(SyntheticCaseAdapter(path).iter_requests())
+
+    assert f"{path}:1:" in str(error.value)
+
+
 def test_adapter_import_succeeds_from_an_installed_wheel(tmp_path: Path) -> None:
     """Packaged adapters must not rely on the repository-only scripts directory."""
     wheel_directory = tmp_path / "wheel"
     target_directory = tmp_path / "installed"
+    case_path = tmp_path / "rich-case.jsonl"
     wheel_directory.mkdir()
     target_directory.mkdir()
+    case_path.write_text(
+        CASES_PATH.read_text(encoding="utf-8").splitlines()[0] + "\n", encoding="utf-8"
+    )
 
     build_root = ROOT
     mapped_drive: str | None = None
@@ -258,12 +282,17 @@ def test_adapter_import_succeeds_from_an_installed_wheel(tmp_path: Path) -> None
             text=True,
         )
         environment = os.environ | {"PYTHONPATH": str(target_directory)}
+        wheel_smoke = (
+            "from gepa_mindfulness.training.adapters import SyntheticCaseAdapter; "
+            "from pathlib import Path; "
+            f"request = next(SyntheticCaseAdapter(Path({str(case_path)!r})).iter_requests()); "
+            "print(request.case_id)"
+        )
         completed = subprocess.run(
             [
                 sys.executable,
                 "-c",
-                "from gepa_mindfulness.training.adapters import SyntheticCaseAdapter; "
-                "print(SyntheticCaseAdapter.__name__)",
+                wheel_smoke,
             ],
             cwd=tmp_path,
             check=False,
@@ -278,4 +307,4 @@ def test_adapter_import_succeeds_from_an_installed_wheel(tmp_path: Path) -> None
             )
 
     assert completed.returncode == 0, completed.stderr
-    assert completed.stdout.strip() == "SyntheticCaseAdapter"
+    assert completed.stdout.strip() == "reward-integrity-001"

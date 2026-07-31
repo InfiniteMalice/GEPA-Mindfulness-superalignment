@@ -8,6 +8,27 @@ from typing import Any
 
 _SCHEMA_CACHE: dict[str, Any] | None = None
 
+REWARD_INTEGRITY_RESPONSE_CLASSES = {
+    "grounded_success",
+    "benign_shortcut",
+    "exploit_disclosure",
+    "proxy_exploitation",
+    "evaluator_manipulation",
+    "reward_tampering",
+    "honest_failure",
+    "rationalized_failure",
+}
+REWARD_INTEGRITY_COMPONENTS = {
+    "objective_fidelity",
+    "feedback_integrity",
+    "skill_transfer",
+    "reality_contact",
+    "exploit_disclosure",
+    "long_horizon_agency",
+    "benign_creativity",
+    "repair_quality",
+}
+
 
 def _load_schema() -> dict[str, Any]:
     """Load the schema bundled with the installed package exactly once."""
@@ -125,9 +146,85 @@ def _validate_value(
                     errors.append(f"{path}.{key} is not allowed")
 
 
+def _validate_reward_integrity_semantics(record: dict[str, object], errors: list[str]) -> None:
+    """Append auditable reward-integrity evidence violations for an optional extension."""
+    case_id = record.get("id")
+    integrity = record.get("reward_integrity")
+    if isinstance(case_id, str) and case_id.startswith("reward-integrity-") and integrity is None:
+        errors.append("reward-integrity case needs reward_integrity")
+    if integrity is None:
+        return
+    if not isinstance(integrity, dict):
+        errors.append("reward_integrity must be an object")
+        return
+
+    response_classes = integrity.get("response_classes")
+    if not isinstance(response_classes, dict):
+        errors.append("reward_integrity.response_classes must be an object")
+        return
+    if set(response_classes) != REWARD_INTEGRITY_RESPONSE_CLASSES:
+        errors.append("reward_integrity.response_classes must be complete")
+        return
+
+    component_targets = integrity.get("component_targets")
+    if (
+        not isinstance(component_targets, dict)
+        or set(component_targets) != REWARD_INTEGRITY_COMPONENTS
+    ):
+        errors.append("reward_integrity.component_targets must be complete")
+    elif any(
+        type(value) not in (int, float) or not math.isfinite(value) or not -1.0 <= value <= 1.0
+        for value in component_targets.values()
+    ):
+        errors.append("reward_integrity.component_targets must be in [-1,1]")
+
+    for class_name, response in response_classes.items():
+        if not isinstance(response, dict):
+            errors.append(f"response class {class_name!r} must be an object")
+            continue
+        components = response.get("reward_components")
+        evidence = response.get("negative_evidence")
+        outcomes = response.get("observable_outcomes")
+        if not isinstance(components, dict) or not isinstance(evidence, dict):
+            errors.append(f"response class {class_name!r} must be auditable")
+            continue
+        if (
+            not isinstance(outcomes, list)
+            or not outcomes
+            or not all(isinstance(outcome, str) and outcome for outcome in outcomes)
+        ):
+            errors.append(f"response class {class_name!r} needs observable_outcomes")
+            continue
+        if set(components) != REWARD_INTEGRITY_COMPONENTS:
+            errors.append(f"response class {class_name!r} reward_components must be complete")
+            continue
+        for component, value in components.items():
+            if (
+                type(value) not in (int, float)
+                or not math.isfinite(value)
+                or not -1.0 <= value <= 1.0
+            ):
+                errors.append(f"reward component {component!r} must be in [-1,1]")
+                continue
+            references = evidence.get(component, [])
+            if value < 0.0:
+                if not isinstance(references, list) or not references:
+                    errors.append(f"negative component {component!r} needs evidence")
+                elif not all(reference in outcomes for reference in references):
+                    errors.append(
+                        f"negative component {component!r} evidence needs observable_outcomes"
+                    )
+            elif component in evidence:
+                errors.append(f"non-negative component {component!r} cannot cite negative evidence")
+        for component in evidence:
+            if component not in REWARD_INTEGRITY_COMPONENTS:
+                errors.append(f"unknown negative-evidence component {component!r}")
+
+
 def validate_rich_record(record: dict[str, object]) -> list[str]:
     """Return complete JSON Schema violations for one rich synthetic-case row."""
     errors: list[str] = []
     schema = _load_schema()
     _validate_value(record, schema, schema, "record", errors)
+    _validate_reward_integrity_semantics(record, errors)
     return errors
