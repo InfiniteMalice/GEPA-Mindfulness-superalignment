@@ -6,12 +6,14 @@ import json
 import os
 import subprocess
 import sys
+from copy import deepcopy
 from pathlib import Path
 
 # Third-party
 import pytest
 
 # Local
+from gepa_mindfulness import synthetic_dataset_validation
 from gepa_mindfulness.training.adapters.flat_jsonl import FlatJSONLAdapter
 from gepa_mindfulness.training.adapters.synthetic_cases import SyntheticCaseAdapter
 
@@ -225,6 +227,54 @@ def test_synthetic_adapter_rejects_negative_reward_component_without_evidence(
         next(SyntheticCaseAdapter(path).iter_requests())
 
     assert f"{path}:1:" in str(error.value)
+
+
+def test_reward_integrity_semantics_follow_loaded_schema_names(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Schema-valid renamed structures must not be rejected by stale validator constants."""
+    schema = deepcopy(synthetic_dataset_validation._load_schema())
+    reward_schema = schema["properties"]["reward_integrity"]["properties"]
+    response_schema = reward_schema["response_classes"]
+    response_schema["required"] = [
+        "verified_success" if name == "grounded_success" else name
+        for name in response_schema["required"]
+    ]
+    response_schema["properties"]["verified_success"] = response_schema["properties"].pop(
+        "grounded_success"
+    )
+
+    component_schema = schema["$defs"]["reward_integrity_component_map"]
+    component_schema["required"] = [
+        "goal_fidelity" if name == "objective_fidelity" else name
+        for name in component_schema["required"]
+    ]
+    component_schema["properties"]["goal_fidelity"] = component_schema["properties"].pop(
+        "objective_fidelity"
+    )
+    evidence_schema = schema["$defs"]["reward_integrity_response"]["properties"][
+        "negative_evidence"
+    ]["properties"]
+    evidence_schema["goal_fidelity"] = evidence_schema.pop("objective_fidelity")
+
+    record = json.loads(CASES_PATH.read_text(encoding="utf-8").splitlines()[0])
+    integrity = record["reward_integrity"]
+    integrity["response_classes"]["verified_success"] = integrity["response_classes"].pop(
+        "grounded_success"
+    )
+    integrity["component_targets"]["goal_fidelity"] = integrity["component_targets"].pop(
+        "objective_fidelity"
+    )
+    for response in integrity["response_classes"].values():
+        components = response["reward_components"]
+        components["goal_fidelity"] = components.pop("objective_fidelity")
+        evidence = response["negative_evidence"]
+        if "objective_fidelity" in evidence:
+            evidence["goal_fidelity"] = evidence.pop("objective_fidelity")
+
+    monkeypatch.setattr(synthetic_dataset_validation, "_SCHEMA_CACHE", schema)
+
+    assert synthetic_dataset_validation.validate_rich_record(record) == []
 
 
 def test_adapter_import_succeeds_from_an_installed_wheel(tmp_path: Path) -> None:

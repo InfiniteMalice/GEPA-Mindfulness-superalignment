@@ -8,27 +8,6 @@ from typing import Any
 
 _SCHEMA_CACHE: dict[str, Any] | None = None
 
-REWARD_INTEGRITY_RESPONSE_CLASSES = {
-    "grounded_success",
-    "benign_shortcut",
-    "exploit_disclosure",
-    "proxy_exploitation",
-    "evaluator_manipulation",
-    "reward_tampering",
-    "honest_failure",
-    "rationalized_failure",
-}
-REWARD_INTEGRITY_COMPONENTS = {
-    "objective_fidelity",
-    "feedback_integrity",
-    "skill_transfer",
-    "reality_contact",
-    "exploit_disclosure",
-    "long_horizon_agency",
-    "benign_creativity",
-    "repair_quality",
-}
-
 
 def _load_schema() -> dict[str, Any]:
     """Load the schema bundled with the installed package exactly once."""
@@ -58,6 +37,38 @@ def _resolve_reference(schema: dict[str, Any], root: dict[str, Any]) -> dict[str
     if not isinstance(resolved, dict):
         raise ValueError(f"schema reference {reference!r} does not resolve to an object")
     return resolved
+
+
+def _required_property_names(schema: dict[str, Any], root: dict[str, Any], path: str) -> set[str]:
+    """Return the required object keys from a resolved schema definition."""
+    resolved = _resolve_reference(schema, root)
+    required = resolved.get("required")
+    if not isinstance(required, list) or not all(isinstance(name, str) for name in required):
+        raise ValueError(f"{path} schema must declare required property names")
+    return set(required)
+
+
+def _reward_integrity_structure(schema: dict[str, Any]) -> tuple[set[str], set[str]]:
+    """Derive semantic structure names from the loaded reward-integrity schema."""
+    root_properties = schema.get("properties")
+    if not isinstance(root_properties, dict):
+        raise ValueError("root schema must declare properties")
+    reward_schema = root_properties.get("reward_integrity")
+    if not isinstance(reward_schema, dict):
+        raise ValueError("root schema must declare reward_integrity")
+    reward_schema = _resolve_reference(reward_schema, schema)
+    reward_properties = reward_schema.get("properties")
+    if not isinstance(reward_properties, dict):
+        raise ValueError("reward_integrity schema must declare properties")
+
+    response_schema = reward_properties.get("response_classes")
+    component_schema = reward_properties.get("component_targets")
+    if not isinstance(response_schema, dict) or not isinstance(component_schema, dict):
+        raise ValueError("reward_integrity schema must declare structural properties")
+    return (
+        _required_property_names(response_schema, schema, "response_classes"),
+        _required_property_names(component_schema, schema, "component_targets"),
+    )
 
 
 def _matches_type(value: object, schema_type: str) -> bool:
@@ -146,7 +157,12 @@ def _validate_value(
                     errors.append(f"{path}.{key} is not allowed")
 
 
-def _validate_reward_integrity_semantics(record: dict[str, object], errors: list[str]) -> None:
+def _validate_reward_integrity_semantics(
+    record: dict[str, object],
+    errors: list[str],
+    required_response_classes: set[str],
+    required_components: set[str],
+) -> None:
     """Append auditable reward-integrity evidence violations for an optional extension."""
     case_id = record.get("id")
     integrity = record.get("reward_integrity")
@@ -162,15 +178,12 @@ def _validate_reward_integrity_semantics(record: dict[str, object], errors: list
     if not isinstance(response_classes, dict):
         errors.append("reward_integrity.response_classes must be an object")
         return
-    if set(response_classes) != REWARD_INTEGRITY_RESPONSE_CLASSES:
+    if set(response_classes) != required_response_classes:
         errors.append("reward_integrity.response_classes must be complete")
         return
 
     component_targets = integrity.get("component_targets")
-    if (
-        not isinstance(component_targets, dict)
-        or set(component_targets) != REWARD_INTEGRITY_COMPONENTS
-    ):
+    if not isinstance(component_targets, dict) or set(component_targets) != required_components:
         errors.append("reward_integrity.component_targets must be complete")
     elif any(
         type(value) not in (int, float) or not math.isfinite(value) or not -1.0 <= value <= 1.0
@@ -195,7 +208,7 @@ def _validate_reward_integrity_semantics(record: dict[str, object], errors: list
         ):
             errors.append(f"response class {class_name!r} needs observable_outcomes")
             continue
-        if set(components) != REWARD_INTEGRITY_COMPONENTS:
+        if set(components) != required_components:
             errors.append(f"response class {class_name!r} reward_components must be complete")
             continue
         for component, value in components.items():
@@ -217,7 +230,7 @@ def _validate_reward_integrity_semantics(record: dict[str, object], errors: list
             elif component in evidence:
                 errors.append(f"non-negative component {component!r} cannot cite negative evidence")
         for component in evidence:
-            if component not in REWARD_INTEGRITY_COMPONENTS:
+            if component not in required_components:
                 errors.append(f"unknown negative-evidence component {component!r}")
 
 
@@ -226,5 +239,6 @@ def validate_rich_record(record: dict[str, object]) -> list[str]:
     errors: list[str] = []
     schema = _load_schema()
     _validate_value(record, schema, schema, "record", errors)
-    _validate_reward_integrity_semantics(record, errors)
+    response_classes, components = _reward_integrity_structure(schema)
+    _validate_reward_integrity_semantics(record, errors, response_classes, components)
     return errors
