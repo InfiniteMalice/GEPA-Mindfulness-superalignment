@@ -342,3 +342,20 @@ def test_direct_legacy_translation_rejects_unknown_dataset_key() -> None:
     with pytest.warns(DeprecationWarning):
         with pytest.raises(ValueError, match="legacy dataset contains unknown keys"):
             translate_legacy_config(payload)
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("train_path", "canonical.jsonl"),
+        ("validation_path", "validation.jsonl"),
+        ("format", "jsonl"),
+    ],
+)
+def test_direct_legacy_translation_rejects_canonical_dataset_key(
+    key: str,
+    value: str,
+) -> None:
+    with pytest.warns(DeprecationWarning):
+        with pytest.raises(ValueError, match="legacy dataset contains canonical keys"):
+            translate_legacy_config({"dataset": {key: value}})

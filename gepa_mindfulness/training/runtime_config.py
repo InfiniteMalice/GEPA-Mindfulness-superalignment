@@ -436,12 +436,12 @@ def _merge_legacy(*payloads: Mapping[str, Any]) -> dict[str, Any]:
 
 def _validate_legacy_dataset(dataset: Mapping[str, Any]) -> None:
     dataset_keys = set(dataset)
-    allowed_keys = _CANONICAL_DATASET_KEYS | _LEGACY_DATASET_KEYS
-    unknown = sorted(dataset_keys.difference(allowed_keys))
+    canonical = sorted(dataset_keys.intersection(_CANONICAL_DATASET_KEYS))
+    if canonical:
+        raise ValueError(f"legacy dataset contains canonical keys: {', '.join(canonical)}")
+    unknown = sorted(dataset_keys.difference(_LEGACY_DATASET_KEYS))
     if unknown:
         raise ValueError(f"legacy dataset contains unknown keys: {', '.join(unknown)}")
-    if "path" in dataset and dataset_keys.intersection(_CANONICAL_DATASET_KEYS):
-        raise ValueError("legacy dataset cannot mix path with canonical dataset keys")
     # The runtime consumes the resolved path only; validate split metadata before omitting it.
     for key in ("train_split", "val_split", "test_split"):
         if key not in dataset:
