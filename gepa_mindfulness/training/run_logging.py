@@ -6,6 +6,7 @@ import importlib
 import json
 import math
 import os
+import stat
 import threading
 import uuid
 from collections.abc import Mapping
@@ -328,7 +329,7 @@ class JSONLLoggingSink:
         self.rank = rank
 
     def start_run(self, manifest: RunManifest | Mapping[str, object]) -> bool:
-        """Create one rank-zero manifest and the two shared JSONL streams."""
+        """Transactionally initialize one rank-zero run under a stream lock."""
         parsed = (
             manifest if isinstance(manifest, RunManifest) else RunManifest.from_mapping(manifest)
         )
@@ -336,30 +337,27 @@ class JSONLLoggingSink:
             return False
         self.directory.mkdir(parents=True, exist_ok=True)
         manifest_path = self.directory / "run_manifest.json"
-        with self._path_lock(manifest_path):
-            if manifest_path.exists():
-                existing = self._read_json(manifest_path, "run manifest")
-                if existing == parsed.to_dict():
-                    return False
-                raise ValueError("logging directory already contains a different run manifest")
-            temporary = self.directory / f".run_manifest.tmp-{uuid.uuid4().hex}"
-            try:
-                self._write_atomic_file(temporary, parsed.to_dict())
-                temporary.replace(manifest_path)
-            except Exception:
-                if temporary.exists():
-                    temporary.unlink()
-                raise
-            for name in ("metrics.jsonl", "trajectories.jsonl"):
-                (self.directory / name).touch(exist_ok=True)
-        return True
+        metrics_path = self.directory / "metrics.jsonl"
+        trajectories_path = self.directory / "trajectories.jsonl"
+        with self._path_lock(metrics_path):
+            with _open_regular_stream(metrics_path, create=True) as metrics:
+                with _exclusive_stream_lock(metrics):
+                    with self._path_lock(trajectories_path):
+                        with _open_regular_stream(trajectories_path, create=True) as trajectories:
+                            with _exclusive_stream_lock(trajectories):
+                                return self._start_locked(
+                                    parsed,
+                                    manifest_path,
+                                    metrics,
+                                    trajectories,
+                                )
 
     def log_metrics(self, record: MetricRecord | Mapping[str, object]) -> bool:
         """Append one metric record; only rank zero writes aggregate metrics."""
         parsed = record if isinstance(record, MetricRecord) else MetricRecord.from_mapping(record)
         if parsed.scope == "aggregate" and self.rank != 0:
             return False
-        self._require_run(parsed.run_id)
+        self._require_run(parsed)
         return self._append_unique(self.directory / "metrics.jsonl", parsed.to_dict())
 
     def log_trajectory(self, record: TrajectoryRecord | Mapping[str, object]) -> bool:
@@ -369,14 +367,17 @@ class JSONLLoggingSink:
             if isinstance(record, TrajectoryRecord)
             else TrajectoryRecord.from_mapping(record)
         )
-        self._require_run(parsed.run_id)
+        self._require_run(parsed)
         return self._append_unique(self.directory / "trajectories.jsonl", parsed.to_dict())
 
-    def _require_run(self, run_id: str) -> None:
+    def _require_run(self, record: MetricRecord | TrajectoryRecord) -> None:
         manifest_path = self.directory / "run_manifest.json"
         manifest = RunManifest.from_mapping(self._read_json(manifest_path, "run manifest"))
-        if manifest.run_id != run_id:
+        if manifest.run_id != record.run_id:
             raise ValueError("log record run_id does not match the run manifest")
+        provenance = ("backend", "actor_backend", "learner_backend")
+        if any(getattr(manifest, field) != getattr(record, field) for field in provenance):
+            raise ValueError("log record backend provenance does not match the run manifest")
 
     def _append_unique(self, path: Path, payload: Mapping[str, object]) -> bool:
         _validate_json_value(payload, "record")
@@ -393,7 +394,7 @@ class JSONLLoggingSink:
             + b"\n"
         )
         with self._path_lock(path):
-            with path.open("a+b") as stream, _exclusive_stream_lock(stream):
+            with _open_regular_stream(path, create=False) as stream, _exclusive_stream_lock(stream):
                 existing_records = self._existing_records(stream, path)
                 if record_id in existing_records:
                     if existing_records[record_id] == payload:
@@ -443,7 +444,9 @@ class JSONLLoggingSink:
             ).encode("utf-8")
             + b"\n"
         )
-        with path.open("xb") as stream:
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0)
+        descriptor = os.open(path, flags, 0o600)
+        with os.fdopen(descriptor, "wb") as stream:
             stream.write(serialized)
             stream.flush()
             os.fsync(stream.fileno())
@@ -451,9 +454,78 @@ class JSONLLoggingSink:
     @staticmethod
     def _read_json(path: Path, field_name: str) -> object:
         try:
-            return json.loads(path.read_text(encoding="utf-8"))
+            with _open_regular_stream(path, create=False) as stream:
+                stream.seek(0)
+                return json.loads(stream.read().decode("utf-8"))
         except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
             raise ValueError(f"{field_name} is missing, unreadable, or invalid JSON") from error
+
+    def _start_locked(
+        self,
+        manifest: RunManifest,
+        manifest_path: Path,
+        metrics: BinaryIO,
+        trajectories: BinaryIO,
+    ) -> bool:
+        existing = self._optional_manifest(manifest_path)
+        if existing is not None:
+            if existing.to_dict() != manifest.to_dict():
+                raise ValueError("logging directory already contains a different run manifest")
+            self._validate_existing_stream(metrics, self.directory / "metrics.jsonl", existing)
+            self._validate_existing_stream(
+                trajectories,
+                self.directory / "trajectories.jsonl",
+                existing,
+            )
+            return False
+        for stream, name in (
+            (metrics, "metrics.jsonl"),
+            (trajectories, "trajectories.jsonl"),
+        ):
+            stream.seek(0, os.SEEK_END)
+            if stream.tell() != 0:
+                raise ValueError(f"nonempty stale {name} exists before the run manifest")
+        temporary = self.directory / f".run_manifest.json.tmp-{uuid.uuid4().hex}"
+        try:
+            self._write_atomic_file(temporary, manifest.to_dict())
+            try:
+                os.link(temporary, manifest_path)
+            except FileExistsError:
+                winner = RunManifest.from_mapping(self._read_json(manifest_path, "run manifest"))
+                if winner.to_dict() != manifest.to_dict():
+                    raise ValueError("logging directory already contains a different run manifest")
+                return False
+            return True
+        finally:
+            try:
+                temporary.unlink()
+            except FileNotFoundError:
+                pass
+
+    def _optional_manifest(self, path: Path) -> RunManifest | None:
+        try:
+            path.lstat()
+        except FileNotFoundError:
+            return None
+        return RunManifest.from_mapping(self._read_json(path, "run manifest"))
+
+    def _validate_existing_stream(
+        self,
+        stream: BinaryIO,
+        path: Path,
+        manifest: RunManifest,
+    ) -> None:
+        for payload in self._existing_records(stream, path).values():
+            record: MetricRecord | TrajectoryRecord
+            if path.name == "metrics.jsonl":
+                record = MetricRecord.from_mapping(payload)
+            else:
+                record = TrajectoryRecord.from_mapping(payload)
+            if record.run_id != manifest.run_id or any(
+                getattr(record, field) != getattr(manifest, field)
+                for field in ("backend", "actor_backend", "learner_backend")
+            ):
+                raise ValueError(f"{path.name} contains incompatible run provenance")
 
 
 def _required_string(value: object, field_name: str) -> str:
@@ -510,6 +582,46 @@ def _validate_json_value(value: object, field_name: str) -> None:
             _validate_json_value(item, f"{field_name}[]")
         return
     raise TypeError(f"{field_name} contains a value that is not JSON-serializable")
+
+
+@contextmanager
+def _open_regular_stream(path: Path, *, create: bool) -> Iterator[BinaryIO]:
+    """Open one stable regular file while rejecting symlinks before and after open."""
+    before: os.stat_result | None
+    try:
+        before = path.lstat()
+    except FileNotFoundError:
+        before = None
+    if before is not None and stat.S_ISLNK(before.st_mode):
+        raise ValueError(f"logging path must not be a symlink: {path}")
+    if before is not None and not stat.S_ISREG(before.st_mode):
+        raise ValueError(f"logging path must be a regular file: {path}")
+    flags = os.O_RDWR | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    if create:
+        flags |= os.O_CREAT
+    try:
+        descriptor = os.open(path, flags, 0o600)
+    except OSError as error:
+        raise ValueError(f"logging path is missing, unreadable, or unsafe: {path}") from error
+    try:
+        after_path = path.lstat()
+        opened = os.fstat(descriptor)
+        if stat.S_ISLNK(after_path.st_mode):
+            raise ValueError(f"logging path must not be a symlink: {path}")
+        if not stat.S_ISREG(opened.st_mode) or (
+            after_path.st_dev,
+            after_path.st_ino,
+        ) != (opened.st_dev, opened.st_ino):
+            raise ValueError(f"logging path changed while it was opened: {path}")
+        if before is not None and (before.st_dev, before.st_ino) != (
+            opened.st_dev,
+            opened.st_ino,
+        ):
+            raise ValueError(f"logging path changed while it was opened: {path}")
+        with os.fdopen(descriptor, "r+b", closefd=False) as stream:
+            yield stream
+    finally:
+        os.close(descriptor)
 
 
 @contextmanager

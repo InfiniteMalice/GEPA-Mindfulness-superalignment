@@ -625,6 +625,30 @@ def test_checkpoint_round_trip_restores_trainable_reference_optimizer_step_and_r
     )
 
 
+def test_checkpoint_bytes_preflight_is_nonmutating_and_load_reuses_verified_payload(
+    tiny_backend: TorchPolicyBackend,
+    tmp_path: Path,
+) -> None:
+    """Store-facing bytes APIs separate validation from one transactional restore."""
+    assert _train_backend_step(tiny_backend) == 1
+    checkpoint = tmp_path / "backend.pt"
+    tiny_backend.save_checkpoint(checkpoint)
+    payload = checkpoint.read_bytes()
+    saved_policy = _clone_state(tiny_backend.policy_model)
+    assert _train_backend_step(tiny_backend) == 2
+    divergent = _backend_snapshot(tiny_backend)
+
+    preflight = tiny_backend.preflight_checkpoint_bytes(payload)
+
+    assert preflight.step == 1
+    _assert_backend_snapshot(tiny_backend, divergent)
+
+    restored = tiny_backend.load_checkpoint_bytes(payload)
+
+    assert restored.step == 1
+    _assert_nested_equal(saved_policy, tiny_backend.policy_model.state_dict())
+
+
 def test_checkpoint_load_rejects_incompatible_payload_without_mutation(
     tiny_backend: TorchPolicyBackend,
     tmp_path: Path,

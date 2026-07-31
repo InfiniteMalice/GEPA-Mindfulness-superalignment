@@ -8,6 +8,7 @@ from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum
+from io import BytesIO
 from pathlib import Path
 from typing import Callable, Literal, Sequence, cast
 
@@ -49,6 +50,15 @@ class _BackendStateSnapshot:
     policy_training: bool
     reference_training: bool
     value_head_training: bool
+
+
+@dataclass(frozen=True)
+class _CheckpointRestorePlan:
+    payload: Mapping[str, object]
+    policy_state: Mapping[str, torch.Tensor]
+    reference_state: Mapping[str, torch.Tensor]
+    value_head_state: Mapping[str, torch.Tensor]
+    optimizer_state: dict[str, object]
 
 
 class TorchPolicyBackend:
@@ -256,41 +266,38 @@ class TorchPolicyBackend:
         )
 
     def load_checkpoint(self, source: Path) -> BackendCheckpointResult:
-        """Restore a strictly compatible checkpoint through CPU-safe deserialization."""
+        """Restore a path checkpoint through the same verified-bytes interface."""
         source = self._checkpoint_path(source, must_exist=True)
         try:
-            raw_payload = torch.load(source, map_location="cpu", weights_only=True)
-        except (OSError, RuntimeError, EOFError, ValueError, pickle.UnpicklingError) as error:
+            payload = source.read_bytes()
+        except OSError as error:
             raise ValueError(f"failed to load backend checkpoint: {source}") from error
-        payload = self._validated_checkpoint_payload(raw_payload)
-        policy_state = self._validated_module_state(
-            self.policy_model,
-            payload["policy_state"],
-            "policy_state",
+        return self.load_checkpoint_bytes(payload)
+
+    def preflight_checkpoint_bytes(self, payload: bytes) -> BackendCheckpointResult:
+        """Validate immutable checkpoint bytes without mutating live backend state."""
+        plan = self._prepare_checkpoint_bytes(payload)
+        return BackendCheckpointResult(
+            format_version=_CHECKPOINT_FORMAT_VERSION,
+            step=cast(int, plan.payload["step"]),
         )
-        reference_state = self._validated_module_state(
-            self.reference_model,
-            payload["reference_state"],
-            "reference_state",
-        )
-        value_head_state = self._validated_module_state(
-            self.value_head,
-            payload["value_head_state"],
-            "value_head_state",
-        )
-        optimizer_state = self._validated_optimizer_state(payload["optimizer_state"])
+
+    def load_checkpoint_bytes(self, payload: bytes) -> BackendCheckpointResult:
+        """Transactionally restore the exact checkpoint bytes supplied by a store."""
+        plan = self._prepare_checkpoint_bytes(payload)
+        checkpoint = plan.payload
         snapshot = self._capture_backend_state()
         try:
-            self.policy_model.load_state_dict(policy_state, strict=True)
-            self.reference_model.load_state_dict(reference_state, strict=True)
-            self.value_head.load_state_dict(value_head_state, strict=True)
-            self.optimizer.load_state_dict(optimizer_state)
+            self.policy_model.load_state_dict(plan.policy_state, strict=True)
+            self.reference_model.load_state_dict(plan.reference_state, strict=True)
+            self.value_head.load_state_dict(plan.value_head_state, strict=True)
+            self.optimizer.load_state_dict(plan.optimizer_state)
             self._move_optimizer_state_to_device()
-            self._step = cast(int, payload["step"])
-            self.max_new_tokens = cast(int, payload["max_new_tokens"])
-            self.learning_rate = float(cast(float, payload["learning_rate"]))
-            torch.set_rng_state(cast(torch.Tensor, payload["cpu_rng_state"]))
-            cuda_rng_state = payload["cuda_rng_state"]
+            self._step = cast(int, checkpoint["step"])
+            self.max_new_tokens = cast(int, checkpoint["max_new_tokens"])
+            self.learning_rate = float(cast(float, checkpoint["learning_rate"]))
+            torch.set_rng_state(cast(torch.Tensor, checkpoint["cpu_rng_state"]))
+            cuda_rng_state = checkpoint["cuda_rng_state"]
             if self.device.type == "cuda" and isinstance(cuda_rng_state, torch.Tensor):
                 torch.cuda.set_rng_state(cuda_rng_state, self.device)
             self.reference_model.requires_grad_(False)
@@ -307,6 +314,38 @@ class TorchPolicyBackend:
         return BackendCheckpointResult(
             format_version=_CHECKPOINT_FORMAT_VERSION,
             step=self._step,
+        )
+
+    def _prepare_checkpoint_bytes(self, payload: bytes) -> _CheckpointRestorePlan:
+        if not isinstance(payload, bytes):
+            raise TypeError("backend checkpoint payload must be bytes")
+        try:
+            raw_payload = torch.load(BytesIO(payload), map_location="cpu", weights_only=True)
+        except (OSError, RuntimeError, EOFError, ValueError, pickle.UnpicklingError) as error:
+            raise ValueError("failed to load backend checkpoint bytes") from error
+        checkpoint = self._validated_checkpoint_payload(raw_payload)
+        policy_state = self._validated_module_state(
+            self.policy_model,
+            checkpoint["policy_state"],
+            "policy_state",
+        )
+        reference_state = self._validated_module_state(
+            self.reference_model,
+            checkpoint["reference_state"],
+            "reference_state",
+        )
+        value_head_state = self._validated_module_state(
+            self.value_head,
+            checkpoint["value_head_state"],
+            "value_head_state",
+        )
+        optimizer_state = self._validated_optimizer_state(checkpoint["optimizer_state"])
+        return _CheckpointRestorePlan(
+            payload=checkpoint,
+            policy_state=policy_state,
+            reference_state=reference_state,
+            value_head_state=value_head_state,
+            optimizer_state=optimizer_state,
         )
 
     def policy_parameters(self) -> tuple[nn.Parameter, ...]:

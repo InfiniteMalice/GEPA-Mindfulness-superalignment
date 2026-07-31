@@ -110,6 +110,24 @@ def _concurrent_duplicate_writer(directory: str, start: object) -> None:
         sink.log_metrics(record)
 
 
+def _racing_manifest_writer(
+    directory: str,
+    run_id: str,
+    start: object,
+    results: object,
+) -> None:
+    manifest = _manifest().to_dict()
+    manifest["run_id"] = run_id
+    event = start
+    queue = results
+    event.wait()
+    try:
+        started = JSONLLoggingSink(Path(directory), rank=0).start_run(manifest)
+        queue.put((run_id, "started" if started else "same"))
+    except Exception as exc:  # pragma: no cover - asserted through process result
+        queue.put((run_id, f"error:{type(exc).__name__}:{exc}"))
+
+
 def test_rank_zero_start_run_writes_exact_manifest_and_empty_jsonl_files(tmp_path: Path) -> None:
     sink = JSONLLoggingSink(tmp_path, rank=0)
 
@@ -305,3 +323,101 @@ def test_start_run_is_idempotent_only_for_the_same_manifest(tmp_path: Path) -> N
 
     with pytest.raises(ValueError, match="different run manifest"):
         sink.start_run(conflicting)
+
+
+def test_multiprocess_start_run_publishes_exactly_one_conflicting_manifest(
+    tmp_path: Path,
+) -> None:
+    context = multiprocessing.get_context("spawn")
+    start = context.Event()
+    results = context.Queue()
+    processes = [
+        context.Process(
+            target=_racing_manifest_writer,
+            args=(str(tmp_path), run_id, start, results),
+        )
+        for run_id in ("run-a", "run-b")
+    ]
+    for process in processes:
+        process.start()
+    start.set()
+    for process in processes:
+        process.join(timeout=30)
+
+    assert all(process.exitcode == 0 for process in processes)
+    outcomes = [results.get(timeout=5) for _ in processes]
+    assert sorted(outcome.split(":", 1)[0] for _, outcome in outcomes) == ["error", "started"]
+    published = json.loads((tmp_path / "run_manifest.json").read_text(encoding="utf-8"))
+    winner = next(run_id for run_id, outcome in outcomes if outcome == "started")
+    assert published["run_id"] == winner
+    assert (tmp_path / "metrics.jsonl").is_file()
+    assert (tmp_path / "trajectories.jsonl").is_file()
+    assert list(tmp_path.glob(".run_manifest.json.tmp-*")) == []
+
+
+def test_start_run_rejects_stale_nonempty_stream_before_manifest_publication(
+    tmp_path: Path,
+) -> None:
+    tmp_path.mkdir(exist_ok=True)
+    (tmp_path / "metrics.jsonl").write_text('{"stale":true}\n', encoding="utf-8")
+
+    with pytest.raises(ValueError, match="nonempty.*metrics.jsonl"):
+        JSONLLoggingSink(tmp_path, rank=0).start_run(_manifest())
+
+    assert not (tmp_path / "run_manifest.json").exists()
+    assert (tmp_path / "metrics.jsonl").read_text(encoding="utf-8") == '{"stale":true}\n'
+
+
+def test_start_run_same_manifest_repairs_a_missing_stream(tmp_path: Path) -> None:
+    sink = JSONLLoggingSink(tmp_path, rank=0)
+    assert sink.start_run(_manifest()) is True
+    (tmp_path / "trajectories.jsonl").unlink()
+
+    assert sink.start_run(_manifest()) is False
+
+    assert (tmp_path / "trajectories.jsonl").read_bytes() == b""
+
+
+def test_start_run_rejects_symlink_stream_without_publishing_manifest(tmp_path: Path) -> None:
+    tmp_path.mkdir(exist_ok=True)
+    outside = tmp_path.parent / f"{tmp_path.name}-outside-metrics.jsonl"
+    outside.write_text("operator-data", encoding="utf-8")
+    try:
+        (tmp_path / "metrics.jsonl").symlink_to(outside)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+    with pytest.raises(ValueError, match="symlink"):
+        JSONLLoggingSink(tmp_path, rank=0).start_run(_manifest())
+
+    assert not (tmp_path / "run_manifest.json").exists()
+    assert outside.read_text(encoding="utf-8") == "operator-data"
+
+
+@pytest.mark.parametrize("field", ["backend", "actor_backend", "learner_backend"])
+@pytest.mark.parametrize("kind", ["metric", "trajectory"])
+def test_records_must_match_run_backend_provenance(
+    tmp_path: Path,
+    field: str,
+    kind: str,
+) -> None:
+    sink = JSONLLoggingSink(tmp_path, rank=0)
+    sink.start_run(_manifest())
+    if kind == "metric":
+        payload = _metric().to_dict()
+        stream = tmp_path / "metrics.jsonl"
+        log = sink.log_metrics
+    else:
+        payload = _trajectory_record().to_dict()
+        stream = tmp_path / "trajectories.jsonl"
+        log = sink.log_trajectory
+    payload[field] = "incompatible-backend"
+    if kind == "trajectory" and field == "backend":
+        trajectory = payload["trajectory"]
+        assert isinstance(trajectory, dict)
+        trajectory["backend_name"] = "incompatible-backend"
+
+    with pytest.raises(ValueError, match="provenance"):
+        log(payload)
+
+    assert stream.read_bytes() == b""

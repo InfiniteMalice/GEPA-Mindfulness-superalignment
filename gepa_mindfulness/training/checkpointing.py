@@ -3,19 +3,24 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import math
+import os
 import random
 import re
 import shutil
+import stat
 import uuid
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any
+from typing import Literal
 
 import torch
+
+from gepa_mindfulness.training.backends.base import BackendCheckpointResult
 
 CHECKPOINT_SCHEMA_VERSION = 1
 _ARTIFACT_NAMES = frozenset({"backend.pt", "training_state.pt"})
@@ -23,6 +28,8 @@ _CHECKPOINT_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\Z")
 _MANIFEST_FIELDS = frozenset(
     {
         "artifact_hashes",
+        "backend_format_version",
+        "backend_step",
         "checkpoint_id",
         "config_hash",
         "dataset_hash",
@@ -34,6 +41,8 @@ _MANIFEST_FIELDS = frozenset(
 _STATE_FIELDS = frozenset(
     {
         "algorithm_state",
+        "backend_format_version",
+        "backend_step",
         "canonical_config",
         "config_hash",
         "dataset_hash",
@@ -47,8 +56,47 @@ _STATE_FIELDS = frozenset(
     }
 )
 
-BackendSave = Callable[[Path], object]
-BackendLoad = Callable[[Path], object]
+BackendSave = Callable[[Path], BackendCheckpointResult]
+BackendBytes = Callable[[bytes], BackendCheckpointResult]
+
+
+@dataclass(frozen=True)
+class CheckpointRNGTopology:
+    """Closed CPU/CUDA RNG-state shape selected for one checkpoint process."""
+
+    device_type: Literal["cpu", "cuda"]
+    cpu_state_length: int
+    cuda_state_lengths: tuple[int, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.device_type not in {"cpu", "cuda"}:
+            raise ValueError("checkpoint RNG device_type must be 'cpu' or 'cuda'")
+        _validate_positive_integer(self.cpu_state_length, "cpu_state_length")
+        if not isinstance(self.cuda_state_lengths, tuple):
+            raise TypeError("cuda_state_lengths must be a tuple")
+        for index, length in enumerate(self.cuda_state_lengths):
+            _validate_positive_integer(length, f"cuda_state_lengths[{index}]")
+        if self.device_type == "cpu" and self.cuda_state_lengths:
+            raise ValueError("CPU checkpoint topology cannot include CUDA RNG states")
+        if self.device_type == "cuda" and not self.cuda_state_lengths:
+            raise ValueError("CUDA checkpoint topology requires at least one CUDA RNG state")
+
+    @classmethod
+    def current(cls, *, device_type: Literal["cpu", "cuda"] = "cpu") -> "CheckpointRNGTopology":
+        """Capture exact RNG lengths for the selected current process topology."""
+        cpu_length = len(torch.get_rng_state())
+        if device_type == "cpu":
+            return cls(device_type="cpu", cpu_state_length=cpu_length)
+        if not torch.cuda.is_available():
+            raise RuntimeError("CUDA RNG topology requires an available CUDA runtime")
+        lengths = tuple(
+            len(torch.cuda.get_rng_state(index)) for index in range(torch.cuda.device_count())
+        )
+        return cls(
+            device_type="cuda",
+            cpu_state_length=cpu_length,
+            cuda_state_lengths=lengths,
+        )
 
 
 @dataclass(frozen=True)
@@ -104,6 +152,8 @@ class CheckpointManifest:
     path: Path
     checkpoint_id: str
     global_step: int
+    backend_format_version: int
+    backend_step: int
     dataset_hash: str
     config_hash: str
     parent_checkpoint: str | None
@@ -115,6 +165,10 @@ class CheckpointManifest:
             raise TypeError("checkpoint manifest path must be a pathlib.Path")
         _validate_checkpoint_id(self.checkpoint_id)
         _validate_non_negative_integer(self.global_step, "global_step")
+        _validate_positive_integer(self.backend_format_version, "backend_format_version")
+        _validate_non_negative_integer(self.backend_step, "backend_step")
+        if self.backend_step != self.global_step:
+            raise ValueError("checkpoint backend step must match global_step")
         _validate_sha256(self.dataset_hash, "dataset_hash")
         _validate_sha256(self.config_hash, "config_hash")
         _validate_optional_string(self.parent_checkpoint, "parent_checkpoint")
@@ -135,6 +189,8 @@ class CheckpointManifest:
         """Return the closed serialized manifest schema."""
         return {
             "artifact_hashes": dict(self.artifact_hashes),
+            "backend_format_version": self.backend_format_version,
+            "backend_step": self.backend_step,
             "checkpoint_id": self.checkpoint_id,
             "config_hash": self.config_hash,
             "dataset_hash": self.dataset_hash,
@@ -152,6 +208,8 @@ class CheckpointManifest:
             path=path,
             checkpoint_id=payload["checkpoint_id"],
             global_step=payload["global_step"],
+            backend_format_version=payload["backend_format_version"],
+            backend_step=payload["backend_step"],
             dataset_hash=payload["dataset_hash"],
             config_hash=payload["config_hash"],
             parent_checkpoint=payload["parent_checkpoint"],
@@ -171,7 +229,7 @@ class RestoredCheckpoint:
     torch_cpu_rng_state: torch.Tensor
     torch_cuda_rng_states: tuple[torch.Tensor, ...]
     canonical_config: Mapping[str, object]
-    backend_result: object = None
+    backend_result: BackendCheckpointResult | None = None
 
     @property
     def path(self) -> Path:
@@ -206,17 +264,25 @@ class LocalCheckpointStore:
         root: Path,
         *,
         backend_save: BackendSave | None = None,
-        backend_load: BackendLoad | None = None,
+        backend_preflight: BackendBytes | None = None,
+        backend_load_bytes: BackendBytes | None = None,
+        rng_topology: CheckpointRNGTopology | None = None,
     ) -> None:
         if not isinstance(root, Path):
             raise TypeError("checkpoint root must be a pathlib.Path")
         if backend_save is not None and not callable(backend_save):
             raise TypeError("backend_save must be callable")
-        if backend_load is not None and not callable(backend_load):
-            raise TypeError("backend_load must be callable")
+        if backend_preflight is not None and not callable(backend_preflight):
+            raise TypeError("backend_preflight must be callable")
+        if backend_load_bytes is not None and not callable(backend_load_bytes):
+            raise TypeError("backend_load_bytes must be callable")
+        if rng_topology is not None and not isinstance(rng_topology, CheckpointRNGTopology):
+            raise TypeError("rng_topology must be a CheckpointRNGTopology")
         self.root = root.resolve(strict=False)
         self.backend_save = backend_save
-        self.backend_load = backend_load
+        self.backend_preflight = backend_preflight
+        self.backend_load_bytes = backend_load_bytes
+        self.rng_topology = rng_topology or CheckpointRNGTopology.current()
 
     def save(
         self,
@@ -229,6 +295,10 @@ class LocalCheckpointStore:
             raise TypeError("snapshot must be a CheckpointSnapshot")
         if self.backend_save is None:
             raise RuntimeError("backend_save is required to create a checkpoint")
+        self._validate_rng_topology(
+            snapshot.torch_cpu_rng_state,
+            snapshot.torch_cuda_rng_states,
+        )
         selected_id = checkpoint_id or f"checkpoint-{snapshot.global_step:08d}"
         _validate_checkpoint_id(selected_id)
         self.root.mkdir(parents=True, exist_ok=True)
@@ -239,16 +309,27 @@ class LocalCheckpointStore:
         temporary.mkdir()
         try:
             backend_path = temporary / "backend.pt"
-            self.backend_save(backend_path)
-            if not backend_path.is_file() or backend_path.is_symlink():
-                raise RuntimeError("backend_save must create one regular backend.pt artifact")
+            backend_result = _validate_backend_result(
+                self.backend_save(backend_path),
+                expected_step=snapshot.global_step,
+                field_name="backend save",
+            )
+            backend_payload = self._read_regular_bytes(backend_path, "backend.pt")
             state_path = temporary / "training_state.pt"
-            torch.save(self._snapshot_payload(snapshot), state_path)
-            hashes = {name: self.sha256(temporary / name) for name in sorted(_ARTIFACT_NAMES)}
+            state_buffer = io.BytesIO()
+            torch.save(self._snapshot_payload(snapshot, backend_result), state_buffer)
+            state_payload = state_buffer.getvalue()
+            self._write_bytes(state_path, state_payload)
+            hashes = {
+                "backend.pt": self.sha256_bytes(backend_payload),
+                "training_state.pt": self.sha256_bytes(state_payload),
+            }
             manifest = CheckpointManifest(
                 path=destination,
                 checkpoint_id=selected_id,
                 global_step=snapshot.global_step,
+                backend_format_version=backend_result.format_version,
+                backend_step=backend_result.step,
                 dataset_hash=snapshot.dataset_hash,
                 config_hash=snapshot.config_hash,
                 parent_checkpoint=snapshot.parent_checkpoint,
@@ -281,15 +362,29 @@ class LocalCheckpointStore:
     ) -> RestoredCheckpoint:
         """Validate every artifact before invoking the backend restoration callback."""
         checkpoint = self._operator_selected_path(source)
-        restored = self._load_validated(
+        restored, artifacts = self._load_validated(
             checkpoint,
             expected_checkpoint_id=checkpoint.name,
             expected_dataset_hash=expected_dataset_hash,
             expected_config_hash=expected_config_hash,
         )
-        if self.backend_load is None:
-            raise RuntimeError("backend_load is required to restore a checkpoint")
-        backend_result = self.backend_load(checkpoint / "backend.pt")
+        if self.backend_preflight is None or self.backend_load_bytes is None:
+            raise RuntimeError(
+                "backend_preflight and backend_load_bytes are required to restore a checkpoint"
+            )
+        backend_payload = artifacts["backend.pt"]
+        _validate_backend_result(
+            self.backend_preflight(backend_payload),
+            expected_step=restored.manifest.backend_step,
+            expected_format=restored.manifest.backend_format_version,
+            field_name="backend preflight",
+        )
+        backend_result = _validate_backend_result(
+            self.backend_load_bytes(backend_payload),
+            expected_step=restored.manifest.backend_step,
+            expected_format=restored.manifest.backend_format_version,
+            field_name="backend restore",
+        )
         return RestoredCheckpoint(
             manifest=restored.manifest,
             algorithm_state=restored.algorithm_state,
@@ -304,20 +399,38 @@ class LocalCheckpointStore:
     @staticmethod
     def sha256(path: Path) -> str:
         """Return the lowercase SHA-256 digest of one regular artifact."""
-        digest = hashlib.sha256()
-        with path.open("rb") as stream:
-            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-                digest.update(chunk)
-        return digest.hexdigest()
+        return LocalCheckpointStore.sha256_bytes(
+            LocalCheckpointStore._read_regular_bytes(path, path.name)
+        )
+
+    @staticmethod
+    def sha256_bytes(payload: bytes) -> str:
+        """Return the lowercase SHA-256 digest of an immutable artifact payload."""
+        return hashlib.sha256(payload).hexdigest()
 
     def _operator_selected_path(self, source: Path) -> Path:
         if not isinstance(source, Path):
             raise TypeError("checkpoint source must be a pathlib.Path")
+        try:
+            source_status = source.lstat()
+        except OSError as error:
+            raise ValueError("checkpoint source must be an existing regular directory") from error
+        if stat.S_ISLNK(source_status.st_mode):
+            raise ValueError("checkpoint source must not be a symlink")
         resolved = source.resolve(strict=False)
         if resolved.parent != self.root:
             raise ValueError("checkpoint source must be a direct child of the checkpoint root")
-        if not resolved.is_dir() or resolved.is_symlink():
+        if not stat.S_ISDIR(source_status.st_mode):
             raise ValueError("checkpoint source must be an existing regular directory")
+        try:
+            resolved_status = resolved.lstat()
+        except OSError as error:
+            raise ValueError("checkpoint source changed while it was resolved") from error
+        if (source_status.st_dev, source_status.st_ino) != (
+            resolved_status.st_dev,
+            resolved_status.st_ino,
+        ):
+            raise ValueError("checkpoint source changed while it was resolved")
         return resolved
 
     def _load_validated(
@@ -327,7 +440,7 @@ class LocalCheckpointStore:
         expected_checkpoint_id: str,
         expected_dataset_hash: str | None,
         expected_config_hash: str | None,
-    ) -> RestoredCheckpoint:
+    ) -> tuple[RestoredCheckpoint, Mapping[str, bytes]]:
         try:
             directory_fields = {item.name for item in checkpoint.iterdir()}
         except OSError as error:
@@ -335,9 +448,12 @@ class LocalCheckpointStore:
         expected_fields = {*_ARTIFACT_NAMES, "manifest.json"}
         if directory_fields != expected_fields:
             raise ValueError("checkpoint directory fields are missing or unrecognized")
-        manifest_path = checkpoint / "manifest.json"
         try:
-            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+            artifact_payloads = {
+                name: self._read_regular_bytes(checkpoint / name, name)
+                for name in (*sorted(_ARTIFACT_NAMES), "manifest.json")
+            }
+            payload = json.loads(artifact_payloads["manifest.json"].decode("utf-8"))
         except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
             raise ValueError("checkpoint manifest is unreadable or invalid JSON") from error
         manifest = CheckpointManifest.from_dict(checkpoint, payload)
@@ -354,37 +470,43 @@ class LocalCheckpointStore:
             "config_hash",
         )
         for name, expected_digest in manifest.artifact_hashes.items():
-            artifact = checkpoint / name
-            if artifact.parent != checkpoint or not artifact.is_file() or artifact.is_symlink():
-                raise ValueError(f"checkpoint artifact {name} is missing or unsafe")
-            if self.sha256(artifact) != expected_digest:
+            if self.sha256_bytes(artifact_payloads[name]) != expected_digest:
                 raise ValueError(f"checkpoint artifact {name} failed SHA-256 verification")
-        state = self._load_state(checkpoint / "training_state.pt")
+        state = self._load_state(artifact_payloads["training_state.pt"])
         self._validate_state_matches_manifest(state, manifest)
-        return RestoredCheckpoint(
+        cpu_rng = _validate_rng_tensor(state["torch_cpu_rng_state"], "torch_cpu_rng_state")
+        cuda_value = state["torch_cuda_rng_states"]
+        if not isinstance(cuda_value, (list, tuple)):
+            raise ValueError("checkpoint torch_cuda_rng_states must be a sequence")
+        cuda_rng = tuple(
+            _validate_rng_tensor(item, f"torch_cuda_rng_states[{index}]")
+            for index, item in enumerate(cuda_value)
+        )
+        self._validate_rng_topology(cpu_rng, cuda_rng)
+        restored = RestoredCheckpoint(
             manifest=manifest,
             algorithm_state=MappingProxyType(
                 _state_mapping(state["algorithm_state"], "algorithm_state")
             ),
             scheduler_state=self._restored_scheduler_state(state["scheduler_state"]),
             python_rng_state=state["python_rng_state"],
-            torch_cpu_rng_state=_validate_rng_tensor(
-                state["torch_cpu_rng_state"],
-                "torch_cpu_rng_state",
-            ),
-            torch_cuda_rng_states=tuple(
-                _validate_rng_tensor(item, f"torch_cuda_rng_states[{index}]")
-                for index, item in enumerate(state["torch_cuda_rng_states"])
-            ),
+            torch_cpu_rng_state=cpu_rng,
+            torch_cuda_rng_states=cuda_rng,
             canonical_config=MappingProxyType(
                 _state_mapping(state["canonical_config"], "canonical_config")
             ),
         )
+        return restored, MappingProxyType(artifact_payloads)
 
     @staticmethod
-    def _snapshot_payload(snapshot: CheckpointSnapshot) -> dict[str, object]:
+    def _snapshot_payload(
+        snapshot: CheckpointSnapshot,
+        backend_result: BackendCheckpointResult,
+    ) -> dict[str, object]:
         return {
             "algorithm_state": dict(snapshot.algorithm_state),
+            "backend_format_version": backend_result.format_version,
+            "backend_step": backend_result.step,
             "canonical_config": dict(snapshot.canonical_config),
             "config_hash": snapshot.config_hash,
             "dataset_hash": snapshot.dataset_hash,
@@ -400,14 +522,65 @@ class LocalCheckpointStore:
         }
 
     @staticmethod
-    def _load_state(path: Path) -> Mapping[str, Any]:
+    def _load_state(payload_bytes: bytes) -> Mapping[str, object]:
         try:
-            payload = torch.load(path, map_location="cpu", weights_only=True)
+            payload = torch.load(io.BytesIO(payload_bytes), map_location="cpu", weights_only=True)
         except (OSError, RuntimeError, EOFError, ValueError) as error:
             raise ValueError("checkpoint training state is unreadable or unsafe") from error
         if not isinstance(payload, Mapping) or set(payload) != _STATE_FIELDS:
             raise ValueError("checkpoint training state fields are missing or unrecognized")
         return payload
+
+    def _validate_rng_topology(
+        self,
+        cpu_state: torch.Tensor,
+        cuda_states: tuple[torch.Tensor, ...],
+    ) -> None:
+        if len(cpu_state) != self.rng_topology.cpu_state_length:
+            raise ValueError("checkpoint CPU RNG state length does not match the selected topology")
+        if self.rng_topology.device_type == "cpu" and cuda_states:
+            raise ValueError("checkpoint CUDA RNG states are forbidden for a CPU topology")
+        if len(cuda_states) != len(self.rng_topology.cuda_state_lengths):
+            raise ValueError("checkpoint CUDA RNG state count does not match the selected topology")
+        for index, (state, expected_length) in enumerate(
+            zip(cuda_states, self.rng_topology.cuda_state_lengths, strict=True)
+        ):
+            if len(state) != expected_length:
+                raise ValueError(
+                    f"checkpoint CUDA RNG state length for device {index} does not match topology"
+                )
+
+    @staticmethod
+    def _read_regular_bytes(path: Path, field_name: str) -> bytes:
+        try:
+            before = path.lstat()
+            if stat.S_ISLNK(before.st_mode):
+                raise ValueError(f"checkpoint {field_name} must not be a symlink")
+            if not stat.S_ISREG(before.st_mode):
+                raise ValueError(f"checkpoint {field_name} must be a regular file")
+            flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+            descriptor = os.open(path, flags)
+            try:
+                after = os.fstat(descriptor)
+                if (before.st_dev, before.st_ino) != (after.st_dev, after.st_ino):
+                    raise ValueError(f"checkpoint {field_name} changed while it was opened")
+                with os.fdopen(descriptor, "rb", closefd=False) as stream:
+                    return stream.read()
+            finally:
+                os.close(descriptor)
+        except ValueError:
+            raise
+        except OSError as error:
+            raise ValueError(f"checkpoint {field_name} is missing or unsafe") from error
+
+    @staticmethod
+    def _write_bytes(path: Path, payload: bytes) -> None:
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0)
+        descriptor = os.open(path, flags, 0o600)
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
 
     @staticmethod
     def _validate_state_matches_manifest(
@@ -415,6 +588,8 @@ class LocalCheckpointStore:
         manifest: CheckpointManifest,
     ) -> None:
         expected = {
+            "backend_format_version": manifest.backend_format_version,
+            "backend_step": manifest.backend_step,
             "config_hash": manifest.config_hash,
             "dataset_hash": manifest.dataset_hash,
             "global_step": manifest.global_step,
@@ -452,7 +627,7 @@ class LocalCheckpointStore:
     @staticmethod
     def _write_json(path: Path, payload: Mapping[str, object]) -> None:
         serialized = json.dumps(payload, allow_nan=False, sort_keys=True, separators=(",", ":"))
-        path.write_text(serialized + "\n", encoding="utf-8")
+        LocalCheckpointStore._write_bytes(path, (serialized + "\n").encode("utf-8"))
 
     def _remove_temporary(self, temporary: Path) -> None:
         resolved = temporary.resolve(strict=False)
@@ -472,6 +647,30 @@ def _validate_non_negative_integer(value: object, field_name: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f"{field_name} must be a non-negative integer")
     return value
+
+
+def _validate_positive_integer(value: object, field_name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ValueError(f"{field_name} must be a positive integer")
+    return value
+
+
+def _validate_backend_result(
+    result: object,
+    *,
+    expected_step: int,
+    field_name: str,
+    expected_format: int | None = None,
+) -> BackendCheckpointResult:
+    if not isinstance(result, BackendCheckpointResult):
+        raise TypeError(f"{field_name} must return BackendCheckpointResult")
+    _validate_positive_integer(result.format_version, f"{field_name} format_version")
+    _validate_non_negative_integer(result.step, f"{field_name} step")
+    if result.step != expected_step:
+        raise ValueError(f"{field_name} backend step does not match global step")
+    if expected_format is not None and result.format_version != expected_format:
+        raise ValueError(f"{field_name} format_version does not match the manifest")
+    return result
 
 
 def _validate_optional_string(value: object, field_name: str) -> str | None:
@@ -534,6 +733,7 @@ def _state_value(value: object, field_name: str) -> object:
 __all__ = [
     "CHECKPOINT_SCHEMA_VERSION",
     "CheckpointManifest",
+    "CheckpointRNGTopology",
     "CheckpointSnapshot",
     "LocalCheckpointStore",
     "RestoredCheckpoint",
