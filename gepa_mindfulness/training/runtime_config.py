@@ -391,6 +391,16 @@ def load_rl_config(path: str | Path) -> RLRunConfig:
 
 
 def _is_canonical(payload: Mapping[str, Any]) -> bool:
+    canonical_sections = {"algorithm", "checkpoint", "logging", "policy", "reward", "runtime"}
+    if set(payload).intersection(canonical_sections):
+        return True
+    dataset = payload.get("dataset")
+    if isinstance(dataset, Mapping):
+        canonical_dataset_keys = {"format", "train_path", "validation_path"}
+        if set(dataset).intersection(canonical_dataset_keys):
+            return True
+        if "path" in dataset:
+            return False
     legacy_keys = {
         "device",
         "grpo",
@@ -404,9 +414,6 @@ def _is_canonical(payload: Mapping[str, Any]) -> bool:
         "training",
     }
     if set(payload).intersection(legacy_keys):
-        return False
-    dataset = payload.get("dataset")
-    if isinstance(dataset, Mapping) and "path" in dataset:
         return False
     return True
 

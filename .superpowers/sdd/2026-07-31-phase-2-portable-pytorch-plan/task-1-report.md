@@ -146,3 +146,60 @@ GREEN output: `30 passed in 0.81s`; exit code 0.
 ### Fix commit
 
 `fix: harden canonical RL config compatibility`
+
+## Review fix round 2/5
+
+### Disposition
+
+- Canonical section presence now takes precedence over all legacy root markers. Mixed files are
+  parsed canonically, so the legacy root keys fail strict unknown-key validation instead of being
+  translated.
+- All ten legacy markers recognized by the compatibility detector are covered in mixed-format
+  regression cases.
+- Dataset detection inspects subkeys: `train_path`, `validation_path`, or `format` selects strict
+  canonical parsing; legacy `path` alone selects translation; canonical plus legacy or unknown
+  subkeys are rejected by canonical validation.
+- Pure legacy device, GRPO, and `dataset.path` configurations remain translatable.
+- Both warning-attribution tests now assert that exactly one warning is emitted.
+
+### TDD evidence
+
+RED command:
+
+```powershell
+& 'C:\Users\evanh\Documents\Codex\work\g\Scripts\python.exe' -m pytest tests/test_rl_runtime_config.py tests/test_config.py tests/test_training_configs.py -q
+```
+
+RED output: `11 failed, 34 passed, 11 warnings in 1.71s`; exit code 1. All ten mixed
+canonical/legacy root-marker cases and the dataset containing both `train_path` and `path` failed
+because they were incorrectly translated.
+
+GREEN command:
+
+```powershell
+& 'C:\Users\evanh\Documents\Codex\work\g\Scripts\python.exe' -m pytest tests/test_rl_runtime_config.py tests/test_config.py tests/test_training_configs.py -q
+```
+
+GREEN output: `45 passed in 1.02s`; exit code 0.
+
+### Static checks
+
+- Black check: `6 files would be left unchanged`; exit code 0.
+- Ruff: `All checks passed!`; exit code 0.
+- Compileall for `runtime_config.py`: exit code 0.
+- Changed Python line-length check: all lines at most 100 characters; exit code 0.
+- `git diff --check`: exit code 0.
+
+### Self-review
+
+- Detection precedence is explicit and local: canonical sections, canonical dataset subkeys,
+  legacy dataset `path`, legacy root markers, then strict canonical fallback.
+- The strict fallback ensures unknown-only mappings are rejected rather than silently translated.
+- No schema, frozen dataclass, device, numeric, loader-return, warning-stacklevel, or example-YAML
+  behavior changed outside the reviewed classification fix.
+- Documentation precision review found no BLOCK or WARN; the detector rules and observable
+  outcomes are explicit and covered by focused tests.
+
+### Fix commit
+
+`fix: reject mixed canonical legacy RL config`

@@ -174,6 +174,7 @@ def test_direct_legacy_translation_warning_points_to_caller() -> None:
         expected_line = inspect.currentframe().f_lineno + 1
         translate_legacy_config({"trainer_type": "ppo"})
 
+    assert len(captured) == 1
     warning = captured[0]
     assert Path(warning.filename).resolve() == Path(__file__).resolve()
     assert warning.lineno == expected_line
@@ -189,6 +190,77 @@ def test_legacy_file_warning_points_to_loader_caller(tmp_path: Path) -> None:
         expected_line = inspect.currentframe().f_lineno + 1
         load_rl_config(path)
 
+    assert len(captured) == 1
     warning = captured[0]
     assert Path(warning.filename).resolve() == Path(__file__).resolve()
     assert warning.lineno == expected_line
+
+
+@pytest.mark.parametrize(
+    ("marker", "value"),
+    [
+        ("device", "cuda"),
+        ("grpo", {"group_size": 4}),
+        ("model", {"name": "legacy-model"}),
+        ("model_name", "legacy-model"),
+        ("output", {"checkpoint_dir": "runs/legacy"}),
+        ("output_dir", "runs/legacy"),
+        ("ppo", {"batch_size": 2}),
+        ("reward_weights", {"alpha": 1.0}),
+        ("trainer_type", "ppo"),
+        ("training", {"max_steps": 2}),
+    ],
+)
+def test_canonical_section_rejects_mixed_legacy_marker(
+    tmp_path: Path,
+    marker: str,
+    value: object,
+) -> None:
+    yaml = pytest.importorskip("yaml")
+    path = tmp_path / "mixed.yaml"
+    payload = {"runtime": {"backend": "pytorch", "device": "cpu"}, marker: value}
+    path.write_text(yaml.safe_dump(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="unknown keys"):
+        load_rl_config(path)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"device": "cpu"},
+        {"trainer_type": "grpo", "grpo": {"group_size": 4}},
+        {"dataset": {"path": "legacy.jsonl"}},
+    ],
+)
+def test_pure_legacy_markers_still_translate(
+    tmp_path: Path,
+    payload: dict[str, object],
+) -> None:
+    yaml = pytest.importorskip("yaml")
+    path = tmp_path / "legacy.yaml"
+    path.write_text(yaml.safe_dump(payload), encoding="utf-8")
+
+    with pytest.warns(DeprecationWarning):
+        config = load_rl_config(path)
+
+    assert isinstance(config, RLRunConfig)
+
+
+@pytest.mark.parametrize(
+    "dataset",
+    [
+        {"train_path": "canonical.jsonl", "path": "legacy.jsonl"},
+        {"unknown": "value"},
+    ],
+)
+def test_dataset_with_canonical_or_unknown_subkeys_uses_strict_parser(
+    tmp_path: Path,
+    dataset: dict[str, object],
+) -> None:
+    yaml = pytest.importorskip("yaml")
+    path = tmp_path / "dataset.yaml"
+    path.write_text(yaml.safe_dump({"dataset": dataset}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="dataset contains unknown keys"):
+        load_rl_config(path)
