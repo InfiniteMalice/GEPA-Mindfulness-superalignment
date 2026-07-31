@@ -24,7 +24,7 @@ class RewardRequest:
     observable_references: tuple[EvidenceReference, ...] = ()
 
     def __post_init__(self) -> None:
-        """Reject evidence that was not recorded in the trajectory trace."""
+        """Reject evidence that was not recorded in the trajectory's typed evidence."""
         if not isinstance(self.observable_references, (list, tuple)) or not all(
             isinstance(reference, EvidenceReference) for reference in self.observable_references
         ):
@@ -37,9 +37,9 @@ class RewardRequest:
                 "Each observable reference must use an observable output, action, or external "
                 "record source kind."
             )
-        if not set(observable_references).issubset(self.trajectory.trace_references):
+        if not set(observable_references).issubset(self.trajectory.evidence_references):
             raise ValueError(
-                "Each observable reference must be recorded in trajectory.trace_references."
+                "Each observable reference must be recorded in trajectory.evidence_references."
             )
         object.__setattr__(self, "observable_references", observable_references)
 

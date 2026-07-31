@@ -60,6 +60,38 @@ def test_trajectory_json_uses_return_key_and_restores_token_sequences() -> None:
     assert restored.returns == (0.5, 0.25)
 
 
+def test_trajectory_constructs_and_round_trips_legacy_string_trace_references() -> None:
+    """Legacy diagnostic trace IDs stay strings across construction and JSON restoration."""
+    trajectory = Trajectory(
+        trajectory_id="traj-legacy-trace",
+        case_id="case-1",
+        prompt="prompt",
+        response="response",
+        trace_references=("legacy-trace-17",),
+    )
+
+    payload = json.loads(json.dumps(trajectory.to_dict()))
+    restored = Trajectory.from_dict(payload)
+
+    assert trajectory.trace_references == ("legacy-trace-17",)
+    assert payload["trace_references"] == ["legacy-trace-17"]
+    assert "evidence_references" not in payload
+    assert restored.trace_references == ("legacy-trace-17",)
+    assert restored.evidence_references == ()
+
+
+def test_trajectory_restores_prior_json_without_evidence_references() -> None:
+    """Older JSON with only string trace IDs remains a valid trajectory record."""
+    payload = Trajectory.minimal("traj-prior-json", "prompt", "response").to_dict()
+    payload["trace_references"] = ["legacy-trace-18"]
+    payload.pop("evidence_references", None)
+
+    restored = Trajectory.from_dict(payload)
+
+    assert restored.trace_references == ("legacy-trace-18",)
+    assert restored.evidence_references == ()
+
+
 def test_trajectory_is_immutable() -> None:
     """A recorded rollout cannot be reassigned after reward or policy evaluation."""
     trajectory = Trajectory.minimal("traj-1", "prompt", "response")
@@ -98,27 +130,47 @@ def test_negative_reward_component_requires_recorded_component_evidence() -> Non
             prompt="prompt",
             response="response",
             reward_components={"feedback_integrity": -0.5},
-            trace_references=(evidence_reference(),),
+            trace_references=("legacy-trace-19",),
         )
 
 
-def test_negative_reward_component_accepts_recorded_component_evidence() -> None:
-    """Negative reward components retain the trace reference that substantiates them."""
+def test_legacy_trace_id_cannot_authorize_negative_reward_component() -> None:
+    """A diagnostic trace ID cannot substitute for typed reward evidence."""
+    with pytest.raises(ValueError, match="feedback_integrity.*recorded evidence"):
+        Trajectory(
+            trajectory_id="traj-legacy-evidence",
+            case_id="case-1",
+            prompt="prompt",
+            response="response",
+            reward_components={"feedback_integrity": -0.5},
+            reward_component_evidence={"feedback_integrity": (evidence_reference(),)},
+            trace_references=("legacy-trace-20",),
+        )
+
+
+def test_negative_reward_component_uses_separate_typed_evidence_references() -> None:
+    """Typed evidence authorizes a penalty and serializes outside legacy trace IDs."""
+    reference = evidence_reference()
     trajectory = Trajectory(
         trajectory_id="traj-5",
         case_id="case-1",
         prompt="prompt",
         response="response",
         reward_components={"feedback_integrity": -0.5},
-        reward_component_evidence={"feedback_integrity": (evidence_reference(),)},
-        trace_references=(evidence_reference(),),
+        reward_component_evidence={"feedback_integrity": (reference,)},
+        trace_references=("legacy-trace-21",),
+        evidence_references=(reference,),
     )
 
-    restored = Trajectory.from_dict(trajectory.to_dict())
+    payload = trajectory.to_dict()
+    restored = Trajectory.from_dict(payload)
 
     assert restored.reward_component_evidence == {
-        "feedback_integrity": (evidence_reference(),),
+        "feedback_integrity": (reference,),
     }
+    assert payload["trace_references"] == ["legacy-trace-21"]
+    assert payload["evidence_references"] == [reference.to_dict()]
+    assert restored.evidence_references == (reference,)
 
 
 def test_reward_request_accepts_only_recorded_observable_evidence() -> None:
@@ -128,7 +180,8 @@ def test_reward_request_accepts_only_recorded_observable_evidence() -> None:
         case_id="case-1",
         prompt="prompt",
         response="response",
-        trace_references=(evidence_reference(),),
+        trace_references=("legacy-trace-22",),
+        evidence_references=(evidence_reference(),),
     )
 
     request = RewardRequest(
@@ -155,7 +208,8 @@ def test_reward_request_copies_observable_references_before_validation() -> None
         case_id="case-1",
         prompt="prompt",
         response="response",
-        trace_references=(evidence_reference(),),
+        trace_references=("legacy-trace-23",),
+        evidence_references=(evidence_reference(),),
     )
     references = [evidence_reference()]
 
@@ -168,7 +222,7 @@ def test_reward_request_copies_observable_references_before_validation() -> None
     assert request.observable_references == (evidence_reference(),)
 
 
-def test_trajectory_copies_trace_references_before_binding_negative_evidence() -> None:
+def test_trajectory_copies_evidence_references_before_binding_negative_evidence() -> None:
     """Later list mutation cannot invalidate a negative reward's recorded evidence."""
     references = [evidence_reference()]
     trajectory = Trajectory(
@@ -178,14 +232,15 @@ def test_trajectory_copies_trace_references_before_binding_negative_evidence() -
         response="response",
         reward_components={"feedback_integrity": -0.5},
         reward_component_evidence={"feedback_integrity": (evidence_reference(),)},
-        trace_references=references,
+        trace_references=("legacy-trace-24",),
+        evidence_references=references,
     )
     references[0] = evidence_reference(
         "private-reasoning",
         EvidenceSourceKind.PRIVATE_REASONING,
     )
 
-    assert trajectory.trace_references == (evidence_reference(),)
+    assert trajectory.evidence_references == (evidence_reference(),)
 
 
 def test_trajectory_retains_existing_positional_argument_order() -> None:
@@ -234,7 +289,7 @@ def test_internal_evidence_source_kinds_cannot_authorize_negative_rewards(
             response="response",
             reward_components={"feedback_integrity": -0.5},
             reward_component_evidence={"feedback_integrity": (reference,)},
-            trace_references=(reference,),
+            evidence_references=(reference,),
         )
 
 
@@ -276,7 +331,7 @@ def test_reward_request_accepts_each_explicit_observable_source_kind(
         case_id="case-1",
         prompt="prompt",
         response="response",
-        trace_references=(reference,),
+        evidence_references=(reference,),
     )
 
     request = RewardRequest(trajectory=trajectory, observable_references=(reference,))

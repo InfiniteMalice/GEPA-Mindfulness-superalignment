@@ -92,7 +92,7 @@ def request_with_components(
         response="response",
         reward_components=components,
         reward_component_evidence=evidence or {},
-        trace_references=references,
+        evidence_references=references,
     )
     return RewardRequest(trajectory=trajectory, observable_references=references)
 

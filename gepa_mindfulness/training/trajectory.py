@@ -106,6 +106,17 @@ def _evidence_reference_tuple(
     return tuple(value)
 
 
+def _string_tuple(value: object | None, field_name: str) -> tuple[str, ...]:
+    """Return an immutable array of legacy diagnostic string references."""
+    if value is None:
+        return ()
+    if not isinstance(value, (list, tuple)):
+        raise ValueError(f"Expected an array or null for {field_name}.")
+    if not all(isinstance(item, str) for item in value):
+        raise ValueError(f"Expected string values for {field_name}.")
+    return tuple(value)
+
+
 def _component_evidence(
     value: object | None,
     *,
@@ -149,14 +160,15 @@ class Trajectory:
     adapter_identifier: str | None = None
     policy_version: str | None = None
     seed: int | None = None
-    trace_references: tuple[EvidenceReference, ...] = ()
+    trace_references: tuple[str, ...] = ()
+    evidence_references: tuple[EvidenceReference, ...] = field(default=(), kw_only=True)
     reward_component_evidence: Mapping[str, tuple[EvidenceReference, ...]] = field(
         default_factory=dict,
         kw_only=True,
     )
 
     def __post_init__(self) -> None:
-        """Validate reward signals and bind negative values to recorded evidence."""
+        """Validate reward signals and bind negative values to typed recorded evidence."""
         for field_name in (
             "trajectory_id",
             "prompt",
@@ -184,9 +196,10 @@ class Trajectory:
         reward_total = _optional_float(self.reward_total, "reward_total")
         seed = _optional_int(self.seed, "seed")
         sampling_parameters = _mapping(self.sampling_parameters, "sampling_parameters")
-        trace_references = _evidence_reference_tuple(
-            self.trace_references,
-            "trace_references",
+        trace_references = _string_tuple(self.trace_references, "trace_references")
+        evidence_references = _evidence_reference_tuple(
+            self.evidence_references,
+            "evidence_references",
         )
 
         if not isinstance(self.reward_components, Mapping):
@@ -204,7 +217,7 @@ class Trajectory:
                 )
             components[component] = numeric_value
 
-        recorded_references = set(trace_references)
+        recorded_references = set(evidence_references)
         component_evidence = _component_evidence(self.reward_component_evidence)
         for component, references in component_evidence.items():
             if component not in components:
@@ -212,7 +225,9 @@ class Trajectory:
                     f"Evidence was provided for unknown reward component {component!r}."
                 )
             if not set(references).issubset(recorded_references):
-                raise ValueError(f"Evidence for {component!r} must use recorded trace references.")
+                raise ValueError(
+                    f"Evidence for {component!r} must use recorded evidence references."
+                )
 
         for component, value in components.items():
             if value < 0.0 and not component_evidence.get(component):
@@ -235,6 +250,7 @@ class Trajectory:
         object.__setattr__(self, "reward_components", MappingProxyType(components))
         object.__setattr__(self, "reward_component_evidence", MappingProxyType(component_evidence))
         object.__setattr__(self, "trace_references", trace_references)
+        object.__setattr__(self, "evidence_references", evidence_references)
         object.__setattr__(
             self,
             "sampling_parameters",
@@ -253,7 +269,7 @@ class Trajectory:
 
     def to_dict(self) -> dict[str, object]:
         """Convert this trajectory to the stable JSON representation."""
-        return {
+        data: dict[str, object] = {
             "trajectory_id": self.trajectory_id,
             "case_id": self.case_id,
             "prompt": self.prompt,
@@ -278,8 +294,13 @@ class Trajectory:
             "adapter_identifier": self.adapter_identifier,
             "policy_version": self.policy_version,
             "seed": self.seed,
-            "trace_references": [reference.to_dict() for reference in self.trace_references],
+            "trace_references": list(self.trace_references),
         }
+        if self.evidence_references:
+            data["evidence_references"] = [
+                reference.to_dict() for reference in self.evidence_references
+            ]
+        return data
 
     @classmethod
     def from_dict(cls, data: Mapping[str, object]) -> "Trajectory":
@@ -330,9 +351,10 @@ class Trajectory:
             ),
             policy_version=_optional_string(data.get("policy_version"), "policy_version"),
             seed=_optional_int(data.get("seed"), "seed"),
-            trace_references=_evidence_reference_tuple(
-                data.get("trace_references"),
-                "trace_references",
+            trace_references=_string_tuple(data.get("trace_references"), "trace_references"),
+            evidence_references=_evidence_reference_tuple(
+                data.get("evidence_references"),
+                "evidence_references",
                 restore=True,
             ),
         )

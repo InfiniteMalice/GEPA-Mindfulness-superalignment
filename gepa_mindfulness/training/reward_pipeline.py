@@ -103,7 +103,9 @@ class RewardPipeline:
                 "Enabled overlay requires a complete authored observation with exactly the eight "
                 "reward-integrity components."
             )
-        allowed_references = set(request.observable_references)
+        allowed_references = set(request.observable_references).intersection(
+            trajectory.evidence_references
+        )
         evidence: dict[str, tuple[EvidenceReference, ...]] = {}
         for name in COMPONENT_NAMES:
             references = tuple(trajectory.reward_component_evidence.get(name, ()))
