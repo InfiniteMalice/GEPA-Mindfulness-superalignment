@@ -7,7 +7,13 @@ from pathlib import Path
 from typing import Protocol, Sequence, runtime_checkable
 
 from .capability import BackendCapabilities, Capability
-from .trajectory import PolicyEvaluation, RolloutRequest, Trajectory, TrajectoryBatch
+from .trajectory import (
+    EvidenceReference,
+    PolicyEvaluation,
+    RolloutRequest,
+    Trajectory,
+    TrajectoryBatch,
+)
 
 
 @dataclass(frozen=True)
@@ -15,15 +21,22 @@ class RewardRequest:
     """A reward-scoring request restricted to trajectory-recorded observable evidence."""
 
     trajectory: Trajectory
-    observable_references: tuple[str, ...] = ()
+    observable_references: tuple[EvidenceReference, ...] = ()
 
     def __post_init__(self) -> None:
         """Reject evidence that was not recorded in the trajectory trace."""
         if not isinstance(self.observable_references, (list, tuple)) or not all(
-            isinstance(reference, str) for reference in self.observable_references
+            isinstance(reference, EvidenceReference) for reference in self.observable_references
         ):
-            raise ValueError("Expected observable references as a sequence of strings.")
+            raise ValueError(
+                "Expected observable references as a sequence of EvidenceReference values."
+            )
         observable_references = tuple(self.observable_references)
+        if any(not reference.is_observable for reference in observable_references):
+            raise ValueError(
+                "Each observable reference must use an observable output, action, or external "
+                "record source kind."
+            )
         if not set(observable_references).issubset(self.trajectory.trace_references):
             raise ValueError(
                 "Each observable reference must be recorded in trajectory.trace_references."

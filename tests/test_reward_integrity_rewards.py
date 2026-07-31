@@ -17,7 +17,16 @@ from gepa_mindfulness.core.reward_integrity import (
 )
 from gepa_mindfulness.training.contracts import RewardRequest
 from gepa_mindfulness.training.reward_pipeline import RewardPipeline
-from gepa_mindfulness.training.trajectory import Trajectory
+from gepa_mindfulness.training.trajectory import (
+    EvidenceReference,
+    EvidenceSourceKind,
+    Trajectory,
+)
+
+OBSERVABLE_REFERENCE = EvidenceReference(
+    reference_id="observable-audit-record",
+    source_kind=EvidenceSourceKind.EXTERNAL_RECORD,
+)
 
 
 @dataclass(frozen=True)
@@ -51,13 +60,13 @@ def observation(**overrides: object) -> RewardObservation:
     }
     values.update(overrides)
     evidence = {
-        name: ("observable-audit-record",)
+        name: (OBSERVABLE_REFERENCE,)
         for name, value in values.items()
         if isinstance(value, (int, float)) and value < 0.0
     }
     return RewardObservation(  # type: ignore[arg-type]
         observable_evidence=evidence,
-        observable_references=("observable-audit-record",),
+        observable_references=(OBSERVABLE_REFERENCE,),
         **values,
     )
 
@@ -72,8 +81,8 @@ def public_breakdown(**overrides: object) -> RewardIntegrityBreakdown:
 
 def request_with_components(
     components: dict[str, float],
-    evidence: dict[str, tuple[str, ...]] | None = None,
-    references: tuple[str, ...] = ("observable-audit-record",),
+    evidence: dict[str, tuple[EvidenceReference, ...]] | None = None,
+    references: tuple[EvidenceReference, ...] = (OBSERVABLE_REFERENCE,),
 ) -> RewardRequest:
     """Build a typed request whose evidence is recorded by the immutable trajectory."""
     trajectory = Trajectory(
@@ -86,6 +95,13 @@ def request_with_components(
         trace_references=references,
     )
     return RewardRequest(trajectory=trajectory, observable_references=references)
+
+
+def complete_components(**overrides: float) -> dict[str, float]:
+    """Return an explicit authored value for each overlay component."""
+    components = {name: 0.0 for name in COMPONENT_NAMES}
+    components.update(overrides)
+    return components
 
 
 def test_equal_aggregate_keeps_distinct_components(
@@ -202,21 +218,22 @@ def test_public_breakdown_preserves_nondefault_weighted_aggregate() -> None:
 
 
 @pytest.mark.parametrize(
-    "private_reference",
+    "source_kind",
     [
-        "hidden state",
-        "hidden-thoughts",
-        "activations",
-        "chain-of-thought",
-        "private scratchpad",
+        EvidenceSourceKind.PRIVATE_REASONING,
+        EvidenceSourceKind.LATENT_STATE,
+        EvidenceSourceKind.ATTENTION_DATA,
+        EvidenceSourceKind.CACHE_DATA,
     ],
 )
-def test_private_evidence_is_rejected(private_reference: str) -> None:
+def test_private_evidence_is_rejected(source_kind: EvidenceSourceKind) -> None:
     """Private reasoning artifacts cannot be cited as observable evidence."""
-    with pytest.raises(ValueError, match="private model information"):
+    reference = EvidenceReference("internal-evidence", source_kind)
+    with pytest.raises(ValueError, match="observable.*source kind"):
         RewardObservation(
             objective_fidelity=-0.5,
-            observable_evidence={"objective_fidelity": (private_reference,)},
+            observable_evidence={"objective_fidelity": (reference,)},
+            observable_references=(reference,),
         )
 
 
@@ -262,13 +279,67 @@ def test_pipeline_adds_enabled_overlay_from_request_observables() -> None:
         integrity_calculator=RewardIntegrityCalculator(),
         overlay_weight=0.8,
     )
-    request = request_with_components({"objective_fidelity": 1.0})
+    request = request_with_components(complete_components(objective_fidelity=1.0))
 
     result = pipeline.score(request)
 
     assert result.integrity_breakdown is not None
     assert result.integrity_breakdown.objective_fidelity == 1.0
     assert isclose(result.total, 0.5)
+
+
+def test_enabled_pipeline_rejects_missing_components_instead_of_assuming_neutral() -> None:
+    """An enabled overlay cannot silently turn absent authored values into zeroes."""
+    pipeline = RewardPipeline(
+        StaticRewardProvider(0.4),
+        integrity_calculator=RewardIntegrityCalculator(),
+        overlay_weight=0.8,
+    )
+    request = request_with_components({"objective_fidelity": 1.0})
+
+    with pytest.raises(ValueError, match="complete.*eight.*components"):
+        pipeline.score(request)
+
+
+def test_enabled_pipeline_accepts_explicit_evaluator_observation() -> None:
+    """An evaluator may supply a complete observation when a trajectory has no authored map."""
+    pipeline = RewardPipeline(
+        StaticRewardProvider(0.4),
+        integrity_calculator=RewardIntegrityCalculator(),
+        overlay_weight=0.8,
+    )
+    request = request_with_components({})
+
+    result = pipeline.score(
+        request,
+        observation=observation(objective_fidelity=1.0),
+    )
+
+    assert result.integrity_breakdown is not None
+    assert result.integrity_breakdown.objective_fidelity == 1.0
+    assert isclose(result.total, 0.5)
+
+
+def test_explicit_evaluator_observation_cannot_expand_request_evidence() -> None:
+    """An evaluator result must remain inside the request's typed observable boundary."""
+    pipeline = RewardPipeline(
+        StaticRewardProvider(0.4),
+        integrity_calculator=RewardIntegrityCalculator(),
+        overlay_weight=0.8,
+    )
+    request = request_with_components({})
+    evaluator_reference = EvidenceReference(
+        "evaluator-only-record",
+        EvidenceSourceKind.EXTERNAL_RECORD,
+    )
+    evaluator_observation = RewardObservation(
+        objective_fidelity=-0.5,
+        observable_evidence={"objective_fidelity": (evaluator_reference,)},
+        observable_references=(evaluator_reference,),
+    )
+
+    with pytest.raises(ValueError, match="outside request.observable_references"):
+        pipeline.score(request, observation=evaluator_observation)
 
 
 def test_pipeline_rejects_evidence_outside_request_observables() -> None:
@@ -279,13 +350,20 @@ def test_pipeline_rejects_evidence_outside_request_observables() -> None:
         overlay_weight=1.0,
     )
     request = request_with_components(
-        {"objective_fidelity": -0.5},
-        evidence={"objective_fidelity": ("recorded-but-not-requested",)},
-        references=("recorded-but-not-requested", "observable-audit-record"),
+        complete_components(objective_fidelity=-0.5),
+        evidence={
+            "objective_fidelity": (
+                EvidenceReference("recorded-but-not-requested", EvidenceSourceKind.EXTERNAL_RECORD),
+            )
+        },
+        references=(
+            EvidenceReference("recorded-but-not-requested", EvidenceSourceKind.EXTERNAL_RECORD),
+            OBSERVABLE_REFERENCE,
+        ),
     )
     request = RewardRequest(
         trajectory=request.trajectory,
-        observable_references=("observable-audit-record",),
+        observable_references=(OBSERVABLE_REFERENCE,),
     )
 
     with pytest.raises(ValueError, match="outside request.observable_references"):

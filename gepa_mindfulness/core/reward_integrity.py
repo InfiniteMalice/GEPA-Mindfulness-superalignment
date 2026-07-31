@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from math import isfinite
 from types import MappingProxyType
 
+from .evidence import EvidenceReference
+
 COMPONENT_NAMES = (
     "objective_fidelity",
     "feedback_integrity",
@@ -16,13 +18,6 @@ COMPONENT_NAMES = (
     "long_horizon_agency",
     "benign_creativity",
     "repair_quality",
-)
-_PRIVATE_EVIDENCE_TERMS = (
-    "activation",
-    "chain of thought",
-    "hidden state",
-    "hidden thought",
-    "private scratchpad",
 )
 
 
@@ -36,31 +31,25 @@ def _validated_component(name: str, value: object) -> float:
     return numeric_value
 
 
-def _is_private_evidence(reference: str) -> bool:
-    """Identify references to model-private data, which are never observable evidence."""
-    normalised = " ".join(reference.lower().replace("_", " ").replace("-", " ").split())
-    return any(term in normalised for term in _PRIVATE_EVIDENCE_TERMS)
-
-
-def _validated_observable_references(references: object) -> tuple[str, ...]:
-    """Copy an explicit observable-reference boundary after rejecting private data."""
+def _validated_observable_references(references: object) -> tuple[EvidenceReference, ...]:
+    """Copy an explicit boundary containing only typed observable source kinds."""
     if not isinstance(references, (list, tuple)) or not all(
-        isinstance(reference, str) and reference.strip() for reference in references
+        isinstance(reference, EvidenceReference) for reference in references
     ):
-        raise ValueError("Expected observable references as a sequence of non-empty strings.")
-    if any(_is_private_evidence(reference) for reference in references):
-        raise ValueError("Observable references cannot contain private model information.")
+        raise ValueError("Expected observable references as typed EvidenceReference values.")
+    if any(not reference.is_observable for reference in references):
+        raise ValueError("Observable evidence requires an observable source kind.")
     return tuple(references)
 
 
 def _validated_observable_evidence(
     observable_evidence: object,
-    observable_references: tuple[str, ...],
-) -> Mapping[str, tuple[str, ...]]:
+    observable_references: tuple[EvidenceReference, ...],
+) -> Mapping[str, tuple[EvidenceReference, ...]]:
     """Copy component evidence and require every citation to stay in the supplied boundary."""
     if not isinstance(observable_evidence, Mapping):
         raise ValueError("Expected observable_evidence as a mapping of component references.")
-    evidence: dict[str, tuple[str, ...]] = {}
+    evidence: dict[str, tuple[EvidenceReference, ...]] = {}
     for name, references in observable_evidence.items():
         if name not in COMPONENT_NAMES:
             raise ValueError(f"Evidence was provided for unknown component {name!r}.")
@@ -83,8 +72,8 @@ class RewardObservation:
     long_horizon_agency: float = 0.0
     benign_creativity: float = 0.0
     repair_quality: float = 0.0
-    observable_evidence: Mapping[str, Sequence[str]] = field(default_factory=dict)
-    observable_references: Sequence[str] = ()
+    observable_evidence: Mapping[str, Sequence[EvidenceReference]] = field(default_factory=dict)
+    observable_references: Sequence[EvidenceReference] = ()
 
     def __post_init__(self) -> None:
         """Bound values and bind every negative value to observable evidence."""
@@ -157,8 +146,8 @@ class RewardIntegrityBreakdown:
     benign_creativity: float
     repair_quality: float
     aggregate: float
-    observable_evidence: Mapping[str, Sequence[str]] = field(default_factory=dict)
-    observable_references: Sequence[str] = ()
+    observable_evidence: Mapping[str, Sequence[EvidenceReference]] = field(default_factory=dict)
+    observable_references: Sequence[EvidenceReference] = ()
     weights: RewardIntegrityWeights = field(default_factory=RewardIntegrityWeights)
 
     def __post_init__(self) -> None:

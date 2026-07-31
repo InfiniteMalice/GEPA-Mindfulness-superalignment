@@ -178,6 +178,13 @@ source SHA-256 provenance in request metadata. If an adapter encounters invalid
 JSON, a non-object row, a missing required field, or a type mismatch, it raises
 `ValueError` with the JSONL path and physical line number.
 
+For derived pairs, `FlatJSONLAdapter` uses the installable
+`validate_pair_record` boundary. The validator requires the exact
+`reward-integrity-rl-pairs-v1` field set, schema version, six relation/class
+tuples, eight bounded component names, lowercase SHA-256 provenance, and
+positive source line and source version. The validator rejects unknown fields
+instead of retaining them as request metadata.
+
 Run the adapter and curriculum checks after a rebuild:
 
 ```bash

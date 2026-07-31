@@ -15,6 +15,7 @@ import pytest
 # Local
 from gepa_mindfulness import synthetic_dataset_validation
 from gepa_mindfulness.training.adapters.flat_jsonl import FlatJSONLAdapter
+from gepa_mindfulness.training.adapters.pair_records import validate_pair_record
 from gepa_mindfulness.training.adapters.synthetic_cases import SyntheticCaseAdapter
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,11 +23,25 @@ CASES_PATH = (
     ROOT / "data" / "synthetic" / "reward_integrity" / "reward_integrity_curriculum_v1.jsonl"
 )
 PAIRS_PATH = ROOT / "data" / "synthetic" / "reward_integrity" / "rl_pairs_v1.jsonl"
+COMPONENT_NAMES = (
+    "objective_fidelity",
+    "feedback_integrity",
+    "skill_transfer",
+    "reality_contact",
+    "exploit_disclosure",
+    "long_horizon_agency",
+    "benign_creativity",
+    "repair_quality",
+)
 
 
-def _flat_pair_with(field: str, value: str) -> str:
-    """Build a literal valid pair fixture with one hand-selected invalid field."""
-    row = {
+def _flat_pair() -> dict[str, object]:
+    """Build one complete literal pair-record fixture independent of production helpers."""
+    chosen_components = {name: 0.0 for name in COMPONENT_NAMES}
+    chosen_components["objective_fidelity"] = 1.0
+    rejected_components = {name: 0.0 for name in COMPONENT_NAMES}
+    rejected_components["objective_fidelity"] = -1.0
+    return {
         "record_id": "reward-integrity-001:grounded_over_proxy",
         "source_case_id": "reward-integrity-001",
         "source_case_version": "1.0",
@@ -39,11 +54,16 @@ def _flat_pair_with(field: str, value: str) -> str:
         "rejected": "Rejected",
         "chosen_class": "grounded_success",
         "rejected_class": "proxy_exploitation",
-        "chosen_reward_components": {"objective_fidelity": 1.0},
-        "rejected_reward_components": {"objective_fidelity": -1.0},
+        "chosen_reward_components": chosen_components,
+        "rejected_reward_components": rejected_components,
         "diagnostics": {"central": "Question", "supporting": []},
         "schema_version": "reward-integrity-rl-pairs-v1",
     }
+
+
+def _flat_pair_with(field: str, value: str) -> str:
+    """Build a literal valid pair fixture with one hand-selected invalid field."""
+    row = _flat_pair()
     row[field] = json.loads(value)
     return json.dumps(row) + "\n"
 
@@ -167,6 +187,95 @@ def test_flat_adapter_rejects_non_finite_json_numbers(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ValueError, match="non-finite JSON number") as error:
+        next(FlatJSONLAdapter(path).iter_requests())
+
+    assert f"{path}:1:" in str(error.value)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "expected"),
+    [
+        ("schema_version", "reward-integrity-rl-pairs-v2", "schema_version"),
+        ("source_sha256", "A" * 64, "source_sha256"),
+        ("source_sha256", "a" * 63, "source_sha256"),
+        ("source_line", 0, "source_line"),
+        ("source_case_version", "0", "source_case_version"),
+        ("source_case_version", "latest", "source_case_version"),
+        ("chosen_class", "reward_tampering", "legal preference relation"),
+        ("pair_rule", "agency_over_immediate_reward", "legal preference relation"),
+        ("record_id", "unrelated-record", "record_id"),
+        ("chosen", 7, "chosen"),
+        ("diagnostics", {"central": "Question", "supporting": [], "extra": True}, "unknown"),
+    ],
+)
+def test_flat_pair_validator_rejects_invalid_schema_semantics_and_types(
+    field: str,
+    value: object,
+    expected: str,
+) -> None:
+    """Pair rows must match the exact versioned relation, provenance, and field contracts."""
+    row = _flat_pair()
+    row[field] = value
+
+    with pytest.raises(ValueError, match=expected):
+        validate_pair_record(row, Path("pairs.jsonl"), 1)
+
+
+@pytest.mark.parametrize(
+    ("field", "component", "value", "expected"),
+    [
+        ("chosen_reward_components", "objective_fidelity", 1.01, r"\[-1.0, 1.0\]"),
+        ("rejected_reward_components", "objective_fidelity", True, "number"),
+        ("chosen_reward_components", "unknown_component", 0.0, "exactly"),
+    ],
+)
+def test_flat_pair_validator_requires_exact_bounded_component_maps(
+    field: str,
+    component: str,
+    value: object,
+    expected: str,
+) -> None:
+    """Partial, expanded, boolean, or out-of-range component maps are invalid pair records."""
+    row = _flat_pair()
+    components = row[field]
+    assert isinstance(components, dict)
+    components[component] = value
+
+    with pytest.raises(ValueError, match=expected):
+        validate_pair_record(row, Path("pairs.jsonl"), 1)
+
+
+def test_flat_pair_validator_rejects_missing_and_unknown_top_level_fields() -> None:
+    """Versioned pair rows are closed records whose required fields cannot disappear."""
+    missing = _flat_pair()
+    missing.pop("chosen")
+    unknown = _flat_pair()
+    unknown["private_reasoning"] = "not observable"
+
+    with pytest.raises(ValueError, match="missing required field 'chosen'"):
+        validate_pair_record(missing, Path("pairs.jsonl"), 1)
+    with pytest.raises(ValueError, match="unknown field 'private_reasoning'"):
+        validate_pair_record(unknown, Path("pairs.jsonl"), 1)
+
+
+def test_flat_pair_validator_rejects_non_string_field_names_cleanly() -> None:
+    """Direct validator callers receive a diagnostic, not a mixed-key sorting error."""
+    row = _flat_pair()
+    row[7] = "invalid"  # type: ignore[index]
+    row["extra"] = "invalid"
+
+    with pytest.raises(ValueError, match="field names.*strings"):
+        validate_pair_record(row, Path("pairs.jsonl"), 1)
+
+
+def test_flat_adapter_uses_the_shared_pair_record_validator(tmp_path: Path) -> None:
+    """Adapter callers receive the same strict diagnostics as direct validator users."""
+    row = _flat_pair()
+    row["source_sha256"] = "not-a-sha"
+    path = tmp_path / "invalid-pair.jsonl"
+    path.write_text(json.dumps(row) + "\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="source_sha256") as error:
         next(FlatJSONLAdapter(path).iter_requests())
 
     assert f"{path}:1:" in str(error.value)

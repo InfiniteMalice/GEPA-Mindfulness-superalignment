@@ -10,20 +10,19 @@ from pathlib import Path
 from typing import Any
 
 # Local
+from gepa_mindfulness.training.adapters.pair_records import (
+    PAIR_RELATIONS,
+    PAIR_SCHEMA_VERSION,
+    validate_pair_record,
+)
+
 try:
     from scripts.synthetic_dataset_tool import _validate_jsonl
 except ModuleNotFoundError:  # Supports the documented `python scripts/...` invocation.
     from synthetic_dataset_tool import _validate_jsonl
 
 
-PAIR_RULES = (
-    ("grounded_success", "proxy_exploitation", "grounded_over_proxy"),
-    ("exploit_disclosure", "proxy_exploitation", "disclosure_over_exploitation"),
-    ("honest_failure", "evaluator_manipulation", "honest_failure_over_dishonesty"),
-    ("benign_shortcut", "rationalized_failure", "creativity_over_rigidity"),
-    ("exploit_disclosure", "reward_tampering", "repair_over_concealment"),
-    ("grounded_success", "reward_tampering", "agency_over_immediate_reward"),
-)
+PAIR_RULES = PAIR_RELATIONS
 EXPECTED_CASE_IDS = {f"reward-integrity-{number:03d}" for number in range(1, 9)}
 COMPONENT_NAMES = {
     "objective_fidelity",
@@ -35,7 +34,7 @@ COMPONENT_NAMES = {
     "benign_creativity",
     "repair_quality",
 }
-SCHEMA_VERSION = "reward-integrity-rl-pairs-v1"
+SCHEMA_VERSION = PAIR_SCHEMA_VERSION
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -199,13 +198,17 @@ def build_dataset(source: Path, pairs: Path, manifest: Path) -> BuildResult:
     source_sha256 = hashlib.sha256(source.read_bytes()).hexdigest()
     source_path = _source_path(source)
     pair_records = _pair_records(source, source_sha256, source_path)
+    for line_number, pair_record in enumerate(pair_records, start=1):
+        validate_pair_record(pair_record, pairs, line_number)
     pair_bytes = b"".join(_json_bytes(record) for record in pair_records)
     pairs.parent.mkdir(parents=True, exist_ok=True)
     pairs.write_bytes(pair_bytes)
     pairs_sha256 = hashlib.sha256(pair_bytes).hexdigest()
+    case_count = len(_source_records(source))
+    pair_count = len(pair_records)
     manifest_record = {
-        "case_count": len(_source_records(source)),
-        "pair_count": len(pair_records),
+        "case_count": case_count,
+        "pair_count": pair_count,
         "pair_rules": [rule[2] for rule in PAIR_RULES],
         "pairs_sha256": pairs_sha256,
         "schema_version": SCHEMA_VERSION,
@@ -218,8 +221,8 @@ def build_dataset(source: Path, pairs: Path, manifest: Path) -> BuildResult:
         source=source,
         pairs=pairs,
         manifest=manifest,
-        case_count=manifest_record["case_count"],
-        pair_count=manifest_record["pair_count"],
+        case_count=case_count,
+        pair_count=pair_count,
         source_sha256=source_sha256,
         pairs_sha256=pairs_sha256,
     )

@@ -63,7 +63,22 @@ PAIR_RULES = {
     ("exploit_disclosure", "reward_tampering", "repair_over_concealment"),
     ("grounded_success", "reward_tampering", "agency_over_immediate_reward"),
 }
-PRIVATE_SIGNAL_TERMS = ("hidden thoughts", "activations", "private scratchpads")
+PRIVATE_SIGNAL_TERMS = (
+    "hidden thoughts",
+    "activations",
+    "private scratchpads",
+    "private reasoning",
+    "latent state",
+    "attention data",
+    "attention weights",
+    "cache data",
+    "kv cache",
+)
+FORMULAIC_EVIDENCE_PHRASES = (
+    "observable outcome for",
+    "negative evidence for",
+    "failed the component",
+)
 
 
 def _records() -> list[dict[str, object]]:
@@ -211,7 +226,11 @@ def test_negative_reward_evidence_is_concrete_and_scenario_specific() -> None:
     """Formulaic outcome labels would not substantiate a negative reward component."""
     for record in _records():
         responses = record["reward_integrity"]["response_classes"]
+        case_evidence: set[str] = set()
         for response in responses.values():
             for evidence in response["negative_evidence"].values():
                 for fact in evidence:
-                    assert "observable outcome for" not in fact.lower()
+                    case_evidence.add(fact)
+                    assert all(phrase not in fact.lower() for phrase in FORMULAIC_EVIDENCE_PHRASES)
+                    assert len(fact.split()) >= 8
+        assert len(case_evidence) >= 4
