@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import warnings
 from dataclasses import FrozenInstanceError
 from pathlib import Path
@@ -103,3 +104,91 @@ def test_cpu_runtime_examples_load(name: str) -> None:
 
     assert config.runtime.device == "cpu"
     assert config.algorithm.name in {"ppo", "grpo"}
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"seed": 7},
+        {"dataset": {"train_path": "prompts.jsonl"}},
+    ],
+)
+def test_partial_canonical_file_load_is_warning_free(
+    tmp_path: Path,
+    payload: dict[str, object],
+) -> None:
+    yaml = pytest.importorskip("yaml")
+    path = tmp_path / "partial.yaml"
+    path.write_text(yaml.safe_dump(payload), encoding="utf-8")
+
+    with warnings.catch_warnings(record=True) as captured:
+        warnings.simplefilter("always")
+        config = load_rl_config(path)
+
+    assert config.seed == payload.get("seed", 42)
+    expected_path = payload.get("dataset", {}).get("train_path", "")
+    assert config.dataset.train_path == expected_path
+    assert not [warning for warning in captured if warning.category is DeprecationWarning]
+
+
+def test_real_legacy_dataset_path_translates_to_train_path() -> None:
+    path = Path(__file__).parents[1] / "configs" / "training" / "phi3_dual_path.yml"
+
+    with pytest.warns(DeprecationWarning):
+        config = load_rl_config(path)
+
+    assert config.dataset.train_path == "datasets/dual_path/data.jsonl"
+
+
+@pytest.mark.parametrize(
+    ("payload", "invalid"),
+    [
+        ({"algorithm": {"learning_rate": None}}, float("nan")),
+        ({"algorithm": {"kl_coef": None}}, float("inf")),
+        ({"algorithm": {"clip_range": None}}, float("-inf")),
+        ({"algorithm": {"value_coef": None}}, float("nan")),
+        ({"reward": {"weights": {"alpha": None}}}, float("nan")),
+        ({"reward": {"weights": {"beta": None}}}, float("inf")),
+        ({"reward": {"weights": {"gamma": None}}}, float("-inf")),
+        ({"reward": {"weights": {"delta": None}}}, float("nan")),
+    ],
+)
+def test_canonical_float_values_must_be_finite(
+    payload: dict[str, object],
+    invalid: float,
+) -> None:
+    section = next(iter(payload.values()))
+    assert isinstance(section, dict)
+    target = section.get("weights", section)
+    assert isinstance(target, dict)
+    key = next(key for key, value in target.items() if value is None)
+    target[key] = invalid
+
+    with pytest.raises(ValueError, match="finite"):
+        RLRunConfig.from_mapping(payload)
+
+
+def test_direct_legacy_translation_warning_points_to_caller() -> None:
+    with warnings.catch_warnings(record=True) as captured:
+        warnings.simplefilter("always")
+        expected_line = inspect.currentframe().f_lineno + 1
+        translate_legacy_config({"trainer_type": "ppo"})
+
+    warning = captured[0]
+    assert Path(warning.filename).resolve() == Path(__file__).resolve()
+    assert warning.lineno == expected_line
+
+
+def test_legacy_file_warning_points_to_loader_caller(tmp_path: Path) -> None:
+    yaml = pytest.importorskip("yaml")
+    path = tmp_path / "legacy.yaml"
+    path.write_text(yaml.safe_dump({"trainer_type": "ppo"}), encoding="utf-8")
+
+    with warnings.catch_warnings(record=True) as captured:
+        warnings.simplefilter("always")
+        expected_line = inspect.currentframe().f_lineno + 1
+        load_rl_config(path)
+
+    warning = captured[0]
+    assert Path(warning.filename).resolve() == Path(__file__).resolve()
+    assert warning.lineno == expected_line

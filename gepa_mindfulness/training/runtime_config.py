@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import warnings
 from collections.abc import Mapping
@@ -55,7 +56,10 @@ def _number(payload: Mapping[str, Any], key: str, default: float, name: str) -> 
     value = payload.get(key, default)
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise TypeError(f"{name}.{key} must be a number")
-    return float(value)
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError(f"{name}.{key} must be finite")
+    return number
 
 
 @dataclass(frozen=True)
@@ -299,6 +303,11 @@ def translate_legacy_config(payload: Mapping[str, Any]) -> RLRunConfig:
         DeprecationWarning,
         stacklevel=2,
     )
+    return _translate_legacy_config(payload)
+
+
+def _translate_legacy_config(payload: Mapping[str, Any]) -> RLRunConfig:
+    """Translate legacy fields without attributing warnings to an internal frame."""
     payload = _mapping(payload, "legacy configuration")
     training = _optional_mapping(payload.get("training"), "training")
     grpo = _optional_mapping(payload.get("grpo"), "grpo")
@@ -322,22 +331,31 @@ def translate_legacy_config(payload: Mapping[str, Any]) -> RLRunConfig:
         "runtime": {"backend": "pytorch", "device": device},
         "policy": {
             "model_name": policy_name,
-            "max_new_tokens": algorithm_source.get("max_new_tokens", 256),
+            "max_new_tokens": _legacy_integer(algorithm_source.get("max_new_tokens"), 256),
         },
         "algorithm": {
             "name": trainer_name,
-            "learning_rate": algorithm_source.get("learning_rate", 1e-5),
-            "batch_size": algorithm_source.get("batch_size", 1),
-            "gradient_accumulation_steps": algorithm_source.get("gradient_accumulation_steps", 1),
-            "max_steps": algorithm_source.get("max_steps", payload.get("max_steps", 100)),
-            "group_size": algorithm_source.get("group_size", 8),
-            "kl_coef": algorithm_source.get("kl_coef", 0.05),
-            "clip_range": algorithm_source.get("clip_range", 0.2),
-            "value_coef": algorithm_source.get("value_coef", 0.1),
+            "learning_rate": _legacy_number(algorithm_source.get("learning_rate"), 1e-5),
+            "batch_size": _legacy_integer(algorithm_source.get("batch_size"), 1),
+            "gradient_accumulation_steps": _legacy_integer(
+                algorithm_source.get("gradient_accumulation_steps"),
+                1,
+            ),
+            "max_steps": _legacy_integer(
+                algorithm_source.get("max_steps", payload.get("max_steps")),
+                100,
+            ),
+            "group_size": _legacy_integer(algorithm_source.get("group_size"), 8),
+            "kl_coef": _legacy_number(algorithm_source.get("kl_coef"), 0.05),
+            "clip_range": _legacy_number(algorithm_source.get("clip_range"), 0.2),
+            "value_coef": _legacy_number(algorithm_source.get("value_coef"), 0.1),
         },
         "reward": {"weights": reward_source},
         "dataset": {
-            "train_path": dataset.get("train_path", payload.get("dataset_path", "")),
+            "train_path": dataset.get(
+                "train_path",
+                dataset.get("path", payload.get("dataset_path", "")),
+            ),
             "validation_path": dataset.get("validation_path"),
             "format": dataset.get("format", "jsonl"),
         },
@@ -346,13 +364,13 @@ def translate_legacy_config(payload: Mapping[str, Any]) -> RLRunConfig:
                 "output_dir",
                 output.get("checkpoint_dir", "runs/default"),
             ),
-            "save_steps": payload.get("save_steps", 100),
+            "save_steps": _legacy_integer(payload.get("save_steps"), 100),
         },
         "logging": {
             "log_dir": payload.get("log_dir", "runs/logs"),
             "level": payload.get("log_level", "INFO"),
         },
-        "seed": training.get("seed", payload.get("seed", 42)),
+        "seed": _legacy_integer(training.get("seed", payload.get("seed")), 42),
     }
     return RLRunConfig.from_mapping(canonical)
 
@@ -362,10 +380,35 @@ def load_rl_config(path: str | Path) -> RLRunConfig:
     raw = Path(path).read_text(encoding="utf-8")
     payload = yaml.safe_load(raw) if yaml is not None else _load_json_mapping(raw)
     payload = _mapping(payload, "configuration file")
-    canonical_sections = {"runtime", "policy", "algorithm", "reward", "checkpoint", "logging"}
-    if set(payload).intersection(canonical_sections):
+    if _is_canonical(payload):
         return RLRunConfig.from_mapping(payload)
-    return translate_legacy_config(payload)
+    warnings.warn(
+        "Legacy RL configuration is deprecated; use the canonical runtime sections instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return _translate_legacy_config(payload)
+
+
+def _is_canonical(payload: Mapping[str, Any]) -> bool:
+    legacy_keys = {
+        "device",
+        "grpo",
+        "model",
+        "model_name",
+        "output",
+        "output_dir",
+        "ppo",
+        "reward_weights",
+        "trainer_type",
+        "training",
+    }
+    if set(payload).intersection(legacy_keys):
+        return False
+    dataset = payload.get("dataset")
+    if isinstance(dataset, Mapping) and "path" in dataset:
+        return False
+    return True
 
 
 def _optional_mapping(value: Any, name: str) -> Mapping[str, Any]:
@@ -379,6 +422,28 @@ def _merge_legacy(*payloads: Mapping[str, Any]) -> dict[str, Any]:
     for payload in payloads:
         merged.update(payload)
     return merged
+
+
+def _legacy_integer(value: Any, default: int) -> Any:
+    if value is None:
+        return default
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return value
+    return value
+
+
+def _legacy_number(value: Any, default: float) -> Any:
+    if value is None:
+        return default
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return value
+    return value
 
 
 def _load_json_mapping(raw: str) -> Mapping[str, Any]:

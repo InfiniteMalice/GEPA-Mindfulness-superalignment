@@ -86,3 +86,63 @@ This is an environment/dependency incompatibility; it did not report a project-s
 ## Commit
 
 `feat: add canonical RL runtime config`
+
+## Review fix round 1/5
+
+### Dispositions
+
+1. Fixed canonical-file detection so partial canonical mappings, including `{seed: 7}` and a
+   canonical `dataset.train_path`, use `RLRunConfig.from_mapping()` without a warning.
+2. Preserved established `dataset.path` during legacy translation as canonical
+   `dataset.train_path`; verified against `configs/training/phi3_dual_path.yml`.
+3. Rejected `nan`, positive infinity, and negative infinity for every canonical floating-point
+   algorithm and reward field through the shared numeric parser.
+4. Kept direct `translate_legacy_config()` warning attribution at its external caller and moved
+   legacy-file warning emission to `load_rl_config()`, also with `stacklevel=2`, so both public
+   entry points identify their external caller.
+5. Added regression coverage for partial canonical files, the real legacy file, all canonical
+   floating-point paths, and exact warning filename/line attribution.
+
+### TDD evidence
+
+RED command:
+
+```powershell
+& 'C:\Users\evanh\Documents\Codex\work\g\Scripts\python.exe' -m pytest tests/test_rl_runtime_config.py tests/test_config.py tests/test_training_configs.py -q
+```
+
+RED output: `12 failed, 18 passed in 1.31s`; exit code 1. Failures covered both partial canonical
+files, the real legacy dataset, eight non-finite float cases, and loader warning attribution.
+
+GREEN command:
+
+```powershell
+& 'C:\Users\evanh\Documents\Codex\work\g\Scripts\python.exe' -m pytest tests/test_rl_runtime_config.py tests/test_config.py tests/test_training_configs.py -q
+```
+
+GREEN output: `30 passed in 0.81s`; exit code 0.
+
+### Static checks
+
+- Black check: `6 files would be left unchanged`; exit code 0.
+- Ruff: `All checks passed!`; exit code 0.
+- Compileall for `runtime_config.py`: exit code 0.
+- Changed Python line-length check: all lines at most 100 characters; exit code 0.
+- `git diff --check`: exit code 0.
+
+### Self-review
+
+- Canonical and legacy detection now uses explicit legacy markers plus the established
+  `dataset.path` spelling; unknown canonical keys still reach strict canonical validation.
+- Compatibility-only string-to-number handling lives exclusively in the private legacy
+  translator. Canonical parsing still rejects type coercion.
+- The public translator and loader each emit one warning from their own boundary, avoiding an
+  internal warning frame and duplicate warnings.
+- Frozen dataclasses, strict devices, existing loader return types, and both CPU YAML files are
+  unchanged.
+- Documentation precision review found no BLOCK or WARN: the appended dispositions and commands
+  identify actors, inputs, behavior, and verification results explicitly.
+
+### Fix commit
+
+`fix: harden canonical RL config compatibility`
