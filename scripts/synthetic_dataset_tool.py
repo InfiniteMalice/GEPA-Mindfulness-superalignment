@@ -4,6 +4,7 @@
 import argparse
 import copy
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -232,7 +233,9 @@ def _json_type_matches(value: Any, schema_type: str) -> bool:
     if schema_type == "integer":
         return type(value) is int
     if schema_type == "number":
-        return isinstance(value, (int, float)) and not isinstance(value, bool)
+        return (
+            isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+        )
     expected = type_map.get(schema_type)
     return isinstance(value, expected) if expected else True
 
@@ -531,6 +534,21 @@ def _validate_reward_integrity_case(
             errors.append(f"line {line_no}: reward-integrity case needs reward_integrity")
 
 
+def validate_record(record: dict[str, Any], line_no: int) -> list[str]:
+    """Return schema and semantic errors for one rich synthetic-case record."""
+    errors: list[str] = []
+    _validate_with_schema(record, errors, line_no)
+    _validate_required_fields(record, errors, line_no)
+    _validate_enums(record, errors, line_no)
+    _validate_nested_required(record, errors, line_no)
+    _validate_subscores(record, errors, line_no)
+    _validate_failure_diagnosis(record, errors, line_no)
+    _validate_training_labels(record, errors, line_no)
+    _validate_reward_integrity_case(record, errors, line_no)
+    _validate_reward_integrity(record, errors, line_no)
+    return errors
+
+
 def _validate_jsonl(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
     records: list[dict[str, Any]] = []
     errors: list[str] = []
@@ -547,15 +565,7 @@ def _validate_jsonl(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
             errors.append(f"line {line_no}: JSONL entry must be an object")
             continue
 
-        _validate_with_schema(record, errors, line_no)
-        _validate_required_fields(record, errors, line_no)
-        _validate_enums(record, errors, line_no)
-        _validate_nested_required(record, errors, line_no)
-        _validate_subscores(record, errors, line_no)
-        _validate_failure_diagnosis(record, errors, line_no)
-        _validate_training_labels(record, errors, line_no)
-        _validate_reward_integrity_case(record, errors, line_no)
-        _validate_reward_integrity(record, errors, line_no)
+        errors.extend(validate_record(record, line_no))
 
         records.append(record)
 

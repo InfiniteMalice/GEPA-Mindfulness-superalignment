@@ -1,6 +1,7 @@
 """Adapt flat reward-integrity preference pairs into rollout requests."""
 
 # Standard library
+import math
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -44,7 +45,11 @@ def _validate_component_values(
     for component, value in components.items():
         if not isinstance(component, str):
             raise ValueError(f"{path}:{line_number}: field {field!r} has a non-string component")
-        if not isinstance(value, (int, float)) or isinstance(value, bool):
+        if (
+            not isinstance(value, (int, float))
+            or isinstance(value, bool)
+            or not math.isfinite(value)
+        ):
             raise ValueError(f"{path}:{line_number}: field {field!r}.{component} expected a number")
 
 
