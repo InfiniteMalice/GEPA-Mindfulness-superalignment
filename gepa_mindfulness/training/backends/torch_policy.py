@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import math
+import pickle
+from collections.abc import Mapping
 from copy import deepcopy
+from pathlib import Path
 from typing import Literal, Sequence, cast
 
 import torch
@@ -23,9 +26,10 @@ from gepa_mindfulness.training.trajectory import (
     TrajectoryBatch,
 )
 
-from .base import OptimizerStepResult, TokenizerLike, TorchTensorOps
+from .base import BackendCheckpointResult, OptimizerStepResult, TokenizerLike, TorchTensorOps
 
 TrainingMode = Literal["full", "lora"]
+_CHECKPOINT_FORMAT_VERSION = 1
 
 
 class TorchPolicyBackend:
@@ -56,6 +60,8 @@ class TorchPolicyBackend:
         self.policy_model = policy_model.to(self.device)
         if self.training_mode == "full":
             self.policy_model.requires_grad_(True)
+        else:
+            self._validate_lora_policy(self.policy_model)
         if not any(parameter.requires_grad for parameter in self.policy_model.parameters()):
             raise ValueError("policy_model must expose at least one trainable parameter")
 
@@ -81,9 +87,13 @@ class TorchPolicyBackend:
         ]
         if not parameters:
             raise ValueError("backend requires trainable policy or value-head parameters")
+        if optimizer is not None:
+            self._validate_optimizer(optimizer, parameters)
         self.optimizer = optimizer or torch.optim.AdamW(parameters, lr=self.learning_rate)
         self.model_identifier = model_identifier or self._model_identifier(policy_model)
         self.adapter_identifier = adapter_identifier
+        if self.training_mode == "lora" and self.adapter_identifier is None:
+            self.adapter_identifier = "peft-lora"
         self.tensor_ops = TorchTensorOps()
         self._step = 0
 
@@ -96,18 +106,26 @@ class TorchPolicyBackend:
             max_new_tokens = self._positive_integer(max_new_tokens, "max_new_tokens")
             self._validate_sampling_parameters(parameters)
             for sample_index in range(sample_count):
-                response_ids = self._generate_response(
-                    prompt_ids,
-                    max_new_tokens=max_new_tokens,
-                    sampling_parameters=parameters,
-                    seed=request.seed,
-                    sample_index=sample_index,
-                )
-                with torch.no_grad():
-                    log_probs, reference_log_probs, values, _ = self._evaluate_tokens(
-                        prompt_ids,
-                        response_ids,
-                    )
+                policy_was_training = self.policy_model.training
+                value_head_was_training = self.value_head.training
+                self.policy_model.eval()
+                self.value_head.eval()
+                try:
+                    with torch.no_grad():
+                        response_ids = self._generate_response(
+                            prompt_ids,
+                            max_new_tokens=max_new_tokens,
+                            sampling_parameters=parameters,
+                            seed=request.seed,
+                            sample_index=sample_index,
+                        )
+                        log_probs, reference_log_probs, values, _ = self._evaluate_tokens(
+                            prompt_ids,
+                            response_ids,
+                        )
+                finally:
+                    self.policy_model.train(policy_was_training)
+                    self.value_head.train(value_head_was_training)
                 trajectory_id = self._trajectory_id(request, request_index, sample_index)
                 effective_parameters = {
                     "max_new_tokens": max_new_tokens,
@@ -187,6 +205,83 @@ class TorchPolicyBackend:
         """Clear all optimizer-owned gradients."""
         self.optimizer.zero_grad(set_to_none=True)
 
+    def save_checkpoint(self, destination: Path) -> BackendCheckpointResult:
+        """Serialize backend-owned training state without store-level orchestration."""
+        destination = self._checkpoint_path(destination, must_exist=False)
+        cuda_rng_state = (
+            torch.cuda.get_rng_state(self.device).cpu() if self.device.type == "cuda" else None
+        )
+        payload = {
+            "format_version": _CHECKPOINT_FORMAT_VERSION,
+            "backend_name": self.backend_name,
+            "model_identifier": self.model_identifier,
+            "adapter_identifier": self.adapter_identifier,
+            "training_mode": self.training_mode,
+            "policy_state": self.policy_model.state_dict(),
+            "reference_state": self.reference_model.state_dict(),
+            "value_head_state": self.value_head.state_dict(),
+            "optimizer_state": self.optimizer.state_dict(),
+            "step": self._step,
+            "max_new_tokens": self.max_new_tokens,
+            "learning_rate": self.learning_rate,
+            "cpu_rng_state": torch.get_rng_state(),
+            "cuda_rng_state": cuda_rng_state,
+        }
+        try:
+            torch.save(payload, destination)
+        except (OSError, RuntimeError, TypeError, pickle.PickleError) as error:
+            raise RuntimeError(f"failed to save backend checkpoint: {destination}") from error
+        return BackendCheckpointResult(
+            format_version=_CHECKPOINT_FORMAT_VERSION,
+            step=self._step,
+        )
+
+    def load_checkpoint(self, source: Path) -> BackendCheckpointResult:
+        """Restore a strictly compatible checkpoint through CPU-safe deserialization."""
+        source = self._checkpoint_path(source, must_exist=True)
+        try:
+            raw_payload = torch.load(source, map_location="cpu", weights_only=True)
+        except (OSError, RuntimeError, EOFError, ValueError, pickle.UnpicklingError) as error:
+            raise ValueError(f"failed to load backend checkpoint: {source}") from error
+        payload = self._validated_checkpoint_payload(raw_payload)
+        policy_state = self._validated_module_state(
+            self.policy_model,
+            payload["policy_state"],
+            "policy_state",
+        )
+        reference_state = self._validated_module_state(
+            self.reference_model,
+            payload["reference_state"],
+            "reference_state",
+        )
+        value_head_state = self._validated_module_state(
+            self.value_head,
+            payload["value_head_state"],
+            "value_head_state",
+        )
+        optimizer_state = self._validated_optimizer_state(payload["optimizer_state"])
+        try:
+            self.policy_model.load_state_dict(policy_state, strict=True)
+            self.reference_model.load_state_dict(reference_state, strict=True)
+            self.value_head.load_state_dict(value_head_state, strict=True)
+            self.optimizer.load_state_dict(optimizer_state)
+        except (RuntimeError, TypeError, ValueError) as error:
+            raise ValueError("backend checkpoint contains incompatible training state") from error
+        self._move_optimizer_state_to_device()
+        self._step = cast(int, payload["step"])
+        self.max_new_tokens = cast(int, payload["max_new_tokens"])
+        self.learning_rate = float(cast(float, payload["learning_rate"]))
+        torch.set_rng_state(cast(torch.Tensor, payload["cpu_rng_state"]))
+        cuda_rng_state = payload["cuda_rng_state"]
+        if self.device.type == "cuda" and isinstance(cuda_rng_state, torch.Tensor):
+            torch.cuda.set_rng_state(cuda_rng_state, self.device)
+        self.reference_model.requires_grad_(False)
+        self.reference_model.eval()
+        return BackendCheckpointResult(
+            format_version=_CHECKPOINT_FORMAT_VERSION,
+            step=self._step,
+        )
+
     def policy_parameters(self) -> tuple[nn.Parameter, ...]:
         """Return the policy parameters that this backend is allowed to update."""
         return tuple(
@@ -229,6 +324,158 @@ class TorchPolicyBackend:
     def close(self) -> None:
         """Release no-op in-memory backend resources."""
 
+    @staticmethod
+    def _validate_optimizer(
+        optimizer: torch.optim.Optimizer,
+        intended_parameters: Sequence[nn.Parameter],
+    ) -> None:
+        if not isinstance(optimizer, torch.optim.Optimizer):
+            raise TypeError("optimizer must be a torch.optim.Optimizer")
+        intended_ids = [id(parameter) for parameter in intended_parameters]
+        optimizer_parameters = [
+            parameter for group in optimizer.param_groups for parameter in group.get("params", ())
+        ]
+        optimizer_ids = [id(parameter) for parameter in optimizer_parameters]
+        if (
+            len(intended_ids) != len(set(intended_ids))
+            or len(optimizer_ids) != len(set(optimizer_ids))
+            or set(optimizer_ids) != set(intended_ids)
+        ):
+            raise ValueError(
+                "injected optimizer must exactly cover trainable policy and value-head parameters"
+            )
+
+    @staticmethod
+    def _validate_lora_policy(policy_model: nn.Module) -> None:
+        peft_config = getattr(policy_model, "peft_config", None)
+        if not isinstance(peft_config, Mapping) or not peft_config:
+            raise ValueError("training_mode='lora' requires a PEFT LoRA adapter model")
+        trainable_names = [
+            name for name, parameter in policy_model.named_parameters() if parameter.requires_grad
+        ]
+        adapter_only = all("lora_" in name or "modules_to_save" in name for name in trainable_names)
+        if not trainable_names or not adapter_only:
+            raise ValueError(
+                "PEFT LoRA mode requires only LoRA adapter or modules_to_save trainables"
+            )
+
+    @staticmethod
+    def _checkpoint_path(path: Path, *, must_exist: bool) -> Path:
+        if not isinstance(path, Path):
+            raise TypeError("checkpoint path must be a pathlib.Path")
+        if must_exist and not path.is_file():
+            raise ValueError(f"backend checkpoint does not exist or is not a file: {path}")
+        if not must_exist and path.exists() and path.is_dir():
+            raise ValueError(f"backend checkpoint destination is a directory: {path}")
+        return path
+
+    def _validated_checkpoint_payload(self, raw_payload: object) -> Mapping[str, object]:
+        if not isinstance(raw_payload, Mapping):
+            raise ValueError("backend checkpoint must contain a mapping payload")
+        if raw_payload.get("format_version") != _CHECKPOINT_FORMAT_VERSION:
+            raise ValueError(f"checkpoint format_version must be {_CHECKPOINT_FORMAT_VERSION}")
+        required_fields = {
+            "adapter_identifier",
+            "backend_name",
+            "cpu_rng_state",
+            "cuda_rng_state",
+            "format_version",
+            "learning_rate",
+            "max_new_tokens",
+            "model_identifier",
+            "optimizer_state",
+            "policy_state",
+            "reference_state",
+            "step",
+            "training_mode",
+            "value_head_state",
+        }
+        if set(raw_payload) != required_fields:
+            raise ValueError("backend checkpoint fields are missing or unrecognized")
+        expected_metadata = {
+            "adapter_identifier": self.adapter_identifier,
+            "backend_name": self.backend_name,
+            "model_identifier": self.model_identifier,
+            "training_mode": self.training_mode,
+        }
+        for field_name, expected in expected_metadata.items():
+            if raw_payload[field_name] != expected:
+                raise ValueError(f"backend checkpoint {field_name} is incompatible")
+        step = raw_payload["step"]
+        if isinstance(step, bool) or not isinstance(step, int) or step < 0:
+            raise ValueError("backend checkpoint step must be a non-negative integer")
+        self._positive_integer(raw_payload["max_new_tokens"], "checkpoint max_new_tokens")
+        self._positive_number(raw_payload["learning_rate"], "checkpoint learning_rate")
+        self._validated_rng_state(raw_payload["cpu_rng_state"], "cpu_rng_state")
+        cuda_rng_state = raw_payload["cuda_rng_state"]
+        if cuda_rng_state is not None:
+            self._validated_rng_state(cuda_rng_state, "cuda_rng_state")
+        return raw_payload
+
+    @staticmethod
+    def _validated_rng_state(value: object, field_name: str) -> torch.Tensor:
+        if not isinstance(value, torch.Tensor) or value.dtype is not torch.uint8 or value.ndim != 1:
+            raise ValueError(f"backend checkpoint {field_name} must be a byte tensor")
+        return value
+
+    @staticmethod
+    def _validated_module_state(
+        module: nn.Module,
+        value: object,
+        field_name: str,
+    ) -> Mapping[str, torch.Tensor]:
+        if not isinstance(value, Mapping) or not all(
+            isinstance(name, str) and isinstance(tensor, torch.Tensor)
+            for name, tensor in value.items()
+        ):
+            raise ValueError(f"backend checkpoint {field_name} must be a tensor state mapping")
+        state = cast(Mapping[str, torch.Tensor], value)
+        current_state = module.state_dict()
+        if set(state) != set(current_state):
+            raise ValueError(f"backend checkpoint {field_name} keys are incompatible")
+        for name, current_tensor in current_state.items():
+            saved_tensor = state[name]
+            if (
+                saved_tensor.shape != current_tensor.shape
+                or saved_tensor.dtype != current_tensor.dtype
+            ):
+                raise ValueError(
+                    f"backend checkpoint {field_name}.{name} shape or dtype is incompatible"
+                )
+        return state
+
+    def _validated_optimizer_state(self, value: object) -> dict[str, object]:
+        if not isinstance(value, dict) or set(value) != {"param_groups", "state"}:
+            raise ValueError("backend checkpoint optimizer_state is malformed")
+        saved_groups = value["param_groups"]
+        current_groups = self.optimizer.state_dict()["param_groups"]
+        if not isinstance(saved_groups, list) or len(saved_groups) != len(current_groups):
+            raise ValueError("backend checkpoint optimizer parameter groups are incompatible")
+        for saved_group, current_group in zip(saved_groups, current_groups):
+            if not isinstance(saved_group, dict) or not isinstance(saved_group.get("params"), list):
+                raise ValueError("backend checkpoint optimizer parameter groups are malformed")
+            if len(saved_group["params"]) != len(current_group["params"]):
+                raise ValueError("backend checkpoint optimizer parameters are incompatible")
+        if not isinstance(value["state"], dict):
+            raise ValueError("backend checkpoint optimizer state must be a mapping")
+        return value
+
+    def _move_optimizer_state_to_device(self) -> None:
+        for state in self.optimizer.state.values():
+            for name, value in state.items():
+                state[name] = self._move_checkpoint_value(value)
+
+    def _move_checkpoint_value(self, value: object) -> object:
+        if isinstance(value, torch.Tensor):
+            return value.to(self.device)
+        if isinstance(value, dict):
+            return {key: self._move_checkpoint_value(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [self._move_checkpoint_value(item) for item in value]
+        if isinstance(value, tuple):
+            return tuple(self._move_checkpoint_value(item) for item in value)
+        return value
+
     def _evaluate_tokens(
         self,
         prompt_ids: tuple[int, ...],
@@ -250,7 +497,13 @@ class TorchPolicyBackend:
             raise AssertionError("policy hidden states must be available")
         selected, entropy = self._response_statistics(logits, input_ids, len(prompt_ids))
         predictor_hidden = hidden[:, :-1, :][:, len(prompt_ids) - 1 :]
-        values = self.value_head(predictor_hidden).squeeze(-1).squeeze(0)
+        raw_values = self.value_head(predictor_hidden)
+        expected_value_shape = (1, len(response_ids), 1)
+        if not isinstance(raw_values, torch.Tensor) or raw_values.shape != expected_value_shape:
+            raise RuntimeError(
+                "value_head must return shape [batch, response_tokens, 1] aligned with responses"
+            )
+        values = raw_values.squeeze(-1).squeeze(0)
 
         with torch.no_grad():
             reference_outputs = self.reference_model(
@@ -318,21 +571,16 @@ class TorchPolicyBackend:
     ) -> tuple[int, ...]:
         input_ids = torch.tensor([prompt_ids], dtype=torch.long, device=self.device)
         rng_devices = list(range(torch.cuda.device_count())) if self.device.type == "cuda" else []
-        was_training = self.policy_model.training
-        self.policy_model.eval()
-        try:
-            with torch.random.fork_rng(devices=rng_devices, enabled=seed is not None):
-                if seed is not None:
-                    torch.manual_seed(seed + sample_index)
-                with torch.no_grad():
-                    generated = self.policy_model.generate(
-                        input_ids,
-                        attention_mask=torch.ones_like(input_ids),
-                        max_new_tokens=max_new_tokens,
-                        **sampling_parameters,
-                    )
-        finally:
-            self.policy_model.train(was_training)
+        with torch.random.fork_rng(devices=rng_devices, enabled=seed is not None):
+            if seed is not None:
+                torch.manual_seed(seed + sample_index)
+            with torch.no_grad():
+                generated = self.policy_model.generate(
+                    input_ids,
+                    attention_mask=torch.ones_like(input_ids),
+                    max_new_tokens=max_new_tokens,
+                    **sampling_parameters,
+                )
         if not isinstance(generated, torch.Tensor) or generated.ndim != 2:
             raise RuntimeError("policy_model.generate must return a rank-two tensor")
         if generated.shape[0] != 1 or generated.shape[1] <= len(prompt_ids):
@@ -502,7 +750,7 @@ class TorchPolicyBackend:
             if capability is Capability.SUPPORTS_CUDA:
                 return f"Policy, reference, value head, and tensors use {self.device}."
             if capability is Capability.SUPPORTS_LORA_TRAINING:
-                return "Policy trainability is restricted by an injected PEFT LoRA adapter."
+                return "Policy has PEFT config evidence and adapter-only trainable parameters."
             if capability is Capability.SUPPORTS_FULL_WEIGHT_TRAINING:
                 return "All policy-model parameters are optimizer-eligible."
             return f"{capability.value} is implemented by TorchPolicyBackend."

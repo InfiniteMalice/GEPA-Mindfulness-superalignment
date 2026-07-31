@@ -30,6 +30,14 @@ class OptimizerStepResult:
     step: int
 
 
+@dataclass(frozen=True)
+class BackendCheckpointResult:
+    """Format version and recorded optimizer step for a checkpoint operation."""
+
+    format_version: int
+    step: int
+
+
 class TorchTensorOps:
     """PyTorch implementation of the backend-neutral algorithm tensor protocol."""
 
@@ -88,4 +96,9 @@ class TorchTensorOps:
         return selected.mean()
 
 
-__all__ = ["OptimizerStepResult", "TokenizerLike", "TorchTensorOps"]
+__all__ = [
+    "BackendCheckpointResult",
+    "OptimizerStepResult",
+    "TokenizerLike",
+    "TorchTensorOps",
+]
