@@ -5,10 +5,11 @@ from __future__ import annotations
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Mapping, Sequence
 
 import pytest
 
@@ -76,6 +77,13 @@ if mode == "oversized_stderr":
     sys.stderr.flush()
 if mode == "bad_handshake":
     send("hello", hello["request_id"], {"backend_name": "fake", "extra": True})
+    raise SystemExit(0)
+if mode == "unsafe_handshake":
+    send(
+        "hello",
+        hello["request_id"],
+        {"backend_name": "fake\nname", "backend_version": "fake-1"},
+    )
     raise SystemExit(0)
 if mode == "duplicate_envelope_key":
     raw = (
@@ -195,6 +203,47 @@ while True:
 @dataclass(frozen=True)
 class FakeCoordinator:
     command: tuple[str, ...]
+
+
+class InvalidHandshakeTransport:
+    """Structurally valid transport that returns an invalid startup value."""
+
+    def __init__(self) -> None:
+        self.closed = False
+
+    def start(self) -> object:
+        return object()
+
+    def generate(
+        self,
+        requests: Sequence[Mapping[str, object]],
+    ) -> Sequence[Mapping[str, object]]:
+        raise AssertionError("generate must not run after an invalid handshake")
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class BlockedWriteStream:
+    """Test boundary that makes request-write ordering observable."""
+
+    def __init__(self, wrapped: object) -> None:
+        self.wrapped = wrapped
+        self.entered = threading.Event()
+        self.release = threading.Event()
+
+    def write(self, data: bytes) -> int:
+        self.entered.set()
+        if not self.release.wait(1.0):
+            raise OSError("test write was not released")
+        return len(data)
+
+    def flush(self) -> None:
+        return None
+
+    def close(self) -> None:
+        close = getattr(self.wrapped, "close")
+        close()
 
 
 @pytest.fixture
@@ -383,6 +432,53 @@ def test_transport_rejects_pres_sent_or_duplicate_response_frames(
         transport.start()
 
 
+def test_transport_rejects_response_observed_before_request_write_commits(
+    fake_coordinator_factory: object,
+) -> None:
+    """A request-N frame observed during a blocked write cannot satisfy that request."""
+    transport = fake_coordinator_factory("stop_reading")  # type: ignore[operator]
+    transport.start()
+    assert transport._process is not None
+    assert transport._process.stdin is not None
+    blocked = BlockedWriteStream(transport._process.stdin)
+    transport._process.stdin = blocked  # type: ignore[assignment]
+    errors: list[BaseException] = []
+
+    def generate() -> None:
+        try:
+            transport.generate((_raw_actor_request(),))
+        except BaseException as exc:
+            errors.append(exc)
+
+    caller = threading.Thread(target=generate)
+    caller.start()
+    assert blocked.entered.wait(1.0)
+    raw = (
+        b'{"protocol_version":"gepa-actor-v1","type":"generate",'
+        b'"request_id":"request-2","payload":{"trajectories":[]}}'
+    )
+    transport._put_stdout_frame(raw)
+    blocked.release.set()
+    caller.join(timeout=1.0)
+
+    assert not caller.is_alive()
+    assert len(errors) == 1
+    assert isinstance(errors[0], MojoCoordinatorError)
+    assert "write" in str(errors[0]) or "response" in str(errors[0])
+
+
+def test_transport_accepts_immediate_response_after_request_flush(
+    fake_coordinator_factory: object,
+) -> None:
+    """A response emitted immediately after flush observes the awaiting state."""
+    transport = fake_coordinator_factory()  # type: ignore[operator]
+    transport.start()
+
+    trajectories = transport.generate((_raw_actor_request(),))
+
+    assert len(trajectories) == 1
+
+
 @pytest.mark.parametrize("mode", ["duplicate_envelope_key", "duplicate_nested_key"])
 def test_transport_rejects_duplicate_json_object_keys(
     fake_coordinator_factory: object,
@@ -463,6 +559,84 @@ def test_transport_rejects_bounded_startup_protocol_failures(
         transport.start()
 
     assert transport.closed is True
+
+
+def _assert_transport_resources_stopped(
+    transport: MojoProcessTransport,
+    *,
+    writer_expected: bool,
+) -> None:
+    assert transport.process_running is False
+    for reader in (transport._stdout_thread, transport._stderr_thread):
+        assert reader is not None
+        assert reader.is_alive() is False
+    writer = getattr(transport, "_writer_thread", None)
+    if writer_expected:
+        assert writer is not None
+        assert writer.is_alive() is False
+
+
+def test_startup_timeout_returns_with_process_and_transport_threads_stopped(
+    fake_coordinator_factory: object,
+) -> None:
+    """The startup budget reserves enough cleanup time to reap every owned resource."""
+    transport = fake_coordinator_factory(  # type: ignore[operator]
+        "timeout",
+        startup_timeout_seconds=0.1,
+    )
+
+    with pytest.raises(MojoCoordinatorError, match="deadline"):
+        transport.start()
+
+    _assert_transport_resources_stopped(transport, writer_expected=True)
+
+
+def test_blocked_write_timeout_returns_with_process_and_transport_threads_stopped(
+    fake_coordinator_factory: object,
+) -> None:
+    """The request budget reaps a blocked writer, process, and readers before returning."""
+    transport = fake_coordinator_factory(  # type: ignore[operator]
+        "stop_reading",
+        request_timeout_seconds=0.1,
+        max_frame_bytes=1_000_000,
+    )
+    transport.start()
+
+    with pytest.raises(MojoCoordinatorError, match="deadline|write"):
+        transport.generate((_raw_actor_request(prompt="x" * 500_000),))
+
+    _assert_transport_resources_stopped(transport, writer_expected=True)
+
+
+def test_backend_wraps_unsafe_handshake_construction_and_fails_closed(
+    fake_coordinator_factory: object,
+) -> None:
+    """Unsafe handshake construction uses the backend error contract and poisons startup."""
+    transport = fake_coordinator_factory("unsafe_handshake")  # type: ignore[operator]
+    backend = MojoCoordinatorBackend(transport)
+    request = (RolloutRequest(prompt="prompt", policy_version="3"),)
+
+    with pytest.raises(MojoCoordinatorError, match="handshake"):
+        backend.generate(request)
+
+    assert transport.closed is True
+    _assert_transport_resources_stopped(transport, writer_expected=True)
+    with pytest.raises(RuntimeError, match="closed"):
+        backend.generate(request)
+
+
+def test_backend_poisons_custom_transport_returning_untyped_handshake() -> None:
+    """A non-ActorHandshake startup value closes the transport and later calls fail closed."""
+    transport = InvalidHandshakeTransport()
+    backend = MojoCoordinatorBackend(transport)
+    request = (RolloutRequest(prompt="prompt", policy_version="3"),)
+
+    with pytest.raises(MojoCoordinatorError, match="handshake"):
+        backend.generate(request)
+
+    assert transport.closed is True
+    with pytest.raises(RuntimeError, match="closed"):
+        backend.generate(request)
 
 
 def test_generate_error_and_crash_do_not_echo_prompt_stderr_or_environment_secret(
@@ -586,11 +760,15 @@ def test_mojo_coordinator_source_runs_hello_and_close_protocol() -> None:
     assert '"type":"hello"' in frames[0].replace(" ", "")
     assert '"type":"close"' in frames[1].replace(" ", "")
 
+    representative_request = (
+        '{"case_id":null,"metadata":{},"num_samples":1,"policy_version":"1",'
+        '"prompt":"probe","sampling_parameters":{},"seed":null}'
+    )
     generate_messages = (
         '{"protocol_version":"gepa-actor-v1","type":"hello",'
         '"request_id":"request-1","payload":{}}\n'
         '{"protocol_version":"gepa-actor-v1","type":"generate",'
-        '"request_id":"request-2","payload":{"requests":[]}}\n'
+        '"request_id":"request-2","payload":{"requests":[' + representative_request + "]}}\n"
     )
     generated = subprocess.run(
         ["mojo", "run", str(source)],
@@ -603,15 +781,22 @@ def test_mojo_coordinator_source_runs_hello_and_close_protocol() -> None:
     assert generated.returncode == 0, generated.stderr
     assert "actor_unconfigured" in generated.stdout
 
-    malformed = subprocess.run(
-        ["mojo", "run", str(source)],
-        input=messages.replace("request-1", "request-9", 1),
-        capture_output=True,
-        check=False,
-        text=True,
-        timeout=15,
+    invalid_messages = (
+        messages.replace("request-1", "request-9", 1),
+        generate_messages.replace('"payload":{"requests":', '"payload":{"extra":1,"requests":'),
+        generate_messages.replace('"request_id":"request-2"', '"request_id":"request-3"'),
+        generate_messages.replace('"type":"generate"', '"type":"close"'),
     )
-    assert malformed.returncode != 0
+    for invalid in invalid_messages:
+        malformed = subprocess.run(
+            ["mojo", "run", str(source)],
+            input=invalid,
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=15,
+        )
+        assert malformed.returncode != 0
 
 
 def test_mojo_source_declares_strict_unconfigured_protocol_contract() -> None:
@@ -624,5 +809,12 @@ def test_mojo_source_declares_strict_unconfigured_protocol_contract() -> None:
     assert '\\"close\\"' in source
     assert "actor_unconfigured" in source
     assert "trajectories" not in source
+    assert '\\"case_id\\":null' in source
+    assert '\\"metadata\\":{}' in source
+    assert '\\"num_samples\\":1' in source
+    assert '\\"policy_version\\":\\"1\\"' in source
+    assert '\\"prompt\\":\\"probe\\"' in source
+    assert '\\"sampling_parameters\\":{}' in source
+    assert '\\"seed\\":null' in source
     assert "invalid gepa-actor-v1 hello frame" in source
     assert "invalid gepa-actor-v1 generate or close frame" in source

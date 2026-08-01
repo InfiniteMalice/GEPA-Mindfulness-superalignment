@@ -38,7 +38,10 @@ def main() raises:
 
     var expected_generate = (
         "{\"protocol_version\":\"gepa-actor-v1\",\"type\":\"generate\","
-        "\"request_id\":\"request-2\",\"payload\":{\"requests\":[]}}"
+        "\"request_id\":\"request-2\",\"payload\":{\"requests\":[{"
+        "\"case_id\":null,\"metadata\":{},\"num_samples\":1,"
+        "\"policy_version\":\"1\",\"prompt\":\"probe\","
+        "\"sampling_parameters\":{},\"seed\":null}]}}"
     )
     if request != expected_generate:
         raise Error("invalid gepa-actor-v1 generate or close frame")

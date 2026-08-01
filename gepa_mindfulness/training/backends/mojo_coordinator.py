@@ -159,8 +159,10 @@ class MojoProcessTransport:
         self._stderr_reader_ready = threading.Event()
         self._expectation_lock = threading.Lock()
         self._expected_response: tuple[str, str] | None = None
+        self._response_state = "idle"
         self._response_seen = False
         self._protocol_error: str | None = None
+        self._writer_thread: threading.Thread | None = None
         self._stdout_thread: threading.Thread | None = None
         self._stderr_thread: threading.Thread | None = None
         self._exchange_lock = threading.RLock()
@@ -189,7 +191,7 @@ class MojoProcessTransport:
             if self._started:
                 raise RuntimeError("Mojo coordinator transport is already started")
             try:
-                self._spawn(operation_deadline)
+                self._spawn(_reserved_exchange_deadline(operation_deadline))
                 self._started = True
                 payload = self._exchange(
                     "hello",
@@ -209,10 +211,16 @@ class MojoProcessTransport:
                     backend_name=backend_name,
                     backend_version=backend_version,
                 )
-            except (MojoCoordinatorError, OSError) as exc:
+            except MojoCoordinatorError:
                 self._cleanup(operation_deadline)
-                if isinstance(exc, MojoCoordinatorError):
-                    raise
+                raise
+            except (TypeError, ValueError) as exc:
+                self._cleanup(operation_deadline)
+                raise MojoCoordinatorError(
+                    "Mojo coordinator handshake identity is invalid"
+                ) from exc
+            except OSError as exc:
+                self._cleanup(operation_deadline)
                 raise MojoCoordinatorError("Mojo coordinator process could not start") from exc
 
     def generate(
@@ -334,21 +342,33 @@ class MojoProcessTransport:
             if self._protocol_error is not None:
                 raise MojoCoordinatorError(self._protocol_error)
             self._expected_response = (message_type, request_id)
+            self._response_state = "writing"
             self._response_seen = False
         write_done = threading.Event()
         write_errors: list[BaseException] = []
 
         def write_frame() -> None:
             try:
-                stdin.write(encoded + b"\n")
-                stdin.flush()
+                # The child cannot parse the request until the delimiter is committed. Keeping
+                # that final write and flush under the state lock lets an immediate response wait
+                # for ``awaiting`` while a frame seen during the prefix write remains ineligible.
+                stdin.write(encoded)
+                with self._expectation_lock:
+                    stdin.write(b"\n")
+                    stdin.flush()
+                    if self._expected_response == (message_type, request_id):
+                        self._response_state = "awaiting"
             except (BrokenPipeError, OSError, ValueError) as exc:
                 write_errors.append(exc)
             finally:
                 write_done.set()
 
-        writer = threading.Thread(target=write_frame, daemon=True)
-        writer.start()
+        self._writer_thread = threading.Thread(
+            target=write_frame,
+            name="mojo-coordinator-writer",
+            daemon=True,
+        )
+        self._writer_thread.start()
         try:
             if not write_done.wait(_remaining(deadline)):
                 raise MojoCoordinatorError("Mojo coordinator write deadline expired")
@@ -358,6 +378,7 @@ class MojoProcessTransport:
         finally:
             with self._expectation_lock:
                 self._expected_response = None
+                self._response_state = "idle"
 
     def _receive(
         self,
@@ -502,6 +523,14 @@ class MojoProcessTransport:
             if self._expected_response is None:
                 self._protocol_error = "Mojo coordinator emitted an unsolicited response frame"
                 return
+            if self._response_state == "writing":
+                self._protocol_error = (
+                    "Mojo coordinator emitted a response before its request write committed"
+                )
+                return
+            if self._response_state != "awaiting":
+                self._protocol_error = "Mojo coordinator response state is invalid"
+                return
             if self._response_seen:
                 self._protocol_error = "Mojo coordinator emitted a duplicate response frame"
                 return
@@ -543,41 +572,38 @@ class MojoProcessTransport:
             return
         if deadline is None:
             deadline = time.monotonic() + self.shutdown_timeout_seconds
-        if process.stdin is not None:
-            close_thread = threading.Thread(
-                target=_close_stream,
-                args=(process.stdin,),
-                daemon=True,
-            )
-            close_thread.start()
-            close_thread.join(timeout=_remaining(deadline) / 4.0)
         if process.poll() is None:
+            try:
+                process.terminate()
+            except OSError:
+                pass
             try:
                 process.wait(timeout=_remaining(deadline) / 3.0)
             except subprocess.TimeoutExpired:
-                try:
-                    process.terminate()
-                except OSError:
-                    pass
+                pass
         if process.poll() is None:
+            try:
+                process.kill()
+            except OSError:
+                pass
             try:
                 process.wait(timeout=_remaining(deadline) / 2.0)
             except subprocess.TimeoutExpired:
-                try:
-                    process.kill()
-                except OSError:
-                    pass
+                pass
         if process.poll() is None:
             try:
                 process.wait(timeout=_remaining(deadline))
             except subprocess.TimeoutExpired:
                 pass
-        for stream in (process.stdout, process.stderr):
-            if stream is not None and _remaining(deadline) > 0.0:
+        writer = self._writer_thread
+        if writer is not None and writer is not threading.current_thread():
+            writer.join(timeout=_remaining(deadline))
+        for stream in (process.stdin, process.stdout, process.stderr):
+            if stream is not None:
                 _close_stream(stream)
-        for reader in (self._stdout_thread, self._stderr_thread):
-            if reader is not None:
-                reader.join(timeout=_remaining(deadline))
+        for worker in (self._stdout_thread, self._stderr_thread):
+            if worker is not None and worker is not threading.current_thread():
+                worker.join(timeout=_remaining(deadline))
 
 
 class MojoCoordinatorBackend:
@@ -598,12 +624,17 @@ class MojoCoordinatorBackend:
         prepared, expected = _prepare_requests(requests)
         if not prepared:
             return ()
-        if self._handshake is None:
-            handshake = self.transport.start()
-            if not isinstance(handshake, ActorHandshake):
-                raise MojoCoordinatorError("Actor transport returned an invalid handshake")
-            self._handshake = handshake
         try:
+            if self._handshake is None:
+                try:
+                    handshake = self.transport.start()
+                except (TypeError, ValueError) as exc:
+                    raise MojoCoordinatorError(
+                        "Actor transport returned an invalid handshake"
+                    ) from exc
+                if not isinstance(handshake, ActorHandshake):
+                    raise MojoCoordinatorError("Actor transport returned an invalid handshake")
+                self._handshake = handshake
             raw_trajectories = self.transport.generate(prepared)
             if len(raw_trajectories) != len(expected):
                 raise MojoCoordinatorError("Mojo trajectory count does not match actor requests")
@@ -819,7 +850,7 @@ def _remaining(deadline: float) -> float:
 def _reserved_exchange_deadline(
     operation_deadline: float,
     *,
-    reserve_fraction: float = 0.2,
+    reserve_fraction: float = 0.5,
 ) -> float:
     remaining = _remaining(operation_deadline)
     return time.monotonic() + remaining * (1.0 - reserve_fraction)
