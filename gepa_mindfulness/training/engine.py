@@ -682,6 +682,7 @@ class RLTrainingEngine:
                 selected = self._rollout_requests(requests, global_step, rollout_index=0)
                 trajectories = tuple(generation_backend.generate(selected))
                 if hybrid_state is not None:
+                    _validate_hybrid_actor_backends(self.config, trajectories)
                     generation_backend.capabilities().require({Capability.SUPPORTS_GENERATION})
                 _validate_rollout_output(self.config, selected, trajectories)
                 backend.capabilities().require(requirements)
@@ -692,6 +693,7 @@ class RLTrainingEngine:
                 selected = self._rollout_requests(requests, global_step, rollout_index=0)
                 trajectories = tuple(generation_backend.generate(selected))
                 if hybrid_state is not None:
+                    _validate_hybrid_actor_backends(self.config, trajectories)
                     generation_backend.capabilities().require({Capability.SUPPORTS_GENERATION})
                 _validate_rollout_output(self.config, selected, trajectories)
                 scored, rewards = self._score(trajectories, reward_provider)
@@ -813,6 +815,7 @@ class RLTrainingEngine:
                 rollout_cursor += 1
                 trajectories = tuple(generation_backend.generate(selected))
                 if hybrid_state is not None:
+                    _validate_hybrid_actor_backends(self.config, trajectories)
                     generation_backend.capabilities().require({Capability.SUPPORTS_GENERATION})
                 _validate_rollout_output(self.config, selected, trajectories)
                 decisions = _hybrid_staleness_decisions(
@@ -911,6 +914,13 @@ class RLTrainingEngine:
                     rollout_cursor=rollout_cursor,
                 )
                 saved = checkpoint.save(global_step, next_parent)
+                if hybrid_state is not None:
+                    from .run_logging import validate_checkpoint_id
+
+                    validate_checkpoint_id(
+                        getattr(saved, "checkpoint_id", None),
+                        global_step,
+                    )
                 latest_checkpoint = saved
                 next_parent = getattr(saved, "checkpoint_id", next_parent)
                 if hybrid_state is not None:
@@ -1883,6 +1893,15 @@ def _hybrid_staleness_decisions(
     return tuple(decisions)
 
 
+def _validate_hybrid_actor_backends(
+    config: RLRunConfig,
+    trajectories: tuple[Trajectory, ...],
+) -> None:
+    for trajectory in trajectories:
+        if trajectory.backend_name != config.hybrid.expected_actor_backend:
+            raise ValueError("actor trajectory backend does not match configured actor identity")
+
+
 def _export_and_publish_adapter(
     config: RLRunConfig,
     backend: TrainablePolicyBackend,
@@ -2324,7 +2343,6 @@ class _JSONLRunLogger:
                 checkpoint_id=checkpoint_id,
             )
         )
-        self.policy_version = manifest.policy_version.to_json()
 
     def metrics(self, rewards: tuple[object, ...], global_step: int) -> None:
         from datetime import datetime, timezone

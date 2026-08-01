@@ -134,7 +134,6 @@ _PUBLICATION_FIELDS = frozenset(
     }
 )
 _SAFE_IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
-_CHECKPOINT_ID = re.compile(r"checkpoint-([0-9]{8})\Z")
 _TRAJECTORY_PAYLOAD_REQUIRED_FIELDS = frozenset(
     {
         "adapter_identifier",
@@ -421,11 +420,9 @@ class PublicationRecord:
         current = PolicyVersion.from_json(self.policy_version)
         if current.value != parent.value + 1:
             raise ValueError("publication policy_version must be the exact next version")
-        for field_name in ("adapter_identifier", "model_identifier", "checkpoint_id"):
+        for field_name in ("adapter_identifier", "model_identifier"):
             _safe_identifier(getattr(self, field_name), field_name)
-        checkpoint_match = _CHECKPOINT_ID.fullmatch(self.checkpoint_id)
-        if checkpoint_match is None or int(checkpoint_match.group(1)) != self.global_step:
-            raise ValueError("checkpoint_id must be canonical and match global_step")
+        validate_checkpoint_id(self.checkpoint_id, self.global_step)
         _validate_sha256(self.adapter_sha256, "adapter_sha256")
         if self.schema_version != LOG_SCHEMA_VERSION:
             raise ValueError(f"publication schema_version must be {LOG_SCHEMA_VERSION}")
@@ -875,6 +872,15 @@ def _safe_identifier(value: object, field_name: str) -> str:
     return validated
 
 
+def validate_checkpoint_id(value: object, global_step: object) -> str:
+    """Validate the canonical checkpoint ID bound to one non-negative engine step."""
+    step = _non_negative_integer(global_step, "global_step")
+    expected = f"checkpoint-{step:08d}"
+    if type(value) is not str or value != expected:
+        raise ValueError("checkpoint_id must be canonical and match global_step")
+    return value
+
+
 def _json_mapping(value: object, field_name: str) -> dict[str, object]:
     if not isinstance(value, Mapping) or not all(isinstance(key, str) for key in value):
         raise TypeError(f"{field_name} must be a JSON object with string keys")
@@ -974,4 +980,5 @@ __all__ = [
     "PublicationRecord",
     "RunManifest",
     "TrajectoryRecord",
+    "validate_checkpoint_id",
 ]

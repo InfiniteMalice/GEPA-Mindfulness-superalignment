@@ -247,6 +247,19 @@ def test_first_publication_parent_must_match_manifest_actor_policy(tmp_path: Pat
         )
 
 
+def test_publication_checkpoint_id_supports_canonical_steps_wider_than_eight_digits() -> None:
+    record = _publication(
+        record_id="publication-large-step",
+        parent="1",
+        version="2",
+        global_step=100_000_000,
+        checkpoint_id="checkpoint-100000000",
+    )
+
+    assert record.checkpoint_id == "checkpoint-100000000"
+    assert record.global_step == 100_000_000
+
+
 @pytest.mark.parametrize(
     "changes",
     [

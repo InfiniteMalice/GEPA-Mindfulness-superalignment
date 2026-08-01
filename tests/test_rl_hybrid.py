@@ -1597,6 +1597,24 @@ def test_hybrid_downweights_stale_reward_once_and_publishes_next_version(
     assert len(stale) == 2
     assert {record["metrics"]["staleness_weight"] for record in stale} == {0.5}
     assert {record["metrics"]["staleness_accepted"] for record in stale} == {1.0}
+    manifest = json.loads((result.log_directory / "run_manifest.json").read_text(encoding="utf-8"))
+    trajectories = [
+        json.loads(line)
+        for line in (result.log_directory / "trajectories.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    publications = [
+        json.loads(line)
+        for line in (result.log_directory / "publications.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert manifest["device_capabilities"]["hybrid_actor_policy"]["policy_version"] == "1"
+    assert {record["policy_version"] for record in records} == {"1"}
+    assert {record["policy_version"] for record in trajectories} == {"1"}
+    assert [record["parent_policy_version"] for record in publications] == ["1", "2"]
+    assert [record["policy_version"] for record in publications] == ["2", "3"]
 
 
 def test_hybrid_actor_crash_closes_actor_and_learner_without_publication(
@@ -2117,6 +2135,103 @@ class _FailingPublicationLogger(_LoggerWithoutPublication):
     def publication(self, *args: object, **kwargs: object) -> None:
         del args, kwargs
         raise RuntimeError("publication audit hook failed")
+
+
+class _NoOpPublicationLogger(_LoggerWithoutPublication):
+    def publication(self, *args: object, **kwargs: object) -> None:
+        del args, kwargs
+
+
+class _CheckpointWithId:
+    def __init__(self, checkpoint_id: str) -> None:
+        self.checkpoint_id = checkpoint_id
+
+    def load(self, path: Path) -> object:
+        del path
+        raise AssertionError("load is not used by a training run")
+
+    def save(self, global_step: int, parent_checkpoint: str | None) -> object:
+        del global_step, parent_checkpoint
+        return SimpleNamespace(checkpoint_id=self.checkpoint_id)
+
+
+class _CountingRewardProvider:
+    def __init__(self) -> None:
+        self.score_calls = 0
+
+    def score(self, request: object) -> float:
+        del request
+        self.score_calls += 1
+        return 1.0
+
+
+@pytest.mark.parametrize(
+    "checkpoint_id",
+    ["custom-checkpoint", "checkpoint-00000002", "checkpoint-000000001"],
+)
+def test_hybrid_rejects_noncanonical_checkpoint_before_export_or_publication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    checkpoint_id: str,
+) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    learner = _hybrid_learner(config)
+    actor = _MockVersionedActor(model_id="tiny-hybrid-model", adapter_id="tiny-lora")
+    export_calls = 0
+    export_adapter = learner.export_adapter
+
+    def record_export(*args: object, **kwargs: object) -> AdapterCandidate:
+        nonlocal export_calls
+        export_calls += 1
+        return export_adapter(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(learner, "export_adapter", record_export)
+    with pytest.raises(ValueError, match="checkpoint"):
+        RLTrainingEngine(
+            config,
+            capability_provider=_LearnerCapabilityProvider(learner),
+            backend_factory=lambda _: learner,
+            actor_factory=lambda _, manifest: actor,
+            publisher_factory=lambda _: publisher,
+            checkpoint_factory=lambda _, backend: _CheckpointWithId(checkpoint_id),
+        ).train(max_steps=1)
+
+    assert export_calls == 0
+    assert publisher.current().policy_version == PolicyVersion(1)  # type: ignore[union-attr]
+    publications = tuple(Path(config.logging.log_dir).glob("rl-*/publications.jsonl"))
+    assert len(publications) == 1
+    assert publications[0].read_bytes() == b""
+    assert actor.close_calls == 1
+
+
+def test_hybrid_rejects_forged_trajectory_backend_before_scoring_with_custom_logger(
+    tmp_path: Path,
+) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    learner = _hybrid_learner(config)
+    actor = _InvalidIdentityActor(change={"backend_name": "forged-backend"})
+    rewards = _CountingRewardProvider()
+
+    with pytest.raises(ValueError, match="backend"):
+        RLTrainingEngine(
+            config,
+            capability_provider=_LearnerCapabilityProvider(learner),
+            backend_factory=lambda _: learner,
+            actor_factory=lambda _, manifest: actor,
+            publisher_factory=lambda _: publisher,
+            checkpoint_factory=lambda _, backend: _CheckpointWithId("checkpoint-00000001"),
+            logger_factory=lambda _: _NoOpPublicationLogger(),
+            reward_factory=lambda _: rewards,  # type: ignore[arg-type]
+        ).train(max_steps=1)
+
+    assert rewards.score_calls == 0
+    assert learner._step == 0
+    assert publisher.current().policy_version == PolicyVersion(1)  # type: ignore[union-attr]
+    assert actor.close_calls == 1
 
 
 def test_hybrid_rejects_logger_without_publication_hook_before_actor_factory(
