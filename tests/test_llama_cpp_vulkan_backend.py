@@ -22,8 +22,15 @@ from gepa_mindfulness.training.backends.llama_cpp_vulkan import (
     LlamaCppServerError,
     LlamaCppVulkanBackend,
 )
-from gepa_mindfulness.training.capability import Capability, CapabilityState
+from gepa_mindfulness.training.capability import (
+    BackendCapabilities,
+    Capability,
+    CapabilityEvidence,
+    CapabilityState,
+)
 from gepa_mindfulness.training.contracts import RolloutBackend
+from gepa_mindfulness.training.engine import RLTrainingEngine
+from gepa_mindfulness.training.runtime_config import RLRunConfig, RuntimeConfig
 from gepa_mindfulness.training.trajectory import RolloutRequest
 from mindful_trace_gepa.cli import build_parser
 
@@ -141,6 +148,44 @@ def mock_llama_server() -> Iterator[_MockLlamaServer]:
         yield server
     finally:
         server.close()
+
+
+def test_invalid_custom_request_seed_causes_zero_llama_http_requests(
+    mock_llama_server: _MockLlamaServer,
+) -> None:
+    class HTTPDetectingProvider:
+        def detect(self, config: RLRunConfig) -> BackendCapabilities:
+            del config
+            LlamaCppServerClient(mock_llama_server.endpoint).health()
+            return BackendCapabilities(
+                backend_name="llama_cpp_vulkan",
+                backend_version="test",
+                capabilities={
+                    capability: CapabilityEvidence(
+                        state=CapabilityState.SUPPORTED,
+                        evidence="test",
+                    )
+                    for capability in Capability
+                },
+            )
+
+    class InvalidDataset:
+        def materialize(self, mode: str) -> tuple[RolloutRequest, ...]:
+            del mode
+            return (RolloutRequest(prompt="invalid", seed=2**32 - 1),)
+
+    config = RLRunConfig(runtime=RuntimeConfig(backend="llama-cpp-vulkan"))
+    engine = RLTrainingEngine(
+        config,
+        capability_provider=HTTPDetectingProvider(),
+        backend_factory=lambda selected: LlamaCppVulkanBackend(mock_llama_server.endpoint),
+        dataset_factory=lambda selected: InvalidDataset(),
+    )
+
+    with pytest.raises(ValueError, match="seed"):
+        engine.collect()
+
+    assert mock_llama_server.requests == []
 
 
 def _completion(

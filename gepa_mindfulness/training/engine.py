@@ -39,6 +39,8 @@ from .runtime_config import DistributedRuntimeConfig, RLRunConfig
 from .seeds import validate_seed
 from .trajectory import PolicyEvaluation, RolloutRequest, Trajectory, TrajectoryBatch
 
+_MAX_SKIPPED_OPTIMIZER_RETRIES = 3
+
 if TYPE_CHECKING:
     from torch import nn
 
@@ -548,8 +550,6 @@ class RLTrainingEngine:
         requirements: set[Capability],
     ) -> EngineResult:
         target_step = step_budget
-        detected = self.capability_provider.detect(self.config)
-        detected.require(requirements)
         snapshot = _capture_dataset_snapshot(
             self.config,
             require_pairs=self._default_dataset and mode in {"evaluate", "train", "resume"},
@@ -572,12 +572,16 @@ class RLTrainingEngine:
                 step_budget=step_budget,
                 rollout_cursor=0,
             )
+        detected = self.capability_provider.detect(self.config)
+        detected.require(requirements)
         default_reward = (
             _PairRewardProvider(self.config, snapshot)
             if self._default_reward and mode in {"evaluate", "train", "resume"}
             else None
         )
-        _seed_process(self.config)
+        resume_rng_snapshot = _capture_rng_state() if mode == "resume" else None
+        if mode != "resume":
+            _seed_process(self.config)
         backend = cast(TrainablePolicyBackend, self.backend_factory(self.config))
         actor: RolloutBackend | None = None
         logger: RunLogger | None = None
@@ -591,6 +595,7 @@ class RLTrainingEngine:
         result_trajectories: tuple[Trajectory, ...] = ()
         evaluation_artifacts: dict[str, object] = {}
         resume_transaction: _ResumeTransaction | None = None
+        resume_initializing = mode == "resume"
         primary_error: BaseException | None = None
         try:
             initial_backend_requirements = set(requirements)
@@ -612,35 +617,35 @@ class RLTrainingEngine:
                     raise ValueError("resume requires an operator-selected checkpoint")
                 if checkpoint_coordinator is None:  # pragma: no cover - mode selection invariant
                     raise RuntimeError("checkpoint coordinator is unavailable")
-                transaction = _capture_resume_transaction(backend, algorithm)
+                transaction = _capture_resume_transaction(
+                    backend,
+                    algorithm,
+                    rng_snapshot=resume_rng_snapshot,
+                )
                 resume_transaction = transaction
-                try:
-                    restored = checkpoint_coordinator.load(checkpoint)
-                    global_step = self._restored_step(restored)
-                    resume_parent = self._restored_checkpoint_id(restored)
-                    batch_cursor = _restored_cursor(
-                        restored,
-                        "batch_cursor",
-                        fallback=global_step * self.config.algorithm.gradient_accumulation_steps,
-                    )
-                    rollout_cursor = _restored_cursor(
-                        restored,
-                        "rollout_cursor",
-                        fallback=batch_cursor,
-                    )
-                    latest_checkpoint = getattr(restored, "manifest", None)
-                    _preflight_engine_state(restored, algorithm)
-                    self._restore_engine_state(restored, algorithm)
-                    _preflight_planned_rollout_seeds(
-                        self.config,
-                        mode,
-                        requests,
-                        step_budget=step_budget,
-                        rollout_cursor=rollout_cursor,
-                    )
-                except BaseException as restore_error:
-                    _rollback_resume_transaction(transaction, backend, algorithm, restore_error)
-                    raise
+                restored = checkpoint_coordinator.load(checkpoint)
+                global_step = self._restored_step(restored)
+                resume_parent = self._restored_checkpoint_id(restored)
+                batch_cursor = _restored_cursor(
+                    restored,
+                    "batch_cursor",
+                    fallback=global_step * self.config.algorithm.gradient_accumulation_steps,
+                )
+                rollout_cursor = _restored_cursor(
+                    restored,
+                    "rollout_cursor",
+                    fallback=batch_cursor,
+                )
+                latest_checkpoint = getattr(restored, "manifest", None)
+                _preflight_engine_state(restored, algorithm)
+                self._restore_engine_state(restored, algorithm)
+                _preflight_planned_rollout_seeds(
+                    self.config,
+                    mode,
+                    requests,
+                    step_budget=step_budget,
+                    rollout_cursor=rollout_cursor,
+                )
                 target_step = global_step + step_budget
             if self.config.runtime.backend == "mojo-vulkan-llamacpp":
                 if not isinstance(backend, AdapterExportingPolicyBackend):
@@ -649,30 +654,20 @@ class RLTrainingEngine:
                     )
                 publisher = cast(PublisherFactory, self.publisher_factory)(self.config)
                 if mode == "resume":
-                    try:
-                        current, adapter_payload = publisher.current_artifact()
-                        artifact_checksum = backend.preflight_adapter_bytes(
-                            adapter_payload,
-                            manifest=current,
-                        )
-                        observed_checksum = _policy_parameter_checksum(backend)
-                        _validate_hybrid_resume(
-                            current,
-                            global_step,
-                            resume_parent,
-                            backend.capabilities().backend_name,
-                            artifact_checksum,
-                            observed_checksum,
-                        )
-                    except BaseException as lineage_error:
-                        if resume_transaction is not None:
-                            _rollback_resume_transaction(
-                                resume_transaction,
-                                backend,
-                                algorithm,
-                                lineage_error,
-                            )
-                        raise
+                    current, adapter_payload = publisher.current_artifact()
+                    artifact_checksum = backend.preflight_adapter_bytes(
+                        adapter_payload,
+                        manifest=current,
+                    )
+                    observed_checksum = _policy_parameter_checksum(backend)
+                    _validate_hybrid_resume(
+                        current,
+                        global_step,
+                        resume_parent,
+                        backend.capabilities().backend_name,
+                        artifact_checksum,
+                        observed_checksum,
+                    )
                 else:
                     current, adapter_payload = publisher.current_artifact()
                 if current.model_id != self.config.hybrid.model_id:
@@ -731,6 +726,7 @@ class RLTrainingEngine:
                     if self._default_logger
                     else cast(LoggerFactory, self.logger_factory)(self.config)
                 )
+            resume_initializing = False
             logger.start(mode, global_step, resume_parent, detected)
             checksum_before = _parameter_checksum(backend)
             policy_checksum_before = _policy_parameter_checksum(backend)
@@ -857,6 +853,8 @@ class RLTrainingEngine:
             )
         except BaseException as error:
             primary_error = error
+            if resume_initializing and resume_transaction is not None:
+                _rollback_resume_transaction(resume_transaction, backend, algorithm, error)
             raise
         finally:
             close_failure = _close_backends_once(actor, backend, primary_error)
@@ -887,6 +885,7 @@ class RLTrainingEngine:
         all_trajectories: list[Trajectory] = []
         artifacts: dict[str, object] = {}
         batches = tuple(_chunks(requests, self.config.algorithm.batch_size))
+        skipped_optimizer_retries = 0
         while global_step < target_step:
             backend.zero_grad()
             accumulated = 0
@@ -959,7 +958,7 @@ class RLTrainingEngine:
                 total_loss = getattr(loss, "total_loss", loss)
                 scaled_loss: object = total_loss
                 try:
-                    scaled_loss = total_loss / accumulation_steps  # type: ignore[operator]
+                    scaled_loss = total_loss / accumulation_steps
                 except TypeError:
                     scaled_loss = total_loss
                 backend.backward(scaled_loss)
@@ -980,7 +979,13 @@ class RLTrainingEngine:
                 raise ValueError("backend optimizer updated evidence must be a boolean")
             if not updated:
                 backend.zero_grad()
+                skipped_optimizer_retries += 1
+                if skipped_optimizer_retries > _MAX_SKIPPED_OPTIMIZER_RETRIES:
+                    raise RuntimeError(
+                        "backend optimizer step remained skipped after the bounded retry budget"
+                    )
                 continue
+            skipped_optimizer_retries = 0
             step_policy_checksum_after = _policy_parameter_checksum(backend)
             if hybrid_state is not None and (
                 step_policy_checksum_after is None
@@ -1110,7 +1115,11 @@ class RLTrainingEngine:
                 for result, weight in zip(results, weights, strict=True)
             )
         scored = tuple(
-            _bind_reward(trajectory, result)
+            _bind_reward(
+                trajectory,
+                result,
+                validate_custom=not isinstance(provider, _PairRewardProvider),
+            )
             for trajectory, result in zip(trajectories, results, strict=True)
         )
         return scored, results
@@ -1573,10 +1582,21 @@ def _as_prepared(
     return PreparedBatch(value, value.trajectories or scored)
 
 
-def _bind_reward(trajectory: Trajectory, result: object) -> Trajectory:
+def _bind_reward(
+    trajectory: Trajectory,
+    result: object,
+    *,
+    validate_custom: bool = True,
+) -> Trajectory:
     total = _reward_value(result)
     if not isinstance(result, RewardAssessment):
+        if total < 0.0:
+            raise ValueError(
+                "negative reward must use structured components with observable evidence"
+            )
         return replace(trajectory, reward_total=total)
+    if validate_custom:
+        _validate_negative_reward_assessment(result, total)
     references = tuple(result.references)
     evidence = {name: tuple(values) for name, values in result.evidence.items()}
     return replace(
@@ -1586,6 +1606,36 @@ def _bind_reward(trajectory: Trajectory, result: object) -> Trajectory:
         reward_component_evidence=evidence,
         evidence_references=references,
     )
+
+
+def _validate_negative_reward_assessment(result: RewardAssessment, total: float) -> None:
+    if total >= 0.0:
+        return
+    components: dict[str, float] = {}
+    for name, value in result.components.items():
+        if not isinstance(name, str) or not name:
+            raise ValueError("reward component names must be non-empty strings")
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError("reward components must be numeric")
+        numeric = float(value)
+        if not math.isfinite(numeric):
+            raise ValueError("reward components must be finite")
+        components[name] = numeric
+    if not math.isclose(
+        math.fsum(components.values()),
+        total,
+        rel_tol=1e-9,
+        abs_tol=1e-9,
+    ):
+        raise ValueError("negative reward total must be coherently derived from components")
+    for name, value in components.items():
+        if value >= 0.0:
+            continue
+        evidence = tuple(result.evidence.get(name, ()))
+        if not evidence or not all(
+            getattr(reference, "is_observable", False) is True for reference in evidence
+        ):
+            raise ValueError("negative component requires observable evidence")
 
 
 def _chunks(
@@ -1717,15 +1767,9 @@ class _ResumeTransaction:
     torch_cuda_rng_states: tuple[object, ...]
 
 
-def _capture_resume_transaction(
-    backend: TrainablePolicyBackend,
-    algorithm: RLAlgorithm | None,
-) -> _ResumeTransaction:
-    backend_capture = getattr(backend, "capture_checkpoint_restore_state", None)
-    backend_state = backend_capture() if callable(backend_capture) else None
-    algorithm_state = _state_snapshot(algorithm)
-    scheduler = getattr(algorithm, "scheduler", None)
-    scheduler_state = _state_snapshot(scheduler)
+def _capture_rng_state() -> (
+    tuple[tuple[object, ...], object | None, object | None, tuple[object, ...]]
+):
     torch_module: object | None = None
     cpu_state: object | None = None
     cuda_states: tuple[object, ...] = ()
@@ -1738,11 +1782,28 @@ def _capture_resume_transaction(
         get_cuda_states = getattr(cuda, "get_rng_state_all", None)
         if callable(get_cuda_states):
             cuda_states = tuple(_clone_state(state) for state in get_cuda_states())
+    return random.getstate(), torch_module, cpu_state, cuda_states
+
+
+def _capture_resume_transaction(
+    backend: TrainablePolicyBackend,
+    algorithm: RLAlgorithm | None,
+    *,
+    rng_snapshot: (
+        tuple[tuple[object, ...], object | None, object | None, tuple[object, ...]] | None
+    ) = None,
+) -> _ResumeTransaction:
+    backend_capture = getattr(backend, "capture_checkpoint_restore_state", None)
+    backend_state = backend_capture() if callable(backend_capture) else None
+    algorithm_state = _state_snapshot(algorithm)
+    scheduler = getattr(algorithm, "scheduler", None)
+    scheduler_state = _state_snapshot(scheduler)
+    python_state, torch_module, cpu_state, cuda_states = rng_snapshot or _capture_rng_state()
     return _ResumeTransaction(
         backend_state=backend_state,
         algorithm_state=algorithm_state,
         scheduler_state=scheduler_state,
-        python_rng_state=random.getstate(),
+        python_rng_state=python_state,
         torch_module=torch_module,
         torch_cpu_rng_state=cpu_state,
         torch_cuda_rng_states=cuda_states,
@@ -1947,7 +2008,10 @@ def _reward_value(result: object) -> float:
     value = result if isinstance(result, (int, float)) else getattr(result, "total", None)
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError("reward provider must return a numeric value or object with total")
-    return float(value)
+    numeric = float(value)
+    if not math.isfinite(numeric):
+        raise ValueError("reward provider total must be finite")
+    return numeric
 
 
 def _weighted_reward(result: object, weight: float) -> object:
@@ -2034,7 +2098,14 @@ def _validate_hybrid_rollout_output(
             raise ValueError(
                 "actor request metadata policy version does not match current manifest"
             )
-        expected.extend(request for _ in range(request.num_samples))
+        expected.extend(
+            replace(
+                request,
+                seed=None if request.seed is None else request.seed + sample_index,
+                num_samples=1,
+            )
+            for sample_index in range(request.num_samples)
+        )
     if len(trajectories) != len(expected):
         raise ValueError("actor trajectory count does not match rollout requests")
     for trajectory, request in zip(trajectories, expected, strict=True):
@@ -2060,6 +2131,8 @@ def _validate_hybrid_rollout_output(
             raise ValueError("actor trajectory order or case correlation is invalid")
         if trajectory.prompt != request.prompt:
             raise ValueError("actor trajectory order or prompt correlation is invalid")
+        if trajectory.seed != request.seed:
+            raise ValueError("actor trajectory seed does not match its effective request seed")
 
 
 def _export_and_publish_adapter(
@@ -2208,7 +2281,12 @@ def _preflight_planned_rollout_seeds(
             return
         batch_size = config.algorithm.batch_size
         batch_count = (len(requests) + batch_size - 1) // batch_size
-        attempt_count = step_budget * batch_count * config.algorithm.gradient_accumulation_steps
+        attempt_count = (
+            step_budget
+            * (_MAX_SKIPPED_OPTIMIZER_RETRIES + 1)
+            * batch_count
+            * config.algorithm.gradient_accumulation_steps
+        )
         final_rollout_cursor = rollout_cursor + attempt_count - 1
         final_request_index = min(batch_size, len(requests)) - 1
     validate_seed(

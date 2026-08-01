@@ -11,7 +11,7 @@ import shutil
 import subprocess
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import BinaryIO, Mapping, Sequence
 
@@ -719,6 +719,8 @@ class MojoCoordinatorBackend:
                     raise MojoCoordinatorError(
                         "Mojo trajectory policy_version correlation is invalid"
                     )
+                if trajectory.seed != request.seed:
+                    raise MojoCoordinatorError("Mojo trajectory seed correlation is invalid")
                 assert self._handshake is not None
                 if (
                     trajectory.backend_name != self._handshake.backend_name
@@ -812,7 +814,14 @@ def _prepare_requests(
             raise AssertionError("internal actor request schema is invalid")
         _validate_json_value(payload, "actor request")
         prepared.append(payload)
-        expected.extend(request for _ in range(request.num_samples))
+        expected.extend(
+            replace(
+                request,
+                seed=None if request.seed is None else request.seed + sample_index,
+                num_samples=1,
+            )
+            for sample_index in range(request.num_samples)
+        )
     return tuple(prepared), tuple(expected)
 
 

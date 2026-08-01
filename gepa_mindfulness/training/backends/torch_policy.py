@@ -271,7 +271,7 @@ class TorchPolicyBackend:
                         model_identifier=self.model_identifier,
                         adapter_identifier=self.adapter_identifier,
                         policy_version=request.policy_version,
-                        seed=request.seed,
+                        seed=(None if request.seed is None else request.seed + sample_index),
                     )
                 )
         return trajectories
@@ -480,17 +480,42 @@ class TorchPolicyBackend:
                 raise ValueError(
                     "learner policy checksum or reference checksum does not reflect adapter state"
                 )
-        except Exception as exc:
+        except BaseException as exc:
+            rollback_failures: list[str] = []
             with torch.no_grad():
                 for name, parameter in policy_trainable.items():
-                    parameter.copy_(policy_snapshot[name])
+                    try:
+                        parameter.copy_(policy_snapshot[name])
+                    except BaseException as rollback_error:
+                        rollback_failures.append(
+                            f"policy tensor {name}: {type(rollback_error).__name__}: "
+                            f"{rollback_error}"
+                        )
                 for name, parameter in reference_trainable.items():
-                    parameter.copy_(reference_snapshot[name])
-            self.reference_model.requires_grad_(False)
-            self.reference_model.eval()
-            if isinstance(exc, ValueError):
-                raise
-            raise ValueError("adapter state could not be loaded transactionally") from exc
+                    try:
+                        parameter.copy_(reference_snapshot[name])
+                    except BaseException as rollback_error:
+                        rollback_failures.append(
+                            f"reference tensor {name}: {type(rollback_error).__name__}: "
+                            f"{rollback_error}"
+                        )
+            try:
+                self.reference_model.requires_grad_(False)
+            except BaseException as rollback_error:
+                rollback_failures.append(
+                    "reference freeze: " f"{type(rollback_error).__name__}: {rollback_error}"
+                )
+            try:
+                self.reference_model.eval()
+            except BaseException as rollback_error:
+                rollback_failures.append(
+                    f"reference eval: {type(rollback_error).__name__}: {rollback_error}"
+                )
+            if rollback_failures:
+                add_note = getattr(exc, "add_note", None)
+                if callable(add_note):
+                    add_note("adapter rollback failures: " + "; ".join(rollback_failures))
+            raise
         self.reference_model.requires_grad_(False)
         self.reference_model.eval()
         return loaded_checksum

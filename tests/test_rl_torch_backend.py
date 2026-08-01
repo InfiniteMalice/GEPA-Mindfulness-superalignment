@@ -488,7 +488,7 @@ def test_generate_records_response_aligned_policy_evidence(
         assert trajectory.backend_name == "torch_portable"
         assert trajectory.model_identifier == "tiny-local"
         assert trajectory.policy_version == "policy-3"
-        assert trajectory.seed == 11
+        assert trajectory.seed == 11 + sample_index
 
         batch = TrajectoryBatch(
             trajectories=(trajectory,),
@@ -1318,16 +1318,20 @@ def test_native_lora_preflight_is_nonmutating_and_load_rolls_back_both_models(
     original_checksum = target._named_tensor_checksum
     calls = 0
 
+    primary = RuntimeError("fault after policy/reference copies")
+
     def fail_reference_checksum(prefix: str, state: Mapping[str, torch.Tensor]) -> str:
         nonlocal calls
         calls += 1
         if calls == 2:
-            raise RuntimeError("fault after policy/reference copies")
+            raise primary
         return original_checksum(prefix, state)
 
     monkeypatch.setattr(target, "_named_tensor_checksum", fail_reference_checksum)
-    with pytest.raises(ValueError, match="transactionally"):
+    with pytest.raises(RuntimeError, match="fault after") as caught:
         target.load_adapter_bytes(payload, manifest=manifest)
+
+    assert caught.value is primary
 
     assert torch.equal(target.policy_model.lora_adapter, policy_before)
     assert torch.equal(target.reference_model.lora_adapter, reference_before)
@@ -1558,6 +1562,7 @@ def test_factory_reports_actionable_error_when_peft_is_missing(
 
 def test_factory_supports_lora_when_peft_is_available(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     """An installed PEFT adapter yields LoRA-only trainability and capability evidence."""
     fake_peft = ModuleType("peft")
@@ -1609,3 +1614,128 @@ def test_factory_supports_lora_when_peft_is_available(
         if parameter.requires_grad
     ]
     assert trainable == ["lora_adapter"]
+    reference_names = dict(backend.reference_model.named_parameters())
+    assert "lora_adapter" in reference_names
+    assert (
+        reference_names["lora_adapter"]
+        is not dict(backend.policy_model.named_parameters())["lora_adapter"]
+    )
+    assert backend.reference_model.training is False
+    assert all(not parameter.requires_grad for parameter in backend.reference_model.parameters())
+    candidate = backend.export_adapter(
+        tmp_path / "factory-lora.pt",
+        model_id="published-policy",
+        policy_version=PolicyVersion(1),
+        parent_policy_version=None,
+    )
+    publisher = LocalAdapterPublisher(tmp_path / "factory-publication")
+    manifest = publisher.publish(candidate)
+    _, payload = publisher.current_artifact()
+    assert backend.preflight_adapter_bytes(payload, manifest=manifest)
+    assert backend.load_adapter_bytes(payload, manifest=manifest)
+
+
+def test_lora_load_catches_keyboard_interrupt_and_restores_both_models(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = _native_lora_backend(_fake_lora_model())
+    target = _native_lora_backend(deepcopy(source.policy_model))
+    with torch.no_grad():
+        source.policy_model.lora_adapter.fill_(0.75)
+        target.policy_model.lora_adapter.fill_(-0.25)
+        target.reference_model.lora_adapter.fill_(-0.5)
+    publisher = LocalAdapterPublisher(tmp_path / "interrupt-publication")
+    manifest = publisher.publish(
+        source.export_adapter(
+            tmp_path / "interrupt.pt",
+            model_id="tiny-model",
+            policy_version=PolicyVersion(1),
+            parent_policy_version=None,
+        )
+    )
+    _, payload = publisher.current_artifact()
+    policy_before = target.policy_model.lora_adapter.detach().clone()
+    reference_before = target.reference_model.lora_adapter.detach().clone()
+    primary = KeyboardInterrupt("stop")
+    original_checksum = target._named_tensor_checksum
+    calls = 0
+
+    def interrupt_checksum(prefix: str, state: Mapping[str, torch.Tensor]) -> str:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise primary
+        return original_checksum(prefix, state)
+
+    monkeypatch.setattr(target, "_named_tensor_checksum", interrupt_checksum)
+    with pytest.raises(KeyboardInterrupt) as caught:
+        target.load_adapter_bytes(payload, manifest=manifest)
+
+    assert caught.value is primary
+    assert torch.equal(target.policy_model.lora_adapter, policy_before)
+    assert torch.equal(target.reference_model.lora_adapter, reference_before)
+
+
+def test_lora_rollback_continues_after_one_copy_failure_and_preserves_primary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model = _fake_lora_model()
+    model.register_parameter("lora_second", nn.Parameter(torch.zeros(1)))
+    source = _native_lora_backend(model)
+    target = _native_lora_backend(deepcopy(model))
+    with torch.no_grad():
+        source.policy_model.lora_adapter.fill_(0.75)
+        source.policy_model.lora_second.fill_(0.5)
+        target.policy_model.lora_adapter.fill_(-0.25)
+        target.policy_model.lora_second.fill_(-0.125)
+        target.reference_model.lora_adapter.fill_(-0.5)
+        target.reference_model.lora_second.fill_(-0.375)
+    publisher = LocalAdapterPublisher(tmp_path / "rollback-failure-publication")
+    manifest = publisher.publish(
+        source.export_adapter(
+            tmp_path / "rollback-failure.pt",
+            model_id="tiny-model",
+            policy_version=PolicyVersion(1),
+            parent_policy_version=None,
+        )
+    )
+    _, payload = publisher.current_artifact()
+    snapshots = {
+        "policy_second": target.policy_model.lora_second.detach().clone(),
+        "reference_adapter": target.reference_model.lora_adapter.detach().clone(),
+        "reference_second": target.reference_model.lora_second.detach().clone(),
+    }
+    primary = RuntimeError("primary post-copy failure")
+    checksum_calls = 0
+    original_checksum = target._named_tensor_checksum
+
+    def fail_checksum(prefix: str, state: Mapping[str, torch.Tensor]) -> str:
+        nonlocal checksum_calls
+        checksum_calls += 1
+        if checksum_calls == 2:
+            raise primary
+        return original_checksum(prefix, state)
+
+    copy_calls = 0
+    original_copy = torch.Tensor.copy_
+
+    def fail_first_rollback_copy(self: torch.Tensor, other: torch.Tensor) -> torch.Tensor:
+        nonlocal copy_calls
+        copy_calls += 1
+        if copy_calls == 5:
+            raise RuntimeError("rollback copy failed")
+        return original_copy(self, other)
+
+    monkeypatch.setattr(target, "_named_tensor_checksum", fail_checksum)
+    monkeypatch.setattr(torch.Tensor, "copy_", fail_first_rollback_copy)
+    with pytest.raises(RuntimeError, match="primary post-copy failure") as caught:
+        target.load_adapter_bytes(payload, manifest=manifest)
+
+    assert caught.value is primary
+    assert copy_calls == 8
+    assert torch.equal(target.policy_model.lora_second, snapshots["policy_second"])
+    assert torch.equal(target.reference_model.lora_adapter, snapshots["reference_adapter"])
+    assert torch.equal(target.reference_model.lora_second, snapshots["reference_second"])
+    assert any("rollback copy failed" in note for note in getattr(primary, "__notes__", ()))

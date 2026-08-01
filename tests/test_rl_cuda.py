@@ -53,6 +53,7 @@ from gepa_mindfulness.training.runtime_config import (
     RuntimeConfig,
     load_rl_config,
 )
+from gepa_mindfulness.training.trajectory import RolloutRequest
 
 
 class _RecordingDeviceContext:
@@ -882,6 +883,9 @@ def test_engine_completes_device_preflight_before_capability_distributed_query(
     engine = RLTrainingEngine(
         config,
         capability_provider=SimpleNamespace(detect=query_distributed),
+        dataset_factory=lambda selected: SimpleNamespace(
+            materialize=lambda mode: (RolloutRequest(prompt="seed-safe"),)
+        ),
     )
 
     with pytest.raises(CapabilityError, match="stop after capability query"):
@@ -931,6 +935,9 @@ def test_engine_executes_inside_managed_distributed_runtime(
     engine = RLTrainingEngine(
         config,
         capability_provider=SimpleNamespace(detect=detect),
+        dataset_factory=lambda selected: SimpleNamespace(
+            materialize=lambda mode: (RolloutRequest(prompt="seed-safe"),)
+        ),
     )
 
     with pytest.raises(CapabilityError, match="stop inside engine execution"):

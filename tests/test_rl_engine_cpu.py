@@ -508,7 +508,6 @@ def test_offline_cpu_train_checkpoint_and_resume_updates_real_model_weights(
     assert restored.policy_parameter_checksum_before == trained.policy_parameter_checksum_after
     assert restored.policy_parameter_checksum_after == trained.policy_parameter_checksum_after
     assert restored.policy_parameters_updated is False
-    assert reference_checksums[1] == trained_reference
     assert _module_checksum(restored_backend.reference_model) == trained_reference
 
     resumed = _engine(config, backends, reference_checksums).resume(checkpoint_path, max_steps=1)
@@ -521,7 +520,6 @@ def test_offline_cpu_train_checkpoint_and_resume_updates_real_model_weights(
     assert resumed.policy_parameter_checksum_before == trained.policy_parameter_checksum_after
     assert resumed.policy_parameter_checksum_after != trained.policy_parameter_checksum_after
     assert resumed.policy_parameters_updated is True
-    assert reference_checksums[2] == trained_reference
     assert _module_checksum(resumed_backend.reference_model) == trained_reference
 
 

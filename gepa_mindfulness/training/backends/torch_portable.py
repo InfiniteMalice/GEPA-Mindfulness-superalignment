@@ -34,6 +34,7 @@ def create_portable_backend(
     if training_mode == "lora":
         reference_model = deepcopy(policy_model) if reference_model is None else reference_model
         policy_model = _apply_lora(policy_model, lora_config)
+        reference_model = _apply_lora(reference_model, lora_config)
         adapter_identifier = "peft-lora"
     elif training_mode == "full":
         if lora_config is not None:

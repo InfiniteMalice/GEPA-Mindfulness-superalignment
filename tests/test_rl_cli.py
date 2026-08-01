@@ -15,6 +15,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
 from gepa_mindfulness.training import engine as engine_module
 from gepa_mindfulness.training import rl_cli
 from gepa_mindfulness.training.capability import (
@@ -25,6 +26,7 @@ from gepa_mindfulness.training.capability import (
     CapabilityState,
 )
 from gepa_mindfulness.training.engine import (
+    RewardAssessment,
     RLTrainingEngine,
     SystemCapabilityProvider,
     required_capabilities,
@@ -272,7 +274,7 @@ def _engine(
 
 
 @pytest.mark.parametrize("mode", ["train", "collect", "evaluate", "resume"])
-def test_capabilities_fail_before_every_mutating_mode_factory(
+def test_capabilities_fail_after_seed_safe_dataset_materialization_before_mutating_factories(
     tmp_path: Path,
     mode: str,
 ) -> None:
@@ -285,7 +287,7 @@ def test_capabilities_fail_before_every_mutating_mode_factory(
         else:
             getattr(engine, mode)()
 
-    assert events == ["capability"]
+    assert events == ["dataset.factory", "dataset", "capability"]
 
 
 def test_train_orders_lifecycle_and_closes_backend(tmp_path: Path) -> None:
@@ -295,7 +297,7 @@ def test_train_orders_lifecycle_and_closes_backend(tmp_path: Path) -> None:
 
     assert result.mode == "train"
     assert result.global_step == 1
-    assert events[0] == "capability"
+    assert events[:3] == ["dataset.factory", "dataset", "capability"]
     assert events.index("dataset") < events.index("log.start:train:0:None")
     assert events.index("log.start:train:0:None") < events.index("generate")
     assert events.index("optimizer_step") < events.index("checkpoint.save:1:None")
@@ -908,7 +910,7 @@ def test_injected_algorithm_extra_requirement_fails_before_every_factory(tmp_pat
     with pytest.raises(CapabilityError, match="supports_vulkan"):
         engine.train()
 
-    assert events == ["capability"]
+    assert events == ["dataset.factory", "dataset", "capability"]
 
 
 def test_invalid_cuda_index_fails_before_backend_factory(
@@ -926,12 +928,13 @@ def test_invalid_cuda_index_fails_before_backend_factory(
         config,
         capability_provider=SystemCapabilityProvider(),
         backend_factory=lambda value: events.append("backend.factory") or _Backend(events),
+        dataset_factory=lambda value: events.append("dataset.factory") or _Dataset(events),
     )
 
     with pytest.raises(CapabilityError, match="supports_cuda"):
         engine.train()
 
-    assert events == []
+    assert events == ["dataset.factory", "dataset"]
 
 
 class _PairBackend(_Backend):
@@ -1474,7 +1477,7 @@ def test_malformed_cuda_selector_fails_preflight_before_seed_or_factory(
     with pytest.raises(CapabilityError, match="supports_cuda"):
         engine.train()
 
-    assert events == []
+    assert events == ["dataset.factory", "dataset"]
 
 
 def test_group_seed_overflow_fails_before_rng_or_factory_side_effects(
@@ -1527,7 +1530,7 @@ def test_materialized_request_seed_fails_before_rng_model_logger_or_output(
     with pytest.raises(ValueError, match="seed.*4294967294"):
         engine.train()
 
-    assert events == ["capability", "dataset.factory", "dataset.materialize:train"]
+    assert events == ["dataset.factory", "dataset.materialize:train"]
 
 
 def test_later_materialized_request_seed_overflow_fails_before_fresh_run_mutation(
@@ -1556,7 +1559,7 @@ def test_later_materialized_request_seed_overflow_fails_before_fresh_run_mutatio
     with pytest.raises(ValueError, match="seed.*overflow|seed.*4294967294"):
         engine.collect()
 
-    assert events == ["capability", "dataset.factory", "dataset.materialize:collect"]
+    assert events == ["dataset.factory", "dataset.materialize:collect"]
 
 
 def test_restored_rollout_cursor_seed_overflow_fails_before_logger_or_actor(
@@ -1586,6 +1589,7 @@ def test_restored_rollout_cursor_seed_overflow_fails_before_logger_or_actor(
         engine.resume(tmp_path / "selected")
 
     assert "checkpoint.load:selected" in events
+    assert "seed" not in events
     assert "logger.factory" not in events
     assert "generate" not in events
 
@@ -1851,7 +1855,7 @@ def test_resume_rolls_back_backend_algorithm_scheduler_and_rng_as_one_transactio
     )
     backend = TransactionalBackend(events)
     algorithm = StatefulAlgorithm()
-    python_before = random.Random(42).getstate()
+    python_before = random.getstate()
 
     class StatefulCheckpoint(_Checkpoint):
         def load(self, path: Path) -> object:
@@ -1884,7 +1888,83 @@ def test_resume_rolls_back_backend_algorithm_scheduler_and_rng_as_one_transactio
     assert algorithm.updates == 0
     assert algorithm.scheduler.epoch == 0
     assert random.getstate() == python_before
-    assert fake_torch.state == "seed-42"
+    assert fake_torch.state == "torch-before"
+
+
+def test_optimizer_skip_retries_are_bounded(tmp_path: Path) -> None:
+    events: list[str] = []
+
+    class PermanentlySkippedBackend(_Backend):
+        def optimizer_step(self) -> object:
+            self.events.append("optimizer_step")
+            return SimpleNamespace(step=self.step, updated=False)
+
+    backend = PermanentlySkippedBackend(events)
+    engine = _engine(tmp_path, events)
+    engine.backend_factory = lambda value: backend
+
+    with pytest.raises(RuntimeError, match="optimizer.*skipped.*retry"):
+        engine.train()
+
+    assert events.count("optimizer_step") == 4
+
+
+def test_retry_budget_is_included_in_whole_run_seed_preflight(tmp_path: Path) -> None:
+    events: list[str] = []
+    config = replace(_config(tmp_path), seed=2**32 - 4)
+    engine = RLTrainingEngine(
+        config,
+        capability_provider=_CapabilityProvider(events),
+        backend_factory=lambda value: events.append("backend.factory") or _Backend(events),
+        dataset_factory=lambda value: events.append("dataset.factory") or _Dataset(events),
+        reward_factory=lambda value: _Reward(events),
+    )
+
+    with pytest.raises(ValueError, match="planned rollout seed"):
+        engine.train()
+
+    assert "capability" not in events
+    assert "backend.factory" not in events
+
+
+def test_negative_reward_requires_structured_observable_component_evidence() -> None:
+    trajectory = _Backend([]).generate((RolloutRequest(prompt="prompt"),))[0]
+
+    class Provider:
+        def __init__(self, result: object) -> None:
+            self.result = result
+
+        def score(self, request: object) -> object:
+            return self.result
+
+    with pytest.raises(ValueError, match="negative.*structured"):
+        RLTrainingEngine._score((trajectory,), Provider(-1.0))
+    with pytest.raises(ValueError, match="derived|components"):
+        RLTrainingEngine._score(
+            (trajectory,),
+            Provider(RewardAssessment(-1.0, {"penalty": -0.5}, {"penalty": (object(),)}, ())),
+        )
+    with pytest.raises(ValueError, match="negative component.*evidence"):
+        RLTrainingEngine._score(
+            (trajectory,),
+            Provider(RewardAssessment(-1.0, {"penalty": -1.0}, {}, ())),
+        )
+
+    positive, _ = RLTrainingEngine._score((trajectory,), Provider(0.25))
+    assert positive[0].reward_total == 0.25
+    observable = EvidenceReference("custom:negative", EvidenceSourceKind.EXTERNAL_RECORD)
+    negative, _ = RLTrainingEngine._score(
+        (trajectory,),
+        Provider(
+            RewardAssessment(
+                -1.0,
+                {"penalty": -1.0},
+                {"penalty": (observable,)},
+                (observable,),
+            )
+        ),
+    )
+    assert negative[0].reward_total == -1.0
 
 
 def test_all_skipped_grpo_groups_still_emit_group_and_response_evidence(tmp_path: Path) -> None:

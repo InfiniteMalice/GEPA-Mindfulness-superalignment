@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import random
 import re
 import secrets
 import shutil
@@ -197,7 +198,11 @@ def trajectory(request, request_index, sample_index):
         ),
         "adapter_sha256": metadata.get("adapter_sha256") if hybrid_echo else None,
         "policy_version": request["policy_version"],
-        "seed": request["seed"],
+        "seed": (
+            request["seed"]
+            if request["seed"] is None or mode == "wrong_seed"
+            else request["seed"] + sample_index
+        ),
         "trace_references": [],
     }
 
@@ -534,6 +539,19 @@ def test_backend_restores_ordered_version_bound_trajectories(
     assert [item.prompt for item in trajectories] == ["first", "first", "second"]
     assert [item.case_id for item in trajectories] == ["case-1", "case-1", "case-2"]
     assert [item.policy_version for item in trajectories] == ["3", "3", "4"]
+    assert [item.seed for item in trajectories] == [7, 8, None]
+
+
+def test_backend_rejects_actor_seed_mismatch(
+    fake_coordinator_factory: object,
+) -> None:
+    transport = fake_coordinator_factory("wrong_seed")  # type: ignore[operator]
+    backend = MojoCoordinatorBackend(transport)
+
+    with pytest.raises(MojoCoordinatorError, match="seed.*correlation"):
+        backend.generate(
+            (RolloutRequest(prompt="first", num_samples=2, policy_version="3", seed=7),)
+        )
 
 
 def test_backend_rejects_handshake_that_differs_from_configured_actor_identity(
@@ -1372,7 +1390,7 @@ class _MockVersionedActor:
                             self.adapter_sha256 or str(request.metadata.get("adapter_sha256", ""))
                         ),
                         policy_version=request.policy_version,
-                        seed=request.seed,
+                        seed=None if request.seed is None else request.seed + sample,
                     )
                 )
         return tuple(trajectories)
@@ -1940,6 +1958,7 @@ def test_hybrid_actor_crash_closes_actor_and_learner_without_publication(
         ({"policy_version": "2"}, "policy version"),
         ({"model_identifier": "wrong-model"}, "model"),
         ({"adapter_identifier": "wrong-adapter"}, "adapter"),
+        ({"seed": 999}, "seed"),
     ],
 )
 def test_hybrid_rejects_missing_ahead_or_mismatched_actor_identity_before_update(
@@ -2045,6 +2064,51 @@ def test_hybrid_resume_requires_checkpoint_current_adapter_coherence(
     assert resumed.published_adapter is None
     assert resumed_actor.generate_calls == 0
     assert resumed_actor.close_calls == 1
+
+
+def test_hybrid_resume_publisher_constructor_failure_rolls_back_all_state(
+    tmp_path: Path,
+) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    first_learner = _hybrid_learner(config)
+    first = RLTrainingEngine(
+        config,
+        capability_provider=_LearnerCapabilityProvider(first_learner),
+        backend_factory=lambda _: first_learner,
+        actor_factory=lambda _, manifest: _MockVersionedActor(
+            model_id="tiny-hybrid-model", adapter_id="tiny-lora"
+        ),
+        publisher_factory=lambda _: publisher,
+    ).train(max_steps=1)
+    checkpoint_path = Path(config.checkpoint.output_dir) / first.checkpoint.checkpoint_id
+    resumed_learner = _hybrid_learner(config)
+    checksum_before = resumed_learner.policy_parameter_checksum()
+    step_before = resumed_learner._step
+    optimizer_before = resumed_learner.optimizer.state_dict()
+    python_before = random.getstate()
+    torch_before = torch.get_rng_state().clone()
+
+    def fail_publisher(_: RLRunConfig) -> object:
+        raise RuntimeError("publisher constructor failed")
+
+    with pytest.raises(RuntimeError, match="publisher constructor failed"):
+        RLTrainingEngine(
+            config,
+            capability_provider=_LearnerCapabilityProvider(resumed_learner),
+            backend_factory=lambda _: resumed_learner,
+            actor_factory=lambda _, manifest: _MockVersionedActor(
+                model_id="tiny-hybrid-model", adapter_id="tiny-lora"
+            ),
+            publisher_factory=fail_publisher,  # type: ignore[arg-type]
+        ).resume(checkpoint_path, max_steps=0)
+
+    assert resumed_learner.policy_parameter_checksum() == checksum_before
+    assert resumed_learner._step == step_before
+    assert resumed_learner.optimizer.state_dict() == optimizer_before
+    assert random.getstate() == python_before
+    assert torch.equal(torch.get_rng_state(), torch_before)
 
 
 def test_hybrid_resume_rejects_same_metadata_with_different_adapter_state_and_rolls_back(
