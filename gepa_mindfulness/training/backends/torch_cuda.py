@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 
 import torch
 from torch import nn
@@ -27,20 +27,41 @@ _CUDA_DEVICE = re.compile(r"cuda(?::([0-9]+))?$")
 class CudaOutOfMemoryError(RuntimeError):
     """A CUDA allocation failure with the run settings needed for remediation."""
 
-    def __init__(self, operation: str, config: RLRunConfig) -> None:
+    def __init__(
+        self,
+        operation: str,
+        config: RLRunConfig,
+        *,
+        memory_summary: str | None = None,
+        memory_stats: Mapping[str, int] | None = None,
+        diagnostic_errors: tuple[str, ...] = (),
+    ) -> None:
         self.operation = operation
         self.device = config.runtime.device
         self.precision = config.runtime.precision
         self.batch_size = config.algorithm.batch_size
         self.max_new_tokens = config.policy.max_new_tokens
         self.gradient_accumulation_steps = config.algorithm.gradient_accumulation_steps
+        self.memory_summary = memory_summary
+        self.memory_stats = dict(memory_stats or {})
+        self.diagnostic_errors = diagnostic_errors
+        allocator_stats = ",".join(
+            f"{name}={value}" for name, value in sorted(self.memory_stats.items())
+        )
+        diagnostic_suffix = (
+            f"; allocator_stats={allocator_stats or 'unavailable'}"
+            f"; allocator_summary={memory_summary or 'unavailable'}"
+        )
+        if diagnostic_errors:
+            diagnostic_suffix += "; allocator_diagnostic_errors=" + " | ".join(diagnostic_errors)
         super().__init__(
             f"CUDA ran out of memory during {operation} on {self.device} with "
             f"precision={self.precision}, algorithm.batch_size={self.batch_size}, "
             f"policy.max_new_tokens={self.max_new_tokens}, and "
             "algorithm.gradient_accumulation_steps="
             f"{self.gradient_accumulation_steps}; reduce algorithm.batch_size or "
-            "policy.max_new_tokens, or increase algorithm.gradient_accumulation_steps."
+            "policy.max_new_tokens, or increase algorithm.gradient_accumulation_steps"
+            f"{diagnostic_suffix}."
         )
 
 
@@ -134,7 +155,7 @@ def create_cuda_backend(
     try:
         policy_model, tokenizer = model_factory()
     except torch.OutOfMemoryError as error:
-        raise CudaOutOfMemoryError("model_loading", config) from error
+        raise _cuda_oom_error("model_loading", config) from error
 
     autocast_dtype = _autocast_dtype(config.runtime.precision)
     gradient_scaler = _create_grad_scaler() if config.runtime.precision == "fp16" else None
@@ -150,10 +171,52 @@ def create_cuda_backend(
             backend_name="torch_cuda",
             autocast_dtype=autocast_dtype,
             gradient_scaler=gradient_scaler,
-            oom_error_factory=lambda operation: CudaOutOfMemoryError(operation, config),
+            oom_error_factory=lambda operation: _cuda_oom_error(operation, config),
         )
     except torch.OutOfMemoryError as error:
-        raise CudaOutOfMemoryError("backend_initialization", config) from error
+        raise _cuda_oom_error("backend_initialization", config) from error
+
+
+def _cuda_oom_error(operation: str, config: RLRunConfig) -> CudaOutOfMemoryError:
+    memory_summary, memory_stats, diagnostic_errors = _capture_cuda_memory_diagnostics(
+        config.runtime.device
+    )
+    return CudaOutOfMemoryError(
+        operation,
+        config,
+        memory_summary=memory_summary,
+        memory_stats=memory_stats,
+        diagnostic_errors=diagnostic_errors,
+    )
+
+
+def _capture_cuda_memory_diagnostics(
+    device: str,
+) -> tuple[str | None, dict[str, int], tuple[str, ...]]:
+    errors: list[str] = []
+    summary: str | None = None
+    try:
+        summary = torch.cuda.memory_summary(device=device, abbreviated=True)
+    except Exception as error:  # CUDA diagnostics must never mask the triggering OOM.
+        errors.append(_diagnostic_error("memory_summary", error))
+
+    stats: dict[str, int] = {}
+    readers: tuple[tuple[str, Callable[[str], int]], ...] = (
+        ("allocated_bytes", torch.cuda.memory_allocated),
+        ("reserved_bytes", torch.cuda.memory_reserved),
+        ("max_allocated_bytes", torch.cuda.max_memory_allocated),
+        ("max_reserved_bytes", torch.cuda.max_memory_reserved),
+    )
+    for name, reader in readers:
+        try:
+            stats[name] = int(reader(device))
+        except Exception as error:  # CUDA diagnostics must never mask the triggering OOM.
+            errors.append(_diagnostic_error(name, error))
+    return summary, stats, tuple(errors)
+
+
+def _diagnostic_error(name: str, error: Exception) -> str:
+    return f"{name}={type(error).__name__}: {error}"
 
 
 def _autocast_dtype(precision: Precision) -> torch.dtype | None:

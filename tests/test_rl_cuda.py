@@ -184,6 +184,8 @@ def _cuda_acceptance_engine(
     backends: list[TorchPolicyBackend],
     initial_policy_checksums: list[str],
     initial_reference_checksums: list[str],
+    model_forward_dtypes: list[torch.dtype],
+    value_forward_dtypes: list[torch.dtype],
 ) -> RLTrainingEngine:
     def build_backend(value: RLRunConfig) -> TorchPolicyBackend:
         backend = create_cuda_backend(
@@ -193,6 +195,12 @@ def _cuda_acceptance_engine(
         backends.append(backend)
         initial_policy_checksums.append(backend.policy_parameter_checksum())
         initial_reference_checksums.append(_module_checksum(backend.reference_model))
+        backend.policy_model.register_forward_hook(
+            lambda module, inputs, output: model_forward_dtypes.append(output.logits.dtype)
+        )
+        backend.value_head.register_forward_hook(
+            lambda module, inputs, output: value_forward_dtypes.append(output.dtype)
+        )
         return backend
 
     return RLTrainingEngine(config, backend_factory=build_backend)
@@ -218,6 +226,7 @@ def _require_cuda_precision(precision: str) -> None:
         if "not implemented" in message or "not supported" in message:
             pytest.skip(f"{precision} operation probe is unsupported on cuda:0: {error}")
         raise
+    assert result.dtype is dtype
     assert torch.isfinite(
         result
     ).all(), f"{precision} operation probe returned non-finite values on cuda:0"
@@ -459,6 +468,81 @@ def test_cuda_factory_translates_oom_with_actionable_run_context(
     assert "reduce algorithm.batch_size" in str(error)
 
 
+def test_cuda_oom_includes_same_process_allocator_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Dropping allocator evidence would force operators to inspect a different process."""
+    _available_cuda(monkeypatch)
+    original = torch.OutOfMemoryError("allocation failed")
+    monkeypatch.setattr(torch.cuda, "memory_summary", lambda **kwargs: "same-process summary")
+    monkeypatch.setattr(torch.cuda, "memory_allocated", lambda device: 101)
+    monkeypatch.setattr(torch.cuda, "memory_reserved", lambda device: 202)
+    monkeypatch.setattr(torch.cuda, "max_memory_allocated", lambda device: 303)
+    monkeypatch.setattr(torch.cuda, "max_memory_reserved", lambda device: 404)
+
+    def fail_backend(**kwargs: object) -> object:
+        del kwargs
+        raise original
+
+    monkeypatch.setattr(
+        "gepa_mindfulness.training.backends.torch_cuda.TorchPolicyBackend",
+        fail_backend,
+    )
+
+    with pytest.raises(CudaOutOfMemoryError) as captured:
+        create_cuda_backend(_cuda_config(), lambda: (object(), object()))
+
+    error = captured.value
+    assert error.memory_summary == "same-process summary"
+    assert error.memory_stats == {
+        "allocated_bytes": 101,
+        "reserved_bytes": 202,
+        "max_allocated_bytes": 303,
+        "max_reserved_bytes": 404,
+    }
+    assert error.diagnostic_errors == ()
+    assert "allocator_stats=" in str(error)
+    assert "allocator_summary=same-process summary" in str(error)
+    assert error.__cause__ is original
+
+
+def test_cuda_oom_diagnostic_failure_preserves_original_cause(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A secondary allocator-query error must not replace the CUDA OOM that triggered it."""
+    _available_cuda(monkeypatch)
+    original = torch.OutOfMemoryError("allocation failed")
+
+    def fail_diagnostic(*args: object, **kwargs: object) -> object:
+        del args, kwargs
+        raise RuntimeError("allocator unavailable")
+
+    monkeypatch.setattr(torch.cuda, "memory_summary", fail_diagnostic)
+    monkeypatch.setattr(torch.cuda, "memory_allocated", fail_diagnostic)
+    monkeypatch.setattr(torch.cuda, "memory_reserved", fail_diagnostic)
+    monkeypatch.setattr(torch.cuda, "max_memory_allocated", fail_diagnostic)
+    monkeypatch.setattr(torch.cuda, "max_memory_reserved", fail_diagnostic)
+
+    def fail_backend(**kwargs: object) -> object:
+        del kwargs
+        raise original
+
+    monkeypatch.setattr(
+        "gepa_mindfulness.training.backends.torch_cuda.TorchPolicyBackend",
+        fail_backend,
+    )
+
+    with pytest.raises(CudaOutOfMemoryError) as captured:
+        create_cuda_backend(_cuda_config(), lambda: (object(), object()))
+
+    error = captured.value
+    assert error.memory_summary is None
+    assert error.memory_stats == {}
+    assert len(error.diagnostic_errors) == 5
+    assert "allocator_diagnostic_errors=" in str(error)
+    assert error.__cause__ is original
+
+
 def test_cuda_factory_translates_model_loading_oom_with_causality(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -513,8 +597,10 @@ def test_cuda_operator_guide_has_executable_commands_and_honest_host_status() ->
         "gepa rl doctor --config run.cuda.ppo.yaml",
         "gepa rl train --config run.cuda.ppo.yaml --max-steps 1",
         "nvidia-smi --query-compute-apps=pid,used_gpu_memory --format=csv",
-        'torch.cuda.memory_summary(device="cuda:0", abbreviated=False)',
+        "same-process allocator statistics",
+        "allocator_summary=",
         "gepa rl resume --config run.cuda.ppo.yaml",
+        "python -m pytest --strict-markers -m cuda tests/test_rl_cuda.py -q -rs",
         "Hardware verification status: not run on this CPU-only host",
     )
 
@@ -534,12 +620,16 @@ def test_cuda_parameter_update_and_checkpoint_restore_shared_engine(
     backends: list[TorchPolicyBackend] = []
     initial_policy_checksums: list[str] = []
     initial_reference_checksums: list[str] = []
+    model_forward_dtypes: list[torch.dtype] = []
+    value_forward_dtypes: list[torch.dtype] = []
 
     trained = _cuda_acceptance_engine(
         config,
         backends,
         initial_policy_checksums,
         initial_reference_checksums,
+        model_forward_dtypes,
+        value_forward_dtypes,
     ).train(max_steps=1)
 
     trained_backend = backends[-1]
@@ -556,6 +646,15 @@ def test_cuda_parameter_update_and_checkpoint_restore_shared_engine(
     assert trained.policy_parameter_checksum_before == initial_policy_checksums[0]
     assert trained.policy_parameter_checksum_after != initial_policy_checksums[0]
     assert trained.policy_parameter_checksum_after == trained_backend.policy_parameter_checksum()
+    expected_dtype = {
+        "fp32": torch.float32,
+        "fp16": torch.float16,
+        "bf16": torch.bfloat16,
+    }[precision]
+    assert model_forward_dtypes
+    assert value_forward_dtypes
+    assert set(model_forward_dtypes) == {expected_dtype}
+    assert set(value_forward_dtypes) == {expected_dtype}
     assert _module_checksum(trained_backend.reference_model) == initial_reference_checksums[0]
     assert not any(
         parameter.requires_grad for parameter in trained_backend.reference_model.parameters()
@@ -579,6 +678,8 @@ def test_cuda_parameter_update_and_checkpoint_restore_shared_engine(
         backends,
         initial_policy_checksums,
         initial_reference_checksums,
+        model_forward_dtypes,
+        value_forward_dtypes,
     ).resume(checkpoint_path, max_steps=0)
 
     restored_backend = backends[-1]

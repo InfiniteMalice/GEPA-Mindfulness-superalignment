@@ -120,13 +120,16 @@ policy checksums, and `"policy_parameters_updated": false`.
 
 ### Diagnose CUDA out-of-memory failures
 
-When `CudaOutOfMemoryError` reports the failed operation, device, precision, batch size, maximum
-new tokens, and accumulation count, record that complete message. Then inspect other GPU processes
-and the allocator state:
+When a CUDA allocation fails, `CudaOutOfMemoryError` captures same-process allocator statistics
+before the failing process exits. Record the complete error. The error includes the operation,
+device, precision, batch size, maximum new tokens, accumulation count, `allocator_stats=`, and
+`allocator_summary=`. If a CUDA diagnostic query also fails, the same error includes
+`allocator_diagnostic_errors=` and preserves the original OOM as the cause.
+
+Use `nvidia-smi` separately to identify memory held by other GPU processes:
 
 ```bash
 nvidia-smi --query-compute-apps=pid,used_gpu_memory --format=csv
-python -c 'import torch; print(torch.cuda.memory_summary(device="cuda:0", abbreviated=False))'
 ```
 
 Stop an unrelated process only when you own it. Otherwise, select a smaller local model, reduce
@@ -139,12 +142,13 @@ configuration change.
 ### Run the hardware acceptance lane
 
 ```bash
-python -m pytest --strict-markers -m cuda tests/test_rl_cuda.py -q
+python -m pytest --strict-markers -m cuda tests/test_rl_cuda.py -q -rs
 ```
 
 The lane tests FP32 and probes FP16 and BF16 separately. An unsupported mixed precision case skips
-with its device-specific reason. On a supported precision, the test uses the shared canonical
-engine and CUDA factory to require a policy-only parameter change, frozen reference state, CUDA
+with its device-specific reason. Each mixed-precision case requires the standalone CUDA probe and
+the shared engine's model-logit and value-head outputs to use the requested dtype. On a supported
+precision, the test also requires a policy-only parameter change, frozen reference state, CUDA
 residency, canonical checkpoint artifacts, exact fresh-backend restoration, and restored global
 step. Treat a skipped precision as unsupported evidence, not a pass.
 
