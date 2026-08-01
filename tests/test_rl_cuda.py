@@ -699,7 +699,48 @@ def test_engine_distributed_preflight_precedes_dataset_model_rng_and_output(
     with pytest.raises(CapabilityError, match="process group mismatch"):
         engine.collect()
 
-    assert events == ["capability", "distributed_preflight"]
+    assert events == ["distributed_preflight"]
+
+
+def test_engine_completes_device_preflight_before_capability_distributed_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+
+    def device_preflight(config: RLRunConfig) -> None:
+        del config
+        events.extend(["cuda.set_device", "cuda.current_device"])
+
+    def query_distributed(config: RLRunConfig) -> BackendCapabilities:
+        del config
+        events.append("capability.distributed_query")
+        raise CapabilityError("stop after capability query")
+
+    monkeypatch.setattr(
+        "gepa_mindfulness.training.backends.torch_cuda.validate_distributed_runtime",
+        device_preflight,
+    )
+    config = _cuda_config(
+        distributed=DistributedRuntimeConfig(
+            strategy="ddp",
+            world_size=2,
+            rank=0,
+            local_rank=0,
+        )
+    )
+    engine = RLTrainingEngine(
+        config,
+        capability_provider=SimpleNamespace(detect=query_distributed),
+    )
+
+    with pytest.raises(CapabilityError, match="stop after capability query"):
+        engine.collect()
+
+    assert events == [
+        "cuda.set_device",
+        "cuda.current_device",
+        "capability.distributed_query",
+    ]
 
 
 def test_rank_local_fields_do_not_change_distributed_checkpoint_compatibility_hash() -> None:

@@ -468,12 +468,12 @@ class RLTrainingEngine:
         requirements.update(_factory_requirements(self.backend_factory, self.config))
         if mode in {"train", "resume"}:
             requirements.update(_factory_requirements(self.algorithm_factory, self.config))
-        detected = self.capability_provider.detect(self.config)
-        detected.require(requirements)
         if _distributed_runtime(self.config).strategy != "none":
             from .backends.torch_cuda import validate_distributed_runtime
 
             validate_distributed_runtime(self.config)
+        detected = self.capability_provider.detect(self.config)
+        detected.require(requirements)
         snapshot = _capture_dataset_snapshot(
             self.config,
             require_pairs=self._default_dataset and mode in {"evaluate", "train", "resume"},
