@@ -662,6 +662,12 @@ class RLTrainingEngine:
                 backend.zero_grad()
                 break
             step_result = backend.optimizer_step()
+            updated = getattr(step_result, "updated", True)
+            if not isinstance(updated, bool):
+                raise ValueError("backend optimizer updated evidence must be a boolean")
+            if not updated:
+                backend.zero_grad()
+                continue
             expected_step = global_step + 1
             actual_step = getattr(step_result, "step", None)
             if actual_step != expected_step:

@@ -311,9 +311,10 @@ class TorchPolicyBackend:
             self.gradient_scaler.update()
             scale_after = float(self.gradient_scaler.get_scale())
             if scale_after < scale_before:
-                raise RuntimeError(
-                    "GradScaler skipped optimizer update after detecting non-finite gradients; "
-                    "backend step remains unchanged"
+                return OptimizerStepResult(
+                    step=self._step,
+                    gradient_norm=math.sqrt(squared_norm),
+                    updated=False,
                 )
         self._step += 1
         return OptimizerStepResult(step=self._step, gradient_norm=math.sqrt(squared_norm))

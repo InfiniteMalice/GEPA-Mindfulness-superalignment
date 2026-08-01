@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
@@ -162,6 +163,40 @@ class TinyLocalCausalLM(nn.Module):
             device=input_ids.device,
         )
         return torch.cat((input_ids, response), dim=1)
+
+
+class _SkipOnceGradientScaler:
+    """Loss-scaler double that simulates one overflow before a successful update."""
+
+    def __init__(self) -> None:
+        self.current_scale = 8.0
+        self.step_attempts = 0
+
+    def scale(self, output: torch.Tensor) -> torch.Tensor:
+        return output
+
+    def unscale_(self, optimizer: torch.optim.Optimizer) -> None:
+        del optimizer
+
+    def step(self, optimizer: torch.optim.Optimizer) -> object:
+        self.step_attempts += 1
+        if self.step_attempts == 1:
+            return None
+        return optimizer.step()
+
+    def update(self) -> None:
+        if self.step_attempts == 1:
+            self.current_scale /= 2.0
+
+    def get_scale(self) -> float:
+        return self.current_scale
+
+    def state_dict(self) -> dict[str, object]:
+        return {"scale": self.current_scale, "step_attempts": self.step_attempts}
+
+    def load_state_dict(self, state: Mapping[str, object]) -> None:
+        self.current_scale = float(state["scale"])
+        self.step_attempts = int(state["step_attempts"])
 
 
 def _module_checksum(module: nn.Module) -> str:
@@ -362,6 +397,50 @@ def test_offline_cpu_train_checkpoint_and_resume_updates_real_model_weights(
     assert resumed.policy_parameters_updated is True
     assert reference_checksums[2] == trained_reference
     assert _module_checksum(resumed_backend.reference_model) == trained_reference
+
+
+def test_amp_overflow_retries_until_one_real_update_advances_engine_evidence(
+    tmp_path: Path,
+) -> None:
+    """Treating a scaler skip as failure or progress must fail this engine contract."""
+    config = _config(tmp_path, "ppo")
+
+    def build_backend(value: RLRunConfig) -> TorchPolicyBackend:
+        backend = TorchPolicyBackend(
+            policy_model=TinyLocalCausalLM(),
+            tokenizer=TinyLocalTokenizer(),
+            device="cpu",
+            learning_rate=value.algorithm.learning_rate,
+            max_new_tokens=value.policy.max_new_tokens,
+            model_identifier=value.policy.model_name,
+        )
+        backend.autocast_dtype = torch.float16
+        backend.gradient_scaler = _SkipOnceGradientScaler()
+        return backend
+
+    result = RLTrainingEngine(config, backend_factory=build_backend).train(max_steps=1)
+
+    assert result.global_step == 1
+    assert result.trajectory_count == 2
+    assert result.parameters_updated is True
+    assert result.evaluation_artifacts is not None
+    assert getattr(result.evaluation_artifacts["optimizer_step"], "updated") is True
+    assert result.checkpoint is not None
+    assert result.checkpoint.global_step == 1
+    assert result.checkpoint.backend_step == 1
+    checkpoint_names = sorted(path.name for path in (tmp_path / "checkpoints").iterdir())
+    assert checkpoint_names == ["checkpoint-00000001"]
+    assert result.log_directory is not None
+    metric_records = [
+        json.loads(line)
+        for line in (result.log_directory / "metrics.jsonl").read_text().splitlines()
+    ]
+    optimizer_records = [
+        record for record in metric_records if "optimizer_step" in record["metrics"]
+    ]
+    assert [
+        (record["global_step"], record["metrics"]["optimizer_step"]) for record in optimizer_records
+    ] == [(1, 1.0)]
 
 
 def test_local_transformers_grpo_sampling_is_diverse_and_updates_only_policy() -> None:

@@ -819,11 +819,12 @@ def test_grad_scaler_skipped_update_does_not_advance_backend_step(tmp_path: Path
         parameter.grad = torch.ones_like(parameter)
     checksum_before = backend.parameter_checksum()
 
-    with pytest.raises(RuntimeError, match="GradScaler skipped optimizer update"):
-        backend.optimizer_step()
+    result = backend.optimizer_step()
 
     assert backend.parameter_checksum() == checksum_before
     assert scaler.get_scale() == 4.0
+    assert result.step == 0
+    assert result.updated is False
     assert backend.save_checkpoint(tmp_path / "skipped-step.pt").step == 0
 
 

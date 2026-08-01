@@ -25,10 +25,15 @@ class TokenizerLike(Protocol):
 
 @dataclass(frozen=True)
 class OptimizerStepResult:
-    """Observable optimizer evidence; ``gradient_norm`` is measured before clipping."""
+    """Evidence for one optimizer attempt.
+
+    ``gradient_norm`` is measured before clipping. ``updated`` is false when loss scaling skips
+    the optimizer update, in which case ``step`` remains unchanged.
+    """
 
     step: int
     gradient_norm: float | None = None
+    updated: bool = True
 
 
 @dataclass(frozen=True)
