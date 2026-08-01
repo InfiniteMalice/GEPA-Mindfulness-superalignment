@@ -6,12 +6,13 @@ import hashlib
 import math
 import pickle
 from collections.abc import Mapping
+from contextlib import AbstractContextManager, nullcontext
 from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum
 from io import BytesIO
 from pathlib import Path
-from typing import Callable, Literal, Sequence, cast
+from typing import Callable, Literal, Protocol, Sequence, cast
 
 import torch
 from torch import nn
@@ -35,6 +36,16 @@ from .base import BackendCheckpointResult, OptimizerStepResult, TokenizerLike, T
 TrainingMode = Literal["full", "lora"]
 _CHECKPOINT_FORMAT_VERSION = 1
 _MISSING_CHECKPOINT_VALUE = object()
+
+
+class _GradientScaler(Protocol):
+    def scale(self, output: torch.Tensor) -> torch.Tensor: ...
+
+    def unscale_(self, optimizer: torch.optim.Optimizer) -> None: ...
+
+    def step(self, optimizer: torch.optim.Optimizer) -> object: ...
+
+    def update(self) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -79,11 +90,17 @@ class TorchPolicyBackend:
         learning_rate: float = 1e-5,
         max_new_tokens: int = 256,
         max_grad_norm: float | None = None,
+        autocast_dtype: torch.dtype | None = None,
+        gradient_scaler: _GradientScaler | None = None,
+        backend_name: str = "torch_portable",
         training_mode: TrainingMode = "full",
         model_identifier: str | None = None,
         adapter_identifier: str | None = None,
     ) -> None:
         self.device = self._validated_device(device)
+        self.backend_name = self._validated_backend_name(backend_name)
+        self.autocast_dtype = self._validated_autocast_dtype(autocast_dtype)
+        self.gradient_scaler = self._validated_gradient_scaler(gradient_scaler)
         self.training_mode = self._validated_training_mode(training_mode)
         self.max_new_tokens = self._positive_integer(max_new_tokens, "max_new_tokens")
         self.learning_rate = self._positive_number(learning_rate, "learning_rate")
@@ -224,13 +241,18 @@ class TorchPolicyBackend:
             raise ValueError("loss must contain exactly one scalar value")
         if not loss.requires_grad:
             raise ValueError("loss must require gradients")
-        loss.backward()
+        if self.gradient_scaler is None:
+            loss.backward()
+        else:
+            self.gradient_scaler.scale(loss).backward()
 
     def optimizer_step(self) -> OptimizerStepResult:
         """Apply accumulated gradients and return monotonic step evidence."""
         trainable = [*self.policy_parameters(), *self.value_head.parameters()]
         if not any(parameter.grad is not None for parameter in trainable):
             raise RuntimeError("optimizer_step requires accumulated gradients")
+        if self.gradient_scaler is not None:
+            self.gradient_scaler.unscale_(self.optimizer)
         squared_norm = math.fsum(
             float(torch.sum(parameter.grad.detach().float().square()).item())
             for parameter in trainable
@@ -238,7 +260,11 @@ class TorchPolicyBackend:
         )
         if self.max_grad_norm is not None:
             torch.nn.utils.clip_grad_norm_(trainable, self.max_grad_norm)
-        self.optimizer.step()
+        if self.gradient_scaler is None:
+            self.optimizer.step()
+        else:
+            self.gradient_scaler.step(self.optimizer)
+            self.gradient_scaler.update()
         self._step += 1
         return OptimizerStepResult(step=self._step, gradient_norm=math.sqrt(squared_norm))
 
@@ -417,6 +443,8 @@ class TorchPolicyBackend:
             supported.add(Capability.SUPPORTS_LORA_TRAINING)
         if self.device.type == "cuda":
             supported.add(Capability.SUPPORTS_CUDA)
+        if self.autocast_dtype is not None:
+            supported.add(Capability.SUPPORTS_MIXED_PRECISION)
         evidence = {
             capability: CapabilityEvidence(
                 state=(
@@ -826,17 +854,22 @@ class TorchPolicyBackend:
             device=self.device,
         )
         attention_mask = torch.ones_like(input_ids)
-        outputs = self.policy_model(
-            input_ids,
-            attention_mask=attention_mask,
-            output_hidden_states=True,
-        )
-        logits, hidden = self._validated_outputs(outputs, input_ids.shape[1], "policy_model")
-        if hidden is None:  # pragma: no cover - enforced by _validated_outputs
-            raise AssertionError("policy hidden states must be available")
-        selected, entropy = self._response_statistics(logits, input_ids, len(prompt_ids))
-        predictor_hidden = hidden[:, :-1, :][:, len(prompt_ids) - 1 :]
-        raw_values = self.value_head(predictor_hidden)
+        with self._autocast_context():
+            outputs = self.policy_model(
+                input_ids,
+                attention_mask=attention_mask,
+                output_hidden_states=True,
+            )
+            logits, hidden = self._validated_outputs(
+                outputs,
+                input_ids.shape[1],
+                "policy_model",
+            )
+            if hidden is None:  # pragma: no cover - enforced by _validated_outputs
+                raise AssertionError("policy hidden states must be available")
+            selected, entropy = self._response_statistics(logits, input_ids, len(prompt_ids))
+            predictor_hidden = hidden[:, :-1, :][:, len(prompt_ids) - 1 :]
+            raw_values = self.value_head(predictor_hidden)
         expected_value_shape = (1, len(response_ids), 1)
         if not isinstance(raw_values, torch.Tensor) or raw_values.shape != expected_value_shape:
             raise RuntimeError(
@@ -844,7 +877,7 @@ class TorchPolicyBackend:
             )
         values = raw_values.squeeze(-1).squeeze(0)
 
-        with torch.no_grad():
+        with torch.no_grad(), self._autocast_context():
             reference_outputs = self.reference_model(
                 input_ids,
                 attention_mask=attention_mask,
@@ -913,7 +946,7 @@ class TorchPolicyBackend:
         with torch.random.fork_rng(devices=rng_devices, enabled=seed is not None):
             if seed is not None:
                 torch.manual_seed(seed + sample_index)
-            with torch.no_grad():
+            with torch.no_grad(), self._autocast_context():
                 generated = self.policy_model.generate(
                     input_ids,
                     attention_mask=torch.ones_like(input_ids),
@@ -1042,6 +1075,43 @@ class TorchPolicyBackend:
         return resolved
 
     @staticmethod
+    def _validated_backend_name(backend_name: object) -> str:
+        if not isinstance(backend_name, str):
+            raise TypeError("backend_name must be a string")
+        if not backend_name:
+            raise ValueError("backend_name must not be empty")
+        return backend_name
+
+    def _validated_autocast_dtype(self, dtype: torch.dtype | None) -> torch.dtype | None:
+        if dtype not in {None, torch.float16, torch.bfloat16}:
+            raise ValueError("autocast_dtype must be torch.float16, torch.bfloat16, or None")
+        if dtype is not None and self.device.type != "cuda":
+            raise ValueError("automatic mixed precision requires a CUDA device")
+        return dtype
+
+    def _validated_gradient_scaler(
+        self,
+        scaler: _GradientScaler | None,
+    ) -> _GradientScaler | None:
+        if self.autocast_dtype is torch.float16 and scaler is None:
+            raise ValueError("FP16 automatic mixed precision requires a gradient scaler")
+        if self.autocast_dtype is not torch.float16 and scaler is not None:
+            raise ValueError("a gradient scaler is supported only with FP16 precision")
+        if scaler is not None:
+            methods = ("scale", "unscale_", "step", "update")
+            if not all(callable(getattr(scaler, method, None)) for method in methods):
+                raise TypeError("gradient_scaler must implement scale, unscale_, step, and update")
+        return scaler
+
+    def _autocast_context(self) -> AbstractContextManager[object]:
+        if self.autocast_dtype is None:
+            return nullcontext()
+        return torch.autocast(
+            device_type=self.device.type,
+            dtype=self.autocast_dtype,
+        )
+
+    @staticmethod
     def _validated_training_mode(training_mode: str) -> TrainingMode:
         if training_mode not in {"full", "lora"}:
             raise ValueError("training_mode must be 'full' or 'lora'")
@@ -1088,6 +1158,8 @@ class TorchPolicyBackend:
         if supported:
             if capability is Capability.SUPPORTS_CUDA:
                 return f"Policy, reference, value head, and tensors use {self.device}."
+            if capability is Capability.SUPPORTS_MIXED_PRECISION:
+                return f"CUDA autocast uses {self.autocast_dtype}."
             if capability is Capability.SUPPORTS_LORA_TRAINING:
                 return "Policy has PEFT config evidence and adapter-only trainable parameters."
             if capability is Capability.SUPPORTS_FULL_WEIGHT_TRAINING:

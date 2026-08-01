@@ -179,3 +179,6 @@ pythonpath = [
     "src",
     "modules",
 ]
+markers = [
+    "cuda: requires a visible CUDA device and a CUDA-enabled PyTorch runtime",
+]

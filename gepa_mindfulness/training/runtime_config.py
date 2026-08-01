@@ -1,4 +1,4 @@
-"""Strict canonical runtime configuration for portable PyTorch RL runs."""
+"""Strict canonical runtime configuration for local PyTorch RL runs."""
 
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ _CUDA_DEVICE = re.compile(r"cuda(?::[0-9]+)?$")
 _CANONICAL_DATASET_KEYS = {"format", "train_path", "validation_path"}
 _LEGACY_DATASET_KEYS = {"path", "test_split", "train_split", "val_split"}
 ZeroVariancePolicy = Literal["zero", "center_only", "skip"]
+Precision = Literal["fp32", "fp16", "bf16"]
 
 
 def _mapping(value: Any, name: str) -> Mapping[str, Any]:
@@ -78,28 +79,38 @@ def _finite_number(value: object, name: str, *, positive: bool = False) -> float
 
 @dataclass(frozen=True)
 class RuntimeConfig:
-    """Execution backend and device selection."""
+    """Execution backend, device, and numeric precision selection."""
 
     backend: str = "pytorch"
     device: str = "cpu"
+    precision: Precision = "fp32"
 
     def __post_init__(self) -> None:
         if not isinstance(self.backend, str):
             raise TypeError("runtime.backend must be a string")
         if not isinstance(self.device, str):
             raise TypeError("runtime.device must be a string")
-        if self.backend != "pytorch":
-            raise ValueError("runtime.backend must be 'pytorch'")
+        if not isinstance(self.precision, str):
+            raise TypeError("runtime.precision must be a string")
+        if self.backend not in {"pytorch", "cuda"}:
+            raise ValueError("runtime.backend must be 'pytorch' or 'cuda'")
         if self.device != "cpu" and not _CUDA_DEVICE.fullmatch(self.device):
             raise ValueError("runtime.device must be 'cpu', 'cuda', or 'cuda:<index>'")
+        if self.precision not in {"fp32", "fp16", "bf16"}:
+            raise ValueError("runtime.precision must be 'fp32', 'fp16', or 'bf16'")
+        if self.backend == "cuda" and not _CUDA_DEVICE.fullmatch(self.device):
+            raise ValueError("runtime.backend='cuda' requires a CUDA device selector")
+        if self.precision != "fp32" and not _CUDA_DEVICE.fullmatch(self.device):
+            raise ValueError("mixed precision requires a CUDA device selector")
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "RuntimeConfig":
         payload = _mapping(payload, "runtime")
-        _reject_unknown(payload, {"backend", "device"}, "runtime")
+        _reject_unknown(payload, {"backend", "device", "precision"}, "runtime")
         backend = _string(payload, "backend", "pytorch", "runtime")
         device = _string(payload, "device", "cpu", "runtime")
-        return cls(backend=backend, device=device)
+        precision = _string(payload, "precision", "fp32", "runtime")
+        return cls(backend=backend, device=device, precision=cast(Precision, precision))
 
 
 @dataclass(frozen=True)
@@ -669,6 +680,7 @@ __all__ = [
     "DatasetConfig",
     "LoggingConfig",
     "PolicyConfig",
+    "Precision",
     "RLRunConfig",
     "RewardConfig",
     "RuntimeConfig",

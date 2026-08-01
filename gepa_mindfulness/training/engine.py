@@ -28,7 +28,9 @@ from .runtime_config import RLRunConfig
 from .trajectory import PolicyEvaluation, RolloutRequest, Trajectory, TrajectoryBatch
 
 if TYPE_CHECKING:
-    from .backends.base import BackendCheckpointResult
+    from torch import nn
+
+    from .backends.base import BackendCheckpointResult, TokenizerLike
 
 EngineMode = Literal["train", "resume", "collect", "evaluate"]
 
@@ -190,6 +192,8 @@ def required_capabilities(config: RLRunConfig, mode: EngineMode) -> frozenset[Ca
         )
     if config.runtime.device.startswith("cuda"):
         required.add(Capability.SUPPORTS_CUDA)
+    if config.runtime.precision != "fp32":
+        required.add(Capability.SUPPORTS_MIXED_PRECISION)
     return frozenset(required)
 
 
@@ -215,6 +219,11 @@ class SystemCapabilityProvider:
         transformers_available = importlib.util.find_spec("transformers") is not None
         implementation_available = torch_available and transformers_available
         cuda_available, cuda_evidence = self._cuda_support(config, torch_available)
+        mixed_available, mixed_evidence = self._mixed_precision_support(
+            config,
+            torch_available=torch_available,
+            cuda_available=cuda_available,
+        )
         capabilities: dict[Capability, CapabilityEvidence] = {}
         implemented = {
             Capability.SUPPORTS_BACKWARD,
@@ -229,6 +238,8 @@ class SystemCapabilityProvider:
             supported = capability in implemented and implementation_available
             if capability is Capability.SUPPORTS_CUDA:
                 supported = implementation_available and cuda_available
+            if capability is Capability.SUPPORTS_MIXED_PRECISION:
+                supported = implementation_available and mixed_available
             state = CapabilityState.SUPPORTED if supported else CapabilityState.UNSUPPORTED
             capabilities[capability] = CapabilityEvidence(
                 state=state,
@@ -238,10 +249,13 @@ class SystemCapabilityProvider:
                     torch_available=torch_available,
                     transformers_available=transformers_available,
                     cuda_evidence=cuda_evidence,
+                    mixed_evidence=mixed_evidence,
                 ),
             )
         return BackendCapabilities(
-            backend_name="torch_portable",
+            backend_name=(
+                "torch_cuda" if config.runtime.device.startswith("cuda") else "torch_portable"
+            ),
             backend_version=self._package_version("torch"),
             capabilities=capabilities,
         )
@@ -279,6 +293,29 @@ class SystemCapabilityProvider:
             return "unavailable"
 
     @staticmethod
+    def _mixed_precision_support(
+        config: RLRunConfig,
+        *,
+        torch_available: bool,
+        cuda_available: bool,
+    ) -> tuple[bool, str]:
+        if config.runtime.precision == "fp32":
+            return False, "FP32 was selected, so automatic mixed precision is disabled."
+        if not torch_available:
+            return False, "Install the 'train' extra to provide torch."
+        if not cuda_available:
+            return False, "Configure a usable CUDA device before selecting mixed precision."
+        if config.runtime.precision == "fp16":
+            return True, "The CUDA runtime is available for FP16 autocast and loss scaling."
+        try:
+            torch_module = import_module("torch")
+            if bool(torch_module.cuda.is_bf16_supported()):
+                return True, "PyTorch reports BF16 support for the selected CUDA runtime."
+            return False, "Select FP32 or FP16 because PyTorch reports no BF16 support."
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError) as error:
+            return False, f"BF16 support detection failed ({type(error).__name__}: {error})."
+
+    @staticmethod
     def _evidence(
         capability: Capability,
         *,
@@ -286,6 +323,7 @@ class SystemCapabilityProvider:
         torch_available: bool,
         transformers_available: bool,
         cuda_evidence: str,
+        mixed_evidence: str,
     ) -> str:
         if supported:
             return f"Local torch/transformers runtime supports {capability.value}."
@@ -295,6 +333,8 @@ class SystemCapabilityProvider:
             return "Install the 'train' extra to provide transformers."
         if capability is Capability.SUPPORTS_CUDA:
             return cuda_evidence
+        if capability is Capability.SUPPORTS_MIXED_PRECISION:
+            return mixed_evidence
         return f"Configure a backend that explicitly supports {capability.value}."
 
 
@@ -1492,11 +1532,32 @@ def _seed_process(config: RLRunConfig) -> None:
 
 
 def _default_backend_factory(config: RLRunConfig) -> TrainablePolicyBackend:
+    if config.runtime.device.startswith("cuda"):
+        from .backends.torch_cuda import create_cuda_backend
+
+        return create_cuda_backend(
+            config,
+            lambda: _load_local_transformers_assets(config.policy.model_name),
+        )
+    policy_model, tokenizer = _load_local_transformers_assets(config.policy.model_name)
+    from .backends.torch_policy import TorchPolicyBackend
+
+    return TorchPolicyBackend(
+        policy_model=policy_model,
+        tokenizer=tokenizer,
+        device=config.runtime.device,
+        learning_rate=config.algorithm.learning_rate,
+        max_new_tokens=config.policy.max_new_tokens,
+        max_grad_norm=config.algorithm.max_grad_norm,
+        model_identifier=config.policy.model_name,
+    )
+
+
+def _load_local_transformers_assets(model_name: str) -> tuple[nn.Module, TokenizerLike]:
     try:
         transformers = import_module("transformers")
     except (ImportError, OSError) as error:
         raise EngineDependencyError("Install the 'train' extra to provide transformers.") from error
-    model_name = config.policy.model_name
     try:
         tokenizer = transformers.AutoTokenizer.from_pretrained(
             model_name,
@@ -1510,17 +1571,7 @@ def _default_backend_factory(config: RLRunConfig) -> TrainablePolicyBackend:
         raise EngineDependencyError(
             f"Model {model_name!r} is not available locally; no network access is attempted."
         ) from error
-    from .backends.torch_policy import TorchPolicyBackend
-
-    return TorchPolicyBackend(
-        policy_model=policy_model,
-        tokenizer=tokenizer,
-        device=config.runtime.device,
-        learning_rate=config.algorithm.learning_rate,
-        max_new_tokens=config.policy.max_new_tokens,
-        max_grad_norm=config.algorithm.max_grad_norm,
-        model_identifier=model_name,
-    )
+    return policy_model, tokenizer
 
 
 def _default_algorithm_factory(
