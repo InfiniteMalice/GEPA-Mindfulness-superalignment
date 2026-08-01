@@ -9,7 +9,12 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
-from .capability import BackendCapabilities, Capability, CapabilityState
+from .capability import (
+    BackendCapabilities,
+    Capability,
+    CapabilityState,
+    require_pure_mojo_learner,
+)
 from .runtime_config import RLRunConfig
 
 if TYPE_CHECKING:
@@ -125,8 +130,10 @@ def _emit_result(result: _Result) -> None:
 
 def _handle_engine(args: argparse.Namespace) -> int:
     try:
-        requested_backend = getattr(args, "backend", None)
         learner = getattr(args, "learner", None)
+        if learner == "mojo":
+            require_pure_mojo_learner()
+        requested_backend = getattr(args, "backend", None)
         coordinator_command = getattr(args, "coordinator_command", None)
         actor_endpoint = getattr(args, "actor_endpoint", None)
         if requested_backend == "mojo-vulkan-llamacpp" and learner != "pytorch":

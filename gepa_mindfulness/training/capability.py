@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 from types import MappingProxyType
-from typing import Iterable, Mapping
+from typing import Iterable, Literal, Mapping
 
 
 class Capability(str, Enum):
@@ -34,8 +34,22 @@ class CapabilityState(str, Enum):
     UNKNOWN = "unknown"
 
 
+class PureMojoLearnerGate(str, Enum):
+    """The closed set of capabilities required by a pure Mojo learner."""
+
+    TRAINABLE_TENSORS = "trainable tensors"
+    AUTODIFF_OR_EXPLICIT_BACKWARD = "autodiff or explicit backward"
+    OPTIMIZER_STATE = "optimizer state"
+    TRANSFORMER_BACKWARD_KERNELS = "transformer backward kernels"
+    LORA_PARAMETER_UPDATES = "LoRA parameter updates"
+    TRAINABLE_CHECKPOINT_FORMAT = "trainable checkpoint format"
+    LLAMA_CPP_ADAPTER_TRANSFER = "llama.cpp adapter transfer"
+    NUMERICAL_PARITY_AGAINST_PYTORCH_REFERENCE = "numerical parity against PyTorch reference"
+    HARDWARE_RUNTIME_COVERAGE = "hardware/runtime coverage"
+
+
 class CapabilityError(ValueError):
-    """Raised when a backend cannot prove every required capability."""
+    """Raised when a capability report cannot prove every required capability."""
 
 
 @dataclass(frozen=True)
@@ -44,6 +58,90 @@ class CapabilityEvidence:
 
     state: CapabilityState
     evidence: str
+
+
+@dataclass(frozen=True)
+class PureMojoLearnerReport:
+    """Immutable evidence for every capability required by a pure Mojo learner."""
+
+    gates: Mapping[PureMojoLearnerGate, CapabilityEvidence]
+    report_path: str = "docs/rl/mojo_learner_feasibility.md"
+
+    def __post_init__(self) -> None:
+        """Require the exact closed gate set and make its evidence immutable."""
+        expected = set(PureMojoLearnerGate)
+        observed = set(self.gates)
+        if observed != expected:
+            raise ValueError("report must contain exactly the nine pure-Mojo learner gates")
+        object.__setattr__(self, "gates", MappingProxyType(dict(self.gates)))
+
+    @property
+    def decision(self) -> Literal["go", "no-go"]:
+        """Return go only when every gate has explicit supported evidence."""
+        if all(evidence.state is CapabilityState.SUPPORTED for evidence in self.gates.values()):
+            return "go"
+        return "no-go"
+
+
+PURE_MOJO_LEARNER_REPORT = PureMojoLearnerReport(
+    gates={
+        PureMojoLearnerGate.TRAINABLE_TENSORS: CapabilityEvidence(
+            CapabilityState.SUPPORTED,
+            "LayoutTensor has mutable CPU/GPU storage; gradients are a separate requirement.",
+        ),
+        PureMojoLearnerGate.AUTODIFF_OR_EXPLICIT_BACKWARD: CapabilityEvidence(
+            CapabilityState.UNKNOWN,
+            "No complete autodiff or explicit backward path was documented or tested.",
+        ),
+        PureMojoLearnerGate.OPTIMIZER_STATE: CapabilityEvidence(
+            CapabilityState.UNKNOWN,
+            "No optimizer state and restart-equivalent update path was documented or tested.",
+        ),
+        PureMojoLearnerGate.TRANSFORMER_BACKWARD_KERNELS: CapabilityEvidence(
+            CapabilityState.UNKNOWN,
+            "Reviewed attention kernels document forward computation, not a backward suite.",
+        ),
+        PureMojoLearnerGate.LORA_PARAMETER_UPDATES: CapabilityEvidence(
+            CapabilityState.UNKNOWN,
+            "MAX applies trained PEFT adapters for inference; Mojo updates are unproven.",
+        ),
+        PureMojoLearnerGate.TRAINABLE_CHECKPOINT_FORMAT: CapabilityEvidence(
+            CapabilityState.UNKNOWN,
+            "Weight loading is documented; complete training-state save/resume is unproven.",
+        ),
+        PureMojoLearnerGate.LLAMA_CPP_ADAPTER_TRANSFER: CapabilityEvidence(
+            CapabilityState.SUPPORTED,
+            "llama.cpp converts exact Hugging Face PEFT adapter inputs to inference GGUF.",
+        ),
+        PureMojoLearnerGate.NUMERICAL_PARITY_AGAINST_PYTORCH_REFERENCE: CapabilityEvidence(
+            CapabilityState.UNKNOWN,
+            "Forward-logit comparison is documented; gradient and update parity are unproven.",
+        ),
+        PureMojoLearnerGate.HARDWARE_RUNTIME_COVERAGE: CapabilityEvidence(
+            CapabilityState.SUPPORTED,
+            "Mojo documents a WSL x86-64-v3 CPU substrate; the local learner is untested.",
+        ),
+    }
+)
+
+
+def require_pure_mojo_learner(
+    report: PureMojoLearnerReport = PURE_MOJO_LEARNER_REPORT,
+) -> None:
+    """Reject a pure Mojo learner unless every evidence gate is supported."""
+    unavailable = [
+        f"{gate.value} ({report.gates[gate].state.value})"
+        for gate in PureMojoLearnerGate
+        if report.gates[gate].state is not CapabilityState.SUPPORTED
+    ]
+    if unavailable:
+        details = ", ".join(unavailable)
+        raise CapabilityError(
+            f"pure Mojo learner is unsupported; non-supported gates: {details}. "
+            f"See {report.report_path}. "
+            "Use --backend mojo-vulkan-llamacpp --learner pytorch for the supported "
+            "hybrid learner path."
+        )
 
 
 @dataclass(frozen=True)

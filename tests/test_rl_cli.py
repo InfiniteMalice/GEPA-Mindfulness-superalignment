@@ -46,7 +46,17 @@ from gepa_mindfulness.training.trajectory import (
     Trajectory,
     TrajectoryBatch,
 )
-from mindful_trace_gepa.cli import build_parser
+from mindful_trace_gepa.cli import build_parser, main
+
+EXPECTED_PURE_MOJO_LEARNER_ERROR = (
+    "pure Mojo learner is unsupported; non-supported gates: "
+    "autodiff or explicit backward (unknown), optimizer state (unknown), "
+    "transformer backward kernels (unknown), LoRA parameter updates (unknown), "
+    "trainable checkpoint format (unknown), "
+    "numerical parity against PyTorch reference (unknown). "
+    "See docs/rl/mojo_learner_feasibility.md. "
+    "Use --backend mojo-vulkan-llamacpp --learner pytorch for the supported hybrid learner path."
+)
 
 
 def _config(tmp_path: Path, *, max_steps: int = 1) -> RLRunConfig:
@@ -369,6 +379,113 @@ def test_cli_dispatch_and_capability_exit_codes(
 
     fake_engine.train = unavailable  # type: ignore[method-assign]
     assert args.func(args) == 2
+
+
+@pytest.mark.parametrize(
+    ("mode", "mode_arguments"),
+    [
+        ("train", []),
+        ("resume", ["--checkpoint", "missing-checkpoint"]),
+    ],
+)
+def test_console_rejects_mojo_learner_before_config_or_engine_side_effects(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    mode: str,
+    mode_arguments: list[str],
+) -> None:
+    """Moving the learner gate after config or engine creation exposes forbidden side effects."""
+    events: list[str] = []
+
+    def forbidden(name: str) -> object:
+        events.append(name)
+        raise AssertionError(f"{name} ran before the pure Mojo learner gate")
+
+    monkeypatch.setattr(rl_cli, "load_rl_run_config", lambda path: forbidden("config"))
+    monkeypatch.setattr(rl_cli, "create_engine", lambda config: forbidden("engine"))
+    monkeypatch.setattr(
+        rl_cli,
+        "create_hybrid_engine",
+        lambda config, command: forbidden("hybrid engine"),
+    )
+    exit_code = main(
+        [
+            "rl",
+            mode,
+            "--config",
+            "missing-config.json",
+            *mode_arguments,
+            "--learner",
+            "mojo",
+        ]
+    )
+
+    assert exit_code == 2
+    assert events == []
+    assert capsys.readouterr().err.strip() == EXPECTED_PURE_MOJO_LEARNER_ERROR
+
+
+def test_direct_engine_dispatch_rejects_mojo_learner_before_config_loading(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Calling the registered handler directly must not bypass the learner gate."""
+    config_calls: list[object] = []
+    monkeypatch.setattr(
+        rl_cli,
+        "load_rl_run_config",
+        lambda path: config_calls.append(path),
+    )
+    args = SimpleNamespace(
+        learner="mojo",
+        backend="mojo-vulkan-llamacpp",
+        config="missing-config.json",
+        rl_command="train",
+    )
+
+    assert rl_cli._handle_engine(args) == 2
+    assert config_calls == []
+    assert capsys.readouterr().err.strip() == EXPECTED_PURE_MOJO_LEARNER_ERROR
+
+
+def test_pytorch_hybrid_cli_dispatch_remains_available(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An over-broad pure Mojo gate must not reject the supported PyTorch hybrid selection."""
+    events: list[object] = []
+    config = replace(
+        _config(tmp_path),
+        runtime=RuntimeConfig(backend="mojo-vulkan-llamacpp"),
+        algorithm=AlgorithmConfig(name="grpo", max_steps=1),
+    )
+    engine = SimpleNamespace(
+        train=lambda: events.append("train") or SimpleNamespace(to_dict=lambda: {"step": 1})
+    )
+    monkeypatch.setattr(rl_cli, "load_rl_run_config", lambda path: config)
+    monkeypatch.setattr(
+        rl_cli,
+        "create_hybrid_engine",
+        lambda selected, command: events.append((selected, command)) or engine,
+    )
+    args = build_parser().parse_args(
+        [
+            "rl",
+            "train",
+            "--config",
+            "config.json",
+            "--backend",
+            "mojo-vulkan-llamacpp",
+            "--learner",
+            "pytorch",
+            "--coordinator-command",
+            "mojo",
+            "run",
+        ]
+    )
+
+    assert args.func(args) == 0
+    assert events == [(config, ("mojo", "run")), "train"]
 
 
 @pytest.mark.parametrize("mode", ["train", "resume", "evaluate"])
