@@ -317,11 +317,23 @@ def test_decision_constructor_requires_exact_downweight_weight() -> None:
         )
 
 
-@pytest.mark.parametrize("reason", ["", "   ", "x" * 513])
-def test_decision_constructor_rejects_blank_or_unbounded_reason(reason: str) -> None:
-    """Audit evidence always carries a bounded human-readable explanation."""
+@pytest.mark.parametrize("reason", ["", "   "])
+def test_decision_constructor_rejects_blank_reason(reason: str) -> None:
+    """Audit evidence always carries a human-readable explanation."""
     with pytest.raises(ValueError, match="reason"):
         replace(_valid_allowed_lag_decision(), reason=reason)
+
+
+def test_evaluation_supports_large_valid_policy_version_in_reason() -> None:
+    """Reason construction cannot impose an undocumented policy-version ceiling."""
+    version = PolicyVersion(10**600)
+
+    decision = evaluate_staleness(version, version)
+
+    assert decision.accepted is True
+    assert decision.lag == 0
+    assert decision.weight == 1.0
+    assert version.to_json() in decision.reason
 
 
 @pytest.mark.parametrize("learner", [None, 3, "3"])

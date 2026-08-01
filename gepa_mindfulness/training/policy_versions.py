@@ -9,7 +9,6 @@ from dataclasses import dataclass
 from enum import Enum
 
 _CANONICAL_VERSION = re.compile(r"0|[1-9][0-9]*")
-_MAX_DECISION_REASON_CHARACTERS = 512
 
 
 @dataclass(frozen=True, order=True, slots=True)
@@ -87,8 +86,8 @@ class StalenessDecision:
         decay = _validate_policy_configuration(self.policy, self.downweight_decay)
         if type(self.reason) is not str:
             raise ValueError("reason must be a string")
-        if not self.reason.strip() or len(self.reason) > _MAX_DECISION_REASON_CHARACTERS:
-            raise ValueError("reason must be nonblank and at most 512 characters")
+        if not self.reason.strip():
+            raise ValueError("reason must be nonblank")
         self._validate_outcome(decay)
 
     def _validate_outcome(self, decay: float | None) -> None:
