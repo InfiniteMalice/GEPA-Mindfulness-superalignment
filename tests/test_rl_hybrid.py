@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import sys
@@ -246,6 +247,77 @@ class BlockedWriteStream:
         close()
 
 
+class DelimiterBlockingStream:
+    """Forward the JSON prefix but block its framing delimiter until process exit."""
+
+    def __init__(self, wrapped: object, process: subprocess.Popen[bytes]) -> None:
+        self.wrapped = wrapped
+        self.process = process
+        self.delimiter_entered = threading.Event()
+
+    def write(self, data: bytes) -> int:
+        if bytes(data) == b"\n":
+            self.delimiter_entered.set()
+            self.process.wait()
+            raise BrokenPipeError("test delimiter pipe closed")
+        write = getattr(self.wrapped, "write")
+        result = write(data)
+        assert isinstance(result, int)
+        return result
+
+    def flush(self) -> None:
+        flush = getattr(self.wrapped, "flush")
+        flush()
+
+    def close(self) -> None:
+        close = getattr(self.wrapped, "close")
+        close()
+
+
+class ShortWriteStream:
+    """Forward at most three bytes per call and record the exact delivered frame."""
+
+    def __init__(self, wrapped: object) -> None:
+        self.wrapped = wrapped
+        self.delivered = bytearray()
+
+    def write(self, data: bytes) -> int:
+        chunk = bytes(data)[:3]
+        write = getattr(self.wrapped, "write")
+        result = write(chunk)
+        assert isinstance(result, int)
+        self.delivered.extend(chunk[:result])
+        return result
+
+    def flush(self) -> None:
+        flush = getattr(self.wrapped, "flush")
+        flush()
+
+    def close(self) -> None:
+        close = getattr(self.wrapped, "close")
+        close()
+
+
+class InvalidWriteProgressStream:
+    """Return one impossible raw-pipe progress value without forwarding data."""
+
+    def __init__(self, wrapped: object, progress: object) -> None:
+        self.wrapped = wrapped
+        self.progress = progress
+
+    def write(self, data: bytes) -> object:
+        if self.progress == "oversized":
+            return len(data) + 1
+        return self.progress
+
+    def flush(self) -> None:
+        return None
+
+    def close(self) -> None:
+        close = getattr(self.wrapped, "close")
+        close()
+
+
 @pytest.fixture
 def fake_coordinator_factory(tmp_path: Path) -> Iterator[object]:
     script = tmp_path / "fake_coordinator.py"
@@ -477,6 +549,109 @@ def test_transport_accepts_immediate_response_after_request_flush(
     trajectories = transport.generate((_raw_actor_request(),))
 
     assert len(trajectories) == 1
+
+
+def test_delimiter_block_does_not_hold_response_lock_or_escape_cleanup(
+    fake_coordinator_factory: object,
+) -> None:
+    """A blocked delimiter leaves state coordination available for timeout cleanup."""
+    transport = fake_coordinator_factory(  # type: ignore[operator]
+        "happy",
+        request_timeout_seconds=0.1,
+    )
+    transport.start()
+    assert transport._process is not None
+    assert transport._process.stdin is not None
+    blocked = DelimiterBlockingStream(transport._process.stdin, transport._process)
+    transport._process.stdin = blocked  # type: ignore[assignment]
+    errors: list[BaseException] = []
+    caller_done = threading.Event()
+
+    def generate() -> None:
+        try:
+            transport.generate((_raw_actor_request(),))
+        except BaseException as exc:
+            errors.append(exc)
+        finally:
+            caller_done.set()
+
+    caller = threading.Thread(target=generate)
+    caller.start()
+    assert blocked.delimiter_entered.wait(1.0)
+    lock_available = transport._expectation_lock.acquire(timeout=0.05)
+    if lock_available:
+        transport._expectation_lock.release()
+    returned_within_budget = caller_done.wait(0.4)
+    if not returned_within_budget and transport.process_running:
+        transport._process.terminate()
+    caller.join(timeout=1.0)
+
+    assert lock_available is True
+    assert returned_within_budget is True
+    assert not caller.is_alive()
+    assert len(errors) == 1
+    assert isinstance(errors[0], MojoCoordinatorError)
+    _assert_transport_resources_stopped(transport, writer_expected=True)
+
+
+def test_short_pipe_writes_deliver_one_exact_complete_jsonl_frame(
+    fake_coordinator_factory: object,
+) -> None:
+    """Short raw writes are advanced until the complete frame and delimiter are delivered."""
+    transport = fake_coordinator_factory()  # type: ignore[operator]
+    transport.start()
+    assert transport._process is not None
+    assert transport._process.stdin is not None
+    short = ShortWriteStream(transport._process.stdin)
+    transport._process.stdin = short  # type: ignore[assignment]
+
+    trajectories = transport.generate((_raw_actor_request(),))
+
+    assert len(trajectories) == 1
+    delivered = bytes(short.delivered)
+    assert delivered.count(b"\n") == 1
+    assert delivered.endswith(b"\n")
+    assert json.loads(delivered) == {
+        "protocol_version": "gepa-actor-v1",
+        "type": "generate",
+        "request_id": "request-2",
+        "payload": {
+            "requests": [
+                {
+                    "case_id": "case-1",
+                    "metadata": {},
+                    "num_samples": 1,
+                    "policy_version": "3",
+                    "prompt": "prompt",
+                    "sampling_parameters": {},
+                    "seed": None,
+                }
+            ]
+        },
+    }
+
+
+@pytest.mark.parametrize("progress", [None, 0, -1, "oversized"])
+def test_invalid_pipe_write_progress_fails_closed(
+    fake_coordinator_factory: object,
+    progress: object,
+) -> None:
+    """Impossible raw write progress poisons the transport without waiting for a response."""
+    transport = fake_coordinator_factory(  # type: ignore[operator]
+        "happy",
+        request_timeout_seconds=0.1,
+    )
+    transport.start()
+    assert transport._process is not None
+    assert transport._process.stdin is not None
+    invalid = InvalidWriteProgressStream(transport._process.stdin, progress)
+    transport._process.stdin = invalid  # type: ignore[assignment]
+
+    with pytest.raises(MojoCoordinatorError, match="write progress"):
+        transport.generate((_raw_actor_request(),))
+
+    assert transport.closed is True
+    _assert_transport_resources_stopped(transport, writer_expected=True)
 
 
 @pytest.mark.parametrize("mode", ["duplicate_envelope_key", "duplicate_nested_key"])

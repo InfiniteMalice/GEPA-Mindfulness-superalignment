@@ -157,9 +157,10 @@ class MojoProcessTransport:
         self._stderr_lock = threading.Lock()
         self._stderr_overflow = threading.Event()
         self._stderr_reader_ready = threading.Event()
-        self._expectation_lock = threading.Lock()
+        self._expectation_lock = threading.Condition()
         self._expected_response: tuple[str, str] | None = None
         self._response_state = "idle"
+        self._commit_pending = False
         self._response_seen = False
         self._protocol_error: str | None = None
         self._writer_thread: threading.Thread | None = None
@@ -343,23 +344,32 @@ class MojoProcessTransport:
                 raise MojoCoordinatorError(self._protocol_error)
             self._expected_response = (message_type, request_id)
             self._response_state = "writing"
+            self._commit_pending = False
             self._response_seen = False
         write_done = threading.Event()
         write_errors: list[BaseException] = []
 
         def write_frame() -> None:
             try:
-                # The child cannot parse the request until the delimiter is committed. Keeping
-                # that final write and flush under the state lock lets an immediate response wait
-                # for ``awaiting`` while a frame seen during the prefix write remains ineligible.
-                stdin.write(encoded)
+                _write_all(stdin, encoded, deadline)
                 with self._expectation_lock:
-                    stdin.write(b"\n")
-                    stdin.flush()
+                    if self._expected_response != (message_type, request_id):
+                        raise MojoCoordinatorError("Mojo coordinator write was cancelled")
+                    self._commit_pending = True
+                _write_all(stdin, b"\n", deadline)
+                stdin.flush()
+                with self._expectation_lock:
                     if self._expected_response == (message_type, request_id):
                         self._response_state = "awaiting"
-            except (BrokenPipeError, OSError, ValueError) as exc:
+                        self._commit_pending = False
+                    self._expectation_lock.notify_all()
+            except (BrokenPipeError, MojoCoordinatorError, OSError, TypeError, ValueError) as exc:
                 write_errors.append(exc)
+                with self._expectation_lock:
+                    if self._expected_response == (message_type, request_id):
+                        self._response_state = "write_failed"
+                        self._commit_pending = False
+                    self._expectation_lock.notify_all()
             finally:
                 write_done.set()
 
@@ -373,12 +383,16 @@ class MojoProcessTransport:
             if not write_done.wait(_remaining(deadline)):
                 raise MojoCoordinatorError("Mojo coordinator write deadline expired")
             if write_errors:
+                if isinstance(write_errors[0], MojoCoordinatorError):
+                    raise write_errors[0]
                 raise self._exited_error(process.poll()) from write_errors[0]
             return self._receive(message_type, request_id, deadline)
         finally:
             with self._expectation_lock:
                 self._expected_response = None
                 self._response_state = "idle"
+                self._commit_pending = False
+                self._expectation_lock.notify_all()
 
     def _receive(
         self,
@@ -524,10 +538,16 @@ class MojoProcessTransport:
                 self._protocol_error = "Mojo coordinator emitted an unsolicited response frame"
                 return
             if self._response_state == "writing":
-                self._protocol_error = (
-                    "Mojo coordinator emitted a response before its request write committed"
+                if not self._commit_pending:
+                    self._protocol_error = (
+                        "Mojo coordinator emitted a response before its request write committed"
+                    )
+                    return
+                self._expectation_lock.wait_for(
+                    lambda: self._response_state != "writing",
                 )
-                return
+                if self._expected_response is None:
+                    return
             if self._response_state != "awaiting":
                 self._protocol_error = "Mojo coordinator response state is invalid"
                 return
@@ -845,6 +865,27 @@ def _reject_duplicate_object_keys(pairs: list[tuple[str, object]]) -> dict[str, 
 
 def _remaining(deadline: float) -> float:
     return max(0.0, deadline - time.monotonic())
+
+
+def _write_all(stream: object, data: bytes, deadline: float) -> None:
+    write = getattr(stream, "write", None)
+    if not callable(write):
+        raise MojoCoordinatorError("Mojo coordinator pipe write is unavailable")
+    view = memoryview(data)
+    offset = 0
+    while offset < len(view):
+        if _remaining(deadline) <= 0.0:
+            raise MojoCoordinatorError("Mojo coordinator write deadline expired")
+        try:
+            progress = write(view[offset:])
+        except (BrokenPipeError, OSError, TypeError, ValueError) as exc:
+            raise MojoCoordinatorError("Mojo coordinator pipe write failed") from exc
+        remaining_bytes = len(view) - offset
+        if type(progress) is not int or not 0 < progress <= remaining_bytes:
+            raise MojoCoordinatorError("Mojo coordinator pipe write progress is invalid")
+        offset += progress
+    if _remaining(deadline) <= 0.0:
+        raise MojoCoordinatorError("Mojo coordinator write deadline expired")
 
 
 def _reserved_exchange_deadline(
