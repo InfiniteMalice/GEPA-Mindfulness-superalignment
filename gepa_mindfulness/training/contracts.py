@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol, Sequence, runtime_checkable
+from typing import Mapping, Protocol, Sequence, runtime_checkable
 
 from .capability import BackendCapabilities, Capability
 from .trajectory import (
@@ -56,6 +56,23 @@ class RolloutBackend(Protocol):
 
     def close(self) -> None:
         """Release backend resources."""
+
+
+@runtime_checkable
+class ActorTransport(Protocol):
+    """A bounded transport for a versioned external actor coordinator."""
+
+    def start(self) -> object:
+        """Start the actor boundary and return its validated handshake."""
+
+    def generate(
+        self,
+        requests: Sequence[Mapping[str, object]],
+    ) -> Sequence[Mapping[str, object]]:
+        """Exchange one ordered batch of actor generation requests."""
+
+    def close(self) -> None:
+        """Release actor transport resources."""
 
 
 @runtime_checkable
