@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import re
+import secrets
 import shutil
 import subprocess
 import sys
@@ -197,6 +199,26 @@ while True:
     request_id = message["request_id"]
     if mode == "wrong_request_id":
         request_id = "request-999"
+    counter, separator, nonce = request_id.partition(":")
+    if mode in ("wrong_nonce", "guessed_nonce"):
+        request_id = counter + ":" + "0" * 32
+    if mode == "malformed_request_id":
+        request_id = counter + ":not-canonical"
+    if mode == "stale_request_id":
+        request_id = "request-1:" + (nonce if separator else "0" * 32)
+    if mode == "future_request_id":
+        request_id = "request-999:" + (nonce if separator else "0" * 32)
+    if mode == "counter_only_request_id":
+        request_id = counter
+    if mode == "missing_request_id":
+        response = {
+            "protocol_version": "gepa-actor-v1",
+            "type": "generate",
+            "payload": {"trajectories": trajectories},
+        }
+        sys.stdout.write(json.dumps(response, allow_nan=False) + "\n")
+        sys.stdout.flush()
+        continue
     send("generate", request_id, {"trajectories": trajectories})
 """
 
@@ -274,6 +296,33 @@ class DelimiterBlockingStream:
         close()
 
 
+class ReleasableDelimiterStream:
+    """Pause the final delimiter and forward it only after an explicit release."""
+
+    def __init__(self, wrapped: object) -> None:
+        self.wrapped = wrapped
+        self.delimiter_entered = threading.Event()
+        self.release = threading.Event()
+
+    def write(self, data: bytes) -> int:
+        if bytes(data) == b"\n":
+            self.delimiter_entered.set()
+            if not self.release.wait(1.0):
+                raise OSError("test delimiter was not released")
+        write = getattr(self.wrapped, "write")
+        result = write(data)
+        assert isinstance(result, int)
+        return result
+
+    def flush(self) -> None:
+        flush = getattr(self.wrapped, "flush")
+        flush()
+
+    def close(self) -> None:
+        close = getattr(self.wrapped, "close")
+        close()
+
+
 class ShortWriteStream:
     """Forward at most three bytes per call and record the exact delivered frame."""
 
@@ -312,6 +361,33 @@ class InvalidWriteProgressStream:
 
     def flush(self) -> None:
         return None
+
+    def close(self) -> None:
+        close = getattr(self.wrapped, "close")
+        close()
+
+
+class CorrelationObservingStream:
+    """Record which bytes become visible before and after correlation eligibility."""
+
+    def __init__(self, wrapped: object, transport: MojoProcessTransport) -> None:
+        self.wrapped = wrapped
+        self.transport = transport
+        self.before_armed = bytearray()
+        self.after_armed = bytearray()
+
+    def write(self, data: bytes) -> int:
+        with self.transport._expectation_lock:
+            destination = self.after_armed if self.transport._commit_pending else self.before_armed
+        write = getattr(self.wrapped, "write")
+        result = write(data)
+        assert isinstance(result, int)
+        destination.extend(bytes(data)[:result])
+        return result
+
+    def flush(self) -> None:
+        flush = getattr(self.wrapped, "flush")
+        flush()
 
     def close(self) -> None:
         close = getattr(self.wrapped, "close")
@@ -594,6 +670,111 @@ def test_delimiter_block_does_not_hold_response_lock_or_escape_cleanup(
     _assert_transport_resources_stopped(transport, writer_expected=True)
 
 
+def test_pres_sent_counter_response_cannot_become_eligible_after_commit(
+    fake_coordinator_factory: object,
+) -> None:
+    """A predictable request-N frame seen during commit poisons after a successful release."""
+    transport = fake_coordinator_factory(  # type: ignore[operator]
+        "stop_reading",
+        request_timeout_seconds=0.5,
+    )
+    transport.start()
+    assert transport._process is not None
+    assert transport._process.stdin is not None
+    blocked = ReleasableDelimiterStream(transport._process.stdin)
+    transport._process.stdin = blocked  # type: ignore[assignment]
+    results: list[tuple[Mapping[str, object], ...]] = []
+    errors: list[BaseException] = []
+    response_observed = threading.Event()
+
+    def generate() -> None:
+        try:
+            results.append(transport.generate((_raw_actor_request(),)))
+        except BaseException as exc:
+            errors.append(exc)
+
+    raw = (
+        b'{"protocol_version":"gepa-actor-v1","type":"generate",'
+        b'"request_id":"request-2","payload":{"trajectories":[]}}'
+    )
+
+    def inject_response() -> None:
+        response_observed.set()
+        transport._put_stdout_frame(raw)
+
+    caller = threading.Thread(target=generate)
+    caller.start()
+    assert blocked.delimiter_entered.wait(1.0)
+    responder = threading.Thread(target=inject_response)
+    responder.start()
+    assert response_observed.wait(1.0)
+    blocked.release.set()
+    caller.join(timeout=1.0)
+    responder.join(timeout=1.0)
+
+    assert not caller.is_alive()
+    assert not responder.is_alive()
+    assert results == []
+    assert len(errors) == 1
+    assert isinstance(errors[0], MojoCoordinatorError)
+    assert transport.closed is True
+
+
+def test_request_correlation_is_canonical_and_hidden_until_armed(
+    fake_coordinator_factory: object,
+) -> None:
+    """The child sees the complete unguessable correlation only after eligibility is armed."""
+    transport = fake_coordinator_factory()  # type: ignore[operator]
+    transport.start()
+    assert transport._process is not None
+    assert transport._process.stdin is not None
+    observing = CorrelationObservingStream(transport._process.stdin, transport)
+    transport._process.stdin = observing  # type: ignore[assignment]
+
+    trajectories = transport.generate((_raw_actor_request(),))
+
+    assert len(trajectories) == 1
+    delivered = bytes(observing.before_armed + observing.after_armed)
+    request_id = json.loads(delivered)["request_id"]
+    assert re.fullmatch(r"request-2:[0-9a-f]{32}", request_id)
+    nonce = request_id.partition(":")[2].encode("ascii")
+    assert request_id.encode("ascii") not in observing.before_armed
+    assert nonce not in observing.before_armed
+    assert nonce in observing.after_armed
+
+
+@pytest.mark.parametrize(
+    "mode",
+    [
+        "wrong_nonce",
+        "guessed_nonce",
+        "missing_request_id",
+        "malformed_request_id",
+        "stale_request_id",
+        "future_request_id",
+        "counter_only_request_id",
+    ],
+)
+def test_transport_rejects_non_exact_correlation_without_nonce_leakage(
+    fake_coordinator_factory: object,
+    monkeypatch: pytest.MonkeyPatch,
+    mode: str,
+) -> None:
+    """Every missing, guessed, malformed, stale, future, or partial echo fails closed."""
+    known_nonce = "f" * 32
+    monkeypatch.setattr(secrets, "token_hex", lambda size: known_nonce)
+    transport = fake_coordinator_factory(mode)  # type: ignore[operator]
+    transport.start()
+
+    with pytest.raises(MojoCoordinatorError) as captured:
+        transport.generate((_raw_actor_request(),))
+
+    error = str(captured.value)
+    assert known_nonce not in error
+    assert "0" * 32 not in error
+    assert transport.closed is True
+
+
 def test_short_pipe_writes_deliver_one_exact_complete_jsonl_frame(
     fake_coordinator_factory: object,
 ) -> None:
@@ -611,10 +792,12 @@ def test_short_pipe_writes_deliver_one_exact_complete_jsonl_frame(
     delivered = bytes(short.delivered)
     assert delivered.count(b"\n") == 1
     assert delivered.endswith(b"\n")
-    assert json.loads(delivered) == {
+    decoded = json.loads(delivered)
+    request_id = decoded.pop("request_id")
+    assert re.fullmatch(r"request-2:[0-9a-f]{32}", request_id)
+    assert decoded == {
         "protocol_version": "gepa-actor-v1",
         "type": "generate",
-        "request_id": "request-2",
         "payload": {
             "requests": [
                 {
@@ -915,9 +1098,9 @@ def test_mojo_coordinator_source_runs_hello_and_close_protocol() -> None:
     source = Path("mojo/rl_coordinator/main.mojo")
     messages = (
         '{"protocol_version":"gepa-actor-v1","type":"hello",'
-        '"request_id":"request-1","payload":{}}\n'
+        '"request_id":"request-1:11111111111111111111111111111111","payload":{}}\n'
         '{"protocol_version":"gepa-actor-v1","type":"close",'
-        '"request_id":"request-2","payload":{}}\n'
+        '"request_id":"request-2:22222222222222222222222222222222","payload":{}}\n'
     )
 
     completed = subprocess.run(
@@ -941,9 +1124,10 @@ def test_mojo_coordinator_source_runs_hello_and_close_protocol() -> None:
     )
     generate_messages = (
         '{"protocol_version":"gepa-actor-v1","type":"hello",'
-        '"request_id":"request-1","payload":{}}\n'
+        '"request_id":"request-1:11111111111111111111111111111111","payload":{}}\n'
         '{"protocol_version":"gepa-actor-v1","type":"generate",'
-        '"request_id":"request-2","payload":{"requests":[' + representative_request + "]}}\n"
+        '"request_id":"request-2:22222222222222222222222222222222",'
+        '"payload":{"requests":[' + representative_request + "]}}\n"
     )
     generated = subprocess.run(
         ["mojo", "run", str(source)],
@@ -957,10 +1141,12 @@ def test_mojo_coordinator_source_runs_hello_and_close_protocol() -> None:
     assert "actor_unconfigured" in generated.stdout
 
     invalid_messages = (
-        messages.replace("request-1", "request-9", 1),
+        messages.replace("request-1:", "request-9:", 1),
         generate_messages.replace('"payload":{"requests":', '"payload":{"extra":1,"requests":'),
-        generate_messages.replace('"request_id":"request-2"', '"request_id":"request-3"'),
+        generate_messages.replace('"request_id":"request-2:', '"request_id":"request-3:'),
         generate_messages.replace('"type":"generate"', '"type":"close"'),
+        generate_messages.replace("2" * 32, "not-canonical", 1),
+        generate_messages.replace(":" + "2" * 32, "", 1),
     )
     for invalid in invalid_messages:
         malformed = subprocess.run(
@@ -984,6 +1170,9 @@ def test_mojo_source_declares_strict_unconfigured_protocol_contract() -> None:
     assert '\\"close\\"' in source
     assert "actor_unconfigured" in source
     assert "trajectories" not in source
+    assert '\\"request_id\\":\\"request-1:' in source
+    assert '\\"request_id\\":\\"request-2:' in source
+    assert "is_canonical_nonce" in source
     assert '\\"case_id\\":null' in source
     assert '\\"metadata\\":{}' in source
     assert '\\"num_samples\\":1' in source

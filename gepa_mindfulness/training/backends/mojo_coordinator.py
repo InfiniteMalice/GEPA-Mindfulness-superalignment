@@ -6,6 +6,7 @@ import json
 import math
 import queue
 import re
+import secrets
 import shutil
 import subprocess
 import threading
@@ -27,6 +28,8 @@ _MAX_FRAME_BYTES = 16_777_216
 _MAX_STDERR_BYTES = 1_048_576
 _MAX_TIMEOUT_SECONDS = 60.0
 _MAX_IDENTITY_CHARACTERS = 128
+_CORRELATION_NONCE_BYTES = 16
+_MAX_REQUEST_NUMBER = 9_999_999_999_999_999_999
 _READ_BYTES = 4096
 _ENVELOPE_FIELDS = frozenset({"protocol_version", "type", "request_id", "payload"})
 _HANDSHAKE_FIELDS = frozenset({"backend_name", "backend_version"})
@@ -71,6 +74,7 @@ _TRAJECTORY_FIELDS = frozenset(
 )
 _OPTIONAL_TRAJECTORY_FIELDS = frozenset({"evidence_references"})
 _ERROR_CODE = re.compile(r"[a-z][a-z0-9_]{0,63}")
+_CORRELATION_ID = re.compile(r"request-[1-9][0-9]{0,18}:[0-9a-f]{32}")
 _UNSUPPORTED_TRAINING_CAPABILITIES = frozenset(
     {
         Capability.SUPPORTS_BACKWARD,
@@ -319,7 +323,9 @@ class MojoProcessTransport:
         if process.poll() is not None:
             raise self._exited_error(process.returncode)
         self._request_number += 1
-        request_id = f"request-{self._request_number}"
+        if self._request_number > _MAX_REQUEST_NUMBER:
+            raise MojoCoordinatorError("Mojo coordinator request counter limit was reached")
+        request_id, nonce = _new_correlation_id(self._request_number)
         envelope: dict[str, object] = {
             "protocol_version": _PROTOCOL_VERSION,
             "type": message_type,
@@ -337,6 +343,11 @@ class MojoProcessTransport:
             raise MojoCoordinatorError("Mojo request is not finite JSON") from exc
         if len(encoded) > self.max_frame_bytes:
             raise MojoCoordinatorError("Mojo request frame exceeds the configured limit")
+        nonce_offset = encoded.find(nonce.encode("ascii"))
+        if nonce_offset < 0:
+            raise MojoCoordinatorError("Mojo request correlation serialization is invalid")
+        prefix = encoded[:nonce_offset]
+        commit = encoded[nonce_offset:]
         with self._expectation_lock:
             if self._expected_response is not None:
                 raise MojoCoordinatorError("Mojo coordinator already has an active response")
@@ -351,11 +362,12 @@ class MojoProcessTransport:
 
         def write_frame() -> None:
             try:
-                _write_all(stdin, encoded, deadline)
+                _write_all(stdin, prefix, deadline)
                 with self._expectation_lock:
                     if self._expected_response != (message_type, request_id):
                         raise MojoCoordinatorError("Mojo coordinator write was cancelled")
                     self._commit_pending = True
+                _write_all(stdin, commit, deadline)
                 _write_all(stdin, b"\n", deadline)
                 stdin.flush()
                 with self._expectation_lock:
@@ -865,6 +877,17 @@ def _reject_duplicate_object_keys(pairs: list[tuple[str, object]]) -> dict[str, 
 
 def _remaining(deadline: float) -> float:
     return max(0.0, deadline - time.monotonic())
+
+
+def _new_correlation_id(request_number: int) -> tuple[str, str]:
+    try:
+        nonce = secrets.token_hex(_CORRELATION_NONCE_BYTES)
+    except (OSError, RuntimeError) as exc:
+        raise MojoCoordinatorError("Mojo request correlation could not be generated") from exc
+    correlation_id = f"request-{request_number}:{nonce}"
+    if _CORRELATION_ID.fullmatch(correlation_id) is None:
+        raise MojoCoordinatorError("Mojo request correlation generation is invalid")
+    return correlation_id, nonce
 
 
 def _write_all(stream: object, data: bytes, deadline: float) -> None:
