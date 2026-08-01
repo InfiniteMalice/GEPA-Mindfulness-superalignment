@@ -166,14 +166,18 @@ class RuntimeConfig:
             raise TypeError("runtime.precision must be a string")
         if not isinstance(self.distributed, DistributedRuntimeConfig):
             raise TypeError("runtime.distributed must be a DistributedRuntimeConfig")
-        if self.backend not in {"pytorch", "cuda"}:
-            raise ValueError("runtime.backend must be 'pytorch' or 'cuda'")
+        if self.backend not in {"pytorch", "cuda", "llama-cpp-vulkan"}:
+            raise ValueError("runtime.backend must be 'pytorch', 'cuda', or 'llama-cpp-vulkan'")
         if self.device != "cpu" and not _CUDA_DEVICE.fullmatch(self.device):
             raise ValueError("runtime.device must be 'cpu', 'cuda', or 'cuda:<index>'")
         if self.precision not in {"fp32", "fp16", "bf16"}:
             raise ValueError("runtime.precision must be 'fp32', 'fp16', or 'bf16'")
         if self.backend == "cuda" and not _CUDA_DEVICE.fullmatch(self.device):
             raise ValueError("runtime.backend='cuda' requires a CUDA device selector")
+        if self.backend == "llama-cpp-vulkan" and self.device != "cpu":
+            raise ValueError("runtime.backend='llama-cpp-vulkan' requires runtime.device='cpu'")
+        if self.backend == "llama-cpp-vulkan" and self.precision != "fp32":
+            raise ValueError("runtime.backend='llama-cpp-vulkan' requires runtime.precision='fp32'")
         if self.precision != "fp32" and not _CUDA_DEVICE.fullmatch(self.device):
             raise ValueError("mixed precision requires a CUDA device selector")
         if self.distributed.strategy != "none":

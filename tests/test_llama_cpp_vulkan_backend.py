@@ -10,11 +10,13 @@ from collections import defaultdict, deque
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import cast
 from urllib import request as urllib_request
 
 import pytest
 
+from gepa_mindfulness.training.backends import llama_cpp_vulkan as llama_cpp_module
 from gepa_mindfulness.training.backends.llama_cpp_vulkan import (
     LlamaCppServerClient,
     LlamaCppServerError,
@@ -23,6 +25,7 @@ from gepa_mindfulness.training.backends.llama_cpp_vulkan import (
 from gepa_mindfulness.training.capability import Capability, CapabilityState
 from gepa_mindfulness.training.contracts import RolloutBackend
 from gepa_mindfulness.training.trajectory import RolloutRequest
+from mindful_trace_gepa.cli import build_parser
 
 
 @dataclass(frozen=True)
@@ -173,6 +176,96 @@ def _completion(
     return body
 
 
+def test_collect_cli_writes_common_nullable_trajectory_schema(
+    tmp_path: Path,
+    mock_llama_server: _MockLlamaServer,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Removing common-engine llama selection must break the real collection command."""
+    dataset = tmp_path / "prompts.txt"
+    dataset.write_text("hello local actor\n", encoding="utf-8")
+    configured_logs = tmp_path / "configured-logs"
+    selected_logs = tmp_path / "selected-logs"
+    config_path = tmp_path / "collect.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "runtime": {
+                    "backend": "llama-cpp-vulkan",
+                    "device": "cpu",
+                    "precision": "fp32",
+                },
+                "policy": {
+                    "model_name": "tiny-model.gguf",
+                    "max_new_tokens": 7,
+                    "do_sample": False,
+                    "temperature": 0.8,
+                    "top_p": 0.9,
+                },
+                "dataset": {"format": "text", "train_path": ""},
+                "logging": {"log_dir": str(configured_logs), "level": "INFO"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    mock_llama_server.prime_metadata()
+    mock_llama_server.prime_metadata()
+    mock_llama_server.enqueue("POST", "/completion", _completion("hello back"))
+    monkeypatch.setattr(llama_cpp_module.shutil, "which", lambda name: None)
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "rl",
+            "collect",
+            "--config",
+            str(config_path),
+            "--backend",
+            "llama-cpp-vulkan",
+            "--endpoint",
+            mock_llama_server.endpoint,
+            "--dataset",
+            str(dataset),
+            "--output",
+            str(selected_logs),
+        ]
+    )
+
+    assert args.func(args) == 0
+    result = json.loads(capsys.readouterr().out)
+    log_directory = Path(result["log_directory"])
+    record = json.loads((log_directory / "trajectories.jsonl").read_text(encoding="utf-8"))
+    trajectory = record["trajectory"]
+    manifest = json.loads((log_directory / "run_manifest.json").read_text(encoding="utf-8"))
+
+    assert log_directory.parent == selected_logs
+    assert result["mode"] == "collect"
+    assert result["trajectory_count"] == 1
+    assert record["backend"] == "llama_cpp_vulkan"
+    assert manifest["backend"] == "llama_cpp_vulkan"
+    assert manifest["actor_backend"] == "llama_cpp_vulkan"
+    assert manifest["device_capabilities"]["capabilities"]["supports_vulkan"]["state"] == "unknown"
+    assert trajectory["backend_name"] == "llama_cpp_vulkan"
+    assert trajectory["model_identifier"] == "tiny-model.gguf"
+    assert trajectory["sampling_parameters"] == {
+        "do_sample": False,
+        "max_new_tokens": 7,
+        "temperature": 0.0,
+        "top_p": 0.9,
+    }
+    for field_name in (
+        "prompt_token_ids",
+        "response_token_ids",
+        "old_log_probs",
+        "reference_log_probs",
+        "value_predictions",
+        "reward_total",
+        "advantage",
+        "return",
+    ):
+        assert trajectory[field_name] is None
+
+
 @pytest.mark.parametrize(
     "endpoint",
     [
@@ -267,7 +360,10 @@ def test_client_rejects_redirect_without_contacting_target(
 @pytest.mark.parametrize("timeout", [True, 0, -1, 61, math.inf, "1"])
 def test_client_rejects_invalid_or_unbounded_timeout(timeout: object) -> None:
     with pytest.raises((TypeError, ValueError), match="timeout"):
-        LlamaCppServerClient("http://127.0.0.1:8080", timeout_seconds=timeout)  # type: ignore[arg-type]
+        LlamaCppServerClient(
+            "http://127.0.0.1:8080",
+            timeout_seconds=timeout,  # type: ignore[arg-type]
+        )
 
 
 def test_missing_server_probabilities_remain_null(

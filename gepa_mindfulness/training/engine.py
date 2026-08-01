@@ -23,7 +23,13 @@ from .capability import (
     CapabilityEvidence,
     CapabilityState,
 )
-from .contracts import RewardProvider, RewardRequest, RLAlgorithm, TrainablePolicyBackend
+from .contracts import (
+    RewardProvider,
+    RewardRequest,
+    RLAlgorithm,
+    RolloutBackend,
+    TrainablePolicyBackend,
+)
 from .runtime_config import DistributedRuntimeConfig, RLRunConfig
 from .trajectory import PolicyEvaluation, RolloutRequest, Trajectory, TrajectoryBatch
 
@@ -159,7 +165,7 @@ class RunLogger(Protocol):
     def metrics(self, rewards: tuple[object, ...], global_step: int) -> None: ...
 
 
-BackendFactory = Callable[[RLRunConfig], TrainablePolicyBackend]
+BackendFactory = Callable[[RLRunConfig], RolloutBackend]
 AlgorithmFactory = Callable[[RLRunConfig, TrainablePolicyBackend], RLAlgorithm]
 DatasetFactory = Callable[[RLRunConfig], DatasetProvider]
 RewardFactory = Callable[[RLRunConfig], RewardProvider]
@@ -517,8 +523,11 @@ class RLTrainingEngine:
         evaluation_artifacts: dict[str, object] = {}
         primary_error: BaseException | None = None
         try:
-            backend.capabilities().require(requirements)
-            algorithm = self._algorithm(mode, backend)
+            initial_backend_requirements = set(requirements)
+            if mode == "collect":
+                initial_backend_requirements.discard(Capability.SUPPORTS_GENERATION)
+            backend.capabilities().require(initial_backend_requirements)
+            algorithm = self._algorithm(mode, cast(TrainablePolicyBackend, backend))
             dataset = (
                 _SnapshotDataset(snapshot)
                 if self._default_dataset
@@ -575,6 +584,7 @@ class RLTrainingEngine:
                 selected = self._rollout_requests(requests, global_step, rollout_index=0)
                 trajectories = tuple(backend.generate(selected))
                 _validate_rollout_output(self.config, selected, trajectories)
+                backend.capabilities().require(requirements)
                 logger.trajectories(trajectories, global_step)
                 trajectory_count = len(trajectories)
                 result_trajectories = trajectories
@@ -2153,6 +2163,41 @@ def build_default_engine(config: RLRunConfig) -> RLTrainingEngine:
     return RLTrainingEngine(config)
 
 
+def build_llama_cpp_engine(config: RLRunConfig, endpoint: str) -> RLTrainingEngine:
+    """Build the common engine around one operator-supplied local llama.cpp endpoint."""
+    if config.runtime.backend != "llama-cpp-vulkan":
+        raise ValueError("llama.cpp engine requires runtime.backend='llama-cpp-vulkan'")
+    if not isinstance(endpoint, str) or not endpoint.strip():
+        raise ValueError("llama.cpp collection requires a non-empty endpoint")
+
+    from .backends.llama_cpp_vulkan import (
+        LlamaCppServerClient,
+        LlamaCppVulkanBackend,
+        detect_llama_cpp_runtime,
+    )
+
+    validation_client = LlamaCppServerClient(endpoint)
+    validation_client.close()
+
+    class LlamaCppCapabilityProvider:
+        def detect(self, selected: RLRunConfig) -> BackendCapabilities:
+            del selected
+            return detect_llama_cpp_runtime(endpoint=endpoint)
+
+    def backend_factory(selected: RLRunConfig) -> RolloutBackend:
+        return LlamaCppVulkanBackend(
+            endpoint,
+            max_new_tokens=selected.policy.max_new_tokens,
+            model_identifier=selected.policy.model_name,
+        )
+
+    return RLTrainingEngine(
+        config,
+        capability_provider=LlamaCppCapabilityProvider(),
+        backend_factory=backend_factory,
+    )
+
+
 __all__ = [
     "CapabilityProvider",
     "EngineDependencyError",
@@ -2161,5 +2206,6 @@ __all__ = [
     "RLTrainingEngine",
     "SystemCapabilityProvider",
     "build_default_engine",
+    "build_llama_cpp_engine",
     "required_capabilities",
 ]

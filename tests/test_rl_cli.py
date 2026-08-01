@@ -33,6 +33,7 @@ from gepa_mindfulness.training.runtime_config import (
     AlgorithmConfig,
     CheckpointConfig,
     DatasetConfig,
+    DistributedRuntimeConfig,
     LoggingConfig,
     PolicyConfig,
     RewardConfig,
@@ -53,6 +54,22 @@ def _config(tmp_path: Path, *, max_steps: int = 1) -> RLRunConfig:
         algorithm=AlgorithmConfig(max_steps=max_steps),
         checkpoint=CheckpointConfig(output_dir=str(tmp_path / "checkpoints"), save_steps=1),
     )
+
+
+def _write_llama_collect_config(tmp_path: Path, *, backend: str) -> Path:
+    path = tmp_path / f"{backend}.json"
+    path.write_text(
+        json.dumps(
+            {
+                "runtime": {"backend": backend, "device": "cpu", "precision": "fp32"},
+                "policy": {"model_name": "server-selected-model"},
+                "dataset": {"format": "text", "train_path": str(tmp_path / "prompts.txt")},
+                "logging": {"log_dir": str(tmp_path / "logs"), "level": "INFO"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
 
 
 def _capabilities(*, supported: bool) -> BackendCapabilities:
@@ -352,6 +369,152 @@ def test_cli_dispatch_and_capability_exit_codes(
 
     fake_engine.train = unavailable  # type: ignore[method-assign]
     assert args.func(args) == 2
+
+
+@pytest.mark.parametrize("mode", ["train", "resume", "evaluate"])
+def test_llama_backend_rejects_noncollection_modes_before_actor_construction(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    mode: str,
+) -> None:
+    actor_calls: list[str] = []
+    config_path = _write_llama_collect_config(tmp_path, backend="llama-cpp-vulkan")
+    monkeypatch.setattr(
+        rl_cli,
+        "create_llama_cpp_engine",
+        lambda config, endpoint: actor_calls.append(endpoint),
+        raising=False,
+    )
+    command = [
+        "rl",
+        mode,
+        "--config",
+        str(config_path),
+        "--backend",
+        "llama-cpp-vulkan",
+        "--endpoint",
+        "http://127.0.0.1:8080",
+    ]
+    if mode == "resume":
+        command.extend(["--checkpoint", str(tmp_path / "checkpoint")])
+    args = build_parser().parse_args(command)
+
+    assert args.func(args) == 2
+    assert actor_calls == []
+    assert "collection only" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("config_backend", "arguments", "message"),
+    [
+        (
+            "llama-cpp-vulkan",
+            ["--backend", "llama-cpp-vulkan"],
+            "--endpoint is required",
+        ),
+        (
+            "pytorch",
+            [
+                "--backend",
+                "llama-cpp-vulkan",
+                "--endpoint",
+                "http://127.0.0.1:8080",
+            ],
+            "does not match",
+        ),
+    ],
+)
+def test_llama_collection_rejects_missing_endpoint_and_backend_conflict_before_actor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    config_backend: str,
+    arguments: list[str],
+    message: str,
+) -> None:
+    actor_calls: list[str] = []
+    config_path = _write_llama_collect_config(tmp_path, backend=config_backend)
+    monkeypatch.setattr(
+        rl_cli,
+        "create_llama_cpp_engine",
+        lambda config, endpoint: actor_calls.append(endpoint),
+        raising=False,
+    )
+    args = build_parser().parse_args(["rl", "collect", "--config", str(config_path), *arguments])
+
+    assert args.func(args) == 2
+    assert actor_calls == []
+    assert message in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"device": "cuda:0"},
+        {"precision": "fp16"},
+        {
+            "backend": "llama-cpp-vulkan",
+            "device": "cpu",
+            "distributed": DistributedRuntimeConfig(
+                strategy="ddp",
+                world_size=2,
+                rank=0,
+                local_rank=0,
+            ),
+        },
+    ],
+)
+def test_llama_runtime_rejects_non_cpu_fp32_single_process_combinations(
+    changes: dict[str, object],
+) -> None:
+    values = {"backend": "llama-cpp-vulkan", "device": "cpu", "precision": "fp32"}
+    values.update(changes)
+
+    with pytest.raises(ValueError, match="llama-cpp-vulkan|distributed"):
+        RuntimeConfig(**values)  # type: ignore[arg-type]
+
+
+def test_shipped_llama_collection_config_has_no_endpoint() -> None:
+    path = Path(__file__).parents[1] / "configs" / "rl" / "llama_cpp_vulkan_collect.yaml"
+
+    config = rl_cli.load_rl_run_config(path)
+
+    assert config.runtime == RuntimeConfig(backend="llama-cpp-vulkan")
+    assert config.policy.model_name == "LOCAL_GGUF_MODEL_ID"
+    assert config.dataset.train_path == "data/synthetic/reward_integrity/rl_pairs_v1.jsonl"
+
+
+def test_llama_collection_rejects_non_loopback_endpoint_before_actor_construction(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from gepa_mindfulness.training.backends import llama_cpp_vulkan
+
+    config_path = _write_llama_collect_config(tmp_path, backend="llama-cpp-vulkan")
+    actor_calls: list[str] = []
+    monkeypatch.setattr(
+        llama_cpp_vulkan,
+        "LlamaCppVulkanBackend",
+        lambda endpoint, **kwargs: actor_calls.append(endpoint),
+    )
+    args = build_parser().parse_args(
+        [
+            "rl",
+            "collect",
+            "--config",
+            str(config_path),
+            "--backend",
+            "llama-cpp-vulkan",
+            "--endpoint",
+            "http://example.com:8080",
+        ]
+    )
+
+    assert args.func(args) == 2
+    assert actor_calls == []
+    assert "local loopback" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize("preset", ["pytorch_cpu_ppo.yaml", "pytorch_cpu_grpo.yaml"])

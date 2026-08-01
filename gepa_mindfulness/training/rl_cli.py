@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
@@ -40,6 +40,13 @@ def create_engine(config: RLRunConfig) -> RLTrainingEngine:
     from .engine import build_default_engine
 
     return build_default_engine(config)
+
+
+def create_llama_cpp_engine(config: RLRunConfig, endpoint: str) -> RLTrainingEngine:
+    """Create the canonical engine with a local inference-only llama.cpp actor."""
+    from .engine import build_llama_cpp_engine
+
+    return build_llama_cpp_engine(config, endpoint)
 
 
 def doctor_report(
@@ -109,7 +116,23 @@ def _emit_result(result: _Result) -> None:
 def _handle_engine(args: argparse.Namespace) -> int:
     try:
         config = load_rl_run_config(args.config)
-        engine = create_engine(config)
+        selected_backend = args.backend or config.runtime.backend
+        if selected_backend != config.runtime.backend:
+            raise ValueError(
+                f"--backend {selected_backend!r} does not match configured "
+                f"runtime.backend {config.runtime.backend!r}"
+            )
+        config = _apply_operator_overrides(config, args)
+        if selected_backend == "llama-cpp-vulkan":
+            if args.rl_command != "collect":
+                raise ValueError("runtime.backend='llama-cpp-vulkan' is collection only")
+            if args.endpoint is None:
+                raise ValueError("--endpoint is required for llama-cpp-vulkan collection")
+            engine = create_llama_cpp_engine(config, args.endpoint)
+        else:
+            if args.endpoint is not None:
+                raise ValueError("--endpoint requires --backend llama-cpp-vulkan")
+            engine = create_engine(config)
         if args.rl_command == "resume":
             resume_kwargs = {}
             if args.max_steps is not None:
@@ -127,6 +150,16 @@ def _handle_engine(args: argparse.Namespace) -> int:
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
         return 2
+
+
+def _apply_operator_overrides(config: RLRunConfig, args: argparse.Namespace) -> RLRunConfig:
+    dataset_path = getattr(args, "dataset", None)
+    output_path = getattr(args, "output", None)
+    if dataset_path is not None:
+        config = replace(config, dataset=replace(config.dataset, train_path=dataset_path))
+    if output_path is not None:
+        config = replace(config, logging=replace(config.logging, log_dir=output_path))
+    return config
 
 
 def _handle_doctor(args: argparse.Namespace) -> int:
@@ -154,6 +187,10 @@ def register_rl_cli(subparsers: argparse._SubParsersAction[argparse.ArgumentPars
     for mode in ("train", "collect", "evaluate"):
         command = modes.add_parser(mode, help=f"{mode.capitalize()} with the canonical RL engine")
         command.add_argument("--config", required=True, help="Canonical RL config path")
+        _add_engine_backend_arguments(command)
+        if mode == "collect":
+            command.add_argument("--dataset", help="Override dataset.train_path for this run")
+            command.add_argument("--output", help="Override logging.log_dir for this run")
         if mode == "train":
             command.add_argument(
                 "--max-steps",
@@ -165,6 +202,7 @@ def register_rl_cli(subparsers: argparse._SubParsersAction[argparse.ArgumentPars
     resume = modes.add_parser("resume", help="Resume from an operator-selected checkpoint")
     resume.add_argument("--config", required=True, help="Canonical RL config path")
     resume.add_argument("--checkpoint", required=True, help="Checkpoint directory to resume")
+    _add_engine_backend_arguments(resume)
     resume.add_argument(
         "--max-steps",
         type=int,
@@ -187,9 +225,22 @@ def register_rl_cli(subparsers: argparse._SubParsersAction[argparse.ArgumentPars
     doctor.set_defaults(func=_handle_doctor)
 
 
+def _add_engine_backend_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--backend",
+        choices=("pytorch", "cuda", "llama-cpp-vulkan"),
+        help="Backend selector; when provided it must match runtime.backend",
+    )
+    parser.add_argument(
+        "--endpoint",
+        help="Loopback llama.cpp endpoint; required only for llama-cpp-vulkan collection",
+    )
+
+
 __all__ = [
     "DoctorReport",
     "create_engine",
+    "create_llama_cpp_engine",
     "doctor_report",
     "load_rl_run_config",
     "register_rl_cli",

@@ -190,6 +190,98 @@ engine initializes the group and destroys the owned group after success or failu
 embedding process initializes the group before engine entry, the engine validates that external
 group and does not destroy it.
 
+### Collect with the experimental llama.cpp Vulkan actor
+
+**Native integration status: not run on this host.** The automated contract uses a local mock
+server. Run the opt-in native test and the commands below on the target host before treating the
+lane as native-runtime evidence. This backend is experimental and supports inference and
+trajectory collection only. It does not support training, resume, evaluation, backward passes,
+optimizer steps, value heads, or full-weight updates.
+
+Build llama.cpp with Vulkan enabled, then inspect the executable and Vulkan loader without starting
+a service:
+
+```bash
+cmake -B build -DGGML_VULKAN=ON -DLLAMA_CURL=OFF
+cmake --build build --config Release -j
+./build/bin/llama-server --version
+vulkaninfo --summary
+```
+
+Verify that `llama-server --version` identifies the expected local build. Verify that
+`vulkaninfo --summary` exits with status `0` and identifies the intended Vulkan device. A reachable
+server proves only local llama.cpp inference; server reachability does not prove Vulkan execution.
+
+Start one loopback-only server in a separate terminal. The alias must match `policy.model_name` in
+`configs/rl/llama_cpp_vulkan_collect.yaml`:
+
+```bash
+export GGUF_MODEL=/absolute/path/to/model.gguf
+./build/bin/llama-server \
+  --host 127.0.0.1 \
+  --port 8080 \
+  --model "$GGUF_MODEL" \
+  --alias LOCAL_GGUF_MODEL_ID
+```
+
+In the repository terminal, inspect the executable, endpoint, model metadata, and Vulkan evidence:
+
+```bash
+gepa rl doctor \
+  --backend llama-cpp-vulkan \
+  --endpoint http://127.0.0.1:8080
+```
+
+The doctor reports each capability with its evidence. The doctor exits with status `2` because the
+inference-only backend intentionally reports training capabilities as unsupported. Treat
+`supports_vulkan: UNKNOWN` as missing Vulkan proof even when `supports_generation` is available.
+
+Collect trajectories through the common engine and JSONL logger:
+
+```bash
+gepa rl collect \
+  --config configs/rl/llama_cpp_vulkan_collect.yaml \
+  --backend llama-cpp-vulkan \
+  --endpoint http://127.0.0.1:8080 \
+  --dataset data/synthetic/reward_integrity/rl_pairs_v1.jsonl \
+  --output runs/llama_cpp_vulkan/logs
+```
+
+The command prints one JSON result. Read its `log_directory`, then verify the common manifest and
+trajectory schema:
+
+```bash
+export RUN_DIR=/absolute/path/from-the-log_directory-field
+python - <<'PY'
+import json
+import os
+from pathlib import Path
+
+run_dir = Path(os.environ["RUN_DIR"]).resolve(strict=True)
+manifest = json.loads((run_dir / "run_manifest.json").read_text(encoding="utf-8"))
+record = json.loads((run_dir / "trajectories.jsonl").read_text(encoding="utf-8").splitlines()[0])
+trajectory = record["trajectory"]
+assert manifest["backend"] == "llama_cpp_vulkan"
+assert record["actor_backend"] == "llama_cpp_vulkan"
+for field in (
+    "prompt_token_ids",
+    "response_token_ids",
+    "old_log_probs",
+    "reference_log_probs",
+    "value_predictions",
+    "reward_total",
+    "advantage",
+    "return",
+):
+    assert trajectory[field] is None
+print(manifest["device_capabilities"]["capabilities"]["supports_vulkan"])
+PY
+```
+
+The nullable fields remain JSON `null` unless llama-server returns validated token or probability
+evidence. The run manifest records the doctor's actual Vulkan state; collection does not promote an
+unknown Vulkan state to supported.
+
 ### Dependency version policy
 
 The `dev` and `rl-dev` extras require `pytest>=8.0,<10`. Pytest 8 and 9 are the declared supported
