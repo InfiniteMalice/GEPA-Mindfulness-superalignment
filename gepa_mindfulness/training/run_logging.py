@@ -36,7 +36,7 @@ _METRIC_NAMES = frozenset(
         "exploit_disclosure",
         "feedback_integrity",
         "gepa_alignment",
-        "gradient_norm",
+        "pre_clip_gradient_norm",
         "group_advantage_mean",
         "group_reward_mean",
         "group_reward_std",
@@ -53,6 +53,7 @@ _METRIC_NAMES = frozenset(
         "policy_loss",
         "reality_contact",
         "repair_quality",
+        "reward_integrity_aggregate",
         "response_reward",
         "skill_transfer",
         "task_success",
@@ -136,6 +137,15 @@ _TRAJECTORY_PAYLOAD_REQUIRED_FIELDS = frozenset(
     }
 )
 _TRAJECTORY_PAYLOAD_OPTIONAL_FIELDS = frozenset({"evidence_references"})
+
+
+@dataclass
+class _ValidatedStreamState:
+    file_identity: tuple[int, int]
+    size: int
+    mtime_ns: int
+    manifest: dict[str, object]
+    records: dict[str, object]
 
 
 @dataclass(frozen=True)
@@ -357,6 +367,8 @@ class JSONLLoggingSink:
 
     _locks_guard = threading.Lock()
     _path_locks: dict[Path, threading.RLock] = {}
+    # Access each cache entry only while holding its path lock and the opened stream lock.
+    _validated_streams: dict[Path, _ValidatedStreamState] = {}
 
     def __init__(self, directory: Path, *, rank: int = 0) -> None:
         if not isinstance(directory, Path):
@@ -430,8 +442,7 @@ class JSONLLoggingSink:
         manifest: RunManifest,
     ) -> bool:
         _validate_json_value(payload, "record")
-        record_id = payload.get("record_id")
-        _required_string(record_id, "record_id")
+        record_id = _required_string(payload.get("record_id"), "record_id")
         serialized = (
             json.dumps(
                 payload,
@@ -444,7 +455,7 @@ class JSONLLoggingSink:
         )
         with self._path_lock(path):
             with _open_regular_stream(path, create=False) as stream, _exclusive_stream_lock(stream):
-                existing_records = self._existing_records(stream, path, manifest)
+                existing_records = self._validated_records(stream, path, manifest)
                 if record_id in existing_records:
                     if existing_records[record_id] == payload:
                         return False
@@ -453,7 +464,53 @@ class JSONLLoggingSink:
                 stream.write(serialized)
                 stream.flush()
                 os.fsync(stream.fileno())
+                updated_records = dict(existing_records)
+                updated_records[record_id] = dict(payload)
+                self._remember_validated_stream(stream, path, manifest, updated_records)
         return True
+
+    def _validated_records(
+        self,
+        stream: BinaryIO,
+        path: Path,
+        manifest: RunManifest,
+    ) -> dict[str, object]:
+        resolved = path.resolve(strict=False)
+        file_identity, size, mtime_ns = self._stream_metadata(stream)
+        manifest_payload = manifest.to_dict()
+        cached = self._validated_streams.get(resolved)
+        if (
+            cached is not None
+            and cached.file_identity == file_identity
+            and cached.size == size
+            and cached.mtime_ns == mtime_ns
+            and cached.manifest == manifest_payload
+        ):
+            return cached.records
+        records = self._existing_records(stream, path, manifest)
+        self._remember_validated_stream(stream, path, manifest, records)
+        return records
+
+    def _remember_validated_stream(
+        self,
+        stream: BinaryIO,
+        path: Path,
+        manifest: RunManifest,
+        records: dict[str, object],
+    ) -> None:
+        file_identity, size, mtime_ns = self._stream_metadata(stream)
+        self._validated_streams[path.resolve(strict=False)] = _ValidatedStreamState(
+            file_identity=file_identity,
+            size=size,
+            mtime_ns=mtime_ns,
+            manifest=manifest.to_dict(),
+            records=records,
+        )
+
+    @staticmethod
+    def _stream_metadata(stream: BinaryIO) -> tuple[tuple[int, int], int, int]:
+        metadata = os.fstat(stream.fileno())
+        return (metadata.st_dev, metadata.st_ino), metadata.st_size, metadata.st_mtime_ns
 
     @classmethod
     def _existing_records(
@@ -596,7 +653,7 @@ class JSONLLoggingSink:
         path: Path,
         manifest: RunManifest,
     ) -> None:
-        self._existing_records(stream, path, manifest)
+        self._validated_records(stream, path, manifest)
 
 
 def _required_string(value: object, field_name: str) -> str:

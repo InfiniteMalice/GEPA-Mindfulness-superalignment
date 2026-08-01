@@ -65,6 +65,17 @@ def _number(payload: Mapping[str, Any], key: str, default: float, name: str) -> 
     return number
 
 
+def _finite_number(value: object, name: str, *, positive: bool = False) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise TypeError(f"{name} must be a number")
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError(f"{name} must be finite")
+    if positive and number <= 0.0:
+        raise ValueError(f"{name} must be positive")
+    return number
+
+
 @dataclass(frozen=True)
 class RuntimeConfig:
     """Execution backend and device selection."""
@@ -73,6 +84,10 @@ class RuntimeConfig:
     device: str = "cpu"
 
     def __post_init__(self) -> None:
+        if not isinstance(self.backend, str):
+            raise TypeError("runtime.backend must be a string")
+        if not isinstance(self.device, str):
+            raise TypeError("runtime.device must be a string")
         if self.backend != "pytorch":
             raise ValueError("runtime.backend must be 'pytorch'")
         if self.device != "cpu" and not _CUDA_DEVICE.fullmatch(self.device):
@@ -93,18 +108,48 @@ class PolicyConfig:
 
     model_name: str = "demo-model"
     max_new_tokens: int = 256
+    do_sample: bool = True
+    temperature: float = 1.0
+    top_p: float = 1.0
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.model_name, str):
+            raise TypeError("policy.model_name must be a string")
+        if not self.model_name:
+            raise ValueError("policy.model_name must not be empty")
+        if isinstance(self.max_new_tokens, bool) or not isinstance(self.max_new_tokens, int):
+            raise TypeError("policy.max_new_tokens must be an integer")
+        if self.max_new_tokens <= 0:
+            raise ValueError("policy.max_new_tokens must be positive")
+        if not isinstance(self.do_sample, bool):
+            raise TypeError("policy.do_sample must be a boolean")
+        _finite_number(self.temperature, "policy.temperature", positive=True)
+        top_p = _finite_number(self.top_p, "policy.top_p", positive=True)
+        if top_p > 1.0:
+            raise ValueError("policy.top_p must be in (0, 1]")
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "PolicyConfig":
         payload = _mapping(payload, "policy")
-        _reject_unknown(payload, {"model_name", "max_new_tokens"}, "policy")
+        _reject_unknown(
+            payload,
+            {"model_name", "max_new_tokens", "do_sample", "temperature", "top_p"},
+            "policy",
+        )
         model_name = _string(payload, "model_name", "demo-model", "policy")
         max_new_tokens = _integer(payload, "max_new_tokens", 256, "policy")
-        if not model_name:
-            raise ValueError("policy.model_name must not be empty")
-        if max_new_tokens <= 0:
-            raise ValueError("policy.max_new_tokens must be positive")
-        return cls(model_name=model_name, max_new_tokens=max_new_tokens)
+        do_sample = payload.get("do_sample", True)
+        if not isinstance(do_sample, bool):
+            raise TypeError("policy.do_sample must be a boolean")
+        temperature = _number(payload, "temperature", 1.0, "policy")
+        top_p = _number(payload, "top_p", 1.0, "policy")
+        return cls(
+            model_name=model_name,
+            max_new_tokens=max_new_tokens,
+            do_sample=do_sample,
+            temperature=temperature,
+            top_p=top_p,
+        )
 
 
 @dataclass(frozen=True)
@@ -124,6 +169,41 @@ class AlgorithmConfig:
     gae_lambda: float = 0.95
     group_normalization_epsilon: float = 1e-8
     zero_variance_policy: ZeroVariancePolicy = "zero"
+    max_grad_norm: float | None = 1.0
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.name, str):
+            raise TypeError("algorithm.name must be a string")
+        if self.name not in {"ppo", "grpo"}:
+            raise ValueError("algorithm.name must be 'ppo' or 'grpo'")
+        _finite_number(self.learning_rate, "algorithm.learning_rate", positive=True)
+        for name in ("batch_size", "gradient_accumulation_steps", "max_steps", "group_size"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise TypeError(f"algorithm.{name} must be an integer")
+            if value <= 0:
+                raise ValueError(f"algorithm.{name} must be positive")
+        if self.name == "grpo" and self.group_size < 2:
+            raise ValueError("algorithm.group_size must be at least 2 for GRPO")
+        for name in ("kl_coef", "value_coef"):
+            if _finite_number(getattr(self, name), f"algorithm.{name}") < 0.0:
+                raise ValueError(f"algorithm.{name} must be non-negative")
+        _finite_number(self.clip_range, "algorithm.clip_range", positive=True)
+        for name in ("gamma", "gae_lambda"):
+            value = _finite_number(getattr(self, name), f"algorithm.{name}")
+            if not 0.0 <= value <= 1.0:
+                raise ValueError(f"algorithm.{name} must be in [0, 1]")
+        _finite_number(
+            self.group_normalization_epsilon,
+            "algorithm.group_normalization_epsilon",
+            positive=True,
+        )
+        if self.zero_variance_policy not in {"zero", "center_only", "skip"}:
+            raise ValueError(
+                "algorithm.zero_variance_policy must be 'zero', 'center_only', or 'skip'"
+            )
+        if self.max_grad_norm is not None:
+            _finite_number(self.max_grad_norm, "algorithm.max_grad_norm", positive=True)
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "AlgorithmConfig":
@@ -144,6 +224,7 @@ class AlgorithmConfig:
                 "gae_lambda",
                 "group_normalization_epsilon",
                 "zero_variance_policy",
+                "max_grad_norm",
             },
             "algorithm",
         )
@@ -170,25 +251,9 @@ class AlgorithmConfig:
             "zero",
             "algorithm",
         )
-        if name not in {"ppo", "grpo"}:
-            raise ValueError("algorithm.name must be 'ppo' or 'grpo'")
-        if learning_rate <= 0 or batch_size <= 0 or accumulation <= 0 or max_steps <= 0:
-            raise ValueError(
-                "algorithm learning_rate, batch_size, accumulation, and max_steps "
-                "must be positive"
-            )
-        if name == "grpo" and group_size < 2:
-            raise ValueError("algorithm.group_size must be at least 2 for GRPO")
-        if kl_coef < 0 or clip_range <= 0 or value_coef < 0:
-            raise ValueError("algorithm coefficients must be non-negative and clip_range positive")
-        if not 0.0 <= gamma <= 1.0 or not 0.0 <= gae_lambda <= 1.0:
-            raise ValueError("algorithm gamma and gae_lambda must be in [0, 1]")
-        if normalization_epsilon <= 0.0:
-            raise ValueError("algorithm.group_normalization_epsilon must be positive")
-        if zero_variance_policy not in {"zero", "center_only", "skip"}:
-            raise ValueError(
-                "algorithm.zero_variance_policy must be 'zero', 'center_only', or 'skip'"
-            )
+        max_grad_norm = payload.get("max_grad_norm", 1.0)
+        if max_grad_norm is not None:
+            max_grad_norm = _number(payload, "max_grad_norm", 1.0, "algorithm")
         return cls(
             name=name,
             learning_rate=learning_rate,
@@ -203,6 +268,7 @@ class AlgorithmConfig:
             gae_lambda=gae_lambda,
             group_normalization_epsilon=normalization_epsilon,
             zero_variance_policy=cast(ZeroVariancePolicy, zero_variance_policy),
+            max_grad_norm=max_grad_norm,
         )
 
 
@@ -214,20 +280,45 @@ class RewardConfig:
     beta: float = 0.3
     gamma: float = 0.2
     delta: float = 0.2
+    overlay_weight: float = 0.0
+    integrity_overlay_enabled: bool = False
+
+    def __post_init__(self) -> None:
+        values = {
+            name: _finite_number(getattr(self, name), f"reward.weights.{name}")
+            for name in ("alpha", "beta", "gamma", "delta")
+        }
+        if any(value < 0.0 for value in values.values()) or math.fsum(values.values()) <= 0.0:
+            raise ValueError("reward.weights must be non-negative with positive total mass")
+        overlay_weight = _finite_number(self.overlay_weight, "reward.overlay_weight")
+        if overlay_weight < 0.0:
+            raise ValueError("reward.overlay_weight must be non-negative")
+        if not isinstance(self.integrity_overlay_enabled, bool):
+            raise TypeError("reward.integrity_overlay_enabled must be a boolean")
+        if self.integrity_overlay_enabled and overlay_weight <= 0.0:
+            raise ValueError("enabled reward integrity overlay requires positive overlay_weight")
+        if not self.integrity_overlay_enabled and overlay_weight != 0.0:
+            raise ValueError("disabled reward integrity overlay requires overlay_weight=0")
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "RewardConfig":
         payload = _mapping(payload, "reward")
-        _reject_unknown(payload, {"weights"}, "reward")
+        _reject_unknown(
+            payload,
+            {"weights", "overlay_weight", "integrity_overlay_enabled"},
+            "reward",
+        )
         weights = _section(payload, "weights")
         _reject_unknown(weights, {"alpha", "beta", "gamma", "delta"}, "reward.weights")
         values = {
             name: _number(weights, name, default, "reward.weights")
             for name, default in (("alpha", 0.3), ("beta", 0.3), ("gamma", 0.2), ("delta", 0.2))
         }
-        if any(value < 0 for value in values.values()) or sum(values.values()) <= 0:
-            raise ValueError("reward.weights must be non-negative with positive total mass")
-        return cls(**values)
+        overlay_weight = _number(payload, "overlay_weight", 0.0, "reward")
+        enabled = payload.get("integrity_overlay_enabled", False)
+        if not isinstance(enabled, bool):
+            raise TypeError("reward.integrity_overlay_enabled must be a boolean")
+        return cls(**values, overlay_weight=overlay_weight, integrity_overlay_enabled=enabled)
 
 
 @dataclass(frozen=True)
@@ -237,6 +328,16 @@ class DatasetConfig:
     train_path: str = ""
     validation_path: str | None = None
     format: str = "jsonl"
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.train_path, str):
+            raise TypeError("dataset.train_path must be a string")
+        if self.validation_path is not None and not isinstance(self.validation_path, str):
+            raise TypeError("dataset.validation_path must be a string or null")
+        if not isinstance(self.format, str):
+            raise TypeError("dataset.format must be a string")
+        if self.format not in {"jsonl", "text"}:
+            raise ValueError("dataset.format must be 'jsonl' or 'text'")
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "DatasetConfig":
@@ -259,6 +360,16 @@ class CheckpointConfig:
     output_dir: str = "runs/default"
     save_steps: int = 100
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.output_dir, str):
+            raise TypeError("checkpoint.output_dir must be a string")
+        if not self.output_dir:
+            raise ValueError("checkpoint.output_dir must not be empty")
+        if isinstance(self.save_steps, bool) or not isinstance(self.save_steps, int):
+            raise TypeError("checkpoint.save_steps must be an integer")
+        if self.save_steps <= 0:
+            raise ValueError("checkpoint.save_steps must be positive")
+
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "CheckpointConfig":
         payload = _mapping(payload, "checkpoint")
@@ -278,6 +389,16 @@ class LoggingConfig:
 
     log_dir: str = "runs/logs"
     level: str = "INFO"
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.log_dir, str):
+            raise TypeError("logging.log_dir must be a string")
+        if not self.log_dir:
+            raise ValueError("logging.log_dir must not be empty")
+        if not isinstance(self.level, str):
+            raise TypeError("logging.level must be a string")
+        if self.level not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
+            raise ValueError("logging.level must be a standard uppercase logging level")
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "LoggingConfig":
@@ -304,6 +425,24 @@ class RLRunConfig:
     checkpoint: CheckpointConfig = field(default_factory=CheckpointConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     seed: int = 42
+
+    def __post_init__(self) -> None:
+        sections = {
+            "runtime": RuntimeConfig,
+            "policy": PolicyConfig,
+            "algorithm": AlgorithmConfig,
+            "reward": RewardConfig,
+            "dataset": DatasetConfig,
+            "checkpoint": CheckpointConfig,
+            "logging": LoggingConfig,
+        }
+        for name, expected_type in sections.items():
+            if not isinstance(getattr(self, name), expected_type):
+                raise TypeError(f"configuration.{name} must be a {expected_type.__name__}")
+        if isinstance(self.seed, bool) or not isinstance(self.seed, int):
+            raise TypeError("configuration.seed must be an integer")
+        if self.algorithm.name == "grpo" and not self.policy.do_sample:
+            raise ValueError("GRPO requires stochastic policy generation with do_sample=true")
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "RLRunConfig":

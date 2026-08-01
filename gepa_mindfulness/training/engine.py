@@ -10,6 +10,7 @@ import random
 import re
 import uuid
 from collections.abc import Callable, Mapping, Sequence
+from copy import deepcopy
 from dataclasses import asdict, dataclass, replace
 from importlib import import_module, metadata
 from pathlib import Path
@@ -379,6 +380,8 @@ class RLTrainingEngine:
         _seed_process(self.config)
         backend = self.backend_factory(self.config)
         global_step = 0
+        batch_cursor = 0
+        rollout_cursor = 0
         resume_parent: str | None = None
         trajectory_count = 0
         latest_checkpoint: object | None = None
@@ -412,11 +415,27 @@ class RLTrainingEngine:
                     raise ValueError("resume requires an operator-selected checkpoint")
                 if checkpoint_coordinator is None:  # pragma: no cover - mode selection invariant
                     raise RuntimeError("checkpoint coordinator is unavailable")
-                restored = checkpoint_coordinator.load(checkpoint)
-                global_step = self._restored_step(restored)
-                resume_parent = self._restored_checkpoint_id(restored)
-                latest_checkpoint = getattr(restored, "manifest", None)
-                self._restore_engine_state(restored, algorithm)
+                transaction = _capture_resume_transaction(backend, algorithm)
+                try:
+                    restored = checkpoint_coordinator.load(checkpoint)
+                    global_step = self._restored_step(restored)
+                    resume_parent = self._restored_checkpoint_id(restored)
+                    batch_cursor = _restored_cursor(
+                        restored,
+                        "batch_cursor",
+                        fallback=global_step * self.config.algorithm.gradient_accumulation_steps,
+                    )
+                    rollout_cursor = _restored_cursor(
+                        restored,
+                        "rollout_cursor",
+                        fallback=batch_cursor,
+                    )
+                    latest_checkpoint = getattr(restored, "manifest", None)
+                    _preflight_engine_state(restored, algorithm)
+                    self._restore_engine_state(restored, algorithm)
+                except BaseException as restore_error:
+                    _rollback_resume_transaction(transaction, backend, algorithm, restore_error)
+                    raise
                 target_step = global_step + step_budget
             requests = tuple(dataset.materialize(mode))
             if not requests:
@@ -465,6 +484,8 @@ class RLTrainingEngine:
                     global_step=global_step,
                     parent_checkpoint=resume_parent,
                     target_step=target_step,
+                    batch_cursor=batch_cursor,
+                    rollout_cursor=rollout_cursor,
                 )
             checksum_after = _parameter_checksum(backend)
             policy_checksum_after = _policy_parameter_checksum(backend)
@@ -525,6 +546,8 @@ class RLTrainingEngine:
         global_step: int,
         parent_checkpoint: str | None,
         target_step: int,
+        batch_cursor: int,
+        rollout_cursor: int,
     ) -> tuple[int, int, tuple[Trajectory, ...], object | None, dict[str, object]]:
         trajectory_count = 0
         next_parent = parent_checkpoint
@@ -532,8 +555,6 @@ class RLTrainingEngine:
         all_trajectories: list[Trajectory] = []
         artifacts: dict[str, object] = {}
         batches = tuple(_chunks(requests, self.config.algorithm.batch_size))
-        batch_index = 0
-        rollout_index = 0
         while global_step < target_step:
             backend.zero_grad()
             accumulated = 0
@@ -543,15 +564,15 @@ class RLTrainingEngine:
             step_losses: list[object] = []
             step_evaluations: list[PolicyEvaluation] = []
             while accumulated < accumulation_steps and attempts < window_limit:
-                request_batch = batches[batch_index % len(batches)]
-                batch_index += 1
+                request_batch = batches[batch_cursor % len(batches)]
+                batch_cursor += 1
                 attempts += 1
                 selected = self._rollout_requests(
                     request_batch,
                     global_step,
-                    rollout_index=rollout_index,
+                    rollout_index=rollout_cursor,
                 )
-                rollout_index += 1
+                rollout_cursor += 1
                 trajectories = tuple(backend.generate(selected))
                 _validate_rollout_output(self.config, selected, trajectories)
                 scored, rewards = self._score(trajectories, reward_provider)
@@ -565,7 +586,7 @@ class RLTrainingEngine:
                     logger,
                     prepared.group_metrics,
                     global_step=global_step,
-                    rollout_index=rollout_index - 1,
+                    rollout_index=rollout_cursor - 1,
                 )
                 trajectory_count += len(scored)
                 all_trajectories.extend(scored)
@@ -605,7 +626,12 @@ class RLTrainingEngine:
                 "optimizer_step": step_result,
             }
             if self._should_checkpoint(global_step, target_step):
-                _configure_checkpoint_state(checkpoint, algorithm)
+                _configure_checkpoint_state(
+                    checkpoint,
+                    algorithm,
+                    batch_cursor=batch_cursor,
+                    rollout_cursor=rollout_cursor,
+                )
                 saved = checkpoint.save(global_step, next_parent)
                 latest_checkpoint = saved
                 next_parent = getattr(saved, "checkpoint_id", next_parent)
@@ -702,6 +728,12 @@ class RLTrainingEngine:
                 num_samples=sample_count,
                 policy_version=f"policy-{global_step}",
                 seed=self.config.seed + rollout_index + index,
+                sampling_parameters={
+                    **dict(request.sampling_parameters),
+                    "do_sample": self.config.policy.do_sample,
+                    "temperature": self.config.policy.temperature,
+                    "top_p": self.config.policy.top_p,
+                },
             )
             for index, request in enumerate(requests)
         )
@@ -856,6 +888,7 @@ class _PairRewardProvider:
             RewardWeights,
         )
 
+        self.config = config
         self.snapshot = snapshot
         self.weights = RewardWeights(
             alpha=config.reward.alpha,
@@ -877,10 +910,10 @@ class _PairRewardProvider:
     def score(self, request: RewardRequest) -> RewardAssessment:
         from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
         from gepa_mindfulness.core.reward_integrity import (
+            COMPONENT_NAMES,
             RewardIntegrityCalculator,
             RewardObservation,
         )
-        from gepa_mindfulness.training.reward_pipeline import RewardPipeline
 
         record_id = request.trajectory.case_id
         pair = self.snapshot.pairs.get(record_id or "")
@@ -911,14 +944,11 @@ class _PairRewardProvider:
             trace_summary={},
         )
 
-        class BaseProvider:
-            def score(self, value: RewardRequest) -> object:
-                return base
-
-        trajectory = replace(request.trajectory, evidence_references=references)
-        bound_request = RewardRequest(trajectory=trajectory, observable_references=references)
         if matched is None:
+            integrity_components = {name: 0.0 for name in COMPONENT_NAMES}
             components = {
+                **integrity_components,
+                "reward_integrity_aggregate": 0.0,
                 "task_success": base.task_success,
                 "gepa_alignment": base.gepa_alignment,
                 "honesty": base.honesty,
@@ -937,18 +967,15 @@ class _PairRewardProvider:
             observable_evidence=evidence,
             observable_references=references,
         )
-        result = RewardPipeline(
-            BaseProvider(),
-            integrity_calculator=RewardIntegrityCalculator(),
-            overlay_weight=self.weights.beta,
-        ).score(bound_request, observation=observation)
-        integrity = result.integrity_breakdown
-        if integrity is None:  # pragma: no cover - nonzero overlay in canonical defaults
-            raise RuntimeError("reward-integrity breakdown is unavailable")
+        integrity = RewardIntegrityCalculator().compute(observation)
+        total = base.total
+        if self.config.reward.integrity_overlay_enabled:
+            total += self.config.reward.overlay_weight * integrity.aggregate
         components = {
             **dict(integrity.components),
+            "reward_integrity_aggregate": integrity.aggregate,
             "task_success": base.task_success,
-            "gepa_alignment": integrity.aggregate,
+            "gepa_alignment": base.gepa_alignment,
             "honesty": base.honesty,
             "hallucination": base.hallucination,
             "paraconsistent_truth": base.paraconsistent_truth,
@@ -957,7 +984,7 @@ class _PairRewardProvider:
         for name, value in components.items():
             if value < 0.0:
                 full_evidence[name] = references
-        return RewardAssessment(result.total, components, full_evidence, references, result)
+        return RewardAssessment(total, components, full_evidence, references, integrity)
 
 
 class _DefaultBatchPreparer:
@@ -1194,7 +1221,13 @@ def _logger_run_id(logger: RunLogger) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
-def _configure_checkpoint_state(checkpoint: CheckpointCoordinator, algorithm: RLAlgorithm) -> None:
+def _configure_checkpoint_state(
+    checkpoint: CheckpointCoordinator,
+    algorithm: RLAlgorithm,
+    *,
+    batch_cursor: int,
+    rollout_cursor: int,
+) -> None:
     configure = getattr(checkpoint, "set_training_state", None)
     if not callable(configure):
         return
@@ -1203,7 +1236,12 @@ def _configure_checkpoint_state(checkpoint: CheckpointCoordinator, algorithm: RL
     scheduler = getattr(algorithm, "scheduler", None)
     scheduler_state_provider = getattr(scheduler, "state_dict", None)
     scheduler_state = scheduler_state_provider() if callable(scheduler_state_provider) else None
-    configure(algorithm_state=algorithm_state, scheduler_state=scheduler_state)
+    configure(
+        algorithm_state=algorithm_state,
+        scheduler_state=scheduler_state,
+        batch_cursor=batch_cursor,
+        rollout_cursor=rollout_cursor,
+    )
 
 
 def _restore_mapping_state(
@@ -1226,6 +1264,165 @@ def _restore_mapping_state(
         loader(dict(state))
     except (TypeError, ValueError, RuntimeError) as error:
         raise ValueError(f"checkpoint {name}_state is incompatible") from error
+
+
+@dataclass(frozen=True)
+class _ResumeTransaction:
+    backend_state: object | None
+    algorithm_state: object | None
+    scheduler_state: object | None
+    python_rng_state: tuple[object, ...]
+    torch_module: object | None
+    torch_cpu_rng_state: object | None
+    torch_cuda_rng_states: tuple[object, ...]
+
+
+def _capture_resume_transaction(
+    backend: TrainablePolicyBackend,
+    algorithm: RLAlgorithm | None,
+) -> _ResumeTransaction:
+    backend_capture = getattr(backend, "capture_checkpoint_restore_state", None)
+    backend_state = backend_capture() if callable(backend_capture) else None
+    algorithm_state = _state_snapshot(algorithm)
+    scheduler = getattr(algorithm, "scheduler", None)
+    scheduler_state = _state_snapshot(scheduler)
+    torch_module: object | None = None
+    cpu_state: object | None = None
+    cuda_states: tuple[object, ...] = ()
+    if importlib.util.find_spec("torch") is not None:
+        torch_module = import_module("torch")
+        get_cpu_state = getattr(torch_module, "get_rng_state", None)
+        if callable(get_cpu_state):
+            cpu_state = _clone_state(get_cpu_state())
+        cuda = getattr(torch_module, "cuda", None)
+        get_cuda_states = getattr(cuda, "get_rng_state_all", None)
+        if callable(get_cuda_states):
+            cuda_states = tuple(_clone_state(state) for state in get_cuda_states())
+    return _ResumeTransaction(
+        backend_state=backend_state,
+        algorithm_state=algorithm_state,
+        scheduler_state=scheduler_state,
+        python_rng_state=random.getstate(),
+        torch_module=torch_module,
+        torch_cpu_rng_state=cpu_state,
+        torch_cuda_rng_states=cuda_states,
+    )
+
+
+def _state_snapshot(owner: object | None) -> object | None:
+    provider = getattr(owner, "state_dict", None)
+    return deepcopy(provider()) if callable(provider) else None
+
+
+def _clone_state(value: object) -> object:
+    clone = getattr(value, "clone", None)
+    return clone() if callable(clone) else deepcopy(value)
+
+
+def _preflight_engine_state(restored: object, algorithm: RLAlgorithm | None) -> None:
+    _preflight_mapping_loader(
+        algorithm, getattr(restored, "algorithm_state", None), "algorithm", True
+    )
+    scheduler = getattr(algorithm, "scheduler", None)
+    _preflight_mapping_loader(
+        scheduler,
+        getattr(restored, "scheduler_state", None),
+        "scheduler",
+        False,
+    )
+    python_state = getattr(restored, "python_rng_state", None)
+    if python_state is not None:
+        try:
+            random.Random().setstate(python_state)
+        except (TypeError, ValueError) as error:
+            raise ValueError("checkpoint python_rng_state is incompatible") from error
+
+
+def _preflight_mapping_loader(
+    owner: object,
+    state: object,
+    name: str,
+    allow_empty_without_loader: bool,
+) -> None:
+    if state is None:
+        return
+    if not isinstance(state, Mapping):
+        raise ValueError(f"checkpoint {name}_state must be a mapping or null")
+    if not state and allow_empty_without_loader:
+        return
+    if not callable(getattr(owner, "load_state_dict", None)):
+        raise ValueError(f"checkpoint {name}_state is present but {name} has no load_state_dict")
+
+
+def _rollback_resume_transaction(
+    transaction: _ResumeTransaction,
+    backend: TrainablePolicyBackend,
+    algorithm: RLAlgorithm | None,
+    primary_error: BaseException,
+) -> None:
+    failures: list[str] = []
+
+    def attempt(label: str, callback: Callable[[], None]) -> None:
+        try:
+            callback()
+        except BaseException as rollback_error:
+            failures.append(f"{label}: {type(rollback_error).__name__}: {rollback_error}")
+
+    torch_module = transaction.torch_module
+    if torch_module is not None:
+        if transaction.torch_cpu_rng_state is not None:
+            set_cpu_state = getattr(torch_module, "set_rng_state", None)
+            if callable(set_cpu_state):
+                attempt(
+                    "torch CPU RNG rollback",
+                    lambda: set_cpu_state(transaction.torch_cpu_rng_state),
+                )
+        cuda = getattr(torch_module, "cuda", None)
+        set_cuda_states = getattr(cuda, "set_rng_state_all", None)
+        if callable(set_cuda_states):
+            attempt(
+                "torch CUDA RNG rollback",
+                lambda: set_cuda_states(list(transaction.torch_cuda_rng_states)),
+            )
+    attempt("Python RNG rollback", lambda: random.setstate(transaction.python_rng_state))
+    scheduler = getattr(algorithm, "scheduler", None)
+    if transaction.scheduler_state is not None:
+        attempt(
+            "scheduler rollback",
+            lambda: _restore_mapping_state(
+                scheduler,
+                transaction.scheduler_state,
+                "scheduler rollback",
+                allow_empty_without_loader=False,
+            ),
+        )
+    if transaction.algorithm_state is not None:
+        attempt(
+            "algorithm rollback",
+            lambda: _restore_mapping_state(
+                algorithm,
+                transaction.algorithm_state,
+                "algorithm rollback",
+                allow_empty_without_loader=True,
+            ),
+        )
+    backend_rollback = getattr(backend, "rollback_checkpoint_restore_state", None)
+    if transaction.backend_state is not None and callable(backend_rollback):
+        attempt("backend rollback", lambda: backend_rollback(transaction.backend_state))
+    if failures:
+        diagnostic = "Resume rollback also failed: " + "; ".join(failures)
+        add_note = getattr(primary_error, "add_note", None)
+        if callable(add_note):
+            add_note(diagnostic)
+        else:  # pragma: no cover - Python 3.10 compatibility
+            primary_error.__context__ = RuntimeError(diagnostic)
+
+
+def _restored_cursor(restored: object, name: str, *, fallback: int) -> int:
+    value = getattr(restored, name, fallback)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f"restored checkpoint {name} is invalid")
+    return value
 
 
 def _log_group_metrics(
@@ -1321,6 +1518,7 @@ def _default_backend_factory(config: RLRunConfig) -> TrainablePolicyBackend:
         device=config.runtime.device,
         learning_rate=config.algorithm.learning_rate,
         max_new_tokens=config.policy.max_new_tokens,
+        max_grad_norm=config.algorithm.max_grad_norm,
         model_identifier=model_name,
     )
 
@@ -1356,6 +1554,8 @@ class _LocalCheckpointCoordinator:
         self.snapshot = snapshot
         self.algorithm_state: Mapping[str, object] = {}
         self.scheduler_state: Mapping[str, object] | None = None
+        self.batch_cursor = 0
+        self.rollout_cursor = 0
         device_type = cast(
             Literal["cpu", "cuda"],
             "cuda" if config.runtime.device.startswith("cuda") else "cpu",
@@ -1388,18 +1588,32 @@ class _LocalCheckpointCoordinator:
             ) from error
         self._torch = torch
         self._store_type = LocalCheckpointStore
-        self._store_kwargs = {
-            "backend_save": backend_save,
-            "backend_preflight": preflight,
-            "backend_load_bytes": load_bytes,
-            "backend_snapshot": backend_snapshot,
-            "backend_rollback": rollback,
-            "rng_topology": topology,
-        }
-        self.store = LocalCheckpointStore(Path(config.checkpoint.output_dir), **self._store_kwargs)
+        self._backend_save = backend_save
+        self._backend_preflight = preflight
+        self._backend_load_bytes = load_bytes
+        self._backend_snapshot = backend_snapshot
+        self._backend_rollback = rollback
+        self._rng_topology = topology
+        self.store = LocalCheckpointStore(
+            Path(config.checkpoint.output_dir),
+            backend_save=backend_save,
+            backend_preflight=preflight,
+            backend_load_bytes=load_bytes,
+            backend_snapshot=backend_snapshot,
+            backend_rollback=rollback,
+            rng_topology=topology,
+        )
 
     def load(self, path: Path) -> object:
-        selected_store = self._store_type(path.parent, **self._store_kwargs)
+        selected_store = self._store_type(
+            path.parent,
+            backend_save=self._backend_save,
+            backend_preflight=self._backend_preflight,
+            backend_load_bytes=self._backend_load_bytes,
+            backend_snapshot=self._backend_snapshot,
+            backend_rollback=self._backend_rollback,
+            rng_topology=self._rng_topology,
+        )
         return selected_store.load(
             path,
             expected_dataset_hash=self.snapshot.sha256,
@@ -1411,9 +1625,13 @@ class _LocalCheckpointCoordinator:
         *,
         algorithm_state: Mapping[str, object],
         scheduler_state: Mapping[str, object] | None,
+        batch_cursor: int,
+        rollout_cursor: int,
     ) -> None:
         self.algorithm_state = dict(algorithm_state)
         self.scheduler_state = None if scheduler_state is None else dict(scheduler_state)
+        self.batch_cursor = batch_cursor
+        self.rollout_cursor = rollout_cursor
 
     def save(self, global_step: int, parent_checkpoint: str | None) -> object:
         from .checkpointing import CheckpointSnapshot
@@ -1435,6 +1653,8 @@ class _LocalCheckpointCoordinator:
             canonical_config=config_payload,
             dataset_hash=self.snapshot.sha256,
             config_hash=_config_hash(self.config),
+            batch_cursor=self.batch_cursor,
+            rollout_cursor=self.rollout_cursor,
             parent_checkpoint=parent_checkpoint,
         )
         return self.store.save(snapshot)
@@ -1590,7 +1810,7 @@ class _JSONLRunLogger:
         }
         gradient_norm = _scalar(getattr(step_result, "gradient_norm", None))
         if gradient_norm is not None:
-            metrics["gradient_norm"] = gradient_norm
+            metrics["pre_clip_gradient_norm"] = gradient_norm
         for field, name in (
             ("policy_loss", "policy_loss"),
             ("value_loss", "value_loss"),

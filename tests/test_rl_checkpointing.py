@@ -37,6 +37,8 @@ def _snapshot(
         canonical_config={"runtime": {"backend": "pytorch", "device": "cpu"}},
         dataset_hash=DATASET_HASH,
         config_hash=CONFIG_HASH,
+        batch_cursor=7,
+        rollout_cursor=9,
         parent_checkpoint=parent,
     )
 
@@ -104,6 +106,8 @@ def test_checkpoint_round_trip_restores_step_rng_parent_and_state(
     assert torch.equal(restored.torch_cpu_rng_state, snapshot.torch_cpu_rng_state)
     assert restored.torch_cuda_rng_states == ()
     assert restored.canonical_config == snapshot.canonical_config
+    assert restored.batch_cursor == 7
+    assert restored.rollout_cursor == 9
     assert restored.parent_checkpoint == "checkpoint-00000002"
     assert restored_backend == [b"versioned-backend-payload"]
 

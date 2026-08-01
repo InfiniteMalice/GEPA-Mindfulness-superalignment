@@ -1,7 +1,8 @@
 # Portable PyTorch RL
 
-The canonical `gepa rl` command runs PPO or GRPO with the repository's strict
-reward-integrity pair format, local checkpoints, and structured JSONL logs. The default backend
+The `gepa rl` command is the sole canonical path that updates model weights. It runs PPO or GRPO
+with the repository's strict reward-integrity pair format, local checkpoints, and structured JSONL
+logs. The default backend
 uses PyTorch and Hugging Face Transformers on CPU or CUDA. It never downloads a model: the model
 identifier must resolve from a local directory or the existing Hugging Face cache.
 
@@ -19,6 +20,18 @@ The `rl` extra installs bounded versions of PyTorch, Transformers, and PEFT. It 
 TRL, Datasets, Accelerate, a CUDA-specific wheel, or a platform SDK. The package manager selects
 the PyTorch build from its configured package index.
 
+### Dependency version policy
+
+The `dev` and `rl-dev` extras require `pytest>=8.0,<10`. Pytest 8 and 9 are the declared supported
+test-runner majors. Pytest 10 remains excluded until the repository test suite qualifies that major.
+The runtime-oriented `all` extra does not install pytest or other development tools.
+
+PyTorch, Transformers, and PEFT retain upper bounds because the canonical engine consumes their
+version-sensitive model, tensor, and adapter interfaces. Dependencies with only a lower bound
+remain lower-bound-only because this repository has no evidence of an incompatible later release.
+Maintainers should add an upper bound when a reproducible compatibility failure identifies the
+first incompatible version, rather than adding a speculative cap.
+
 ## Prepare an offline run
 
 Create a JSONL dataset with one complete authored pair per line. Training and evaluation reject
@@ -30,15 +43,15 @@ labels. The schema is closed; unknown or missing fields fail before model constr
 ```
 
 Save the record as `data/rl/pairs.jsonl`. Then save this PPO configuration as
-`run.cpu.ppo.yaml`. Replace `/absolute/path/to/local-model` with a local Transformers model
-directory or an identifier that is already present in the local cache.
+`run.cpu.ppo.yaml`. Replace `/absolute/path/to/local-transformers-model` with the absolute path to
+a local Transformers model directory.
 
 ```yaml
 runtime:
   backend: pytorch
   device: cpu
 policy:
-  model_name: /absolute/path/to/local-model
+  model_name: /absolute/path/to/local-transformers-model
   max_new_tokens: 32
 algorithm:
   name: ppo
@@ -48,12 +61,15 @@ algorithm:
   max_steps: 10
   clip_range: 0.2
   value_coef: 0.1
+  max_grad_norm: 1.0
 reward:
   weights:
     alpha: 0.3
     beta: 0.3
     gamma: 0.2
     delta: 0.2
+  overlay_weight: 0.0
+  integrity_overlay_enabled: false
 dataset:
   train_path: data/rl/pairs.jsonl
   format: jsonl
@@ -66,8 +82,51 @@ logging:
 seed: 42
 ```
 
+The shipped `configs/rl/pytorch_cpu_ppo.yaml` and `configs/rl/pytorch_cpu_grpo.yaml` presets already
+select the bundled `data/synthetic/reward_integrity/rl_pairs_v1.jsonl` strict pair dataset. Both
+presets intentionally retain the local-model path template. Run a preset from the repository root
+so its dataset path resolves, or replace `dataset.train_path` with an absolute path. Do not run
+either preset with the unchanged model-path template.
+
+Before model construction, set and validate the replacement directory:
+
+```bash
+export MODEL_DIR=/absolute/path/to/local-transformers-model
+python - <<'PY'
+import os
+from pathlib import Path
+
+from transformers import AutoConfig, AutoTokenizer
+
+model_dir = Path(os.environ["MODEL_DIR"]).expanduser()
+if not model_dir.is_absolute():
+    raise SystemExit("MODEL_DIR must be an absolute path")
+model_dir = model_dir.resolve(strict=True)
+if not (model_dir / "config.json").is_file():
+    raise SystemExit("MODEL_DIR must contain config.json")
+if not any(model_dir.glob("*.safetensors")) and not any(model_dir.glob("*.bin")):
+    raise SystemExit("MODEL_DIR must contain Safetensors or PyTorch model weights")
+AutoConfig.from_pretrained(model_dir, local_files_only=True)
+AutoTokenizer.from_pretrained(model_dir, local_files_only=True)
+print(model_dir)
+PY
+```
+
+Exit status `0` and the printed absolute directory confirm that the path, model configuration,
+weights, and tokenizer assets are locally readable. Replace `policy.model_name` in the copied YAML
+with that printed directory. `gepa rl doctor` checks execution capabilities but does not perform
+this model-artifact validation.
+
 For GRPO, copy the file to `run.cpu.grpo.yaml`, change `algorithm.name` to `grpo`, and add these
-keys under `algorithm`:
+keys under `policy`:
+
+```yaml
+  do_sample: true
+  temperature: 0.7
+  top_p: 0.9
+```
+
+Then add these keys under `algorithm`:
 
 ```yaml
   group_size: 4
@@ -79,6 +138,13 @@ keys under `algorithm`:
 `zero_variance_policy: skip` omits a response group when every response receives the same reward.
 Use a dataset and model that can produce reward variation, or a GRPO invocation can finish without
 an optimizer step.
+
+The reward-integrity overlay is disabled by default. To enable it, set
+`reward.integrity_overlay_enabled: true` and set `reward.overlay_weight` to a finite positive value.
+The GEPA `beta` weight continues to control only base GEPA alignment. Logs preserve
+`gepa_alignment`, record the overlay as `reward_integrity_aggregate`, and retain all eight authored
+integrity components. `pre_clip_gradient_norm` records the trainable gradient norm before clipping;
+`algorithm.max_grad_norm: null` disables clipping.
 
 ## Check capabilities before loading a model
 

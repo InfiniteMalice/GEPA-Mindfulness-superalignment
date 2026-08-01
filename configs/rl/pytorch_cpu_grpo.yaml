@@ -2,8 +2,11 @@ runtime:
   backend: pytorch
   device: cpu
 policy:
-  model_name: cpu-demo-model
+  model_name: /absolute/path/to/local-transformers-model
   max_new_tokens: 32
+  do_sample: true
+  temperature: 0.7
+  top_p: 0.9
 algorithm:
   name: grpo
   learning_rate: 1.0e-5
@@ -12,6 +15,7 @@ algorithm:
   max_steps: 10
   group_size: 4
   kl_coef: 0.05
+  max_grad_norm: 1.0
 reward:
   weights:
     alpha: 0.3
@@ -19,8 +23,8 @@ reward:
     gamma: 0.2
     delta: 0.2
 dataset:
-  train_path: gepa_mindfulness/examples/cpu_demo/prompts.txt
-  format: text
+  train_path: data/synthetic/reward_integrity/rl_pairs_v1.jsonl
+  format: jsonl
 checkpoint:
   output_dir: runs/rl_cpu_grpo
   save_steps: 10

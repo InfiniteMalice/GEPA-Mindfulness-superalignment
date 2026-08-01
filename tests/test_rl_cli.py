@@ -34,6 +34,8 @@ from gepa_mindfulness.training.runtime_config import (
     CheckpointConfig,
     DatasetConfig,
     LoggingConfig,
+    PolicyConfig,
+    RewardConfig,
     RLRunConfig,
     RuntimeConfig,
 )
@@ -352,6 +354,32 @@ def test_cli_dispatch_and_capability_exit_codes(
     assert args.func(args) == 2
 
 
+@pytest.mark.parametrize("preset", ["pytorch_cpu_ppo.yaml", "pytorch_cpu_grpo.yaml"])
+def test_shipped_train_commands_reach_only_the_actionable_local_model_boundary(
+    preset: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    events: list[str] = []
+    monkeypatch.setattr(
+        rl_cli,
+        "create_engine",
+        lambda config: RLTrainingEngine(
+            config,
+            capability_provider=_CapabilityProvider(events),
+        ),
+    )
+    parser = build_parser()
+    config_path = Path(__file__).parents[1] / "configs" / "rl" / preset
+    args = parser.parse_args(["rl", "train", "--config", str(config_path)])
+
+    assert args.func(args) == 2
+    error = capsys.readouterr().err
+    assert "local" in error.lower()
+    assert "network" in error.lower()
+    assert "pair metadata" not in error
+
+
 def test_doctor_is_model_free_deterministic_actionable_and_nonzero() -> None:
     events: list[str] = []
     provider = _CapabilityProvider(events, supported=False)
@@ -593,6 +621,101 @@ def _pair_config(tmp_path: Path, rows: list[dict[str, object]], **algorithm: obj
         checkpoint=CheckpointConfig(output_dir=str(tmp_path / "checkpoints"), save_steps=1),
         logging=LoggingConfig(log_dir=str(tmp_path / "logs")),
     )
+
+
+def test_grpo_rollout_requests_propagate_validated_stochastic_generation(tmp_path: Path) -> None:
+    config = RLRunConfig(
+        policy=PolicyConfig(do_sample=True, temperature=0.7, top_p=0.9),
+        algorithm=AlgorithmConfig(name="grpo", group_size=3),
+    )
+    engine = RLTrainingEngine(config)
+
+    selected = engine._rollout_requests((RolloutRequest(prompt="p"),), 2, rollout_index=4)
+
+    assert selected[0].num_samples == 3
+    assert selected[0].sampling_parameters == {
+        "do_sample": True,
+        "temperature": 0.7,
+        "top_p": 0.9,
+    }
+
+
+def test_pair_reward_keeps_base_alignment_separate_from_integrity_overlay(tmp_path: Path) -> None:
+    rows = [{"id": "chosen", "prompt": "p", "chosen": "good", "rejected": "bad"}]
+    base_dir = tmp_path / "base"
+    enabled_dir = tmp_path / "enabled"
+    base_dir.mkdir()
+    enabled_dir.mkdir()
+    base_config = _pair_config(base_dir, rows, max_steps=1)
+    enabled_config = replace(
+        _pair_config(enabled_dir, rows, max_steps=1),
+        reward=RewardConfig(overlay_weight=0.5, integrity_overlay_enabled=True),
+    )
+
+    def evaluate(config: RLRunConfig) -> Trajectory:
+        events: list[str] = []
+        return (
+            RLTrainingEngine(
+                config,
+                capability_provider=_CapabilityProvider(events),
+                backend_factory=lambda value: _PairBackend(events, {"chosen": ("good",)}),
+                logger_factory=lambda value: _Logger(events),
+            )
+            .evaluate()
+            .trajectories[0]
+        )
+
+    default = evaluate(base_config)
+    enabled = evaluate(enabled_config)
+    integrity_names = {
+        "objective_fidelity",
+        "feedback_integrity",
+        "skill_transfer",
+        "reality_contact",
+        "exploit_disclosure",
+        "long_horizon_agency",
+        "benign_creativity",
+        "repair_quality",
+    }
+
+    assert (
+        enabled.reward_components["gepa_alignment"] == default.reward_components["gepa_alignment"]
+    )
+    assert enabled.reward_components["reward_integrity_aggregate"] == pytest.approx(0.5)
+    assert integrity_names.issubset(enabled.reward_components)
+    assert default.reward_total is not None and enabled.reward_total is not None
+    assert enabled.reward_total == pytest.approx(default.reward_total + 0.25)
+
+
+def test_unmatched_pair_response_logs_all_integrity_components_with_overlay_off(
+    tmp_path: Path,
+) -> None:
+    rows = [{"id": "other", "prompt": "p", "chosen": "good", "rejected": "bad"}]
+    config = _pair_config(tmp_path, rows, max_steps=1)
+    events: list[str] = []
+    trajectory = (
+        RLTrainingEngine(
+            config,
+            capability_provider=_CapabilityProvider(events),
+            backend_factory=lambda value: _PairBackend(events, {"other": ("neither",)}),
+            logger_factory=lambda value: _Logger(events),
+        )
+        .evaluate()
+        .trajectories[0]
+    )
+
+    assert trajectory.reward_components["reward_integrity_aggregate"] == 0.0
+    integrity_names = {
+        "objective_fidelity",
+        "feedback_integrity",
+        "skill_transfer",
+        "reality_contact",
+        "exploit_disclosure",
+        "long_horizon_agency",
+        "benign_creativity",
+        "repair_quality",
+    }
+    assert integrity_names.issubset(trajectory.reward_components)
 
 
 def test_default_pair_reward_scores_and_binds_observable_components(tmp_path: Path) -> None:
@@ -1145,6 +1268,108 @@ def test_resume_restores_algorithm_then_scheduler_before_rollout(tmp_path: Path)
     assert events.index("scheduler.restore") < events.index("generate")
 
 
+def test_resume_rolls_back_backend_algorithm_scheduler_and_rng_as_one_transaction(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+
+    class TransactionalBackend(_Backend):
+        def capture_checkpoint_restore_state(self) -> int:
+            return self.step
+
+        def rollback_checkpoint_restore_state(self, state: object) -> None:
+            self.step = int(state)
+
+    class Scheduler:
+        def __init__(self) -> None:
+            self.epoch = 0
+
+        def state_dict(self) -> dict[str, int]:
+            return {"epoch": self.epoch}
+
+        def load_state_dict(self, state: object) -> None:
+            self.epoch = int(state["epoch"])
+
+    class StatefulAlgorithm(_Algorithm):
+        def __init__(self) -> None:
+            super().__init__(events)
+            self.updates = 0
+            self.scheduler = Scheduler()
+
+        def state_dict(self) -> dict[str, int]:
+            return {"updates": self.updates}
+
+        def load_state_dict(self, state: object) -> None:
+            self.updates = int(state["updates"])
+
+    class FailingCUDA:
+        def set_rng_state_all(self, states: object) -> None:
+            if tuple(states):
+                raise RuntimeError("late CUDA RNG restore failed")
+
+        def get_rng_state_all(self) -> list[object]:
+            return []
+
+    class FakeTorch:
+        def __init__(self) -> None:
+            self.state = "torch-before"
+            self.cuda = FailingCUDA()
+
+        def get_rng_state(self) -> str:
+            return self.state
+
+        def set_rng_state(self, state: object) -> None:
+            self.state = str(state)
+
+        def manual_seed(self, seed: int) -> None:
+            self.state = f"seed-{seed}"
+
+    fake_torch = FakeTorch()
+    real_import = engine_module.import_module
+    monkeypatch.setattr(
+        engine_module,
+        "import_module",
+        lambda name: fake_torch if name == "torch" else real_import(name),
+    )
+    backend = TransactionalBackend(events)
+    algorithm = StatefulAlgorithm()
+    python_before = random.Random(42).getstate()
+
+    class StatefulCheckpoint(_Checkpoint):
+        def load(self, path: Path) -> object:
+            restored = super().load(path)
+            return SimpleNamespace(
+                **vars(restored),
+                algorithm_state={"updates": 9},
+                scheduler_state={"epoch": 8},
+                python_rng_state=random.Random(999).getstate(),
+                torch_cpu_rng_state="torch-restored",
+                torch_cuda_rng_states=("cuda-restored",),
+            )
+
+    engine = RLTrainingEngine(
+        _config(tmp_path),
+        capability_provider=_CapabilityProvider(events),
+        backend_factory=lambda value: backend,
+        algorithm_factory=lambda value, selected: algorithm,
+        dataset_factory=lambda value: _Dataset(events),
+        reward_factory=lambda value: _Reward(events),
+        batch_preparer_factory=lambda value: _BatchPreparer(events),
+        checkpoint_factory=lambda value, selected: StatefulCheckpoint(events, backend),
+        logger_factory=lambda value: _Logger(events),
+    )
+
+    with pytest.raises(RuntimeError, match="late CUDA RNG restore failed"):
+        engine.resume(tmp_path / "checkpoint")
+
+    assert backend.step == 0
+    assert algorithm.updates == 0
+    assert algorithm.scheduler.epoch == 0
+    assert random.getstate() == python_before
+    assert fake_torch.state == "seed-42"
+
+
 def test_all_skipped_grpo_groups_still_emit_group_and_response_evidence(tmp_path: Path) -> None:
     config = _pair_config(
         tmp_path,
@@ -1261,13 +1486,8 @@ def test_zero_invocation_step_budget_performs_no_rollout_or_update(tmp_path: Pat
 def test_configured_step_budget_must_remain_positive(tmp_path: Path) -> None:
     events: list[str] = []
     engine = _engine(tmp_path, events)
-    engine.config = replace(
-        engine.config,
-        algorithm=replace(engine.config.algorithm, max_steps=0),
-    )
-
-    with pytest.raises(ValueError, match="configured algorithm.max_steps must be positive"):
-        engine.train()
+    with pytest.raises(ValueError, match="algorithm.max_steps"):
+        replace(engine.config.algorithm, max_steps=0)
 
     assert events == []
 

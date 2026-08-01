@@ -11,10 +11,58 @@ import pytest
 
 from gepa_mindfulness.training.runtime_config import (
     AlgorithmConfig,
+    CheckpointConfig,
+    DatasetConfig,
+    LoggingConfig,
+    PolicyConfig,
+    RewardConfig,
     RLRunConfig,
+    RuntimeConfig,
     load_rl_config,
     translate_legacy_config,
 )
+
+
+@pytest.mark.parametrize(
+    "constructor",
+    [
+        lambda: RuntimeConfig(backend=1),
+        lambda: PolicyConfig(model_name=""),
+        lambda: PolicyConfig(max_new_tokens=True),
+        lambda: PolicyConfig(temperature=float("nan")),
+        lambda: PolicyConfig(top_p=0.0),
+        lambda: AlgorithmConfig(learning_rate=float("inf")),
+        lambda: AlgorithmConfig(batch_size=True),
+        lambda: AlgorithmConfig(max_grad_norm=0.0),
+        lambda: RewardConfig(alpha=-1.0),
+        lambda: RewardConfig(overlay_weight=float("nan")),
+        lambda: DatasetConfig(validation_path=1),
+        lambda: CheckpointConfig(save_steps=0),
+        lambda: LoggingConfig(level="verbose"),
+        lambda: RLRunConfig(seed=True),
+        lambda: RLRunConfig(policy=object()),
+    ],
+)
+def test_direct_canonical_config_construction_rejects_invalid_values(constructor: object) -> None:
+    """Removing constructor validation must let an invalid canonical config escape."""
+    with pytest.raises((TypeError, ValueError)):
+        constructor()
+
+
+def test_grpo_direct_config_requires_stochastic_generation() -> None:
+    """A deterministic GRPO policy must fail while the config is still side-effect free."""
+    with pytest.raises(ValueError, match="GRPO.*stochastic|stochastic.*GRPO"):
+        RLRunConfig(
+            policy=PolicyConfig(do_sample=False),
+            algorithm=AlgorithmConfig(name="grpo"),
+        )
+
+
+def test_reward_integrity_overlay_is_explicit_and_default_disabled() -> None:
+    config = RewardConfig()
+
+    assert config.overlay_weight == 0.0
+    assert config.integrity_overlay_enabled is False
 
 
 def canonical_payload() -> dict[str, object]:
@@ -107,6 +155,8 @@ def test_legacy_grpo_config_translates_to_canonical() -> None:
     assert config.runtime.backend == "pytorch"
     assert config.algorithm.name == "grpo"
     assert config.algorithm.group_size == 4
+    assert config.reward.overlay_weight == 0.0
+    assert config.reward.integrity_overlay_enabled is False
 
 
 def test_canonical_file_load_has_no_deprecation_warning(tmp_path: Path) -> None:

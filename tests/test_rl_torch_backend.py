@@ -550,6 +550,27 @@ def test_backward_zero_grad_and_optimizer_step_update_only_trainable_state(
     assert all(parameter.grad is None for parameter in tiny_backend.policy_parameters())
 
 
+def test_optimizer_step_clips_policy_and_value_gradients_and_reports_preclip_norm() -> None:
+    """Removing clipping must leave oversized trainable gradients at their original norm."""
+    backend = TorchPolicyBackend(
+        policy_model=TinyCausalLM(),
+        tokenizer=TinyTokenizer(),
+        device="cpu",
+        max_grad_norm=0.1,
+    )
+    trainable = [*backend.policy_parameters(), *backend.value_head.parameters()]
+    for parameter in trainable:
+        parameter.grad = torch.full_like(parameter, 10.0)
+
+    result = backend.optimizer_step()
+    remaining_norm = torch.linalg.vector_norm(
+        torch.cat([parameter.grad.detach().flatten() for parameter in trainable])
+    ).item()
+
+    assert result.gradient_norm is not None and result.gradient_norm > 0.1
+    assert remaining_norm == pytest.approx(0.1, rel=1e-4)
+
+
 @pytest.mark.parametrize("optimizer_kind", ["missing", "foreign"])
 def test_constructor_rejects_optimizer_with_wrong_parameter_ownership(
     optimizer_kind: str,

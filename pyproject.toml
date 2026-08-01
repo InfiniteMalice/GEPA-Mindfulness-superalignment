@@ -35,7 +35,7 @@ rl-dev = [
     "build>=1.2",
     "black>=24.0",
     "mypy>=1.8",
-    "pytest>=8.0",
+    "pytest>=8.0,<10",
     "ruff>=0.4",
 ]
 interpret = [
@@ -60,7 +60,7 @@ dev = [
     "build>=1.2",
     "black>=24.0",
     "mypy>=1.8",
-    "pytest>=8.0",
+    "pytest>=8.0,<10",
     "ruff>=0.4",
 ]
 

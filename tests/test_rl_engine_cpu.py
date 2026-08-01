@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 from copy import deepcopy
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -19,8 +20,9 @@ import pytest
 import torch
 from torch import nn
 
-from gepa_mindfulness.training.backends import TorchPolicyBackend
-from gepa_mindfulness.training.engine import RLTrainingEngine
+from gepa_mindfulness.training.algorithms import GRPOAlgorithm
+from gepa_mindfulness.training.backends import TorchPolicyBackend, TorchTensorOps
+from gepa_mindfulness.training.engine import EngineResult, RLTrainingEngine
 from gepa_mindfulness.training.runtime_config import (
     AlgorithmConfig,
     CheckpointConfig,
@@ -29,6 +31,7 @@ from gepa_mindfulness.training.runtime_config import (
     PolicyConfig,
     RLRunConfig,
 )
+from gepa_mindfulness.training.trajectory import RolloutRequest, TrajectoryBatch
 
 
 def _optional_dependencies() -> dict[str, list[str]]:
@@ -53,7 +56,7 @@ _DEV_TOOLS = {
     "build>=1.2",
     "black>=24.0",
     "mypy>=1.8",
-    "pytest>=8.0",
+    "pytest>=8.0,<10",
     "ruff>=0.4",
 }
 _ALL_ONLY = {
@@ -359,3 +362,115 @@ def test_offline_cpu_train_checkpoint_and_resume_updates_real_model_weights(
     assert resumed.policy_parameters_updated is True
     assert reference_checksums[2] == trained_reference
     assert _module_checksum(resumed_backend.reference_model) == trained_reference
+
+
+def test_local_transformers_grpo_sampling_is_diverse_and_updates_only_policy() -> None:
+    """Greedy generation or a value-head-only update must fail this local Transformers proof."""
+    transformers = pytest.importorskip("transformers")
+    torch.manual_seed(7)
+    model = transformers.GPT2LMHeadModel(
+        transformers.GPT2Config(
+            vocab_size=6,
+            n_positions=8,
+            n_ctx=8,
+            n_embd=8,
+            n_layer=1,
+            n_head=1,
+            bos_token_id=1,
+            eos_token_id=None,
+            pad_token_id=0,
+        )
+    )
+    backend = TorchPolicyBackend(
+        policy_model=model,
+        tokenizer=TinyLocalTokenizer(),
+        device="cpu",
+        learning_rate=0.05,
+        max_new_tokens=1,
+    )
+    algorithm = GRPOAlgorithm.from_runtime_config(
+        TorchTensorOps(),
+        AlgorithmConfig(name="grpo", group_size=8, zero_variance_policy="skip"),
+    )
+    request = RolloutRequest(
+        prompt="practice slowly",
+        num_samples=8,
+        seed=42,
+        sampling_parameters={"do_sample": True, "temperature": 1.0, "top_p": 1.0},
+    )
+
+    generated = tuple(backend.generate((request,)))
+    token_ids = [trajectory.response_token_ids[0] for trajectory in generated]
+    advantages = algorithm.compute_group_advantages([float(token_id) for token_id in token_ids])
+
+    assert len(set(token_ids)) > 1
+    assert advantages is not None
+    batch = TrajectoryBatch(
+        trajectories=tuple(
+            replace(trajectory, advantage=(advantage,))
+            for trajectory, advantage in zip(generated, advantages, strict=True)
+        ),
+        response_token_masks=tuple((True,) for _ in generated),
+    )
+    policy_before = backend.policy_parameter_checksum()
+    reference_before = _module_checksum(backend.reference_model)
+    backend.zero_grad()
+    loss = algorithm.compute_loss(batch, backend.evaluate(batch))
+    backend.backward(loss.total_loss)
+    backend.optimizer_step()
+
+    assert backend.policy_parameter_checksum() != policy_before
+    assert _module_checksum(backend.reference_model) == reference_before
+
+
+def test_resume_is_exactly_equivalent_to_uninterrupted_training(tmp_path: Path) -> None:
+    uninterrupted_dir = tmp_path / "uninterrupted"
+    resumed_dir = tmp_path / "resumed"
+    uninterrupted_dir.mkdir()
+    resumed_dir.mkdir()
+    uninterrupted_config = _config(uninterrupted_dir, "ppo")
+    resumed_config = _config(resumed_dir, "ppo")
+
+    uninterrupted_backends: list[TorchPolicyBackend] = []
+    uninterrupted_references: list[str] = []
+    uninterrupted = _engine(
+        uninterrupted_config,
+        uninterrupted_backends,
+        uninterrupted_references,
+    ).train(max_steps=2)
+
+    resumed_backends: list[TorchPolicyBackend] = []
+    resumed_references: list[str] = []
+    first = _engine(resumed_config, resumed_backends, resumed_references).train(max_steps=1)
+    assert first.checkpoint is not None
+    continuation = _engine(resumed_config, resumed_backends, resumed_references).resume(
+        first.checkpoint.path,
+        max_steps=1,
+    )
+
+    uninterrupted_evidence = [
+        (trajectory.case_id, trajectory.response, trajectory.seed)
+        for trajectory in uninterrupted.trajectories
+    ]
+    resumed_evidence = [
+        (trajectory.case_id, trajectory.response, trajectory.seed)
+        for trajectory in (*first.trajectories, *continuation.trajectories)
+    ]
+    assert (
+        continuation.policy_parameter_checksum_after
+        == uninterrupted.policy_parameter_checksum_after
+    )
+    assert resumed_evidence == uninterrupted_evidence
+
+    def normalized_records(*results: EngineResult) -> list[dict[str, object]]:
+        normalized: list[dict[str, object]] = []
+        for result in results:
+            assert result.log_directory is not None
+            for line in (result.log_directory / "trajectories.jsonl").read_text().splitlines():
+                record = json.loads(line)
+                for field in ("record_id", "run_id", "timestamp"):
+                    record.pop(field, None)
+                normalized.append(record)
+        return normalized
+
+    assert normalized_records(first, continuation) == normalized_records(uninterrupted)

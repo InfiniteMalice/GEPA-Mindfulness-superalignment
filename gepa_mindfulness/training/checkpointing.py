@@ -22,7 +22,7 @@ import torch
 
 from gepa_mindfulness.training.backends.base import BackendCheckpointResult
 
-CHECKPOINT_SCHEMA_VERSION = 1
+CHECKPOINT_SCHEMA_VERSION = 2
 _ARTIFACT_NAMES = frozenset({"backend.pt", "training_state.pt"})
 _CHECKPOINT_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\Z")
 _MANIFEST_FIELDS = frozenset(
@@ -41,6 +41,7 @@ _MANIFEST_FIELDS = frozenset(
 _STATE_FIELDS = frozenset(
     {
         "algorithm_state",
+        "batch_cursor",
         "backend_format_version",
         "backend_step",
         "canonical_config",
@@ -49,6 +50,7 @@ _STATE_FIELDS = frozenset(
         "global_step",
         "parent_checkpoint",
         "python_rng_state",
+        "rollout_cursor",
         "scheduler_state",
         "schema_version",
         "torch_cpu_rng_state",
@@ -114,10 +116,14 @@ class CheckpointSnapshot:
     canonical_config: Mapping[str, object]
     dataset_hash: str
     config_hash: str
+    batch_cursor: int = 0
+    rollout_cursor: int = 0
     parent_checkpoint: str | None = None
 
     def __post_init__(self) -> None:
         _validate_non_negative_integer(self.global_step, "global_step")
+        _validate_non_negative_integer(self.batch_cursor, "batch_cursor")
+        _validate_non_negative_integer(self.rollout_cursor, "rollout_cursor")
         algorithm_state = _state_mapping(self.algorithm_state, "algorithm_state")
         scheduler_state = (
             None
@@ -231,6 +237,8 @@ class RestoredCheckpoint:
     torch_cpu_rng_state: torch.Tensor
     torch_cuda_rng_states: tuple[torch.Tensor, ...]
     canonical_config: Mapping[str, object]
+    batch_cursor: int
+    rollout_cursor: int
     backend_result: BackendCheckpointResult | None = None
 
     @property
@@ -421,6 +429,8 @@ class LocalCheckpointStore:
             torch_cpu_rng_state=restored.torch_cpu_rng_state,
             torch_cuda_rng_states=restored.torch_cuda_rng_states,
             canonical_config=restored.canonical_config,
+            batch_cursor=restored.batch_cursor,
+            rollout_cursor=restored.rollout_cursor,
             backend_result=backend_result,
         )
 
@@ -523,6 +533,10 @@ class LocalCheckpointStore:
             canonical_config=MappingProxyType(
                 _state_mapping(state["canonical_config"], "canonical_config")
             ),
+            batch_cursor=_validate_non_negative_integer(state["batch_cursor"], "batch_cursor"),
+            rollout_cursor=_validate_non_negative_integer(
+                state["rollout_cursor"], "rollout_cursor"
+            ),
         )
         return restored, MappingProxyType(artifact_payloads)
 
@@ -533,6 +547,7 @@ class LocalCheckpointStore:
     ) -> dict[str, object]:
         return {
             "algorithm_state": dict(snapshot.algorithm_state),
+            "batch_cursor": snapshot.batch_cursor,
             "backend_format_version": backend_result.format_version,
             "backend_step": backend_result.step,
             "canonical_config": dict(snapshot.canonical_config),
@@ -541,6 +556,7 @@ class LocalCheckpointStore:
             "global_step": snapshot.global_step,
             "parent_checkpoint": snapshot.parent_checkpoint,
             "python_rng_state": snapshot.python_rng_state,
+            "rollout_cursor": snapshot.rollout_cursor,
             "scheduler_state": (
                 None if snapshot.scheduler_state is None else dict(snapshot.scheduler_state)
             ),

@@ -78,6 +78,7 @@ class TorchPolicyBackend:
         device: str | torch.device = "cpu",
         learning_rate: float = 1e-5,
         max_new_tokens: int = 256,
+        max_grad_norm: float | None = None,
         training_mode: TrainingMode = "full",
         model_identifier: str | None = None,
         adapter_identifier: str | None = None,
@@ -86,6 +87,9 @@ class TorchPolicyBackend:
         self.training_mode = self._validated_training_mode(training_mode)
         self.max_new_tokens = self._positive_integer(max_new_tokens, "max_new_tokens")
         self.learning_rate = self._positive_number(learning_rate, "learning_rate")
+        self.max_grad_norm = (
+            None if max_grad_norm is None else self._positive_number(max_grad_norm, "max_grad_norm")
+        )
         self.tokenizer = tokenizer
         self.policy_model = policy_model.to(self.device)
         if self.training_mode == "full":
@@ -232,6 +236,8 @@ class TorchPolicyBackend:
             for parameter in trainable
             if parameter.grad is not None
         )
+        if self.max_grad_norm is not None:
+            torch.nn.utils.clip_grad_norm_(trainable, self.max_grad_norm)
         self.optimizer.step()
         self._step += 1
         return OptimizerStepResult(step=self._step, gradient_norm=math.sqrt(squared_norm))

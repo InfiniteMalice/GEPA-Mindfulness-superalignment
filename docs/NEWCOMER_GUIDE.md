@@ -48,7 +48,8 @@ The `training` package turns alignment primitives into GRPO and PPO workflows:
   pipeline, real PPO or GRPO loss computation, `TorchPolicyBackend`, atomic local checkpoints, and
   structured JSONL logs.
 - **CLI tooling** – `gepa rl` exposes `train`, `resume`, `collect`, `evaluate`, and the model-free
-  `doctor`. Older `train.py` and `cli.py` entry points remain for compatibility.
+  `doctor`. `gepa rl` is the sole canonical path that updates Transformers model weights. Older
+  `train.py` and `cli.py` entry points remain as compatibility rollout and scoring simulators.
 
 Install the portable runtime and inspect its command tree:
 
@@ -64,9 +65,11 @@ gepa rl doctor --config run.cpu.ppo.yaml
 ```
 
 The default loader accepts a local Transformers model directory or an existing cache entry and
-does not download artifacts. Training and evaluation require the strict authored pair JSONL
-format. Read the [portable PyTorch RL guide](rl/README.md) for runnable PPO and GRPO CPU commands,
-resume semantics, artifact layouts, and current limitations.
+does not download artifacts. The shipped `configs/rl/*.yaml` files use
+`/absolute/path/to/local-transformers-model` as a template that the operator must replace before
+model construction. Training and evaluation require the strict authored pair JSONL format. Read
+the [portable PyTorch RL guide](rl/README.md) for the exact local-model validation command,
+runnable PPO and GRPO CPU commands, resume semantics, artifact layouts, and current limitations.
 
 ## Integration Adapters
 
@@ -79,10 +82,21 @@ Exports live in `gepa_mindfulness.adapters.__init__`.
 
 ## Configurations & Examples
 
-YAML presets live under `configs/ppo/`, `configs/grpo/`, and `configs/comparison/`.
-There are two CLI entry points. The recommended path is the Click-based CLI
-(`gepa_mindfulness.training.cli`). The legacy entry point
-(`gepa_mindfulness.training.train`) uses `--mode` and is kept for compatibility.
+Canonical portable RL presets live under `configs/rl/`; invoke them through `gepa rl`. Presets
+under `configs/ppo/`, `configs/grpo/`, and `configs/comparison/` serve compatibility workflows.
+
+The Click CLI (`gepa_mindfulness.training.cli`) does not update Transformers weights. Its root
+command writes placeholder or dual-path rollouts. Its `train` subcommand runs lightweight PPO or
+GRPO simulators that update only Python scalar tables and write simulator summaries or metrics.
+
+The argparse entry point (`gepa_mindfulness.training.train`) is also a compatibility scoring
+simulator. In GRPO mode it loads policy and reference models, generates under `torch.no_grad()`,
+computes reward and advantage summaries, and saves the unchanged loaded policy. It never runs
+backward or an optimizer step. Its PPO mode currently raises `TypeError` before a simulator run
+because it passes an argument list to the no-argument Click `main()` function.
+
+Use `gepa rl train` or `gepa rl resume` when the expected result is a model-weight update. Confirm
+the update from `policy_parameters_updated`, distinct policy checksums, and a canonical checkpoint.
 
 ```bash
 python -m gepa_mindfulness.training.cli \
@@ -97,8 +111,9 @@ Example scripts:
 - `examples/vllm_demo/run_vllm_demo.py` targets a vLLM endpoint defined in
   `configs/vllm.yaml` for remote inference.
 
-The `scripts/run_full_pipeline.sh` helper validates configs, runs the CPU demo,
-and executes a GRPO pass using the Click-based training CLI.
+The `scripts/run_full_pipeline.sh` helper validates compatibility configs, runs the CPU demo, and
+executes a GRPO simulator pass through the Click CLI. The helper does not produce a canonical
+model-weight update.
 
 ## Metrics & Testing
 

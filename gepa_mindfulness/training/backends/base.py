@@ -25,7 +25,7 @@ class TokenizerLike(Protocol):
 
 @dataclass(frozen=True)
 class OptimizerStepResult:
-    """Observable evidence that one optimizer update completed."""
+    """Observable optimizer evidence; ``gradient_norm`` is measured before clipping."""
 
     step: int
     gradient_norm: float | None = None

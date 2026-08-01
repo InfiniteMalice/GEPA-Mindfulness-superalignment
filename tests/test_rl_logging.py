@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import multiprocessing
+import os
 from copy import deepcopy
 from pathlib import Path
 
@@ -100,6 +101,16 @@ def _trajectory_record() -> TrajectoryRecord:
 
 def _jsonl(path: Path) -> list[dict[str, object]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+
+
+class _HistoryCountingSink(JSONLLoggingSink):
+    historical_rows_validated = 0
+
+    @classmethod
+    def _existing_records(cls, stream, path, manifest):
+        records = super()._existing_records(stream, path, manifest)
+        cls.historical_rows_validated += len(records)
+        return records
 
 
 def _concurrent_duplicate_writer(directory: str, start: object) -> None:
@@ -298,6 +309,74 @@ def test_jsonl_appends_complete_newline_delimited_records_and_deduplicates(tmp_p
         "metric-1",
         "metric-2",
     ]
+
+
+def test_many_same_process_appends_do_not_revalidate_growing_history(tmp_path: Path) -> None:
+    _HistoryCountingSink.historical_rows_validated = 0
+    first_sink = _HistoryCountingSink(tmp_path, rank=0)
+    second_sink = _HistoryCountingSink(tmp_path, rank=0)
+    first_sink.start_run(_manifest())
+
+    append_count = 120
+    for index in range(append_count):
+        sink = first_sink if index % 2 == 0 else second_sink
+        assert sink.log_metrics(_metric(record_id=f"metric-{index}")) is True
+
+    assert _HistoryCountingSink.historical_rows_validated <= append_count
+    assert len(_jsonl(tmp_path / "metrics.jsonl")) == append_count
+
+
+def test_external_append_invalidates_cached_history(tmp_path: Path) -> None:
+    sink = JSONLLoggingSink(tmp_path, rank=0)
+    sink.start_run(_manifest())
+    assert sink.log_metrics(_metric(record_id="metric-before-external-append")) is True
+    path = tmp_path / "metrics.jsonl"
+    with path.open("ab") as stream:
+        stream.write(b'{"record_id":"malformed-external-record"}\n')
+
+    with pytest.raises(ValueError, match="metric record fields"):
+        sink.log_metrics(_metric(record_id="metric-after-external-append"))
+
+
+def test_in_place_mutation_invalidates_cached_history(tmp_path: Path) -> None:
+    sink = JSONLLoggingSink(tmp_path, rank=0)
+    sink.start_run(_manifest())
+    assert sink.log_metrics(_metric(record_id="metric-before-in-place-mutation")) is True
+    path = tmp_path / "metrics.jsonl"
+    before = path.stat()
+    content = path.read_bytes()
+    mutated = content.replace(
+        b'"backend":"torch_portable"',
+        b'"backend":"other_backendx"',
+        1,
+    )
+    assert len(mutated) == len(content)
+    path.write_bytes(mutated)
+    os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns + 1_000_000_000))
+
+    with pytest.raises(ValueError, match="provenance"):
+        sink.log_metrics(_metric(record_id="metric-after-in-place-mutation"))
+
+
+def test_file_replacement_invalidates_cached_history(tmp_path: Path) -> None:
+    sink = JSONLLoggingSink(tmp_path, rank=0)
+    sink.start_run(_manifest())
+    assert sink.log_metrics(_metric(record_id="metric-before-replacement")) is True
+    path = tmp_path / "metrics.jsonl"
+    before = path.stat()
+    content = path.read_bytes()
+    replacement_content = content.replace(
+        b'"backend":"torch_portable"',
+        b'"backend":"other_backendx"',
+        1,
+    )
+    replacement = tmp_path / "replacement.jsonl"
+    replacement.write_bytes(replacement_content)
+    os.utime(replacement, ns=(before.st_atime_ns, before.st_mtime_ns))
+    os.replace(replacement, path)
+
+    with pytest.raises(ValueError, match="provenance"):
+        sink.log_metrics(_metric(record_id="metric-after-replacement"))
 
 
 def test_jsonl_rejects_a_conflicting_record_that_reuses_an_existing_id(tmp_path: Path) -> None:
