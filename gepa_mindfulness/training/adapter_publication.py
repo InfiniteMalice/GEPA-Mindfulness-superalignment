@@ -556,7 +556,14 @@ def _contained_parts(root: Path, relative: str, field_name: str) -> tuple[Path, 
     return version / parts[2], parents
 
 
-def _contained_read(root: Path, relative: str, field_name: str) -> tuple[bytes, str, int]:
+def _contained_read(
+    root: Path,
+    relative: str,
+    field_name: str,
+    *,
+    retain: bool,
+    limit: int | None = None,
+) -> tuple[bytes, str, int]:
     candidate, parents = _contained_parts(root, relative, field_name)
     parent_stats = tuple(parent.lstat() for parent in parents)
     leaf_stat, stream = _open_regular(candidate, field_name)
@@ -565,12 +572,18 @@ def _contained_read(root: Path, relative: str, field_name: str) -> tuple[bytes, 
     size = 0
     with stream:
         while True:
-            chunk = stream.read(1024 * 1024)
+            read_size = 1024 * 1024
+            if limit is not None:
+                read_size = min(read_size, limit + 1 - size)
+            chunk = stream.read(read_size)
             if not chunk:
                 break
-            chunks.append(chunk)
+            if retain:
+                chunks.append(chunk)
             digest.update(chunk)
             size += len(chunk)
+            if limit is not None and size > limit:
+                break
     paths = (*parents, candidate)
     before_stats = (*parent_stats, leaf_stat)
     for path, before in zip(paths, before_stats, strict=True):
@@ -585,14 +598,16 @@ def _contained_read(root: Path, relative: str, field_name: str) -> tuple[bytes, 
 
 
 def _contained_bytes(root: Path, relative: str, field_name: str) -> bytes:
-    payload, _, _ = _contained_read(root, relative, field_name)
+    payload, _, _ = _contained_read(
+        root, relative, field_name, retain=True, limit=_MAX_MANIFEST_BYTES
+    )
     if len(payload) > _MAX_MANIFEST_BYTES:
         raise ValueError(f"{field_name} exceeds the bounded manifest size")
     return payload
 
 
 def _contained_hash(root: Path, relative: str, field_name: str) -> tuple[str, int]:
-    _, digest, size = _contained_read(root, relative, field_name)
+    _, digest, size = _contained_read(root, relative, field_name, retain=False)
     return digest, size
 
 

@@ -41,6 +41,13 @@ def _spawn_publish(root: str, artifact: str, version: int, gate: object, queue: 
         queue.put(("error", type(exc).__name__))  # type: ignore[attr-defined]
 
 
+def _spawn_hold_lock(root: str, acquired: object, release: object) -> None:
+    publisher = LocalAdapterPublisher(root)
+    with publisher._transaction_lock():
+        acquired.set()  # type: ignore[attr-defined]
+        release.wait(15)  # type: ignore[attr-defined]
+
+
 def _candidate(
     tmp_path: Path,
     version: int,
@@ -425,3 +432,27 @@ def test_spawned_publishers_serialize_first_publication(tmp_path: Path) -> None:
     assert not any(
         path.name.startswith((".adapter-stage-", ".current-")) for path in root.iterdir()
     )
+
+
+def test_spawned_process_blocks_on_actual_os_lock(tmp_path: Path) -> None:
+    context = multiprocessing.get_context("spawn")
+    root = tmp_path / "published"
+    LocalAdapterPublisher(root)
+    first_acquired, first_release = context.Event(), context.Event()
+    second_acquired, second_release = context.Event(), context.Event()
+    first = context.Process(
+        target=_spawn_hold_lock, args=(str(root), first_acquired, first_release)
+    )
+    first.start()
+    assert first_acquired.wait(10)
+    second = context.Process(
+        target=_spawn_hold_lock, args=(str(root), second_acquired, second_release)
+    )
+    second.start()
+    assert not second_acquired.wait(0.5)
+    first_release.set()
+    assert second_acquired.wait(10)
+    second_release.set()
+    first.join(10)
+    second.join(10)
+    assert first.exitcode == second.exitcode == 0
