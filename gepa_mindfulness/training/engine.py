@@ -679,24 +679,61 @@ class RLTrainingEngine:
             checksum_before = _parameter_checksum(backend)
             policy_checksum_before = _policy_parameter_checksum(backend)
             if mode == "collect":
-                selected = self._rollout_requests(requests, global_step, rollout_index=0)
+                selected = self._rollout_requests(
+                    requests,
+                    global_step,
+                    rollout_index=0,
+                    actor_manifest=(None if hybrid_state is None else hybrid_state.actor_manifest),
+                )
                 trajectories = tuple(generation_backend.generate(selected))
                 if hybrid_state is not None:
-                    _validate_hybrid_actor_backends(self.config, trajectories)
+                    _validate_hybrid_rollout_output(
+                        self.config,
+                        selected,
+                        trajectories,
+                        hybrid_state,
+                    )
                     generation_backend.capabilities().require({Capability.SUPPORTS_GENERATION})
-                _validate_rollout_output(self.config, selected, trajectories)
+                else:
+                    _validate_rollout_output(self.config, selected, trajectories)
                 backend.capabilities().require(requirements)
                 logger.trajectories(trajectories, global_step)
                 trajectory_count = len(trajectories)
                 result_trajectories = trajectories
             elif mode == "evaluate":
-                selected = self._rollout_requests(requests, global_step, rollout_index=0)
+                selected = self._rollout_requests(
+                    requests,
+                    global_step,
+                    rollout_index=0,
+                    actor_manifest=(None if hybrid_state is None else hybrid_state.actor_manifest),
+                )
                 trajectories = tuple(generation_backend.generate(selected))
                 if hybrid_state is not None:
-                    _validate_hybrid_actor_backends(self.config, trajectories)
+                    _validate_hybrid_rollout_output(
+                        self.config,
+                        selected,
+                        trajectories,
+                        hybrid_state,
+                    )
                     generation_backend.capabilities().require({Capability.SUPPORTS_GENERATION})
-                _validate_rollout_output(self.config, selected, trajectories)
-                scored, rewards = self._score(trajectories, reward_provider)
+                else:
+                    _validate_rollout_output(self.config, selected, trajectories)
+                decisions = _hybrid_staleness_decisions(
+                    self.config,
+                    trajectories,
+                    hybrid_state,
+                )
+                _log_staleness(logger, decisions, global_step=global_step, rollout_index=0)
+                rejected = next((item for item in decisions if not item.accepted), None)
+                if rejected is not None:
+                    raise ValueError(f"stale actor policy rejected: {rejected.reason}")
+                scored, rewards = self._score(
+                    trajectories,
+                    reward_provider,
+                    weights=(
+                        None if hybrid_state is None else tuple(item.weight for item in decisions)
+                    ),
+                )
                 if batch_preparer is None:  # pragma: no cover - mode selection invariant
                     raise RuntimeError("batch preparer is unavailable")
                 prepared = _as_prepared(batch_preparer.prepare(scored, rewards, None), scored)
@@ -815,9 +852,15 @@ class RLTrainingEngine:
                 rollout_cursor += 1
                 trajectories = tuple(generation_backend.generate(selected))
                 if hybrid_state is not None:
-                    _validate_hybrid_actor_backends(self.config, trajectories)
+                    _validate_hybrid_rollout_output(
+                        self.config,
+                        selected,
+                        trajectories,
+                        hybrid_state,
+                    )
                     generation_backend.capabilities().require({Capability.SUPPORTS_GENERATION})
-                _validate_rollout_output(self.config, selected, trajectories)
+                else:
+                    _validate_rollout_output(self.config, selected, trajectories)
                 decisions = _hybrid_staleness_decisions(
                     self.config,
                     trajectories,
@@ -914,26 +957,35 @@ class RLTrainingEngine:
                     rollout_cursor=rollout_cursor,
                 )
                 saved = checkpoint.save(global_step, next_parent)
+                saved_checkpoint_id: str | None = None
                 if hybrid_state is not None:
                     from .run_logging import validate_checkpoint_id
 
-                    validate_checkpoint_id(
+                    saved_checkpoint_id = validate_checkpoint_id(
                         getattr(saved, "checkpoint_id", None),
                         global_step,
                     )
                 latest_checkpoint = saved
-                next_parent = getattr(saved, "checkpoint_id", next_parent)
                 if hybrid_state is not None:
+                    assert saved_checkpoint_id is not None
+                    next_parent = saved_checkpoint_id
                     published = _export_and_publish_adapter(
                         self.config,
                         backend,
                         hybrid_state,
-                        saved,
+                        saved_checkpoint_id,
                         global_step,
                     )
-                    _log_publication(logger, published, saved, global_step=global_step)
+                    _log_publication(
+                        logger,
+                        published,
+                        saved_checkpoint_id,
+                        global_step=global_step,
+                    )
                     hybrid_state.latest_publication = published
                     hybrid_state.learner_version = published.policy_version
+                else:
+                    next_parent = getattr(saved, "checkpoint_id", next_parent)
         return (
             global_step,
             trajectory_count,
@@ -1338,6 +1390,8 @@ class _DefaultBatchPreparer:
         rewards: tuple[float, ...],
         algorithm: RLAlgorithm | None,
     ) -> PreparedBatch:
+        if algorithm is None:
+            return PreparedBatch(_trajectory_batch(trajectories), trajectories)
         compute_advantages = getattr(algorithm, "compute_group_advantages", None)
         if not callable(compute_advantages):
             raise TypeError("GRPO algorithm must expose compute_group_advantages")
@@ -1800,15 +1854,12 @@ def _log_training_step(
 def _log_publication(
     logger: RunLogger,
     manifest: AdapterManifest,
-    checkpoint: object,
+    checkpoint_id: str,
     *,
     global_step: int,
 ) -> None:
     handler = getattr(logger, "publication", None)
     if callable(handler):
-        checkpoint_id = getattr(checkpoint, "checkpoint_id", None)
-        if not isinstance(checkpoint_id, str) or not checkpoint_id:
-            raise ValueError("hybrid publication requires a checkpoint identity")
         handler(manifest, checkpoint_id=checkpoint_id, global_step=global_step)
 
 
@@ -1893,28 +1944,76 @@ def _hybrid_staleness_decisions(
     return tuple(decisions)
 
 
-def _validate_hybrid_actor_backends(
+def _validate_hybrid_rollout_output(
     config: RLRunConfig,
+    requests: Sequence[RolloutRequest],
     trajectories: tuple[Trajectory, ...],
+    state: _HybridState,
 ) -> None:
-    for trajectory in trajectories:
+    manifest = state.actor_manifest
+    expected: list[RolloutRequest] = []
+    case_ids: set[str] = set()
+    for request in requests:
+        case_id = request.case_id
+        if config.algorithm.name == "grpo" and (
+            case_id is None or not case_id or case_id in case_ids
+        ):
+            raise ValueError("GRPO rollout requests require non-empty unique case IDs")
+        if case_id is not None:
+            case_ids.add(case_id)
+        if request.policy_version != manifest.policy_version.to_json():
+            raise ValueError("actor request policy version does not match current manifest")
+        metadata = request.metadata
+        if metadata.get("model_identifier") != manifest.model_id:
+            raise ValueError("actor request model does not match current adapter manifest")
+        if metadata.get("adapter_identifier") != manifest.source_id:
+            raise ValueError("actor request adapter does not match current adapter manifest")
+        if metadata.get("adapter_sha256") != manifest.artifact_sha256:
+            raise ValueError(
+                "actor request adapter SHA-256 does not match current adapter manifest"
+            )
+        if metadata.get("policy_version") != manifest.policy_version.to_json():
+            raise ValueError(
+                "actor request metadata policy version does not match current manifest"
+            )
+        expected.extend(request for _ in range(request.num_samples))
+    if len(trajectories) != len(expected):
+        raise ValueError("actor trajectory count does not match rollout requests")
+    for trajectory, request in zip(trajectories, expected, strict=True):
         if trajectory.backend_name != config.hybrid.expected_actor_backend:
             raise ValueError("actor trajectory backend does not match configured actor identity")
+        if trajectory.model_identifier != manifest.model_id:
+            raise ValueError("actor trajectory model does not match current adapter manifest")
+        if trajectory.adapter_identifier != manifest.source_id:
+            raise ValueError("actor trajectory adapter does not match current adapter manifest")
+        if trajectory.adapter_sha256 != manifest.artifact_sha256:
+            raise ValueError(
+                "actor trajectory adapter SHA-256 does not match current adapter manifest"
+            )
+        try:
+            actor_version = PolicyVersion.from_json(trajectory.policy_version)
+        except ValueError as exc:
+            raise ValueError("actor trajectory policy version is missing or non-canonical") from exc
+        if actor_version != manifest.policy_version:
+            raise ValueError("actor trajectory policy version does not match current manifest")
+        if trajectory.policy_version != request.policy_version:
+            raise ValueError("actor trajectory policy version does not match its request")
+        if trajectory.case_id != request.case_id:
+            raise ValueError("actor trajectory order or case correlation is invalid")
+        if trajectory.prompt != request.prompt:
+            raise ValueError("actor trajectory order or prompt correlation is invalid")
 
 
 def _export_and_publish_adapter(
     config: RLRunConfig,
     backend: TrainablePolicyBackend,
     state: _HybridState,
-    checkpoint: object,
+    checkpoint_id: str,
     global_step: int,
 ) -> AdapterManifest:
     exporter = cast(AdapterExportingPolicyBackend, backend)
     parent = state.learner_version
     next_version = PolicyVersion(parent.value + 1)
-    checkpoint_id = getattr(checkpoint, "checkpoint_id", None)
-    if not isinstance(checkpoint_id, str) or not checkpoint_id:
-        raise ValueError("hybrid publication requires a checkpoint identity")
     with tempfile.TemporaryDirectory(prefix="gepa-adapter-export-") as directory:
         candidate = exporter.export_adapter(
             Path(directory) / "adapter.pt",

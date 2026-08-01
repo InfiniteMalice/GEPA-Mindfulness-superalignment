@@ -2142,6 +2142,27 @@ class _NoOpPublicationLogger(_LoggerWithoutPublication):
         del args, kwargs
 
 
+class _TrackingHybridLogger(_NoOpPublicationLogger):
+    def __init__(self) -> None:
+        self.trajectory_calls = 0
+        self.metric_calls = 0
+        self.staleness_calls = 0
+        self.metric_values: tuple[object, ...] = ()
+
+    def trajectories(self, *args: object) -> None:
+        del args
+        self.trajectory_calls += 1
+
+    def metrics(self, rewards: tuple[object, ...], global_step: int) -> None:
+        del global_step
+        self.metric_calls += 1
+        self.metric_values = rewards
+
+    def staleness(self, *args: object, **kwargs: object) -> None:
+        del args, kwargs
+        self.staleness_calls += 1
+
+
 class _CheckpointWithId:
     def __init__(self, checkpoint_id: str) -> None:
         self.checkpoint_id = checkpoint_id
@@ -2156,13 +2177,47 @@ class _CheckpointWithId:
 
 
 class _CountingRewardProvider:
-    def __init__(self) -> None:
+    def __init__(self, value: float = 1.0) -> None:
         self.score_calls = 0
+        self.value = value
 
     def score(self, request: object) -> float:
         del request
         self.score_calls += 1
-        return 1.0
+        return self.value
+
+
+class _ChangingCheckpointResult:
+    def __init__(self, first_id: str, later_id: str = "changed-checkpoint") -> None:
+        self.first_id = first_id
+        self.later_id = later_id
+        self.checkpoint_id_reads = 0
+
+    @property
+    def checkpoint_id(self) -> str:
+        self.checkpoint_id_reads += 1
+        if self.checkpoint_id_reads == 1:
+            return self.first_id
+        return self.later_id
+
+
+class _ChangingCheckpoint:
+    def __init__(self, *, invalid_first: bool = False) -> None:
+        self.invalid_first = invalid_first
+        self.parents: list[str | None] = []
+        self.results: list[_ChangingCheckpointResult] = []
+
+    def load(self, path: Path) -> object:
+        del path
+        raise AssertionError("load is not used by a training run")
+
+    def save(self, global_step: int, parent_checkpoint: str | None) -> object:
+        self.parents.append(parent_checkpoint)
+        canonical = f"checkpoint-{global_step:08d}"
+        first_id = "invalid-first-read" if self.invalid_first else canonical
+        result = _ChangingCheckpointResult(first_id)
+        self.results.append(result)
+        return result
 
 
 @pytest.mark.parametrize(
@@ -2232,6 +2287,235 @@ def test_hybrid_rejects_forged_trajectory_backend_before_scoring_with_custom_log
     assert learner._step == 0
     assert publisher.current().policy_version == PolicyVersion(1)  # type: ignore[union-attr]
     assert actor.close_calls == 1
+
+
+@pytest.mark.parametrize("mode", ["collect", "evaluate"])
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        ({"model_identifier": "forged-model"}, "model"),
+        ({"model_identifier": None}, "model"),
+        ({"adapter_identifier": "forged-adapter"}, "adapter"),
+        ({"adapter_identifier": None}, "adapter"),
+        ({"adapter_sha256": "b" * 64}, "adapter.*SHA|adapter hash"),
+        ({"adapter_sha256": None}, "adapter.*SHA|adapter hash"),
+        ({"policy_version": "2"}, "policy version"),
+        ({"policy_version": None}, "policy version"),
+    ],
+)
+def test_hybrid_collect_and_evaluate_reject_forged_provenance_before_side_effects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mode: str,
+    change: Mapping[str, object],
+    message: str,
+) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    learner = _hybrid_learner(config)
+    actor = _InvalidIdentityActor(change=change)
+    rewards = _CountingRewardProvider()
+    logger = _TrackingHybridLogger()
+    evaluate_calls = 0
+    evaluate = learner.evaluate
+
+    def record_evaluate(batch: object):  # type: ignore[no-untyped-def]
+        nonlocal evaluate_calls
+        evaluate_calls += 1
+        return evaluate(batch)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(learner, "evaluate", record_evaluate)
+    engine = RLTrainingEngine(
+        config,
+        capability_provider=_LearnerCapabilityProvider(learner),
+        backend_factory=lambda _: learner,
+        actor_factory=lambda _, manifest: actor,
+        publisher_factory=lambda _: publisher,
+        logger_factory=lambda _: logger,
+        reward_factory=lambda _: rewards,  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(ValueError, match=message):
+        getattr(engine, mode)()
+
+    assert logger.trajectory_calls == 0
+    assert logger.metric_calls == 0
+    assert logger.staleness_calls == 0
+    assert rewards.score_calls == 0
+    assert evaluate_calls == 0
+    assert actor.close_calls == 1
+
+
+def test_hybrid_evaluate_rejects_staleness_before_reward_or_learner(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    learner = _hybrid_learner(config)
+    actor = _MockVersionedActor(model_id="tiny-hybrid-model", adapter_id="tiny-lora")
+    rewards = _CountingRewardProvider(2.0)
+    logger = _TrackingHybridLogger()
+    evaluate_calls = 0
+    evaluate = learner.evaluate
+    decide = rl_engine.evaluate_staleness
+
+    def force_one_version_lag(
+        learner_version: PolicyVersion,
+        actor_version: PolicyVersion,
+        **kwargs: object,
+    ):
+        del learner_version
+        return decide(PolicyVersion(2), actor_version, **kwargs)  # type: ignore[arg-type]
+
+    def record_evaluate(batch: object):  # type: ignore[no-untyped-def]
+        nonlocal evaluate_calls
+        evaluate_calls += 1
+        return evaluate(batch)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(rl_engine, "evaluate_staleness", force_one_version_lag)
+    monkeypatch.setattr(learner, "evaluate", record_evaluate)
+
+    with pytest.raises(ValueError, match="stale actor policy"):
+        RLTrainingEngine(
+            config,
+            capability_provider=_LearnerCapabilityProvider(learner),
+            backend_factory=lambda _: learner,
+            actor_factory=lambda _, manifest: actor,
+            publisher_factory=lambda _: publisher,
+            logger_factory=lambda _: logger,
+            reward_factory=lambda _: rewards,  # type: ignore[arg-type]
+        ).evaluate()
+
+    assert logger.staleness_calls == 1
+    assert logger.trajectory_calls == 0
+    assert logger.metric_calls == 0
+    assert rewards.score_calls == 0
+    assert evaluate_calls == 0
+
+
+def test_hybrid_evaluate_applies_staleness_weight_exactly_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.DOWN_WEIGHT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    learner = _hybrid_learner(config)
+    actor = _MockVersionedActor(model_id="tiny-hybrid-model", adapter_id="tiny-lora")
+    rewards = _CountingRewardProvider(2.0)
+    logger = _TrackingHybridLogger()
+    evaluate_calls = 0
+    evaluate = learner.evaluate
+    decide = rl_engine.evaluate_staleness
+
+    def force_one_version_lag(
+        learner_version: PolicyVersion,
+        actor_version: PolicyVersion,
+        **kwargs: object,
+    ):
+        del learner_version
+        return decide(PolicyVersion(2), actor_version, **kwargs)  # type: ignore[arg-type]
+
+    def record_evaluate(batch: object):  # type: ignore[no-untyped-def]
+        nonlocal evaluate_calls
+        evaluate_calls += 1
+        return evaluate(batch)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(rl_engine, "evaluate_staleness", force_one_version_lag)
+    monkeypatch.setattr(learner, "evaluate", record_evaluate)
+
+    RLTrainingEngine(
+        config,
+        capability_provider=_LearnerCapabilityProvider(learner),
+        backend_factory=lambda _: learner,
+        actor_factory=lambda _, manifest: actor,
+        publisher_factory=lambda _: publisher,
+        logger_factory=lambda _: logger,
+        reward_factory=lambda _: rewards,  # type: ignore[arg-type]
+    ).evaluate()
+
+    assert logger.staleness_calls == 1
+    assert logger.trajectory_calls == 1
+    assert logger.metric_calls == 1
+    assert logger.metric_values == pytest.approx((1.0, 1.0))
+    assert rewards.score_calls == 2
+    assert evaluate_calls == 1
+
+
+def test_hybrid_checkpoint_identity_is_read_once_and_reused_downstream(
+    tmp_path: Path,
+) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.DOWN_WEIGHT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    learner = _hybrid_learner(config)
+    actor = _MockVersionedActor(model_id="tiny-hybrid-model", adapter_id="tiny-lora")
+    checkpoint = _ChangingCheckpoint()
+
+    result = RLTrainingEngine(
+        config,
+        capability_provider=_LearnerCapabilityProvider(learner),
+        backend_factory=lambda _: learner,
+        actor_factory=lambda _, manifest: actor,
+        publisher_factory=lambda _: publisher,
+        checkpoint_factory=lambda _, backend: checkpoint,
+    ).train(max_steps=2)
+
+    assert [item.checkpoint_id_reads for item in checkpoint.results] == [1, 1]
+    assert checkpoint.parents == [None, "checkpoint-00000001"]
+    assert result.published_adapter is not None
+    assert result.published_adapter.metadata["checkpoint_id"] == "checkpoint-00000002"
+    publications = [
+        json.loads(line)
+        for line in (result.log_directory / "publications.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert [item["checkpoint_id"] for item in publications] == [
+        "checkpoint-00000001",
+        "checkpoint-00000002",
+    ]
+
+
+def test_hybrid_invalid_first_checkpoint_identity_is_not_reread_or_published(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    learner = _hybrid_learner(config)
+    actor = _MockVersionedActor(model_id="tiny-hybrid-model", adapter_id="tiny-lora")
+    checkpoint = _ChangingCheckpoint(invalid_first=True)
+    export_calls = 0
+    export_adapter = learner.export_adapter
+
+    def record_export(*args: object, **kwargs: object) -> AdapterCandidate:
+        nonlocal export_calls
+        export_calls += 1
+        return export_adapter(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(learner, "export_adapter", record_export)
+
+    with pytest.raises(ValueError, match="checkpoint"):
+        RLTrainingEngine(
+            config,
+            capability_provider=_LearnerCapabilityProvider(learner),
+            backend_factory=lambda _: learner,
+            actor_factory=lambda _, manifest: actor,
+            publisher_factory=lambda _: publisher,
+            checkpoint_factory=lambda _, backend: checkpoint,
+        ).train(max_steps=1)
+
+    assert checkpoint.results[0].checkpoint_id_reads == 1
+    assert export_calls == 0
+    assert publisher.current().policy_version == PolicyVersion(1)  # type: ignore[union-attr]
+    publications = tuple(Path(config.logging.log_dir).glob("rl-*/publications.jsonl"))
+    assert len(publications) == 1
+    assert publications[0].read_bytes() == b""
 
 
 def test_hybrid_rejects_logger_without_publication_hook_before_actor_factory(
@@ -2317,6 +2601,37 @@ def test_publication_audit_hook_failure_returns_no_success_and_keeps_advanced_cu
     assert current.parent_policy_version == PolicyVersion(1)
     assert current.metadata["global_step"] == 1
     assert actor.close_calls == 1
+
+
+@pytest.mark.parametrize("mode", ["collect", "evaluate"])
+def test_hybrid_collect_and_evaluate_send_actor_manifest_through_real_transport(
+    tmp_path: Path,
+    fake_coordinator_factory: object,
+    mode: str,
+) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
+    config = replace(
+        config,
+        hybrid=replace(config.hybrid, expected_actor_backend="fake-mojo"),
+    )
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    learner = _hybrid_learner(config)
+    unused_transport = fake_coordinator_factory("hybrid_echo")  # type: ignore[operator]
+    command = unused_transport.command
+    unused_transport.close()
+    engine = build_hybrid_engine(config, command)
+    engine.capability_provider = _LearnerCapabilityProvider(learner)
+    engine.backend_factory = lambda _: learner
+
+    result = getattr(engine, mode)()
+
+    assert len(result.trajectories) == 2
+    assert {item.backend_name for item in result.trajectories} == {"fake-mojo"}
+    assert {item.model_identifier for item in result.trajectories} == {"tiny-hybrid-model"}
+    assert {item.adapter_identifier for item in result.trajectories} == {"tiny-lora"}
+    assert {item.adapter_sha256 for item in result.trajectories} == {_BOOTSTRAP_SHA256}
+    assert {item.policy_version for item in result.trajectories} == {"1"}
 
 
 def test_build_hybrid_engine_real_process_echoes_identity_through_publication(
