@@ -61,8 +61,14 @@ def _load_transformers_assets(model_name: str) -> tuple[nn.Module, TokenizerLike
         raise RuntimeError(
             "Portable model loading requires the optional 'transformers' dependency."
         ) from error
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForCausalLM.from_pretrained(model_name)
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(model_name, local_files_only=True)
+        model = AutoModelForCausalLM.from_pretrained(model_name, local_files_only=True)
+    except (OSError, RuntimeError, ValueError) as error:
+        raise RuntimeError(
+            f"Model {model_name!r} is not available locally; downloads are disabled. "
+            "Provide a local model directory or populate the Hugging Face cache first."
+        ) from error
     return model, tokenizer
 
 

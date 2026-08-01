@@ -999,6 +999,75 @@ def test_factory_uses_injected_local_assets_and_runtime_config() -> None:
     assert trajectory.model_identifier == "configured-tiny"
 
 
+def test_factory_loads_both_transformers_assets_local_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Removing either local-only flag must fail the public factory's offline contract."""
+    calls: list[tuple[str, str, dict[str, object]]] = []
+    fake_transformers = ModuleType("transformers")
+
+    class FakeTokenizerLoader:
+        @staticmethod
+        def from_pretrained(model_name: str, **kwargs: object) -> TinyTokenizer:
+            calls.append(("tokenizer", model_name, kwargs))
+            return TinyTokenizer()
+
+    class FakeModelLoader:
+        @staticmethod
+        def from_pretrained(model_name: str, **kwargs: object) -> TinyCausalLM:
+            calls.append(("model", model_name, kwargs))
+            return TinyCausalLM()
+
+    fake_transformers.AutoTokenizer = FakeTokenizerLoader
+    fake_transformers.AutoModelForCausalLM = FakeModelLoader
+    monkeypatch.setitem(sys.modules, "transformers", fake_transformers)
+
+    backend = create_portable_backend(RLRunConfig())
+
+    assert backend.model_identifier == "demo-model"
+    assert calls == [
+        ("tokenizer", "demo-model", {"local_files_only": True}),
+        ("model", "demo-model", {"local_files_only": True}),
+    ]
+
+
+@pytest.mark.parametrize("asset", ["tokenizer", "model"])
+@pytest.mark.parametrize("failure", [OSError("cache miss"), ValueError("bad local asset")])
+def test_factory_reports_actionable_local_cache_miss(
+    monkeypatch: pytest.MonkeyPatch,
+    asset: str,
+    failure: Exception,
+) -> None:
+    """A missing local model must name the model and state that downloads are disabled."""
+    fake_transformers = ModuleType("transformers")
+
+    class FailingTokenizerLoader:
+        @staticmethod
+        def from_pretrained(model_name: str, **kwargs: object) -> object:
+            del model_name, kwargs
+            if asset == "tokenizer":
+                raise failure
+            return TinyTokenizer()
+
+    class FailingModelLoader:
+        @staticmethod
+        def from_pretrained(model_name: str, **kwargs: object) -> object:
+            del model_name, kwargs
+            if asset == "model":
+                raise failure
+            return TinyCausalLM()
+
+    fake_transformers.AutoTokenizer = FailingTokenizerLoader
+    fake_transformers.AutoModelForCausalLM = FailingModelLoader
+    monkeypatch.setitem(sys.modules, "transformers", fake_transformers)
+
+    with pytest.raises(
+        RuntimeError,
+        match="demo-model.*not available locally.*downloads are disabled",
+    ):
+        create_portable_backend(RLRunConfig())
+
+
 def test_factory_reports_actionable_error_when_peft_is_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

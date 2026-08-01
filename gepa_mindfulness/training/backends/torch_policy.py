@@ -374,9 +374,18 @@ class TorchPolicyBackend:
         )
 
     def parameter_checksum(self) -> str:
-        """Return a deterministic digest of every trainable policy parameter."""
+        """Return a deterministic digest of trainable policy and value-head parameters."""
+        return self._parameter_checksum(
+            ("policy", self.policy_model), ("value_head", self.value_head)
+        )
+
+    def policy_parameter_checksum(self) -> str:
+        """Return a deterministic digest of trainable policy-model parameters only."""
+        return self._parameter_checksum(("policy", self.policy_model))
+
+    @staticmethod
+    def _parameter_checksum(*modules: tuple[str, nn.Module]) -> str:
         digest = hashlib.sha256()
-        modules = (("policy", self.policy_model), ("value_head", self.value_head))
         for prefix, module in modules:
             for name, parameter in sorted(module.named_parameters()):
                 if not parameter.requires_grad:

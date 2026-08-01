@@ -104,7 +104,9 @@ HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 gepa rl train --config run.cpu.grpo.yaml
 ```
 
 Each command prints one JSON result. A completed one-step update reports `"global_step": 1`,
-`"parameters_updated": true`, and the checkpoint and log locations.
+`"policy_parameters_updated": true`, distinct before/after policy checksums, and the checkpoint and
+log locations. The broader `parameters_updated` field covers the trainable policy plus value head;
+use the policy-specific fields as model-weight evidence.
 
 > **Memory warning:** If a full-weight model and its frozen reference copy exceed available CPU
 > RAM, the operating system can terminate the process before a checkpoint is written. Check the
@@ -180,8 +182,35 @@ records include the global step and policy version needed to audit an update.
 The default `gepa rl` engine performs full-weight policy training and keeps a separate frozen
 reference model. `TorchPolicyBackend` and `create_portable_backend` also support PEFT LoRA adapter
 models through `training_mode="lora"`. The canonical runtime configuration does not yet expose a
-LoRA field, so the CLI cannot select LoRA. Integrators must construct the portable backend with a
-PEFT `LoraConfig` and inject that backend into `RLTrainingEngine`.
+LoRA field, so the CLI cannot select LoRA. Integrators can load local assets explicitly, pass a
+mapping of `LoraConfig` keyword values to the factory, and inject that backend into
+`RLTrainingEngine`:
+
+```python
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+from gepa_mindfulness.training.backends import create_portable_backend
+from gepa_mindfulness.training.engine import RLTrainingEngine
+from gepa_mindfulness.training.runtime_config import load_rl_config
+
+config = load_rl_config("run.cpu.ppo.yaml")
+model_name = config.policy.model_name
+tokenizer = AutoTokenizer.from_pretrained(model_name, local_files_only=True)
+policy_model = AutoModelForCausalLM.from_pretrained(model_name, local_files_only=True)
+backend = create_portable_backend(
+    config,
+    policy_model=policy_model,
+    tokenizer=tokenizer,
+    training_mode="lora",
+    lora_config={"r": 8, "lora_alpha": 16, "target_modules": ["q_proj", "v_proj"]},
+)
+engine = RLTrainingEngine(config, backend_factory=lambda _: backend)
+result = engine.train(max_steps=1)
+```
+
+Pass a mapping to `lora_config`, not an instantiated PEFT `LoraConfig`. The target-module names
+must exist in the selected local model. The factory also accepts no injected assets; in that mode,
+it loads the tokenizer and model from the local directory or cache with `local_files_only=True`.
 
 The portable runtime is single-process and local. It does not provide distributed training,
 automatic model downloads, vLLM learning, TRL trainers, dataset streaming, or automatic device

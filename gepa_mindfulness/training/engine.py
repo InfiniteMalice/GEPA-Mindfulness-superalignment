@@ -48,6 +48,9 @@ class EngineResult:
     parameter_checksum_before: str | None = None
     parameter_checksum_after: str | None = None
     parameters_updated: bool | None = None
+    policy_parameter_checksum_before: str | None = None
+    policy_parameter_checksum_after: str | None = None
+    policy_parameters_updated: bool | None = None
     log_directory: Path | None = None
     run_id: str | None = None
     dataset_hash: str | None = None
@@ -67,6 +70,9 @@ class EngineResult:
             "parameter_checksum_after": self.parameter_checksum_after,
             "parameter_checksum_before": self.parameter_checksum_before,
             "parameters_updated": self.parameters_updated,
+            "policy_parameter_checksum_after": self.policy_parameter_checksum_after,
+            "policy_parameter_checksum_before": self.policy_parameter_checksum_before,
+            "policy_parameters_updated": self.policy_parameters_updated,
             "run_id": self.run_id,
             "trajectories": [trajectory.to_dict() for trajectory in self.trajectories],
             "trajectory_count": self.trajectory_count,
@@ -417,6 +423,7 @@ class RLTrainingEngine:
                 raise ValueError("RL dataset materialized no rollout requests")
             logger.start(mode, global_step, resume_parent, detected)
             checksum_before = _parameter_checksum(backend)
+            policy_checksum_before = _policy_parameter_checksum(backend)
             if mode == "collect":
                 selected = self._rollout_requests(requests, global_step, rollout_index=0)
                 trajectories = tuple(backend.generate(selected))
@@ -460,6 +467,7 @@ class RLTrainingEngine:
                     target_step=target_step,
                 )
             checksum_after = _parameter_checksum(backend)
+            policy_checksum_after = _policy_parameter_checksum(backend)
             return EngineResult(
                 mode=mode,
                 global_step=global_step,
@@ -472,6 +480,13 @@ class RLTrainingEngine:
                     None
                     if checksum_before is None or checksum_after is None
                     else checksum_before != checksum_after
+                ),
+                policy_parameter_checksum_before=policy_checksum_before,
+                policy_parameter_checksum_after=policy_checksum_after,
+                policy_parameters_updated=(
+                    None
+                    if policy_checksum_before is None or policy_checksum_after is None
+                    else policy_checksum_before != policy_checksum_after
                 ),
                 log_directory=_logger_directory(logger),
                 run_id=_logger_run_id(logger),
@@ -1156,6 +1171,16 @@ def _parameter_checksum(backend: TrainablePolicyBackend) -> str | None:
     value = provider()
     if not isinstance(value, str) or not value:
         raise ValueError("backend parameter_checksum must return a non-empty string")
+    return value
+
+
+def _policy_parameter_checksum(backend: TrainablePolicyBackend) -> str | None:
+    provider = getattr(backend, "policy_parameter_checksum", None)
+    if not callable(provider):
+        return None
+    value = provider()
+    if not isinstance(value, str) or not value:
+        raise ValueError("backend policy_parameter_checksum must return a non-empty string")
     return value
 
 

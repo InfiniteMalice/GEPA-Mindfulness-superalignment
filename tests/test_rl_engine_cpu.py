@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
+from copy import deepcopy
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -36,7 +38,64 @@ def _optional_dependencies() -> dict[str, list[str]]:
 
 
 def _dependency_name(requirement: str) -> str:
-    return requirement.split(";", 1)[0].split("[", 1)[0].split("<", 1)[0].split(">", 1)[0]
+    match = re.match(r"[A-Za-z0-9][A-Za-z0-9._-]*", requirement)
+    if match is None:
+        raise AssertionError(f"invalid requirement: {requirement!r}")
+    return re.sub(r"[-_.]+", "-", match.group(0)).lower()
+
+
+_RL_RUNTIME = {
+    "torch>=2.9,<3",
+    "transformers>=4.57,<6",
+    "peft>=0.17,<1",
+}
+_DEV_TOOLS = {
+    "build>=1.2",
+    "black>=24.0",
+    "mypy>=1.8",
+    "pytest>=8.0",
+    "ruff>=0.4",
+}
+_ALL_ONLY = {
+    "dspy-ai>=2.5",
+    "matplotlib>=3.7",
+    "networkx>=3.0",
+    "textual>=0.20",
+    "vllm>=0.6",
+    "weasyprint>=53",
+}
+
+
+def _assert_rl_extra_contract(extras: dict[str, list[str]]) -> None:
+    expected = {
+        "rl": _RL_RUNTIME,
+        "train": _RL_RUNTIME | {"textual>=0.20"},
+        "rl-dev": _RL_RUNTIME | _DEV_TOOLS,
+        "all": _RL_RUNTIME | _ALL_ONLY,
+    }
+    forbidden = {
+        "accelerate",
+        "datasets",
+        "intel-extension-for-pytorch",
+        "torch-directml",
+        "torch-xla",
+        "trl",
+    }
+    for extra, expected_requirements in expected.items():
+        requirements = extras[extra]
+        names = [_dependency_name(requirement) for requirement in requirements]
+        assert len(names) == len(set(names))
+        assert set(names).isdisjoint(forbidden)
+        assert not any(name.startswith("nvidia-") for name in names)
+        assert not any(
+            "@" in requirement
+            or "://" in requirement
+            or "+cu" in requirement.lower()
+            or "pytorch.org" in requirement.lower()
+            for requirement in requirements
+        )
+        assert len(requirements) == len(expected_requirements)
+        assert set(requirements) == expected_requirements
 
 
 class TinyLocalTokenizer:
@@ -186,26 +245,58 @@ def _engine(
 def test_rl_extras_are_bounded_synchronized_and_keep_heavy_frameworks_optional() -> None:
     """Unbounded, divergent, or heavyweight RL dependency declarations must fail."""
     extras = _optional_dependencies()
-    expected_runtime = {
-        "torch>=2.9,<3",
-        "transformers>=4.57,<6",
-        "peft>=0.17,<1",
-    }
+    assert set(extras["dev"]) == _DEV_TOOLS
+    _assert_rl_extra_contract(extras)
 
-    assert set(extras["rl"]) == expected_runtime
-    assert expected_runtime <= set(extras["train"])
-    assert expected_runtime <= set(extras["rl-dev"])
-    assert set(extras["dev"]) <= set(extras["rl-dev"])
-    assert expected_runtime <= set(extras["all"])
 
-    published_rl_extras = {
-        requirement.lower()
-        for extra in ("rl", "rl-dev", "train", "all")
-        for requirement in extras[extra]
-    }
-    names = {_dependency_name(requirement) for requirement in published_rl_extras}
-    assert names.isdisjoint({"accelerate", "datasets", "trl"})
-    assert not any("cuda" in requirement or "pytorch.org" in requirement for requirement in names)
+@pytest.mark.parametrize(
+    "extra, requirement",
+    [
+        ("rl", "torch>=2.8,<3"),
+        ("train", "torch>=2.9,<3"),
+        ("rl-dev", "torch @ https://download.pytorch.org/torch.whl"),
+        ("all", "torch==2.9.0+cu128"),
+        ("all", "nvidia-cublas-cu12>=12"),
+        ("all", "trl>=0.9"),
+        ("all", "datasets>=3"),
+        ("all", "accelerate>=1"),
+        ("all", "torch-directml>=0.2"),
+    ],
+)
+def test_rl_extra_contract_rejects_duplicate_divergent_and_platform_requirements(
+    extra: str,
+    requirement: str,
+) -> None:
+    """A second package spelling or unsupported runtime must not bypass exact extras."""
+    extras = deepcopy(_optional_dependencies())
+    if requirement.startswith(("torch @", "torch==")):
+        torch_index = next(
+            index for index, value in enumerate(extras[extra]) if _dependency_name(value) == "torch"
+        )
+        extras[extra][torch_index] = requirement
+    else:
+        extras[extra].append(requirement)
+
+    with pytest.raises(AssertionError):
+        _assert_rl_extra_contract(extras)
+
+
+def test_value_head_only_change_does_not_count_as_policy_weight_change() -> None:
+    """A value-head mutation must not satisfy the public policy-weight checksum proof."""
+    backend = TorchPolicyBackend(
+        policy_model=TinyLocalCausalLM(),
+        tokenizer=TinyLocalTokenizer(),
+        device="cpu",
+        max_new_tokens=1,
+    )
+    combined_before = backend.parameter_checksum()
+    policy_before = backend.policy_parameter_checksum()
+
+    with torch.no_grad():
+        next(backend.value_head.parameters()).add_(1.0)
+
+    assert backend.parameter_checksum() != combined_before
+    assert backend.policy_parameter_checksum() == policy_before
 
 
 @pytest.mark.parametrize("algorithm", ["ppo", "grpo"])
@@ -225,6 +316,8 @@ def test_offline_cpu_train_checkpoint_and_resume_updates_real_model_weights(
     assert trained.global_step == 1
     assert trained.parameters_updated is True
     assert trained.parameter_checksum_before != trained.parameter_checksum_after
+    assert trained.policy_parameter_checksum_before != trained.policy_parameter_checksum_after
+    assert trained.policy_parameters_updated is True
     assert trained_reference == reference_checksums[0]
     assert not any(
         parameter.requires_grad for parameter in trained_backend.reference_model.parameters()
@@ -248,6 +341,10 @@ def test_offline_cpu_train_checkpoint_and_resume_updates_real_model_weights(
     assert restored.parameter_checksum_before == trained.parameter_checksum_after
     assert restored.parameter_checksum_after == trained.parameter_checksum_after
     assert restored.parameters_updated is False
+    assert restored.policy_parameter_checksum_before == trained.policy_parameter_checksum_after
+    assert restored.policy_parameter_checksum_after == trained.policy_parameter_checksum_after
+    assert restored.policy_parameters_updated is False
+    assert reference_checksums[1] == trained_reference
     assert _module_checksum(restored_backend.reference_model) == trained_reference
 
     resumed = _engine(config, backends, reference_checksums).resume(checkpoint_path, max_steps=1)
@@ -257,4 +354,8 @@ def test_offline_cpu_train_checkpoint_and_resume_updates_real_model_weights(
     assert resumed.parameters_updated is True
     assert resumed.parameter_checksum_before == trained.parameter_checksum_after
     assert resumed.parameter_checksum_after != trained.parameter_checksum_after
+    assert resumed.policy_parameter_checksum_before == trained.policy_parameter_checksum_after
+    assert resumed.policy_parameter_checksum_after != trained.policy_parameter_checksum_after
+    assert resumed.policy_parameters_updated is True
+    assert reference_checksums[2] == trained_reference
     assert _module_checksum(resumed_backend.reference_model) == trained_reference
