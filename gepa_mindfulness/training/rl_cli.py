@@ -85,12 +85,20 @@ def _handle_engine(args: argparse.Namespace) -> int:
         config = load_rl_run_config(args.config)
         engine = create_engine(config)
         if args.rl_command == "resume":
-            result = engine.resume(Path(args.checkpoint))
+            resume_kwargs = {}
+            if args.max_steps is not None:
+                resume_kwargs["max_steps"] = args.max_steps
+            result = engine.resume(Path(args.checkpoint), **resume_kwargs)
+        elif args.rl_command == "train":
+            train_kwargs = {}
+            if args.max_steps is not None:
+                train_kwargs["max_steps"] = args.max_steps
+            result = engine.train(**train_kwargs)
         else:
             result = getattr(engine, args.rl_command)()
         _emit_result(result)
         return 0
-    except (CapabilityError, EngineDependencyError) as exc:
+    except (OSError, TypeError, ValueError, CapabilityError, EngineDependencyError) as exc:
         print(str(exc), file=sys.stderr)
         return 2
 
@@ -115,11 +123,14 @@ def register_rl_cli(subparsers: argparse._SubParsersAction[argparse.ArgumentPars
     for mode in ("train", "collect", "evaluate"):
         command = modes.add_parser(mode, help=f"{mode.capitalize()} with the canonical RL engine")
         command.add_argument("--config", required=True, help="Canonical RL config path")
+        if mode == "train":
+            command.add_argument("--max-steps", type=int, help="Bound optimizer steps this run")
         command.set_defaults(func=_handle_engine)
 
     resume = modes.add_parser("resume", help="Resume from an operator-selected checkpoint")
     resume.add_argument("--config", required=True, help="Canonical RL config path")
     resume.add_argument("--checkpoint", required=True, help="Checkpoint directory to resume")
+    resume.add_argument("--max-steps", type=int, help="Bound optimizer steps this run")
     resume.set_defaults(func=_handle_engine)
 
     doctor = modes.add_parser("doctor", help="Check local RL capability availability")

@@ -28,6 +28,7 @@ class OptimizerStepResult:
     """Observable evidence that one optimizer update completed."""
 
     step: int
+    gradient_norm: float | None = None
 
 
 @dataclass(frozen=True)

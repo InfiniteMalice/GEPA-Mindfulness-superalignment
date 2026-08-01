@@ -47,6 +47,7 @@ _METRIC_NAMES = frozenset(
         "learning_rate",
         "long_horizon_agency",
         "objective_fidelity",
+        "optimizer_step",
         "paraconsistent_truth",
         "policy_loss",
         "reality_contact",

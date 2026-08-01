@@ -118,6 +118,8 @@ class AlgorithmConfig:
     kl_coef: float = 0.05
     clip_range: float = 0.2
     value_coef: float = 0.1
+    gamma: float = 0.99
+    gae_lambda: float = 0.95
     group_normalization_epsilon: float = 1e-8
     zero_variance_policy: ZeroVariancePolicy = "zero"
 
@@ -136,6 +138,8 @@ class AlgorithmConfig:
                 "kl_coef",
                 "clip_range",
                 "value_coef",
+                "gamma",
+                "gae_lambda",
                 "group_normalization_epsilon",
                 "zero_variance_policy",
             },
@@ -150,6 +154,8 @@ class AlgorithmConfig:
         kl_coef = _number(payload, "kl_coef", 0.05, "algorithm")
         clip_range = _number(payload, "clip_range", 0.2, "algorithm")
         value_coef = _number(payload, "value_coef", 0.1, "algorithm")
+        gamma = _number(payload, "gamma", 0.99, "algorithm")
+        gae_lambda = _number(payload, "gae_lambda", 0.95, "algorithm")
         normalization_epsilon = _number(
             payload,
             "group_normalization_epsilon",
@@ -173,6 +179,8 @@ class AlgorithmConfig:
             raise ValueError("algorithm.group_size must be at least 2 for GRPO")
         if kl_coef < 0 or clip_range <= 0 or value_coef < 0:
             raise ValueError("algorithm coefficients must be non-negative and clip_range positive")
+        if not 0.0 <= gamma <= 1.0 or not 0.0 <= gae_lambda <= 1.0:
+            raise ValueError("algorithm gamma and gae_lambda must be in [0, 1]")
         if normalization_epsilon <= 0.0:
             raise ValueError("algorithm.group_normalization_epsilon must be positive")
         if zero_variance_policy not in {"zero", "center_only", "skip"}:
@@ -189,6 +197,8 @@ class AlgorithmConfig:
             kl_coef=kl_coef,
             clip_range=clip_range,
             value_coef=value_coef,
+            gamma=gamma,
+            gae_lambda=gae_lambda,
             group_normalization_epsilon=normalization_epsilon,
             zero_variance_policy=cast(ZeroVariancePolicy, zero_variance_policy),
         )
@@ -377,6 +387,8 @@ def _translate_legacy_config(payload: Mapping[str, Any]) -> RLRunConfig:
             "kl_coef": _legacy_number(algorithm_source.get("kl_coef"), 0.05),
             "clip_range": _legacy_number(algorithm_source.get("clip_range"), 0.2),
             "value_coef": _legacy_number(algorithm_source.get("value_coef"), 0.1),
+            "gamma": _legacy_number(algorithm_source.get("gamma"), 0.99),
+            "gae_lambda": _legacy_number(algorithm_source.get("gae_lambda"), 0.95),
         },
         "reward": {"weights": reward_source},
         "dataset": {

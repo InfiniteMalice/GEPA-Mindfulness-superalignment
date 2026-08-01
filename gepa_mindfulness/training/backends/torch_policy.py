@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import math
 import pickle
 from collections.abc import Mapping
@@ -226,9 +227,14 @@ class TorchPolicyBackend:
         trainable = [*self.policy_parameters(), *self.value_head.parameters()]
         if not any(parameter.grad is not None for parameter in trainable):
             raise RuntimeError("optimizer_step requires accumulated gradients")
+        squared_norm = math.fsum(
+            float(torch.sum(parameter.grad.detach().float().square()).item())
+            for parameter in trainable
+            if parameter.grad is not None
+        )
         self.optimizer.step()
         self._step += 1
-        return OptimizerStepResult(step=self._step)
+        return OptimizerStepResult(step=self._step, gradient_norm=math.sqrt(squared_norm))
 
     def zero_grad(self) -> None:
         """Clear all optimizer-owned gradients."""
@@ -366,6 +372,19 @@ class TorchPolicyBackend:
         return tuple(
             parameter for parameter in self.policy_model.parameters() if parameter.requires_grad
         )
+
+    def parameter_checksum(self) -> str:
+        """Return a deterministic digest of every trainable policy parameter."""
+        digest = hashlib.sha256()
+        modules = (("policy", self.policy_model), ("value_head", self.value_head))
+        for prefix, module in modules:
+            for name, parameter in sorted(module.named_parameters()):
+                if not parameter.requires_grad:
+                    continue
+                value = parameter.detach().cpu().contiguous()
+                digest.update(f"{prefix}.{name}\0{value.dtype}\0{tuple(value.shape)}\0".encode())
+                digest.update(value.reshape(-1).view(torch.uint8).numpy().tobytes())
+        return digest.hexdigest()
 
     def capabilities(self) -> BackendCapabilities:
         """Return explicit evidence for every public backend capability."""

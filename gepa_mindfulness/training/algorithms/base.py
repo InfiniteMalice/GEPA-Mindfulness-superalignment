@@ -52,13 +52,30 @@ def require_matching_shapes(reference: Tensor, *values: Tensor | None) -> None:
             raise ValueError("algorithm tensors must have matching shapes")
 
 
-def _required_trajectory_rows(batch: TrajectoryBatch, field_name: str) -> list[tuple[object, ...]]:
+def _required_trajectory_rows(
+    batch: TrajectoryBatch,
+    field_name: str,
+    *,
+    width: int,
+) -> list[tuple[object, ...]]:
     rows: list[tuple[object, ...]] = []
     for trajectory in batch.trajectories:
         values = getattr(trajectory, field_name)
         if values is None:
             raise ValueError(f"trajectory.{field_name} is required for the algorithm objective")
-        rows.append(tuple(values))
+        row = tuple(values)
+        token_width = (
+            len(trajectory.response_token_ids)
+            if trajectory.response_token_ids is not None
+            else width
+        )
+        if len(row) != token_width:
+            raise ValueError(
+                f"trajectory.{field_name} must align with response_token_ids before padding"
+            )
+        if len(row) > width:
+            raise ValueError(f"trajectory.{field_name} exceeds response_token_masks width")
+        rows.append(row + (0.0,) * (width - len(row)))
     return rows
 
 
@@ -76,11 +93,19 @@ def algorithm_batch_from_trajectories(
         raise ValueError("response_token_masks are required for the algorithm objective")
     if len(batch.response_token_masks) != len(batch.trajectories):
         raise ValueError("response_token_masks must align with trajectories")
-    old_log_probs = _required_trajectory_rows(batch, "old_log_probs")
-    advantages = _required_trajectory_rows(batch, "advantage")
-    returns = _required_trajectory_rows(batch, "returns") if require_value_targets else None
+    widths = {len(row) for row in batch.response_token_masks}
+    if len(widths) != 1:
+        raise ValueError("response_token_masks must form a rectangular batch")
+    width = next(iter(widths))
+    old_log_probs = _required_trajectory_rows(batch, "old_log_probs", width=width)
+    advantages = _required_trajectory_rows(batch, "advantage", width=width)
+    returns = (
+        _required_trajectory_rows(batch, "returns", width=width) if require_value_targets else None
+    )
     old_values = (
-        _required_trajectory_rows(batch, "value_predictions") if require_value_targets else None
+        _required_trajectory_rows(batch, "value_predictions", width=width)
+        if require_value_targets
+        else None
     )
     like = evaluation.log_probs
     return AlgorithmBatch(

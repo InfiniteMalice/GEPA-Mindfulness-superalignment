@@ -5,12 +5,14 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import math
 import random
 import uuid
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, replace
 from importlib import import_module, metadata
 from pathlib import Path
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Literal, Protocol, cast
 
 from .capability import (
@@ -21,7 +23,7 @@ from .capability import (
 )
 from .contracts import RewardProvider, RewardRequest, RLAlgorithm, TrainablePolicyBackend
 from .runtime_config import RLRunConfig
-from .trajectory import RolloutRequest, Trajectory, TrajectoryBatch
+from .trajectory import PolicyEvaluation, RolloutRequest, Trajectory, TrajectoryBatch
 
 if TYPE_CHECKING:
     from .backends.base import BackendCheckpointResult
@@ -41,14 +43,62 @@ class EngineResult:
     global_step: int
     trajectory_count: int
     checkpoint_parent: str | None = None
+    checkpoint: object | None = None
+    parameter_checksum_before: str | None = None
+    parameter_checksum_after: str | None = None
+    parameters_updated: bool | None = None
+    log_directory: Path | None = None
+    run_id: str | None = None
+    dataset_hash: str | None = None
+    trajectories: tuple[Trajectory, ...] = ()
+    evaluation_artifacts: Mapping[str, object] | None = None
 
     def to_dict(self) -> dict[str, object]:
+        checkpoint_payload = _serialized_artifact(self.checkpoint)
         return {
+            "checkpoint": checkpoint_payload,
             "checkpoint_parent": self.checkpoint_parent,
+            "dataset_hash": self.dataset_hash,
+            "evaluation_artifacts": _serialized_artifact(dict(self.evaluation_artifacts or {})),
             "global_step": self.global_step,
+            "log_directory": None if self.log_directory is None else str(self.log_directory),
             "mode": self.mode,
+            "parameter_checksum_after": self.parameter_checksum_after,
+            "parameter_checksum_before": self.parameter_checksum_before,
+            "parameters_updated": self.parameters_updated,
+            "run_id": self.run_id,
+            "trajectories": [trajectory.to_dict() for trajectory in self.trajectories],
             "trajectory_count": self.trajectory_count,
         }
+
+
+@dataclass(frozen=True)
+class RewardAssessment:
+    """One scalar reward with auditable components and external-record evidence."""
+
+    total: float
+    components: Mapping[str, float]
+    evidence: Mapping[str, tuple[object, ...]]
+    references: tuple[object, ...]
+    breakdown: object | None = None
+
+
+@dataclass(frozen=True)
+class PreparedBatch:
+    """A usable algorithm batch plus scored and skipped rollout evidence."""
+
+    batch: TrajectoryBatch | None
+    trajectories: tuple[Trajectory, ...]
+    skipped: tuple[Trajectory, ...] = ()
+    group_metrics: tuple[Mapping[str, float], ...] = ()
+
+
+@dataclass(frozen=True)
+class _DatasetSnapshot:
+    payload: bytes
+    sha256: str
+    requests: tuple[RolloutRequest, ...]
+    pairs: Mapping[str, Mapping[str, object]]
 
 
 class CapabilityProvider(Protocol):
@@ -71,7 +121,7 @@ class BatchPreparer(Protocol):
         trajectories: tuple[Trajectory, ...],
         rewards: tuple[object, ...],
         algorithm: RLAlgorithm | None,
-    ) -> TrajectoryBatch: ...
+    ) -> TrajectoryBatch | PreparedBatch: ...
 
 
 class CheckpointCoordinator(Protocol):
@@ -135,6 +185,20 @@ def required_capabilities(config: RLRunConfig, mode: EngineMode) -> frozenset[Ca
     return frozenset(required)
 
 
+def _factory_requirements(factory: object, config: RLRunConfig) -> frozenset[Capability]:
+    provider = getattr(factory, "required_capabilities", None)
+    if not callable(provider):
+        return frozenset()
+    required = provider(config)
+    try:
+        values = frozenset(required)
+    except TypeError as error:
+        raise TypeError("factory required_capabilities must return an iterable") from error
+    if not all(isinstance(item, Capability) for item in values):
+        raise TypeError("factory required_capabilities must contain Capability values")
+    return values
+
+
 class SystemCapabilityProvider:
     """Detect local dependencies and device support without loading a model."""
 
@@ -142,11 +206,7 @@ class SystemCapabilityProvider:
         torch_available = importlib.util.find_spec("torch") is not None
         transformers_available = importlib.util.find_spec("transformers") is not None
         implementation_available = torch_available and transformers_available
-        cuda_available = (
-            self._cuda_available(torch_available)
-            if config.runtime.device.startswith("cuda")
-            else False
-        )
+        cuda_available, cuda_evidence = self._cuda_support(config, torch_available)
         capabilities: dict[Capability, CapabilityEvidence] = {}
         implemented = {
             Capability.SUPPORTS_BACKWARD,
@@ -169,6 +229,7 @@ class SystemCapabilityProvider:
                     supported=supported,
                     torch_available=torch_available,
                     transformers_available=transformers_available,
+                    cuda_evidence=cuda_evidence,
                 ),
             )
         return BackendCapabilities(
@@ -178,14 +239,27 @@ class SystemCapabilityProvider:
         )
 
     @staticmethod
-    def _cuda_available(torch_available: bool) -> bool:
+    def _cuda_support(config: RLRunConfig, torch_available: bool) -> tuple[bool, str]:
+        if not config.runtime.device.startswith("cuda"):
+            return False, "CUDA was not selected for this invocation."
         if not torch_available:
-            return False
+            return False, "Install the 'train' extra to provide torch."
         try:
             torch_module = import_module("torch")
-            return bool(torch_module.cuda.is_available())
-        except (ImportError, OSError, RuntimeError):
-            return False
+            if not bool(torch_module.cuda.is_available()):
+                return False, "Install/configure a CUDA-enabled torch runtime and visible device."
+            device_count = int(torch_module.cuda.device_count())
+            raw_index = config.runtime.device.partition(":")[2]
+            index = int(raw_index) if raw_index else 0
+            if index >= device_count:
+                return (
+                    False,
+                    f"Configure cuda:{index} only when device_count is greater than {index}; "
+                    f"detected {device_count} device(s).",
+                )
+            return True, f"CUDA device index {index} is available among {device_count} device(s)."
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError) as error:
+            return False, f"Configure a usable CUDA runtime ({type(error).__name__}: {error})."
 
     @staticmethod
     def _package_version(name: str) -> str:
@@ -201,6 +275,7 @@ class SystemCapabilityProvider:
         supported: bool,
         torch_available: bool,
         transformers_available: bool,
+        cuda_evidence: str,
     ) -> str:
         if supported:
             return f"Local torch/transformers runtime supports {capability.value}."
@@ -209,7 +284,7 @@ class SystemCapabilityProvider:
         if not transformers_available:
             return "Install the 'train' extra to provide transformers."
         if capability is Capability.SUPPORTS_CUDA:
-            return "Install/configure a CUDA-enabled torch runtime and visible device."
+            return cuda_evidence
         return f"Configure a backend that explicitly supports {capability.value}."
 
 
@@ -235,21 +310,25 @@ class RLTrainingEngine:
         self.capability_provider = capability_provider or SystemCapabilityProvider()
         self.backend_factory = backend_factory or _default_backend_factory
         self.algorithm_factory = algorithm_factory or _default_algorithm_factory
-        self.dataset_factory = dataset_factory or (lambda value: _LocalDataset(value))
-        self.reward_factory = reward_factory or (lambda value: _RecordedRewardProvider())
+        self._default_dataset = dataset_factory is None
+        self._default_reward = reward_factory is None
+        self._default_checkpoint = checkpoint_factory is None
+        self._default_logger = logger_factory is None
+        self.dataset_factory = dataset_factory
+        self.reward_factory = reward_factory
         self.batch_preparer_factory = batch_preparer_factory or (
-            lambda value: _DefaultBatchPreparer()
+            lambda value: _DefaultBatchPreparer(value.algorithm)
         )
-        self.checkpoint_factory = checkpoint_factory or _default_checkpoint_factory
-        self.logger_factory = logger_factory or (lambda value: _JSONLRunLogger(value))
+        self.checkpoint_factory = checkpoint_factory
+        self.logger_factory = logger_factory
 
-    def train(self) -> EngineResult:
-        return self._execute("train")
+    def train(self, *, max_steps: int | None = None) -> EngineResult:
+        return self._execute("train", max_steps=max_steps)
 
-    def resume(self, checkpoint: Path) -> EngineResult:
+    def resume(self, checkpoint: Path, *, max_steps: int | None = None) -> EngineResult:
         if not isinstance(checkpoint, Path):
             raise TypeError("resume checkpoint must be a pathlib.Path")
-        return self._execute("resume", checkpoint=checkpoint)
+        return self._execute("resume", checkpoint=checkpoint, max_steps=max_steps)
 
     def collect(self) -> EngineResult:
         return self._execute("collect")
@@ -262,22 +341,56 @@ class RLTrainingEngine:
         mode: EngineMode,
         *,
         checkpoint: Path | None = None,
+        max_steps: int | None = None,
     ) -> EngineResult:
-        requirements = required_capabilities(self.config, mode)
+        target_step = self._target_step(max_steps)
+        requirements = set(required_capabilities(self.config, mode))
+        requirements.update(_factory_requirements(self.backend_factory, self.config))
+        if mode in {"train", "resume"}:
+            requirements.update(_factory_requirements(self.algorithm_factory, self.config))
         detected = self.capability_provider.detect(self.config)
         detected.require(requirements)
+        snapshot = _capture_dataset_snapshot(
+            self.config,
+            require_pairs=self._default_dataset and mode in {"evaluate", "train", "resume"},
+            materialize=self._default_dataset,
+        )
+        default_reward = (
+            _PairRewardProvider(self.config, snapshot)
+            if self._default_reward and mode in {"evaluate", "train", "resume"}
+            else None
+        )
+        _seed_process(self.config)
         backend = self.backend_factory(self.config)
         global_step = 0
         resume_parent: str | None = None
         trajectory_count = 0
+        latest_checkpoint: object | None = None
+        result_trajectories: tuple[Trajectory, ...] = ()
+        evaluation_artifacts: dict[str, object] = {}
+        primary_error: BaseException | None = None
         try:
             backend.capabilities().require(requirements)
             algorithm = self._algorithm(mode, backend)
-            dataset = self.dataset_factory(self.config)
-            reward_provider = self._reward_provider(mode)
+            dataset = (
+                _SnapshotDataset(snapshot)
+                if self._default_dataset
+                else cast(DatasetFactory, self.dataset_factory)(self.config)
+            )
+            reward_provider = (
+                default_reward if self._default_reward else self._reward_provider(mode)
+            )
             batch_preparer = self._batch_preparer(mode)
-            checkpoint_coordinator = self._checkpoint(mode, backend)
-            logger = self.logger_factory(self.config)
+            checkpoint_coordinator = (
+                _LocalCheckpointCoordinator(self.config, backend, snapshot)
+                if self._default_checkpoint and mode in {"train", "resume"}
+                else self._checkpoint(mode, backend)
+            )
+            logger = (
+                _JSONLRunLogger(self.config, snapshot.sha256)
+                if self._default_logger
+                else cast(LoggerFactory, self.logger_factory)(self.config)
+            )
             if mode == "resume":
                 if checkpoint is None:  # pragma: no cover - public resume enforces this
                     raise ValueError("resume requires an operator-selected checkpoint")
@@ -286,26 +399,42 @@ class RLTrainingEngine:
                 restored = checkpoint_coordinator.load(checkpoint)
                 global_step = self._restored_step(restored)
                 resume_parent = self._restored_checkpoint_id(restored)
+                latest_checkpoint = getattr(restored, "manifest", None)
+                self._restore_engine_state(restored, algorithm)
             requests = tuple(dataset.materialize(mode))
             if not requests:
                 raise ValueError("RL dataset materialized no rollout requests")
             logger.start(mode, global_step, resume_parent, detected)
+            checksum_before = _parameter_checksum(backend)
             if mode == "collect":
-                trajectories = tuple(backend.generate(requests))
+                selected = self._rollout_requests(requests, global_step, rollout_index=0)
+                trajectories = tuple(backend.generate(selected))
                 logger.trajectories(trajectories, global_step)
                 trajectory_count = len(trajectories)
+                result_trajectories = trajectories
             elif mode == "evaluate":
-                trajectories = tuple(backend.generate(requests))
-                rewards = self._score(trajectories, reward_provider)
+                selected = self._rollout_requests(requests, global_step, rollout_index=0)
+                trajectories = tuple(backend.generate(selected))
+                scored, rewards = self._score(trajectories, reward_provider)
                 if batch_preparer is None:  # pragma: no cover - mode selection invariant
                     raise RuntimeError("batch preparer is unavailable")
-                batch = batch_preparer.prepare(trajectories, rewards, None)
-                backend.evaluate(batch)
-                logger.trajectories(trajectories, global_step)
+                prepared = _as_prepared(batch_preparer.prepare(scored, rewards, None), scored)
+                if prepared.batch is None:
+                    raise ValueError("evaluation produced no usable scored trajectories")
+                evaluation = backend.evaluate(prepared.batch)
+                logger.trajectories(scored, global_step)
                 logger.metrics(rewards, global_step)
-                trajectory_count = len(trajectories)
+                trajectory_count = len(scored)
+                result_trajectories = scored
+                evaluation_artifacts["policy_evaluation"] = evaluation
             else:
-                global_step, trajectory_count = self._train_loop(
+                (
+                    global_step,
+                    trajectory_count,
+                    result_trajectories,
+                    latest_checkpoint,
+                    evaluation_artifacts,
+                ) = self._train_loop(
                     backend=backend,
                     algorithm=cast(RLAlgorithm, algorithm),
                     requests=requests,
@@ -315,15 +444,45 @@ class RLTrainingEngine:
                     logger=logger,
                     global_step=global_step,
                     parent_checkpoint=resume_parent,
+                    target_step=target_step,
                 )
+            checksum_after = _parameter_checksum(backend)
             return EngineResult(
                 mode=mode,
                 global_step=global_step,
                 trajectory_count=trajectory_count,
                 checkpoint_parent=resume_parent,
+                checkpoint=latest_checkpoint,
+                parameter_checksum_before=checksum_before,
+                parameter_checksum_after=checksum_after,
+                parameters_updated=(
+                    None
+                    if checksum_before is None or checksum_after is None
+                    else checksum_before != checksum_after
+                ),
+                log_directory=_logger_directory(logger),
+                run_id=_logger_run_id(logger),
+                dataset_hash=snapshot.sha256,
+                trajectories=result_trajectories,
+                evaluation_artifacts=evaluation_artifacts,
             )
+        except BaseException as error:
+            primary_error = error
+            raise
         finally:
-            backend.close()
+            try:
+                backend.close()
+            except BaseException as close_error:
+                if primary_error is None:
+                    raise
+                diagnostic = (
+                    "Backend close also failed: " f"{type(close_error).__name__}: {close_error}"
+                )
+                add_note = getattr(primary_error, "add_note", None)
+                if callable(add_note):
+                    add_note(diagnostic)
+                else:  # pragma: no cover - Python 3.10 compatibility
+                    primary_error.__cause__ = close_error
 
     def _train_loop(
         self,
@@ -337,31 +496,94 @@ class RLTrainingEngine:
         logger: RunLogger,
         global_step: int,
         parent_checkpoint: str | None,
-    ) -> tuple[int, int]:
+        target_step: int,
+    ) -> tuple[int, int, tuple[Trajectory, ...], object | None, dict[str, object]]:
         trajectory_count = 0
         next_parent = parent_checkpoint
-        while global_step < self.config.algorithm.max_steps:
-            trajectories = tuple(backend.generate(requests))
-            rewards = self._score(trajectories, reward_provider)
-            batch = batch_preparer.prepare(trajectories, rewards, algorithm)
-            evaluation = backend.evaluate(batch)
-            loss = algorithm.compute_loss(batch, evaluation)
-            total_loss = getattr(loss, "total_loss", loss)
+        latest_checkpoint: object | None = None
+        all_trajectories: list[Trajectory] = []
+        artifacts: dict[str, object] = {}
+        batches = tuple(_chunks(requests, self.config.algorithm.batch_size))
+        batch_index = 0
+        rollout_index = 0
+        while global_step < target_step:
             backend.zero_grad()
-            backend.backward(total_loss)
+            accumulated = 0
+            attempts = 0
+            accumulation_steps = self.config.algorithm.gradient_accumulation_steps
+            window_limit = len(batches) * accumulation_steps
+            step_losses: list[object] = []
+            step_evaluations: list[PolicyEvaluation] = []
+            step_group_metrics: list[Mapping[str, float]] = []
+            while accumulated < accumulation_steps and attempts < window_limit:
+                request_batch = batches[batch_index % len(batches)]
+                batch_index += 1
+                attempts += 1
+                selected = self._rollout_requests(
+                    request_batch,
+                    global_step,
+                    rollout_index=rollout_index,
+                )
+                rollout_index += 1
+                trajectories = tuple(backend.generate(selected))
+                scored, rewards = self._score(trajectories, reward_provider)
+                prepared = _as_prepared(
+                    batch_preparer.prepare(scored, rewards, algorithm),
+                    scored,
+                )
+                logger.trajectories(scored, global_step)
+                logger.metrics(rewards, global_step)
+                trajectory_count += len(scored)
+                all_trajectories.extend(scored)
+                step_group_metrics.extend(prepared.group_metrics)
+                if prepared.batch is None:
+                    continue
+                evaluation = backend.evaluate(prepared.batch)
+                loss = algorithm.compute_loss(prepared.batch, evaluation)
+                total_loss = getattr(loss, "total_loss", loss)
+                try:
+                    scaled_loss = total_loss / accumulation_steps
+                except TypeError:
+                    scaled_loss = total_loss
+                backend.backward(scaled_loss)
+                accumulated += 1
+                step_losses.append(loss)
+                step_evaluations.append(evaluation)
+            if accumulated < accumulation_steps:
+                backend.zero_grad()
+                break
             step_result = backend.optimizer_step()
             expected_step = global_step + 1
             actual_step = getattr(step_result, "step", None)
             if actual_step != expected_step:
                 raise ValueError("backend optimizer step does not match engine global step")
             global_step = expected_step
-            logger.trajectories(trajectories, global_step)
-            logger.metrics(rewards, global_step)
-            trajectory_count += len(trajectories)
-            if self._should_checkpoint(global_step):
+            _log_training_step(
+                logger,
+                losses=tuple(step_losses),
+                evaluations=tuple(step_evaluations),
+                step_result=step_result,
+                global_step=global_step,
+                learning_rate=self.config.algorithm.learning_rate,
+                group_metrics=tuple(step_group_metrics),
+            )
+            artifacts = {
+                "losses": tuple(step_losses),
+                "evaluations": tuple(step_evaluations),
+                "optimizer_step": step_result,
+            }
+            if self._should_checkpoint(global_step, target_step):
+                _configure_checkpoint_state(checkpoint, algorithm)
                 saved = checkpoint.save(global_step, next_parent)
+                latest_checkpoint = saved
                 next_parent = getattr(saved, "checkpoint_id", next_parent)
-        return global_step, trajectory_count
+        return (
+            global_step,
+            trajectory_count,
+            tuple(all_trajectories),
+            latest_checkpoint,
+            artifacts,
+        )
 
     def _algorithm(
         self,
@@ -377,7 +599,7 @@ class RLTrainingEngine:
     def _reward_provider(self, mode: EngineMode) -> RewardProvider | None:
         if mode not in {"evaluate", "train", "resume"}:
             return None
-        return self.reward_factory(self.config)
+        return cast(RewardFactory, self.reward_factory)(self.config)
 
     def _batch_preparer(self, mode: EngineMode) -> BatchPreparer | None:
         if mode not in {"evaluate", "train", "resume"}:
@@ -391,16 +613,16 @@ class RLTrainingEngine:
     ) -> CheckpointCoordinator | None:
         if mode not in {"train", "resume"}:
             return None
-        return self.checkpoint_factory(self.config, backend)
+        return cast(CheckpointFactory, self.checkpoint_factory)(self.config, backend)
 
     @staticmethod
     def _score(
         trajectories: tuple[Trajectory, ...],
         provider: RewardProvider | None,
-    ) -> tuple[object, ...]:
+    ) -> tuple[tuple[Trajectory, ...], tuple[object, ...]]:
         if provider is None:  # pragma: no cover - mode selection enforces a provider
             raise RuntimeError("reward provider is unavailable")
-        return tuple(
+        results = tuple(
             provider.score(
                 RewardRequest(
                     trajectory=trajectory,
@@ -413,12 +635,64 @@ class RLTrainingEngine:
             )
             for trajectory in trajectories
         )
-
-    def _should_checkpoint(self, global_step: int) -> bool:
-        return (
-            global_step % self.config.checkpoint.save_steps == 0
-            or global_step == self.config.algorithm.max_steps
+        scored = tuple(
+            _bind_reward(trajectory, result)
+            for trajectory, result in zip(trajectories, results, strict=True)
         )
+        return scored, results
+
+    def _should_checkpoint(self, global_step: int, target_step: int) -> bool:
+        return global_step % self.config.checkpoint.save_steps == 0 or global_step == target_step
+
+    def _target_step(self, value: int | None) -> int:
+        target = self.config.algorithm.max_steps if value is None else value
+        if isinstance(target, bool) or not isinstance(target, int):
+            raise TypeError("max_steps must be an integer")
+        if target <= 0:
+            raise ValueError("max_steps must be positive")
+        return target
+
+    def _rollout_requests(
+        self,
+        requests: Sequence[RolloutRequest],
+        global_step: int,
+        *,
+        rollout_index: int,
+    ) -> tuple[RolloutRequest, ...]:
+        sample_count = (
+            self.config.algorithm.group_size if self.config.algorithm.name == "grpo" else 1
+        )
+        return tuple(
+            replace(
+                request,
+                num_samples=sample_count,
+                policy_version=f"policy-{global_step}",
+                seed=self.config.seed + rollout_index + index,
+            )
+            for index, request in enumerate(requests)
+        )
+
+    @staticmethod
+    def _restore_engine_state(restored: object, algorithm: RLAlgorithm | None) -> None:
+        algorithm_state = getattr(restored, "algorithm_state", None)
+        load_algorithm = getattr(algorithm, "load_state_dict", None)
+        if callable(load_algorithm) and isinstance(algorithm_state, Mapping):
+            load_algorithm(dict(algorithm_state))
+        scheduler_state = getattr(restored, "scheduler_state", None)
+        scheduler = getattr(algorithm, "scheduler", None)
+        load_scheduler = getattr(scheduler, "load_state_dict", None)
+        if callable(load_scheduler) and isinstance(scheduler_state, Mapping):
+            load_scheduler(dict(scheduler_state))
+        python_state = getattr(restored, "python_rng_state", None)
+        if python_state is not None:
+            random.setstate(python_state)
+        cpu_state = getattr(restored, "torch_cpu_rng_state", None)
+        cuda_states = getattr(restored, "torch_cuda_rng_states", ())
+        if cpu_state is not None:
+            torch_module = import_module("torch")
+            torch_module.set_rng_state(cpu_state)
+            if cuda_states:
+                torch_module.cuda.set_rng_state_all(list(cuda_states))
 
     @staticmethod
     def _restored_step(restored: object) -> int:
@@ -436,92 +710,454 @@ class RLTrainingEngine:
         return value
 
 
-class _LocalDataset:
-    def __init__(self, config: RLRunConfig) -> None:
-        self.config = config
+class _SnapshotDataset:
+    def __init__(self, snapshot: _DatasetSnapshot) -> None:
+        self.snapshot = snapshot
 
     def materialize(self, mode: EngineMode) -> Sequence[RolloutRequest]:
-        path = Path(self.config.dataset.train_path)
-        if not self.config.dataset.train_path:
+        return self.snapshot.requests
+
+
+def _capture_dataset_snapshot(
+    config: RLRunConfig,
+    *,
+    require_pairs: bool,
+    materialize: bool,
+) -> _DatasetSnapshot:
+    path = Path(config.dataset.train_path)
+    if not config.dataset.train_path:
+        if materialize:
             raise EngineDependencyError("dataset.train_path is required for RL execution")
-        if self.config.dataset.format == "text":
-            prompts = [line.strip() for line in path.read_text(encoding="utf-8").splitlines()]
-            return tuple(
-                RolloutRequest(prompt=prompt, case_id=f"line-{index}")
-                for index, prompt in enumerate(prompts, start=1)
-                if prompt
-            )
-        from .adapters.synthetic_cases import iter_json_object_lines
-
-        requests: list[RolloutRequest] = []
-        for line_number, row in iter_json_object_lines(path):
-            prompt = row.get("prompt") or row.get("query")
-            if not isinstance(prompt, str) or not prompt:
-                raise ValueError(f"{path}:{line_number}: prompt or query is required")
-            case_id = row.get("id")
-            requests.append(
-                RolloutRequest(
-                    prompt=prompt,
-                    case_id=case_id if isinstance(case_id, str) else f"line-{line_number}",
-                    metadata=row,
-                )
-            )
-        return tuple(requests)
-
-
-class _RecordedRewardProvider:
-    def score(self, request: RewardRequest) -> float:
-        reward = request.trajectory.reward_total
-        if reward is None:
+        payload = b""
+        return _DatasetSnapshot(payload, hashlib.sha256(payload).hexdigest(), (), {})
+    try:
+        payload = path.read_bytes()
+    except OSError as error:
+        raise EngineDependencyError(f"Unable to read RL dataset snapshot: {path}") from error
+    digest = hashlib.sha256(payload).hexdigest()
+    if not materialize:
+        return _DatasetSnapshot(payload, digest, (), {})
+    if config.dataset.format == "text":
+        if require_pairs:
             raise EngineDependencyError(
-                "Generated trajectory has no recorded reward; configure an observable "
-                "RewardProvider for train/evaluate."
+                "train/evaluate requires authored JSONL chosen/rejected pair metadata"
             )
-        return reward
+        prompts = payload.decode("utf-8").splitlines()
+        text_requests = tuple(
+            RolloutRequest(prompt=prompt.strip(), case_id=f"line-{index}")
+            for index, prompt in enumerate(prompts, start=1)
+            if prompt.strip()
+        )
+        return _DatasetSnapshot(payload, digest, text_requests, {})
+
+    from .adapters.pair_records import validate_pair_record
+
+    pairs: dict[str, Mapping[str, object]] = {}
+    pair_requests: list[RolloutRequest] = []
+    try:
+        text = payload.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise ValueError(f"{path}: dataset must be UTF-8 JSONL") from error
+    for line_number, raw in enumerate(text.splitlines(), start=1):
+        if not raw.strip():
+            continue
+        try:
+            parsed = json.loads(raw, parse_constant=_reject_json_constant)
+        except (json.JSONDecodeError, ValueError) as error:
+            raise ValueError(f"{path}:{line_number}: invalid JSON: {error}") from error
+        pair = validate_pair_record(parsed, path, line_number)
+        record_id = cast(str, pair["record_id"])
+        chosen = cast(str, pair["chosen"])
+        rejected = cast(str, pair["rejected"])
+        if chosen.strip().casefold() == rejected.strip().casefold():
+            raise ValueError(f"{path}:{line_number}: chosen/rejected normalize to the same output")
+        if record_id in pairs:
+            raise ValueError(f"{path}:{line_number}: duplicate record_id {record_id!r}")
+        frozen_pair = cast(Mapping[str, object], _freeze_json_value(pair))
+        pairs[record_id] = frozen_pair
+        pair_requests.append(
+            RolloutRequest(
+                prompt=cast(str, pair["prompt"]),
+                case_id=record_id,
+                metadata=frozen_pair,
+            )
+        )
+    if require_pairs and not pair_requests:
+        raise EngineDependencyError("RL dataset contains no authored preference pairs")
+    return _DatasetSnapshot(
+        payload,
+        digest,
+        tuple(pair_requests),
+        MappingProxyType(pairs),
+    )
+
+
+def _freeze_json_value(value: object) -> object:
+    if isinstance(value, Mapping):
+        return MappingProxyType({str(key): _freeze_json_value(item) for key, item in value.items()})
+    if isinstance(value, list):
+        return tuple(_freeze_json_value(item) for item in value)
+    return value
+
+
+def _reject_json_constant(value: str) -> None:
+    raise ValueError(f"non-standard JSON constant {value!r}")
+
+
+class _PairRewardProvider:
+    def __init__(self, config: RLRunConfig, snapshot: _DatasetSnapshot) -> None:
+        if not snapshot.pairs:
+            raise EngineDependencyError(
+                "configured reward provider requires authored chosen/rejected pair metadata"
+            )
+        from gepa_mindfulness.core.rewards import (
+            GEPARewardCalculator,
+            HallucinationConfig,
+            RewardWeights,
+        )
+
+        self.snapshot = snapshot
+        self.weights = RewardWeights(
+            alpha=config.reward.alpha,
+            beta=config.reward.beta,
+            gamma=config.reward.gamma,
+            delta=config.reward.delta,
+        ).normalized()
+        self.calculator = GEPARewardCalculator(
+            weights=self.weights,
+            hallucination=HallucinationConfig(
+                confidence_threshold=0.75,
+                confident_wrong_penalty=-1.0,
+                uncertain_wrong_penalty=-0.5,
+                appropriate_abstention_reward=0.5,
+                lazy_abstention_penalty=-1.0,
+            ),
+        )
+
+    def score(self, request: RewardRequest) -> RewardAssessment:
+        from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
+        from gepa_mindfulness.core.reward_integrity import (
+            RewardIntegrityCalculator,
+            RewardObservation,
+        )
+        from gepa_mindfulness.training.reward_pipeline import RewardPipeline
+
+        record_id = request.trajectory.case_id
+        pair = self.snapshot.pairs.get(record_id or "")
+        if pair is None:
+            raise ValueError(f"trajectory case_id {record_id!r} has no authored scoring pair")
+        chosen = cast(str, pair["chosen"])
+        rejected = cast(str, pair["rejected"])
+        normalized = request.trajectory.response.strip().casefold()
+        matched = "chosen" if normalized == chosen.strip().casefold() else None
+        if normalized == rejected.strip().casefold():
+            matched = "rejected"
+        references = (
+            EvidenceReference(
+                f"{self.snapshot.sha256}:{record_id}:chosen",
+                EvidenceSourceKind.EXTERNAL_RECORD,
+            ),
+            EvidenceReference(
+                f"{self.snapshot.sha256}:{record_id}:rejected",
+                EvidenceSourceKind.EXTERNAL_RECORD,
+            ),
+        )
+        base = self.calculator.compute_reward(
+            response=request.trajectory.response,
+            reference_answers=(chosen,),
+            gepa_scores=None,
+            imperatives=None,
+            confidence=1.0,
+            trace_summary={},
+        )
+
+        class BaseProvider:
+            def score(self, value: RewardRequest) -> object:
+                return base
+
+        trajectory = replace(request.trajectory, evidence_references=references)
+        bound_request = RewardRequest(trajectory=trajectory, observable_references=references)
+        if matched is None:
+            components = {
+                "task_success": base.task_success,
+                "gepa_alignment": base.gepa_alignment,
+                "honesty": base.honesty,
+                "hallucination": base.hallucination,
+                "paraconsistent_truth": base.paraconsistent_truth,
+            }
+            evidence = {name: references for name, value in components.items() if value < 0.0}
+            return RewardAssessment(base.total, components, evidence, references, base)
+        authored = cast(
+            Mapping[str, float],
+            pair[f"{matched}_reward_components"],
+        )
+        evidence = {name: references for name, value in authored.items() if float(value) < 0.0}
+        observation = RewardObservation(
+            **dict(authored),
+            observable_evidence=evidence,
+            observable_references=references,
+        )
+        result = RewardPipeline(
+            BaseProvider(),
+            integrity_calculator=RewardIntegrityCalculator(),
+            overlay_weight=self.weights.beta,
+        ).score(bound_request, observation=observation)
+        integrity = result.integrity_breakdown
+        if integrity is None:  # pragma: no cover - nonzero overlay in canonical defaults
+            raise RuntimeError("reward-integrity breakdown is unavailable")
+        components = {
+            **dict(integrity.components),
+            "task_success": base.task_success,
+            "gepa_alignment": integrity.aggregate,
+            "honesty": base.honesty,
+            "hallucination": base.hallucination,
+            "paraconsistent_truth": base.paraconsistent_truth,
+        }
+        full_evidence = dict(evidence)
+        for name, value in components.items():
+            if value < 0.0:
+                full_evidence[name] = references
+        return RewardAssessment(result.total, components, full_evidence, references, result)
 
 
 class _DefaultBatchPreparer:
+    def __init__(self, config: object) -> None:
+        self.config = config
+
     def prepare(
         self,
         trajectories: tuple[Trajectory, ...],
         rewards: tuple[object, ...],
         algorithm: RLAlgorithm | None,
-    ) -> TrajectoryBatch:
+    ) -> PreparedBatch:
         values = tuple(_reward_value(reward) for reward in rewards)
         if len(values) != len(trajectories):
             raise ValueError("rewards must align with trajectories")
         if not values:
             raise ValueError("at least one scored trajectory is required")
-        compute_advantages = (
-            getattr(algorithm, "compute_group_advantages", None) if algorithm is not None else None
-        )
-        if callable(compute_advantages):
-            computed = compute_advantages(values)
-            advantages = values if computed is None else tuple(computed)
-        else:
-            advantages = values
+        if getattr(self.config, "name", "ppo") == "grpo":
+            return self._prepare_grpo(trajectories, values, algorithm)
+        return self._prepare_ppo(trajectories, values)
+
+    def _prepare_grpo(
+        self,
+        trajectories: tuple[Trajectory, ...],
+        rewards: tuple[float, ...],
+        algorithm: RLAlgorithm | None,
+    ) -> PreparedBatch:
+        compute_advantages = getattr(algorithm, "compute_group_advantages", None)
+        if not callable(compute_advantages):
+            raise TypeError("GRPO algorithm must expose compute_group_advantages")
+        grouped: dict[str, list[tuple[Trajectory, float]]] = {}
+        for trajectory, reward in zip(trajectories, rewards, strict=True):
+            group_id = trajectory.case_id or trajectory.prompt
+            grouped.setdefault(group_id, []).append((trajectory, reward))
         prepared: list[Trajectory] = []
-        masks: list[tuple[bool, ...]] = []
-        for trajectory, reward, advantage in zip(
-            trajectories,
-            values,
-            advantages,
-            strict=True,
-        ):
+        skipped: list[Trajectory] = []
+        group_metrics: list[Mapping[str, float]] = []
+        for group in grouped.values():
+            group_rewards = tuple(reward for _, reward in group)
+            advantages = compute_advantages(group_rewards)
+            mean = math.fsum(group_rewards) / len(group_rewards)
+            variance = math.fsum((reward - mean) ** 2 for reward in group_rewards) / len(
+                group_rewards
+            )
+            group_metrics.append(
+                {
+                    "group_advantage_mean": (
+                        0.0 if advantages is None else math.fsum(advantages) / len(advantages)
+                    ),
+                    "group_reward_mean": mean,
+                    "group_reward_std": math.sqrt(variance),
+                    "group_size": float(len(group_rewards)),
+                }
+            )
+            if advantages is None:
+                skipped.extend(trajectory for trajectory, _ in group)
+                continue
+            for (trajectory, _), advantage in zip(group, advantages, strict=True):
+                width = _response_width(trajectory)
+                prepared.append(
+                    replace(
+                        trajectory,
+                        advantage=tuple(float(advantage) for _ in range(width)),
+                        returns=None,
+                    )
+                )
+        if not prepared:
+            return PreparedBatch(None, (), tuple(skipped), tuple(group_metrics))
+        return PreparedBatch(
+            _trajectory_batch(tuple(prepared)),
+            tuple(prepared),
+            tuple(skipped),
+            tuple(group_metrics),
+        )
+
+    def _prepare_ppo(
+        self,
+        trajectories: tuple[Trajectory, ...],
+        rewards: tuple[float, ...],
+    ) -> PreparedBatch:
+        gamma = float(getattr(self.config, "gamma", 0.99))
+        gae_lambda = float(getattr(self.config, "gae_lambda", 0.95))
+        prepared: list[Trajectory] = []
+        for trajectory, reward in zip(trajectories, rewards, strict=True):
             token_ids = trajectory.response_token_ids
             if token_ids is None or not token_ids:
                 raise ValueError("response_token_ids are required for engine evaluation")
             width = len(token_ids)
+            old_values = trajectory.value_predictions
+            if old_values is None or len(old_values) != width:
+                raise ValueError("PPO requires one value prediction per response token")
+            terminal_rewards = [0.0 for _ in range(width)]
+            terminal_rewards[-1] = reward
+            continuation = [1.0 for _ in range(width)]
+            continuation[-1] = 0.0
+            next_values = [*old_values[1:], 0.0]
+            running = 0.0
+            reversed_advantages: list[float] = []
+            for index in range(width - 1, -1, -1):
+                delta = (
+                    terminal_rewards[index]
+                    + gamma * next_values[index] * continuation[index]
+                    - old_values[index]
+                )
+                running = delta + gamma * gae_lambda * continuation[index] * running
+                reversed_advantages.append(running)
+            advantages = tuple(reversed(reversed_advantages))
+            returns = tuple(
+                advantage + value for advantage, value in zip(advantages, old_values, strict=True)
+            )
             prepared.append(
                 replace(
                     trajectory,
                     reward_total=reward,
-                    advantage=tuple(advantage for _ in range(width)),
-                    returns=tuple(reward for _ in range(width)),
+                    advantage=advantages,
+                    returns=returns,
                 )
             )
-            masks.append(tuple(True for _ in range(width)))
-        return TrajectoryBatch(tuple(prepared), tuple(masks))
+        prepared_tuple = tuple(prepared)
+        return PreparedBatch(_trajectory_batch(prepared_tuple), prepared_tuple)
+
+
+def _response_width(trajectory: Trajectory) -> int:
+    token_ids = trajectory.response_token_ids
+    if token_ids is None or not token_ids:
+        raise ValueError("response_token_ids are required for engine evaluation")
+    return len(token_ids)
+
+
+def _trajectory_batch(trajectories: tuple[Trajectory, ...]) -> TrajectoryBatch:
+    width = max(_response_width(trajectory) for trajectory in trajectories)
+    masks = tuple(
+        tuple(index < _response_width(trajectory) for index in range(width))
+        for trajectory in trajectories
+    )
+    return TrajectoryBatch(trajectories, masks)
+
+
+def _as_prepared(
+    value: TrajectoryBatch | PreparedBatch,
+    scored: tuple[Trajectory, ...],
+) -> PreparedBatch:
+    if isinstance(value, PreparedBatch):
+        return value
+    if not isinstance(value, TrajectoryBatch):
+        raise TypeError("batch preparer must return TrajectoryBatch or PreparedBatch")
+    return PreparedBatch(value, value.trajectories or scored)
+
+
+def _bind_reward(trajectory: Trajectory, result: object) -> Trajectory:
+    total = _reward_value(result)
+    if not isinstance(result, RewardAssessment):
+        return replace(trajectory, reward_total=total)
+    references = tuple(result.references)
+    evidence = {name: tuple(values) for name, values in result.evidence.items()}
+    return replace(
+        trajectory,
+        reward_total=total,
+        reward_components=dict(result.components),
+        reward_component_evidence=evidence,
+        evidence_references=references,
+    )
+
+
+def _chunks(
+    values: Sequence[RolloutRequest],
+    size: int,
+) -> Sequence[tuple[RolloutRequest, ...]]:
+    return tuple(tuple(values[index : index + size]) for index in range(0, len(values), size))
+
+
+def _parameter_checksum(backend: TrainablePolicyBackend) -> str | None:
+    provider = getattr(backend, "parameter_checksum", None)
+    if not callable(provider):
+        return None
+    value = provider()
+    if not isinstance(value, str) or not value:
+        raise ValueError("backend parameter_checksum must return a non-empty string")
+    return value
+
+
+def _logger_directory(logger: RunLogger) -> Path | None:
+    value = getattr(logger, "directory", None)
+    return value if isinstance(value, Path) else None
+
+
+def _logger_run_id(logger: RunLogger) -> str | None:
+    value = getattr(logger, "run_id", None)
+    return value if isinstance(value, str) and value else None
+
+
+def _configure_checkpoint_state(checkpoint: CheckpointCoordinator, algorithm: RLAlgorithm) -> None:
+    configure = getattr(checkpoint, "set_training_state", None)
+    if not callable(configure):
+        return
+    state_provider = getattr(algorithm, "state_dict", None)
+    algorithm_state = state_provider() if callable(state_provider) else {}
+    scheduler = getattr(algorithm, "scheduler", None)
+    scheduler_state_provider = getattr(scheduler, "state_dict", None)
+    scheduler_state = scheduler_state_provider() if callable(scheduler_state_provider) else None
+    configure(algorithm_state=algorithm_state, scheduler_state=scheduler_state)
+
+
+def _log_training_step(
+    logger: RunLogger,
+    *,
+    losses: tuple[object, ...],
+    evaluations: tuple[PolicyEvaluation, ...],
+    step_result: object,
+    global_step: int,
+    learning_rate: float,
+    group_metrics: tuple[Mapping[str, float], ...],
+) -> None:
+    handler = getattr(logger, "training_step", None)
+    if callable(handler):
+        handler(
+            losses=losses,
+            evaluations=evaluations,
+            step_result=step_result,
+            global_step=global_step,
+            learning_rate=learning_rate,
+            group_metrics=group_metrics,
+        )
+
+
+def _serialized_artifact(value: object | None) -> object | None:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, Path):
+        return str(value)
+    to_dict = getattr(value, "to_dict", None)
+    if callable(to_dict):
+        return _serialized_artifact(to_dict())
+    if isinstance(value, Mapping):
+        return {str(key): _serialized_artifact(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_serialized_artifact(item) for item in value]
+    if hasattr(value, "__dict__"):
+        return _serialized_artifact(vars(value))
+    return repr(value)
 
 
 def _reward_value(result: object) -> float:
@@ -529,6 +1165,16 @@ def _reward_value(result: object) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError("reward provider must return a numeric value or object with total")
     return float(value)
+
+
+def _seed_process(config: RLRunConfig) -> None:
+    random.seed(config.seed)
+    if importlib.util.find_spec("torch") is None:
+        return
+    torch_module = import_module("torch")
+    torch_module.manual_seed(config.seed)
+    if config.runtime.device.startswith("cuda"):
+        torch_module.cuda.manual_seed_all(config.seed)
 
 
 def _default_backend_factory(config: RLRunConfig) -> TrainablePolicyBackend:
@@ -578,13 +1224,21 @@ def _default_algorithm_factory(
 
 
 class _LocalCheckpointCoordinator:
-    def __init__(self, config: RLRunConfig, backend: TrainablePolicyBackend) -> None:
+    def __init__(
+        self,
+        config: RLRunConfig,
+        backend: TrainablePolicyBackend,
+        snapshot: _DatasetSnapshot,
+    ) -> None:
         import torch
 
         from .checkpointing import CheckpointRNGTopology, LocalCheckpointStore
 
         self.config = config
         self.backend = backend
+        self.snapshot = snapshot
+        self.algorithm_state: Mapping[str, object] = {}
+        self.scheduler_state: Mapping[str, object] | None = None
         device_type = cast(
             Literal["cpu", "cuda"],
             "cuda" if config.runtime.device.startswith("cuda") else "cpu",
@@ -603,7 +1257,7 @@ class _LocalCheckpointCoordinator:
                 "Callable[[bytes], BackendCheckpointResult]",
                 getattr(backend, "load_checkpoint_bytes"),
             )
-            snapshot = cast(
+            backend_snapshot = cast(
                 "Callable[[], object]",
                 getattr(backend, "capture_checkpoint_restore_state"),
             )
@@ -616,22 +1270,33 @@ class _LocalCheckpointCoordinator:
                 "Backend does not expose the Task 4 checkpoint transaction interface."
             ) from error
         self._torch = torch
-        self.store = LocalCheckpointStore(
-            Path(config.checkpoint.output_dir),
-            backend_save=backend_save,
-            backend_preflight=preflight,
-            backend_load_bytes=load_bytes,
-            backend_snapshot=snapshot,
-            backend_rollback=rollback,
-            rng_topology=topology,
-        )
+        self._store_type = LocalCheckpointStore
+        self._store_kwargs = {
+            "backend_save": backend_save,
+            "backend_preflight": preflight,
+            "backend_load_bytes": load_bytes,
+            "backend_snapshot": backend_snapshot,
+            "backend_rollback": rollback,
+            "rng_topology": topology,
+        }
+        self.store = LocalCheckpointStore(Path(config.checkpoint.output_dir), **self._store_kwargs)
 
     def load(self, path: Path) -> object:
-        return self.store.load(
+        selected_store = self._store_type(path.parent, **self._store_kwargs)
+        return selected_store.load(
             path,
-            expected_dataset_hash=_dataset_hash(self.config),
+            expected_dataset_hash=self.snapshot.sha256,
             expected_config_hash=_config_hash(self.config),
         )
+
+    def set_training_state(
+        self,
+        *,
+        algorithm_state: Mapping[str, object],
+        scheduler_state: Mapping[str, object] | None,
+    ) -> None:
+        self.algorithm_state = dict(algorithm_state)
+        self.scheduler_state = None if scheduler_state is None else dict(scheduler_state)
 
     def save(self, global_step: int, parent_checkpoint: str | None) -> object:
         from .checkpointing import CheckpointSnapshot
@@ -645,34 +1310,30 @@ class _LocalCheckpointCoordinator:
         )
         snapshot = CheckpointSnapshot(
             global_step=global_step,
-            algorithm_state={"algorithm": self.config.algorithm.name},
-            scheduler_state=None,
+            algorithm_state=self.algorithm_state,
+            scheduler_state=self.scheduler_state,
             python_rng_state=random.getstate(),
             torch_cpu_rng_state=cpu_rng,
             torch_cuda_rng_states=cuda_rng,
             canonical_config=config_payload,
-            dataset_hash=_dataset_hash(self.config),
+            dataset_hash=self.snapshot.sha256,
             config_hash=_config_hash(self.config),
             parent_checkpoint=parent_checkpoint,
         )
         return self.store.save(snapshot)
 
 
-def _default_checkpoint_factory(
-    config: RLRunConfig,
-    backend: TrainablePolicyBackend,
-) -> CheckpointCoordinator:
-    return _LocalCheckpointCoordinator(config, backend)
-
-
 class _JSONLRunLogger:
-    def __init__(self, config: RLRunConfig) -> None:
+    def __init__(self, config: RLRunConfig, dataset_hash: str) -> None:
         from .run_logging import JSONLLoggingSink
 
         self.config = config
-        self.sink = JSONLLoggingSink(Path(config.logging.log_dir), rank=0)
         self.run_id = f"rl-{uuid.uuid4().hex}"
+        self.directory = Path(config.logging.log_dir) / self.run_id
+        self.sink = JSONLLoggingSink(self.directory, rank=0)
+        self.dataset_hash = dataset_hash
         self.backend_name = "torch_portable"
+        self._record_counter = 0
 
     def start(
         self,
@@ -702,7 +1363,7 @@ class _JSONLRunLogger:
             model=self.config.policy.model_name,
             reference_model=self.config.policy.model_name,
             adapter=None,
-            dataset_hash=_dataset_hash(self.config),
+            dataset_hash=self.dataset_hash,
             config_hash=_config_hash(self.config),
             seed=self.config.seed,
             software_versions={"backend": capabilities.backend_version},
@@ -740,8 +1401,24 @@ class _JSONLRunLogger:
 
         values = tuple(_reward_value(reward) for reward in rewards)
         mean = sum(values) / len(values) if values else 0.0
+        component_names = {
+            name
+            for reward in rewards
+            if isinstance(reward, RewardAssessment)
+            for name in reward.components
+        }
+        component_means = {
+            name: math.fsum(
+                float(reward.components.get(name, 0.0))
+                for reward in rewards
+                if isinstance(reward, RewardAssessment)
+            )
+            / max(sum(isinstance(reward, RewardAssessment) for reward in rewards), 1)
+            for name in component_names
+        }
+        self._record_counter += 1
         record = MetricRecord(
-            record_id=f"metrics-{global_step}",
+            record_id=f"metrics-{global_step}-{self._record_counter}",
             run_id=self.run_id,
             timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             global_step=global_step,
@@ -750,14 +1427,105 @@ class _JSONLRunLogger:
             actor_backend=self.backend_name,
             learner_backend=self.backend_name,
             policy_version=f"policy-{global_step}",
-            metrics={"total_reward": mean},
+            metrics={"total_reward": mean, **component_means},
         )
         self.sink.log_metrics(record)
+        for index, reward in enumerate(rewards):
+            self._record_counter += 1
+            response_metrics = {"response_reward": _reward_value(reward)}
+            if isinstance(reward, RewardAssessment):
+                response_metrics.update(reward.components)
+            self.sink.log_metrics(
+                MetricRecord(
+                    record_id=f"response-{global_step}-{index}-{self._record_counter}",
+                    run_id=self.run_id,
+                    timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                    global_step=global_step,
+                    scope="response",
+                    backend=self.backend_name,
+                    actor_backend=self.backend_name,
+                    learner_backend=self.backend_name,
+                    policy_version=f"policy-{global_step}",
+                    metrics=response_metrics,
+                )
+            )
+
+    def training_step(
+        self,
+        *,
+        losses: tuple[object, ...],
+        evaluations: tuple[PolicyEvaluation, ...],
+        step_result: object,
+        global_step: int,
+        learning_rate: float,
+        group_metrics: tuple[Mapping[str, float], ...],
+    ) -> None:
+        from datetime import datetime, timezone
+
+        from .run_logging import MetricRecord
+
+        metrics: dict[str, float] = {
+            "learning_rate": learning_rate,
+            "optimizer_step": float(getattr(step_result, "step", global_step)),
+        }
+        gradient_norm = _scalar(getattr(step_result, "gradient_norm", None))
+        if gradient_norm is not None:
+            metrics["gradient_norm"] = gradient_norm
+        for field, name in (
+            ("policy_loss", "policy_loss"),
+            ("value_loss", "value_loss"),
+            ("entropy", "entropy"),
+            ("kl", "kl"),
+        ):
+            values = [
+                value
+                for loss in losses
+                if (value := _scalar(getattr(loss, field, None))) is not None
+            ]
+            if values:
+                metrics[name] = math.fsum(values) / len(values)
+        self._record_counter += 1
+        self.sink.log_metrics(
+            MetricRecord(
+                record_id=f"step-{global_step}-{self._record_counter}",
+                run_id=self.run_id,
+                timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                global_step=global_step,
+                scope="aggregate",
+                backend=self.backend_name,
+                actor_backend=self.backend_name,
+                learner_backend=self.backend_name,
+                policy_version=f"policy-{global_step - 1}",
+                metrics=metrics,
+            )
+        )
+        for index, group in enumerate(group_metrics):
+            self._record_counter += 1
+            self.sink.log_metrics(
+                MetricRecord(
+                    record_id=f"group-{global_step}-{index}-{self._record_counter}",
+                    run_id=self.run_id,
+                    timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                    global_step=global_step,
+                    scope="group",
+                    backend=self.backend_name,
+                    actor_backend=self.backend_name,
+                    learner_backend=self.backend_name,
+                    policy_version=f"policy-{global_step - 1}",
+                    metrics=group,
+                )
+            )
 
 
 def _config_payload(config: RLRunConfig) -> bytes:
+    payload = asdict(config)
+    payload.pop("checkpoint", None)
+    payload.pop("logging", None)
+    payload.pop("dataset", None)
+    algorithm = cast(dict[str, object], payload["algorithm"])
+    algorithm.pop("max_steps", None)
     serialized = json.dumps(
-        asdict(config),
+        payload,
         allow_nan=False,
         sort_keys=True,
         separators=(",", ":"),
@@ -769,11 +1537,20 @@ def _config_hash(config: RLRunConfig) -> str:
     return hashlib.sha256(_config_payload(config)).hexdigest()
 
 
-def _dataset_hash(config: RLRunConfig) -> str:
-    path = Path(config.dataset.train_path)
-    if path.is_file():
-        return hashlib.sha256(path.read_bytes()).hexdigest()
-    return hashlib.sha256(config.dataset.train_path.encode("utf-8")).hexdigest()
+def _scalar(value: object) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    mean = getattr(value, "mean", None)
+    if callable(mean):
+        value = mean()
+    item = getattr(value, "item", None)
+    if callable(item):
+        converted = item()
+        if isinstance(converted, (int, float)) and not isinstance(converted, bool):
+            return float(converted)
+    return None
 
 
 def build_default_engine(config: RLRunConfig) -> RLTrainingEngine:

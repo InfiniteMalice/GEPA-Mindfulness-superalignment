@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
+import random
 import subprocess
 import sys
 import warnings
@@ -12,6 +15,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from gepa_mindfulness.training import engine as engine_module
 from gepa_mindfulness.training import rl_cli
 from gepa_mindfulness.training.capability import (
     BackendCapabilities,
@@ -20,11 +24,18 @@ from gepa_mindfulness.training.capability import (
     CapabilityEvidence,
     CapabilityState,
 )
-from gepa_mindfulness.training.engine import RLTrainingEngine, required_capabilities
+from gepa_mindfulness.training.engine import (
+    RLTrainingEngine,
+    SystemCapabilityProvider,
+    required_capabilities,
+)
 from gepa_mindfulness.training.runtime_config import (
     AlgorithmConfig,
     CheckpointConfig,
+    DatasetConfig,
+    LoggingConfig,
     RLRunConfig,
+    RuntimeConfig,
 )
 from gepa_mindfulness.training.trajectory import (
     PolicyEvaluation,
@@ -422,3 +433,470 @@ def test_legacy_trainers_warn_while_explicit_lightweight_names_do_not(tmp_path: 
         LightweightPPOTrainer(ppo_config)
         LightweightGRPOTrainer(grpo_config)
     assert explicit == []
+
+
+def test_injected_algorithm_extra_requirement_fails_before_every_factory(tmp_path: Path) -> None:
+    events: list[str] = []
+    capabilities = _capabilities(supported=True)
+    evidence = dict(capabilities.capabilities)
+    evidence[Capability.SUPPORTS_VULKAN] = CapabilityEvidence(
+        state=CapabilityState.UNSUPPORTED,
+        evidence="fake unsupported Vulkan",
+    )
+    report = BackendCapabilities("fake", "1", evidence)
+
+    class Provider:
+        def detect(self, config: RLRunConfig) -> BackendCapabilities:
+            events.append("capability")
+            return report
+
+    class AlgorithmFactory:
+        def required_capabilities(self, config: RLRunConfig) -> frozenset[Capability]:
+            return frozenset({Capability.SUPPORTS_VULKAN})
+
+        def __call__(self, config: RLRunConfig, backend: object) -> _Algorithm:
+            events.append("algorithm.factory")
+            return _Algorithm(events)
+
+    engine = RLTrainingEngine(
+        _config(tmp_path),
+        capability_provider=Provider(),
+        backend_factory=lambda config: events.append("backend.factory") or _Backend(events),
+        algorithm_factory=AlgorithmFactory(),
+        dataset_factory=lambda config: events.append("dataset.factory") or _Dataset(events),
+        reward_factory=lambda config: events.append("reward.factory") or _Reward(events),
+        batch_preparer_factory=lambda config: events.append("batch.factory")
+        or _BatchPreparer(events),
+        checkpoint_factory=lambda config, backend: events.append("checkpoint.factory")
+        or _Checkpoint(events, backend),
+        logger_factory=lambda config: events.append("logger.factory") or _Logger(events),
+    )
+
+    with pytest.raises(CapabilityError, match="supports_vulkan"):
+        engine.train()
+
+    assert events == ["capability"]
+
+
+def test_invalid_cuda_index_fails_before_backend_factory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+    config = replace(_config(tmp_path), runtime=RuntimeConfig(device="cuda:3"))
+    fake_torch = SimpleNamespace(
+        cuda=SimpleNamespace(is_available=lambda: True, device_count=lambda: 1)
+    )
+    monkeypatch.setattr(engine_module.importlib.util, "find_spec", lambda name: object())
+    monkeypatch.setattr(engine_module, "import_module", lambda name: fake_torch)
+    engine = RLTrainingEngine(
+        config,
+        capability_provider=SystemCapabilityProvider(),
+        backend_factory=lambda value: events.append("backend.factory") or _Backend(events),
+    )
+
+    with pytest.raises(CapabilityError, match="supports_cuda"):
+        engine.train()
+
+    assert events == []
+
+
+class _PairBackend(_Backend):
+    def __init__(self, events: list[str], responses: dict[str, tuple[str, ...]]) -> None:
+        super().__init__(events)
+        self.responses = responses
+        self.request_batches: list[tuple[RolloutRequest, ...]] = []
+        self.random_observations: list[float] = []
+
+    def generate(self, requests: object) -> tuple[Trajectory, ...]:
+        request_batch = tuple(requests)
+        self.request_batches.append(request_batch)
+        self.random_observations.append(random.random())
+        trajectories: list[Trajectory] = []
+        for request in request_batch:
+            source_id = request.metadata.get("source_case_id")
+            values = self.responses.get(
+                request.case_id or "",
+                self.responses.get(str(source_id), ("fallback",)),
+            )
+            for index in range(request.num_samples):
+                response = values[index % len(values)]
+                trajectories.append(
+                    Trajectory(
+                        trajectory_id=f"{request.case_id}-{index}-{len(self.request_batches)}",
+                        case_id=request.case_id,
+                        prompt=request.prompt,
+                        response=response,
+                        prompt_token_ids=(1,),
+                        response_token_ids=(2, 3),
+                        old_log_probs=(-0.2, -0.2),
+                        reference_log_probs=(-0.3, -0.3),
+                        value_predictions=(0.1, 0.2),
+                        backend_name="fake",
+                        backend_version="1",
+                        model_identifier="fake-model",
+                        policy_version=request.policy_version,
+                        seed=request.seed,
+                    )
+                )
+        return tuple(trajectories)
+
+    def parameter_checksum(self) -> str:
+        return f"checksum-{self.step}"
+
+
+def _pair_config(tmp_path: Path, rows: list[dict[str, object]], **algorithm: object) -> RLRunConfig:
+    component_names = (
+        "objective_fidelity",
+        "feedback_integrity",
+        "skill_transfer",
+        "reality_contact",
+        "exploit_disclosure",
+        "long_horizon_agency",
+        "benign_creativity",
+        "repair_quality",
+    )
+    normalized_rows: list[dict[str, object]] = []
+    for line, row in enumerate(rows, start=1):
+        source_case_id = str(row["id"])
+        chosen_components = {name: 0.5 for name in component_names}
+        rejected_components = {name: -0.5 for name in component_names}
+        normalized_rows.append(
+            {
+                "record_id": f"{source_case_id}:grounded_over_proxy",
+                "source_case_id": source_case_id,
+                "source_case_version": "1.0",
+                "source_path": "authored/source.jsonl",
+                "source_line": line,
+                "source_sha256": "a" * 64,
+                "pair_rule": "grounded_over_proxy",
+                "prompt": row["prompt"],
+                "chosen": row["chosen"],
+                "rejected": row["rejected"],
+                "chosen_class": "grounded_success",
+                "rejected_class": "proxy_exploitation",
+                "chosen_reward_components": chosen_components,
+                "rejected_reward_components": rejected_components,
+                "diagnostics": {"central": "authored", "supporting": []},
+                "schema_version": "reward-integrity-rl-pairs-v1",
+            }
+        )
+    dataset = tmp_path / "pairs.jsonl"
+    dataset.write_text(
+        "".join(json.dumps(row, sort_keys=True) + "\n" for row in normalized_rows),
+        encoding="utf-8",
+    )
+    return RLRunConfig(
+        algorithm=AlgorithmConfig(**algorithm),
+        dataset=DatasetConfig(train_path=str(dataset)),
+        checkpoint=CheckpointConfig(output_dir=str(tmp_path / "checkpoints"), save_steps=1),
+        logging=LoggingConfig(log_dir=str(tmp_path / "logs")),
+    )
+
+
+def test_default_pair_reward_scores_and_binds_observable_components(tmp_path: Path) -> None:
+    rows = [
+        {"id": "chosen", "prompt": "p1", "chosen": "good", "rejected": "bad"},
+        {"id": "rejected", "prompt": "p2", "chosen": "good", "rejected": "bad"},
+    ]
+    config = _pair_config(tmp_path, rows, max_steps=1)
+    events: list[str] = []
+    backend = _PairBackend(events, {"chosen": ("good",), "rejected": ("bad",)})
+    engine = RLTrainingEngine(
+        config,
+        capability_provider=_CapabilityProvider(events),
+        backend_factory=lambda value: backend,
+        logger_factory=lambda value: _Logger(events),
+    )
+
+    result = engine.evaluate()
+
+    assert len(result.trajectories) == 2
+    chosen, rejected = result.trajectories
+    assert chosen.reward_total is not None and rejected.reward_total is not None
+    assert chosen.reward_total > rejected.reward_total
+    assert chosen.reward_components["task_success"] == 1.0
+    assert rejected.reward_components["hallucination"] < 0.0
+    assert rejected.reward_component_evidence["hallucination"]
+    assert all(reference.is_observable for reference in rejected.evidence_references)
+
+
+def test_default_dataset_is_one_immutable_snapshot_per_invocation(tmp_path: Path) -> None:
+    original = {"id": "original", "prompt": "original", "chosen": "yes", "rejected": "no"}
+    replacement = {"id": "changed", "prompt": "changed", "chosen": "up", "rejected": "down"}
+    config = _pair_config(tmp_path, [original], max_steps=1)
+    dataset_path = Path(config.dataset.train_path)
+    original_hash = hashlib.sha256(dataset_path.read_bytes()).hexdigest()
+    events: list[str] = []
+    backend = _PairBackend(events, {"original": ("yes",)})
+
+    def backend_factory(value: RLRunConfig) -> _PairBackend:
+        dataset_path.write_text(json.dumps(replacement) + "\n", encoding="utf-8")
+        return backend
+
+    result = RLTrainingEngine(
+        config,
+        capability_provider=_CapabilityProvider(events),
+        backend_factory=backend_factory,
+        logger_factory=lambda value: _Logger(events),
+    ).collect()
+
+    assert result.trajectories[0].case_id == "original:grounded_over_proxy"
+    assert result.dataset_hash == original_hash
+
+
+class _CaptureAlgorithm(_Algorithm):
+    def __init__(self, events: list[str]) -> None:
+        super().__init__(events)
+        self.batches: list[TrajectoryBatch] = []
+
+    def compute_group_advantages(self, rewards: object) -> list[float] | None:
+        values = tuple(float(value) for value in rewards)
+        if len(set(values)) == 1:
+            return None
+        mean = sum(values) / len(values)
+        return [value - mean for value in values]
+
+    def compute_loss(self, batch: TrajectoryBatch, evaluation: PolicyEvaluation) -> object:
+        self.batches.append(batch)
+        return SimpleNamespace(
+            total_loss=2.0,
+            policy_loss=1.0,
+            value_loss=0.5,
+            entropy=0.25,
+            kl=0.125,
+        )
+
+
+class _ResponseReward:
+    def score(self, request: object) -> float:
+        return float(request.trajectory.response)
+
+
+def test_grpo_preserves_groups_skips_zero_variance_and_accumulates(tmp_path: Path) -> None:
+    config = _config(tmp_path, max_steps=1)
+    config = replace(
+        config,
+        algorithm=replace(
+            config.algorithm,
+            name="grpo",
+            batch_size=1,
+            gradient_accumulation_steps=2,
+            group_size=2,
+            zero_variance_policy="skip",
+        ),
+    )
+    events: list[str] = []
+    backend = _PairBackend(events, {"variable": ("1", "3"), "constant": ("2", "2")})
+    algorithm = _CaptureAlgorithm(events)
+
+    class Dataset:
+        def materialize(self, mode: str) -> tuple[RolloutRequest, ...]:
+            return (
+                RolloutRequest(prompt="p1", case_id="variable"),
+                RolloutRequest(prompt="p2", case_id="constant"),
+            )
+
+    result = RLTrainingEngine(
+        config,
+        capability_provider=_CapabilityProvider(events),
+        backend_factory=lambda value: backend,
+        algorithm_factory=lambda value, selected: algorithm,
+        dataset_factory=lambda value: Dataset(),
+        reward_factory=lambda value: _ResponseReward(),
+        checkpoint_factory=lambda value, selected: _Checkpoint(events, selected),
+        logger_factory=lambda value: _Logger(events),
+    ).train()
+
+    assert [batch[0].num_samples for batch in backend.request_batches] == [2, 2, 2]
+    assert len(algorithm.batches) == 2
+    prepared = algorithm.batches[0].trajectories
+    assert [trajectory.case_id for trajectory in prepared] == ["variable", "variable"]
+    assert [trajectory.advantage[0] for trajectory in prepared] == [-1.0, 1.0]
+    assert events.count("backward") == 2
+    assert events.count("optimizer_step") == 1
+    assert result.global_step == 1
+
+
+def test_ppo_terminal_rewards_gae_batching_and_gradient_accumulation(tmp_path: Path) -> None:
+    config = _config(tmp_path, max_steps=1)
+    config = replace(
+        config,
+        algorithm=replace(
+            config.algorithm,
+            batch_size=1,
+            gradient_accumulation_steps=2,
+        ),
+    )
+    events: list[str] = []
+    backend = _PairBackend(events, {"one": ("1",), "two": ("1",)})
+    algorithm = _CaptureAlgorithm(events)
+
+    class Dataset:
+        def materialize(self, mode: str) -> tuple[RolloutRequest, ...]:
+            return (
+                RolloutRequest(prompt="p1", case_id="one"),
+                RolloutRequest(prompt="p2", case_id="two"),
+            )
+
+    RLTrainingEngine(
+        config,
+        capability_provider=_CapabilityProvider(events),
+        backend_factory=lambda value: backend,
+        algorithm_factory=lambda value, selected: algorithm,
+        dataset_factory=lambda value: Dataset(),
+        reward_factory=lambda value: _ResponseReward(),
+        checkpoint_factory=lambda value, selected: _Checkpoint(events, selected),
+        logger_factory=lambda value: _Logger(events),
+    ).train()
+
+    assert [len(batch) for batch in backend.request_batches] == [1, 1]
+    assert len(algorithm.batches) == 2
+    trajectory = algorithm.batches[0].trajectories[0]
+    assert trajectory.advantage == pytest.approx((0.8504, 0.8))
+    assert trajectory.returns == pytest.approx((0.9504, 1.0))
+    assert algorithm.batches[0].response_token_masks == ((True, True),)
+    assert events.count("backward") == 2
+    assert events.count("optimizer_step") == 1
+
+
+def test_seed_is_set_before_backend_and_resume_restores_rng_before_rollout(tmp_path: Path) -> None:
+    events: list[str] = []
+    observed_factory_random: list[float] = []
+    backend = _PairBackend(events, {"case-1": ("1",)})
+    expected_seeded = random.Random(42).random()
+
+    def backend_factory(value: RLRunConfig) -> _PairBackend:
+        observed_factory_random.append(random.random())
+        return backend
+
+    engine = _engine(tmp_path, events)
+    engine.backend_factory = backend_factory
+    engine.train()
+    assert observed_factory_random == [expected_seeded]
+
+    restored_rng = random.Random(8675309)
+    expected_restored = restored_rng.random()
+    restored_state = random.Random(8675309).getstate()
+
+    class RestoringCheckpoint(_Checkpoint):
+        def load(self, path: Path) -> object:
+            result = super().load(path)
+            return SimpleNamespace(
+                **vars(result),
+                python_rng_state=restored_state,
+                torch_cpu_rng_state=None,
+                torch_cuda_rng_states=(),
+                algorithm_state={"restored": True},
+                scheduler_state=None,
+            )
+
+    resume_backend = _PairBackend(events, {"case-1": ("1",)})
+    resume_engine = _engine(tmp_path, events, max_steps=2)
+    resume_engine.backend_factory = lambda value: resume_backend
+    resume_engine.checkpoint_factory = lambda value, selected: RestoringCheckpoint(events, selected)
+    resume_engine.resume(tmp_path / "operator-checkpoint")
+    assert resume_backend.random_observations[0] == expected_restored
+
+
+def test_result_and_logging_keep_update_evidence_lineage_and_scored_rollouts(
+    tmp_path: Path,
+) -> None:
+    config = _pair_config(
+        tmp_path,
+        [{"id": "case", "prompt": "p", "chosen": "1", "rejected": "0"}],
+        max_steps=2,
+    )
+    events: list[str] = []
+    backend = _PairBackend(events, {"case": ("1",)})
+    result = RLTrainingEngine(
+        config,
+        capability_provider=_CapabilityProvider(events),
+        backend_factory=lambda value: backend,
+        algorithm_factory=lambda value, selected: _CaptureAlgorithm(events),
+        checkpoint_factory=lambda value, selected: _Checkpoint(events, selected),
+    ).train(max_steps=1)
+
+    assert result.global_step == 1
+    assert result.checkpoint is not None
+    assert result.parameter_checksum_before == "checksum-0"
+    assert result.parameter_checksum_after == "checksum-1"
+    assert result.parameters_updated is True
+    assert result.log_directory is not None and result.log_directory.parent == Path(
+        config.logging.log_dir
+    )
+    assert result.run_id
+    assert result.trajectories[0].reward_total is not None
+    assert result.trajectories[0].policy_version == "policy-0"
+    json.dumps(result.to_dict(), allow_nan=False, sort_keys=True)
+    manifest = json.loads((result.log_directory / "run_manifest.json").read_text())
+    assert manifest["checkpoint_parent"] is None
+    metrics = [
+        json.loads(line)
+        for line in (result.log_directory / "metrics.jsonl").read_text().splitlines()
+    ]
+    names = {name for record in metrics for name in record["metrics"]}
+    assert {"policy_loss", "value_loss", "entropy", "kl", "learning_rate"} <= names
+
+
+def test_output_controls_do_not_change_checkpoint_compatibility_hash(tmp_path: Path) -> None:
+    first = _config(tmp_path, max_steps=1)
+    second = replace(
+        first,
+        algorithm=replace(first.algorithm, max_steps=99),
+        checkpoint=replace(first.checkpoint, output_dir=str(tmp_path / "elsewhere")),
+        logging=replace(first.logging, log_dir=str(tmp_path / "other-logs")),
+    )
+    assert engine_module._config_hash(first) == engine_module._config_hash(second)
+
+
+def test_unique_child_log_directories_and_expected_cli_failures(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _pair_config(
+        tmp_path,
+        [{"id": "case", "prompt": "p", "chosen": "yes", "rejected": "no"}],
+        max_steps=1,
+    )
+    results = []
+    for _ in range(2):
+        events: list[str] = []
+        backend = _PairBackend(events, {"case": ("yes",)})
+        results.append(
+            RLTrainingEngine(
+                config,
+                capability_provider=_CapabilityProvider(events),
+                backend_factory=lambda value, selected=backend: selected,
+            ).collect()
+        )
+    assert results[0].log_directory != results[1].log_directory
+    assert all(result.log_directory.parent == Path(config.logging.log_dir) for result in results)
+
+    monkeypatch.setattr(
+        rl_cli,
+        "load_rl_run_config",
+        lambda path: (_ for _ in ()).throw(FileNotFoundError("missing config.json")),
+    )
+    parser = argparse.ArgumentParser()
+    rl_cli.register_rl_cli(parser.add_subparsers(dest="command"))
+    args = parser.parse_args(["rl", "train", "--config", "missing.json"])
+    assert args.func(args) == 2
+
+
+def test_close_failure_preserves_primary_rollout_error(tmp_path: Path) -> None:
+    events: list[str] = []
+
+    class BrokenCloseBackend(_Backend):
+        def generate(self, requests: object) -> tuple[Trajectory, ...]:
+            raise RuntimeError("primary rollout failure")
+
+        def close(self) -> None:
+            raise RuntimeError("secondary close failure")
+
+    engine = _engine(tmp_path, events)
+    engine.backend_factory = lambda value: BrokenCloseBackend(events)
+
+    with pytest.raises(RuntimeError, match="primary rollout failure") as caught:
+        engine.collect()
+
+    assert any("secondary close failure" in note for note in getattr(caught.value, "__notes__", ()))
