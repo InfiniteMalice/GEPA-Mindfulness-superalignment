@@ -41,8 +41,9 @@ def _spawn_publish(root: str, artifact: str, version: int, gate: object, queue: 
         queue.put(("error", type(exc).__name__))  # type: ignore[attr-defined]
 
 
-def _spawn_hold_lock(root: str, acquired: object, release: object) -> None:
+def _spawn_hold_lock(root: str, ready: object, acquired: object, release: object) -> None:
     publisher = LocalAdapterPublisher(root)
+    ready.set()  # type: ignore[attr-defined]
     with publisher._transaction_lock():
         acquired.set()  # type: ignore[attr-defined]
         release.wait(15)  # type: ignore[attr-defined]
@@ -182,7 +183,7 @@ def test_interrupted_current_replace_preserves_previous_publication(
     def interrupted_replace(source: str | bytes | os.PathLike[str], destination: object) -> None:
         if Path(destination) == publisher.root / "current.json":  # type: ignore[arg-type]
             raise OSError("simulated pointer interruption")
-        real_replace(source, destination)  # type: ignore[arg-type]
+        real_replace(source, destination)
 
     monkeypatch.setattr(publication_module.os, "replace", interrupted_replace)
 
@@ -292,7 +293,7 @@ def test_candidate_rejects_noncanonical_or_unsafe_scalars(
     values.update(overrides)
 
     with pytest.raises((TypeError, ValueError)):
-        AdapterCandidate(**values)  # type: ignore[arg-type]
+        AdapterCandidate(**values)
 
 
 @pytest.mark.parametrize("schema_version", [True, 1.0])
@@ -438,17 +439,25 @@ def test_spawned_process_blocks_on_actual_os_lock(tmp_path: Path) -> None:
     context = multiprocessing.get_context("spawn")
     root = tmp_path / "published"
     LocalAdapterPublisher(root)
-    first_acquired, first_release = context.Event(), context.Event()
-    second_acquired, second_release = context.Event(), context.Event()
+    first_ready, first_acquired, first_release = context.Event(), context.Event(), context.Event()
+    second_ready, second_acquired, second_release = (
+        context.Event(),
+        context.Event(),
+        context.Event(),
+    )
     first = context.Process(
-        target=_spawn_hold_lock, args=(str(root), first_acquired, first_release)
+        target=_spawn_hold_lock,
+        args=(str(root), first_ready, first_acquired, first_release),
     )
     first.start()
+    assert first_ready.wait(10)
     assert first_acquired.wait(10)
     second = context.Process(
-        target=_spawn_hold_lock, args=(str(root), second_acquired, second_release)
+        target=_spawn_hold_lock,
+        args=(str(root), second_ready, second_acquired, second_release),
     )
     second.start()
+    assert second_ready.wait(10)
     assert not second_acquired.wait(0.5)
     first_release.set()
     assert second_acquired.wait(10)
@@ -456,3 +465,63 @@ def test_spawned_process_blocks_on_actual_os_lock(tmp_path: Path) -> None:
     first.join(10)
     second.join(10)
     assert first.exitcode == second.exitcode == 0
+
+
+def test_contained_hash_streams_without_retaining_artifact_bytes(tmp_path: Path) -> None:
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    payload = b"stream-me" * 200_000
+    manifest = publisher.publish(_candidate(tmp_path, 1, parent=None, content=payload))
+
+    retained, digest, size = publication_module._contained_read(
+        publisher.root,
+        manifest.artifact_path,
+        "artifact_path",
+        retain=False,
+    )
+    hashed_digest, hashed_size = publication_module._contained_hash(
+        publisher.root, manifest.artifact_path, "artifact_path"
+    )
+
+    assert retained == b""
+    assert digest == hashed_digest == hashlib.sha256(payload).hexdigest()
+    assert size == hashed_size == len(payload)
+
+
+def test_oversized_contained_manifest_stops_at_limit_plus_one(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    manifest = publisher.publish(_candidate(tmp_path, 1, parent=None))
+    path = publisher.root / manifest.manifest_path
+    path.write_bytes(b"x" * (publication_module._MAX_MANIFEST_BYTES * 4))
+    real_open = publication_module._open_regular
+    bytes_read = 0
+
+    class CountingStream:
+        def __init__(self, stream: object) -> None:
+            self.stream = stream
+
+        def __enter__(self) -> CountingStream:
+            self.stream.__enter__()  # type: ignore[attr-defined]
+            return self
+
+        def __exit__(self, *args: object) -> object:
+            return self.stream.__exit__(*args)  # type: ignore[attr-defined]
+
+        def read(self, size: int) -> bytes:
+            nonlocal bytes_read
+            chunk = self.stream.read(size)  # type: ignore[attr-defined]
+            bytes_read += len(chunk)
+            if bytes_read > publication_module._MAX_MANIFEST_BYTES + 1:
+                raise AssertionError("oversized manifest read exceeded its bound")
+            return chunk
+
+    def counting_open(candidate: Path, field_name: str) -> tuple[object, object]:
+        info, stream = real_open(candidate, field_name)
+        return info, CountingStream(stream)
+
+    monkeypatch.setattr(publication_module, "_open_regular", counting_open)
+    with pytest.raises(ValueError, match="bounded manifest size"):
+        publication_module._contained_bytes(publisher.root, manifest.manifest_path, "manifest_path")
+    assert bytes_read == publication_module._MAX_MANIFEST_BYTES + 1
