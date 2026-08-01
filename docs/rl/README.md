@@ -20,6 +20,134 @@ The `rl` extra installs bounded versions of PyTorch, Transformers, and PEFT. It 
 TRL, Datasets, Accelerate, a CUDA-specific wheel, or a platform SDK. The package manager selects
 the PyTorch build from its configured package index.
 
+## Configure a single NVIDIA GPU
+
+**Hardware verification status: not run on this CPU-only host.** The commands in this section are
+operator procedures, not evidence that this checkout completed a CUDA optimizer update. Run the
+marked acceptance lane at the end of this section on the target GPU before assigning a production
+label to that machine and PyTorch build.
+
+### Select and verify the CUDA-enabled PyTorch wheel
+
+Use the official [PyTorch local-install selector](https://pytorch.org/get-started/locally/) to
+choose the command for the target operating system and NVIDIA driver. The ordinary project
+dependencies intentionally contain no CUDA wheel URL or `+cu` package pin. Install the selected
+PyTorch wheel first; then install this repository. For example, the official PyTorch 2.9.1 CUDA
+12.8 index uses these commands:
+
+```bash
+python -m pip install torch==2.9.1 --index-url https://download.pytorch.org/whl/cu128
+python -m pip install -e '.[rl]'
+```
+
+Do not use the example CUDA 12.8 index when the target driver requires a different selector
+choice. After installation, run this model-free check:
+
+```bash
+python - <<'PY'
+import torch
+
+print(f"torch={torch.__version__} cuda_runtime={torch.version.cuda}")
+print(f"available={torch.cuda.is_available()} devices={torch.cuda.device_count()}")
+if not torch.cuda.is_available() or torch.cuda.device_count() < 1:
+    raise SystemExit("PyTorch cannot use cuda:0")
+print(torch.cuda.get_device_name(0))
+PY
+```
+
+Exit status `0`, a non-null CUDA runtime, and the selected GPU name prove only that PyTorch can see
+`cuda:0`. They do not prove a policy update or checkpoint round trip.
+
+### Prepare a local model and single-GPU configuration
+
+From the repository root, copy the strict template and replace its placeholder with an absolute
+local Transformers model directory. This command also changes `checkpoint.save_steps` to `1`, so
+the one-step training command below produces `checkpoint-00000001`.
+
+```bash
+cp configs/rl/cuda_single_gpu.yaml run.cuda.ppo.yaml
+export MODEL_DIR=/absolute/path/to/local-transformers-model
+python - <<'PY'
+import os
+from pathlib import Path
+
+import yaml
+from transformers import AutoConfig, AutoTokenizer
+
+model_dir = Path(os.environ["MODEL_DIR"]).expanduser().resolve(strict=True)
+if not model_dir.is_absolute() or not (model_dir / "config.json").is_file():
+    raise SystemExit("MODEL_DIR must be absolute and contain config.json")
+if not any(model_dir.glob("*.safetensors")) and not any(model_dir.glob("*.bin")):
+    raise SystemExit("MODEL_DIR must contain Safetensors or PyTorch model weights")
+AutoConfig.from_pretrained(model_dir, local_files_only=True)
+AutoTokenizer.from_pretrained(model_dir, local_files_only=True)
+path = Path("run.cuda.ppo.yaml")
+config = yaml.safe_load(path.read_text(encoding="utf-8"))
+config["policy"]["model_name"] = str(model_dir)
+config["checkpoint"]["save_steps"] = 1
+path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+print(path.resolve())
+PY
+```
+
+Keep `runtime.device: cuda:0`. Choose `runtime.precision: fp32` first. Use `fp16` or `bf16` only
+after the doctor and marked acceptance lane report support on the selected GPU.
+
+### Check, train, and resume
+
+Keep model loading offline. The doctor exits before model construction when CUDA, the device
+index, or the selected precision is unsupported.
+
+```bash
+export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+gepa rl doctor --config run.cuda.ppo.yaml
+gepa rl train --config run.cuda.ppo.yaml --max-steps 1
+```
+
+Exit status `0` from the doctor means its required capability report is fully supported. A
+successful training result must report `"global_step": 1`,
+`"policy_parameters_updated": true`, different policy-only before/after checksums, and
+`checkpoint-00000001`. Resume from that explicit checkpoint without another rollout:
+
+```bash
+gepa rl resume --config run.cuda.ppo.yaml \
+  --checkpoint runs/rl_cuda_single_gpu/checkpoint-00000001 \
+  --max-steps 0
+```
+
+The resume result must report `"global_step": 1`, zero new trajectories, identical restored
+policy checksums, and `"policy_parameters_updated": false`.
+
+### Diagnose CUDA out-of-memory failures
+
+When `CudaOutOfMemoryError` reports the failed operation, device, precision, batch size, maximum
+new tokens, and accumulation count, record that complete message. Then inspect other GPU processes
+and the allocator state:
+
+```bash
+nvidia-smi --query-compute-apps=pid,used_gpu_memory --format=csv
+python -c 'import torch; print(torch.cuda.memory_summary(device="cuda:0", abbreviated=False))'
+```
+
+Stop an unrelated process only when you own it. Otherwise, select a smaller local model, reduce
+`policy.max_new_tokens`, or reduce `algorithm.batch_size` when it is greater than `1`. Increasing
+`algorithm.gradient_accumulation_steps` can preserve an effective batch after reducing the
+per-step batch. The runtime reports the OOM and exits; it does not modify the configuration or
+retry with weaker settings automatically. Re-run the doctor and the one-step command after every
+configuration change.
+
+### Run the hardware acceptance lane
+
+```bash
+python -m pytest --strict-markers -m cuda tests/test_rl_cuda.py -q
+```
+
+The lane tests FP32 and probes FP16 and BF16 separately. An unsupported mixed precision case skips
+with its device-specific reason. On a supported precision, the test uses the shared canonical
+engine and CUDA factory to require a policy-only parameter change, frozen reference state, CUDA
+residency, canonical checkpoint artifacts, exact fresh-backend restoration, and restored global
+step. Treat a skipped precision as unsupported evidence, not a pass.
+
 ### Dependency version policy
 
 The `dev` and `rl-dev` extras require `pytest>=8.0,<10`. Pytest 8 and 9 are the declared supported

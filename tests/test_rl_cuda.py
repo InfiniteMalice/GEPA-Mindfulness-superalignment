@@ -2,25 +2,32 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 import torch
+from torch import nn
 
 from gepa_mindfulness.training.backends.torch_cuda import (
     CudaOutOfMemoryError,
     create_cuda_backend,
     detect_cuda_capabilities,
 )
+from gepa_mindfulness.training.backends.torch_policy import TorchPolicyBackend
 from gepa_mindfulness.training.capability import (
     Capability,
     CapabilityError,
     CapabilityState,
 )
-from gepa_mindfulness.training.engine import SystemCapabilityProvider
+from gepa_mindfulness.training.engine import RLTrainingEngine, SystemCapabilityProvider
 from gepa_mindfulness.training.runtime_config import (
     AlgorithmConfig,
+    CheckpointConfig,
+    DatasetConfig,
+    LoggingConfig,
     PolicyConfig,
     RLRunConfig,
     RuntimeConfig,
@@ -40,12 +47,180 @@ class _RecordingDeviceContext:
         del error
 
 
+class _TinyCudaTokenizer:
+    """Tokenizer whose complete vocabulary is local to the CUDA acceptance test."""
+
+    pad_token_id = 0
+    eos_token_id = 1
+    _tokens = {
+        "<pad>": 0,
+        "<eos>": 1,
+        "practice": 2,
+        "slowly": 3,
+        "chosen": 4,
+        "rejected": 5,
+    }
+    _words = {token_id: token for token, token_id in _tokens.items()}
+
+    def encode(self, text: str, *, add_special_tokens: bool = False) -> list[int]:
+        del add_special_tokens
+        return [self._tokens[word] for word in text.split()]
+
+    def decode(self, token_ids: list[int], *, skip_special_tokens: bool = True) -> str:
+        ignored = {self.pad_token_id, self.eos_token_id} if skip_special_tokens else set()
+        return " ".join(self._words[token_id] for token_id in token_ids if token_id not in ignored)
+
+
+class _TinyCudaCausalLM(nn.Module):
+    """Small causal language model built without downloads or cached assets."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.config = SimpleNamespace(hidden_size=8, _name_or_path="tiny-local-cuda-lm")
+        self.embedding = nn.Embedding(6, self.config.hidden_size)
+        self.lm_head = nn.Linear(self.config.hidden_size, 6, bias=False)
+
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        *,
+        attention_mask: torch.Tensor | None = None,
+        output_hidden_states: bool = False,
+    ) -> SimpleNamespace:
+        del attention_mask, output_hidden_states
+        hidden = self.embedding(input_ids)
+        return SimpleNamespace(logits=self.lm_head(hidden), hidden_states=(hidden,))
+
+    def generate(
+        self,
+        input_ids: torch.Tensor,
+        *,
+        attention_mask: torch.Tensor,
+        max_new_tokens: int,
+        **sampling_parameters: object,
+    ) -> torch.Tensor:
+        del attention_mask, sampling_parameters
+        response = torch.full(
+            (input_ids.shape[0], max_new_tokens),
+            4,
+            dtype=input_ids.dtype,
+            device=input_ids.device,
+        )
+        return torch.cat((input_ids, response), dim=1)
+
+
 def _cuda_config(*, device: str = "cuda:0", precision: str = "fp32") -> RLRunConfig:
     return RLRunConfig(
         runtime=RuntimeConfig(backend="cuda", device=device, precision=precision),
         policy=PolicyConfig(model_name="LOCAL_MODEL_PATH", max_new_tokens=17),
         algorithm=AlgorithmConfig(batch_size=3, gradient_accumulation_steps=5),
     )
+
+
+def _module_checksum(module: nn.Module) -> str:
+    digest = hashlib.sha256()
+    for name, tensor in sorted(module.state_dict().items()):
+        digest.update(name.encode("utf-8"))
+        digest.update(tensor.detach().cpu().contiguous().numpy().tobytes())
+    return digest.hexdigest()
+
+
+def _write_cuda_pair_dataset(path: Path) -> None:
+    component_names = (
+        "objective_fidelity",
+        "feedback_integrity",
+        "skill_transfer",
+        "reality_contact",
+        "exploit_disclosure",
+        "long_horizon_agency",
+        "benign_creativity",
+        "repair_quality",
+    )
+    record = {
+        "record_id": "cuda-case:grounded_over_proxy",
+        "source_case_id": "cuda-case",
+        "source_case_version": "1.0",
+        "source_path": "authored/cuda.jsonl",
+        "source_line": 1,
+        "source_sha256": "c" * 64,
+        "pair_rule": "grounded_over_proxy",
+        "prompt": "practice slowly",
+        "chosen": "chosen",
+        "rejected": "rejected",
+        "chosen_class": "grounded_success",
+        "rejected_class": "proxy_exploitation",
+        "chosen_reward_components": {name: 0.5 for name in component_names},
+        "rejected_reward_components": {name: -0.5 for name in component_names},
+        "diagnostics": {"central": "authored", "supporting": []},
+        "schema_version": "reward-integrity-rl-pairs-v1",
+    }
+    path.write_text(json.dumps(record, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _cuda_acceptance_config(tmp_path: Path, precision: str) -> RLRunConfig:
+    dataset_path = tmp_path / f"pairs-{precision}.jsonl"
+    _write_cuda_pair_dataset(dataset_path)
+    return RLRunConfig(
+        runtime=RuntimeConfig(backend="cuda", device="cuda:0", precision=precision),
+        policy=PolicyConfig(model_name="tiny-local-cuda-lm", max_new_tokens=1),
+        algorithm=AlgorithmConfig(
+            name="ppo",
+            learning_rate=0.05,
+            batch_size=1,
+            max_steps=1,
+        ),
+        dataset=DatasetConfig(train_path=str(dataset_path)),
+        checkpoint=CheckpointConfig(
+            output_dir=str(tmp_path / f"checkpoints-{precision}"),
+            save_steps=1,
+        ),
+        logging=LoggingConfig(log_dir=str(tmp_path / f"logs-{precision}")),
+        seed=42,
+    )
+
+
+def _cuda_acceptance_engine(
+    config: RLRunConfig,
+    backends: list[TorchPolicyBackend],
+    initial_policy_checksums: list[str],
+    initial_reference_checksums: list[str],
+) -> RLTrainingEngine:
+    def build_backend(value: RLRunConfig) -> TorchPolicyBackend:
+        backend = create_cuda_backend(
+            value,
+            lambda: (_TinyCudaCausalLM(), _TinyCudaTokenizer()),
+        )
+        backends.append(backend)
+        initial_policy_checksums.append(backend.policy_parameter_checksum())
+        initial_reference_checksums.append(_module_checksum(backend.reference_model))
+        return backend
+
+    return RLTrainingEngine(config, backend_factory=build_backend)
+
+
+def _require_cuda_precision(precision: str) -> None:
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA hardware is unavailable")
+    try:
+        detect_cuda_capabilities("cuda:0", precision)
+    except CapabilityError as error:
+        pytest.skip(f"{precision} is unsupported on cuda:0: {error}")
+    if precision == "fp32":
+        return
+    dtype = torch.float16 if precision == "fp16" else torch.bfloat16
+    try:
+        with torch.autocast("cuda", dtype=dtype):
+            probe = torch.ones((2, 2), device="cuda:0")
+            result = probe @ probe
+        torch.cuda.synchronize(0)
+    except RuntimeError as error:
+        message = str(error).casefold()
+        if "not implemented" in message or "not supported" in message:
+            pytest.skip(f"{precision} operation probe is unsupported on cuda:0: {error}")
+        raise
+    assert torch.isfinite(
+        result
+    ).all(), f"{precision} operation probe returned non-finite values on cuda:0"
 
 
 def _available_cuda(
@@ -326,10 +501,105 @@ def test_cuda_single_gpu_template_is_strict_and_uses_bundled_pairs() -> None:
     assert config.dataset.train_path == "data/synthetic/reward_integrity/rl_pairs_v1.jsonl"
 
 
-@pytest.mark.cuda
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA hardware is unavailable")
-def test_detect_cuda_capabilities_on_visible_hardware() -> None:
-    """A CUDA build that cannot substantiate device zero must fail its hardware smoke test."""
-    capabilities = detect_cuda_capabilities("cuda:0", "fp32")
+def test_cuda_operator_guide_has_executable_commands_and_honest_host_status() -> None:
+    """Omitting an operator step would leave CUDA setup, recovery, or evidence ambiguous."""
+    path = Path(__file__).parents[1] / "docs" / "rl" / "README.md"
+    guide = path.read_text(encoding="utf-8")
+    required_text = (
+        "https://pytorch.org/get-started/locally/",
+        "python -m pip install torch==2.9.1 --index-url",
+        "python -m pip install -e '.[rl]'",
+        "cp configs/rl/cuda_single_gpu.yaml run.cuda.ppo.yaml",
+        "gepa rl doctor --config run.cuda.ppo.yaml",
+        "gepa rl train --config run.cuda.ppo.yaml --max-steps 1",
+        "nvidia-smi --query-compute-apps=pid,used_gpu_memory --format=csv",
+        'torch.cuda.memory_summary(device="cuda:0", abbreviated=False)',
+        "gepa rl resume --config run.cuda.ppo.yaml",
+        "Hardware verification status: not run on this CPU-only host",
+    )
 
-    assert capabilities.state(Capability.SUPPORTS_CUDA) is CapabilityState.SUPPORTED
+    for expected in required_text:
+        assert expected in guide
+
+
+@pytest.mark.cuda
+@pytest.mark.parametrize("precision", ["fp32", "fp16", "bf16"])
+def test_cuda_parameter_update_and_checkpoint_restore_shared_engine(
+    tmp_path: Path,
+    precision: str,
+) -> None:
+    """A value-head-only update or lossy restore must not qualify the CUDA training path."""
+    _require_cuda_precision(precision)
+    config = _cuda_acceptance_config(tmp_path, precision)
+    backends: list[TorchPolicyBackend] = []
+    initial_policy_checksums: list[str] = []
+    initial_reference_checksums: list[str] = []
+
+    trained = _cuda_acceptance_engine(
+        config,
+        backends,
+        initial_policy_checksums,
+        initial_reference_checksums,
+    ).train(max_steps=1)
+
+    trained_backend = backends[-1]
+    trained_policy_state = {
+        name: value.detach().cpu().clone()
+        for name, value in trained_backend.policy_model.state_dict().items()
+    }
+    trained_reference_state = {
+        name: value.detach().cpu().clone()
+        for name, value in trained_backend.reference_model.state_dict().items()
+    }
+    assert trained.global_step == 1
+    assert trained.policy_parameters_updated is True
+    assert trained.policy_parameter_checksum_before == initial_policy_checksums[0]
+    assert trained.policy_parameter_checksum_after != initial_policy_checksums[0]
+    assert trained.policy_parameter_checksum_after == trained_backend.policy_parameter_checksum()
+    assert _module_checksum(trained_backend.reference_model) == initial_reference_checksums[0]
+    assert not any(
+        parameter.requires_grad for parameter in trained_backend.reference_model.parameters()
+    )
+    for module in (
+        trained_backend.policy_model,
+        trained_backend.reference_model,
+        trained_backend.value_head,
+    ):
+        assert all(parameter.device.type == "cuda" for parameter in module.parameters())
+    assert trained.checkpoint is not None
+    checkpoint_path = trained.checkpoint.path
+    assert trained.checkpoint.global_step == 1
+    assert trained.checkpoint.backend_step == 1
+    assert (checkpoint_path / "backend.pt").is_file()
+    assert (checkpoint_path / "training_state.pt").is_file()
+    assert (checkpoint_path / "manifest.json").is_file()
+
+    restored = _cuda_acceptance_engine(
+        config,
+        backends,
+        initial_policy_checksums,
+        initial_reference_checksums,
+    ).resume(checkpoint_path, max_steps=0)
+
+    restored_backend = backends[-1]
+    assert restored_backend is not trained_backend
+    assert restored.global_step == 1
+    assert restored.trajectory_count == 0
+    assert restored.policy_parameters_updated is False
+    assert restored.policy_parameter_checksum_before == trained.policy_parameter_checksum_after
+    assert restored.policy_parameter_checksum_after == trained.policy_parameter_checksum_after
+    assert restored_backend.policy_parameter_checksum() == trained.policy_parameter_checksum_after
+    assert restored_backend._step == 1
+    assert not any(
+        parameter.requires_grad for parameter in restored_backend.reference_model.parameters()
+    )
+    for module in (
+        restored_backend.policy_model,
+        restored_backend.reference_model,
+        restored_backend.value_head,
+    ):
+        assert all(parameter.device.type == "cuda" for parameter in module.parameters())
+    for name, value in restored_backend.policy_model.state_dict().items():
+        assert torch.equal(value.detach().cpu(), trained_policy_state[name])
+    for name, value in restored_backend.reference_model.state_dict().items():
+        assert torch.equal(value.detach().cpu(), trained_reference_state[name])
