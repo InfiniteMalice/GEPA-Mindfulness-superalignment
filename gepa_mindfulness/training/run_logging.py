@@ -107,6 +107,33 @@ _TRAJECTORY_FIELDS = frozenset(
         "trajectory",
     }
 )
+_TRAJECTORY_PAYLOAD_REQUIRED_FIELDS = frozenset(
+    {
+        "adapter_identifier",
+        "advantage",
+        "backend_name",
+        "backend_version",
+        "case_id",
+        "model_identifier",
+        "old_log_probs",
+        "policy_version",
+        "prompt",
+        "prompt_token_ids",
+        "reference_log_probs",
+        "response",
+        "response_token_ids",
+        "return",
+        "reward_component_evidence",
+        "reward_components",
+        "reward_total",
+        "sampling_parameters",
+        "seed",
+        "trace_references",
+        "trajectory_id",
+        "value_predictions",
+    }
+)
+_TRAJECTORY_PAYLOAD_OPTIONAL_FIELDS = frozenset({"evidence_references"})
 
 
 @dataclass(frozen=True)
@@ -311,7 +338,15 @@ class TrajectoryRecord:
         if not isinstance(payload, Mapping) or set(payload) != _TRAJECTORY_FIELDS:
             raise ValueError("trajectory record fields are missing or unrecognized")
         values = dict(payload)
-        values["trajectory"] = Trajectory.from_dict(values["trajectory"])
+        trajectory_payload = values["trajectory"]
+        if not isinstance(trajectory_payload, Mapping) or (
+            not _TRAJECTORY_PAYLOAD_REQUIRED_FIELDS.issubset(trajectory_payload)
+            or set(trajectory_payload)
+            - _TRAJECTORY_PAYLOAD_REQUIRED_FIELDS
+            - _TRAJECTORY_PAYLOAD_OPTIONAL_FIELDS
+        ):
+            raise ValueError("trajectory fields are missing or unrecognized")
+        values["trajectory"] = Trajectory.from_dict(trajectory_payload)
         return cls(**values)
 
 
@@ -428,7 +463,12 @@ class JSONLLoggingSink:
         records: dict[str, object] = {}
         try:
             stream.seek(0)
-            lines = stream.read().decode("utf-8").splitlines()
+            content = stream.read()
+            if content and not content.endswith(b"\n"):
+                raise ValueError("nonempty JSONL stream must end with a final newline")
+            lines = content.decode("utf-8").splitlines()
+        except ValueError:
+            raise
         except (OSError, UnicodeDecodeError) as error:
             raise ValueError(f"JSONL stream is unreadable: {path}") from error
         for line_number, line in enumerate(lines, start=1):

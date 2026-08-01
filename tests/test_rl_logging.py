@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import multiprocessing
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -511,3 +512,151 @@ def test_complete_history_accepts_identical_duplicates_as_idempotent(tmp_path: P
     assert sink.start_run(_manifest()) is False
     assert sink.log_metrics(_metric(record_id="duplicate")) is False
     assert len(path.read_text(encoding="utf-8").splitlines()) == 2
+
+
+def _exercise_existing_trajectory_history(
+    sink: JSONLLoggingSink,
+    path: Path,
+    payloads: list[dict[str, object]],
+    operation: str,
+) -> None:
+    path.write_text(
+        "".join(json.dumps(payload, sort_keys=True) + "\n" for payload in payloads),
+        encoding="utf-8",
+    )
+    if operation == "start":
+        sink.start_run(_manifest())
+    else:
+        record = _trajectory_record().to_dict()
+        record["record_id"] = "new-trajectory-record"
+        sink.log_trajectory(record)
+
+
+@pytest.mark.parametrize("operation", ["start", "append"])
+@pytest.mark.parametrize("corruption", ["unknown", "missing"])
+def test_trajectory_history_rejects_nested_schema_corruption_hidden_by_duplicate(
+    tmp_path: Path,
+    operation: str,
+    corruption: str,
+) -> None:
+    sink = JSONLLoggingSink(tmp_path, rank=0)
+    sink.start_run(_manifest())
+    compatible = _trajectory_record().to_dict()
+    malformed = deepcopy(compatible)
+    trajectory = malformed["trajectory"]
+    assert isinstance(trajectory, dict)
+    if corruption == "unknown":
+        trajectory["unknown_nested_field"] = True
+    else:
+        trajectory.pop("seed")
+
+    with pytest.raises(ValueError, match="trajectory fields"):
+        _exercise_existing_trajectory_history(
+            sink,
+            tmp_path / "trajectories.jsonl",
+            [malformed, compatible],
+            operation,
+        )
+
+
+@pytest.mark.parametrize("operation", ["start", "append"])
+def test_trajectory_history_rejects_provenance_conflict_hidden_by_duplicate(
+    tmp_path: Path,
+    operation: str,
+) -> None:
+    sink = JSONLLoggingSink(tmp_path, rank=0)
+    sink.start_run(_manifest())
+    compatible = _trajectory_record().to_dict()
+    incompatible = deepcopy(compatible)
+    incompatible["learner_backend"] = "incompatible-backend"
+
+    with pytest.raises(ValueError, match="provenance"):
+        _exercise_existing_trajectory_history(
+            sink,
+            tmp_path / "trajectories.jsonl",
+            [incompatible, compatible],
+            operation,
+        )
+
+
+@pytest.mark.parametrize("operation", ["start", "append"])
+def test_trajectory_history_rejects_conflicting_schema_valid_duplicate(
+    tmp_path: Path,
+    operation: str,
+) -> None:
+    sink = JSONLLoggingSink(tmp_path, rank=0)
+    sink.start_run(_manifest())
+    compatible = _trajectory_record().to_dict()
+    conflicting = deepcopy(compatible)
+    trajectory = conflicting["trajectory"]
+    assert isinstance(trajectory, dict)
+    trajectory["response"] = "Different observable answer"
+
+    with pytest.raises(ValueError, match="record_id.*different payload"):
+        _exercise_existing_trajectory_history(
+            sink,
+            tmp_path / "trajectories.jsonl",
+            [conflicting, compatible],
+            operation,
+        )
+
+
+def test_trajectory_history_normalizes_absent_or_empty_optional_evidence_as_identical(
+    tmp_path: Path,
+) -> None:
+    sink = JSONLLoggingSink(tmp_path, rank=0)
+    sink.start_run(_manifest())
+    trajectory = Trajectory(
+        trajectory_id="trajectory-without-evidence",
+        case_id=None,
+        prompt="Question?",
+        response="Answer",
+        backend_name="torch_portable",
+        backend_version="2.9",
+        model_identifier="tiny-local",
+        policy_version="policy-3",
+    )
+    record = TrajectoryRecord(
+        record_id="optional-evidence",
+        run_id="run-1",
+        timestamp="2026-07-31T12:00:02Z",
+        global_step=3,
+        backend="torch_portable",
+        actor_backend="torch_portable",
+        learner_backend="torch_portable",
+        policy_version="policy-3",
+        trajectory=trajectory,
+    ).to_dict()
+    explicit_empty = deepcopy(record)
+    nested = explicit_empty["trajectory"]
+    assert isinstance(nested, dict)
+    nested["evidence_references"] = []
+
+    _exercise_existing_trajectory_history(
+        sink,
+        tmp_path / "trajectories.jsonl",
+        [explicit_empty, record],
+        "start",
+    )
+
+    assert sink.log_trajectory(record) is False
+
+
+@pytest.mark.parametrize("operation", ["start", "append"])
+def test_nonempty_jsonl_history_requires_a_final_newline(
+    tmp_path: Path,
+    operation: str,
+) -> None:
+    sink = JSONLLoggingSink(tmp_path, rank=0)
+    sink.start_run(_manifest())
+    path = tmp_path / "metrics.jsonl"
+    original = json.dumps(_metric(record_id="unterminated").to_dict())
+    path.write_text(original, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="final newline"):
+        if operation == "start":
+            sink.start_run(_manifest())
+        else:
+            sink.log_metrics(_metric(record_id="next-record"))
+
+    assert path.read_text(encoding="utf-8") == original
