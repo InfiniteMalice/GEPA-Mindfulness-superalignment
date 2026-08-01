@@ -230,6 +230,22 @@ class LocalAdapterPublisher:
         with self._transaction_lock():
             return self._current_unlocked()
 
+    def current_artifact(self) -> tuple[AdapterManifest, bytes]:
+        """Return one current manifest with the exact verified artifact bytes it identifies."""
+        with self._transaction_lock():
+            manifest = self._current_unlocked()
+            if manifest is None:
+                raise ValueError("adapter publication store has no current artifact")
+            payload, digest, size = _contained_read(
+                self.root,
+                manifest.artifact_path,
+                "artifact_path",
+                retain=True,
+            )
+            if digest != manifest.artifact_sha256 or size != manifest.artifact_size:
+                raise ArtifactHashError("published adapter failed SHA-256 verification")
+            return manifest, payload
+
     def _current_unlocked(
         self,
         *,

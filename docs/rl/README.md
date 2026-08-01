@@ -289,6 +289,16 @@ This path is experimental hybrid training, not production readiness and not pure
 The external coordinator performs generation only. A local PyTorch LoRA learner performs GRPO
 evaluation, backward, optimizer step, checkpointing, and learner-native adapter export.
 
+This workflow requires a source checkout. `configs/rl/hybrid_vulkan_grpo.yaml` and
+`mojo/rl_coordinator/main.mojo` are repository operator assets. They are not included in the wheel.
+A wheel installation provides the Python runtime, but it does not provide those two
+paths or a built coordinator. From the source checkout, build the coordinator with the installed
+Mojo toolchain before selecting its absolute path:
+
+```bash
+mojo build mojo/rl_coordinator/main.mojo -o /absolute/path/to/rl-coordinator
+```
+
 Complete this replacement checklist before hybrid training:
 
 1. Copy `configs/rl/hybrid_vulkan_grpo.yaml` to `run.hybrid.yaml`.
@@ -296,57 +306,61 @@ Complete this replacement checklist before hybrid training:
 3. Replace `hybrid.model_id` with the safe model ID that the actor returns in trajectories.
 4. Replace `hybrid.expected_actor_backend` with the exact safe `backend_name` returned by the
    coordinator's `ActorHandshake`.
-5. Set `ADAPTER_SOURCE_ID` below to the adapter ID that the actor returns in trajectories.
+5. Ensure the actor is configured to load the `peft-lora` adapter identity produced below.
 6. Replace `--coordinator-command` and `--actor-endpoint` in the training command with the local
    coordinator executable and actor endpoint.
-7. Run the bootstrap command and verify that both bootstrap assertions pass before training.
+7. Run the bootstrap command and verify that its export, publication, and load assertions pass
+   before training.
 
 Do not add the coordinator command, actor endpoint, or secrets to `run.hybrid.yaml`.
 
 `policy.model_name` is the learner's local filesystem locator. `hybrid.model_id` is the safe,
 path-free identity shared by the actor, trajectories, and adapter manifests; it must match the
-actor server's model identity. After creating a compatible initial LoRA state-dict artifact, run
-this bootstrap once from the repository root (adjust the two paths first):
+actor server's model identity. The bootstrap must export from the configured learner itself; do not
+publish arbitrary bytes or relabel an artifact from a different model. Run this once from the
+repository root (adjust both paths first). `BOOTSTRAP_OUTPUT` must name a file that does not exist:
 
 ```bash
 export HYBRID_CONFIG=/absolute/path/to/run.hybrid.yaml
-export BOOTSTRAP_ADAPTER=/absolute/path/to/bootstrap.adapter
-export ADAPTER_SOURCE_ID=peft-lora
+export BOOTSTRAP_OUTPUT=/absolute/path/to/bootstrap-v1.pt
 python - <<'PY'
-import hashlib
 import os
 from pathlib import Path
 
-from gepa_mindfulness.training.adapter_publication import (
-    AdapterCandidate,
-    LocalAdapterPublisher,
-)
+from gepa_mindfulness.training.adapter_publication import LocalAdapterPublisher
+from gepa_mindfulness.training.backends import create_portable_backend
 from gepa_mindfulness.training.policy_versions import PolicyVersion
 from gepa_mindfulness.training.runtime_config import load_rl_config
 
 config = load_rl_config(os.environ["HYBRID_CONFIG"])
-artifact = Path(os.environ["BOOTSTRAP_ADAPTER"]).resolve(strict=True)
-digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
-publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
-published = publisher.publish(
-    AdapterCandidate(
-        artifact_path=artifact,
-        policy_version=PolicyVersion(1),
-        expected_sha256=digest,
-        parent_policy_version=None,
-        format_id="pytorch-lora-state-dict-v1",
-        source_id=os.environ["ADAPTER_SOURCE_ID"],
-        model_id=config.hybrid.model_id,
-    )
+learner = create_portable_backend(
+    config,
+    training_mode="lora",
+    lora_config=config.hybrid.lora,
 )
-assert publisher.current() == published
+candidate = learner.export_adapter(
+    Path(os.environ["BOOTSTRAP_OUTPUT"]).resolve(),
+    model_id=config.hybrid.model_id,
+    policy_version=PolicyVersion(1),
+    parent_policy_version=None,
+)
+publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+published = publisher.publish(candidate)
+verified, payload = publisher.current_artifact()
+loaded_checksum = learner.load_adapter_bytes(payload, manifest=verified)
+assert verified == published
 assert published.model_id == config.hybrid.model_id
+assert published.source_id == "peft-lora"
+assert loaded_checksum == learner.policy_parameter_checksum()
 print(published.manifest_path, published.artifact_sha256)
 PY
 ```
 
-The publisher rejects an artifact whose bytes do not match the supplied SHA-256, unsafe model or
-adapter identifiers, and any attempt to replace an existing policy version.
+The learner export binds the safe model and adapter identities, base-model lineage, exact trainable
+tensor names, shapes, dtypes, and checksum. The publisher re-verifies the artifact SHA-256 and
+refuses an existing policy version. Fresh hybrid startup reads the exact current artifact back,
+validates its closed payload and manifest, and loads it into the learner before logger or actor
+construction. Only that successful load lets the learner claim the current policy version.
 
 ```bash
 gepa rl train \

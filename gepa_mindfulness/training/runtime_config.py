@@ -10,6 +10,7 @@ import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Literal, cast
 
 from .policy_versions import StalenessPolicy
@@ -26,6 +27,14 @@ _LEGACY_DATASET_KEYS = {"path", "test_split", "train_split", "val_split"}
 ZeroVariancePolicy = Literal["zero", "center_only", "skip"]
 Precision = Literal["fp32", "fp16", "bf16"]
 DistributedStrategy = Literal["none", "ddp", "fsdp"]
+
+
+def _freeze_config_value(value: object) -> object:
+    if isinstance(value, Mapping):
+        return MappingProxyType({key: _freeze_config_value(item) for key, item in value.items()})
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze_config_value(item) for item in value)
+    return value
 
 
 def _mapping(value: Any, name: str) -> Mapping[str, Any]:
@@ -649,7 +658,13 @@ class HybridConfig:
                 )
             ):
                 raise ValueError(f"hybrid.lora.{name} must contain unique safe identifiers")
-        object.__setattr__(self, "lora", dict(self.lora))
+        object.__setattr__(
+            self,
+            "lora",
+            MappingProxyType(
+                {key: _freeze_config_value(value) for key, value in self.lora.items()}
+            ),
+        )
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "HybridConfig":

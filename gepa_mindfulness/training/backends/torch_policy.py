@@ -19,7 +19,7 @@ import torch
 from torch import nn
 from torch.nn import functional as functional
 
-from gepa_mindfulness.training.adapter_publication import AdapterCandidate
+from gepa_mindfulness.training.adapter_publication import AdapterCandidate, AdapterManifest
 from gepa_mindfulness.training.capability import (
     BackendCapabilities,
     Capability,
@@ -40,6 +40,17 @@ TrainingMode = Literal["full", "lora"]
 _CHECKPOINT_FORMAT_VERSION = 2
 _LEGACY_CHECKPOINT_FORMAT_VERSION = 1
 _MISSING_CHECKPOINT_VALUE = object()
+_ADAPTER_FORMAT_ID = "pytorch-lora-state-dict-v1"
+_ADAPTER_PAYLOAD_FIELDS = frozenset(
+    {
+        "adapter_identifier",
+        "base_model_sha256",
+        "format_id",
+        "model_identifier",
+        "policy_version",
+        "state_dict",
+    }
+)
 _Result = TypeVar("_Result")
 _OomErrorFactory = Callable[[str], BaseException]
 
@@ -368,7 +379,7 @@ class TorchPolicyBackend:
         *,
         model_id: str,
         policy_version: PolicyVersion,
-        parent_policy_version: PolicyVersion,
+        parent_policy_version: PolicyVersion | None,
     ) -> AdapterCandidate:
         """Export only verified LoRA trainables in the learner's native PyTorch format."""
         if self.training_mode != "lora":
@@ -377,11 +388,17 @@ class TorchPolicyBackend:
             raise TypeError("adapter export destination must be a pathlib.Path")
         if type(policy_version) is not PolicyVersion:
             raise TypeError("policy_version must be a PolicyVersion")
-        if type(parent_policy_version) is not PolicyVersion:
-            raise TypeError("parent_policy_version must be a PolicyVersion")
+        if parent_policy_version is not None and type(parent_policy_version) is not PolicyVersion:
+            raise TypeError("parent_policy_version must be a PolicyVersion or None")
         if not isinstance(model_id, str) or not model_id:
             raise ValueError("model_id must be a non-empty string")
-        if policy_version.value != parent_policy_version.value + 1:
+        if model_id != self.model_identifier:
+            raise ValueError("exported adapter model does not match the learner model identity")
+        if parent_policy_version is None and policy_version != PolicyVersion(1):
+            raise ValueError("bootstrap adapter policy version must be 1")
+        if parent_policy_version is not None and (
+            policy_version.value != parent_policy_version.value + 1
+        ):
             raise ValueError("exported adapter policy version must be exactly next")
         trainable = {
             name: parameter.detach().cpu().clone()
@@ -397,7 +414,8 @@ class TorchPolicyBackend:
             raise ValueError("adapter export destination must not already exist")
         payload = {
             "adapter_identifier": self.adapter_identifier,
-            "format_id": "pytorch-lora-state-dict-v1",
+            "base_model_sha256": self._base_model_checksum(),
+            "format_id": _ADAPTER_FORMAT_ID,
             "model_identifier": model_id,
             "policy_version": policy_version.to_json(),
             "state_dict": trainable,
@@ -412,11 +430,96 @@ class TorchPolicyBackend:
             policy_version=policy_version,
             expected_sha256=hashlib.sha256(exported).hexdigest(),
             parent_policy_version=parent_policy_version,
-            format_id="pytorch-lora-state-dict-v1",
+            format_id=_ADAPTER_FORMAT_ID,
             source_id=self.adapter_identifier or "peft-lora",
             model_id=model_id,
             metadata={"backend": self.backend_name, "optimizer_step": self._step},
         )
+
+    def load_adapter_bytes(self, payload: bytes, *, manifest: AdapterManifest) -> str:
+        """Transactionally load one exact learner-native LoRA publication."""
+        if self.training_mode != "lora":
+            raise RuntimeError("adapter load requires a PEFT LoRA learner")
+        if not isinstance(payload, bytes) or not payload:
+            raise ValueError("adapter payload must be non-empty bytes")
+        if type(manifest) is not AdapterManifest:
+            raise TypeError("adapter manifest must be an AdapterManifest")
+        if hashlib.sha256(payload).hexdigest() != manifest.artifact_sha256:
+            raise ValueError("adapter payload hash does not match its manifest")
+        if len(payload) != manifest.artifact_size:
+            raise ValueError("adapter payload size does not match its manifest")
+        if manifest.format_id != _ADAPTER_FORMAT_ID:
+            raise ValueError("adapter format is not the learner-native LoRA format")
+        if manifest.source_id != self.adapter_identifier:
+            raise ValueError("adapter source identity does not match the learner")
+        if manifest.model_id != self.model_identifier:
+            raise ValueError("adapter model identity does not match the learner")
+        checksum_reader = getattr(self, "policy_parameter_checksum", None)
+        if not callable(checksum_reader):
+            raise ValueError("learner policy checksum evidence is unavailable")
+        try:
+            loaded = torch.load(BytesIO(payload), map_location="cpu", weights_only=True)
+        except (
+            OSError,
+            RuntimeError,
+            EOFError,
+            ValueError,
+            TypeError,
+            pickle.UnpicklingError,
+        ) as exc:
+            raise ValueError("adapter payload is not a safe tensor payload") from exc
+        if not isinstance(loaded, Mapping) or set(loaded) != _ADAPTER_PAYLOAD_FIELDS:
+            raise ValueError("adapter payload fields are missing or unrecognized")
+        if loaded["adapter_identifier"] != manifest.source_id:
+            raise ValueError("adapter payload source identity does not match its manifest")
+        if loaded["format_id"] != manifest.format_id:
+            raise ValueError("adapter payload format identity does not match its manifest")
+        if loaded["model_identifier"] != manifest.model_id:
+            raise ValueError("adapter payload model identity does not match its manifest")
+        try:
+            payload_version = PolicyVersion.from_json(loaded["policy_version"])
+        except ValueError as exc:
+            raise ValueError("adapter payload policy version is not canonical") from exc
+        if payload_version != manifest.policy_version:
+            raise ValueError("adapter payload policy version does not match its manifest")
+        if loaded["base_model_sha256"] != self._base_model_checksum():
+            raise ValueError("adapter base model lineage does not match the learner")
+        state_value = loaded["state_dict"]
+        if not isinstance(state_value, Mapping) or not all(
+            isinstance(name, str) and isinstance(tensor, torch.Tensor)
+            for name, tensor in state_value.items()
+        ):
+            raise ValueError("adapter state_dict must be a tensor mapping")
+        state = cast(Mapping[str, torch.Tensor], state_value)
+        policy = self._unwrapped_policy()
+        trainable = {
+            name: parameter
+            for name, parameter in policy.named_parameters()
+            if parameter.requires_grad
+        }
+        if set(state) != set(trainable):
+            raise ValueError("adapter tensor names do not match learner LoRA trainables")
+        for name, parameter in trainable.items():
+            tensor = state[name]
+            if tensor.shape != parameter.shape or tensor.dtype != parameter.dtype:
+                raise ValueError(f"adapter tensor {name} shape or dtype is incompatible")
+        expected_checksum = self._adapter_state_checksum(state)
+        snapshot = {name: parameter.detach().clone() for name, parameter in trainable.items()}
+        try:
+            with torch.no_grad():
+                for name, parameter in trainable.items():
+                    parameter.copy_(state[name].to(device=parameter.device))
+            loaded_checksum = checksum_reader()
+            if loaded_checksum != expected_checksum:
+                raise ValueError("learner policy checksum does not reflect loaded adapter state")
+        except Exception as exc:
+            with torch.no_grad():
+                for name, parameter in trainable.items():
+                    parameter.copy_(snapshot[name])
+            if isinstance(exc, ValueError):
+                raise
+            raise ValueError("adapter state could not be loaded transactionally") from exc
+        return loaded_checksum
 
     def load_checkpoint(self, source: Path) -> BackendCheckpointResult:
         """Restore a path checkpoint through the same verified-bytes interface."""
@@ -535,6 +638,29 @@ class TorchPolicyBackend:
     def policy_parameter_checksum(self) -> str:
         """Return a deterministic digest of trainable policy-model parameters only."""
         return self._parameter_checksum(("policy", self.policy_model))
+
+    def _base_model_checksum(self) -> str:
+        frozen = {
+            name: parameter.detach()
+            for name, parameter in self._unwrapped_policy().named_parameters()
+            if not parameter.requires_grad
+        }
+        if not frozen:
+            raise ValueError("LoRA learner must expose frozen base-model parameters")
+        return self._named_tensor_checksum("base", frozen)
+
+    @staticmethod
+    def _adapter_state_checksum(state: Mapping[str, torch.Tensor]) -> str:
+        return TorchPolicyBackend._named_tensor_checksum("policy", state)
+
+    @staticmethod
+    def _named_tensor_checksum(prefix: str, state: Mapping[str, torch.Tensor]) -> str:
+        digest = hashlib.sha256()
+        for name, tensor in sorted(state.items()):
+            value = tensor.detach().cpu().contiguous()
+            digest.update(f"{prefix}.{name}\0{value.dtype}\0{tuple(value.shape)}\0".encode())
+            digest.update(value.reshape(-1).view(torch.uint8).numpy().tobytes())
+        return digest.hexdigest()
 
     @staticmethod
     def _parameter_checksum(*modules: tuple[str, nn.Module]) -> str:

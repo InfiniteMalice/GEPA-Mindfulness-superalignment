@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import sys
 from collections.abc import Callable, Mapping
 from copy import deepcopy
+from dataclasses import replace
 from enum import Enum
+from io import BytesIO
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import Any
@@ -14,6 +17,7 @@ import pytest
 import torch
 from torch import nn
 
+from gepa_mindfulness.training.adapter_publication import LocalAdapterPublisher
 from gepa_mindfulness.training.algorithms import (
     GRPOAlgorithm,
     GRPOAlgorithmConfig,
@@ -28,6 +32,7 @@ from gepa_mindfulness.training.backends import (
 )
 from gepa_mindfulness.training.capability import Capability, CapabilityState
 from gepa_mindfulness.training.contracts import TrainablePolicyBackend
+from gepa_mindfulness.training.policy_versions import PolicyVersion
 from gepa_mindfulness.training.runtime_config import RLRunConfig, RuntimeConfig
 from gepa_mindfulness.training.trajectory import RolloutRequest, Trajectory, TrajectoryBatch
 
@@ -1188,6 +1193,130 @@ def test_direct_lora_mode_accepts_verified_adapter_only_trainables(
     assert trainable == ["lora_adapter"]
 
 
+def _native_lora_backend(model: nn.Module) -> TorchPolicyBackend:
+    return TorchPolicyBackend(
+        policy_model=model,
+        tokenizer=TinyTokenizer(),
+        training_mode="lora",
+        model_identifier="tiny-model",
+        adapter_identifier="tiny-lora",
+    )
+
+
+def test_native_lora_v1_export_loads_exact_policy_state(tmp_path: Path) -> None:
+    source_model = _fake_lora_model()
+    target_model = deepcopy(source_model)
+    source = _native_lora_backend(source_model)
+    target = _native_lora_backend(target_model)
+    with torch.no_grad():
+        source.policy_model.lora_adapter.fill_(0.75)
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    candidate = source.export_adapter(
+        tmp_path / "bootstrap.pt",
+        model_id="tiny-model",
+        policy_version=PolicyVersion(1),
+        parent_policy_version=None,
+    )
+    published = publisher.publish(candidate)
+    manifest, payload = publisher.current_artifact()
+
+    loaded_checksum = target.load_adapter_bytes(payload, manifest=manifest)
+
+    assert manifest == published
+    assert loaded_checksum == source.policy_parameter_checksum()
+    assert target.policy_parameter_checksum() == source.policy_parameter_checksum()
+    assert torch.equal(
+        target.policy_model.lora_adapter,
+        source.policy_model.lora_adapter,
+    )
+    exported = torch.load(BytesIO(payload), map_location="cpu", weights_only=True)
+    assert set(exported) == {
+        "adapter_identifier",
+        "base_model_sha256",
+        "format_id",
+        "model_identifier",
+        "policy_version",
+        "state_dict",
+    }
+
+
+@pytest.mark.parametrize(
+    "corruption",
+    [
+        "hash",
+        "unknown-field",
+        "wrong-format",
+        "wrong-source",
+        "wrong-model",
+        "wrong-policy",
+        "missing-state",
+        "full-model-state",
+        "wrong-shape",
+        "wrong-dtype",
+        "independent-base",
+    ],
+)
+def test_native_lora_load_rejects_untrusted_or_incompatible_payload_without_mutation(
+    tmp_path: Path,
+    corruption: str,
+) -> None:
+    source_model = _fake_lora_model()
+    target_model = deepcopy(source_model)
+    source = _native_lora_backend(source_model)
+    target = _native_lora_backend(target_model)
+    with torch.no_grad():
+        source.policy_model.lora_adapter.fill_(0.5)
+        target.policy_model.lora_adapter.fill_(-0.25)
+    candidate = source.export_adapter(
+        tmp_path / "bootstrap.pt",
+        model_id="tiny-model",
+        policy_version=PolicyVersion(1),
+        parent_policy_version=None,
+    )
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    manifest = publisher.publish(candidate)
+    _, original = publisher.current_artifact()
+    payload = torch.load(BytesIO(original), map_location="cpu", weights_only=True)
+    assert isinstance(payload, dict)
+    if corruption == "unknown-field":
+        payload["unexpected"] = "unsafe"
+    elif corruption == "wrong-format":
+        payload["format_id"] = "full-model-v1"
+    elif corruption == "wrong-source":
+        payload["adapter_identifier"] = "other-lora"
+    elif corruption == "wrong-model":
+        payload["model_identifier"] = "other-model"
+    elif corruption == "wrong-policy":
+        payload["policy_version"] = "2"
+    elif corruption == "missing-state":
+        payload["state_dict"] = {}
+    elif corruption == "full-model-state":
+        payload["state_dict"]["embedding.weight"] = source.policy_model.embedding.weight
+    elif corruption == "wrong-shape":
+        payload["state_dict"]["lora_adapter"] = torch.zeros(2)
+    elif corruption == "wrong-dtype":
+        payload["state_dict"]["lora_adapter"] = torch.zeros(1, dtype=torch.float64)
+    elif corruption == "independent-base":
+        payload["base_model_sha256"] = "b" * 64
+    changed = BytesIO()
+    torch.save(payload, changed)
+    changed_payload = changed.getvalue()
+    changed_manifest = replace(
+        manifest,
+        artifact_sha256=hashlib.sha256(changed_payload).hexdigest(),
+        artifact_size=len(changed_payload),
+    )
+    if corruption == "hash":
+        changed_payload = original + b"corrupt"
+        changed_manifest = manifest
+    policy_before = target.policy_model.lora_adapter.detach().clone()
+
+    with pytest.raises(ValueError, match="adapter|payload|hash|identity|state|tensor|base"):
+        target.load_adapter_bytes(changed_payload, manifest=changed_manifest)
+
+    assert torch.equal(target.policy_model.lora_adapter, policy_before)
+
+
 @pytest.mark.parametrize(
     "peft_config",
     [
@@ -1354,8 +1483,17 @@ def test_factory_supports_lora_when_peft_is_available(
     fake_peft.get_peft_model = fake_get_peft_model
     monkeypatch.setitem(sys.modules, "peft", fake_peft)
 
+    config = RLRunConfig.from_mapping(
+        {
+            "runtime": {"backend": "mojo-vulkan-llamacpp"},
+            "algorithm": {"name": "grpo"},
+            "checkpoint": {"save_steps": 1},
+            "policy": {"model_name": "local/learner-assets"},
+            "hybrid": {"model_id": "published-policy"},
+        }
+    )
     backend = create_portable_backend(
-        RLRunConfig(),
+        config,
         policy_model=TinyCausalLM(),
         tokenizer=TinyTokenizer(),
         training_mode="lora",
@@ -1369,6 +1507,7 @@ def test_factory_supports_lora_when_peft_is_available(
         backend.capabilities().state(Capability.SUPPORTS_FULL_WEIGHT_TRAINING)
         is CapabilityState.UNSUPPORTED
     )
+    assert backend.model_identifier == "published-policy"
     trainable = [
         name
         for name, parameter in backend.policy_model.named_parameters()

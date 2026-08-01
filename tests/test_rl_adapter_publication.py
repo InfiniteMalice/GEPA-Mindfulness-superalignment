@@ -87,6 +87,18 @@ def test_successful_publication_is_versioned_hash_verified_and_atomic(tmp_path: 
     assert not any(path.name.startswith(".adapter-stage-") for path in publisher.root.iterdir())
 
 
+def test_current_artifact_returns_the_exact_verified_manifest_and_bytes(tmp_path: Path) -> None:
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    manifest = publisher.publish(_candidate(tmp_path, 1, parent=None))
+
+    current, payload = publisher.current_artifact()
+
+    assert current == manifest
+    assert payload == b"adapter-1"
+    assert hashlib.sha256(payload).hexdigest() == current.artifact_sha256
+    assert len(payload) == current.artifact_size
+
+
 def test_checksum_mismatch_preserves_previous_readable_manifest(tmp_path: Path) -> None:
     publisher = LocalAdapterPublisher(tmp_path / "published")
     current = publisher.publish(_candidate(tmp_path, 1, parent=None))

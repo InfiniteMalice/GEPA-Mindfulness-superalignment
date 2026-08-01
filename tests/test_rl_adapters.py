@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+import zipfile
 from copy import deepcopy
 from pathlib import Path
 
@@ -424,6 +425,10 @@ def test_adapter_import_succeeds_from_an_installed_wheel(tmp_path: Path) -> None
             text=True,
         )
         wheel = next(wheel_directory.glob("*.whl"))
+        with zipfile.ZipFile(wheel) as archive:
+            wheel_names = set(archive.namelist())
+        assert not any(name.endswith("configs/rl/hybrid_vulkan_grpo.yaml") for name in wheel_names)
+        assert not any(name.endswith("mojo/rl_coordinator/main.mojo") for name in wheel_names)
         subprocess.run(
             [
                 sys.executable,

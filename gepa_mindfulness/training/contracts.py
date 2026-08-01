@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Protocol, Sequence, runtime_checkable
 
-from .adapter_publication import AdapterCandidate
+from .adapter_publication import AdapterCandidate, AdapterManifest
 from .capability import BackendCapabilities, Capability
 from .policy_versions import PolicyVersion
 from .trajectory import (
@@ -110,9 +110,12 @@ class AdapterExportingPolicyBackend(Protocol):
         *,
         model_id: str,
         policy_version: PolicyVersion,
-        parent_policy_version: PolicyVersion,
+        parent_policy_version: PolicyVersion | None,
     ) -> AdapterCandidate:
         """Export one adapter-only artifact with typed version evidence."""
+
+    def load_adapter_bytes(self, payload: bytes, *, manifest: AdapterManifest) -> str:
+        """Load exact verified learner-native adapter bytes and return their policy checksum."""
 
 
 @runtime_checkable

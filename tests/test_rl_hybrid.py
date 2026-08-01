@@ -12,9 +12,10 @@ import sys
 import threading
 import time
 from dataclasses import dataclass, replace
+from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Iterator, Mapping, Sequence
+from typing import Iterator, Mapping, Sequence, cast
 
 import pytest
 import torch
@@ -24,6 +25,7 @@ from gepa_mindfulness.training import engine as rl_engine
 from gepa_mindfulness.training import rl_cli
 from gepa_mindfulness.training.adapter_publication import (
     AdapterCandidate,
+    AdapterManifest,
     LocalAdapterPublisher,
 )
 from gepa_mindfulness.training.backends import TorchPolicyBackend
@@ -35,7 +37,12 @@ from gepa_mindfulness.training.backends.mojo_coordinator import (
 )
 from gepa_mindfulness.training.capability import Capability, CapabilityState
 from gepa_mindfulness.training.contracts import ActorTransport, RolloutBackend
-from gepa_mindfulness.training.engine import RLTrainingEngine, build_hybrid_engine
+from gepa_mindfulness.training.engine import (
+    RLTrainingEngine,
+    _config_hash,
+    _config_payload,
+    build_hybrid_engine,
+)
 from gepa_mindfulness.training.policy_versions import PolicyVersion, StalenessPolicy
 from gepa_mindfulness.training.runtime_config import (
     AlgorithmConfig,
@@ -49,9 +56,6 @@ from gepa_mindfulness.training.runtime_config import (
     load_rl_config,
 )
 from gepa_mindfulness.training.trajectory import RolloutRequest, Trajectory
-
-_BOOTSTRAP_BYTES = b"learner-native-lora-v1"
-_BOOTSTRAP_SHA256 = hashlib.sha256(_BOOTSTRAP_BYTES).hexdigest()
 
 _FAKE_COORDINATOR = r"""import json
 import os
@@ -1304,7 +1308,7 @@ class _MockVersionedActor:
         *,
         model_id: str,
         adapter_id: str,
-        adapter_sha256: str = _BOOTSTRAP_SHA256,
+        adapter_sha256: str | None = None,
         crash: bool = False,
     ) -> None:
         self.model_id = model_id
@@ -1338,7 +1342,9 @@ class _MockVersionedActor:
                         backend_version="test-1",
                         model_identifier=self.model_id,
                         adapter_identifier=self.adapter_id,
-                        adapter_sha256=self.adapter_sha256,
+                        adapter_sha256=(
+                            self.adapter_sha256 or str(request.metadata.get("adapter_sha256", ""))
+                        ),
                         policy_version=request.policy_version,
                         seed=request.seed,
                     )
@@ -1385,6 +1391,9 @@ class _FailingPublisher:
 
     def current(self):  # type: ignore[no-untyped-def]
         return self.publisher.current()
+
+    def current_artifact(self):  # type: ignore[no-untyped-def]
+        return self.publisher.current_artifact()
 
     def publish(self, candidate: AdapterCandidate):  # type: ignore[no-untyped-def]
         del candidate
@@ -1452,26 +1461,38 @@ def _hybrid_config(tmp_path: Path, *, staleness: StalenessPolicy) -> RLRunConfig
     )
 
 
-def _bootstrap_adapter(publisher: LocalAdapterPublisher) -> None:
-    artifact = publisher.root.parent / "bootstrap.adapter"
-    artifact.write_bytes(_BOOTSTRAP_BYTES)
-    digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
-    publisher.publish(
-        AdapterCandidate(
-            artifact_path=artifact,
-            policy_version=PolicyVersion(1),
-            expected_sha256=digest,
-            parent_policy_version=None,
-            format_id="pytorch-lora-state-dict-v1",
-            source_id="tiny-lora",
+def _bootstrap_adapter(publisher: LocalAdapterPublisher) -> AdapterManifest:
+    source = TorchPolicyBackend(
+        policy_model=_deterministic_hybrid_policy(),
+        tokenizer=_HybridTokenizer(),
+        device="cpu",
+        learning_rate=0.1,
+        max_new_tokens=1,
+        training_mode="lora",
+        model_identifier="tiny-hybrid-model",
+        adapter_identifier="tiny-lora",
+    )
+    with torch.no_grad():
+        source.policy_model.lora_logits.fill_(0.25)
+    return publisher.publish(
+        source.export_adapter(
+            publisher.root.parent / "bootstrap.adapter",
             model_id="tiny-hybrid-model",
+            policy_version=PolicyVersion(1),
+            parent_policy_version=None,
         )
     )
 
 
+def _deterministic_hybrid_policy() -> _TinyLoraPolicy:
+    with torch.random.fork_rng():
+        torch.manual_seed(314159)
+        return _TinyLoraPolicy()
+
+
 def _hybrid_learner(config: RLRunConfig) -> TorchPolicyBackend:
     return TorchPolicyBackend(
-        policy_model=_TinyLoraPolicy(),
+        policy_model=_deterministic_hybrid_policy(),
         tokenizer=_HybridTokenizer(),
         device="cpu",
         learning_rate=config.algorithm.learning_rate,
@@ -1480,6 +1501,61 @@ def _hybrid_learner(config: RLRunConfig) -> TorchPolicyBackend:
         model_identifier="tiny-hybrid-model",
         adapter_identifier="tiny-lora",
     )
+
+
+def _invalid_bootstrap(
+    publisher: LocalAdapterPublisher,
+    failure: str,
+) -> AdapterManifest:
+    if failure == "independent-base":
+        with torch.random.fork_rng():
+            torch.manual_seed(271828)
+            policy = _TinyLoraPolicy()
+    else:
+        policy = _deterministic_hybrid_policy()
+    source = TorchPolicyBackend(
+        policy_model=policy,
+        tokenizer=_HybridTokenizer(),
+        device="cpu",
+        learning_rate=0.1,
+        max_new_tokens=1,
+        training_mode="lora",
+        model_identifier="tiny-hybrid-model",
+        adapter_identifier="tiny-lora",
+    )
+    candidate = source.export_adapter(
+        publisher.root.parent / f"invalid-{failure}.adapter",
+        model_id="tiny-hybrid-model",
+        policy_version=PolicyVersion(1),
+        parent_policy_version=None,
+    )
+    if failure == "wrong-source":
+        candidate = replace(candidate, source_id="other-lora")
+    elif failure == "wrong-format":
+        candidate = replace(candidate, format_id="full-model-v1")
+    elif failure == "wrong-model":
+        candidate = replace(candidate, model_id="other-model")
+    elif failure in {"full-model", "unsafe", "incompatible", "missing"}:
+        payload = torch.load(candidate.artifact_path, map_location="cpu", weights_only=True)
+        if failure == "full-model":
+            payload["state_dict"]["embedding.weight"] = source.policy_model.embedding.weight
+        elif failure == "unsafe":
+            payload["unexpected"] = "untrusted"
+        elif failure == "incompatible":
+            payload["state_dict"]["lora_logits"] = torch.zeros(7)
+        else:
+            payload["state_dict"] = {}
+        serialized = BytesIO()
+        torch.save(payload, serialized)
+        candidate.artifact_path.write_bytes(serialized.getvalue())
+        candidate = replace(
+            candidate,
+            expected_sha256=hashlib.sha256(serialized.getvalue()).hexdigest(),
+        )
+    manifest = publisher.publish(candidate)
+    if failure == "hash-mismatch":
+        (publisher.root / manifest.artifact_path).write_bytes(b"corrupt-after-publication")
+    return manifest
 
 
 class _LearnerCapabilityProvider:
@@ -1491,13 +1567,107 @@ class _LearnerCapabilityProvider:
         return self.learner.capabilities()
 
 
+def test_fresh_hybrid_loads_v1_before_actor_and_publishes_a_true_v2_child(
+    tmp_path: Path,
+) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    v1 = _bootstrap_adapter(publisher)
+    learner = _hybrid_learner(config)
+    checksum_before_load = learner.policy_parameter_checksum()
+    actor = _MockVersionedActor(model_id="tiny-hybrid-model", adapter_id="tiny-lora")
+    checksum_at_actor_start = ""
+
+    def actor_factory(selected: RLRunConfig, manifest: AdapterManifest) -> _MockVersionedActor:
+        del selected
+        nonlocal checksum_at_actor_start
+        assert manifest == v1
+        assert torch.allclose(learner.policy_model.lora_logits, torch.full((6,), 0.25))
+        checksum_at_actor_start = learner.policy_parameter_checksum()
+        return actor
+
+    result = RLTrainingEngine(
+        config,
+        capability_provider=_LearnerCapabilityProvider(learner),
+        backend_factory=lambda _: learner,
+        actor_factory=actor_factory,
+        publisher_factory=lambda _: publisher,
+    ).train(max_steps=1)
+
+    assert checksum_at_actor_start != checksum_before_load
+    assert result.policy_parameter_checksum_before == checksum_at_actor_start
+    assert result.published_adapter is not None
+    assert result.published_adapter.policy_version == PolicyVersion(2)
+    assert result.published_adapter.parent_policy_version == PolicyVersion(1)
+    v2, v2_payload = publisher.current_artifact()
+    reader = _hybrid_learner(config)
+    assert (
+        reader.load_adapter_bytes(v2_payload, manifest=v2) == result.policy_parameter_checksum_after
+    )
+    assert not torch.allclose(reader.policy_model.lora_logits, torch.full((6,), 0.25))
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "wrong-source",
+        "wrong-format",
+        "wrong-model",
+        "hash-mismatch",
+        "full-model",
+        "unsafe",
+        "incompatible",
+        "missing",
+        "independent-base",
+    ],
+)
+def test_fresh_hybrid_rejects_invalid_lineage_before_logger_or_actor(
+    tmp_path: Path,
+    failure: str,
+) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _invalid_bootstrap(publisher, failure)
+    learner = _hybrid_learner(config)
+    checksum_before = learner.policy_parameter_checksum()
+    logger_calls = 0
+    actor_calls = 0
+
+    def logger_factory(selected: RLRunConfig) -> _NoOpPublicationLogger:
+        del selected
+        nonlocal logger_calls
+        logger_calls += 1
+        return _NoOpPublicationLogger()
+
+    def actor_factory(selected: RLRunConfig, manifest: AdapterManifest) -> _MockVersionedActor:
+        del selected, manifest
+        nonlocal actor_calls
+        actor_calls += 1
+        return _MockVersionedActor(model_id="tiny-hybrid-model", adapter_id="tiny-lora")
+
+    with pytest.raises(ValueError, match="adapter|artifact|model|lineage|payload|tensor"):
+        RLTrainingEngine(
+            config,
+            capability_provider=_LearnerCapabilityProvider(learner),
+            backend_factory=lambda _: learner,
+            actor_factory=actor_factory,
+            publisher_factory=lambda _: publisher,
+            logger_factory=logger_factory,
+        ).train(max_steps=0)
+
+    assert learner.policy_parameter_checksum() == checksum_before
+    assert learner._step == 0
+    assert logger_calls == 0
+    assert actor_calls == 0
+
+
 def test_hybrid_step_updates_pytorch_and_publishes_exact_next_version(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
     publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
-    _bootstrap_adapter(publisher)
+    initial = _bootstrap_adapter(publisher)
     learner = _hybrid_learner(config)
     learner_close_calls = 0
 
@@ -1534,9 +1704,13 @@ def test_hybrid_step_updates_pytorch_and_publishes_exact_next_version(
     actor_policy = manifest["device_capabilities"]["hybrid_actor_policy"]
     assert manifest["actor_backend"] == "mock-mojo-vulkan"
     assert manifest["learner_backend"] == "torch_portable"
+    assert manifest["software_versions"] == {
+        "actor_backend": "unobserved",
+        "learner_backend": str(torch.__version__),
+    }
     assert manifest["adapter"] == "tiny-lora"
     assert actor_policy["policy_version"] == "1"
-    assert actor_policy["adapter_sha256"] == hashlib.sha256(b"learner-native-lora-v1").hexdigest()
+    assert actor_policy["adapter_sha256"] == initial.artifact_sha256
     assert trajectory_record["actor_backend"] == manifest["actor_backend"]
     assert trajectory_record["learner_backend"] == manifest["learner_backend"]
     assert trajectory_record["policy_version"] == actor_policy["policy_version"]
@@ -1721,7 +1895,10 @@ def test_hybrid_publisher_failure_preserves_current_and_returns_no_success(
     assert learner_close_calls == 1
 
 
-def test_hybrid_resume_requires_checkpoint_current_adapter_coherence(tmp_path: Path) -> None:
+def test_hybrid_resume_requires_checkpoint_current_adapter_coherence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
     publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
     _bootstrap_adapter(publisher)
@@ -1737,6 +1914,16 @@ def test_hybrid_resume_requires_checkpoint_current_adapter_coherence(tmp_path: P
     checkpoint_path = Path(config.checkpoint.output_dir) / first.checkpoint.checkpoint_id
     resumed_actor = _MockVersionedActor(model_id="tiny-hybrid-model", adapter_id="tiny-lora")
     resumed_learner = _hybrid_learner(config)
+
+    def unexpected_adapter_load(*args: object, **kwargs: object) -> str:
+        del args, kwargs
+        raise AssertionError("resume must use the coherent checkpoint restoration path")
+
+    monkeypatch.setattr(
+        resumed_learner,
+        "load_adapter_bytes",
+        unexpected_adapter_load,
+    )
 
     resumed = RLTrainingEngine(
         config,
@@ -1787,6 +1974,41 @@ def test_hybrid_config_is_strict_and_keeps_operator_context_out_of_template() ->
     assert "endpoint:" not in template
     assert "secret" not in template.casefold()
     assert "api_key" not in template.casefold()
+
+
+def test_hybrid_lora_is_recursively_frozen_and_detached_from_caller_state() -> None:
+    caller_lora: dict[str, object] = {
+        "r": 4,
+        "target_modules": ["q_proj", "v_proj"],
+    }
+    config = HybridConfig(lora=caller_lora)
+
+    caller_lora["r"] = 99
+    cast(list[str], caller_lora["target_modules"]).append("k_proj")
+
+    assert config.lora == {"r": 4, "target_modules": ("q_proj", "v_proj")}
+    with pytest.raises(TypeError):
+        config.lora["r"] = 8  # type: ignore[index]
+    with pytest.raises(AttributeError):
+        cast(list[str], config.lora["target_modules"]).append("k_proj")
+
+
+def test_hybrid_lora_canonical_serialization_is_deterministic() -> None:
+    first = RLRunConfig(
+        runtime=RuntimeConfig(backend="mojo-vulkan-llamacpp"),
+        algorithm=AlgorithmConfig(name="grpo"),
+        checkpoint=CheckpointConfig(save_steps=1),
+        hybrid=HybridConfig(lora={"r": 4, "target_modules": ["q_proj", "v_proj"]}),
+    )
+    second = RLRunConfig(
+        runtime=RuntimeConfig(backend="mojo-vulkan-llamacpp"),
+        algorithm=AlgorithmConfig(name="grpo"),
+        checkpoint=CheckpointConfig(save_steps=1),
+        hybrid=HybridConfig(lora={"target_modules": ("q_proj", "v_proj"), "r": 4}),
+    )
+
+    assert _config_payload(first) == _config_payload(second)
+    assert _config_hash(first) == _config_hash(second)
 
 
 @pytest.mark.parametrize(
@@ -2630,7 +2852,9 @@ def test_hybrid_collect_and_evaluate_send_actor_manifest_through_real_transport(
     assert {item.backend_name for item in result.trajectories} == {"fake-mojo"}
     assert {item.model_identifier for item in result.trajectories} == {"tiny-hybrid-model"}
     assert {item.adapter_identifier for item in result.trajectories} == {"tiny-lora"}
-    assert {item.adapter_sha256 for item in result.trajectories} == {_BOOTSTRAP_SHA256}
+    assert {item.adapter_sha256 for item in result.trajectories} == {
+        publisher.current().artifact_sha256  # type: ignore[union-attr]
+    }
     assert {item.policy_version for item in result.trajectories} == {"1"}
 
 
@@ -2677,6 +2901,10 @@ def test_build_hybrid_engine_real_process_echoes_identity_through_publication(
     assert result.global_step == 1
     assert result.published_adapter is not None
     assert manifest["actor_backend"] == "fake-mojo"
+    assert manifest["software_versions"] == {
+        "actor_backend": "unobserved",
+        "learner_backend": str(torch.__version__),
+    }
     assert {record["actor_backend"] for record in trajectories + metrics + publications} == {
         "fake-mojo"
     }
@@ -2704,32 +2932,51 @@ def test_build_hybrid_engine_real_process_echoes_identity_through_publication(
 def test_shipped_hybrid_config_bootstraps_safe_current_manifest(tmp_path: Path) -> None:
     config = load_rl_config("configs/rl/hybrid_vulkan_grpo.yaml")
     publisher = LocalAdapterPublisher(tmp_path / "adapters")
-    artifact = tmp_path / "bootstrap.adapter"
-    artifact.write_bytes(_BOOTSTRAP_BYTES)
-    published = publisher.publish(
-        AdapterCandidate(
-            artifact_path=artifact,
-            policy_version=PolicyVersion(1),
-            expected_sha256=_BOOTSTRAP_SHA256,
-            parent_policy_version=None,
-            format_id="pytorch-lora-state-dict-v1",
-            source_id="peft-lora",
-            model_id=config.hybrid.model_id,
-        )
+    source = TorchPolicyBackend(
+        policy_model=_deterministic_hybrid_policy(),
+        tokenizer=_HybridTokenizer(),
+        training_mode="lora",
+        model_identifier=config.hybrid.model_id,
+        adapter_identifier="peft-lora",
+    )
+    candidate = source.export_adapter(
+        tmp_path / "bootstrap-v1.pt",
+        model_id=config.hybrid.model_id,
+        policy_version=PolicyVersion(1),
+        parent_policy_version=None,
+    )
+    published = publisher.publish(candidate)
+    verified, payload = publisher.current_artifact()
+    reader = TorchPolicyBackend(
+        policy_model=_deterministic_hybrid_policy(),
+        tokenizer=_HybridTokenizer(),
+        training_mode="lora",
+        model_identifier=config.hybrid.model_id,
+        adapter_identifier="peft-lora",
     )
 
-    assert publisher.current() == published
+    assert verified == published
+    assert (
+        reader.load_adapter_bytes(payload, manifest=verified) == source.policy_parameter_checksum()
+    )
     assert published.model_id == config.hybrid.model_id
     assert config.policy.model_name.startswith("/absolute/path/")
     assert config.hybrid.expected_actor_backend == "MOJO_ACTOR_BACKEND_ID"
     readme = Path("docs/rl/README.md").read_text(encoding="utf-8")
+    assert "source checkout" in readme
+    assert "not included in the wheel" in readme
+    assert "create_portable_backend" in readme
+    assert "export_adapter" in readme
+    assert "current_artifact" in readme
+    assert "load_adapter_bytes" in readme
+    assert "BOOTSTRAP_ADAPTER" not in readme
+    assert "ADAPTER_SOURCE_ID" not in readme
     assert "LocalAdapterPublisher" in readme
     assert "publisher.current()" in readme
     for item in (
         "policy.model_name",
         "hybrid.model_id",
         "hybrid.expected_actor_backend",
-        "source_id",
         "--coordinator-command",
         "--actor-endpoint",
         "publisher.current()",

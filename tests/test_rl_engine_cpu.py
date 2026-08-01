@@ -23,14 +23,21 @@ from torch import nn
 
 from gepa_mindfulness.training.algorithms import GRPOAlgorithm
 from gepa_mindfulness.training.backends import TorchPolicyBackend, TorchTensorOps
-from gepa_mindfulness.training.engine import EngineResult, RLTrainingEngine
+from gepa_mindfulness.training.engine import (
+    EngineResult,
+    RLTrainingEngine,
+    _config_hash,
+    _config_payload,
+)
 from gepa_mindfulness.training.runtime_config import (
     AlgorithmConfig,
     CheckpointConfig,
     DatasetConfig,
+    HybridConfig,
     LoggingConfig,
     PolicyConfig,
     RLRunConfig,
+    RuntimeConfig,
 )
 from gepa_mindfulness.training.trajectory import RolloutRequest, TrajectoryBatch
 
@@ -280,6 +287,37 @@ def _engine(
     return RLTrainingEngine(config, backend_factory=build_backend)
 
 
+@pytest.mark.parametrize(
+    "runtime",
+    [
+        RuntimeConfig(backend="pytorch"),
+        RuntimeConfig(backend="cuda", device="cuda:0"),
+        RuntimeConfig(backend="llama-cpp-vulkan"),
+    ],
+)
+def test_nonhybrid_config_identity_omits_all_hybrid_only_configuration(
+    runtime: RuntimeConfig,
+) -> None:
+    baseline = RLRunConfig(runtime=runtime)
+    changed = replace(
+        baseline,
+        hybrid=HybridConfig(
+            model_id="ignored-off-path",
+            adapter_store="elsewhere/adapters",
+            lora={"r": 31, "target_modules": ["q_proj", "v_proj"]},
+        ),
+    )
+
+    assert _config_hash(changed) == _config_hash(baseline)
+    assert b'"hybrid"' not in _config_payload(changed)
+
+
+def test_default_nonhybrid_config_keeps_the_pre_phase5_resume_hash() -> None:
+    assert _config_hash(RLRunConfig()) == (
+        "9f0306ad79e6ed93e0bc40b3918270e12538960e4061456be7f91d6fb1f6f1b2"
+    )
+
+
 def test_rl_extras_are_bounded_synchronized_and_keep_heavy_frameworks_optional() -> None:
     """Unbounded, divergent, or heavyweight RL dependency declarations must fail."""
     extras = _optional_dependencies()
@@ -370,6 +408,12 @@ def test_offline_cpu_train_checkpoint_and_resume_updates_real_model_weights(
     assert (trained.log_directory / "run_manifest.json").is_file()
     assert (trained.log_directory / "trajectories.jsonl").is_file()
     assert (trained.log_directory / "metrics.jsonl").is_file()
+    run_manifest = json.loads(
+        (trained.log_directory / "run_manifest.json").read_text(encoding="utf-8")
+    )
+    assert set(run_manifest["software_versions"]) == {"backend"}
+    assert isinstance(run_manifest["software_versions"]["backend"], str)
+    assert run_manifest["software_versions"]["backend"]
 
     restored = _engine(config, backends, reference_checksums).resume(checkpoint_path, max_steps=0)
 

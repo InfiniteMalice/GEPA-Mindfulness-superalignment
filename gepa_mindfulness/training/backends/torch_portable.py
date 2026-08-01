@@ -50,7 +50,11 @@ def create_portable_backend(
         max_new_tokens=config.policy.max_new_tokens,
         max_grad_norm=config.algorithm.max_grad_norm,
         training_mode=training_mode,
-        model_identifier=config.policy.model_name,
+        model_identifier=(
+            config.hybrid.model_id
+            if config.runtime.backend == "mojo-vulkan-llamacpp"
+            else config.policy.model_name
+        ),
         adapter_identifier=adapter_identifier,
     )
 

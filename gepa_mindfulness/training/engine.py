@@ -12,7 +12,8 @@ import tempfile
 import uuid
 from collections.abc import Callable, Mapping, Sequence
 from copy import deepcopy
-from dataclasses import asdict, dataclass, replace
+from dataclasses import dataclass, fields, is_dataclass, replace
+from enum import Enum
 from importlib import import_module, metadata
 from pathlib import Path
 from types import MappingProxyType
@@ -618,18 +619,31 @@ class RLTrainingEngine:
             if self.config.runtime.backend == "mojo-vulkan-llamacpp":
                 if not isinstance(backend, AdapterExportingPolicyBackend):
                     raise RuntimeError(
-                        "PyTorch learner cannot substantiate learner-native adapter-only export"
+                        "PyTorch learner cannot substantiate learner-native adapter load/export"
                     )
                 publisher = cast(PublisherFactory, self.publisher_factory)(self.config)
-                current = publisher.current()
-                if current is None:
-                    raise ValueError(
-                        "hybrid training requires a validated current actor adapter manifest"
-                    )
+                if mode == "resume":
+                    current = publisher.current()
+                    if current is None:
+                        raise ValueError(
+                            "hybrid training requires a validated current actor adapter manifest"
+                        )
+                else:
+                    current, adapter_payload = publisher.current_artifact()
                 if current.model_id != self.config.hybrid.model_id:
                     raise ValueError("current actor adapter model does not match hybrid.model_id")
                 if mode == "resume":
                     _validate_hybrid_resume(current, global_step, resume_parent)
+                else:
+                    loaded_checksum = backend.load_adapter_bytes(
+                        adapter_payload,
+                        manifest=current,
+                    )
+                    observed_checksum = _policy_parameter_checksum(backend)
+                    if loaded_checksum != observed_checksum:
+                        raise ValueError(
+                            "learner policy checksum does not match the loaded current adapter"
+                        )
                 hybrid_state = _HybridState(
                     actor_manifest=current,
                     learner_version=current.policy_version,
@@ -2267,9 +2281,7 @@ class _LocalCheckpointCoordinator:
     def save(self, global_step: int, parent_checkpoint: str | None) -> object:
         from .checkpointing import CheckpointSnapshot, RankRNGState
 
-        config_payload = asdict(self.config)
-        hybrid_payload = cast(dict[str, object], config_payload["hybrid"])
-        hybrid_payload["staleness_policy"] = self.config.hybrid.staleness_policy.value
+        config_payload = _canonical_config_mapping(self.config)
         cpu_rng = self._torch.get_rng_state().clone()
         cuda_rng = (
             tuple(self._torch.cuda.get_rng_state_all())
@@ -2378,7 +2390,14 @@ class _JSONLRunLogger:
             dataset_hash=self.dataset_hash,
             config_hash=_config_hash(self.config),
             seed=self.config.seed,
-            software_versions={"backend": capabilities.backend_version},
+            software_versions=(
+                {"backend": capabilities.backend_version}
+                if self.actor_manifest is None
+                else {
+                    "actor_backend": "unobserved",
+                    "learner_backend": capabilities.backend_version,
+                }
+            ),
             device_capabilities=capability_payload,
             start_time=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             checkpoint_parent=checkpoint_parent,
@@ -2617,9 +2636,11 @@ class _JSONLRunLogger:
 
 
 def _config_payload(config: RLRunConfig) -> bytes:
-    payload = asdict(config)
+    payload = _canonical_config_mapping(config)
     payload.pop("checkpoint", None)
     payload.pop("logging", None)
+    if config.runtime.backend != "mojo-vulkan-llamacpp":
+        payload.pop("hybrid", None)
     dataset = cast(dict[str, object], payload["dataset"])
     payload["dataset"] = {"format": dataset["format"]}
     algorithm = cast(dict[str, object], payload["algorithm"])
@@ -2637,6 +2658,27 @@ def _config_payload(config: RLRunConfig) -> bytes:
         separators=(",", ":"),
     )
     return serialized.encode("utf-8")
+
+
+def _canonical_config_mapping(config: RLRunConfig) -> dict[str, object]:
+    payload = _canonical_config_value(config)
+    if not isinstance(payload, dict):  # pragma: no cover - fixed by the typed call above
+        raise AssertionError("RLRunConfig must serialize to a mapping")
+    return cast(dict[str, object], payload)
+
+
+def _canonical_config_value(value: object) -> object:
+    if isinstance(value, Enum):
+        return value.value
+    if is_dataclass(value) and not isinstance(value, type):
+        return {
+            item.name: _canonical_config_value(getattr(value, item.name)) for item in fields(value)
+        }
+    if isinstance(value, Mapping):
+        return {str(key): _canonical_config_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_canonical_config_value(item) for item in value]
+    return value
 
 
 def _config_hash(config: RLRunConfig) -> str:
