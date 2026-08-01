@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -115,7 +117,9 @@ def test_destination_collision_is_rejected_without_overwrite(tmp_path: Path) -> 
         publisher.publish(_candidate(tmp_path, 2, parent=1))
 
     assert marker.read_text(encoding="utf-8") == "keep"
-    assert publisher.current() == current
+    with pytest.raises(ValueError, match="orphan"):
+        publisher.current()
+    assert (publisher.root / current.artifact_path).read_bytes() == b"adapter-1"
 
 
 def test_interrupted_stage_copy_cleans_exact_stage_and_preserves_current(
@@ -261,3 +265,86 @@ def test_candidate_rejects_noncanonical_or_unsafe_scalars(
 
     with pytest.raises((TypeError, ValueError)):
         AdapterCandidate(**values)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("schema_version", [True, 1.0])
+@pytest.mark.parametrize("target", ["current.json", "versions/1/manifest.json"])
+def test_schema_version_rejects_bool_and_float(
+    tmp_path: Path,
+    schema_version: object,
+    target: str,
+) -> None:
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    publisher.publish(_candidate(tmp_path, 1, parent=None))
+    path = publisher.root / target
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["schema_version"] = schema_version
+    path.write_bytes((json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n").encode())
+
+    with pytest.raises(ValueError, match="schema_version"):
+        publisher.current()
+
+
+def test_two_publishers_serialize_first_publication_without_orphan(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "published"
+    first = LocalAdapterPublisher(root)
+    second = LocalAdapterPublisher(root)
+    barrier = threading.Barrier(2)
+
+    def publish(publisher: LocalAdapterPublisher, version: int) -> object:
+        barrier.wait()
+        return publisher.publish(_candidate(tmp_path, version, parent=None))
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(publish, first, 1), pool.submit(publish, second, 2)]
+    successes = [future.result() for future in futures if future.exception() is None]
+    failures = [future.exception() for future in futures if future.exception() is not None]
+
+    assert len(successes) == 1
+    assert len(failures) == 1
+    assert isinstance(failures[0], ValueError)
+    current = first.current()
+    assert current is not None
+    assert [path.name for path in (root / "versions").iterdir()] == [
+        current.policy_version.to_json()
+    ]
+
+
+@pytest.mark.parametrize("name", ["foreign.txt", ".adapter-stage-orphan", ".current-orphan.tmp"])
+def test_current_rejects_nonempty_control_layout(tmp_path: Path, name: str) -> None:
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    path = publisher.root / name
+    if "stage" in name:
+        path.mkdir()
+    else:
+        path.write_text("orphan", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="layout|current"):
+        publisher.current()
+
+
+def test_internal_artifact_symlink_and_version_directory_symlink_fail_closed(
+    tmp_path: Path,
+) -> None:
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    manifest = publisher.publish(_candidate(tmp_path, 1, parent=None))
+    target = tmp_path / "target"
+    target.write_bytes(b"adapter-1")
+    artifact = publisher.root / manifest.artifact_path
+    artifact.unlink()
+    try:
+        artifact.symlink_to(target)
+    except OSError:
+        pytest.skip("symlink creation is unavailable")
+    with pytest.raises(ValueError, match="symlink|unsafe"):
+        publisher.current()
+
+    artifact.unlink()
+    version = artifact.parent
+    (version / "manifest.json").unlink()
+    version.rmdir()
+    version.symlink_to(tmp_path, target_is_directory=True)
+    with pytest.raises(ValueError, match="symlink|unsafe|canonical"):
+        publisher.current()

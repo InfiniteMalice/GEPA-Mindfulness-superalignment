@@ -8,8 +8,10 @@ import math
 import os
 import re
 import stat
+import threading
 import uuid
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
@@ -39,6 +41,8 @@ _MAX_METADATA_ENTRIES = 32
 _MAX_METADATA_STRING = 256
 _MAX_METADATA_INTEGER = 2**63 - 1
 _MAX_METADATA_FLOAT = 1.0e15
+_THREAD_LOCKS: dict[str, threading.RLock] = {}
+_THREAD_LOCKS_GUARD = threading.Lock()
 
 
 class ArtifactHashError(ValueError):
@@ -106,7 +110,7 @@ class AdapterManifest:
         _validate_id(self.format_id, "format_id")
         _validate_id(self.source_id, "source_id")
         _validate_id(self.model_id, "model_id")
-        if self.schema_version != ADAPTER_SCHEMA_VERSION:
+        if type(self.schema_version) is not int or self.schema_version != ADAPTER_SCHEMA_VERSION:
             raise ValueError(f"adapter schema_version must be {ADAPTER_SCHEMA_VERSION}")
         object.__setattr__(self, "metadata", MappingProxyType(_validate_metadata(self.metadata)))
 
@@ -163,6 +167,10 @@ class LocalAdapterPublisher:
 
     def publish(self, candidate: AdapterCandidate) -> AdapterManifest:
         """Verify and atomically publish one already-produced adapter artifact."""
+        with self._transaction_lock():
+            return self._publish_locked(candidate)
+
+    def _publish_locked(self, candidate: AdapterCandidate) -> AdapterManifest:
         self._validate_store()
         if type(candidate) is not AdapterCandidate:
             raise TypeError("candidate must be an AdapterCandidate")
@@ -172,12 +180,13 @@ class LocalAdapterPublisher:
         )
         if candidate_digest != candidate.expected_sha256:
             raise ArtifactHashError("candidate adapter failed SHA-256 verification")
-        current = self.current()
+        current = self._current_unlocked(validate_version_layout=False)
         self._validate_chain(candidate, current)
         artifact_path, manifest_path = _version_paths(candidate.policy_version)
         destination = self.root / Path(manifest_path).parent
         if destination.exists() or destination.is_symlink():
             raise FileExistsError("adapter version destination already exists")
+        self._current_unlocked()
 
         stage = self.root / f".adapter-stage-{uuid.uuid4().hex}"
         pointer = self.root / f".current-{uuid.uuid4().hex}.tmp"
@@ -218,7 +227,18 @@ class LocalAdapterPublisher:
 
     def current(self) -> AdapterManifest | None:
         """Return the fully verified current manifest, or None for a genuinely empty store."""
+        with self._transaction_lock():
+            return self._current_unlocked()
+
+    def _current_unlocked(
+        self,
+        *,
+        validate_version_layout: bool = True,
+    ) -> AdapterManifest | None:
         self._validate_store()
+        allowed_root = {".publication.lock", "current.json", "versions"}
+        if any(path.name not in allowed_root for path in self.root.iterdir()):
+            raise ValueError("adapter publication root layout contains unknown control state")
         current_path = self.root / "current.json"
         if not current_path.exists() and not current_path.is_symlink():
             if any(self.versions.iterdir()):
@@ -226,6 +246,14 @@ class LocalAdapterPublisher:
             return None
         current_payload = _read_canonical_json(current_path, "current adapter manifest")
         manifest = AdapterManifest.from_dict(current_payload)
+        version_values: list[PolicyVersion] = []
+        for version_path in self.versions.iterdir():
+            _require_directory(version_path, "adapter version directory")
+            version_values.append(PolicyVersion.from_json(version_path.name))
+        if validate_version_layout and (
+            not version_values or max(version_values) != manifest.policy_version
+        ):
+            raise ValueError("adapter versions contain an orphan or omit the current version")
         artifact = _contained_regular_path(self.root, manifest.artifact_path, "artifact_path")
         version_manifest = _contained_regular_path(
             self.root,
@@ -240,6 +268,47 @@ class LocalAdapterPublisher:
         if digest != manifest.artifact_sha256 or size != manifest.artifact_size:
             raise ArtifactHashError("published adapter failed SHA-256 verification")
         return manifest
+
+    @contextmanager
+    def _transaction_lock(self) -> Iterator[None]:
+        key = os.path.abspath(self.root)
+        with _THREAD_LOCKS_GUARD:
+            thread_lock = _THREAD_LOCKS.setdefault(key, threading.RLock())
+        with thread_lock:
+            lock_path = self.root / ".publication.lock"
+            if lock_path.exists() or lock_path.is_symlink():
+                before = lock_path.lstat()
+                if _is_link_or_reparse(before) or not stat.S_ISREG(before.st_mode):
+                    raise ValueError("adapter publication lock must be a regular file")
+            else:
+                before = None
+            flags = (
+                os.O_RDWR | os.O_CREAT | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+            )
+            descriptor = os.open(lock_path, flags, 0o600)
+            try:
+                opened = os.fstat(descriptor)
+                after = lock_path.lstat()
+                if (
+                    not stat.S_ISREG(opened.st_mode)
+                    or _is_link_or_reparse(after)
+                    or (after.st_dev, after.st_ino) != (opened.st_dev, opened.st_ino)
+                    or before is not None
+                    and (before.st_dev, before.st_ino) != (opened.st_dev, opened.st_ino)
+                ):
+                    raise ValueError("adapter publication lock changed or is unsafe")
+                if opened.st_size == 0:
+                    os.write(descriptor, b"0")
+                    os.fsync(descriptor)
+                os.lseek(descriptor, 0, os.SEEK_SET)
+                _lock_descriptor(descriptor)
+                try:
+                    yield
+                finally:
+                    os.lseek(descriptor, 0, os.SEEK_SET)
+                    _unlock_descriptor(descriptor)
+            finally:
+                os.close(descriptor)
 
     def _validate_store(self) -> None:
         _require_directory(self.root, "adapter publication root")
@@ -398,7 +467,10 @@ def _open_regular(path: Path, field_name: str) -> tuple[os.stat_result, BinaryIO
         flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
         descriptor = os.open(path, flags)
         after = os.fstat(descriptor)
-        if (before.st_dev, before.st_ino) != (after.st_dev, after.st_ino):
+        if not stat.S_ISREG(after.st_mode) or (before.st_dev, before.st_ino) != (
+            after.st_dev,
+            after.st_ino,
+        ):
             os.close(descriptor)
             raise ValueError(f"{field_name} changed while it was opened")
         return before, os.fdopen(descriptor, "rb")
@@ -460,17 +532,47 @@ def _read_canonical_json(path: Path, field_name: str) -> object:
 def _contained_regular_path(root: Path, relative: str, field_name: str) -> Path:
     if type(relative) is not str:
         raise ValueError(f"{field_name} must be a canonical relative path")
-    candidate = root / relative
-    try:
-        resolved_root = root.resolve(strict=True)
-        resolved = candidate.resolve(strict=True)
-    except OSError as exc:
-        raise ValueError(f"{field_name} is missing or unsafe") from exc
-    if resolved.parent.parent != resolved_root / "versions":
+    parts = Path(relative).parts
+    if (
+        len(parts) != 3
+        or parts[0] != "versions"
+        or parts[2]
+        not in {
+            "adapter.bin",
+            "manifest.json",
+        }
+    ):
         raise ValueError(f"{field_name} escapes the adapter publication root")
-    _require_directory(resolved.parent, f"{field_name} version directory")
-    _sha256_regular(resolved, field_name)
-    return resolved
+    versions = root / "versions"
+    _require_directory(root, "adapter publication root")
+    _require_directory(versions, "adapter versions directory")
+    version = versions / parts[1]
+    _require_directory(version, f"{field_name} version directory")
+    candidate = version / parts[2]
+    _sha256_regular(candidate, field_name)
+    return candidate
+
+
+def _lock_descriptor(descriptor: int) -> None:
+    if os.name == "nt":
+        import msvcrt
+
+        msvcrt.locking(descriptor, msvcrt.LK_LOCK, 1)
+    else:
+        import fcntl
+
+        getattr(fcntl, "flock")(descriptor, getattr(fcntl, "LOCK_EX"))
+
+
+def _unlock_descriptor(descriptor: int) -> None:
+    if os.name == "nt":
+        import msvcrt
+
+        msvcrt.locking(descriptor, msvcrt.LK_UNLCK, 1)
+    else:
+        import fcntl
+
+        getattr(fcntl, "flock")(descriptor, getattr(fcntl, "LOCK_UN"))
 
 
 __all__ = [
