@@ -152,6 +152,44 @@ precision, the test also requires a policy-only parameter change, frozen referen
 residency, canonical checkpoint artifacts, exact fresh-backend restoration, and restored global
 step. Treat a skipped precision as unsupported evidence, not a pass.
 
+### Launch the canonical two-GPU DDP configuration
+
+**Distributed hardware verification status: not run on this CPU-only host.** Run the marked CUDA
+acceptance lane on the target host before treating this command as hardware-qualified evidence.
+
+Copy the shipped Distributed Data Parallel (DDP) template and replace its local-model placeholder:
+
+```bash
+cp configs/rl/cuda_ddp.yaml run.cuda.ddp.yaml
+export MODEL_DIR=/absolute/path/to/local-transformers-model
+python - <<'PY'
+import os
+from pathlib import Path
+
+import yaml
+
+model_dir = Path(os.environ["MODEL_DIR"]).expanduser().resolve(strict=True)
+path = Path("run.cuda.ddp.yaml")
+config = yaml.safe_load(path.read_text(encoding="utf-8"))
+config["policy"]["model_name"] = str(model_dir)
+path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+PY
+```
+
+From the repository root, launch exactly two local workers with the canonical CLI module:
+
+```bash
+export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
+torchrun --standalone --nnodes=1 --nproc-per-node=2 -m mindful_trace_gepa rl train --config run.cuda.ddp.yaml --max-steps 1
+```
+
+`torchrun` supplies `WORLD_SIZE`, `RANK`, `LOCAL_RANK`, `MASTER_ADDR`, and `MASTER_PORT`. Each worker
+resolves the strict topology in `run.cuda.ddp.yaml`, activates its configured local CUDA device,
+and joins the NCCL process group through `env://`. When no process group exists, the canonical
+engine initializes the group and destroys the owned group after success or failure. When an
+embedding process initializes the group before engine entry, the engine validates that external
+group and does not destroy it.
+
 ### Dependency version policy
 
 The `dev` and `rl-dev` extras require `pytest>=8.0,<10`. Pytest 8 and 9 are the declared supported
@@ -410,9 +448,11 @@ Pass a mapping to `lora_config`, not an instantiated PEFT `LoraConfig`. The targ
 must exist in the selected local model. The factory also accepts no injected assets; in that mode,
 it loads the tokenizer and model from the local directory or cache with `local_files_only=True`.
 
-The portable runtime is single-process and local. It does not provide distributed training,
-automatic model downloads, vLLM learning, TRL trainers, dataset streaming, or automatic device
-placement. CUDA is accepted only when the installed PyTorch build reports an available device.
+The portable CPU runtime is single-process and local. The CUDA runtime additionally supports the
+strict DDP and full-state FSDP topology in `RuntimeConfig.distributed`. The runtime does not provide
+automatic model downloads, vLLM learning, TRL trainers, dataset streaming, automatic device
+placement, or sharded-optimizer checkpoint restore. CUDA is accepted only when the installed
+PyTorch build reports an available device.
 
 ## Verify the offline acceptance path
 

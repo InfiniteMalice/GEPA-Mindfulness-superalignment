@@ -463,15 +463,36 @@ class RLTrainingEngine:
         max_steps: int | None = None,
     ) -> EngineResult:
         step_budget = self._step_budget(max_steps)
-        target_step = step_budget
         requirements = set(required_capabilities(self.config, mode))
         requirements.update(_factory_requirements(self.backend_factory, self.config))
         if mode in {"train", "resume"}:
             requirements.update(_factory_requirements(self.algorithm_factory, self.config))
-        if _distributed_runtime(self.config).strategy != "none":
-            from .backends.torch_cuda import validate_distributed_runtime
+        if _distributed_runtime(self.config).strategy == "none":
+            return self._execute_configured(
+                mode,
+                checkpoint=checkpoint,
+                step_budget=step_budget,
+                requirements=requirements,
+            )
+        from .backends.torch_cuda import distributed_runtime_context
 
-            validate_distributed_runtime(self.config)
+        with distributed_runtime_context(self.config):
+            return self._execute_configured(
+                mode,
+                checkpoint=checkpoint,
+                step_budget=step_budget,
+                requirements=requirements,
+            )
+
+    def _execute_configured(
+        self,
+        mode: EngineMode,
+        *,
+        checkpoint: Path | None,
+        step_budget: int,
+        requirements: set[Capability],
+    ) -> EngineResult:
+        target_step = step_budget
         detected = self.capability_provider.detect(self.config)
         detected.require(requirements)
         snapshot = _capture_dataset_snapshot(

@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable, Mapping
+from contextlib import contextmanager
 from copy import deepcopy
 from types import ModuleType
-from typing import Protocol
+from typing import Iterator, Protocol
 
 import torch
 from torch import nn
@@ -41,6 +42,17 @@ class _DistributedLike(Protocol):
     def get_world_size(self) -> int: ...
 
     def get_rank(self) -> int: ...
+
+    def init_process_group(
+        self,
+        backend: str,
+        *,
+        init_method: str,
+        world_size: int,
+        rank: int,
+    ) -> None: ...
+
+    def destroy_process_group(self) -> None: ...
 
 
 class _CudaLike(Protocol):
@@ -171,11 +183,87 @@ def validate_distributed_runtime(
     topology = config.runtime.distributed
     if topology.strategy == "none":
         return
+    _validate_distributed_configuration(topology)
+    _activate_distributed_cuda(config, topology, cuda)
+    _require_distributed_available(distributed)
+    if not distributed.is_initialized():
+        raise CapabilityError(
+            "torch.distributed process group must be initialized before distributed RL"
+        )
+    _validate_initialized_topology(topology, distributed)
+
+
+@contextmanager
+def distributed_runtime_context(
+    config: RLRunConfig,
+    *,
+    distributed: _DistributedLike | ModuleType = torch.distributed,
+    cuda: _CudaLike | ModuleType = torch.cuda,
+) -> Iterator[None]:
+    """Own an exact NCCL process group only when the caller has not initialized one."""
+    if not isinstance(config, RLRunConfig):
+        raise TypeError("config must be an RLRunConfig")
+    topology = config.runtime.distributed
+    if topology.strategy == "none":
+        yield
+        return
+    _validate_distributed_configuration(topology)
+    _activate_distributed_cuda(config, topology, cuda)
+    _require_distributed_available(distributed)
+    owned = False
+    primary_error: BaseException | None = None
+    try:
+        if not distributed.is_initialized():
+            try:
+                distributed.init_process_group(
+                    "nccl",
+                    init_method="env://",
+                    world_size=topology.world_size,
+                    rank=topology.rank,
+                )
+            except (AssertionError, RuntimeError, TypeError, ValueError) as error:
+                raise CapabilityError(
+                    "torch.distributed could not initialize the configured NCCL process group "
+                    f"via env:// for world_size={topology.world_size}, rank={topology.rank}, "
+                    f"local_rank={topology.local_rank}: {error}"
+                ) from error
+            owned = True
+        _validate_initialized_topology(topology, distributed)
+        yield
+    except BaseException as error:
+        primary_error = error
+        raise
+    finally:
+        if owned:
+            try:
+                distributed.destroy_process_group()
+            except BaseException as cleanup_error:
+                if primary_error is None:
+                    raise
+                diagnostic = (
+                    "Owned torch.distributed process-group cleanup also failed: "
+                    f"{type(cleanup_error).__name__}: {cleanup_error}"
+                )
+                add_note = getattr(primary_error, "add_note", None)
+                if callable(add_note):
+                    add_note(diagnostic)
+                else:  # pragma: no cover - Python 3.10 compatibility
+                    primary_error.__cause__ = cleanup_error
+
+
+def _validate_distributed_configuration(topology: DistributedRuntimeConfig) -> None:
     if topology.strategy == "fsdp" and topology.sharded_optimizer:
         raise CapabilityError(
             "FSDP sharded optimizer and checkpoint restore are not supported; "
             "use the validated full-state FSDP mode or DDP."
         )
+
+
+def _activate_distributed_cuda(
+    config: RLRunConfig,
+    topology: DistributedRuntimeConfig,
+    cuda: _CudaLike | ModuleType,
+) -> None:
     try:
         cuda.set_device(topology.local_rank)
     except (AssertionError, RuntimeError, TypeError, ValueError) as error:
@@ -195,12 +283,17 @@ def validate_distributed_runtime(
             f"current CUDA device cuda:{current_device} does not match configured "
             f"{config.runtime.device} for local_rank={topology.local_rank}"
         )
+
+
+def _require_distributed_available(distributed: _DistributedLike | ModuleType) -> None:
     if not distributed.is_available():
         raise CapabilityError("torch.distributed is unavailable in this PyTorch runtime")
-    if not distributed.is_initialized():
-        raise CapabilityError(
-            "torch.distributed process group must be initialized before distributed RL"
-        )
+
+
+def _validate_initialized_topology(
+    topology: DistributedRuntimeConfig,
+    distributed: _DistributedLike | ModuleType,
+) -> None:
     actual_world_size = int(distributed.get_world_size())
     if actual_world_size != topology.world_size:
         raise CapabilityError(
@@ -395,5 +488,6 @@ __all__ = [
     "ModelFactory",
     "create_cuda_backend",
     "detect_cuda_capabilities",
+    "distributed_runtime_context",
     "validate_distributed_runtime",
 ]

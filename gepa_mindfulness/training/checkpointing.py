@@ -23,6 +23,7 @@ import torch
 from gepa_mindfulness.training.backends.base import BackendCheckpointResult
 
 CHECKPOINT_SCHEMA_VERSION = 3
+_LEGACY_CHECKPOINT_SCHEMA_VERSION = 2
 _ARTIFACT_NAMES = frozenset({"backend.pt", "training_state.pt"})
 _CHECKPOINT_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\Z")
 _MANIFEST_FIELDS = frozenset(
@@ -58,6 +59,7 @@ _STATE_FIELDS = frozenset(
         "torch_cuda_rng_states",
     }
 )
+_LEGACY_STATE_FIELDS = _STATE_FIELDS - {"rank_rng_states"}
 
 BackendSave = Callable[[Path], BackendCheckpointResult]
 BackendBytes = Callable[[bytes], BackendCheckpointResult]
@@ -546,7 +548,10 @@ class LocalCheckpointStore:
             payload = json.loads(artifact_payloads["manifest.json"].decode("utf-8"))
         except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
             raise ValueError("checkpoint manifest is unreadable or invalid JSON") from error
-        manifest = CheckpointManifest.from_dict(checkpoint, payload)
+        source_schema_version = _checkpoint_schema_version(payload)
+        normalized_manifest = dict(payload)
+        normalized_manifest["schema_version"] = CHECKPOINT_SCHEMA_VERSION
+        manifest = CheckpointManifest.from_dict(checkpoint, normalized_manifest)
         if manifest.checkpoint_id != expected_checkpoint_id:
             raise ValueError("checkpoint manifest checkpoint_id does not match its directory")
         self._validate_expected_hash(
@@ -562,8 +567,19 @@ class LocalCheckpointStore:
         for name, expected_digest in manifest.artifact_hashes.items():
             if self.sha256_bytes(artifact_payloads[name]) != expected_digest:
                 raise ValueError(f"checkpoint artifact {name} failed SHA-256 verification")
-        state = self._load_state(artifact_payloads["training_state.pt"])
-        self._validate_state_matches_manifest(state, manifest)
+        state = self._load_state(
+            artifact_payloads["training_state.pt"],
+            source_schema_version=source_schema_version,
+        )
+        self._validate_state_matches_manifest(
+            state,
+            manifest,
+            source_schema_version=source_schema_version,
+        )
+        state = self._normalize_legacy_state(
+            state,
+            source_schema_version=source_schema_version,
+        )
         rank_rng_states = _restored_rank_rng_states(state["rank_rng_states"])
         if set(rank_rng_states) != set(range(self.world_size)):
             raise ValueError("checkpoint rank_rng_states do not match world_size")
@@ -637,14 +653,49 @@ class LocalCheckpointStore:
         }
 
     @staticmethod
-    def _load_state(payload_bytes: bytes) -> Mapping[str, object]:
+    def _load_state(
+        payload_bytes: bytes,
+        *,
+        source_schema_version: int,
+    ) -> Mapping[str, object]:
         try:
             payload = torch.load(io.BytesIO(payload_bytes), map_location="cpu", weights_only=True)
         except (OSError, RuntimeError, EOFError, ValueError) as error:
             raise ValueError("checkpoint training state is unreadable or unsafe") from error
-        if not isinstance(payload, Mapping) or set(payload) != _STATE_FIELDS:
+        expected_fields = (
+            _LEGACY_STATE_FIELDS
+            if source_schema_version == _LEGACY_CHECKPOINT_SCHEMA_VERSION
+            else _STATE_FIELDS
+        )
+        if not isinstance(payload, Mapping) or set(payload) != expected_fields:
             raise ValueError("checkpoint training state fields are missing or unrecognized")
         return payload
+
+    def _normalize_legacy_state(
+        self,
+        state: Mapping[str, object],
+        *,
+        source_schema_version: int,
+    ) -> Mapping[str, object]:
+        if source_schema_version == CHECKPOINT_SCHEMA_VERSION:
+            return state
+        if self.world_size != 1:
+            raise ValueError("checkpoint schema_version 2 can load only with world_size=1")
+        legacy_rng = RankRNGState(
+            python_rng_state=state["python_rng_state"],
+            torch_cpu_rng_state=state["torch_cpu_rng_state"],
+            torch_cuda_rng_states=state["torch_cuda_rng_states"],
+        )
+        normalized = dict(state)
+        normalized["rank_rng_states"] = {
+            0: {
+                "python_rng_state": legacy_rng.python_rng_state,
+                "torch_cpu_rng_state": legacy_rng.torch_cpu_rng_state,
+                "torch_cuda_rng_states": legacy_rng.torch_cuda_rng_states,
+            }
+        }
+        normalized["schema_version"] = CHECKPOINT_SCHEMA_VERSION
+        return normalized
 
     def _validate_rng_topology(
         self,
@@ -701,6 +752,8 @@ class LocalCheckpointStore:
     def _validate_state_matches_manifest(
         state: Mapping[str, object],
         manifest: CheckpointManifest,
+        *,
+        source_schema_version: int,
     ) -> None:
         expected = {
             "backend_format_version": manifest.backend_format_version,
@@ -709,7 +762,7 @@ class LocalCheckpointStore:
             "dataset_hash": manifest.dataset_hash,
             "global_step": manifest.global_step,
             "parent_checkpoint": manifest.parent_checkpoint,
-            "schema_version": manifest.schema_version,
+            "schema_version": source_schema_version,
         }
         for field_name, expected_value in expected.items():
             if state[field_name] != expected_value:
@@ -717,7 +770,8 @@ class LocalCheckpointStore:
                     f"checkpoint training state {field_name} does not match the manifest"
                 )
         _validate_python_rng_state(state["python_rng_state"])
-        _restored_rank_rng_states(state["rank_rng_states"])
+        if source_schema_version == CHECKPOINT_SCHEMA_VERSION:
+            _restored_rank_rng_states(state["rank_rng_states"])
         cuda_states = state["torch_cuda_rng_states"]
         if not isinstance(cuda_states, (list, tuple)):
             raise ValueError("checkpoint torch_cuda_rng_states must be a sequence")
@@ -756,6 +810,23 @@ class LocalCheckpointStore:
 def _validate_checkpoint_id(value: object) -> str:
     if not isinstance(value, str) or not _CHECKPOINT_ID.fullmatch(value) or value in {".", ".."}:
         raise ValueError("checkpoint_id must be one safe local path component")
+    return value
+
+
+def _checkpoint_schema_version(payload: object) -> int:
+    if not isinstance(payload, Mapping) or set(payload) != _MANIFEST_FIELDS:
+        raise ValueError("checkpoint manifest fields are missing or unrecognized")
+    value = payload["schema_version"]
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or value
+        not in {
+            _LEGACY_CHECKPOINT_SCHEMA_VERSION,
+            CHECKPOINT_SCHEMA_VERSION,
+        }
+    ):
+        raise ValueError("checkpoint schema_version must be 2 or 3")
     return value
 
 
@@ -818,7 +889,7 @@ def _validate_python_rng_state(value: object) -> None:
         raise ValueError("python_rng_state is incompatible")
     try:
         random.Random().setstate(value)
-    except (TypeError, ValueError) as error:
+    except (IndexError, TypeError, ValueError) as error:
         raise ValueError("python_rng_state is incompatible") from error
 
 

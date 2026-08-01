@@ -6,6 +6,8 @@ import hashlib
 import json
 import os
 import random
+import socket
+from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,6 +16,7 @@ import pytest
 import torch
 from torch import nn
 
+import gepa_mindfulness.training.backends.torch_cuda as torch_cuda_backend
 from gepa_mindfulness.training.backends.torch_cuda import (
     CudaOutOfMemoryError,
     _wrap_distributed_trainables,
@@ -283,48 +286,48 @@ def _distributed_cuda_smoke_worker(
     dataset_path: str,
     checkpoint_dir: str,
     log_dir: str,
-    init_file: str,
+    master_port: int,
 ) -> None:
     os.environ.update(
         {
             "WORLD_SIZE": "2",
             "RANK": str(rank),
             "LOCAL_RANK": str(rank),
+            "MASTER_ADDR": "127.0.0.1",
+            "MASTER_PORT": str(master_port),
         }
     )
     template = load_rl_config(config_path)
-    torch.distributed.init_process_group(
-        "nccl",
-        init_method=f"file://{Path(init_file).as_posix()}",
-        world_size=2,
-        rank=rank,
+    config = replace(
+        template,
+        policy=PolicyConfig(model_name="tiny-local-cuda-lm", max_new_tokens=1),
+        algorithm=AlgorithmConfig(
+            name="ppo",
+            learning_rate=0.05,
+            batch_size=1,
+            max_steps=1,
+        ),
+        dataset=DatasetConfig(train_path=dataset_path),
+        checkpoint=CheckpointConfig(output_dir=checkpoint_dir, save_steps=1),
+        logging=LoggingConfig(log_dir=log_dir),
+        seed=42,
     )
-    try:
-        config = replace(
-            template,
-            policy=PolicyConfig(model_name="tiny-local-cuda-lm", max_new_tokens=1),
-            algorithm=AlgorithmConfig(
-                name="ppo",
-                learning_rate=0.05,
-                batch_size=1,
-                max_steps=1,
-            ),
-            dataset=DatasetConfig(train_path=dataset_path),
-            checkpoint=CheckpointConfig(output_dir=checkpoint_dir, save_steps=1),
-            logging=LoggingConfig(log_dir=log_dir),
-            seed=42,
-        )
-        engine = RLTrainingEngine(
-            config,
-            backend_factory=lambda value: create_cuda_backend(
-                value,
-                lambda: (_TinyCudaCausalLM(), _TinyCudaTokenizer()),
-            ),
-        )
-        result = engine.train(max_steps=1)
-        assert result.global_step == 1
-    finally:
-        torch.distributed.destroy_process_group()
+    engine = RLTrainingEngine(
+        config,
+        backend_factory=lambda value: create_cuda_backend(
+            value,
+            lambda: (_TinyCudaCausalLM(), _TinyCudaTokenizer()),
+        ),
+    )
+    result = engine.train(max_steps=1)
+    assert result.global_step == 1
+    assert not torch.distributed.is_initialized()
+
+
+def _available_tcp_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+        listener.bind(("127.0.0.1", 0))
+        return int(listener.getsockname()[1])
 
 
 def _ddp_trainable_sync_worker(rank: int, init_file: str, result_dir: str) -> None:
@@ -569,6 +572,150 @@ def test_single_process_preflight_never_activates_cuda_or_queries_process_group(
     assert calls == []
 
 
+def test_managed_distributed_runtime_initializes_validates_and_destroys_owned_group() -> None:
+    events: list[str] = []
+    initialized = False
+    config = _cuda_config(
+        device="cuda:1",
+        distributed=DistributedRuntimeConfig(
+            strategy="ddp",
+            world_size=2,
+            rank=1,
+            local_rank=1,
+        ),
+    )
+
+    def is_initialized() -> bool:
+        events.append("distributed.is_initialized")
+        return initialized
+
+    def init_process_group(
+        backend: str,
+        *,
+        init_method: str,
+        world_size: int,
+        rank: int,
+    ) -> None:
+        nonlocal initialized
+        events.append(f"distributed.init:{backend}:{init_method}:{world_size}:{rank}")
+        initialized = True
+
+    def destroy_process_group() -> None:
+        nonlocal initialized
+        events.append("distributed.destroy")
+        initialized = False
+
+    fake_cuda = SimpleNamespace(
+        set_device=lambda index: events.append(f"cuda.set_device:{index}"),
+        current_device=lambda: (events.append("cuda.current_device"), 1)[1],
+    )
+    fake_distributed = SimpleNamespace(
+        is_available=lambda: (events.append("distributed.is_available"), True)[1],
+        is_initialized=is_initialized,
+        init_process_group=init_process_group,
+        get_world_size=lambda: (events.append("distributed.get_world_size"), 2)[1],
+        get_rank=lambda: (events.append("distributed.get_rank"), 1)[1],
+        destroy_process_group=destroy_process_group,
+    )
+
+    with torch_cuda_backend.distributed_runtime_context(
+        config,
+        distributed=fake_distributed,
+        cuda=fake_cuda,
+    ):
+        events.append("engine.execute")
+
+    assert events == [
+        "cuda.set_device:1",
+        "cuda.current_device",
+        "distributed.is_available",
+        "distributed.is_initialized",
+        "distributed.init:nccl:env://:2:1",
+        "distributed.get_world_size",
+        "distributed.get_rank",
+        "engine.execute",
+        "distributed.destroy",
+    ]
+    assert initialized is False
+
+
+def test_managed_distributed_runtime_destroys_owned_group_when_execution_fails() -> None:
+    events: list[str] = []
+    initialized = False
+    config = _cuda_config(
+        distributed=DistributedRuntimeConfig(
+            strategy="ddp",
+            world_size=2,
+            rank=0,
+            local_rank=0,
+        )
+    )
+
+    def is_initialized() -> bool:
+        return initialized
+
+    def init_process_group(backend: str, **kwargs: object) -> None:
+        nonlocal initialized
+        events.append(f"init:{backend}:{kwargs}")
+        initialized = True
+
+    def destroy_process_group() -> None:
+        nonlocal initialized
+        events.append("destroy")
+        initialized = False
+
+    fake_distributed = SimpleNamespace(
+        is_available=lambda: True,
+        is_initialized=is_initialized,
+        init_process_group=init_process_group,
+        get_world_size=lambda: 2,
+        get_rank=lambda: 0,
+        destroy_process_group=destroy_process_group,
+    )
+    fake_cuda = SimpleNamespace(set_device=lambda index: None, current_device=lambda: 0)
+
+    with pytest.raises(RuntimeError, match="engine failed"):
+        with torch_cuda_backend.distributed_runtime_context(
+            config,
+            distributed=fake_distributed,
+            cuda=fake_cuda,
+        ):
+            raise RuntimeError("engine failed")
+
+    assert events[-1] == "destroy"
+    assert initialized is False
+
+
+def test_managed_distributed_runtime_preserves_external_process_group() -> None:
+    events: list[str] = []
+    config = _cuda_config(
+        distributed=DistributedRuntimeConfig(
+            strategy="ddp",
+            world_size=2,
+            rank=0,
+            local_rank=0,
+        )
+    )
+    fake_distributed = SimpleNamespace(
+        is_available=lambda: True,
+        is_initialized=lambda: True,
+        init_process_group=lambda **kwargs: events.append("init"),
+        get_world_size=lambda: 2,
+        get_rank=lambda: 0,
+        destroy_process_group=lambda: events.append("destroy"),
+    )
+    fake_cuda = SimpleNamespace(set_device=lambda index: None, current_device=lambda: 0)
+
+    with torch_cuda_backend.distributed_runtime_context(
+        config,
+        distributed=fake_distributed,
+        cuda=fake_cuda,
+    ):
+        events.append("engine.execute")
+
+    assert events == ["engine.execute"]
+
+
 def test_fsdp_sharded_optimizer_fails_before_model_or_checkpoint_side_effects(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -663,17 +810,19 @@ def test_engine_distributed_preflight_precedes_dataset_model_rng_and_output(
     )
     provider = SimpleNamespace(detect=lambda config: (events.append("capability"), supported)[1])
 
-    def fail_preflight(config: RLRunConfig) -> None:
+    @contextmanager
+    def fail_preflight(config: RLRunConfig):
         del config
         events.append("distributed_preflight")
         raise CapabilityError("process group mismatch")
+        yield
 
     def forbidden(name: str) -> object:
         events.append(name)
         raise AssertionError(f"{name} must happen after distributed preflight")
 
     monkeypatch.setattr(
-        "gepa_mindfulness.training.backends.torch_cuda.validate_distributed_runtime",
+        "gepa_mindfulness.training.backends.torch_cuda.distributed_runtime_context",
         fail_preflight,
     )
     monkeypatch.setattr(
@@ -707,9 +856,11 @@ def test_engine_completes_device_preflight_before_capability_distributed_query(
 ) -> None:
     events: list[str] = []
 
-    def device_preflight(config: RLRunConfig) -> None:
+    @contextmanager
+    def device_preflight(config: RLRunConfig):
         del config
         events.extend(["cuda.set_device", "cuda.current_device"])
+        yield
 
     def query_distributed(config: RLRunConfig) -> BackendCapabilities:
         del config
@@ -717,7 +868,7 @@ def test_engine_completes_device_preflight_before_capability_distributed_query(
         raise CapabilityError("stop after capability query")
 
     monkeypatch.setattr(
-        "gepa_mindfulness.training.backends.torch_cuda.validate_distributed_runtime",
+        "gepa_mindfulness.training.backends.torch_cuda.distributed_runtime_context",
         device_preflight,
     )
     config = _cuda_config(
@@ -741,6 +892,51 @@ def test_engine_completes_device_preflight_before_capability_distributed_query(
         "cuda.current_device",
         "capability.distributed_query",
     ]
+
+
+def test_engine_executes_inside_managed_distributed_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+
+    @contextmanager
+    def managed_runtime(config: RLRunConfig):
+        del config
+        events.append("runtime.enter")
+        try:
+            yield
+        finally:
+            events.append("runtime.exit")
+
+    def detect(config: RLRunConfig) -> BackendCapabilities:
+        del config
+        events.append("engine.execute")
+        raise CapabilityError("stop inside engine execution")
+
+    monkeypatch.setattr(
+        torch_cuda_backend,
+        "distributed_runtime_context",
+        managed_runtime,
+        raising=False,
+    )
+    monkeypatch.setattr(torch_cuda_backend, "validate_distributed_runtime", lambda config: None)
+    config = _cuda_config(
+        distributed=DistributedRuntimeConfig(
+            strategy="ddp",
+            world_size=2,
+            rank=0,
+            local_rank=0,
+        )
+    )
+    engine = RLTrainingEngine(
+        config,
+        capability_provider=SimpleNamespace(detect=detect),
+    )
+
+    with pytest.raises(CapabilityError, match="stop inside engine execution"):
+        engine.collect()
+
+    assert events == ["runtime.enter", "engine.execute", "runtime.exit"]
 
 
 def test_rank_local_fields_do_not_change_distributed_checkpoint_compatibility_hash() -> None:
@@ -1426,7 +1622,6 @@ def test_two_gpu_ddp_smoke_has_one_manifest_and_unique_trajectory_stream(tmp_pat
     dataset_path = tmp_path / "pairs.jsonl"
     checkpoint_dir = tmp_path / "checkpoints"
     log_dir = tmp_path / "logs"
-    init_file = tmp_path / "process-group-init"
     _write_cuda_pair_dataset(dataset_path)
 
     torch.multiprocessing.spawn(
@@ -1436,7 +1631,7 @@ def test_two_gpu_ddp_smoke_has_one_manifest_and_unique_trajectory_stream(tmp_pat
             str(dataset_path),
             str(checkpoint_dir),
             str(log_dir),
-            str(init_file),
+            _available_tcp_port(),
         ),
         nprocs=2,
         join=True,

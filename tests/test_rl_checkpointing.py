@@ -44,6 +44,28 @@ def _snapshot(
     )
 
 
+def _rewrite_checkpoint_as_schema_v2(
+    checkpoint: Path,
+    *,
+    state_updates: dict[str, object] | None = None,
+) -> tuple[bytes, bytes]:
+    state_path = checkpoint / "training_state.pt"
+    state = torch.load(state_path, map_location="cpu", weights_only=True)
+    state.pop("rank_rng_states")
+    state["schema_version"] = 2
+    state.update(state_updates or {})
+    torch.save(state, state_path)
+    manifest_path = checkpoint / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["schema_version"] = 2
+    manifest["artifact_hashes"]["training_state.pt"] = LocalCheckpointStore.sha256(state_path)
+    manifest_path.write_text(
+        json.dumps(manifest, allow_nan=False, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    return manifest_path.read_bytes(), state_path.read_bytes()
+
+
 @dataclass
 class _BackendBytesCallbacks:
     restored: list[bytes]
@@ -130,6 +152,131 @@ def test_checkpoint_round_trip_restores_step_rng_parent_and_state(
     assert restored.rollout_cursor == 9
     assert restored.parent_checkpoint == "checkpoint-00000002"
     assert restored_backend == [b"versioned-backend-payload"]
+
+
+def test_schema_v2_single_process_load_normalizes_legacy_rng_without_rewriting_bytes(
+    tmp_path: Path,
+    backend_callbacks: tuple[list[bytes], object, _BackendBytesCallbacks],
+) -> None:
+    restored_backend, save_backend, backend_bytes = backend_callbacks
+    store = LocalCheckpointStore(
+        tmp_path,
+        backend_save=save_backend,
+        backend_preflight=backend_bytes.preflight,
+        backend_load_bytes=backend_bytes.load,
+        backend_snapshot=backend_bytes.snapshot,
+        backend_rollback=backend_bytes.rollback,
+    )
+    snapshot = _snapshot()
+    manifest = store.save(snapshot)
+    manifest_bytes, state_bytes = _rewrite_checkpoint_as_schema_v2(manifest.path)
+
+    restored = store.load(manifest.path)
+
+    assert restored.manifest.schema_version == CHECKPOINT_SCHEMA_VERSION
+    assert restored.python_rng_state == snapshot.python_rng_state
+    assert torch.equal(restored.torch_cpu_rng_state, snapshot.torch_cpu_rng_state)
+    assert restored.torch_cuda_rng_states == ()
+    assert restored_backend == [b"versioned-backend-payload"]
+    assert (manifest.path / "manifest.json").read_bytes() == manifest_bytes
+    assert (manifest.path / "training_state.pt").read_bytes() == state_bytes
+
+
+def test_schema_v2_distributed_load_fails_before_backend_preflight(
+    tmp_path: Path,
+    backend_callbacks: tuple[list[bytes], object, _BackendBytesCallbacks],
+) -> None:
+    _, save_backend, backend_bytes = backend_callbacks
+    publisher = LocalCheckpointStore(tmp_path, backend_save=save_backend)
+    manifest = publisher.save(_snapshot())
+    _rewrite_checkpoint_as_schema_v2(manifest.path)
+    preflight_payloads: list[bytes] = []
+    loader = LocalCheckpointStore(
+        tmp_path,
+        rank=0,
+        world_size=2,
+        backend_preflight=lambda payload: (
+            preflight_payloads.append(payload),
+            backend_bytes.preflight(payload),
+        )[1],
+        backend_load_bytes=backend_bytes.load,
+        backend_snapshot=backend_bytes.snapshot,
+        backend_rollback=backend_bytes.rollback,
+    )
+
+    with pytest.raises(ValueError, match=r"schema_version 2.*world_size=1"):
+        loader.load(manifest.path)
+
+    assert preflight_payloads == []
+
+
+@pytest.mark.parametrize(
+    "field, value, match",
+    [
+        ("python_rng_state", (), "python_rng_state"),
+        ("torch_cpu_rng_state", "invalid", "torch_cpu_rng_state"),
+        (
+            "torch_cuda_rng_states",
+            (torch.zeros(8, dtype=torch.float32),),
+            "torch_cuda_rng_states",
+        ),
+    ],
+)
+def test_schema_v2_rejects_malformed_legacy_rng_before_backend_preflight(
+    tmp_path: Path,
+    backend_callbacks: tuple[list[bytes], object, _BackendBytesCallbacks],
+    field: str,
+    value: object,
+    match: str,
+) -> None:
+    _, save_backend, backend_bytes = backend_callbacks
+    store = LocalCheckpointStore(
+        tmp_path,
+        backend_save=save_backend,
+        backend_preflight=backend_bytes.preflight,
+        backend_load_bytes=backend_bytes.load,
+        backend_snapshot=backend_bytes.snapshot,
+        backend_rollback=backend_bytes.rollback,
+    )
+    manifest = store.save(_snapshot())
+    _rewrite_checkpoint_as_schema_v2(manifest.path, state_updates={field: value})
+    preflight_payloads: list[bytes] = []
+    store.backend_preflight = lambda payload: (
+        preflight_payloads.append(payload),
+        backend_bytes.preflight(payload),
+    )[1]
+
+    with pytest.raises(ValueError, match=match):
+        store.load(manifest.path)
+
+    assert preflight_payloads == []
+
+
+def test_schema_v2_still_verifies_artifact_hash_before_backend_preflight(
+    tmp_path: Path,
+    backend_callbacks: tuple[list[bytes], object, _BackendBytesCallbacks],
+) -> None:
+    _, save_backend, backend_bytes = backend_callbacks
+    preflight_payloads: list[bytes] = []
+    store = LocalCheckpointStore(
+        tmp_path,
+        backend_save=save_backend,
+        backend_preflight=lambda payload: (
+            preflight_payloads.append(payload),
+            backend_bytes.preflight(payload),
+        )[1],
+        backend_load_bytes=backend_bytes.load,
+        backend_snapshot=backend_bytes.snapshot,
+        backend_rollback=backend_bytes.rollback,
+    )
+    manifest = store.save(_snapshot())
+    _rewrite_checkpoint_as_schema_v2(manifest.path)
+    (manifest.path / "training_state.pt").write_bytes(b"tampered")
+
+    with pytest.raises(ValueError, match="SHA-256"):
+        store.load(manifest.path)
+
+    assert preflight_payloads == []
 
 
 def test_distributed_checkpoint_load_selects_exact_rank_rng_state(
