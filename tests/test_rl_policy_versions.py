@@ -1,7 +1,7 @@
 """Tests for deterministic actor policy-version staleness decisions."""
 
 import json
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 
 import pytest
 
@@ -11,6 +11,20 @@ from gepa_mindfulness.training.policy_versions import (
     StalenessPolicy,
     evaluate_staleness,
 )
+
+
+def _valid_allowed_lag_decision() -> StalenessDecision:
+    return StalenessDecision(
+        accepted=True,
+        learner_version=PolicyVersion(3),
+        actor_version=PolicyVersion(2),
+        lag=1,
+        weight=1.0,
+        policy=StalenessPolicy.REJECT,
+        max_lag=1,
+        downweight_decay=None,
+        reason="accepted because lag 1 is within max_lag 1",
+    )
 
 
 @pytest.mark.parametrize("value", [None, True, -1, 1.0, "1"])
@@ -181,6 +195,133 @@ def test_policy_inputs_and_decisions_are_immutable() -> None:
     with pytest.raises(FrozenInstanceError):
         decision.weight = 0.5  # type: ignore[misc]
     assert isinstance(decision, StalenessDecision)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("accepted", 1),
+        ("learner_version", 3),
+        ("actor_version", "2"),
+        ("lag", True),
+        ("lag", 1.0),
+        ("lag", -1),
+        ("weight", True),
+        ("weight", 1),
+        ("policy", "reject"),
+        ("max_lag", True),
+        ("max_lag", 1.0),
+        ("max_lag", -1),
+        ("reason", None),
+    ],
+)
+def test_decision_constructor_rejects_wrong_field_types(
+    field: str,
+    value: object,
+) -> None:
+    """Audit decisions cannot retain coercible or cross-type field values."""
+    with pytest.raises(ValueError, match=field):
+        replace(_valid_allowed_lag_decision(), **{field: value})  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    ("actor_version", "lag"),
+    [
+        (PolicyVersion(4), 0),
+        (PolicyVersion(2), 0),
+        (PolicyVersion(2), 2),
+    ],
+)
+def test_decision_constructor_rejects_actor_ahead_or_inconsistent_lag(
+    actor_version: PolicyVersion,
+    lag: int,
+) -> None:
+    """Recorded lag must equal learner minus actor and cannot hide an actor-ahead result."""
+    with pytest.raises(ValueError, match="lag"):
+        replace(
+            _valid_allowed_lag_decision(),
+            actor_version=actor_version,
+            lag=lag,
+        )
+
+
+@pytest.mark.parametrize(
+    "weight",
+    [float("nan"), float("inf"), float("-inf"), -0.1, 1.1],
+)
+def test_decision_constructor_rejects_nonfinite_or_out_of_range_weight(weight: float) -> None:
+    """An audit weight is always a finite scalar in the closed unit interval."""
+    with pytest.raises(ValueError, match="weight"):
+        replace(_valid_allowed_lag_decision(), weight=weight)
+
+
+@pytest.mark.parametrize(
+    ("accepted", "weight", "max_lag"),
+    [
+        (False, 0.0, 1),
+        (True, 0.5, 1),
+        (True, 1.0, 0),
+        (False, 0.5, 0),
+    ],
+)
+def test_decision_constructor_rejects_acceptance_or_reject_policy_mismatch(
+    accepted: bool,
+    weight: float,
+    max_lag: int,
+) -> None:
+    """Allowed and rejected decisions must agree with lag, weight, and reject policy."""
+    with pytest.raises(ValueError, match="accepted|weight|policy"):
+        replace(
+            _valid_allowed_lag_decision(),
+            accepted=accepted,
+            weight=weight,
+            max_lag=max_lag,
+        )
+
+
+@pytest.mark.parametrize(
+    ("policy", "decay"),
+    [
+        (StalenessPolicy.REJECT, 0.5),
+        (StalenessPolicy.DOWN_WEIGHT, None),
+        (StalenessPolicy.DOWN_WEIGHT, 0.0),
+        (StalenessPolicy.DOWN_WEIGHT, 1.0),
+        (StalenessPolicy.DOWN_WEIGHT, float("nan")),
+    ],
+)
+def test_decision_constructor_rejects_invalid_policy_parameters(
+    policy: StalenessPolicy,
+    decay: float | None,
+) -> None:
+    """Decision evidence cannot omit or silently retain an inapplicable decay value."""
+    with pytest.raises(ValueError, match="downweight_decay"):
+        replace(
+            _valid_allowed_lag_decision(),
+            policy=policy,
+            downweight_decay=decay,
+        )
+
+
+def test_decision_constructor_requires_exact_downweight_weight() -> None:
+    """A stale down-weight decision records the deterministic configured exponential weight."""
+    with pytest.raises(ValueError, match="weight"):
+        replace(
+            _valid_allowed_lag_decision(),
+            learner_version=PolicyVersion(5),
+            actor_version=PolicyVersion(2),
+            lag=3,
+            weight=0.5,
+            policy=StalenessPolicy.DOWN_WEIGHT,
+            max_lag=1,
+            downweight_decay=0.5,
+        )
+
+
+@pytest.mark.parametrize("reason", ["", "   ", "x" * 513])
+def test_decision_constructor_rejects_blank_or_unbounded_reason(reason: str) -> None:
+    """Audit evidence always carries a bounded human-readable explanation."""
+    with pytest.raises(ValueError, match="reason"):
+        replace(_valid_allowed_lag_decision(), reason=reason)
 
 
 @pytest.mark.parametrize("learner", [None, 3, "3"])

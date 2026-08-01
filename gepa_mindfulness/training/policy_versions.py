@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 _CANONICAL_VERSION = re.compile(r"0|[1-9][0-9]*")
+_MAX_DECISION_REASON_CHARACTERS = 512
 
 
 @dataclass(frozen=True, order=True, slots=True)
@@ -64,6 +65,51 @@ class StalenessDecision:
     max_lag: int
     downweight_decay: float | None
     reason: str
+
+    def __post_init__(self) -> None:
+        """Reject contradictory or ambiguous audit evidence."""
+        if type(self.accepted) is not bool:
+            raise ValueError("accepted must be a boolean")
+        _validate_version_argument(self.learner_version, "learner_version")
+        _validate_version_argument(self.actor_version, "actor_version")
+        if type(self.lag) is not int or self.lag < 0:
+            raise ValueError("lag must be a non-negative integer")
+        expected_lag = self.learner_version.value - self.actor_version.value
+        if expected_lag < 0:
+            raise ValueError("lag cannot represent an actor version ahead of the learner")
+        if self.lag != expected_lag:
+            raise ValueError("lag must equal learner_version minus actor_version")
+        if type(self.weight) is not float:
+            raise ValueError("weight must be a float")
+        if not math.isfinite(self.weight) or not 0.0 <= self.weight <= 1.0:
+            raise ValueError("weight must be finite and in [0, 1]")
+        _validate_max_lag(self.max_lag)
+        decay = _validate_policy_configuration(self.policy, self.downweight_decay)
+        if type(self.reason) is not str:
+            raise ValueError("reason must be a string")
+        if not self.reason.strip() or len(self.reason) > _MAX_DECISION_REASON_CHARACTERS:
+            raise ValueError("reason must be nonblank and at most 512 characters")
+        self._validate_outcome(decay)
+
+    def _validate_outcome(self, decay: float | None) -> None:
+        if self.accepted and self.weight <= 0.0:
+            raise ValueError("accepted decisions must have a positive weight")
+        if not self.accepted and self.weight != 0.0:
+            raise ValueError("rejected decisions must have weight 0.0")
+        if self.lag <= self.max_lag:
+            if not self.accepted or self.weight != 1.0:
+                raise ValueError("allowed-lag decisions must be accepted with weight 1.0")
+            return
+        if self.policy is StalenessPolicy.REJECT:
+            if self.accepted or self.weight != 0.0:
+                raise ValueError("reject policy must reject stale decisions with weight 0.0")
+            return
+        assert decay is not None
+        expected_weight = _decayed_weight(decay, self.lag - self.max_lag)
+        if not self.accepted or self.weight != expected_weight:
+            raise ValueError(
+                "down_weight policy must accept stale decisions with the configured weight"
+            )
 
 
 def evaluate_staleness(
