@@ -6,6 +6,7 @@ import ipaddress
 import json
 import math
 import socket
+import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
@@ -31,6 +32,25 @@ class LlamaCppServerError(RuntimeError):
     """A translated transport, response, or llama.cpp protocol failure."""
 
 
+class _RejectRedirects(request.HTTPRedirectHandler):
+    """Reject every redirect before urllib can contact another endpoint."""
+
+    def redirect_request(
+        self,
+        req: request.Request,
+        fp: object,
+        code: int,
+        msg: str,
+        headers: object,
+        newurl: str,
+    ) -> request.Request:
+        del req, code, msg, headers, newurl
+        close = getattr(fp, "close", None)
+        if callable(close):
+            close()
+        raise LlamaCppServerError("llama.cpp redirect response was rejected")
+
+
 class LlamaCppServerClient:
     """A bounded standard-library client for one local llama-server endpoint."""
 
@@ -44,6 +64,10 @@ class LlamaCppServerClient:
         self.endpoint = _normalize_endpoint(endpoint)
         self.timeout_seconds = _bounded_timeout(timeout_seconds)
         self.max_response_bytes = _bounded_response_size(max_response_bytes)
+        self._opener = request.build_opener(
+            request.ProxyHandler({}),
+            _RejectRedirects(),
+        )
         self._closed = False
 
     def health(self) -> Mapping[str, object]:
@@ -120,8 +144,9 @@ class LlamaCppServerClient:
             headers=headers,
             method=method,
         )
+        deadline = time.monotonic() + self.timeout_seconds
         try:
-            with request.urlopen(server_request, timeout=self.timeout_seconds) as response:
+            with self._opener.open(server_request, timeout=self.timeout_seconds) as response:
                 content_type = response.headers.get_content_type()
                 if content_type != "application/json":
                     raise LlamaCppServerError(
@@ -139,15 +164,17 @@ class LlamaCppServerClient:
                         raise LlamaCppServerError(
                             f"llama.cpp {path} response exceeds {self.max_response_bytes} bytes"
                         )
-                raw = response.read(self.max_response_bytes + 1)
+                raw = self._read_response(response, deadline, path)
         except error.HTTPError as exc:
             raise LlamaCppServerError(f"llama.cpp HTTP {exc.code} response from {path}") from exc
         except (TimeoutError, socket.timeout) as exc:
-            raise LlamaCppServerError(f"llama.cpp request timed out while calling {path}") from exc
+            raise LlamaCppServerError(
+                f"llama.cpp request timed out after the total deadline while calling {path}"
+            ) from exc
         except error.URLError as exc:
             if isinstance(exc.reason, (TimeoutError, socket.timeout)):
                 raise LlamaCppServerError(
-                    f"llama.cpp request timed out while calling {path}"
+                    f"llama.cpp request timed out after the total deadline while calling {path}"
                 ) from exc
             raise LlamaCppServerError(f"llama.cpp {path} request failed: {exc.reason}") from exc
         except OSError as exc:
@@ -170,6 +197,25 @@ class LlamaCppServerClient:
             raise LlamaCppServerError(f"llama.cpp {path} response must be a JSON object")
         return MappingProxyType(dict(decoded))
 
+    def _read_response(self, response: object, deadline: float, path: str) -> bytes:
+        chunks: list[bytes] = []
+        total = 0
+        read1 = getattr(response, "read1", None)
+        read = read1 if callable(read1) else getattr(response, "read")
+        while total <= self.max_response_bytes:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0.0:
+                raise TimeoutError(f"llama.cpp {path} total deadline expired")
+            _set_response_socket_timeout(response, remaining)
+            chunk = read(min(65_536, self.max_response_bytes + 1 - total))
+            if not isinstance(chunk, bytes):
+                raise LlamaCppServerError(f"llama.cpp {path} response body must be bytes")
+            if not chunk:
+                break
+            chunks.append(chunk)
+            total += len(chunk)
+        return b"".join(chunks)
+
 
 @dataclass(frozen=True)
 class _PreparedRollout:
@@ -189,8 +235,13 @@ class LlamaCppVulkanBackend:
         timeout_seconds: float = 10.0,
         max_response_bytes: int = _DEFAULT_MAX_RESPONSE_BYTES,
         max_new_tokens: int = _DEFAULT_MAX_NEW_TOKENS,
+        model_identifier: str | None = None,
     ) -> None:
         self.max_new_tokens = _positive_integer(max_new_tokens, "max_new_tokens")
+        _optional_string(model_identifier, "model_identifier")
+        if model_identifier == "":
+            raise ValueError("model_identifier must not be empty")
+        self._requested_model_identifier = model_identifier
         self.client = LlamaCppServerClient(
             endpoint,
             timeout_seconds=timeout_seconds,
@@ -217,11 +268,12 @@ class LlamaCppVulkanBackend:
         for item in prepared:
             for sample_index in range(item.request.num_samples):
                 effective_seed = _effective_seed(item.request.seed, sample_index)
-                payload = self._completion_payload(
+                payload, effective_parameters = self._completion_payload(
                     item.request.prompt,
                     item.parameters,
                     item.max_new_tokens,
                     effective_seed,
+                    self._model_identifier,
                 )
                 response = self.client.completion(payload)
                 content, token_ids, log_probs = self._completion_evidence(response)
@@ -240,10 +292,7 @@ class LlamaCppVulkanBackend:
                         response=content,
                         response_token_ids=token_ids,
                         old_log_probs=log_probs,
-                        sampling_parameters={
-                            "max_new_tokens": item.max_new_tokens,
-                            **item.parameters,
-                        },
+                        sampling_parameters=effective_parameters,
                         backend_name=_BACKEND_NAME,
                         backend_version=self._backend_version,
                         model_identifier=self._model_identifier,
@@ -358,7 +407,19 @@ class LlamaCppVulkanBackend:
     ) -> None:
         version = health.get("version")
         self._backend_version = version if isinstance(version, str) else "unknown"
-        selected = models[0]
+        if self._requested_model_identifier is None:
+            if len(models) != 1:
+                raise LlamaCppServerError(
+                    "llama.cpp reported multiple models; model_identifier is required"
+                )
+            selected = models[0]
+        else:
+            matches = [model for model in models if model["id"] == self._requested_model_identifier]
+            if len(matches) != 1:
+                raise LlamaCppServerError(
+                    "configured model_identifier must match exactly one llama.cpp model"
+                )
+            selected = matches[0]
         self._model_identifier = str(selected["id"])
         metadata = selected.get("meta")
         format_name = metadata.get("format") if isinstance(metadata, Mapping) else None
@@ -370,23 +431,30 @@ class LlamaCppVulkanBackend:
         parameters: Mapping[str, object],
         max_new_tokens: int,
         seed: int | None,
-    ) -> dict[str, object]:
+        model_identifier: str,
+    ) -> tuple[dict[str, object], Mapping[str, object]]:
         payload: dict[str, object] = {
+            "model": model_identifier,
             "n_predict": max_new_tokens,
             "n_probs": 1,
             "prompt": prompt,
             "stream": False,
         }
         do_sample = parameters.get("do_sample")
+        effective_parameters = {
+            "max_new_tokens": max_new_tokens,
+            **parameters,
+        }
         if do_sample is False:
             payload["temperature"] = 0.0
+            effective_parameters["temperature"] = 0.0
         elif "temperature" in parameters:
             payload["temperature"] = parameters["temperature"]
         if "top_p" in parameters:
             payload["top_p"] = parameters["top_p"]
         if seed is not None:
             payload["seed"] = seed
-        return payload
+        return payload, MappingProxyType(effective_parameters)
 
     def _completion_evidence(
         self,
@@ -396,12 +464,17 @@ class LlamaCppVulkanBackend:
         if not isinstance(content, str):
             raise LlamaCppServerError("llama.cpp completion content must be a string")
         response_model = response.get("model")
-        if response_model is not None and response_model != self._model_identifier:
+        if not isinstance(response_model, str) or not response_model:
+            raise LlamaCppServerError("llama.cpp completion model identity is required")
+        if response_model != self._model_identifier:
             raise LlamaCppServerError(
                 "llama.cpp completion model does not match the selected model"
             )
         tokens = _response_tokens(response.get("tokens"))
-        log_probs = _response_log_probs(response.get("completion_probabilities"))
+        log_probs = _response_log_probs(
+            response.get("completion_probabilities"),
+            content,
+        )
         if tokens is not None and log_probs is not None and len(tokens) != len(log_probs):
             raise LlamaCppServerError("llama.cpp completion tokens and probabilities must align")
         return content, tokens, log_probs
@@ -414,7 +487,7 @@ class LlamaCppVulkanBackend:
     ) -> str:
         request_part = request_value.case_id or f"request-{request_index}"
         version_part = request_value.policy_version or "unversioned"
-        return f"{request_part}-{version_part}-{sample_index}"
+        return f"{request_part}-{version_part}-{request_index}-{sample_index}"
 
     @staticmethod
     def _set_observed_capability(
@@ -461,6 +534,15 @@ def _is_loopback_host(hostname: str) -> bool:
         return ipaddress.ip_address(hostname).is_loopback
     except ValueError:
         return False
+
+
+def _set_response_socket_timeout(response: object, timeout_seconds: float) -> None:
+    response_file = getattr(response, "fp", None)
+    raw = getattr(response_file, "raw", None)
+    response_socket = getattr(raw, "_sock", None)
+    settimeout = getattr(response_socket, "settimeout", None)
+    if callable(settimeout):
+        settimeout(timeout_seconds)
 
 
 def _bounded_timeout(value: object) -> float:
@@ -570,7 +652,10 @@ def _response_tokens(value: object) -> tuple[int, ...] | None:
     return tuple(value)
 
 
-def _response_log_probs(value: object) -> tuple[float, ...] | None:
+def _response_log_probs(
+    value: object,
+    completion_content: str,
+) -> tuple[float, ...] | None:
     if value is None:
         return None
     if not isinstance(value, list):
@@ -578,6 +663,7 @@ def _response_log_probs(value: object) -> tuple[float, ...] | None:
     if not value:
         raise LlamaCppServerError("llama.cpp completion probabilities must be non-empty")
     log_probs: list[float] = []
+    selected_content: list[str] = []
     for index, record in enumerate(value):
         if not isinstance(record, Mapping):
             raise LlamaCppServerError(
@@ -585,30 +671,48 @@ def _response_log_probs(value: object) -> tuple[float, ...] | None:
             )
         content = record.get("content")
         candidates = record.get("probs")
-        if not isinstance(content, str) or not isinstance(candidates, list):
+        if not isinstance(content, str) or not isinstance(candidates, list) or not candidates:
             raise LlamaCppServerError(
                 f"llama.cpp completion probabilities[{index}] has invalid content or probs"
             )
-        matches = [
-            candidate
-            for candidate in candidates
-            if isinstance(candidate, Mapping) and candidate.get("tok_str") == content
-        ]
+        matches: list[Mapping[str, object]] = []
+        for candidate_index, candidate in enumerate(candidates):
+            if not isinstance(candidate, Mapping):
+                raise LlamaCppServerError(
+                    "llama.cpp completion probability "
+                    f"candidate[{index}][{candidate_index}] must be an object"
+                )
+            token_text = candidate.get("tok_str")
+            probability = candidate.get("prob")
+            if not isinstance(token_text, str):
+                raise LlamaCppServerError(
+                    "llama.cpp completion probability "
+                    f"candidate[{index}][{candidate_index}].tok_str must be a string"
+                )
+            if (
+                isinstance(probability, bool)
+                or not isinstance(probability, (int, float))
+                or not math.isfinite(probability)
+                or not 0.0 < probability <= 1.0
+            ):
+                raise LlamaCppServerError(
+                    "llama.cpp completion probability "
+                    f"candidate[{index}][{candidate_index}].prob must be finite in (0, 1]"
+                )
+            if token_text == content:
+                matches.append(candidate)
         if len(matches) != 1:
             raise LlamaCppServerError(
                 f"llama.cpp completion probabilities[{index}] must identify one selected token"
             )
         probability = matches[0].get("prob")
-        if (
-            isinstance(probability, bool)
-            or not isinstance(probability, (int, float))
-            or not math.isfinite(probability)
-            or not 0.0 < probability <= 1.0
-        ):
-            raise LlamaCppServerError(
-                f"llama.cpp completion probabilities[{index}] probability must be finite in (0, 1]"
-            )
+        assert isinstance(probability, (int, float)) and not isinstance(probability, bool)
         log_probs.append(math.log(float(probability)))
+        selected_content.append(content)
+    if "".join(selected_content) != completion_content:
+        raise LlamaCppServerError(
+            "llama.cpp probability record text must reconstruct completion content"
+        )
     return tuple(log_probs)
 
 

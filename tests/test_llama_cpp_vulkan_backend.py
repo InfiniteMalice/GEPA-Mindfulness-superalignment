@@ -7,10 +7,11 @@ import math
 import threading
 import time
 from collections import defaultdict, deque
-from collections.abc import Iterator
-from dataclasses import dataclass
+from collections.abc import Iterator, Mapping
+from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import cast
+from urllib import request as urllib_request
 
 import pytest
 
@@ -29,6 +30,8 @@ class _Reply:
     status: int = 200
     body: object = None
     delay_seconds: float = 0.0
+    headers: Mapping[str, str] = field(default_factory=dict)
+    drip_seconds: float = 0.0
 
 
 class _MockLlamaServer:
@@ -60,9 +63,17 @@ class _MockLlamaServer:
                 self.send_response(reply.status)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(body)))
+                for name, value in reply.headers.items():
+                    self.send_header(name, value)
                 self.end_headers()
                 try:
-                    self.wfile.write(body)
+                    if reply.drip_seconds:
+                        for byte in body:
+                            self.wfile.write(bytes((byte,)))
+                            self.wfile.flush()
+                            time.sleep(reply.drip_seconds)
+                    else:
+                        self.wfile.write(body)
                 except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
                     pass
 
@@ -83,8 +94,18 @@ class _MockLlamaServer:
         *,
         status: int = 200,
         delay_seconds: float = 0.0,
+        headers: Mapping[str, str] | None = None,
+        drip_seconds: float = 0.0,
     ) -> None:
-        self._replies[(method, path)].append(_Reply(status, body, delay_seconds))
+        self._replies[(method, path)].append(
+            _Reply(
+                status=status,
+                body=body,
+                delay_seconds=delay_seconds,
+                headers={} if headers is None else dict(headers),
+                drip_seconds=drip_seconds,
+            )
+        )
 
     def prime_metadata(self) -> None:
         self.enqueue("GET", "/health", {"status": "ok", "version": "b4242"})
@@ -124,10 +145,11 @@ def _completion(
     *,
     tokens: list[int] | None = None,
     probabilities: list[float] | None = None,
+    model: str = "tiny-model.gguf",
 ) -> dict[str, object]:
     body: dict[str, object] = {
         "content": content,
-        "model": "tiny-model.gguf",
+        "model": model,
         "stop": True,
     }
     if tokens is not None:
@@ -190,6 +212,56 @@ def test_client_normalizes_loopback_endpoint_and_validates_health_models(
         ("GET", "/health", None),
         ("GET", "/v1/models", None),
     ]
+
+
+def test_client_ignores_environment_proxy_for_loopback_requests(
+    mock_llama_server: _MockLlamaServer,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    proxy = _MockLlamaServer()
+    try:
+        mock_llama_server.enqueue("GET", "/health", {"status": "ok"})
+        proxy.enqueue(
+            "GET",
+            f"{mock_llama_server.endpoint}/health",
+            {"status": "proxy-intercepted"},
+        )
+        monkeypatch.setattr(
+            urllib_request,
+            "getproxies",
+            lambda: {"http": proxy.endpoint},
+        )
+        monkeypatch.setattr(urllib_request, "proxy_bypass", lambda host: False)
+        monkeypatch.setattr(urllib_request, "_opener", None)
+        client = LlamaCppServerClient(mock_llama_server.endpoint)
+
+        assert client.health() == {"status": "ok"}
+        assert proxy.requests == []
+    finally:
+        proxy.close()
+
+
+def test_client_rejects_redirect_without_contacting_target(
+    mock_llama_server: _MockLlamaServer,
+) -> None:
+    redirect_target = _MockLlamaServer()
+    try:
+        mock_llama_server.enqueue(
+            "GET",
+            "/health",
+            {},
+            status=302,
+            headers={"Location": f"{redirect_target.endpoint}/health"},
+        )
+        redirect_target.enqueue("GET", "/health", {"status": "ok"})
+        client = LlamaCppServerClient(mock_llama_server.endpoint)
+
+        with pytest.raises(LlamaCppServerError, match="redirect.*rejected"):
+            client.health()
+
+        assert redirect_target.requests == []
+    finally:
+        redirect_target.close()
 
 
 @pytest.mark.parametrize("timeout", [True, 0, -1, 61, math.inf, "1"])
@@ -255,9 +327,9 @@ def test_grouped_completions_preserve_order_and_forward_effective_sampling(
         "third",
     ]
     assert [trajectory.trajectory_id for trajectory in trajectories] == [
-        "case-a-policy-3-0",
-        "case-a-policy-3-1",
-        "case-b-unversioned-0",
+        "case-a-policy-3-0-0",
+        "case-a-policy-3-0-1",
+        "case-b-unversioned-1-0",
     ]
     assert [trajectory.seed for trajectory in trajectories] == [40, 41, 90]
     assert trajectories[0].response_token_ids == (11, 12)
@@ -280,6 +352,7 @@ def test_grouped_completions_preserve_order_and_forward_effective_sampling(
             "n_predict": 7,
             "n_probs": 1,
             "prompt": "grouped",
+            "model": "tiny-model.gguf",
             "seed": 40,
             "stream": False,
             "temperature": 0.4,
@@ -289,6 +362,7 @@ def test_grouped_completions_preserve_order_and_forward_effective_sampling(
             "n_predict": 7,
             "n_probs": 1,
             "prompt": "grouped",
+            "model": "tiny-model.gguf",
             "seed": 41,
             "stream": False,
             "temperature": 0.4,
@@ -298,10 +372,118 @@ def test_grouped_completions_preserve_order_and_forward_effective_sampling(
             "n_predict": 32,
             "n_probs": 1,
             "prompt": "single",
+            "model": "tiny-model.gguf",
             "seed": 90,
             "stream": False,
         },
     ]
+
+
+def test_greedy_trajectory_records_effective_zero_temperature(
+    mock_llama_server: _MockLlamaServer,
+) -> None:
+    mock_llama_server.prime_metadata()
+    mock_llama_server.enqueue("POST", "/completion", _completion("greedy"))
+    backend = LlamaCppVulkanBackend(mock_llama_server.endpoint)
+
+    trajectory = backend.generate(
+        [
+            RolloutRequest(
+                prompt="hello",
+                sampling_parameters={
+                    "do_sample": False,
+                    "temperature": 0.8,
+                    "top_p": 0.9,
+                },
+            )
+        ]
+    )[0]
+
+    assert trajectory.sampling_parameters == {
+        "do_sample": False,
+        "max_new_tokens": 256,
+        "temperature": 0.0,
+        "top_p": 0.9,
+    }
+    completion_payload = mock_llama_server.requests[-1][2]
+    assert isinstance(completion_payload, dict)
+    assert completion_payload["temperature"] == 0.0
+
+
+def test_duplicate_case_and_policy_requests_have_distinct_trajectory_ids(
+    mock_llama_server: _MockLlamaServer,
+) -> None:
+    mock_llama_server.prime_metadata()
+    mock_llama_server.enqueue("POST", "/completion", _completion("first"))
+    mock_llama_server.enqueue("POST", "/completion", _completion("second"))
+    backend = LlamaCppVulkanBackend(mock_llama_server.endpoint)
+    duplicate = RolloutRequest(
+        prompt="same",
+        case_id="case",
+        policy_version="policy",
+    )
+
+    trajectories = backend.generate([duplicate, duplicate])
+
+    assert [trajectory.trajectory_id for trajectory in trajectories] == [
+        "case-policy-0-0",
+        "case-policy-1-0",
+    ]
+
+
+def test_backend_rejects_ambiguous_model_list_before_completion(
+    mock_llama_server: _MockLlamaServer,
+) -> None:
+    mock_llama_server.enqueue("GET", "/health", {"status": "ok"})
+    mock_llama_server.enqueue(
+        "GET",
+        "/v1/models",
+        {"data": [{"id": "first.gguf"}, {"id": "second.gguf"}]},
+    )
+    backend = LlamaCppVulkanBackend(mock_llama_server.endpoint)
+
+    with pytest.raises(LlamaCppServerError, match="multiple.*model"):
+        backend.generate([RolloutRequest(prompt="hello")])
+
+    assert all(path != "/completion" for _, path, _ in mock_llama_server.requests)
+
+
+def test_backend_binds_explicit_model_to_request_and_response(
+    mock_llama_server: _MockLlamaServer,
+) -> None:
+    mock_llama_server.enqueue("GET", "/health", {"status": "ok"})
+    mock_llama_server.enqueue(
+        "GET",
+        "/v1/models",
+        {"data": [{"id": "first.gguf"}, {"id": "second.gguf"}]},
+    )
+    mock_llama_server.enqueue(
+        "POST",
+        "/completion",
+        _completion("selected", model="second.gguf"),
+    )
+    backend = LlamaCppVulkanBackend(
+        mock_llama_server.endpoint,
+        model_identifier="second.gguf",
+    )
+
+    trajectory = backend.generate([RolloutRequest(prompt="hello")])[0]
+
+    assert trajectory.model_identifier == "second.gguf"
+    completion_payload = mock_llama_server.requests[-1][2]
+    assert isinstance(completion_payload, dict)
+    assert completion_payload["model"] == "second.gguf"
+
+
+def test_backend_rejects_completion_without_bound_model_identity(
+    mock_llama_server: _MockLlamaServer,
+) -> None:
+    mock_llama_server.prime_metadata()
+    mock_llama_server.enqueue("POST", "/completion", {"content": "unbound"})
+    backend = LlamaCppVulkanBackend(mock_llama_server.endpoint)
+
+    with pytest.raises(LlamaCppServerError, match="model.*required"):
+        backend.generate([RolloutRequest(prompt="hello")])
 
 
 def test_capabilities_use_only_observed_server_evidence(
@@ -343,10 +525,11 @@ def test_capabilities_use_only_observed_server_evidence(
     ("body", "message"),
     [
         ({"content": ["not", "text"]}, "content"),
-        ({"content": "x", "tokens": [True]}, "tokens"),
+        ({"content": "x", "model": "tiny-model.gguf", "tokens": [True]}, "tokens"),
         (
             {
                 "content": "x",
+                "model": "tiny-model.gguf",
                 "tokens": [1, 2],
                 "completion_probabilities": [
                     {"content": "x", "probs": [{"prob": 0.5, "tok_str": "x"}]}
@@ -357,6 +540,7 @@ def test_capabilities_use_only_observed_server_evidence(
         (
             {
                 "content": "x",
+                "model": "tiny-model.gguf",
                 "completion_probabilities": [
                     {"content": "x", "probs": [{"prob": float("nan"), "tok_str": "x"}]}
                 ],
@@ -385,7 +569,11 @@ def test_empty_probability_array_does_not_claim_token_probability_evidence(
     mock_llama_server.enqueue(
         "POST",
         "/completion",
-        {"content": "x", "completion_probabilities": []},
+        {
+            "content": "x",
+            "model": "tiny-model.gguf",
+            "completion_probabilities": [],
+        },
     )
     backend = LlamaCppVulkanBackend(mock_llama_server.endpoint)
 
@@ -395,6 +583,64 @@ def test_empty_probability_array_does_not_claim_token_probability_evidence(
     assert (
         backend.capabilities().state(Capability.SUPPORTS_TOKEN_LOG_PROBS) is CapabilityState.UNKNOWN
     )
+
+
+@pytest.mark.parametrize(
+    "invalid_candidate",
+    [
+        "not-an-object",
+        {"prob": 0.25, "tok_str": 7},
+        {"prob": 1.5, "tok_str": "other"},
+    ],
+)
+def test_probability_validation_rejects_every_invalid_candidate(
+    mock_llama_server: _MockLlamaServer,
+    invalid_candidate: object,
+) -> None:
+    mock_llama_server.prime_metadata()
+    mock_llama_server.enqueue(
+        "POST",
+        "/completion",
+        {
+            "content": "x",
+            "model": "tiny-model.gguf",
+            "completion_probabilities": [
+                {
+                    "content": "x",
+                    "probs": [
+                        {"prob": 0.5, "tok_str": "x"},
+                        invalid_candidate,
+                    ],
+                }
+            ],
+        },
+    )
+    backend = LlamaCppVulkanBackend(mock_llama_server.endpoint)
+
+    with pytest.raises(LlamaCppServerError, match="candidate"):
+        backend.generate([RolloutRequest(prompt="hello")])
+
+
+def test_probability_record_text_must_reconstruct_completion_content(
+    mock_llama_server: _MockLlamaServer,
+) -> None:
+    mock_llama_server.prime_metadata()
+    mock_llama_server.enqueue(
+        "POST",
+        "/completion",
+        {
+            "content": "xy",
+            "model": "tiny-model.gguf",
+            "completion_probabilities": [
+                {"content": "x", "probs": [{"prob": 0.5, "tok_str": "x"}]},
+                {"content": "z", "probs": [{"prob": 0.5, "tok_str": "z"}]},
+            ],
+        },
+    )
+    backend = LlamaCppVulkanBackend(mock_llama_server.endpoint)
+
+    with pytest.raises(LlamaCppServerError, match="probability.*text.*completion"):
+        backend.generate([RolloutRequest(prompt="hello")])
 
 
 @pytest.mark.parametrize(
@@ -440,6 +686,25 @@ def test_client_translates_timeout(mock_llama_server: _MockLlamaServer) -> None:
 
     with pytest.raises(LlamaCppServerError, match="timed out.*health"):
         client.health()
+
+
+def test_client_enforces_total_deadline_for_slow_drip_body(
+    mock_llama_server: _MockLlamaServer,
+) -> None:
+    mock_llama_server.enqueue(
+        "GET",
+        "/health",
+        {"status": "ok", "padding": "x" * 40},
+        drip_seconds=0.01,
+    )
+    client = LlamaCppServerClient(mock_llama_server.endpoint, timeout_seconds=0.05)
+    started = time.monotonic()
+
+    with pytest.raises(LlamaCppServerError, match="total deadline") as caught:
+        client.health()
+
+    assert time.monotonic() - started < 0.3
+    assert isinstance(caught.value.__cause__, TimeoutError)
 
 
 def test_close_is_idempotent_and_prevents_more_requests(
