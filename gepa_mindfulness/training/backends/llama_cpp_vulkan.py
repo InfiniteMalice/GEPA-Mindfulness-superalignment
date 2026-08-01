@@ -5,7 +5,10 @@ from __future__ import annotations
 import ipaddress
 import json
 import math
+import re
+import shutil
 import socket
+import subprocess
 import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -25,7 +28,23 @@ _DEFAULT_MAX_NEW_TOKENS = 256
 _DEFAULT_MAX_RESPONSE_BYTES = 1_048_576
 _MAX_RESPONSE_BYTES = 16_777_216
 _MAX_TIMEOUT_SECONDS = 60.0
+_MAX_EVIDENCE_CHARACTERS = 512
+_RUNTIME_PROBE_TIMEOUT_SECONDS = 2.0
 _SUPPORTED_SAMPLING_PARAMETERS = frozenset({"do_sample", "max_new_tokens", "temperature", "top_p"})
+_UNSUPPORTED_TRAINING_CAPABILITIES = frozenset(
+    {
+        Capability.SUPPORTS_BACKWARD,
+        Capability.SUPPORTS_CUDA,
+        Capability.SUPPORTS_DISTRIBUTED_TRAINING,
+        Capability.SUPPORTS_FULL_WEIGHT_TRAINING,
+        Capability.SUPPORTS_LORA_TRAINING,
+        Capability.SUPPORTS_MIXED_PRECISION,
+        Capability.SUPPORTS_OPTIMIZER_STEP,
+        Capability.SUPPORTS_REFERENCE_LOG_PROBS,
+        Capability.SUPPORTS_VALUE_HEAD,
+    }
+)
+_VULKAN_BUILD_FLAG = re.compile(r"\bGGML_VULKAN\s*(?:=|:)\s*(?:1|ON|TRUE)\b", re.IGNORECASE)
 
 
 class LlamaCppServerError(RuntimeError):
@@ -218,6 +237,265 @@ class LlamaCppServerClient:
 
 
 @dataclass(frozen=True)
+class _CommandProbe:
+    output: str | None
+    failure: str | None
+
+
+def detect_vulkan_evidence(
+    *,
+    timeout_seconds: float = _RUNTIME_PROBE_TIMEOUT_SECONDS,
+) -> CapabilityEvidence:
+    """Return positive Vulkan evidence or an actionable unknown result."""
+    timeout = _bounded_timeout(timeout_seconds)
+    executable = shutil.which("vulkaninfo")
+    if executable is None:
+        return CapabilityEvidence(
+            state=CapabilityState.UNKNOWN,
+            evidence=(
+                "vulkaninfo was not found; install the Vulkan SDK or expose explicit "
+                "GGML_VULKAN=1 llama.cpp build evidence."
+            ),
+        )
+    probe = _run_read_only_probe(
+        [executable, "--summary"],
+        timeout_seconds=timeout,
+        display_name="vulkaninfo --summary",
+    )
+    if probe.failure is not None:
+        return CapabilityEvidence(state=CapabilityState.UNKNOWN, evidence=probe.failure)
+    assert probe.output is not None
+    if not _has_positive_vulkaninfo_evidence(probe.output):
+        return CapabilityEvidence(
+            state=CapabilityState.UNKNOWN,
+            evidence=(
+                "vulkaninfo --summary returned no positive Vulkan instance or device evidence."
+            ),
+        )
+    return CapabilityEvidence(
+        state=CapabilityState.SUPPORTED,
+        evidence=f"vulkaninfo --summary reported {probe.output}",
+    )
+
+
+def detect_llama_cpp_runtime(
+    endpoint: str | None = None,
+    *,
+    timeout_seconds: float = _RUNTIME_PROBE_TIMEOUT_SECONDS,
+) -> BackendCapabilities:
+    """Detect an optional local llama.cpp actor without starting it or running inference."""
+    timeout = _bounded_timeout(timeout_seconds)
+    executable_probe = _detect_llama_executable(timeout)
+    backend_version = executable_probe.output or "unknown"
+    capabilities = _unknown_runtime_capabilities()
+    capabilities[Capability.SUPPORTS_GENERATION] = CapabilityEvidence(
+        state=CapabilityState.UNKNOWN,
+        evidence=_generation_probe_evidence(executable_probe),
+    )
+
+    vulkan_evidence = detect_vulkan_evidence(timeout_seconds=timeout)
+    if executable_probe.output is not None and _VULKAN_BUILD_FLAG.search(executable_probe.output):
+        vulkan_evidence = CapabilityEvidence(
+            state=CapabilityState.SUPPORTED,
+            evidence=(
+                "llama-server --version reported explicit Vulkan build flag: "
+                f"{executable_probe.output}"
+            ),
+        )
+    capabilities[Capability.SUPPORTS_VULKAN] = vulkan_evidence
+
+    if endpoint is not None:
+        backend_version = _detect_endpoint(
+            endpoint,
+            timeout,
+            backend_version,
+            capabilities,
+        )
+    return BackendCapabilities(
+        backend_name=_BACKEND_NAME,
+        backend_version=backend_version,
+        capabilities=capabilities,
+    )
+
+
+def _detect_llama_executable(timeout_seconds: float) -> _CommandProbe:
+    executable = shutil.which("llama-server")
+    if executable is None:
+        return _CommandProbe(
+            output=None,
+            failure=(
+                "llama-server executable was not found; install llama.cpp or configure a "
+                "reachable local endpoint."
+            ),
+        )
+    probe = _run_read_only_probe(
+        [executable, "--version"],
+        timeout_seconds=timeout_seconds,
+        display_name="llama-server --version",
+    )
+    if probe.output is not None and "llama" not in probe.output.casefold():
+        return _CommandProbe(
+            output=None,
+            failure=(
+                "llama-server --version returned no usable llama.cpp build evidence; "
+                "verify the executable installation."
+            ),
+        )
+    return probe
+
+
+def _run_read_only_probe(
+    command: list[str],
+    *,
+    timeout_seconds: float,
+    display_name: str,
+) -> _CommandProbe:
+    try:
+        completed = subprocess.run(
+            command,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout_seconds,
+            check=False,
+            shell=False,
+        )
+    except subprocess.TimeoutExpired:
+        return _CommandProbe(
+            output=None,
+            failure=f"{display_name} timed out after {timeout_seconds:g} seconds.",
+        )
+    except OSError as exc:
+        detail = _sanitize_text(str(exc)) or "operating-system error"
+        return _CommandProbe(
+            output=None,
+            failure=f"{display_name} failed: {detail}.",
+        )
+    output = _sanitize_probe_output(completed.stdout, completed.stderr)
+    if completed.returncode != 0:
+        detail = output or f"exit status {completed.returncode}"
+        return _CommandProbe(
+            output=None,
+            failure=f"{display_name} failed: {detail}.",
+        )
+    if output is None:
+        return _CommandProbe(
+            output=None,
+            failure=f"{display_name} returned no usable build or runtime evidence.",
+        )
+    return _CommandProbe(output=output, failure=None)
+
+
+def _sanitize_probe_output(stdout: object, stderr: object) -> str | None:
+    parts = [_decode_probe_stream(stdout), _decode_probe_stream(stderr)]
+    output = _sanitize_text(" ".join(part for part in parts if part))
+    return output or None
+
+
+def _decode_probe_stream(value: object) -> str:
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    if isinstance(value, str):
+        return value
+    return ""
+
+
+def _sanitize_text(value: str) -> str:
+    printable = "".join(character if character.isprintable() else " " for character in value)
+    collapsed = " ".join(printable.split())
+    if len(collapsed) <= _MAX_EVIDENCE_CHARACTERS:
+        return collapsed
+    return f"{collapsed[: _MAX_EVIDENCE_CHARACTERS - 3].rstrip()}..."
+
+
+def _has_positive_vulkaninfo_evidence(output: str) -> bool:
+    normalized = output.casefold()
+    return "vulkan instance version" in normalized or "devicename" in normalized
+
+
+def _unknown_runtime_capabilities() -> dict[Capability, CapabilityEvidence]:
+    capabilities: dict[Capability, CapabilityEvidence] = {}
+    for capability in Capability:
+        if capability in _UNSUPPORTED_TRAINING_CAPABILITIES:
+            capabilities[capability] = CapabilityEvidence(
+                state=CapabilityState.UNSUPPORTED,
+                evidence=(
+                    "The llama.cpp server boundary is inference-only and exposes no "
+                    f"{capability.value} operation."
+                ),
+            )
+        else:
+            capabilities[capability] = CapabilityEvidence(
+                state=CapabilityState.UNKNOWN,
+                evidence=f"No positive {capability.value} evidence was detected.",
+            )
+    return capabilities
+
+
+def _generation_probe_evidence(probe: _CommandProbe) -> str:
+    if probe.output is not None:
+        return (
+            f"llama-server --version reported {probe.output}; configure a local endpoint "
+            "to prove generation."
+        )
+    assert probe.failure is not None
+    return probe.failure
+
+
+def _detect_endpoint(
+    endpoint: str,
+    timeout_seconds: float,
+    fallback_version: str,
+    capabilities: dict[Capability, CapabilityEvidence],
+) -> str:
+    client: LlamaCppServerClient | None = None
+    try:
+        client = LlamaCppServerClient(endpoint, timeout_seconds=timeout_seconds)
+        health = client.health()
+        models = client.models()
+    except (LlamaCppServerError, TypeError, ValueError) as exc:
+        detail = _sanitize_text(str(exc)) or "invalid endpoint response"
+        capabilities[Capability.SUPPORTS_GENERATION] = CapabilityEvidence(
+            state=CapabilityState.UNKNOWN,
+            evidence=f"Local llama.cpp endpoint detection failed: {detail}.",
+        )
+        return fallback_version
+    finally:
+        if client is not None:
+            client.close()
+
+    capabilities[Capability.SUPPORTS_GENERATION] = CapabilityEvidence(
+        state=CapabilityState.SUPPORTED,
+        evidence="Validated local /health and /v1/models responses were observed.",
+    )
+    gguf_models = [model["id"] for model in models if _model_is_gguf(model)]
+    if gguf_models:
+        capabilities[Capability.SUPPORTS_GGUF] = CapabilityEvidence(
+            state=CapabilityState.SUPPORTED,
+            evidence=(
+                "llama-server model metadata identified GGUF format for "
+                f"{', '.join(str(model) for model in gguf_models)}."
+            ),
+        )
+    else:
+        capabilities[Capability.SUPPORTS_GGUF] = CapabilityEvidence(
+            state=CapabilityState.UNKNOWN,
+            evidence="llama-server model metadata did not positively identify GGUF format.",
+        )
+    version = health.get("version")
+    return version if isinstance(version, str) else fallback_version
+
+
+def _model_is_gguf(model: Mapping[str, object]) -> bool:
+    metadata = model.get("meta")
+    format_name = metadata.get("format") if isinstance(metadata, Mapping) else None
+    model_id = model.get("id")
+    return (isinstance(format_name, str) and format_name.casefold() == "gguf") or (
+        isinstance(model_id, str) and model_id.casefold().endswith(".gguf")
+    )
+
+
+@dataclass(frozen=True)
 class _PreparedRollout:
     request: RolloutRequest
     request_index: int
@@ -304,20 +582,9 @@ class LlamaCppVulkanBackend:
 
     def capabilities(self) -> BackendCapabilities:
         """Report only server behavior already observed by this backend instance."""
-        unsupported = {
-            Capability.SUPPORTS_BACKWARD,
-            Capability.SUPPORTS_CUDA,
-            Capability.SUPPORTS_DISTRIBUTED_TRAINING,
-            Capability.SUPPORTS_FULL_WEIGHT_TRAINING,
-            Capability.SUPPORTS_LORA_TRAINING,
-            Capability.SUPPORTS_MIXED_PRECISION,
-            Capability.SUPPORTS_OPTIMIZER_STEP,
-            Capability.SUPPORTS_REFERENCE_LOG_PROBS,
-            Capability.SUPPORTS_VALUE_HEAD,
-        }
         capabilities: dict[Capability, CapabilityEvidence] = {}
         for capability in Capability:
-            if capability in unsupported:
+            if capability in _UNSUPPORTED_TRAINING_CAPABILITIES:
                 capabilities[capability] = CapabilityEvidence(
                     state=CapabilityState.UNSUPPORTED,
                     evidence=(
@@ -720,4 +987,6 @@ __all__ = [
     "LlamaCppServerClient",
     "LlamaCppServerError",
     "LlamaCppVulkanBackend",
+    "detect_llama_cpp_runtime",
+    "detect_vulkan_evidence",
 ]
