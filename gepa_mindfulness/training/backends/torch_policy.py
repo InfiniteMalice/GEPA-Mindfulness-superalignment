@@ -480,6 +480,8 @@ class TorchPolicyBackend:
                 raise ValueError(
                     "learner policy checksum or reference checksum does not reflect adapter state"
                 )
+            self.reference_model.requires_grad_(False)
+            self.reference_model.eval()
         except BaseException as exc:
             rollback_failures: list[str] = []
             with torch.no_grad():
@@ -516,8 +518,6 @@ class TorchPolicyBackend:
                 if callable(add_note):
                     add_note("adapter rollback failures: " + "; ".join(rollback_failures))
             raise
-        self.reference_model.requires_grad_(False)
-        self.reference_model.eval()
         return loaded_checksum
 
     def preflight_adapter_bytes(self, payload: bytes, *, manifest: AdapterManifest) -> str:

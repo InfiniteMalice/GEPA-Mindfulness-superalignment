@@ -1677,6 +1677,51 @@ def test_lora_load_catches_keyboard_interrupt_and_restores_both_models(
     assert torch.equal(target.reference_model.lora_adapter, reference_before)
 
 
+def test_lora_load_rolls_back_when_final_reference_freeze_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = _native_lora_backend(_fake_lora_model())
+    target = _native_lora_backend(deepcopy(source.policy_model))
+    with torch.no_grad():
+        source.policy_model.lora_adapter.fill_(0.75)
+        target.policy_model.lora_adapter.fill_(-0.25)
+        target.reference_model.lora_adapter.fill_(-0.5)
+    publisher = LocalAdapterPublisher(tmp_path / "final-freeze-publication")
+    manifest = publisher.publish(
+        source.export_adapter(
+            tmp_path / "final-freeze.pt",
+            model_id="tiny-model",
+            policy_version=PolicyVersion(1),
+            parent_policy_version=None,
+        )
+    )
+    _, payload = publisher.current_artifact()
+    policy_before = target.policy_model.lora_adapter.detach().clone()
+    reference_before = target.reference_model.lora_adapter.detach().clone()
+    primary = KeyboardInterrupt("final reference freeze failed")
+    original_requires_grad = target.reference_model.requires_grad_
+    calls = 0
+
+    def fail_once(requires_grad: bool = True) -> nn.Module:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise primary
+        return original_requires_grad(requires_grad)
+
+    monkeypatch.setattr(target.reference_model, "requires_grad_", fail_once)
+    with pytest.raises(KeyboardInterrupt) as caught:
+        target.load_adapter_bytes(payload, manifest=manifest)
+
+    assert caught.value is primary
+    assert calls == 2
+    assert torch.equal(target.policy_model.lora_adapter, policy_before)
+    assert torch.equal(target.reference_model.lora_adapter, reference_before)
+    assert target.reference_model.training is False
+    assert all(not parameter.requires_grad for parameter in target.reference_model.parameters())
+
+
 def test_lora_rollback_continues_after_one_copy_failure_and_preserves_primary(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
