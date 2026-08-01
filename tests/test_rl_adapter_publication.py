@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import multiprocessing
 import os
+import shutil
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -18,6 +20,25 @@ from gepa_mindfulness.training.adapter_publication import (
     LocalAdapterPublisher,
 )
 from gepa_mindfulness.training.policy_versions import PolicyVersion
+
+
+def _spawn_publish(root: str, artifact: str, version: int, gate: object, queue: object) -> None:
+    gate.wait()  # type: ignore[attr-defined]
+    path = Path(artifact)
+    candidate = AdapterCandidate(
+        artifact_path=path,
+        policy_version=PolicyVersion(version),
+        expected_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+        parent_policy_version=None,
+        format_id="safetensors-v1",
+        source_id="spawn-worker",
+        model_id="tiny-model",
+    )
+    try:
+        LocalAdapterPublisher(root).publish(candidate)
+        queue.put(("ok", version))  # type: ignore[attr-defined]
+    except Exception as exc:
+        queue.put(("error", type(exc).__name__))  # type: ignore[attr-defined]
 
 
 def _candidate(
@@ -348,3 +369,59 @@ def test_internal_artifact_symlink_and_version_directory_symlink_fail_closed(
     version.symlink_to(tmp_path, target_is_directory=True)
     with pytest.raises(ValueError, match="symlink|unsafe|canonical"):
         publisher.current()
+
+
+def test_parent_swap_between_check_and_read_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    manifest = publisher.publish(_candidate(tmp_path, 1, parent=None))
+    version = (publisher.root / manifest.artifact_path).parent
+    external = tmp_path / "external"
+    shutil.copytree(version, external)
+    real_open = publication_module._open_regular
+    swapped = False
+
+    def swapping_open(path: Path, field_name: str) -> object:
+        nonlocal swapped
+        if not swapped and path.name == "manifest.json":
+            swapped = True
+            moved = tmp_path / "original-version"
+            version.rename(moved)
+            external.rename(version)
+        return real_open(path, field_name)
+
+    monkeypatch.setattr(publication_module, "_open_regular", swapping_open)
+    with pytest.raises(ValueError, match="changed|unsafe"):
+        publisher.current()
+
+
+def test_spawned_publishers_serialize_first_publication(tmp_path: Path) -> None:
+    context = multiprocessing.get_context("spawn")
+    root = tmp_path / "published"
+    LocalAdapterPublisher(root)
+    artifacts = []
+    for version in (1, 2):
+        path = tmp_path / f"spawn-{version}.bin"
+        path.write_bytes(f"spawn-{version}".encode())
+        artifacts.append(path)
+    gate = context.Event()
+    queue = context.Queue()
+    processes = [
+        context.Process(target=_spawn_publish, args=(str(root), str(path), version, gate, queue))
+        for version, path in zip((1, 2), artifacts, strict=True)
+    ]
+    for process in processes:
+        process.start()
+    gate.set()
+    for process in processes:
+        process.join(15)
+        assert process.exitcode == 0
+    results = [queue.get(timeout=5), queue.get(timeout=5)]
+    assert sorted(result[0] for result in results) == ["error", "ok"]
+    current = LocalAdapterPublisher(root).current()
+    assert current is not None
+    assert len(tuple((root / "versions").iterdir())) == 1
+    assert not any(
+        path.name.startswith((".adapter-stage-", ".current-")) for path in root.iterdir()
+    )

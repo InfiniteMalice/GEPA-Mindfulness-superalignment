@@ -254,18 +254,19 @@ class LocalAdapterPublisher:
             not version_values or max(version_values) != manifest.policy_version
         ):
             raise ValueError("adapter versions contain an orphan or omit the current version")
-        artifact = _contained_regular_path(self.root, manifest.artifact_path, "artifact_path")
-        version_manifest = _contained_regular_path(
+        artifact_digest, artifact_size = _contained_hash(
+            self.root, manifest.artifact_path, "artifact_path"
+        )
+        version_payload = _contained_bytes(
             self.root,
             manifest.manifest_path,
             "manifest_path",
         )
-        stored_payload = _read_canonical_json(version_manifest, "version adapter manifest")
+        stored_payload = _decode_canonical_json(version_payload, "version adapter manifest")
         stored_manifest = AdapterManifest.from_dict(stored_payload)
         if stored_manifest != manifest:
             raise ValueError("current adapter manifest does not match its version manifest")
-        digest, size = _sha256_regular(artifact, "published adapter")
-        if digest != manifest.artifact_sha256 or size != manifest.artifact_size:
+        if artifact_digest != manifest.artifact_sha256 or artifact_size != manifest.artifact_size:
             raise ArtifactHashError("published adapter failed SHA-256 verification")
         return manifest
 
@@ -520,6 +521,10 @@ def _read_canonical_json(path: Path, field_name: str) -> object:
         payload_bytes = stream.read(_MAX_MANIFEST_BYTES + 1)
     if len(payload_bytes) > _MAX_MANIFEST_BYTES:
         raise ValueError(f"{field_name} exceeds the bounded manifest size")
+    return _decode_canonical_json(payload_bytes, field_name)
+
+
+def _decode_canonical_json(payload_bytes: bytes, field_name: str) -> object:
     try:
         payload = json.loads(payload_bytes.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -529,7 +534,7 @@ def _read_canonical_json(path: Path, field_name: str) -> object:
     return payload
 
 
-def _contained_regular_path(root: Path, relative: str, field_name: str) -> Path:
+def _contained_parts(root: Path, relative: str, field_name: str) -> tuple[Path, tuple[Path, ...]]:
     if type(relative) is not str:
         raise ValueError(f"{field_name} must be a canonical relative path")
     parts = Path(relative).parts
@@ -544,13 +549,51 @@ def _contained_regular_path(root: Path, relative: str, field_name: str) -> Path:
     ):
         raise ValueError(f"{field_name} escapes the adapter publication root")
     versions = root / "versions"
-    _require_directory(root, "adapter publication root")
-    _require_directory(versions, "adapter versions directory")
     version = versions / parts[1]
-    _require_directory(version, f"{field_name} version directory")
-    candidate = version / parts[2]
-    _sha256_regular(candidate, field_name)
-    return candidate
+    parents = (root, versions, version)
+    for parent in parents:
+        _require_directory(parent, f"{field_name} parent directory")
+    return version / parts[2], parents
+
+
+def _contained_read(root: Path, relative: str, field_name: str) -> tuple[bytes, str, int]:
+    candidate, parents = _contained_parts(root, relative, field_name)
+    parent_stats = tuple(parent.lstat() for parent in parents)
+    leaf_stat, stream = _open_regular(candidate, field_name)
+    digest = hashlib.sha256()
+    chunks: list[bytes] = []
+    size = 0
+    with stream:
+        while True:
+            chunk = stream.read(1024 * 1024)
+            if not chunk:
+                break
+            chunks.append(chunk)
+            digest.update(chunk)
+            size += len(chunk)
+    paths = (*parents, candidate)
+    before_stats = (*parent_stats, leaf_stat)
+    for path, before in zip(paths, before_stats, strict=True):
+        after = path.lstat()
+        if (
+            _is_link_or_reparse(after)
+            or (before.st_dev, before.st_ino) != (after.st_dev, after.st_ino)
+            or stat.S_IFMT(before.st_mode) != stat.S_IFMT(after.st_mode)
+        ):
+            raise ValueError(f"{field_name} parent or leaf changed while read")
+    return b"".join(chunks), digest.hexdigest(), size
+
+
+def _contained_bytes(root: Path, relative: str, field_name: str) -> bytes:
+    payload, _, _ = _contained_read(root, relative, field_name)
+    if len(payload) > _MAX_MANIFEST_BYTES:
+        raise ValueError(f"{field_name} exceeds the bounded manifest size")
+    return payload
+
+
+def _contained_hash(root: Path, relative: str, field_name: str) -> tuple[str, int]:
+    _, digest, size = _contained_read(root, relative, field_name)
+    return digest, size
 
 
 def _lock_descriptor(descriptor: int) -> None:
