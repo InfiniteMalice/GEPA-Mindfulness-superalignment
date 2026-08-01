@@ -555,6 +555,7 @@ class HybridConfig:
     """Strict experimental actor/learner versioning and publication policy."""
 
     model_id: str = "local-policy"
+    expected_actor_backend: str = "mojo-coordinator"
     adapter_store: str = "runs/hybrid/adapters"
     training_mode: str = "lora"
     staleness_policy: StalenessPolicy = StalenessPolicy.REJECT
@@ -569,6 +570,14 @@ class HybridConfig:
             or self.model_id in {".", ".."}
         ):
             raise ValueError("hybrid.model_id must be one safe identifier without path separators")
+        if (
+            type(self.expected_actor_backend) is not str
+            or _SAFE_HYBRID_ID.fullmatch(self.expected_actor_backend) is None
+            or self.expected_actor_backend in {".", ".."}
+        ):
+            raise ValueError(
+                "hybrid.expected_actor_backend must be one safe identifier without path separators"
+            )
         if not isinstance(self.adapter_store, str) or not self.adapter_store:
             raise ValueError("hybrid.adapter_store must be a non-empty string")
         if self.training_mode != "lora":
@@ -649,6 +658,7 @@ class HybridConfig:
             payload,
             {
                 "adapter_store",
+                "expected_actor_backend",
                 "model_id",
                 "training_mode",
                 "staleness_policy",
@@ -668,6 +678,12 @@ class HybridConfig:
             decay = _number(payload, "downweight_decay", 0.5, "hybrid")
         return cls(
             model_id=_string(payload, "model_id", "local-policy", "hybrid"),
+            expected_actor_backend=_string(
+                payload,
+                "expected_actor_backend",
+                "mojo-coordinator",
+                "hybrid",
+            ),
             adapter_store=_string(
                 payload,
                 "adapter_store",

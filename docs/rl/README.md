@@ -289,10 +289,19 @@ This path is experimental hybrid training, not production readiness and not pure
 The external coordinator performs generation only. A local PyTorch LoRA learner performs GRPO
 evaluation, backward, optimizer step, checkpointing, and learner-native adapter export.
 
-Copy `configs/rl/hybrid_vulkan_grpo.yaml`, replace the local Transformers model path, and bootstrap
-`hybrid.adapter_store` with a verified current adapter through `LocalAdapterPublisher`. Supply the
-coordinator executable and any actor endpoint at invocation time; do not add endpoints or secrets
-to the configuration:
+Complete this replacement checklist before hybrid training:
+
+1. Copy `configs/rl/hybrid_vulkan_grpo.yaml` to `run.hybrid.yaml`.
+2. Replace `policy.model_name` with the absolute learner Transformers model directory.
+3. Replace `hybrid.model_id` with the safe model ID that the actor returns in trajectories.
+4. Replace `hybrid.expected_actor_backend` with the exact safe `backend_name` returned by the
+   coordinator's `ActorHandshake`.
+5. Set `ADAPTER_SOURCE_ID` below to the adapter ID that the actor returns in trajectories.
+6. Replace `--coordinator-command` and `--actor-endpoint` in the training command with the local
+   coordinator executable and actor endpoint.
+7. Run the bootstrap command and verify that both bootstrap assertions pass before training.
+
+Do not add the coordinator command, actor endpoint, or secrets to `run.hybrid.yaml`.
 
 `policy.model_name` is the learner's local filesystem locator. `hybrid.model_id` is the safe,
 path-free identity shared by the actor, trajectories, and adapter manifests; it must match the
@@ -302,6 +311,7 @@ this bootstrap once from the repository root (adjust the two paths first):
 ```bash
 export HYBRID_CONFIG=/absolute/path/to/run.hybrid.yaml
 export BOOTSTRAP_ADAPTER=/absolute/path/to/bootstrap.adapter
+export ADAPTER_SOURCE_ID=peft-lora
 python - <<'PY'
 import hashlib
 import os
@@ -325,7 +335,7 @@ published = publisher.publish(
         expected_sha256=digest,
         parent_policy_version=None,
         format_id="pytorch-lora-state-dict-v1",
-        source_id="peft-lora",
+        source_id=os.environ["ADAPTER_SOURCE_ID"],
         model_id=config.hybrid.model_id,
     )
 )
@@ -362,6 +372,21 @@ the running actor loaded that adapter. Each record binds the checkpoint, parent 
 policy versions, safe model and adapter identifiers, and exact artifact SHA-256. The artifact is a
 learner-native PyTorch LoRA state dict, not GGUF. GGUF conversion, llama.cpp deployment, and actor
 reload are external operator steps and receive no success claim from this command.
+
+For actor protocol v1 and log schema v1 compatibility, `adapter_sha256` may be absent from legacy
+non-hybrid trajectories and coordinator responses. Readers validate `adapter_sha256` as a
+canonical lowercase SHA-256 digest when the field is present. Every hybrid trajectory must include
+`adapter_sha256` and must match the current adapter manifest exactly; a hybrid run rejects a
+missing hash before reward scoring.
+
+Every hybrid logger must provide a callable publication audit hook. The engine checks this hook
+before it constructs the actor. If the audit hook fails after atomic adapter publication, the
+training call raises and returns no success result. `current.json` remains advanced because an
+unlocked rollback could overwrite another process's publication. To reconcile this failure, inspect
+`publisher.current()`, open its version manifest under `hybrid.adapter_store`, and compare the
+manifest's `checkpoint_id` and `global_step` metadata with the checkpoint store. Treat the current
+manifest as the truthful publication state; do not republish the version or roll `current.json`
+back. Repair the external audit sink before resuming from the matching checkpoint.
 
 This CPU-only host validates the mocked coordinator and tiny local PyTorch update. It does not
 provide native Mojo, Vulkan-device, llama.cpp conversion, or post-publication actor-load evidence.

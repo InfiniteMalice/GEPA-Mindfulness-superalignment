@@ -49,7 +49,6 @@ _REQUEST_FIELDS = frozenset(
 _TRAJECTORY_FIELDS = frozenset(
     {
         "adapter_identifier",
-        "adapter_sha256",
         "advantage",
         "backend_name",
         "backend_version",
@@ -73,7 +72,8 @@ _TRAJECTORY_FIELDS = frozenset(
         "value_predictions",
     }
 )
-_OPTIONAL_TRAJECTORY_FIELDS = frozenset({"evidence_references"})
+_OPTIONAL_TRAJECTORY_FIELDS = frozenset({"adapter_sha256", "evidence_references"})
+_SAFE_BACKEND_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 _ERROR_CODE = re.compile(r"[a-z][a-z0-9_]{0,63}")
 _CORRELATION_ID = re.compile(r"request-[1-9][0-9]{0,18}:[0-9a-f]{32}")
 _UNSUPPORTED_TRAINING_CAPABILITIES = frozenset(
@@ -642,10 +642,22 @@ class MojoProcessTransport:
 class MojoCoordinatorBackend:
     """Restore strictly correlated trajectories from a Mojo actor transport."""
 
-    def __init__(self, transport: ActorTransport) -> None:
+    def __init__(
+        self,
+        transport: ActorTransport,
+        *,
+        expected_backend_name: str | None = None,
+    ) -> None:
         if not isinstance(transport, ActorTransport):
             raise TypeError("transport must implement ActorTransport")
+        if expected_backend_name is not None and (
+            type(expected_backend_name) is not str
+            or _SAFE_BACKEND_ID.fullmatch(expected_backend_name) is None
+            or expected_backend_name in {".", ".."}
+        ):
+            raise ValueError("expected_backend_name must be one safe backend identity")
         self.transport = transport
+        self.expected_backend_name = expected_backend_name
         self._handshake: ActorHandshake | None = None
         self._generation_observed = False
         self._closed = False
@@ -667,6 +679,13 @@ class MojoCoordinatorBackend:
                     ) from exc
                 if not isinstance(handshake, ActorHandshake):
                     raise MojoCoordinatorError("Actor transport returned an invalid handshake")
+                if (
+                    self.expected_backend_name is not None
+                    and handshake.backend_name != self.expected_backend_name
+                ):
+                    raise MojoCoordinatorError(
+                        "Actor handshake does not match configured actor backend identity"
+                    )
                 self._handshake = handshake
             raw_trajectories = self.transport.generate(prepared)
             if len(raw_trajectories) != len(expected):
@@ -675,9 +694,8 @@ class MojoCoordinatorBackend:
             identifiers: set[str] = set()
             for index, (raw, request) in enumerate(zip(raw_trajectories, expected, strict=True)):
                 keys = set(raw)
-                if (
-                    keys != _TRAJECTORY_FIELDS
-                    and keys != _TRAJECTORY_FIELDS | _OPTIONAL_TRAJECTORY_FIELDS
+                if not _TRAJECTORY_FIELDS.issubset(keys) or (
+                    keys - _TRAJECTORY_FIELDS - _OPTIONAL_TRAJECTORY_FIELDS
                 ):
                     raise MojoCoordinatorError("Mojo trajectory common schema is invalid")
                 try:
@@ -738,8 +756,9 @@ class MojoCoordinatorBackend:
                 evidence="A correlated versioned generate response was validated.",
             )
         version = self._handshake.backend_version if self._handshake else "unknown"
+        backend_name = self.expected_backend_name or _BACKEND_NAME
         return BackendCapabilities(
-            backend_name=_BACKEND_NAME,
+            backend_name=backend_name,
             backend_version=version,
             capabilities=capabilities,
         )
@@ -782,11 +801,11 @@ def _prepare_requests(
             raise ValueError("seed must be a non-negative integer or null")
         payload: dict[str, object] = {
             "case_id": request.case_id,
-            "metadata": dict(request.metadata),
+            "metadata": _json_compatible(request.metadata),
             "num_samples": request.num_samples,
             "policy_version": version.to_json(),
             "prompt": request.prompt,
-            "sampling_parameters": dict(request.sampling_parameters),
+            "sampling_parameters": _json_compatible(request.sampling_parameters),
             "seed": request.seed,
         }
         if set(payload) != _REQUEST_FIELDS:
@@ -949,6 +968,16 @@ def _validate_json_value(value: object, field_name: str) -> None:
             _validate_json_value(item, f"{field_name}.{key}")
         return
     raise ValueError(f"{field_name} contains a non-JSON value")
+
+
+def _json_compatible(value: object) -> object:
+    """Copy validated immutable containers into JSON encoder-native containers."""
+    _validate_json_value(value, "actor request value")
+    if isinstance(value, Mapping):
+        return {key: _json_compatible(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_compatible(item) for item in value]
+    return value
 
 
 __all__ = [

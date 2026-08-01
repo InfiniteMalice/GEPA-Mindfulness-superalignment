@@ -6,6 +6,7 @@ import json
 import multiprocessing
 import os
 from copy import deepcopy
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,7 @@ from gepa_mindfulness.training.run_logging import (
     LOG_SCHEMA_VERSION,
     JSONLLoggingSink,
     MetricRecord,
+    PublicationRecord,
     RunManifest,
     TrajectoryRecord,
 )
@@ -99,6 +101,50 @@ def _trajectory_record() -> TrajectoryRecord:
     )
 
 
+def _hybrid_manifest() -> RunManifest:
+    return replace(
+        _manifest(),
+        algorithm="grpo",
+        backend="fake-mojo",
+        actor_backend="fake-mojo",
+        model="tiny-hybrid-model",
+        adapter="tiny-lora",
+        device_capabilities={
+            "hybrid_actor_policy": {
+                "adapter_identifier": "tiny-lora",
+                "adapter_sha256": "a" * 64,
+                "model_identifier": "tiny-hybrid-model",
+                "policy_version": "1",
+            }
+        },
+    )
+
+
+def _publication(
+    *,
+    record_id: str,
+    parent: str,
+    version: str,
+    global_step: int,
+    checkpoint_id: str,
+) -> PublicationRecord:
+    return PublicationRecord(
+        record_id=record_id,
+        run_id="run-1",
+        timestamp=f"2026-07-31T12:00:0{global_step}Z",
+        global_step=global_step,
+        backend="fake-mojo",
+        actor_backend="fake-mojo",
+        learner_backend="torch_portable",
+        parent_policy_version=parent,
+        policy_version=version,
+        adapter_identifier="tiny-lora",
+        adapter_sha256="b" * 64,
+        model_identifier="tiny-hybrid-model",
+        checkpoint_id=checkpoint_id,
+    )
+
+
 def _jsonl(path: Path) -> list[dict[str, object]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
 
@@ -167,6 +213,77 @@ def test_rank_zero_start_run_writes_exact_manifest_and_empty_jsonl_files(tmp_pat
     assert payload["schema_version"] == LOG_SCHEMA_VERSION
     assert (tmp_path / "metrics.jsonl").read_bytes() == b""
     assert (tmp_path / "trajectories.jsonl").read_bytes() == b""
+
+
+def test_schema_v1_legacy_trajectory_without_adapter_hash_is_readable(tmp_path: Path) -> None:
+    sink = JSONLLoggingSink(tmp_path, rank=0)
+    manifest = _manifest()
+    sink.start_run(manifest)
+    payload = _trajectory_record().to_dict()
+    trajectory = payload["trajectory"]
+    assert isinstance(trajectory, dict)
+    trajectory.pop("adapter_sha256")
+    (tmp_path / "trajectories.jsonl").write_text(
+        json.dumps(payload, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    assert sink.start_run(manifest) is False
+
+
+def test_first_publication_parent_must_match_manifest_actor_policy(tmp_path: Path) -> None:
+    sink = JSONLLoggingSink(tmp_path, rank=0)
+    sink.start_run(_hybrid_manifest())
+
+    with pytest.raises(ValueError, match="publication chain"):
+        sink.log_publication(
+            _publication(
+                record_id="publication-wrong-first-parent",
+                parent="2",
+                version="3",
+                global_step=1,
+                checkpoint_id="checkpoint-00000001",
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"record_id": "publication-duplicate-version", "parent": "1", "version": "2"},
+        {"record_id": "publication-gap", "parent": "3", "version": "4"},
+        {"record_id": "publication-regression", "parent": "0", "version": "1"},
+        {"record_id": "publication-step-regression", "global_step": 1},
+        {"record_id": "publication-checkpoint-step", "checkpoint_id": "checkpoint-00000003"},
+        {"record_id": "publication-checkpoint-shape", "checkpoint_id": "checkpoint-2"},
+    ],
+)
+def test_publication_history_rejects_broken_chains(
+    tmp_path: Path,
+    changes: dict[str, object],
+) -> None:
+    sink = JSONLLoggingSink(tmp_path, rank=0)
+    sink.start_run(_hybrid_manifest())
+    assert sink.log_publication(
+        _publication(
+            record_id="publication-1",
+            parent="1",
+            version="2",
+            global_step=1,
+            checkpoint_id="checkpoint-00000001",
+        )
+    )
+    values: dict[str, object] = {
+        "record_id": "publication-2",
+        "parent": "2",
+        "version": "3",
+        "global_step": 2,
+        "checkpoint_id": "checkpoint-00000002",
+    }
+    values.update(changes)
+
+    with pytest.raises(ValueError, match="publication chain|checkpoint|global_step"):
+        sink.log_publication(_publication(**values))  # type: ignore[arg-type]
 
 
 def test_nonzero_rank_does_not_write_manifest_or_aggregate_metrics(tmp_path: Path) -> None:

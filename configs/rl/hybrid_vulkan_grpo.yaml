@@ -38,6 +38,7 @@ logging:
   level: INFO
 hybrid:
   model_id: LOCAL_TRANSFORMERS_MODEL_ID
+  expected_actor_backend: MOJO_ACTOR_BACKEND_ID
   adapter_store: runs/hybrid_vulkan/adapters
   training_mode: lora
   staleness_policy: reject

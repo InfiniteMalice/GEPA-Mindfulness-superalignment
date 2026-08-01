@@ -20,6 +20,7 @@ import pytest
 import torch
 from torch import nn
 
+from gepa_mindfulness.training import engine as rl_engine
 from gepa_mindfulness.training import rl_cli
 from gepa_mindfulness.training.adapter_publication import (
     AdapterCandidate,
@@ -34,7 +35,7 @@ from gepa_mindfulness.training.backends.mojo_coordinator import (
 )
 from gepa_mindfulness.training.capability import Capability, CapabilityState
 from gepa_mindfulness.training.contracts import ActorTransport, RolloutBackend
-from gepa_mindfulness.training.engine import RLTrainingEngine
+from gepa_mindfulness.training.engine import RLTrainingEngine, build_hybrid_engine
 from gepa_mindfulness.training.policy_versions import PolicyVersion, StalenessPolicy
 from gepa_mindfulness.training.runtime_config import (
     AlgorithmConfig,
@@ -160,15 +161,21 @@ if mode == "stop_reading":
 
 
 def trajectory(request, request_index, sample_index):
+    metadata = request["metadata"]
+    hybrid_echo = mode == "hybrid_echo"
     return {
         "trajectory_id": "fake-%d-%d" % (request_index, sample_index),
         "case_id": request["case_id"],
         "prompt": request["prompt"],
-        "response": "response-%d-%d" % (request_index, sample_index),
-        "prompt_token_ids": None,
-        "response_token_ids": None,
-        "old_log_probs": None,
-        "reference_log_probs": None,
+        "response": (
+            ("chosen" if sample_index == 0 else "rejected")
+            if hybrid_echo
+            else "response-%d-%d" % (request_index, sample_index)
+        ),
+        "prompt_token_ids": [2, 3] if hybrid_echo else None,
+        "response_token_ids": [4 if sample_index == 0 else 5] if hybrid_echo else None,
+        "old_log_probs": [-1.0] if hybrid_echo else None,
+        "reference_log_probs": [-1.0] if hybrid_echo else None,
         "value_predictions": None,
         "reward_total": None,
         "reward_components": {},
@@ -178,9 +185,13 @@ def trajectory(request, request_index, sample_index):
         "sampling_parameters": request["sampling_parameters"],
         "backend_name": "fake-mojo",
         "backend_version": "fake-1",
-        "model_identifier": "fake-model",
-        "adapter_identifier": None,
-        "adapter_sha256": None,
+        "model_identifier": (
+            metadata["model_identifier"] if hybrid_echo else "fake-model"
+        ),
+        "adapter_identifier": (
+            metadata["adapter_identifier"] if hybrid_echo else None
+        ),
+        "adapter_sha256": metadata.get("adapter_sha256") if hybrid_echo else None,
         "policy_version": request["policy_version"],
         "seed": request["seed"],
         "trace_references": [],
@@ -223,6 +234,8 @@ while True:
         trajectories[1]["trajectory_id"] = trajectories[0]["trajectory_id"]
     if mode == "extra_field":
         trajectories[0]["unexpected"] = True
+    if mode == "legacy_no_hash":
+        trajectories[0].pop("adapter_sha256")
     request_id = message["request_id"]
     if mode == "wrong_request_id":
         request_id = "request-999"
@@ -517,6 +530,31 @@ def test_backend_restores_ordered_version_bound_trajectories(
     assert [item.prompt for item in trajectories] == ["first", "first", "second"]
     assert [item.case_id for item in trajectories] == ["case-1", "case-1", "case-2"]
     assert [item.policy_version for item in trajectories] == ["3", "3", "4"]
+
+
+def test_backend_rejects_handshake_that_differs_from_configured_actor_identity(
+    fake_coordinator_factory: object,
+) -> None:
+    transport = fake_coordinator_factory()  # type: ignore[operator]
+    backend = MojoCoordinatorBackend(transport, expected_backend_name="expected-mojo")
+
+    with pytest.raises(MojoCoordinatorError, match="configured actor backend identity"):
+        backend.generate((RolloutRequest(prompt="prompt", policy_version="1"),))
+
+    assert transport.closed is True
+
+
+def test_protocol_v1_response_without_adapter_hash_remains_compatible(
+    fake_coordinator_factory: object,
+) -> None:
+    transport = fake_coordinator_factory("legacy_no_hash")  # type: ignore[operator]
+    backend = MojoCoordinatorBackend(transport, expected_backend_name="fake-mojo")
+
+    trajectories = backend.generate((RolloutRequest(prompt="prompt", policy_version="1"),))
+
+    assert len(trajectories) == 1
+    assert trajectories[0].adapter_sha256 is None
+    assert backend.capabilities().backend_name == "fake-mojo"
     assert isinstance(backend, RolloutBackend)
     report = backend.capabilities()
     assert report.state(Capability.SUPPORTS_GENERATION) is CapabilityState.SUPPORTED
@@ -1404,6 +1442,7 @@ def _hybrid_config(tmp_path: Path, *, staleness: StalenessPolicy) -> RLRunConfig
         logging=LoggingConfig(log_dir=str(tmp_path / "logs")),
         hybrid=HybridConfig(
             model_id="tiny-hybrid-model",
+            expected_actor_backend="mock-mojo-vulkan",
             adapter_store=str(tmp_path / "adapters"),
             staleness_policy=staleness,
             max_policy_lag=0,
@@ -1807,6 +1846,12 @@ def test_hybrid_model_id_is_safe_and_distinct_from_learner_locator(model_id: str
         HybridConfig(model_id=model_id)
 
 
+@pytest.mark.parametrize("backend_id", ["", ".", "..", "actor/backend", "actor backend"])
+def test_hybrid_expected_actor_backend_is_one_safe_identity(backend_id: str) -> None:
+    with pytest.raises(ValueError, match="hybrid.expected_actor_backend"):
+        HybridConfig(expected_actor_backend=backend_id)
+
+
 @pytest.mark.parametrize(
     "adapter_sha256",
     [None, "A" * 64, "a" * 63, "b" * 64],
@@ -2057,6 +2102,175 @@ def test_hybrid_downweight_changes_observable_reward_exactly_once(tmp_path: Path
     assert rewards[1] == pytest.approx([value * 0.5 for value in rewards[0]])
 
 
+class _LoggerWithoutPublication:
+    def start(self, *args: object) -> None:
+        del args
+
+    def trajectories(self, *args: object) -> None:
+        del args
+
+    def metrics(self, *args: object) -> None:
+        del args
+
+
+class _FailingPublicationLogger(_LoggerWithoutPublication):
+    def publication(self, *args: object, **kwargs: object) -> None:
+        del args, kwargs
+        raise RuntimeError("publication audit hook failed")
+
+
+def test_hybrid_rejects_logger_without_publication_hook_before_actor_factory(
+    tmp_path: Path,
+) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    learner = _hybrid_learner(config)
+    actor_factory_calls = 0
+
+    def actor_factory(selected: RLRunConfig, manifest: object) -> _MockVersionedActor:
+        del selected, manifest
+        nonlocal actor_factory_calls
+        actor_factory_calls += 1
+        return _MockVersionedActor(model_id="tiny-hybrid-model", adapter_id="tiny-lora")
+
+    with pytest.raises(ValueError, match="publication.*logger hook"):
+        RLTrainingEngine(
+            config,
+            capability_provider=_LearnerCapabilityProvider(learner),
+            backend_factory=lambda _: learner,
+            actor_factory=actor_factory,
+            publisher_factory=lambda _: publisher,
+            logger_factory=lambda _: _LoggerWithoutPublication(),  # type: ignore[arg-type]
+        ).train(max_steps=1)
+
+    assert actor_factory_calls == 0
+    assert publisher.current().policy_version == PolicyVersion(1)  # type: ignore[union-attr]
+
+
+def test_hybrid_validates_default_publication_hook_before_actor_factory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    learner = _hybrid_learner(config)
+    actor_factory_calls = 0
+
+    def actor_factory(selected: RLRunConfig, manifest: object) -> _MockVersionedActor:
+        del selected, manifest
+        nonlocal actor_factory_calls
+        actor_factory_calls += 1
+        return _MockVersionedActor(model_id="tiny-hybrid-model", adapter_id="tiny-lora")
+
+    monkeypatch.setattr(rl_engine._JSONLRunLogger, "publication", None)
+    with pytest.raises(ValueError, match="publication.*logger hook"):
+        RLTrainingEngine(
+            config,
+            capability_provider=_LearnerCapabilityProvider(learner),
+            backend_factory=lambda _: learner,
+            actor_factory=actor_factory,
+            publisher_factory=lambda _: publisher,
+        ).train(max_steps=1)
+
+    assert actor_factory_calls == 0
+
+
+def test_publication_audit_hook_failure_returns_no_success_and_keeps_advanced_current(
+    tmp_path: Path,
+) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    learner = _hybrid_learner(config)
+    actor = _MockVersionedActor(model_id="tiny-hybrid-model", adapter_id="tiny-lora")
+
+    with pytest.raises(RuntimeError, match="publication audit hook failed"):
+        RLTrainingEngine(
+            config,
+            capability_provider=_LearnerCapabilityProvider(learner),
+            backend_factory=lambda _: learner,
+            actor_factory=lambda _, manifest: actor,
+            publisher_factory=lambda _: publisher,
+            logger_factory=lambda _: _FailingPublicationLogger(),
+        ).train(max_steps=1)
+
+    current = publisher.current()
+    assert current is not None
+    assert current.policy_version == PolicyVersion(2)
+    assert current.parent_policy_version == PolicyVersion(1)
+    assert current.metadata["global_step"] == 1
+    assert actor.close_calls == 1
+
+
+def test_build_hybrid_engine_real_process_echoes_identity_through_publication(
+    tmp_path: Path,
+    fake_coordinator_factory: object,
+) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
+    config = replace(
+        config,
+        hybrid=replace(config.hybrid, expected_actor_backend="fake-mojo"),
+    )
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    learner = _hybrid_learner(config)
+    unused_transport = fake_coordinator_factory("hybrid_echo")  # type: ignore[operator]
+    command = unused_transport.command
+    unused_transport.close()
+    engine = build_hybrid_engine(config, command)
+    engine.capability_provider = _LearnerCapabilityProvider(learner)
+    engine.backend_factory = lambda _: learner
+
+    result = engine.train(max_steps=1)
+
+    manifest = json.loads((result.log_directory / "run_manifest.json").read_text(encoding="utf-8"))
+    trajectories = [
+        json.loads(line)
+        for line in (result.log_directory / "trajectories.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    metrics = [
+        json.loads(line)
+        for line in (result.log_directory / "metrics.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    publications = [
+        json.loads(line)
+        for line in (result.log_directory / "publications.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert result.global_step == 1
+    assert result.published_adapter is not None
+    assert manifest["actor_backend"] == "fake-mojo"
+    assert {record["actor_backend"] for record in trajectories + metrics + publications} == {
+        "fake-mojo"
+    }
+    assert {record["backend"] for record in trajectories + metrics + publications} == {"fake-mojo"}
+    assert {record["learner_backend"] for record in trajectories + metrics + publications} == {
+        "torch_portable"
+    }
+    actor_policy = manifest["device_capabilities"]["hybrid_actor_policy"]
+    trajectory = trajectories[0]["trajectory"]
+    assert trajectory["model_identifier"] == actor_policy["model_identifier"]
+    assert trajectory["adapter_identifier"] == actor_policy["adapter_identifier"]
+    assert trajectory["adapter_sha256"] == actor_policy["adapter_sha256"]
+    assert trajectory["policy_version"] == actor_policy["policy_version"]
+    assert len(publications) == 1
+    publication = publications[0]
+    assert publication["parent_policy_version"] == "1"
+    assert publication["policy_version"] == "2"
+    assert publication["global_step"] == 1
+    assert publication["checkpoint_id"] == "checkpoint-00000001"
+    assert publication["adapter_identifier"] == actor_policy["adapter_identifier"]
+    assert publication["adapter_sha256"] == result.published_adapter.artifact_sha256
+    assert publication["model_identifier"] == actor_policy["model_identifier"]
+
+
 def test_shipped_hybrid_config_bootstraps_safe_current_manifest(tmp_path: Path) -> None:
     config = load_rl_config("configs/rl/hybrid_vulkan_grpo.yaml")
     publisher = LocalAdapterPublisher(tmp_path / "adapters")
@@ -2077,6 +2291,21 @@ def test_shipped_hybrid_config_bootstraps_safe_current_manifest(tmp_path: Path) 
     assert publisher.current() == published
     assert published.model_id == config.hybrid.model_id
     assert config.policy.model_name.startswith("/absolute/path/")
+    assert config.hybrid.expected_actor_backend == "MOJO_ACTOR_BACKEND_ID"
     readme = Path("docs/rl/README.md").read_text(encoding="utf-8")
     assert "LocalAdapterPublisher" in readme
     assert "publisher.current()" in readme
+    for item in (
+        "policy.model_name",
+        "hybrid.model_id",
+        "hybrid.expected_actor_backend",
+        "source_id",
+        "--coordinator-command",
+        "--actor-endpoint",
+        "publisher.current()",
+    ):
+        assert item in readme
+    assert "remains advanced" in readme
+    assert "reconcile" in readme
+    assert "adapter_sha256" in readme
+    assert "schema v1" in readme

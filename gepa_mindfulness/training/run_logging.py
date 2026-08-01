@@ -134,10 +134,10 @@ _PUBLICATION_FIELDS = frozenset(
     }
 )
 _SAFE_IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
+_CHECKPOINT_ID = re.compile(r"checkpoint-([0-9]{8})\Z")
 _TRAJECTORY_PAYLOAD_REQUIRED_FIELDS = frozenset(
     {
         "adapter_identifier",
-        "adapter_sha256",
         "advantage",
         "backend_name",
         "backend_version",
@@ -161,7 +161,7 @@ _TRAJECTORY_PAYLOAD_REQUIRED_FIELDS = frozenset(
         "value_predictions",
     }
 )
-_TRAJECTORY_PAYLOAD_OPTIONAL_FIELDS = frozenset({"evidence_references"})
+_TRAJECTORY_PAYLOAD_OPTIONAL_FIELDS = frozenset({"adapter_sha256", "evidence_references"})
 
 
 @dataclass
@@ -423,6 +423,9 @@ class PublicationRecord:
             raise ValueError("publication policy_version must be the exact next version")
         for field_name in ("adapter_identifier", "model_identifier", "checkpoint_id"):
             _safe_identifier(getattr(self, field_name), field_name)
+        checkpoint_match = _CHECKPOINT_ID.fullmatch(self.checkpoint_id)
+        if checkpoint_match is None or int(checkpoint_match.group(1)) != self.global_step:
+            raise ValueError("checkpoint_id must be canonical and match global_step")
         _validate_sha256(self.adapter_sha256, "adapter_sha256")
         if self.schema_version != LOG_SCHEMA_VERSION:
             raise ValueError(f"publication schema_version must be {LOG_SCHEMA_VERSION}")
@@ -577,6 +580,15 @@ class JSONLLoggingSink:
                     if existing_records[record_id] == payload:
                         return False
                     raise ValueError("record_id already identifies a different payload")
+                if path.name == "publications.jsonl":
+                    previous = (
+                        next(reversed(existing_records.values())) if existing_records else None
+                    )
+                    self._validate_publication_transition(
+                        dict(payload),
+                        manifest,
+                        previous,
+                    )
                 stream.seek(0, os.SEEK_END)
                 stream.write(serialized)
                 stream.flush()
@@ -637,6 +649,7 @@ class JSONLLoggingSink:
         manifest: RunManifest,
     ) -> dict[str, object]:
         records: dict[str, object] = {}
+        previous_publication: object | None = None
         try:
             stream.seek(0)
             content = stream.read()
@@ -666,11 +679,49 @@ class JSONLLoggingSink:
                 raise ValueError(f"unrecognized JSONL stream: {path}")
             cls._validate_record_provenance(record, manifest)
             validated_payload = record.to_dict()
+            if path.name == "publications.jsonl":
+                cls._validate_publication_transition(
+                    validated_payload,
+                    manifest,
+                    previous_publication,
+                )
+                previous_publication = validated_payload
             previous = records.get(record.record_id)
-            if previous is not None and previous != validated_payload:
-                raise ValueError("record_id already identifies a different payload")
+            if previous is not None:
+                if path.name == "publications.jsonl":
+                    raise ValueError("publication record IDs must not repeat")
+                if previous != validated_payload:
+                    raise ValueError("record_id already identifies a different payload")
             records[record.record_id] = validated_payload
         return records
+
+    @staticmethod
+    def _validate_publication_transition(
+        payload: object,
+        manifest: RunManifest,
+        previous_payload: object | None,
+    ) -> None:
+        record = PublicationRecord.from_mapping(payload)
+        parent = PolicyVersion.from_json(record.parent_policy_version)
+        if previous_payload is None:
+            actor_policy = manifest.device_capabilities.get("hybrid_actor_policy")
+            if not isinstance(actor_policy, Mapping):
+                raise ValueError("publication chain requires run manifest actor policy evidence")
+            try:
+                previous_version = PolicyVersion.from_json(actor_policy.get("policy_version"))
+            except ValueError as error:
+                raise ValueError(
+                    "publication chain requires canonical run manifest actor policy evidence"
+                ) from error
+            previous_step = -1
+        else:
+            previous = PublicationRecord.from_mapping(previous_payload)
+            previous_version = PolicyVersion.from_json(previous.policy_version)
+            previous_step = previous.global_step
+        if parent != previous_version:
+            raise ValueError("publication chain parent does not match the previous policy")
+        if record.global_step <= previous_step:
+            raise ValueError("publication chain global_step values must strictly increase")
 
     @staticmethod
     def _validate_record_provenance(

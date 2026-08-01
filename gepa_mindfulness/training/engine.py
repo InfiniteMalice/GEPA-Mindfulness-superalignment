@@ -557,6 +557,7 @@ class RLTrainingEngine:
         _seed_process(self.config)
         backend = cast(TrainablePolicyBackend, self.backend_factory(self.config))
         actor: RolloutBackend | None = None
+        logger: RunLogger | None = None
         hybrid_state: _HybridState | None = None
         global_step = 0
         batch_cursor = 0
@@ -634,23 +635,43 @@ class RLTrainingEngine:
                     learner_version=current.policy_version,
                     publisher=publisher,
                 )
+                logger = (
+                    _JSONLRunLogger(
+                        self.config,
+                        snapshot.sha256,
+                        actor_manifest=current,
+                        actor_backend=self.config.hybrid.expected_actor_backend,
+                        learner_backend=backend.capabilities().backend_name,
+                    )
+                    if self._default_logger
+                    else cast(LoggerFactory, self.logger_factory)(self.config)
+                )
+                _require_hybrid_publication_logger(logger)
                 actor = cast(ActorFactory, self.actor_factory)(self.config, current)
                 if not isinstance(actor, RolloutBackend):
                     raise TypeError("hybrid actor must implement RolloutBackend")
                 if actor is backend:
                     raise ValueError("hybrid actor and learner must be separate backends")
+                if actor.capabilities().backend_name != self.config.hybrid.expected_actor_backend:
+                    raise ValueError(
+                        "hybrid actor capability identity does not match "
+                        "hybrid.expected_actor_backend"
+                    )
             generation_backend = actor or backend
-            logger = (
-                _JSONLRunLogger(
-                    self.config,
-                    snapshot.sha256,
-                    actor_manifest=None if hybrid_state is None else hybrid_state.actor_manifest,
-                    actor_backend=generation_backend.capabilities().backend_name,
-                    learner_backend=backend.capabilities().backend_name,
+            if logger is None:
+                logger = (
+                    _JSONLRunLogger(
+                        self.config,
+                        snapshot.sha256,
+                        actor_manifest=(
+                            None if hybrid_state is None else hybrid_state.actor_manifest
+                        ),
+                        actor_backend=generation_backend.capabilities().backend_name,
+                        learner_backend=backend.capabilities().backend_name,
+                    )
+                    if self._default_logger
+                    else cast(LoggerFactory, self.logger_factory)(self.config)
                 )
-                if self._default_logger
-                else cast(LoggerFactory, self.logger_factory)(self.config)
-            )
             requests = tuple(dataset.materialize(mode))
             if not requests:
                 raise ValueError("RL dataset materialized no rollout requests")
@@ -1781,6 +1802,11 @@ def _log_publication(
         handler(manifest, checkpoint_id=checkpoint_id, global_step=global_step)
 
 
+def _require_hybrid_publication_logger(logger: RunLogger) -> None:
+    if not callable(getattr(logger, "publication", None)):
+        raise ValueError("hybrid runs require a callable publication logger hook")
+
+
 def _serialized_artifact(value: object | None) -> object | None:
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
@@ -2646,8 +2672,11 @@ def build_hybrid_engine(
         selected: RLRunConfig,
         manifest: AdapterManifest,
     ) -> RolloutBackend:
-        del selected, manifest
-        return MojoCoordinatorBackend(MojoProcessTransport(tuple(coordinator_command)))
+        del manifest
+        return MojoCoordinatorBackend(
+            MojoProcessTransport(tuple(coordinator_command)),
+            expected_backend_name=selected.hybrid.expected_actor_backend,
+        )
 
     return RLTrainingEngine(
         config,
