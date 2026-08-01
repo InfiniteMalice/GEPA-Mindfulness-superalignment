@@ -357,8 +357,12 @@ class JSONLLoggingSink:
         parsed = record if isinstance(record, MetricRecord) else MetricRecord.from_mapping(record)
         if parsed.scope == "aggregate" and self.rank != 0:
             return False
-        self._require_run(parsed)
-        return self._append_unique(self.directory / "metrics.jsonl", parsed.to_dict())
+        manifest = self._require_run(parsed)
+        return self._append_unique(
+            self.directory / "metrics.jsonl",
+            parsed.to_dict(),
+            manifest,
+        )
 
     def log_trajectory(self, record: TrajectoryRecord | Mapping[str, object]) -> bool:
         """Append one evidence-preserving trajectory record from any rank."""
@@ -367,19 +371,27 @@ class JSONLLoggingSink:
             if isinstance(record, TrajectoryRecord)
             else TrajectoryRecord.from_mapping(record)
         )
-        self._require_run(parsed)
-        return self._append_unique(self.directory / "trajectories.jsonl", parsed.to_dict())
+        manifest = self._require_run(parsed)
+        return self._append_unique(
+            self.directory / "trajectories.jsonl",
+            parsed.to_dict(),
+            manifest,
+        )
 
-    def _require_run(self, record: MetricRecord | TrajectoryRecord) -> None:
+    def _require_run(self, record: MetricRecord | TrajectoryRecord) -> RunManifest:
         manifest_path = self.directory / "run_manifest.json"
         manifest = RunManifest.from_mapping(self._read_json(manifest_path, "run manifest"))
         if manifest.run_id != record.run_id:
             raise ValueError("log record run_id does not match the run manifest")
-        provenance = ("backend", "actor_backend", "learner_backend")
-        if any(getattr(manifest, field) != getattr(record, field) for field in provenance):
-            raise ValueError("log record backend provenance does not match the run manifest")
+        self._validate_record_provenance(record, manifest)
+        return manifest
 
-    def _append_unique(self, path: Path, payload: Mapping[str, object]) -> bool:
+    def _append_unique(
+        self,
+        path: Path,
+        payload: Mapping[str, object],
+        manifest: RunManifest,
+    ) -> bool:
         _validate_json_value(payload, "record")
         record_id = payload.get("record_id")
         _required_string(record_id, "record_id")
@@ -395,7 +407,7 @@ class JSONLLoggingSink:
         )
         with self._path_lock(path):
             with _open_regular_stream(path, create=False) as stream, _exclusive_stream_lock(stream):
-                existing_records = self._existing_records(stream, path)
+                existing_records = self._existing_records(stream, path, manifest)
                 if record_id in existing_records:
                     if existing_records[record_id] == payload:
                         return False
@@ -406,8 +418,13 @@ class JSONLLoggingSink:
                 os.fsync(stream.fileno())
         return True
 
-    @staticmethod
-    def _existing_records(stream: BinaryIO, path: Path) -> dict[str, object]:
+    @classmethod
+    def _existing_records(
+        cls,
+        stream: BinaryIO,
+        path: Path,
+        manifest: RunManifest,
+    ) -> dict[str, object]:
         records: dict[str, object] = {}
         try:
             stream.seek(0)
@@ -421,10 +438,32 @@ class JSONLLoggingSink:
                 raise ValueError(
                     f"JSONL stream has an invalid record at line {line_number}"
                 ) from error
-            if not isinstance(payload, Mapping) or not isinstance(payload.get("record_id"), str):
-                raise ValueError(f"JSONL stream has an invalid record at line {line_number}")
-            records[payload["record_id"]] = payload
+            if path.name == "metrics.jsonl":
+                record: MetricRecord | TrajectoryRecord = MetricRecord.from_mapping(payload)
+            elif path.name == "trajectories.jsonl":
+                record = TrajectoryRecord.from_mapping(payload)
+            else:
+                raise ValueError(f"unrecognized JSONL stream: {path}")
+            cls._validate_record_provenance(record, manifest)
+            validated_payload = record.to_dict()
+            previous = records.get(record.record_id)
+            if previous is not None and previous != validated_payload:
+                raise ValueError("record_id already identifies a different payload")
+            records[record.record_id] = validated_payload
         return records
+
+    @staticmethod
+    def _validate_record_provenance(
+        record: MetricRecord | TrajectoryRecord,
+        manifest: RunManifest,
+    ) -> None:
+        if record.run_id != manifest.run_id:
+            raise ValueError("log record run_id does not match the run manifest")
+        if any(
+            getattr(manifest, field) != getattr(record, field)
+            for field in ("backend", "actor_backend", "learner_backend")
+        ):
+            raise ValueError("log record backend provenance does not match the run manifest")
 
     @classmethod
     def _path_lock(cls, path: Path) -> threading.RLock:
@@ -515,17 +554,7 @@ class JSONLLoggingSink:
         path: Path,
         manifest: RunManifest,
     ) -> None:
-        for payload in self._existing_records(stream, path).values():
-            record: MetricRecord | TrajectoryRecord
-            if path.name == "metrics.jsonl":
-                record = MetricRecord.from_mapping(payload)
-            else:
-                record = TrajectoryRecord.from_mapping(payload)
-            if record.run_id != manifest.run_id or any(
-                getattr(record, field) != getattr(manifest, field)
-                for field in ("backend", "actor_backend", "learner_backend")
-            ):
-                raise ValueError(f"{path.name} contains incompatible run provenance")
+        self._existing_records(stream, path, manifest)
 
 
 def _required_string(value: object, field_name: str) -> str:

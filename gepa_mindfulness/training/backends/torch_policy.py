@@ -282,6 +282,19 @@ class TorchPolicyBackend:
             step=cast(int, plan.payload["step"]),
         )
 
+    def capture_checkpoint_restore_state(self) -> object:
+        """Capture the complete live state required by a store-level restore transaction."""
+        return self._capture_backend_state()
+
+    def rollback_checkpoint_restore_state(self, snapshot: object) -> None:
+        """Restore a store-level transaction snapshot and report every rollback failure."""
+        if not isinstance(snapshot, _BackendStateSnapshot):
+            raise TypeError("checkpoint restore snapshot is incompatible")
+        errors = self._rollback_backend_state(snapshot)
+        if errors:
+            diagnostics = "; ".join(f"{type(error).__name__}: {error}" for error in errors)
+            raise RuntimeError(f"backend checkpoint rollback failed: {diagnostics}") from errors[0]
+
     def load_checkpoint_bytes(self, payload: bytes) -> BackendCheckpointResult:
         """Transactionally restore the exact checkpoint bytes supplied by a store."""
         plan = self._prepare_checkpoint_bytes(payload)

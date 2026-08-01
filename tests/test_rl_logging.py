@@ -421,3 +421,93 @@ def test_records_must_match_run_backend_provenance(
         log(payload)
 
     assert stream.read_bytes() == b""
+
+
+def _exercise_existing_metric_history(
+    sink: JSONLLoggingSink,
+    path: Path,
+    payloads: list[dict[str, object]],
+    operation: str,
+) -> None:
+    path.write_text(
+        "".join(json.dumps(payload, sort_keys=True) + "\n" for payload in payloads),
+        encoding="utf-8",
+    )
+    if operation == "start":
+        sink.start_run(_manifest())
+    else:
+        sink.log_metrics(_metric(record_id="new-record"))
+
+
+@pytest.mark.parametrize("operation", ["start", "append"])
+def test_complete_history_rejects_malformed_record_hidden_by_compatible_duplicate(
+    tmp_path: Path,
+    operation: str,
+) -> None:
+    sink = JSONLLoggingSink(tmp_path, rank=0)
+    sink.start_run(_manifest())
+    compatible = _metric(record_id="duplicate").to_dict()
+    malformed = {"record_id": "duplicate"}
+
+    with pytest.raises(ValueError, match="metric record fields"):
+        _exercise_existing_metric_history(
+            sink,
+            tmp_path / "metrics.jsonl",
+            [malformed, compatible],
+            operation,
+        )
+
+
+@pytest.mark.parametrize("operation", ["start", "append"])
+def test_complete_history_rejects_provenance_conflict_hidden_by_compatible_duplicate(
+    tmp_path: Path,
+    operation: str,
+) -> None:
+    sink = JSONLLoggingSink(tmp_path, rank=0)
+    sink.start_run(_manifest())
+    compatible = _metric(record_id="duplicate").to_dict()
+    incompatible = dict(compatible)
+    incompatible["backend"] = "incompatible-backend"
+
+    with pytest.raises(ValueError, match="provenance"):
+        _exercise_existing_metric_history(
+            sink,
+            tmp_path / "metrics.jsonl",
+            [incompatible, compatible],
+            operation,
+        )
+
+
+@pytest.mark.parametrize("operation", ["start", "append"])
+def test_complete_history_rejects_conflicting_schema_valid_duplicate_payloads(
+    tmp_path: Path,
+    operation: str,
+) -> None:
+    sink = JSONLLoggingSink(tmp_path, rank=0)
+    sink.start_run(_manifest())
+    compatible = _metric(record_id="duplicate").to_dict()
+    conflicting = _metric(record_id="duplicate").to_dict()
+    conflicting["metrics"] = {"policy_loss": 0.9}
+
+    with pytest.raises(ValueError, match="record_id.*different payload"):
+        _exercise_existing_metric_history(
+            sink,
+            tmp_path / "metrics.jsonl",
+            [conflicting, compatible],
+            operation,
+        )
+
+
+def test_complete_history_accepts_identical_duplicates_as_idempotent(tmp_path: Path) -> None:
+    sink = JSONLLoggingSink(tmp_path, rank=0)
+    sink.start_run(_manifest())
+    compatible = _metric(record_id="duplicate").to_dict()
+    path = tmp_path / "metrics.jsonl"
+    path.write_text(
+        json.dumps(compatible, sort_keys=True) + "\n" + json.dumps(compatible) + "\n",
+        encoding="utf-8",
+    )
+
+    assert sink.start_run(_manifest()) is False
+    assert sink.log_metrics(_metric(record_id="duplicate")) is False
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 2

@@ -58,6 +58,8 @@ _STATE_FIELDS = frozenset(
 
 BackendSave = Callable[[Path], BackendCheckpointResult]
 BackendBytes = Callable[[bytes], BackendCheckpointResult]
+BackendSnapshot = Callable[[], object]
+BackendRollback = Callable[[object], None]
 
 
 @dataclass(frozen=True)
@@ -266,6 +268,8 @@ class LocalCheckpointStore:
         backend_save: BackendSave | None = None,
         backend_preflight: BackendBytes | None = None,
         backend_load_bytes: BackendBytes | None = None,
+        backend_snapshot: BackendSnapshot | None = None,
+        backend_rollback: BackendRollback | None = None,
         rng_topology: CheckpointRNGTopology | None = None,
     ) -> None:
         if not isinstance(root, Path):
@@ -276,12 +280,20 @@ class LocalCheckpointStore:
             raise TypeError("backend_preflight must be callable")
         if backend_load_bytes is not None and not callable(backend_load_bytes):
             raise TypeError("backend_load_bytes must be callable")
+        if backend_snapshot is not None and not callable(backend_snapshot):
+            raise TypeError("backend_snapshot must be callable")
+        if backend_rollback is not None and not callable(backend_rollback):
+            raise TypeError("backend_rollback must be callable")
+        if (backend_snapshot is None) != (backend_rollback is None):
+            raise ValueError("backend_snapshot and backend_rollback must be configured together")
         if rng_topology is not None and not isinstance(rng_topology, CheckpointRNGTopology):
             raise TypeError("rng_topology must be a CheckpointRNGTopology")
         self.root = root.resolve(strict=False)
         self.backend_save = backend_save
         self.backend_preflight = backend_preflight
         self.backend_load_bytes = backend_load_bytes
+        self.backend_snapshot = backend_snapshot
+        self.backend_rollback = backend_rollback
         self.rng_topology = rng_topology or CheckpointRNGTopology.current()
 
     def save(
@@ -368,9 +380,14 @@ class LocalCheckpointStore:
             expected_dataset_hash=expected_dataset_hash,
             expected_config_hash=expected_config_hash,
         )
-        if self.backend_preflight is None or self.backend_load_bytes is None:
+        if (
+            self.backend_preflight is None
+            or self.backend_load_bytes is None
+            or self.backend_snapshot is None
+            or self.backend_rollback is None
+        ):
             raise RuntimeError(
-                "backend_preflight and backend_load_bytes are required to restore a checkpoint"
+                "backend preflight, load, snapshot, and rollback callbacks are required to restore"
             )
         backend_payload = artifacts["backend.pt"]
         _validate_backend_result(
@@ -379,12 +396,23 @@ class LocalCheckpointStore:
             expected_format=restored.manifest.backend_format_version,
             field_name="backend preflight",
         )
-        backend_result = _validate_backend_result(
-            self.backend_load_bytes(backend_payload),
-            expected_step=restored.manifest.backend_step,
-            expected_format=restored.manifest.backend_format_version,
-            field_name="backend restore",
-        )
+        transaction_snapshot = self.backend_snapshot()
+        try:
+            backend_result = _validate_backend_result(
+                self.backend_load_bytes(backend_payload),
+                expected_step=restored.manifest.backend_step,
+                expected_format=restored.manifest.backend_format_version,
+                field_name="backend restore",
+            )
+        except Exception as error:
+            try:
+                self.backend_rollback(transaction_snapshot)
+            except Exception as rollback_error:
+                details = f"{type(rollback_error).__name__}: {rollback_error}"
+                raise RuntimeError(
+                    f"backend restore failed and rollback also failed: {details}"
+                ) from error
+            raise
         return RestoredCheckpoint(
             manifest=restored.manifest,
             algorithm_state=restored.algorithm_state,

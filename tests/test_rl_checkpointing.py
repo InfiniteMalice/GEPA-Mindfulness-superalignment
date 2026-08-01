@@ -55,6 +55,13 @@ class _BackendBytesCallbacks:
         self.restored.append(payload)
         return self.preflight(payload)
 
+    def snapshot(self) -> object:
+        return list(self.restored)
+
+    def rollback(self, snapshot: object) -> None:
+        assert isinstance(snapshot, list)
+        self.restored[:] = snapshot
+
 
 @pytest.fixture
 def backend_callbacks() -> tuple[list[bytes], object, _BackendBytesCallbacks]:
@@ -77,6 +84,8 @@ def test_checkpoint_round_trip_restores_step_rng_parent_and_state(
         backend_save=save_backend,
         backend_preflight=backend_bytes.preflight,
         backend_load_bytes=backend_bytes.load,
+        backend_snapshot=backend_bytes.snapshot,
+        backend_rollback=backend_bytes.rollback,
     )
     snapshot = _snapshot()
 
@@ -477,6 +486,8 @@ def test_checkpoint_preflight_step_mismatch_fails_before_backend_restore(
         backend_save=save_backend,
         backend_preflight=lambda payload: BackendCheckpointResult(format_version=1, step=2),
         backend_load_bytes=backend_bytes.load,
+        backend_snapshot=backend_bytes.snapshot,
+        backend_rollback=backend_bytes.rollback,
     )
     manifest = store.save(_snapshot())
 
@@ -490,11 +501,10 @@ def test_checkpoint_restore_step_mismatch_is_rejected(
     tmp_path: Path,
     backend_callbacks: tuple[list[bytes], object, _BackendBytesCallbacks],
 ) -> None:
-    _, save_backend, backend_bytes = backend_callbacks
-    restored_payloads: list[bytes] = []
+    restored_backend, save_backend, backend_bytes = backend_callbacks
 
     def mismatched_load(payload: bytes) -> BackendCheckpointResult:
-        restored_payloads.append(payload)
+        restored_backend.append(payload)
         return BackendCheckpointResult(format_version=1, step=2)
 
     store = LocalCheckpointStore(
@@ -502,13 +512,15 @@ def test_checkpoint_restore_step_mismatch_is_rejected(
         backend_save=save_backend,
         backend_preflight=backend_bytes.preflight,
         backend_load_bytes=mismatched_load,
+        backend_snapshot=backend_bytes.snapshot,
+        backend_rollback=backend_bytes.rollback,
     )
     manifest = store.save(_snapshot())
 
     with pytest.raises(ValueError, match="backend step"):
         store.load(manifest.path)
 
-    assert restored_payloads == [b"versioned-backend-payload"]
+    assert restored_backend == []
 
 
 def test_checkpoint_load_uses_verified_backend_bytes_when_path_changes_after_preflight(
@@ -528,6 +540,8 @@ def test_checkpoint_load_uses_verified_backend_bytes_when_path_changes_after_pre
         backend_save=save_backend,
         backend_preflight=mutate_after_preflight,
         backend_load_bytes=backend_bytes.load,
+        backend_snapshot=backend_bytes.snapshot,
+        backend_rollback=backend_bytes.rollback,
     )
     manifest = store.save(_snapshot())
     checkpoint_path = manifest.path
@@ -586,4 +600,126 @@ def test_checkpoint_rejects_symlink_members_before_backend_callbacks(
     with pytest.raises(ValueError, match="symlink"):
         store.load(manifest.path)
 
+    assert restored_backend == []
+
+
+@pytest.mark.parametrize(
+    ("result", "match"),
+    [
+        (BackendCheckpointResult(format_version=1, step=2), "backend step"),
+        (BackendCheckpointResult(format_version=2, step=3), "format_version"),
+    ],
+)
+def test_checkpoint_rolls_back_backend_mutation_when_restore_evidence_mismatches(
+    tmp_path: Path,
+    backend_callbacks: tuple[list[bytes], object, _BackendBytesCallbacks],
+    result: BackendCheckpointResult,
+    match: str,
+) -> None:
+    _, save_backend, backend_bytes = backend_callbacks
+    backend_state = {"value": "before"}
+
+    def load(payload: bytes) -> BackendCheckpointResult:
+        backend_state["value"] = "mutated"
+        assert payload == b"versioned-backend-payload"
+        return result
+
+    store = LocalCheckpointStore(
+        tmp_path,
+        backend_save=save_backend,
+        backend_preflight=backend_bytes.preflight,
+        backend_load_bytes=load,
+        backend_snapshot=lambda: dict(backend_state),
+        backend_rollback=lambda snapshot: backend_state.update(snapshot),
+    )
+    manifest = store.save(_snapshot())
+
+    with pytest.raises(ValueError, match=match):
+        store.load(manifest.path)
+
+    assert backend_state == {"value": "before"}
+
+
+def test_checkpoint_rolls_back_backend_mutation_and_preserves_loader_exception(
+    tmp_path: Path,
+    backend_callbacks: tuple[list[bytes], object, _BackendBytesCallbacks],
+) -> None:
+    _, save_backend, backend_bytes = backend_callbacks
+    backend_state = {"value": "before"}
+    primary = RuntimeError("loader exploded after mutation")
+
+    def load(payload: bytes) -> BackendCheckpointResult:
+        backend_state["value"] = "mutated"
+        assert payload == b"versioned-backend-payload"
+        raise primary
+
+    store = LocalCheckpointStore(
+        tmp_path,
+        backend_save=save_backend,
+        backend_preflight=backend_bytes.preflight,
+        backend_load_bytes=load,
+        backend_snapshot=lambda: dict(backend_state),
+        backend_rollback=lambda snapshot: backend_state.update(snapshot),
+    )
+    manifest = store.save(_snapshot())
+
+    with pytest.raises(RuntimeError, match="loader exploded") as caught:
+        store.load(manifest.path)
+
+    assert caught.value is primary
+    assert backend_state == {"value": "before"}
+
+
+def test_checkpoint_preserves_primary_and_rollback_failure_diagnostics(
+    tmp_path: Path,
+    backend_callbacks: tuple[list[bytes], object, _BackendBytesCallbacks],
+) -> None:
+    _, save_backend, backend_bytes = backend_callbacks
+    primary = RuntimeError("primary loader failure")
+
+    def load(payload: bytes) -> BackendCheckpointResult:
+        raise primary
+
+    def rollback(snapshot: object) -> None:
+        raise OSError("rollback diagnostics")
+
+    store = LocalCheckpointStore(
+        tmp_path,
+        backend_save=save_backend,
+        backend_preflight=backend_bytes.preflight,
+        backend_load_bytes=load,
+        backend_snapshot=lambda: {"value": "before"},
+        backend_rollback=rollback,
+    )
+    manifest = store.save(_snapshot())
+
+    with pytest.raises(RuntimeError, match="rollback.*OSError.*rollback diagnostics") as caught:
+        store.load(manifest.path)
+
+    assert caught.value.__cause__ is primary
+
+
+def test_checkpoint_requires_transaction_hooks_before_backend_preflight_or_restore(
+    tmp_path: Path,
+    backend_callbacks: tuple[list[bytes], object, _BackendBytesCallbacks],
+) -> None:
+    restored_backend, save_backend, backend_bytes = backend_callbacks
+    preflight_payloads: list[bytes] = []
+
+    def preflight(payload: bytes) -> BackendCheckpointResult:
+        preflight_payloads.append(payload)
+        return backend_bytes.preflight(payload)
+
+    store = LocalCheckpointStore(
+        tmp_path,
+        backend_save=save_backend,
+        backend_preflight=preflight,
+        backend_load_bytes=backend_bytes.load,
+    )
+    manifest = store.save(_snapshot())
+
+    with pytest.raises(RuntimeError, match="snapshot.*rollback"):
+        store.load(manifest.path)
+
+    assert preflight_payloads == []
     assert restored_backend == []

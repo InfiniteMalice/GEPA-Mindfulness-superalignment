@@ -637,6 +637,7 @@ def test_checkpoint_bytes_preflight_is_nonmutating_and_load_reuses_verified_payl
     saved_policy = _clone_state(tiny_backend.policy_model)
     assert _train_backend_step(tiny_backend) == 2
     divergent = _backend_snapshot(tiny_backend)
+    transaction_snapshot = tiny_backend.capture_checkpoint_restore_state()
 
     preflight = tiny_backend.preflight_checkpoint_bytes(payload)
 
@@ -647,6 +648,10 @@ def test_checkpoint_bytes_preflight_is_nonmutating_and_load_reuses_verified_payl
 
     assert restored.step == 1
     _assert_nested_equal(saved_policy, tiny_backend.policy_model.state_dict())
+
+    tiny_backend.rollback_checkpoint_restore_state(transaction_snapshot)
+
+    _assert_backend_snapshot(tiny_backend, divergent)
 
 
 def test_checkpoint_load_rejects_incompatible_payload_without_mutation(
