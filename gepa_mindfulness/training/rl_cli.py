@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
-from .capability import BackendCapabilities, Capability, CapabilityError, CapabilityState
+from .capability import BackendCapabilities, Capability, CapabilityState
 from .runtime_config import RLRunConfig
 
 if TYPE_CHECKING:
@@ -79,8 +79,6 @@ def _emit_result(result: _Result) -> None:
 
 
 def _handle_engine(args: argparse.Namespace) -> int:
-    from .engine import EngineDependencyError
-
     try:
         config = load_rl_run_config(args.config)
         engine = create_engine(config)
@@ -98,7 +96,7 @@ def _handle_engine(args: argparse.Namespace) -> int:
             result = getattr(engine, args.rl_command)()
         _emit_result(result)
         return 0
-    except (OSError, TypeError, ValueError, CapabilityError, EngineDependencyError) as exc:
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
         return 2
 
@@ -124,13 +122,21 @@ def register_rl_cli(subparsers: argparse._SubParsersAction[argparse.ArgumentPars
         command = modes.add_parser(mode, help=f"{mode.capitalize()} with the canonical RL engine")
         command.add_argument("--config", required=True, help="Canonical RL config path")
         if mode == "train":
-            command.add_argument("--max-steps", type=int, help="Bound optimizer steps this run")
+            command.add_argument(
+                "--max-steps",
+                type=int,
+                help="Relative optimizer-step budget for this invocation; zero disables rollout",
+            )
         command.set_defaults(func=_handle_engine)
 
     resume = modes.add_parser("resume", help="Resume from an operator-selected checkpoint")
     resume.add_argument("--config", required=True, help="Canonical RL config path")
     resume.add_argument("--checkpoint", required=True, help="Checkpoint directory to resume")
-    resume.add_argument("--max-steps", type=int, help="Bound optimizer steps this run")
+    resume.add_argument(
+        "--max-steps",
+        type=int,
+        help="Relative optimizer-step budget for this invocation; zero disables rollout",
+    )
     resume.set_defaults(func=_handle_engine)
 
     doctor = modes.add_parser("doctor", help="Check local RL capability availability")

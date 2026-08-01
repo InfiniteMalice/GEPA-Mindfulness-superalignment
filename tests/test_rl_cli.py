@@ -289,11 +289,12 @@ def test_resume_uses_operator_path_parent_and_restored_global_step(tmp_path: Pat
 
     result = _engine(tmp_path, events, max_steps=2).resume(selected)
 
-    assert result.global_step == 2
+    assert result.global_step == 3
     assert result.checkpoint_parent == "checkpoint-00000001"
     assert "checkpoint.load:operator-checkpoint" in events
     assert "log.start:resume:1:checkpoint-00000001" in events
     assert "checkpoint.save:2:checkpoint-00000001" in events
+    assert "checkpoint.save:3:checkpoint-00000002" in events
 
 
 @pytest.mark.parametrize("mode", ["collect", "evaluate"])
@@ -794,6 +795,11 @@ def test_seed_is_set_before_backend_and_resume_restores_rng_before_rollout(tmp_p
     resume_backend = _PairBackend(events, {"case-1": ("1",)})
     resume_engine = _engine(tmp_path, events, max_steps=2)
     resume_engine.backend_factory = lambda value: resume_backend
+    resume_engine.algorithm_factory = lambda value, selected: SimpleNamespace(
+        required_capabilities=lambda: frozenset({Capability.SUPPORTS_GENERATION}),
+        load_state_dict=lambda state: events.append("algorithm.restore"),
+        compute_loss=lambda batch, evaluation: SimpleNamespace(total_loss="loss"),
+    )
     resume_engine.checkpoint_factory = lambda value, selected: RestoringCheckpoint(events, selected)
     resume_engine.resume(tmp_path / "operator-checkpoint")
     assert resume_backend.random_observations[0] == expected_restored
@@ -900,3 +906,339 @@ def test_close_failure_preserves_primary_rollout_error(tmp_path: Path) -> None:
         engine.collect()
 
     assert any("secondary close failure" in note for note in getattr(caught.value, "__notes__", ()))
+
+
+@pytest.mark.parametrize("selector", ["cuda:-1", "cuda:", "cuda:x", "gpu:0"])
+def test_runtime_config_direct_construction_rejects_invalid_device_selectors(
+    selector: str,
+) -> None:
+    with pytest.raises(ValueError, match="runtime.device"):
+        RuntimeConfig(device=selector)
+
+
+@pytest.mark.parametrize("selector", ["cuda:-1", "cuda:"])
+def test_malformed_cuda_selector_fails_preflight_before_seed_or_factory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    selector: str,
+) -> None:
+    events: list[str] = []
+    runtime = object.__new__(RuntimeConfig)
+    object.__setattr__(runtime, "backend", "pytorch")
+    object.__setattr__(runtime, "device", selector)
+    config = replace(_config(tmp_path), runtime=runtime)
+    fake_torch = SimpleNamespace(
+        cuda=SimpleNamespace(is_available=lambda: True, device_count=lambda: 1)
+    )
+    monkeypatch.setattr(engine_module.importlib.util, "find_spec", lambda name: object())
+    monkeypatch.setattr(engine_module, "import_module", lambda name: fake_torch)
+    monkeypatch.setattr(
+        engine_module,
+        "_seed_process",
+        lambda value: events.append("seed"),
+    )
+    engine = RLTrainingEngine(
+        config,
+        capability_provider=SystemCapabilityProvider(),
+        backend_factory=lambda value: events.append("backend.factory") or _Backend(events),
+        dataset_factory=lambda value: events.append("dataset.factory") or _Dataset(events),
+    )
+
+    with pytest.raises(CapabilityError, match="supports_cuda"):
+        engine.train()
+
+    assert events == []
+
+
+@pytest.mark.parametrize("fault", ["missing", "extra", "unknown_case", "wrong_prompt"])
+def test_grpo_rejects_backend_outputs_that_break_requested_group_identity(
+    tmp_path: Path,
+    fault: str,
+) -> None:
+    events: list[str] = []
+    config = replace(
+        _config(tmp_path),
+        algorithm=AlgorithmConfig(name="grpo", group_size=2, max_steps=1),
+    )
+
+    class FaultyBackend(_PairBackend):
+        def generate(self, requests: object) -> tuple[Trajectory, ...]:
+            generated = super().generate(requests)
+            if fault == "missing":
+                return generated[:1]
+            if fault == "extra":
+                return generated + (replace(generated[0], trajectory_id="unexpected-extra"),)
+            if fault == "unknown_case":
+                return (replace(generated[0], case_id="unknown"), generated[1])
+            return (replace(generated[0], prompt="wrong prompt"), generated[1])
+
+    class TrackingReward(_ResponseReward):
+        def score(self, request: object) -> float:
+            events.append("reward.score")
+            return super().score(request)
+
+    backend = FaultyBackend(events, {"case": ("1", "2")})
+    engine = RLTrainingEngine(
+        config,
+        capability_provider=_CapabilityProvider(events),
+        backend_factory=lambda value: backend,
+        algorithm_factory=lambda value, selected: _CaptureAlgorithm(events),
+        dataset_factory=lambda value: SimpleNamespace(
+            materialize=lambda mode: (RolloutRequest(prompt="prompt", case_id="case"),)
+        ),
+        reward_factory=lambda value: TrackingReward(),
+        checkpoint_factory=lambda value, selected: _Checkpoint(events, selected),
+        logger_factory=lambda value: _Logger(events),
+    )
+
+    with pytest.raises(ValueError, match="GRPO backend output"):
+        engine.train()
+
+    assert "reward.score" not in events
+    assert "backward" not in events
+
+
+def test_checkpoint_compatibility_hash_keeps_format_but_ignores_dataset_paths(
+    tmp_path: Path,
+) -> None:
+    first = replace(
+        _config(tmp_path),
+        dataset=DatasetConfig(
+            train_path=str(tmp_path / "one.jsonl"),
+            validation_path=str(tmp_path / "one-validation.jsonl"),
+            format="jsonl",
+        ),
+    )
+    moved = replace(
+        first,
+        dataset=replace(
+            first.dataset,
+            train_path=str(tmp_path / "moved.jsonl"),
+            validation_path=str(tmp_path / "moved-validation.jsonl"),
+        ),
+    )
+    different_format = replace(moved, dataset=replace(moved.dataset, format="text"))
+
+    assert engine_module._config_hash(first) == engine_module._config_hash(moved)
+    assert engine_module._config_hash(first) != engine_module._config_hash(different_format)
+
+
+@pytest.mark.parametrize("state_kind", ["algorithm", "scheduler"])
+def test_resume_rejects_nonempty_training_state_without_compatible_loader_before_rollout(
+    tmp_path: Path,
+    state_kind: str,
+) -> None:
+    events: list[str] = []
+
+    class AlgorithmWithOnlyStateLoader(_Algorithm):
+        def load_state_dict(self, state: object) -> None:
+            events.append("algorithm.restore")
+
+    class StatefulCheckpoint(_Checkpoint):
+        def load(self, path: Path) -> object:
+            restored = super().load(path)
+            return SimpleNamespace(
+                **vars(restored),
+                algorithm_state={"updates": 1} if state_kind == "algorithm" else {},
+                scheduler_state={"epoch": 1} if state_kind == "scheduler" else None,
+                python_rng_state=None,
+                torch_cpu_rng_state=None,
+                torch_cuda_rng_states=(),
+            )
+
+    engine = _engine(tmp_path, events, max_steps=2)
+    engine.algorithm_factory = lambda value, backend: (
+        _Algorithm(events) if state_kind == "algorithm" else AlgorithmWithOnlyStateLoader(events)
+    )
+    engine.checkpoint_factory = lambda value, backend: StatefulCheckpoint(events, backend)
+
+    with pytest.raises(ValueError, match=f"{state_kind}.*load_state_dict"):
+        engine.resume(tmp_path / "checkpoint")
+
+    assert "generate" not in events
+
+
+def test_resume_restores_algorithm_then_scheduler_before_rollout(tmp_path: Path) -> None:
+    events: list[str] = []
+
+    class Scheduler:
+        def load_state_dict(self, state: object) -> None:
+            events.append("scheduler.restore")
+
+    class StatefulAlgorithm(_Algorithm):
+        def __init__(self) -> None:
+            super().__init__(events)
+            self.scheduler = Scheduler()
+
+        def load_state_dict(self, state: object) -> None:
+            events.append("algorithm.restore")
+
+    class StatefulCheckpoint(_Checkpoint):
+        def load(self, path: Path) -> object:
+            restored = super().load(path)
+            return SimpleNamespace(
+                **vars(restored),
+                algorithm_state={"updates": 1},
+                scheduler_state={"epoch": 1},
+                python_rng_state=None,
+                torch_cpu_rng_state=None,
+                torch_cuda_rng_states=(),
+            )
+
+    engine = _engine(tmp_path, events, max_steps=2)
+    engine.algorithm_factory = lambda value, backend: StatefulAlgorithm()
+    engine.checkpoint_factory = lambda value, backend: StatefulCheckpoint(events, backend)
+
+    engine.resume(tmp_path / "checkpoint")
+
+    assert events.index("algorithm.restore") < events.index("scheduler.restore")
+    assert events.index("scheduler.restore") < events.index("generate")
+
+
+def test_all_skipped_grpo_groups_still_emit_group_and_response_evidence(tmp_path: Path) -> None:
+    config = _pair_config(
+        tmp_path,
+        [{"id": "constant", "prompt": "p", "chosen": "1", "rejected": "0"}],
+        name="grpo",
+        group_size=2,
+        zero_variance_policy="skip",
+        max_steps=1,
+    )
+    events: list[str] = []
+    backend = _PairBackend(events, {"constant": ("1", "1")})
+    result = RLTrainingEngine(
+        config,
+        capability_provider=_CapabilityProvider(events),
+        backend_factory=lambda value: backend,
+        algorithm_factory=lambda value, selected: _CaptureAlgorithm(events),
+        reward_factory=lambda value: _ResponseReward(),
+        checkpoint_factory=lambda value, selected: _Checkpoint(events, selected),
+    ).train()
+
+    assert result.global_step == 0
+    assert result.log_directory is not None
+    metrics = [
+        json.loads(line)
+        for line in (result.log_directory / "metrics.jsonl").read_text().splitlines()
+    ]
+    group_records = [record for record in metrics if record["scope"] == "group"]
+    assert len(group_records) == 1
+    assert group_records[0]["metrics"]["group_skipped"] == 1.0
+    names = {name for record in metrics for name in record["metrics"]}
+    assert "response_reward" in names
+    assert "optimizer_step" not in names
+    assert "policy_loss" not in names
+    trajectories = (result.log_directory / "trajectories.jsonl").read_text().splitlines()
+    assert len(trajectories) == 2
+
+
+def test_repeated_preupdate_grpo_rollouts_get_unique_log_record_ids(tmp_path: Path) -> None:
+    config = _pair_config(
+        tmp_path,
+        [{"id": "repeat", "prompt": "p", "chosen": "2", "rejected": "1"}],
+        name="grpo",
+        group_size=2,
+        gradient_accumulation_steps=2,
+        max_steps=1,
+    )
+    events: list[str] = []
+
+    class StableIdentityBackend(_PairBackend):
+        def generate(self, requests: object) -> tuple[Trajectory, ...]:
+            generated = super().generate(requests)
+            return tuple(
+                replace(trajectory, trajectory_id=f"stable-{index}")
+                for index, trajectory in enumerate(generated)
+            )
+
+    backend = StableIdentityBackend(events, {"repeat": ("1", "2")})
+    result = RLTrainingEngine(
+        config,
+        capability_provider=_CapabilityProvider(events),
+        backend_factory=lambda value: backend,
+        algorithm_factory=lambda value, selected: _CaptureAlgorithm(events),
+        reward_factory=lambda value: _ResponseReward(),
+        checkpoint_factory=lambda value, selected: _Checkpoint(events, selected),
+    ).train()
+
+    assert result.log_directory is not None
+    records = [
+        json.loads(line)
+        for line in (result.log_directory / "trajectories.jsonl").read_text().splitlines()
+    ]
+    record_ids = [record["record_id"] for record in records]
+    assert len(record_ids) == 4
+    assert len(set(record_ids)) == 4
+
+
+def test_resume_max_steps_is_relative_to_restored_global_step(tmp_path: Path) -> None:
+    events: list[str] = []
+
+    class StepFiveCheckpoint(_Checkpoint):
+        def load(self, path: Path) -> object:
+            self.events.append(f"checkpoint.load:{path.name}")
+            self.backend.step = 5
+            return SimpleNamespace(
+                global_step=5,
+                manifest=SimpleNamespace(checkpoint_id="checkpoint-00000005"),
+                algorithm_state={},
+                scheduler_state=None,
+                python_rng_state=None,
+                torch_cpu_rng_state=None,
+                torch_cuda_rng_states=(),
+            )
+
+    engine = _engine(tmp_path, events, max_steps=99)
+    engine.checkpoint_factory = lambda value, backend: StepFiveCheckpoint(events, backend)
+
+    result = engine.resume(tmp_path / "checkpoint", max_steps=2)
+
+    assert result.global_step == 7
+    assert events.count("optimizer_step") == 2
+    assert "checkpoint.save:7:checkpoint-00000006" in events
+
+
+def test_zero_invocation_step_budget_performs_no_rollout_or_update(tmp_path: Path) -> None:
+    events: list[str] = []
+
+    result = _engine(tmp_path, events, max_steps=9).train(max_steps=0)
+
+    assert result.global_step == 0
+    assert "generate" not in events
+    assert "optimizer_step" not in events
+
+
+def test_configured_step_budget_must_remain_positive(tmp_path: Path) -> None:
+    events: list[str] = []
+    engine = _engine(tmp_path, events)
+    engine.config = replace(
+        engine.config,
+        algorithm=replace(engine.config.algorithm, max_steps=0),
+    )
+
+    with pytest.raises(ValueError, match="configured algorithm.max_steps must be positive"):
+        engine.train()
+
+    assert events == []
+
+
+def test_cli_reports_operational_runtime_errors_without_swallowing_base_exceptions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    fake_engine = SimpleNamespace(
+        train=lambda: (_ for _ in ()).throw(RuntimeError("generation failed operationally"))
+    )
+    monkeypatch.setattr(rl_cli, "load_rl_run_config", lambda path: _config(tmp_path))
+    monkeypatch.setattr(rl_cli, "create_engine", lambda config: fake_engine)
+    parser = argparse.ArgumentParser()
+    rl_cli.register_rl_cli(parser.add_subparsers(dest="command"))
+    args = parser.parse_args(["rl", "train", "--config", "config.json"])
+
+    assert args.func(args) == 2
+    assert capsys.readouterr().err.strip() == "generation failed operationally"
+
+    fake_engine.train = lambda: (_ for _ in ()).throw(KeyboardInterrupt())
+    with pytest.raises(KeyboardInterrupt):
+        args.func(args)

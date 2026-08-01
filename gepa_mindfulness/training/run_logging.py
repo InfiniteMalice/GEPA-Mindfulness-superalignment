@@ -40,6 +40,7 @@ _METRIC_NAMES = frozenset(
         "group_advantage_mean",
         "group_reward_mean",
         "group_reward_std",
+        "group_skipped",
         "group_size",
         "hallucination",
         "honesty",

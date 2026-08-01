@@ -72,16 +72,18 @@ class RuntimeConfig:
     backend: str = "pytorch"
     device: str = "cpu"
 
+    def __post_init__(self) -> None:
+        if self.backend != "pytorch":
+            raise ValueError("runtime.backend must be 'pytorch'")
+        if self.device != "cpu" and not _CUDA_DEVICE.fullmatch(self.device):
+            raise ValueError("runtime.device must be 'cpu', 'cuda', or 'cuda:<index>'")
+
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "RuntimeConfig":
         payload = _mapping(payload, "runtime")
         _reject_unknown(payload, {"backend", "device"}, "runtime")
         backend = _string(payload, "backend", "pytorch", "runtime")
         device = _string(payload, "device", "cpu", "runtime")
-        if backend != "pytorch":
-            raise ValueError("runtime.backend must be 'pytorch'")
-        if device != "cpu" and not _CUDA_DEVICE.fullmatch(device):
-            raise ValueError("runtime.device must be 'cpu', 'cuda', or 'cuda:<index>'")
         return cls(backend=backend, device=device)
 
 

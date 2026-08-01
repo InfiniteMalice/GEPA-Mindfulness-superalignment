@@ -7,6 +7,7 @@ import importlib.util
 import json
 import math
 import random
+import re
 import uuid
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, replace
@@ -242,6 +243,8 @@ class SystemCapabilityProvider:
     def _cuda_support(config: RLRunConfig, torch_available: bool) -> tuple[bool, str]:
         if not config.runtime.device.startswith("cuda"):
             return False, "CUDA was not selected for this invocation."
+        if not re.fullmatch(r"cuda(?::[0-9]+)?", config.runtime.device):
+            return False, "Configure runtime.device as 'cuda' or 'cuda:<non-negative index>'."
         if not torch_available:
             return False, "Install the 'train' extra to provide torch."
         try:
@@ -323,9 +326,15 @@ class RLTrainingEngine:
         self.logger_factory = logger_factory
 
     def train(self, *, max_steps: int | None = None) -> EngineResult:
+        """Run one training invocation with a relative optimizer-step budget.
+
+        ``None`` uses the positive configured budget. Zero initializes and closes the run without
+        rollout or optimization. Negative invocation budgets are invalid.
+        """
         return self._execute("train", max_steps=max_steps)
 
     def resume(self, checkpoint: Path, *, max_steps: int | None = None) -> EngineResult:
+        """Resume and add at most the relative optimizer-step budget to the restored step."""
         if not isinstance(checkpoint, Path):
             raise TypeError("resume checkpoint must be a pathlib.Path")
         return self._execute("resume", checkpoint=checkpoint, max_steps=max_steps)
@@ -343,7 +352,8 @@ class RLTrainingEngine:
         checkpoint: Path | None = None,
         max_steps: int | None = None,
     ) -> EngineResult:
-        target_step = self._target_step(max_steps)
+        step_budget = self._step_budget(max_steps)
+        target_step = step_budget
         requirements = set(required_capabilities(self.config, mode))
         requirements.update(_factory_requirements(self.backend_factory, self.config))
         if mode in {"train", "resume"}:
@@ -401,6 +411,7 @@ class RLTrainingEngine:
                 resume_parent = self._restored_checkpoint_id(restored)
                 latest_checkpoint = getattr(restored, "manifest", None)
                 self._restore_engine_state(restored, algorithm)
+                target_step = global_step + step_budget
             requests = tuple(dataset.materialize(mode))
             if not requests:
                 raise ValueError("RL dataset materialized no rollout requests")
@@ -409,12 +420,14 @@ class RLTrainingEngine:
             if mode == "collect":
                 selected = self._rollout_requests(requests, global_step, rollout_index=0)
                 trajectories = tuple(backend.generate(selected))
+                _validate_rollout_output(self.config, selected, trajectories)
                 logger.trajectories(trajectories, global_step)
                 trajectory_count = len(trajectories)
                 result_trajectories = trajectories
             elif mode == "evaluate":
                 selected = self._rollout_requests(requests, global_step, rollout_index=0)
                 trajectories = tuple(backend.generate(selected))
+                _validate_rollout_output(self.config, selected, trajectories)
                 scored, rewards = self._score(trajectories, reward_provider)
                 if batch_preparer is None:  # pragma: no cover - mode selection invariant
                     raise RuntimeError("batch preparer is unavailable")
@@ -514,7 +527,6 @@ class RLTrainingEngine:
             window_limit = len(batches) * accumulation_steps
             step_losses: list[object] = []
             step_evaluations: list[PolicyEvaluation] = []
-            step_group_metrics: list[Mapping[str, float]] = []
             while accumulated < accumulation_steps and attempts < window_limit:
                 request_batch = batches[batch_index % len(batches)]
                 batch_index += 1
@@ -526,6 +538,7 @@ class RLTrainingEngine:
                 )
                 rollout_index += 1
                 trajectories = tuple(backend.generate(selected))
+                _validate_rollout_output(self.config, selected, trajectories)
                 scored, rewards = self._score(trajectories, reward_provider)
                 prepared = _as_prepared(
                     batch_preparer.prepare(scored, rewards, algorithm),
@@ -533,9 +546,14 @@ class RLTrainingEngine:
                 )
                 logger.trajectories(scored, global_step)
                 logger.metrics(rewards, global_step)
+                _log_group_metrics(
+                    logger,
+                    prepared.group_metrics,
+                    global_step=global_step,
+                    rollout_index=rollout_index - 1,
+                )
                 trajectory_count += len(scored)
                 all_trajectories.extend(scored)
-                step_group_metrics.extend(prepared.group_metrics)
                 if prepared.batch is None:
                     continue
                 evaluation = backend.evaluate(prepared.batch)
@@ -565,7 +583,6 @@ class RLTrainingEngine:
                 step_result=step_result,
                 global_step=global_step,
                 learning_rate=self.config.algorithm.learning_rate,
-                group_metrics=tuple(step_group_metrics),
             )
             artifacts = {
                 "losses": tuple(step_losses),
@@ -644,13 +661,15 @@ class RLTrainingEngine:
     def _should_checkpoint(self, global_step: int, target_step: int) -> bool:
         return global_step % self.config.checkpoint.save_steps == 0 or global_step == target_step
 
-    def _target_step(self, value: int | None) -> int:
-        target = self.config.algorithm.max_steps if value is None else value
-        if isinstance(target, bool) or not isinstance(target, int):
+    def _step_budget(self, value: int | None) -> int:
+        budget = self.config.algorithm.max_steps if value is None else value
+        if isinstance(budget, bool) or not isinstance(budget, int):
             raise TypeError("max_steps must be an integer")
-        if target <= 0:
-            raise ValueError("max_steps must be positive")
-        return target
+        if value is None and budget <= 0:
+            raise ValueError("configured algorithm.max_steps must be positive")
+        if budget < 0:
+            raise ValueError("max_steps must be non-negative")
+        return budget
 
     def _rollout_requests(
         self,
@@ -675,14 +694,10 @@ class RLTrainingEngine:
     @staticmethod
     def _restore_engine_state(restored: object, algorithm: RLAlgorithm | None) -> None:
         algorithm_state = getattr(restored, "algorithm_state", None)
-        load_algorithm = getattr(algorithm, "load_state_dict", None)
-        if callable(load_algorithm) and isinstance(algorithm_state, Mapping):
-            load_algorithm(dict(algorithm_state))
+        _restore_mapping_state(algorithm, algorithm_state, "algorithm")
         scheduler_state = getattr(restored, "scheduler_state", None)
         scheduler = getattr(algorithm, "scheduler", None)
-        load_scheduler = getattr(scheduler, "load_state_dict", None)
-        if callable(load_scheduler) and isinstance(scheduler_state, Mapping):
-            load_scheduler(dict(scheduler_state))
+        _restore_mapping_state(scheduler, scheduler_state, "scheduler")
         python_state = getattr(restored, "python_rng_state", None)
         if python_state is not None:
             random.setstate(python_state)
@@ -969,6 +984,7 @@ class _DefaultBatchPreparer:
                     ),
                     "group_reward_mean": mean,
                     "group_reward_std": math.sqrt(variance),
+                    "group_skipped": 1.0 if advantages is None else 0.0,
                     "group_size": float(len(group_rewards)),
                 }
             )
@@ -1089,6 +1105,40 @@ def _chunks(
     return tuple(tuple(values[index : index + size]) for index in range(0, len(values), size))
 
 
+def _validate_rollout_output(
+    config: RLRunConfig,
+    requests: Sequence[RolloutRequest],
+    trajectories: tuple[Trajectory, ...],
+) -> None:
+    if config.algorithm.name != "grpo":
+        return
+    expected: dict[str, RolloutRequest] = {}
+    for request in requests:
+        if request.case_id is None or not request.case_id:
+            raise ValueError("GRPO rollout requests require non-empty unique case IDs")
+        if request.case_id in expected:
+            raise ValueError("GRPO rollout requests require non-empty unique case IDs")
+        expected[request.case_id] = request
+    counts = dict.fromkeys(expected, 0)
+    for trajectory in trajectories:
+        request = expected.get(trajectory.case_id or "")
+        if request is None:
+            raise ValueError("GRPO backend output contains an unknown or missing case ID")
+        if trajectory.prompt != request.prompt:
+            raise ValueError("GRPO backend output prompt does not match its requested group")
+        if trajectory.policy_version != request.policy_version:
+            raise ValueError("GRPO backend output policy version does not match its request")
+        counts[request.case_id] += 1
+    expected_size = config.algorithm.group_size
+    if len(trajectories) != len(expected) * expected_size or any(
+        count != expected_size for count in counts.values()
+    ):
+        raise ValueError(
+            "GRPO backend output must contain exactly algorithm.group_size trajectories "
+            "for each requested case ID"
+        )
+
+
 def _parameter_checksum(backend: TrainablePolicyBackend) -> str | None:
     provider = getattr(backend, "parameter_checksum", None)
     if not callable(provider):
@@ -1121,6 +1171,34 @@ def _configure_checkpoint_state(checkpoint: CheckpointCoordinator, algorithm: RL
     configure(algorithm_state=algorithm_state, scheduler_state=scheduler_state)
 
 
+def _restore_mapping_state(owner: object, state: object, name: str) -> None:
+    if state is None:
+        return
+    if not isinstance(state, Mapping):
+        raise ValueError(f"checkpoint {name}_state must be a mapping or null")
+    if not state:
+        return
+    loader = getattr(owner, "load_state_dict", None)
+    if not callable(loader):
+        raise ValueError(f"checkpoint {name}_state is nonempty but {name} has no load_state_dict")
+    try:
+        loader(dict(state))
+    except (TypeError, ValueError, RuntimeError) as error:
+        raise ValueError(f"checkpoint {name}_state is incompatible") from error
+
+
+def _log_group_metrics(
+    logger: RunLogger,
+    metrics: tuple[Mapping[str, float], ...],
+    *,
+    global_step: int,
+    rollout_index: int,
+) -> None:
+    handler = getattr(logger, "groups", None)
+    if callable(handler) and metrics:
+        handler(metrics, global_step=global_step, rollout_index=rollout_index)
+
+
 def _log_training_step(
     logger: RunLogger,
     *,
@@ -1129,7 +1207,6 @@ def _log_training_step(
     step_result: object,
     global_step: int,
     learning_rate: float,
-    group_metrics: tuple[Mapping[str, float], ...],
 ) -> None:
     handler = getattr(logger, "training_step", None)
     if callable(handler):
@@ -1139,7 +1216,6 @@ def _log_training_step(
             step_result=step_result,
             global_step=global_step,
             learning_rate=learning_rate,
-            group_metrics=group_metrics,
         )
 
 
@@ -1380,9 +1456,13 @@ class _JSONLRunLogger:
 
         timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         for index, trajectory in enumerate(values):
+            self._record_counter += 1
             policy_version = trajectory.policy_version or f"policy-{global_step}"
             record = TrajectoryRecord(
-                record_id=f"trajectory-{global_step}-{index}-{trajectory.trajectory_id}",
+                record_id=(
+                    f"trajectory-{global_step}-{self._record_counter}-{index}-"
+                    f"{trajectory.trajectory_id}"
+                ),
                 run_id=self.run_id,
                 timestamp=timestamp,
                 global_step=global_step,
@@ -1458,7 +1538,6 @@ class _JSONLRunLogger:
         step_result: object,
         global_step: int,
         learning_rate: float,
-        group_metrics: tuple[Mapping[str, float], ...],
     ) -> None:
         from datetime import datetime, timezone
 
@@ -1499,19 +1578,31 @@ class _JSONLRunLogger:
                 metrics=metrics,
             )
         )
-        for index, group in enumerate(group_metrics):
-            self._record_counter += 1
+
+    def groups(
+        self,
+        values: tuple[Mapping[str, float], ...],
+        *,
+        global_step: int,
+        rollout_index: int,
+    ) -> None:
+        from datetime import datetime, timezone
+
+        from .run_logging import MetricRecord
+
+        timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        for index, group in enumerate(values):
             self.sink.log_metrics(
                 MetricRecord(
-                    record_id=f"group-{global_step}-{index}-{self._record_counter}",
+                    record_id=f"group-{global_step}-{rollout_index}-{index}",
                     run_id=self.run_id,
-                    timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                    timestamp=timestamp,
                     global_step=global_step,
                     scope="group",
                     backend=self.backend_name,
                     actor_backend=self.backend_name,
                     learner_backend=self.backend_name,
-                    policy_version=f"policy-{global_step - 1}",
+                    policy_version=f"policy-{global_step}",
                     metrics=group,
                 )
             )
@@ -1521,7 +1612,8 @@ def _config_payload(config: RLRunConfig) -> bytes:
     payload = asdict(config)
     payload.pop("checkpoint", None)
     payload.pop("logging", None)
-    payload.pop("dataset", None)
+    dataset = cast(dict[str, object], payload["dataset"])
+    payload["dataset"] = {"format": dataset["format"]}
     algorithm = cast(dict[str, object], payload["algorithm"])
     algorithm.pop("max_steps", None)
     serialized = json.dumps(
