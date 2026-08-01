@@ -281,7 +281,7 @@ class SystemCapabilityProvider:
                     f"Configure cuda:{index} only when device_count is greater than {index}; "
                     f"detected {device_count} device(s).",
                 )
-            return True, f"CUDA device index {index} is available among {device_count} device(s)."
+            return True, f"CUDA device cuda:{index} is available among {device_count} device(s)."
         except (ImportError, OSError, RuntimeError, TypeError, ValueError) as error:
             return False, f"Configure a usable CUDA runtime ({type(error).__name__}: {error})."
 
@@ -306,11 +306,22 @@ class SystemCapabilityProvider:
         if not cuda_available:
             return False, "Configure a usable CUDA device before selecting mixed precision."
         if config.runtime.precision == "fp16":
-            return True, "The CUDA runtime is available for FP16 autocast and loss scaling."
+            return (
+                True,
+                f"CUDA device {config.runtime.device} supports selected FP16 autocast and "
+                "loss scaling.",
+            )
         try:
             torch_module = import_module("torch")
-            if bool(torch_module.cuda.is_bf16_supported()):
-                return True, "PyTorch reports BF16 support for the selected CUDA runtime."
+            raw_index = config.runtime.device.partition(":")[2]
+            index = int(raw_index) if raw_index else 0
+            with torch_module.cuda.device(index):
+                bf16_supported = bool(torch_module.cuda.is_bf16_supported())
+            if bf16_supported:
+                return (
+                    True,
+                    f"PyTorch reports selected BF16 support for CUDA device cuda:{index}.",
+                )
             return False, "Select FP32 or FP16 because PyTorch reports no BF16 support."
         except (ImportError, OSError, RuntimeError, TypeError, ValueError) as error:
             return False, f"BF16 support detection failed ({type(error).__name__}: {error})."
@@ -325,6 +336,10 @@ class SystemCapabilityProvider:
         cuda_evidence: str,
         mixed_evidence: str,
     ) -> str:
+        if supported and capability is Capability.SUPPORTS_CUDA:
+            return cuda_evidence
+        if supported and capability is Capability.SUPPORTS_MIXED_PRECISION:
+            return mixed_evidence
         if supported:
             return f"Local torch/transformers runtime supports {capability.value}."
         if not torch_available:

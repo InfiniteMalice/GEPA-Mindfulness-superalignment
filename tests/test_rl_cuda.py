@@ -18,6 +18,7 @@ from gepa_mindfulness.training.capability import (
     CapabilityError,
     CapabilityState,
 )
+from gepa_mindfulness.training.engine import SystemCapabilityProvider
 from gepa_mindfulness.training.runtime_config import (
     AlgorithmConfig,
     PolicyConfig,
@@ -25,6 +26,18 @@ from gepa_mindfulness.training.runtime_config import (
     RuntimeConfig,
     load_rl_config,
 )
+
+
+class _RecordingDeviceContext:
+    def __init__(self, selected: list[int], device_index: int) -> None:
+        self.selected = selected
+        self.device_index = device_index
+
+    def __enter__(self) -> None:
+        self.selected.append(self.device_index)
+
+    def __exit__(self, *error: object) -> None:
+        del error
 
 
 def _cuda_config(*, device: str = "cuda:0", precision: str = "fp32") -> RLRunConfig:
@@ -43,6 +56,11 @@ def _available_cuda(
 ) -> None:
     monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
     monkeypatch.setattr(torch.cuda, "device_count", lambda: device_count)
+    monkeypatch.setattr(
+        torch.cuda,
+        "device",
+        lambda index: _RecordingDeviceContext([], index),
+    )
     monkeypatch.setattr(torch.cuda, "is_bf16_supported", lambda: bf16_supported)
 
 
@@ -112,6 +130,58 @@ def test_cuda_factory_rejects_bf16_without_hardware_evidence(
         create_cuda_backend(_cuda_config(precision="bf16"), _never_called)
 
 
+def test_bf16_probe_targets_the_configured_nonzero_cuda_device(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Probing the current device could approve cuda:2 from heterogeneous cuda:0 evidence."""
+    selected: list[int] = []
+    _available_cuda(monkeypatch, device_count=3)
+    monkeypatch.setattr(
+        torch.cuda,
+        "device",
+        lambda index: _RecordingDeviceContext(selected, index),
+    )
+    monkeypatch.setattr(
+        torch.cuda,
+        "is_bf16_supported",
+        lambda: bool(selected and selected[-1] == 2),
+    )
+
+    capabilities = detect_cuda_capabilities("cuda:2", "bf16")
+
+    assert selected == [2]
+    assert capabilities.state(Capability.SUPPORTS_MIXED_PRECISION) is CapabilityState.SUPPORTED
+
+
+def test_engine_bf16_evidence_names_configured_device_and_precision(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Generic evidence cannot prove which heterogeneous device and precision were checked."""
+    selected: list[int] = []
+    fake_cuda = SimpleNamespace(
+        is_available=lambda: True,
+        device_count=lambda: 3,
+        device=lambda index: _RecordingDeviceContext(selected, index),
+        is_bf16_supported=lambda: bool(selected and selected[-1] == 2),
+    )
+    fake_torch = SimpleNamespace(cuda=fake_cuda)
+    monkeypatch.setattr(
+        "gepa_mindfulness.training.engine.import_module",
+        lambda name: fake_torch if name == "torch" else None,
+    )
+
+    report = SystemCapabilityProvider().detect(_cuda_config(device="cuda:2", precision="bf16"))
+
+    assert selected == [2]
+    assert report.state(Capability.SUPPORTS_CUDA) is CapabilityState.SUPPORTED
+    assert report.state(Capability.SUPPORTS_MIXED_PRECISION) is CapabilityState.SUPPORTED
+    cuda_evidence = report.capabilities[Capability.SUPPORTS_CUDA].evidence
+    mixed_evidence = report.capabilities[Capability.SUPPORTS_MIXED_PRECISION].evidence
+    assert "cuda:2" in cuda_evidence
+    assert "cuda:2" in mixed_evidence
+    assert "bf16" in mixed_evidence.casefold()
+
+
 @pytest.mark.parametrize(
     ("precision", "autocast_dtype", "uses_scaler"),
     [
@@ -152,6 +222,11 @@ def test_cuda_factory_selects_amp_components(
     assert backend.autocast_dtype is autocast_dtype
     assert captured["gradient_scaler"] is (scaler if uses_scaler else None)
     assert captured["device"] == "cuda:0"
+    oom_error_factory = captured["oom_error_factory"]
+    assert callable(oom_error_factory)
+    translated = oom_error_factory("generate")
+    assert isinstance(translated, CudaOutOfMemoryError)
+    assert translated.operation == "generate"
 
 
 @pytest.mark.parametrize(

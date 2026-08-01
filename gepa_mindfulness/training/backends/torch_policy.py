@@ -10,9 +10,10 @@ from contextlib import AbstractContextManager, nullcontext
 from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum
+from functools import wraps
 from io import BytesIO
 from pathlib import Path
-from typing import Callable, Literal, Protocol, Sequence, cast
+from typing import Callable, Literal, Protocol, Sequence, TypeVar, cast
 
 import torch
 from torch import nn
@@ -34,8 +35,11 @@ from gepa_mindfulness.training.trajectory import (
 from .base import BackendCheckpointResult, OptimizerStepResult, TokenizerLike, TorchTensorOps
 
 TrainingMode = Literal["full", "lora"]
-_CHECKPOINT_FORMAT_VERSION = 1
+_CHECKPOINT_FORMAT_VERSION = 2
+_LEGACY_CHECKPOINT_FORMAT_VERSION = 1
 _MISSING_CHECKPOINT_VALUE = object()
+_Result = TypeVar("_Result")
+_OomErrorFactory = Callable[[str], BaseException]
 
 
 class _GradientScaler(Protocol):
@@ -47,6 +51,35 @@ class _GradientScaler(Protocol):
 
     def update(self) -> None: ...
 
+    def get_scale(self) -> float: ...
+
+    def state_dict(self) -> dict[str, object]: ...
+
+    def load_state_dict(self, state: Mapping[str, object]) -> None: ...
+
+
+def _translate_oom(operation: str) -> Callable[[Callable[..., _Result]], Callable[..., _Result]]:
+    def decorate(method: Callable[..., _Result]) -> Callable[..., _Result]:
+        @wraps(method)
+        def wrapped(
+            self: "TorchPolicyBackend",
+            *args: object,
+            **kwargs: object,
+        ) -> _Result:
+            try:
+                return method(self, *args, **kwargs)
+            except torch.OutOfMemoryError as error:
+                if self.oom_error_factory is None:
+                    raise
+                translated = self.oom_error_factory(operation)
+                if not isinstance(translated, BaseException):
+                    raise TypeError("oom_error_factory must return an exception") from error
+                raise translated from error
+
+        return wrapped
+
+    return decorate
+
 
 @dataclass(frozen=True)
 class _BackendStateSnapshot:
@@ -54,6 +87,7 @@ class _BackendStateSnapshot:
     reference_state: dict[str, torch.Tensor]
     value_head_state: dict[str, torch.Tensor]
     optimizer_state: dict[str, object]
+    gradient_scaler_state: dict[str, object] | None
     step: int
     max_new_tokens: int
     learning_rate: float
@@ -71,6 +105,7 @@ class _CheckpointRestorePlan:
     reference_state: Mapping[str, torch.Tensor]
     value_head_state: Mapping[str, torch.Tensor]
     optimizer_state: dict[str, object]
+    gradient_scaler_state: dict[str, object] | None
 
 
 class TorchPolicyBackend:
@@ -92,6 +127,7 @@ class TorchPolicyBackend:
         max_grad_norm: float | None = None,
         autocast_dtype: torch.dtype | None = None,
         gradient_scaler: _GradientScaler | None = None,
+        oom_error_factory: _OomErrorFactory | None = None,
         backend_name: str = "torch_portable",
         training_mode: TrainingMode = "full",
         model_identifier: str | None = None,
@@ -101,6 +137,9 @@ class TorchPolicyBackend:
         self.backend_name = self._validated_backend_name(backend_name)
         self.autocast_dtype = self._validated_autocast_dtype(autocast_dtype)
         self.gradient_scaler = self._validated_gradient_scaler(gradient_scaler)
+        if oom_error_factory is not None and not callable(oom_error_factory):
+            raise TypeError("oom_error_factory must be callable")
+        self.oom_error_factory = oom_error_factory
         self.training_mode = self._validated_training_mode(training_mode)
         self.max_new_tokens = self._positive_integer(max_new_tokens, "max_new_tokens")
         self.learning_rate = self._positive_number(learning_rate, "learning_rate")
@@ -148,6 +187,7 @@ class TorchPolicyBackend:
         self.tensor_ops = TorchTensorOps()
         self._step = 0
 
+    @_translate_oom("generate")
     def generate(self, requests: Sequence[RolloutRequest]) -> Sequence[Trajectory]:
         """Generate trajectories with response-only token-level model evidence."""
         trajectories: list[Trajectory] = []
@@ -207,6 +247,7 @@ class TorchPolicyBackend:
                 )
         return trajectories
 
+    @_translate_oom("evaluate")
     def evaluate(self, batch: TrajectoryBatch) -> PolicyEvaluation:
         """Evaluate response tokens under the trainable, reference, and value models."""
         rows, masks, width = self._validated_batch(batch)
@@ -233,6 +274,7 @@ class TorchPolicyBackend:
             entropy=torch.stack(entropy_rows),
         )
 
+    @_translate_oom("backward")
     def backward(self, loss: object) -> None:
         """Accumulate gradients from one scalar differentiable loss."""
         if not isinstance(loss, torch.Tensor):
@@ -246,6 +288,7 @@ class TorchPolicyBackend:
         else:
             self.gradient_scaler.scale(loss).backward()
 
+    @_translate_oom("optimizer_step")
     def optimizer_step(self) -> OptimizerStepResult:
         """Apply accumulated gradients and return monotonic step evidence."""
         trainable = [*self.policy_parameters(), *self.value_head.parameters()]
@@ -263,8 +306,15 @@ class TorchPolicyBackend:
         if self.gradient_scaler is None:
             self.optimizer.step()
         else:
+            scale_before = float(self.gradient_scaler.get_scale())
             self.gradient_scaler.step(self.optimizer)
             self.gradient_scaler.update()
+            scale_after = float(self.gradient_scaler.get_scale())
+            if scale_after < scale_before:
+                raise RuntimeError(
+                    "GradScaler skipped optimizer update after detecting non-finite gradients; "
+                    "backend step remains unchanged"
+                )
         self._step += 1
         return OptimizerStepResult(step=self._step, gradient_norm=math.sqrt(squared_norm))
 
@@ -288,6 +338,8 @@ class TorchPolicyBackend:
             "reference_state": self.reference_model.state_dict(),
             "value_head_state": self.value_head.state_dict(),
             "optimizer_state": self.optimizer.state_dict(),
+            "autocast_dtype": self._autocast_dtype_name(),
+            "gradient_scaler_state": self._gradient_scaler_state(),
             "step": self._step,
             "max_new_tokens": self.max_new_tokens,
             "learning_rate": self.learning_rate,
@@ -316,7 +368,7 @@ class TorchPolicyBackend:
         """Validate immutable checkpoint bytes without mutating live backend state."""
         plan = self._prepare_checkpoint_bytes(payload)
         return BackendCheckpointResult(
-            format_version=_CHECKPOINT_FORMAT_VERSION,
+            format_version=cast(int, plan.payload["format_version"]),
             step=cast(int, plan.payload["step"]),
         )
 
@@ -344,6 +396,8 @@ class TorchPolicyBackend:
             self.value_head.load_state_dict(plan.value_head_state, strict=True)
             self.optimizer.load_state_dict(plan.optimizer_state)
             self._move_optimizer_state_to_device()
+            if self.gradient_scaler is not None and plan.gradient_scaler_state is not None:
+                self.gradient_scaler.load_state_dict(plan.gradient_scaler_state)
             self._step = cast(int, checkpoint["step"])
             self.max_new_tokens = cast(int, checkpoint["max_new_tokens"])
             self.learning_rate = float(cast(float, checkpoint["learning_rate"]))
@@ -363,7 +417,7 @@ class TorchPolicyBackend:
                 )
             raise ValueError(failure_message) from error
         return BackendCheckpointResult(
-            format_version=_CHECKPOINT_FORMAT_VERSION,
+            format_version=cast(int, checkpoint["format_version"]),
             step=self._step,
         )
 
@@ -391,12 +445,16 @@ class TorchPolicyBackend:
             "value_head_state",
         )
         optimizer_state = self._validated_optimizer_state(checkpoint["optimizer_state"])
+        gradient_scaler_state = self._validated_gradient_scaler_state(
+            checkpoint["gradient_scaler_state"]
+        )
         return _CheckpointRestorePlan(
             payload=checkpoint,
             policy_state=policy_state,
             reference_state=reference_state,
             value_head_state=value_head_state,
             optimizer_state=optimizer_state,
+            gradient_scaler_state=gradient_scaler_state,
         )
 
     def policy_parameters(self) -> tuple[nn.Parameter, ...]:
@@ -545,9 +603,7 @@ class TorchPolicyBackend:
     def _validated_checkpoint_payload(self, raw_payload: object) -> Mapping[str, object]:
         if not isinstance(raw_payload, Mapping):
             raise ValueError("backend checkpoint must contain a mapping payload")
-        if raw_payload.get("format_version") != _CHECKPOINT_FORMAT_VERSION:
-            raise ValueError(f"checkpoint format_version must be {_CHECKPOINT_FORMAT_VERSION}")
-        required_fields = {
+        legacy_fields = {
             "adapter_identifier",
             "backend_name",
             "cpu_rng_state",
@@ -563,28 +619,44 @@ class TorchPolicyBackend:
             "training_mode",
             "value_head_state",
         }
+        format_version = raw_payload.get("format_version")
+        if format_version == _LEGACY_CHECKPOINT_FORMAT_VERSION:
+            if self.autocast_dtype is not None or self.gradient_scaler is not None:
+                raise ValueError("checkpoint version 1 is incompatible with mixed precision")
+            required_fields = legacy_fields
+        elif format_version == _CHECKPOINT_FORMAT_VERSION:
+            required_fields = legacy_fields | {"autocast_dtype", "gradient_scaler_state"}
+        else:
+            raise ValueError(
+                "checkpoint format_version must be 2 or the compatible legacy version 1"
+            )
         if set(raw_payload) != required_fields:
             raise ValueError("backend checkpoint fields are missing or unrecognized")
+        normalized = dict(raw_payload)
+        if format_version == _LEGACY_CHECKPOINT_FORMAT_VERSION:
+            normalized["autocast_dtype"] = None
+            normalized["gradient_scaler_state"] = None
         expected_metadata = {
             "adapter_identifier": self.adapter_identifier,
             "backend_name": self.backend_name,
             "model_identifier": self.model_identifier,
             "training_mode": self.training_mode,
+            "autocast_dtype": self._autocast_dtype_name(),
         }
         for field_name, expected in expected_metadata.items():
-            if raw_payload[field_name] != expected:
+            if normalized[field_name] != expected:
                 raise ValueError(f"backend checkpoint {field_name} is incompatible")
-        step = raw_payload["step"]
+        step = normalized["step"]
         if isinstance(step, bool) or not isinstance(step, int) or step < 0:
             raise ValueError("backend checkpoint step must be a non-negative integer")
-        self._positive_integer(raw_payload["max_new_tokens"], "checkpoint max_new_tokens")
-        self._positive_number(raw_payload["learning_rate"], "checkpoint learning_rate")
+        self._positive_integer(normalized["max_new_tokens"], "checkpoint max_new_tokens")
+        self._positive_number(normalized["learning_rate"], "checkpoint learning_rate")
         self._validated_rng_state(
-            raw_payload["cpu_rng_state"],
+            normalized["cpu_rng_state"],
             "cpu_rng_state",
             expected_state=torch.get_rng_state(),
         )
-        cuda_rng_state = raw_payload["cuda_rng_state"]
+        cuda_rng_state = normalized["cuda_rng_state"]
         if self.device.type == "cuda":
             if cuda_rng_state is None:
                 raise ValueError("backend checkpoint cuda_rng_state is required for a CUDA backend")
@@ -595,7 +667,7 @@ class TorchPolicyBackend:
             )
         elif cuda_rng_state is not None:
             raise ValueError("backend checkpoint cuda_rng_state must be None for a CPU backend")
-        return raw_payload
+        return normalized
 
     @staticmethod
     def _validated_rng_state(
@@ -761,6 +833,7 @@ class TorchPolicyBackend:
             reference_state=self._cloned_module_state(self.reference_model),
             value_head_state=self._cloned_module_state(self.value_head),
             optimizer_state=deepcopy(self.optimizer.state_dict()),
+            gradient_scaler_state=self._gradient_scaler_state(),
             step=self._step,
             max_new_tokens=self.max_new_tokens,
             learning_rate=self.learning_rate,
@@ -797,6 +870,13 @@ class TorchPolicyBackend:
             lambda: self.optimizer.load_state_dict(snapshot.optimizer_state),
         )
         self._attempt_rollback(errors, self._move_optimizer_state_to_device)
+        gradient_scaler = self.gradient_scaler
+        gradient_scaler_state = snapshot.gradient_scaler_state
+        if gradient_scaler is not None and gradient_scaler_state is not None:
+            self._attempt_rollback(
+                errors,
+                lambda: gradient_scaler.load_state_dict(gradient_scaler_state),
+            )
         self._step = snapshot.step
         self.max_new_tokens = snapshot.max_new_tokens
         self.learning_rate = snapshot.learning_rate
@@ -1098,9 +1178,17 @@ class TorchPolicyBackend:
         if self.autocast_dtype is not torch.float16 and scaler is not None:
             raise ValueError("a gradient scaler is supported only with FP16 precision")
         if scaler is not None:
-            methods = ("scale", "unscale_", "step", "update")
+            methods = (
+                "get_scale",
+                "load_state_dict",
+                "scale",
+                "state_dict",
+                "step",
+                "unscale_",
+                "update",
+            )
             if not all(callable(getattr(scaler, method, None)) for method in methods):
-                raise TypeError("gradient_scaler must implement scale, unscale_, step, and update")
+                raise TypeError("gradient_scaler does not implement the required stateful API")
         return scaler
 
     def _autocast_context(self) -> AbstractContextManager[object]:
@@ -1131,6 +1219,39 @@ class TorchPolicyBackend:
             if parameter.is_floating_point():
                 return parameter.dtype
         return torch.get_default_dtype()
+
+    def _autocast_dtype_name(self) -> str | None:
+        if self.autocast_dtype is torch.float16:
+            return "float16"
+        if self.autocast_dtype is torch.bfloat16:
+            return "bfloat16"
+        return None
+
+    def _gradient_scaler_state(self) -> dict[str, object] | None:
+        if self.gradient_scaler is None:
+            return None
+        state = self.gradient_scaler.state_dict()
+        if not isinstance(state, Mapping) or not all(isinstance(key, str) for key in state):
+            raise RuntimeError("gradient scaler state_dict must return a string-keyed mapping")
+        return deepcopy(dict(state))
+
+    def _validated_gradient_scaler_state(
+        self,
+        value: object,
+    ) -> dict[str, object] | None:
+        if self.gradient_scaler is None:
+            if value is not None:
+                raise ValueError("backend checkpoint gradient_scaler_state must be None")
+            return None
+        if not isinstance(value, Mapping) or not all(isinstance(key, str) for key in value):
+            raise ValueError("backend checkpoint gradient_scaler_state must be a mapping")
+        state = deepcopy(dict(value))
+        try:
+            probe = deepcopy(self.gradient_scaler)
+            probe.load_state_dict(deepcopy(state))
+        except (RuntimeError, TypeError, ValueError) as error:
+            raise ValueError("backend checkpoint gradient_scaler_state is incompatible") from error
+        return state
 
     @staticmethod
     def _model_identifier(model: nn.Module) -> str:

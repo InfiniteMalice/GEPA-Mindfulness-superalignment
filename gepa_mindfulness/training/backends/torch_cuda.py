@@ -69,7 +69,8 @@ def detect_cuda_capabilities(
         )
     if precision == "bf16":
         try:
-            bf16_supported = bool(torch.cuda.is_bf16_supported())
+            with torch.cuda.device(device_index):
+                bf16_supported = bool(torch.cuda.is_bf16_supported())
         except (RuntimeError, TypeError) as error:
             raise CapabilityError(f"BF16 support could not be detected: {error}") from error
         if not bf16_supported:
@@ -149,6 +150,7 @@ def create_cuda_backend(
             backend_name="torch_cuda",
             autocast_dtype=autocast_dtype,
             gradient_scaler=gradient_scaler,
+            oom_error_factory=lambda operation: CudaOutOfMemoryError(operation, config),
         )
     except torch.OutOfMemoryError as error:
         raise CudaOutOfMemoryError("backend_initialization", config) from error

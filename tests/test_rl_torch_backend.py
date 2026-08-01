@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable, Mapping
 from copy import deepcopy
 from enum import Enum
 from pathlib import Path
@@ -20,13 +21,14 @@ from gepa_mindfulness.training.algorithms import (
     PPOAlgorithmConfig,
 )
 from gepa_mindfulness.training.backends import (
+    CudaOutOfMemoryError,
     TorchPolicyBackend,
     TorchTensorOps,
     create_portable_backend,
 )
 from gepa_mindfulness.training.capability import Capability, CapabilityState
 from gepa_mindfulness.training.contracts import TrainablePolicyBackend
-from gepa_mindfulness.training.runtime_config import RLRunConfig
+from gepa_mindfulness.training.runtime_config import RLRunConfig, RuntimeConfig
 from gepa_mindfulness.training.trajectory import RolloutRequest, Trajectory, TrajectoryBatch
 
 
@@ -165,6 +167,66 @@ class FakePeftType(str, Enum):
     IA3 = "IA3"
 
 
+class FakeGradientScaler:
+    """Stateful loss scaler double with observable skip and restore behavior."""
+
+    def __init__(
+        self,
+        *,
+        scale: float = 8.0,
+        growth_tracker: int = 0,
+        skip_step: bool = False,
+        fail_next_load: bool = False,
+    ) -> None:
+        self.current_scale = scale
+        self.growth_tracker = growth_tracker
+        self.skip_step = skip_step
+        self.fail_next_load = fail_next_load
+
+    def scale(self, output: torch.Tensor) -> torch.Tensor:
+        return output
+
+    def unscale_(self, optimizer: torch.optim.Optimizer) -> None:
+        del optimizer
+
+    def step(self, optimizer: torch.optim.Optimizer) -> object:
+        if self.skip_step:
+            return None
+        return optimizer.step()
+
+    def update(self) -> None:
+        if self.skip_step:
+            self.current_scale /= 2.0
+        else:
+            self.growth_tracker += 1
+
+    def get_scale(self) -> float:
+        return self.current_scale
+
+    def state_dict(self) -> dict[str, object]:
+        return {
+            "scale": self.current_scale,
+            "growth_tracker": self.growth_tracker,
+        }
+
+    def load_state_dict(self, state: Mapping[str, object]) -> None:
+        if set(state) != {"scale", "growth_tracker"}:
+            raise ValueError("fake scaler state is malformed")
+        self.current_scale = float(state["scale"])
+        self.growth_tracker = int(state["growth_tracker"])
+        if self.fail_next_load:
+            self.fail_next_load = False
+            raise RuntimeError("injected scaler restore failure")
+
+    def __deepcopy__(self, memo: dict[int, object]) -> "FakeGradientScaler":
+        del memo
+        return FakeGradientScaler(
+            scale=self.current_scale,
+            growth_tracker=self.growth_tracker,
+            skip_step=self.skip_step,
+        )
+
+
 def _fake_lora_model(config: object | None = None) -> TinyCausalLM:
     model = TinyCausalLM()
     for parameter in model.parameters():
@@ -255,8 +317,14 @@ def _checkpoint_payload_before_divergence(
     return payload, _backend_snapshot(backend)
 
 
-def _new_tiny_backend() -> TorchPolicyBackend:
+def _new_tiny_backend(
+    *,
+    oom_error_factory: Callable[[str], BaseException] | None = None,
+) -> TorchPolicyBackend:
     torch.manual_seed(7)
+    optional: dict[str, object] = {}
+    if oom_error_factory is not None:
+        optional["oom_error_factory"] = oom_error_factory
     return TorchPolicyBackend(
         policy_model=TinyCausalLM(),
         tokenizer=TinyTokenizer(),
@@ -264,7 +332,16 @@ def _new_tiny_backend() -> TorchPolicyBackend:
         learning_rate=0.05,
         max_new_tokens=2,
         model_identifier="tiny-local",
+        **optional,
     )
+
+
+def _attach_fake_scaler(
+    backend: TorchPolicyBackend,
+    scaler: FakeGradientScaler,
+) -> None:
+    backend.autocast_dtype = torch.float16
+    backend.gradient_scaler = scaler
 
 
 @pytest.fixture
@@ -286,6 +363,75 @@ def _trajectory(
         prompt_token_ids=prompt_ids,
         response_token_ids=response_ids,
     )
+
+
+@pytest.mark.parametrize("operation", ["generate", "evaluate", "backward", "optimizer_step"])
+def test_cuda_oom_boundary_translates_each_training_operation_with_cause(
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+) -> None:
+    """A CUDA OOM from any training operation must cross one structured backend boundary."""
+    config = RLRunConfig(runtime=RuntimeConfig(backend="cuda", device="cuda:0"))
+    backend = _new_tiny_backend(
+        oom_error_factory=lambda selected: CudaOutOfMemoryError(selected, config)
+    )
+    original = torch.OutOfMemoryError(f"{operation} allocation failed")
+
+    def fail(*args: object, **kwargs: object) -> object:
+        del args, kwargs
+        raise original
+
+    if operation == "generate":
+        monkeypatch.setattr(backend, "_validated_request", fail)
+
+        def invoke() -> object:
+            return backend.generate((RolloutRequest(prompt="calm"),))
+
+    elif operation == "evaluate":
+        monkeypatch.setattr(backend, "_validated_batch", fail)
+
+        def invoke() -> object:
+            return backend.evaluate(TrajectoryBatch(()))
+
+    elif operation == "backward":
+        backend.gradient_scaler = SimpleNamespace(scale=fail)
+
+        def invoke() -> object:
+            return backend.backward(torch.ones((), requires_grad=True))
+
+    else:
+        for parameter in (*backend.policy_parameters(), *backend.value_head.parameters()):
+            parameter.grad = torch.ones_like(parameter)
+        monkeypatch.setattr(backend.optimizer, "step", fail)
+        invoke = backend.optimizer_step
+
+    with pytest.raises(CudaOutOfMemoryError) as captured:
+        invoke()
+
+    assert captured.value.operation == operation
+    assert captured.value.__cause__ is original
+
+
+def test_cuda_oom_boundary_preserves_non_oom_exception_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The boundary must not relabel model validation failures as memory exhaustion."""
+    config = RLRunConfig(runtime=RuntimeConfig(backend="cuda", device="cuda:0"))
+    backend = _new_tiny_backend(
+        oom_error_factory=lambda selected: CudaOutOfMemoryError(selected, config)
+    )
+    original = RuntimeError("invalid generation assets")
+
+    def fail(*args: object, **kwargs: object) -> object:
+        del args, kwargs
+        raise original
+
+    monkeypatch.setattr(backend, "_validated_request", fail)
+
+    with pytest.raises(RuntimeError) as captured:
+        backend.generate((RolloutRequest(prompt="calm"),))
+
+    assert captured.value is original
 
 
 def test_tensor_ops_preserve_float_dtype_device_and_nested_shape() -> None:
@@ -598,6 +744,87 @@ def test_backend_conforms_to_trainable_policy_protocol(
 ) -> None:
     """The concrete backend implements every operation on the public trainable protocol."""
     assert isinstance(tiny_backend, TrainablePolicyBackend)
+
+
+def test_fp16_scaler_checkpoint_round_trip_and_preflight_are_state_complete(
+    tmp_path: Path,
+) -> None:
+    """Omitting scaler state makes an FP16 resume numerically different after overflow."""
+    backend = _new_tiny_backend()
+    scaler = FakeGradientScaler(scale=8.0, growth_tracker=3)
+    _attach_fake_scaler(backend, scaler)
+    checkpoint = tmp_path / "fp16-scaler.pt"
+
+    saved = backend.save_checkpoint(checkpoint)
+    scaler.current_scale = 2.0
+    scaler.growth_tracker = 9
+    preflight = backend.preflight_checkpoint_bytes(checkpoint.read_bytes())
+
+    assert saved.format_version == 2
+    assert preflight.format_version == 2
+    assert scaler.state_dict() == {"scale": 2.0, "growth_tracker": 9}
+
+    restored = backend.load_checkpoint(checkpoint)
+
+    assert restored.format_version == 2
+    assert scaler.state_dict() == {"scale": 8.0, "growth_tracker": 3}
+
+
+def test_checkpoint_v1_is_accepted_only_without_mixed_precision(
+    tmp_path: Path,
+) -> None:
+    """Legacy checkpoints without scaler state are safe only for an FP32 backend."""
+    backend = _new_tiny_backend()
+    current = tmp_path / "current.pt"
+    legacy = tmp_path / "legacy.pt"
+    backend.save_checkpoint(current)
+    payload = torch.load(current, map_location="cpu", weights_only=True)
+    payload["format_version"] = 1
+    payload.pop("autocast_dtype", None)
+    payload.pop("gradient_scaler_state", None)
+    torch.save(payload, legacy)
+
+    assert backend.load_checkpoint(legacy).format_version == 1
+
+    _attach_fake_scaler(backend, FakeGradientScaler())
+    with pytest.raises(ValueError, match="version 1.*mixed precision|mixed precision.*version 1"):
+        backend.load_checkpoint(legacy)
+
+
+def test_scaler_restore_failure_rolls_back_live_scaler_state(
+    tmp_path: Path,
+) -> None:
+    """A late scaler load failure must not leave the live loss scale partially restored."""
+    backend = _new_tiny_backend()
+    scaler = FakeGradientScaler(scale=8.0, growth_tracker=3)
+    _attach_fake_scaler(backend, scaler)
+    checkpoint = tmp_path / "scaler-rollback.pt"
+    backend.save_checkpoint(checkpoint)
+    scaler.current_scale = 2.0
+    scaler.growth_tracker = 9
+    scaler.fail_next_load = True
+
+    with pytest.raises(ValueError, match="incompatible training state"):
+        backend.load_checkpoint(checkpoint)
+
+    assert scaler.state_dict() == {"scale": 2.0, "growth_tracker": 9}
+
+
+def test_grad_scaler_skipped_update_does_not_advance_backend_step(tmp_path: Path) -> None:
+    """A loss-scale overflow must not produce false parameter-update or step evidence."""
+    backend = _new_tiny_backend()
+    scaler = FakeGradientScaler(scale=8.0, skip_step=True)
+    _attach_fake_scaler(backend, scaler)
+    for parameter in (*backend.policy_parameters(), *backend.value_head.parameters()):
+        parameter.grad = torch.ones_like(parameter)
+    checksum_before = backend.parameter_checksum()
+
+    with pytest.raises(RuntimeError, match="GradScaler skipped optimizer update"):
+        backend.optimizer_step()
+
+    assert backend.parameter_checksum() == checksum_before
+    assert scaler.get_scale() == 4.0
+    assert backend.save_checkpoint(tmp_path / "skipped-step.pt").step == 0
 
 
 def test_checkpoint_round_trip_restores_trainable_reference_optimizer_step_and_rng(
