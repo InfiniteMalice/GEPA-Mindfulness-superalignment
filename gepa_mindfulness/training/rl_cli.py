@@ -90,7 +90,7 @@ def _llama_doctor_report(endpoint: str | None) -> DoctorReport:
         Capability.SUPPORTS_DISTRIBUTED_TRAINING,
         Capability.SUPPORTS_MIXED_PRECISION,
     )
-    endpoint_evidence = endpoint or "not configured"
+    endpoint_evidence = "configured" if endpoint is not None else "not configured"
     lines = (
         f"INFO backend: {capabilities.backend_name} {capabilities.backend_version}",
         f"INFO endpoint: {endpoint_evidence}",

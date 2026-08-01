@@ -448,12 +448,39 @@ def test_doctor_lazily_renders_llama_runtime_evidence(
     assert args.func(args) == 2
     output = capsys.readouterr().out
     assert calls == [endpoint]
-    assert endpoint in output
+    assert endpoint not in output
+    assert "endpoint: configured" in output
     assert "llama-server executable" in output
     assert "supports_gguf" in output
     assert "supports_vulkan" in output
     assert "supports_backward" in output
     assert "supports_optimizer_step" in output
+
+
+def test_llama_doctor_never_echoes_endpoint_secrets(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    endpoint = (
+        "http://secret-user:secret-password@127.0.0.1:8080" "?token=secret-query#secret-fragment"
+    )
+    parser = build_parser()
+    args = parser.parse_args(
+        ["rl", "doctor", "--backend", "llama-cpp-vulkan", "--endpoint", endpoint]
+    )
+
+    assert args.func(args) == 2
+    captured = capsys.readouterr()
+    rendered = f"{captured.out}\n{captured.err}"
+    assert "endpoint: configured" in captured.out
+    for secret in (
+        endpoint,
+        "secret-user",
+        "secret-password",
+        "secret-query",
+        "secret-fragment",
+    ):
+        assert secret not in rendered
+    assert "credentials" in rendered
 
 
 def test_basic_help_does_not_import_llama_diagnostics() -> None:
