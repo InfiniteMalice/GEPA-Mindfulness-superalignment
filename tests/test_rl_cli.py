@@ -1058,6 +1058,56 @@ def test_resume_rejects_nonempty_training_state_without_compatible_loader_before
     assert "generate" not in events
 
 
+def test_resume_rejects_empty_scheduler_mapping_without_scheduler_before_rollout(
+    tmp_path: Path,
+) -> None:
+    events: list[str] = []
+
+    class EmptySchedulerCheckpoint(_Checkpoint):
+        def load(self, path: Path) -> object:
+            restored = super().load(path)
+            return SimpleNamespace(
+                **vars(restored),
+                algorithm_state={},
+                scheduler_state={},
+                python_rng_state=None,
+                torch_cpu_rng_state=None,
+                torch_cuda_rng_states=(),
+            )
+
+    engine = _engine(tmp_path, events)
+    engine.checkpoint_factory = lambda value, backend: EmptySchedulerCheckpoint(events, backend)
+
+    with pytest.raises(ValueError, match="scheduler.*load_state_dict"):
+        engine.resume(tmp_path / "checkpoint")
+
+    assert "generate" not in events
+
+
+def test_resume_accepts_empty_algorithm_state_and_absent_scheduler(tmp_path: Path) -> None:
+    events: list[str] = []
+
+    class StatelessCheckpoint(_Checkpoint):
+        def load(self, path: Path) -> object:
+            restored = super().load(path)
+            return SimpleNamespace(
+                **vars(restored),
+                algorithm_state={},
+                scheduler_state=None,
+                python_rng_state=None,
+                torch_cpu_rng_state=None,
+                torch_cuda_rng_states=(),
+            )
+
+    engine = _engine(tmp_path, events)
+    engine.checkpoint_factory = lambda value, backend: StatelessCheckpoint(events, backend)
+
+    result = engine.resume(tmp_path / "checkpoint")
+
+    assert result.global_step == 2
+    assert "generate" in events
+
+
 def test_resume_restores_algorithm_then_scheduler_before_rollout(tmp_path: Path) -> None:
     events: list[str] = []
 

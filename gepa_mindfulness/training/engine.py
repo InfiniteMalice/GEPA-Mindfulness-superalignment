@@ -694,10 +694,20 @@ class RLTrainingEngine:
     @staticmethod
     def _restore_engine_state(restored: object, algorithm: RLAlgorithm | None) -> None:
         algorithm_state = getattr(restored, "algorithm_state", None)
-        _restore_mapping_state(algorithm, algorithm_state, "algorithm")
+        _restore_mapping_state(
+            algorithm,
+            algorithm_state,
+            "algorithm",
+            allow_empty_without_loader=True,
+        )
         scheduler_state = getattr(restored, "scheduler_state", None)
         scheduler = getattr(algorithm, "scheduler", None)
-        _restore_mapping_state(scheduler, scheduler_state, "scheduler")
+        _restore_mapping_state(
+            scheduler,
+            scheduler_state,
+            "scheduler",
+            allow_empty_without_loader=False,
+        )
         python_state = getattr(restored, "python_rng_state", None)
         if python_state is not None:
             random.setstate(python_state)
@@ -1171,16 +1181,22 @@ def _configure_checkpoint_state(checkpoint: CheckpointCoordinator, algorithm: RL
     configure(algorithm_state=algorithm_state, scheduler_state=scheduler_state)
 
 
-def _restore_mapping_state(owner: object, state: object, name: str) -> None:
+def _restore_mapping_state(
+    owner: object,
+    state: object,
+    name: str,
+    *,
+    allow_empty_without_loader: bool,
+) -> None:
     if state is None:
         return
     if not isinstance(state, Mapping):
         raise ValueError(f"checkpoint {name}_state must be a mapping or null")
-    if not state:
+    if not state and allow_empty_without_loader:
         return
     loader = getattr(owner, "load_state_dict", None)
     if not callable(loader):
-        raise ValueError(f"checkpoint {name}_state is nonempty but {name} has no load_state_dict")
+        raise ValueError(f"checkpoint {name}_state is present but {name} has no load_state_dict")
     try:
         loader(dict(state))
     except (TypeError, ValueError, RuntimeError) as error:
