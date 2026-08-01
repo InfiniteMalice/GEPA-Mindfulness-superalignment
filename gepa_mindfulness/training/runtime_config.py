@@ -21,6 +21,7 @@ _CANONICAL_DATASET_KEYS = {"format", "train_path", "validation_path"}
 _LEGACY_DATASET_KEYS = {"path", "test_split", "train_split", "val_split"}
 ZeroVariancePolicy = Literal["zero", "center_only", "skip"]
 Precision = Literal["fp32", "fp16", "bf16"]
+DistributedStrategy = Literal["none", "ddp", "fsdp"]
 
 
 def _mapping(value: Any, name: str) -> Mapping[str, Any]:
@@ -78,12 +79,72 @@ def _finite_number(value: object, name: str, *, positive: bool = False) -> float
 
 
 @dataclass(frozen=True)
+class DistributedRuntimeConfig:
+    """Validated process topology for optional PyTorch data/model parallelism."""
+
+    strategy: DistributedStrategy = "none"
+    world_size: int = 1
+    rank: int = 0
+    local_rank: int = 0
+    sharded_optimizer: bool = False
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.strategy, str):
+            raise TypeError("runtime.distributed.strategy must be a string")
+        if self.strategy not in {"none", "ddp", "fsdp"}:
+            raise ValueError("runtime.distributed.strategy must be 'none', 'ddp', or 'fsdp'")
+        for name in ("world_size", "rank", "local_rank"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise TypeError(f"runtime.distributed.{name} must be an integer")
+        if not isinstance(self.sharded_optimizer, bool):
+            raise TypeError("runtime.distributed.sharded_optimizer must be a boolean")
+        if self.world_size <= 0:
+            raise ValueError("runtime.distributed.world_size must be positive")
+        if not 0 <= self.rank < self.world_size:
+            raise ValueError("runtime.distributed.rank must be within world_size")
+        if not 0 <= self.local_rank < self.world_size:
+            raise ValueError("runtime.distributed.local_rank must be within world_size")
+        if self.strategy == "none":
+            if (self.world_size, self.rank, self.local_rank) != (1, 0, 0):
+                raise ValueError("strategy='none' requires world_size=1, rank=0, local_rank=0")
+            if self.sharded_optimizer:
+                raise ValueError("strategy='none' cannot use a sharded optimizer")
+        else:
+            if self.world_size < 2:
+                raise ValueError("distributed strategies require world_size of at least 2")
+            if self.strategy != "fsdp" and self.sharded_optimizer:
+                raise ValueError("sharded_optimizer is supported only with strategy='fsdp'")
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any]) -> "DistributedRuntimeConfig":
+        payload = _mapping(payload, "runtime.distributed")
+        _reject_unknown(
+            payload,
+            {"strategy", "world_size", "rank", "local_rank", "sharded_optimizer"},
+            "runtime.distributed",
+        )
+        strategy = _string(payload, "strategy", "none", "runtime.distributed")
+        sharded_optimizer = payload.get("sharded_optimizer", False)
+        if not isinstance(sharded_optimizer, bool):
+            raise TypeError("runtime.distributed.sharded_optimizer must be a boolean")
+        return cls(
+            strategy=cast(DistributedStrategy, strategy),
+            world_size=_integer(payload, "world_size", 1, "runtime.distributed"),
+            rank=_integer(payload, "rank", 0, "runtime.distributed"),
+            local_rank=_integer(payload, "local_rank", 0, "runtime.distributed"),
+            sharded_optimizer=sharded_optimizer,
+        )
+
+
+@dataclass(frozen=True)
 class RuntimeConfig:
     """Execution backend, device, and numeric precision selection."""
 
     backend: str = "pytorch"
     device: str = "cpu"
     precision: Precision = "fp32"
+    distributed: DistributedRuntimeConfig = field(default_factory=DistributedRuntimeConfig)
 
     def __post_init__(self) -> None:
         if not isinstance(self.backend, str):
@@ -92,6 +153,8 @@ class RuntimeConfig:
             raise TypeError("runtime.device must be a string")
         if not isinstance(self.precision, str):
             raise TypeError("runtime.precision must be a string")
+        if not isinstance(self.distributed, DistributedRuntimeConfig):
+            raise TypeError("runtime.distributed must be a DistributedRuntimeConfig")
         if self.backend not in {"pytorch", "cuda"}:
             raise ValueError("runtime.backend must be 'pytorch' or 'cuda'")
         if self.device != "cpu" and not _CUDA_DEVICE.fullmatch(self.device):
@@ -102,15 +165,30 @@ class RuntimeConfig:
             raise ValueError("runtime.backend='cuda' requires a CUDA device selector")
         if self.precision != "fp32" and not _CUDA_DEVICE.fullmatch(self.device):
             raise ValueError("mixed precision requires a CUDA device selector")
+        if self.distributed.strategy != "none":
+            if self.backend != "cuda":
+                raise ValueError("distributed strategies require runtime.backend='cuda'")
+            expected_device = f"cuda:{self.distributed.local_rank}"
+            if self.device != expected_device:
+                raise ValueError(
+                    "runtime.device must match runtime.distributed.local_rank "
+                    f"({expected_device})"
+                )
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "RuntimeConfig":
         payload = _mapping(payload, "runtime")
-        _reject_unknown(payload, {"backend", "device", "precision"}, "runtime")
+        _reject_unknown(payload, {"backend", "device", "precision", "distributed"}, "runtime")
         backend = _string(payload, "backend", "pytorch", "runtime")
         device = _string(payload, "device", "cpu", "runtime")
         precision = _string(payload, "precision", "fp32", "runtime")
-        return cls(backend=backend, device=device, precision=cast(Precision, precision))
+        distributed = DistributedRuntimeConfig.from_mapping(_section(payload, "distributed"))
+        return cls(
+            backend=backend,
+            device=device,
+            precision=cast(Precision, precision),
+            distributed=distributed,
+        )
 
 
 @dataclass(frozen=True)
@@ -678,6 +756,8 @@ __all__ = [
     "AlgorithmConfig",
     "CheckpointConfig",
     "DatasetConfig",
+    "DistributedRuntimeConfig",
+    "DistributedStrategy",
     "LoggingConfig",
     "PolicyConfig",
     "Precision",

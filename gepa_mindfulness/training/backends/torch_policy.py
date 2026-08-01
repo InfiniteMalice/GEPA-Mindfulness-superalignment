@@ -147,6 +147,10 @@ class TorchPolicyBackend:
             None if max_grad_norm is None else self._positive_number(max_grad_norm, "max_grad_norm")
         )
         self.tokenizer = tokenizer
+        distributed_strategy = getattr(policy_model, "_gepa_distributed_strategy", "none")
+        if distributed_strategy not in {"none", "ddp", "fsdp"}:
+            raise ValueError("policy_model has an invalid distributed strategy marker")
+        self.distributed_strategy = distributed_strategy
         self.policy_model = policy_model.to(self.device)
         if self.training_mode == "full":
             self.policy_model.requires_grad_(True)
@@ -504,6 +508,8 @@ class TorchPolicyBackend:
             supported.add(Capability.SUPPORTS_CUDA)
         if self.autocast_dtype is not None:
             supported.add(Capability.SUPPORTS_MIXED_PRECISION)
+        if self.distributed_strategy != "none":
+            supported.add(Capability.SUPPORTS_DISTRIBUTED_TRAINING)
         evidence = {
             capability: CapabilityEvidence(
                 state=(
@@ -1028,7 +1034,7 @@ class TorchPolicyBackend:
             if seed is not None:
                 torch.manual_seed(seed + sample_index)
             with torch.no_grad(), self._autocast_context():
-                generated = self.policy_model.generate(
+                generated = self._unwrapped_policy().generate(
                     input_ids,
                     attention_mask=torch.ones_like(input_ids),
                     max_new_tokens=max_new_tokens,
@@ -1208,6 +1214,7 @@ class TorchPolicyBackend:
 
     @staticmethod
     def _hidden_size(model: nn.Module) -> int:
+        model = TorchPolicyBackend._unwrapped_module(model)
         config = getattr(model, "config", None)
         for attribute in ("hidden_size", "n_embd"):
             value = getattr(config, attribute, None)
@@ -1256,11 +1263,20 @@ class TorchPolicyBackend:
 
     @staticmethod
     def _model_identifier(model: nn.Module) -> str:
+        model = TorchPolicyBackend._unwrapped_module(model)
         config = getattr(model, "config", None)
         identifier = getattr(config, "_name_or_path", None)
         return (
             identifier if isinstance(identifier, str) and identifier else model.__class__.__name__
         )
+
+    def _unwrapped_policy(self) -> nn.Module:
+        return self._unwrapped_module(self.policy_model)
+
+    @staticmethod
+    def _unwrapped_module(model: nn.Module) -> nn.Module:
+        wrapped = getattr(model, "module", None)
+        return wrapped if isinstance(wrapped, nn.Module) else model
 
     @staticmethod
     def _float_tuple(values: torch.Tensor) -> tuple[float, ...]:
@@ -1284,6 +1300,8 @@ class TorchPolicyBackend:
                 return f"CUDA autocast uses {self.autocast_dtype}."
             if capability is Capability.SUPPORTS_LORA_TRAINING:
                 return "Policy has PEFT config evidence and adapter-only trainable parameters."
+            if capability is Capability.SUPPORTS_DISTRIBUTED_TRAINING:
+                return f"Trainable policy is wrapped with {self.distributed_strategy.upper()}."
             if capability is Capability.SUPPORTS_FULL_WEIGHT_TRAINING:
                 return "All policy-model parameters are optimizer-eligible."
             return f"{capability.value} is implemented by TorchPolicyBackend."

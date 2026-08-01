@@ -4,9 +4,14 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable, Mapping
+from copy import deepcopy
+from types import ModuleType
+from typing import Protocol
 
 import torch
 from torch import nn
+from torch.distributed.fsdp import FullyShardedDataParallel, ShardingStrategy
+from torch.nn.parallel import DistributedDataParallel
 
 from gepa_mindfulness.training.capability import (
     BackendCapabilities,
@@ -15,13 +20,27 @@ from gepa_mindfulness.training.capability import (
     CapabilityEvidence,
     CapabilityState,
 )
-from gepa_mindfulness.training.runtime_config import Precision, RLRunConfig
+from gepa_mindfulness.training.runtime_config import (
+    DistributedRuntimeConfig,
+    Precision,
+    RLRunConfig,
+)
 
 from .base import TokenizerLike
 from .torch_policy import TorchPolicyBackend
 
 ModelFactory = Callable[[], tuple[nn.Module, TokenizerLike]]
 _CUDA_DEVICE = re.compile(r"cuda(?::([0-9]+))?$")
+
+
+class _DistributedLike(Protocol):
+    def is_available(self) -> bool: ...
+
+    def is_initialized(self) -> bool: ...
+
+    def get_world_size(self) -> int: ...
+
+    def get_rank(self) -> int: ...
 
 
 class CudaOutOfMemoryError(RuntimeError):
@@ -134,6 +153,42 @@ def detect_cuda_capabilities(
     )
 
 
+def validate_distributed_runtime(
+    config: RLRunConfig,
+    *,
+    distributed: _DistributedLike | ModuleType = torch.distributed,
+) -> None:
+    """Fail before model loading unless the configured process group is exact."""
+    if not isinstance(config, RLRunConfig):
+        raise TypeError("config must be an RLRunConfig")
+    topology = config.runtime.distributed
+    if topology.strategy == "none":
+        return
+    if topology.strategy == "fsdp" and topology.sharded_optimizer:
+        raise CapabilityError(
+            "FSDP sharded optimizer and checkpoint restore are not supported; "
+            "use the validated full-state FSDP mode or DDP."
+        )
+    if not distributed.is_available():
+        raise CapabilityError("torch.distributed is unavailable in this PyTorch runtime")
+    if not distributed.is_initialized():
+        raise CapabilityError(
+            "torch.distributed process group must be initialized before distributed RL"
+        )
+    actual_world_size = int(distributed.get_world_size())
+    if actual_world_size != topology.world_size:
+        raise CapabilityError(
+            "torch.distributed world_size mismatch: "
+            f"configured {topology.world_size}, initialized {actual_world_size}"
+        )
+    actual_rank = int(distributed.get_rank())
+    if actual_rank != topology.rank:
+        raise CapabilityError(
+            "torch.distributed rank mismatch: "
+            f"configured {topology.rank}, initialized {actual_rank}"
+        )
+
+
 def create_cuda_backend(
     config: RLRunConfig,
     model_factory: ModelFactory,
@@ -151,6 +206,7 @@ def create_cuda_backend(
     if config.runtime.precision != "fp32":
         required.add(Capability.SUPPORTS_MIXED_PRECISION)
     capabilities.require(required)
+    validate_distributed_runtime(config)
 
     try:
         policy_model, tokenizer = model_factory()
@@ -160,9 +216,16 @@ def create_cuda_backend(
     autocast_dtype = _autocast_dtype(config.runtime.precision)
     gradient_scaler = _create_grad_scaler() if config.runtime.precision == "fp16" else None
     try:
+        reference_model = deepcopy(policy_model)
+        policy_model = _wrap_distributed_policy(
+            policy_model,
+            config.runtime.distributed,
+            config.runtime.device,
+        )
         return TorchPolicyBackend(
             policy_model=policy_model,
             tokenizer=tokenizer,
+            reference_model=reference_model,
             device=config.runtime.device,
             learning_rate=config.algorithm.learning_rate,
             max_new_tokens=config.policy.max_new_tokens,
@@ -175,6 +238,31 @@ def create_cuda_backend(
         )
     except torch.OutOfMemoryError as error:
         raise _cuda_oom_error("backend_initialization", config) from error
+
+
+def _wrap_distributed_policy(
+    policy_model: nn.Module,
+    topology: DistributedRuntimeConfig,
+    device: str,
+) -> nn.Module:
+    if topology.strategy == "none":
+        return policy_model
+    policy_model = policy_model.to(device)
+    if topology.strategy == "ddp":
+        wrapped = DistributedDataParallel(
+            policy_model,
+            device_ids=[topology.local_rank],
+            output_device=topology.local_rank,
+        )
+    else:
+        wrapped = FullyShardedDataParallel(
+            policy_model,
+            device_id=torch.device(device),
+            sharding_strategy=ShardingStrategy.NO_SHARD,
+            use_orig_params=True,
+        )
+    setattr(wrapped, "_gepa_distributed_strategy", topology.strategy)
+    return wrapped
 
 
 def _cuda_oom_error(operation: str, config: RLRunConfig) -> CudaOutOfMemoryError:
@@ -254,4 +342,5 @@ __all__ = [
     "ModelFactory",
     "create_cuda_backend",
     "detect_cuda_capabilities",
+    "validate_distributed_runtime",
 ]

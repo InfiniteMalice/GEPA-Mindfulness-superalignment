@@ -24,7 +24,7 @@ from .capability import (
     CapabilityState,
 )
 from .contracts import RewardProvider, RewardRequest, RLAlgorithm, TrainablePolicyBackend
-from .runtime_config import RLRunConfig
+from .runtime_config import DistributedRuntimeConfig, RLRunConfig
 from .trajectory import PolicyEvaluation, RolloutRequest, Trajectory, TrajectoryBatch
 
 if TYPE_CHECKING:
@@ -194,6 +194,8 @@ def required_capabilities(config: RLRunConfig, mode: EngineMode) -> frozenset[Ca
         required.add(Capability.SUPPORTS_CUDA)
     if config.runtime.precision != "fp32":
         required.add(Capability.SUPPORTS_MIXED_PRECISION)
+    if _distributed_runtime(config).strategy != "none":
+        required.add(Capability.SUPPORTS_DISTRIBUTED_TRAINING)
     return frozenset(required)
 
 
@@ -224,6 +226,10 @@ class SystemCapabilityProvider:
             torch_available=torch_available,
             cuda_available=cuda_available,
         )
+        distributed_available, distributed_evidence = self._distributed_support(
+            config,
+            torch_available=torch_available,
+        )
         capabilities: dict[Capability, CapabilityEvidence] = {}
         implemented = {
             Capability.SUPPORTS_BACKWARD,
@@ -240,6 +246,8 @@ class SystemCapabilityProvider:
                 supported = implementation_available and cuda_available
             if capability is Capability.SUPPORTS_MIXED_PRECISION:
                 supported = implementation_available and mixed_available
+            if capability is Capability.SUPPORTS_DISTRIBUTED_TRAINING:
+                supported = implementation_available and distributed_available
             state = CapabilityState.SUPPORTED if supported else CapabilityState.UNSUPPORTED
             capabilities[capability] = CapabilityEvidence(
                 state=state,
@@ -250,6 +258,7 @@ class SystemCapabilityProvider:
                     transformers_available=transformers_available,
                     cuda_evidence=cuda_evidence,
                     mixed_evidence=mixed_evidence,
+                    distributed_evidence=distributed_evidence,
                 ),
             )
         return BackendCapabilities(
@@ -327,6 +336,39 @@ class SystemCapabilityProvider:
             return False, f"BF16 support detection failed ({type(error).__name__}: {error})."
 
     @staticmethod
+    def _distributed_support(
+        config: RLRunConfig,
+        *,
+        torch_available: bool,
+    ) -> tuple[bool, str]:
+        topology = _distributed_runtime(config)
+        if topology.strategy == "none":
+            return False, "Single-process execution was selected."
+        if not torch_available:
+            return False, "Install the 'train' extra to provide torch.distributed."
+        try:
+            distributed = import_module("torch").distributed
+            if not bool(distributed.is_available()):
+                return False, "Use a PyTorch build with torch.distributed support."
+            if not bool(distributed.is_initialized()):
+                return False, "Initialize torch.distributed before distributed RL preflight."
+            world_size = int(distributed.get_world_size())
+            rank = int(distributed.get_rank())
+            if world_size != topology.world_size or rank != topology.rank:
+                return (
+                    False,
+                    "Initialized process group does not match configuration: "
+                    f"world_size={world_size}, rank={rank}.",
+                )
+            return (
+                True,
+                f"Initialized {topology.strategy} process group has "
+                f"world_size={world_size}, rank={rank}, local_rank={topology.local_rank}.",
+            )
+        except (AttributeError, ImportError, OSError, RuntimeError, TypeError, ValueError) as error:
+            return False, f"Distributed support detection failed ({type(error).__name__}: {error})."
+
+    @staticmethod
     def _evidence(
         capability: Capability,
         *,
@@ -335,11 +377,14 @@ class SystemCapabilityProvider:
         transformers_available: bool,
         cuda_evidence: str,
         mixed_evidence: str,
+        distributed_evidence: str,
     ) -> str:
         if supported and capability is Capability.SUPPORTS_CUDA:
             return cuda_evidence
         if supported and capability is Capability.SUPPORTS_MIXED_PRECISION:
             return mixed_evidence
+        if supported and capability is Capability.SUPPORTS_DISTRIBUTED_TRAINING:
+            return distributed_evidence
         if supported:
             return f"Local torch/transformers runtime supports {capability.value}."
         if not torch_available:
@@ -350,6 +395,8 @@ class SystemCapabilityProvider:
             return cuda_evidence
         if capability is Capability.SUPPORTS_MIXED_PRECISION:
             return mixed_evidence
+        if capability is Capability.SUPPORTS_DISTRIBUTED_TRAINING:
+            return distributed_evidence
         return f"Configure a backend that explicitly supports {capability.value}."
 
 
@@ -422,6 +469,10 @@ class RLTrainingEngine:
             requirements.update(_factory_requirements(self.algorithm_factory, self.config))
         detected = self.capability_provider.detect(self.config)
         detected.require(requirements)
+        if _distributed_runtime(self.config).strategy != "none":
+            from .backends.torch_cuda import validate_distributed_runtime
+
+            validate_distributed_runtime(self.config)
         snapshot = _capture_dataset_snapshot(
             self.config,
             require_pairs=self._default_dataset and mode in {"evaluate", "train", "resume"},
@@ -1674,6 +1725,7 @@ class _LocalCheckpointCoordinator:
             backend_snapshot=backend_snapshot,
             backend_rollback=rollback,
             rng_topology=topology,
+            rank=_distributed_runtime(config).rank,
         )
 
     def load(self, path: Path) -> object:
@@ -1685,6 +1737,7 @@ class _LocalCheckpointCoordinator:
             backend_snapshot=self._backend_snapshot,
             backend_rollback=self._backend_rollback,
             rng_topology=self._rng_topology,
+            rank=_distributed_runtime(self.config).rank,
         )
         return selected_store.load(
             path,
@@ -1739,7 +1792,10 @@ class _JSONLRunLogger:
         self.config = config
         self.run_id = f"rl-{uuid.uuid4().hex}"
         self.directory = Path(config.logging.log_dir) / self.run_id
-        self.sink = JSONLLoggingSink(self.directory, rank=0)
+        self.sink = JSONLLoggingSink(
+            self.directory,
+            rank=_distributed_runtime(config).rank,
+        )
         self.dataset_hash = dataset_hash
         self.backend_name = "torch_portable"
         self._record_counter = 0
@@ -1840,7 +1896,10 @@ class _JSONLRunLogger:
             actor_backend=self.backend_name,
             learner_backend=self.backend_name,
             policy_version=f"policy-{global_step}",
-            metrics={"total_reward": mean, **component_means},
+            metrics=_distributed_mean_scalars(
+                self.config,
+                {"total_reward": mean, **component_means},
+            ),
         )
         self.sink.log_metrics(record)
         for index, reward in enumerate(rewards):
@@ -1908,7 +1967,7 @@ class _JSONLRunLogger:
                 actor_backend=self.backend_name,
                 learner_backend=self.backend_name,
                 policy_version=f"policy-{global_step - 1}",
-                metrics=metrics,
+                metrics=_distributed_mean_scalars(self.config, metrics),
             )
         )
 
@@ -1949,6 +2008,12 @@ def _config_payload(config: RLRunConfig) -> bytes:
     payload["dataset"] = {"format": dataset["format"]}
     algorithm = cast(dict[str, object], payload["algorithm"])
     algorithm.pop("max_steps", None)
+    runtime = cast(dict[str, object], payload["runtime"])
+    distributed = cast(dict[str, object], runtime["distributed"])
+    if distributed["strategy"] != "none":
+        runtime["device"] = "cuda:<local_rank>"
+        distributed.pop("rank", None)
+        distributed.pop("local_rank", None)
     serialized = json.dumps(
         payload,
         allow_nan=False,
@@ -1960,6 +2025,33 @@ def _config_payload(config: RLRunConfig) -> bytes:
 
 def _config_hash(config: RLRunConfig) -> str:
     return hashlib.sha256(_config_payload(config)).hexdigest()
+
+
+def _distributed_mean_scalars(
+    config: RLRunConfig,
+    metrics: Mapping[str, float],
+) -> dict[str, float]:
+    values = {name: float(value) for name, value in metrics.items()}
+    topology = _distributed_runtime(config)
+    if topology.strategy == "none" or not values:
+        return values
+    import torch
+
+    names = sorted(values)
+    tensor = torch.tensor(
+        [values[name] for name in names],
+        dtype=torch.float64,
+        device=config.runtime.device,
+    )
+    torch.distributed.all_reduce(tensor, op=torch.distributed.ReduceOp.SUM)
+    tensor /= topology.world_size
+    return {name: float(value) for name, value in zip(names, tensor.cpu().tolist())}
+
+
+def _distributed_runtime(config: RLRunConfig) -> DistributedRuntimeConfig:
+    """Return single-process defaults for deliberately malformed legacy test objects."""
+    value = getattr(config.runtime, "distributed", None)
+    return value if isinstance(value, DistributedRuntimeConfig) else DistributedRuntimeConfig()
 
 
 def _scalar(value: object) -> float | None:

@@ -402,10 +402,10 @@ class JSONLLoggingSink:
                                 )
 
     def log_metrics(self, record: MetricRecord | Mapping[str, object]) -> bool:
-        """Append one metric record; only rank zero writes aggregate metrics."""
-        parsed = record if isinstance(record, MetricRecord) else MetricRecord.from_mapping(record)
-        if parsed.scope == "aggregate" and self.rank != 0:
+        """Append one metric record only from the canonical rank-zero writer."""
+        if self.rank != 0:
             return False
+        parsed = record if isinstance(record, MetricRecord) else MetricRecord.from_mapping(record)
         manifest = self._require_run(parsed)
         return self._append_unique(
             self.directory / "metrics.jsonl",
@@ -414,7 +414,9 @@ class JSONLLoggingSink:
         )
 
     def log_trajectory(self, record: TrajectoryRecord | Mapping[str, object]) -> bool:
-        """Append one evidence-preserving trajectory record from any rank."""
+        """Append one evidence-preserving trajectory from the canonical writer."""
+        if self.rank != 0:
+            return False
         parsed = (
             record
             if isinstance(record, TrajectoryRecord)

@@ -15,18 +15,29 @@ from gepa_mindfulness.training.backends.torch_cuda import (
     CudaOutOfMemoryError,
     create_cuda_backend,
     detect_cuda_capabilities,
+    validate_distributed_runtime,
 )
 from gepa_mindfulness.training.backends.torch_policy import TorchPolicyBackend
 from gepa_mindfulness.training.capability import (
+    BackendCapabilities,
     Capability,
     CapabilityError,
+    CapabilityEvidence,
     CapabilityState,
 )
-from gepa_mindfulness.training.engine import RLTrainingEngine, SystemCapabilityProvider
+from gepa_mindfulness.training.engine import (
+    RLTrainingEngine,
+    SystemCapabilityProvider,
+    _config_hash,
+    _distributed_mean_scalars,
+    _JSONLRunLogger,
+    required_capabilities,
+)
 from gepa_mindfulness.training.runtime_config import (
     AlgorithmConfig,
     CheckpointConfig,
     DatasetConfig,
+    DistributedRuntimeConfig,
     LoggingConfig,
     PolicyConfig,
     RLRunConfig,
@@ -109,9 +120,19 @@ class _TinyCudaCausalLM(nn.Module):
         return torch.cat((input_ids, response), dim=1)
 
 
-def _cuda_config(*, device: str = "cuda:0", precision: str = "fp32") -> RLRunConfig:
+def _cuda_config(
+    *,
+    device: str = "cuda:0",
+    precision: str = "fp32",
+    distributed: DistributedRuntimeConfig | None = None,
+) -> RLRunConfig:
     return RLRunConfig(
-        runtime=RuntimeConfig(backend="cuda", device=device, precision=precision),
+        runtime=RuntimeConfig(
+            backend="cuda",
+            device=device,
+            precision=precision,
+            distributed=distributed or DistributedRuntimeConfig(),
+        ),
         policy=PolicyConfig(model_name="LOCAL_MODEL_PATH", max_new_tokens=17),
         algorithm=AlgorithmConfig(batch_size=3, gradient_accumulation_steps=5),
     )
@@ -248,6 +269,57 @@ def _available_cuda(
     monkeypatch.setattr(torch.cuda, "is_bf16_supported", lambda: bf16_supported)
 
 
+def _distributed_cuda_smoke_worker(
+    rank: int,
+    dataset_path: str,
+    checkpoint_dir: str,
+    log_dir: str,
+    init_file: str,
+) -> None:
+    torch.cuda.set_device(rank)
+    torch.distributed.init_process_group(
+        "nccl",
+        init_method=f"file://{Path(init_file).as_posix()}",
+        world_size=2,
+        rank=rank,
+    )
+    try:
+        config = RLRunConfig(
+            runtime=RuntimeConfig(
+                backend="cuda",
+                device=f"cuda:{rank}",
+                distributed=DistributedRuntimeConfig(
+                    strategy="ddp",
+                    world_size=2,
+                    rank=rank,
+                    local_rank=rank,
+                ),
+            ),
+            policy=PolicyConfig(model_name="tiny-local-cuda-lm", max_new_tokens=1),
+            algorithm=AlgorithmConfig(
+                name="ppo",
+                learning_rate=0.05,
+                batch_size=1,
+                max_steps=1,
+            ),
+            dataset=DatasetConfig(train_path=dataset_path),
+            checkpoint=CheckpointConfig(output_dir=checkpoint_dir, save_steps=1),
+            logging=LoggingConfig(log_dir=log_dir),
+            seed=42,
+        )
+        engine = RLTrainingEngine(
+            config,
+            backend_factory=lambda value: create_cuda_backend(
+                value,
+                lambda: (_TinyCudaCausalLM(), _TinyCudaTokenizer()),
+            ),
+        )
+        result = engine.train(max_steps=1)
+        assert result.global_step == 1
+    finally:
+        torch.distributed.destroy_process_group()
+
+
 def _never_called() -> tuple[object, object]:
     raise AssertionError("model loading must happen only after CUDA validation")
 
@@ -260,6 +332,323 @@ def test_cuda_factory_rejects_unavailable_runtime_before_model_loading(
 
     with pytest.raises(CapabilityError, match="CUDA is unavailable"):
         create_cuda_backend(_cuda_config(), _never_called)
+
+
+@pytest.mark.parametrize(
+    ("initialized", "world_size", "rank", "message"),
+    [
+        (False, 2, 0, "initialized"),
+        (True, 3, 0, "world_size"),
+        (True, 2, 1, "rank"),
+    ],
+)
+def test_distributed_preflight_rejects_process_group_mismatch_before_model_loading(
+    monkeypatch: pytest.MonkeyPatch,
+    initialized: bool,
+    world_size: int,
+    rank: int,
+    message: str,
+) -> None:
+    _available_cuda(monkeypatch, device_count=2)
+    monkeypatch.setattr(torch.distributed, "is_available", lambda: True)
+    monkeypatch.setattr(torch.distributed, "is_initialized", lambda: initialized)
+    monkeypatch.setattr(torch.distributed, "get_world_size", lambda: world_size)
+    monkeypatch.setattr(torch.distributed, "get_rank", lambda: rank)
+    config = _cuda_config(
+        distributed=DistributedRuntimeConfig(
+            strategy="ddp",
+            world_size=2,
+            rank=0,
+            local_rank=0,
+        )
+    )
+
+    with pytest.raises(CapabilityError, match=message):
+        create_cuda_backend(config, _never_called)
+
+
+def test_distributed_preflight_rejects_unavailable_torch_distributed() -> None:
+    config = _cuda_config(
+        distributed=DistributedRuntimeConfig(
+            strategy="ddp",
+            world_size=2,
+            rank=0,
+            local_rank=0,
+        )
+    )
+    fake_distributed = SimpleNamespace(is_available=lambda: False)
+
+    with pytest.raises(CapabilityError, match="torch.distributed"):
+        validate_distributed_runtime(config, distributed=fake_distributed)
+
+
+def test_fsdp_sharded_optimizer_fails_before_model_or_checkpoint_side_effects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _available_cuda(monkeypatch, device_count=2)
+    monkeypatch.setattr(torch.distributed, "is_available", lambda: True)
+    monkeypatch.setattr(torch.distributed, "is_initialized", lambda: True)
+    monkeypatch.setattr(torch.distributed, "get_world_size", lambda: 2)
+    monkeypatch.setattr(torch.distributed, "get_rank", lambda: 0)
+    config = _cuda_config(
+        distributed=DistributedRuntimeConfig(
+            strategy="fsdp",
+            world_size=2,
+            rank=0,
+            local_rank=0,
+            sharded_optimizer=True,
+        )
+    )
+
+    with pytest.raises(CapabilityError, match="sharded optimizer.*checkpoint"):
+        create_cuda_backend(config, _never_called)
+
+
+def test_distributed_runtime_adds_explicit_capability_requirement() -> None:
+    config = _cuda_config(
+        distributed=DistributedRuntimeConfig(
+            strategy="ddp",
+            world_size=2,
+            rank=0,
+            local_rank=0,
+        )
+    )
+
+    assert Capability.SUPPORTS_DISTRIBUTED_TRAINING in required_capabilities(config, "train")
+
+
+def test_system_provider_reports_exact_initialized_process_group_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    selected: list[int] = []
+    fake_cuda = SimpleNamespace(
+        is_available=lambda: True,
+        device_count=lambda: 2,
+        device=lambda index: _RecordingDeviceContext(selected, index),
+        is_bf16_supported=lambda: True,
+    )
+    fake_distributed = SimpleNamespace(
+        is_available=lambda: True,
+        is_initialized=lambda: True,
+        get_world_size=lambda: 2,
+        get_rank=lambda: 0,
+    )
+    fake_torch = SimpleNamespace(cuda=fake_cuda, distributed=fake_distributed)
+    monkeypatch.setattr(
+        "gepa_mindfulness.training.engine.importlib.util.find_spec",
+        lambda name: SimpleNamespace() if name in {"torch", "transformers"} else None,
+    )
+    monkeypatch.setattr(
+        "gepa_mindfulness.training.engine.import_module",
+        lambda name: fake_torch if name == "torch" else None,
+    )
+    config = _cuda_config(
+        distributed=DistributedRuntimeConfig(
+            strategy="ddp",
+            world_size=2,
+            rank=0,
+            local_rank=0,
+        )
+    )
+
+    report = SystemCapabilityProvider().detect(config)
+
+    capability = report.capabilities[Capability.SUPPORTS_DISTRIBUTED_TRAINING]
+    assert capability.state is CapabilityState.SUPPORTED
+    assert "world_size=2" in capability.evidence
+    assert "rank=0" in capability.evidence
+
+
+def test_engine_distributed_preflight_precedes_dataset_model_rng_and_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+    supported = BackendCapabilities(
+        backend_name="fake",
+        backend_version="1",
+        capabilities={
+            capability: CapabilityEvidence(
+                state=CapabilityState.SUPPORTED,
+                evidence="test evidence",
+            )
+            for capability in Capability
+        },
+    )
+    provider = SimpleNamespace(detect=lambda config: (events.append("capability"), supported)[1])
+
+    def fail_preflight(config: RLRunConfig) -> None:
+        del config
+        events.append("distributed_preflight")
+        raise CapabilityError("process group mismatch")
+
+    def forbidden(name: str) -> object:
+        events.append(name)
+        raise AssertionError(f"{name} must happen after distributed preflight")
+
+    monkeypatch.setattr(
+        "gepa_mindfulness.training.backends.torch_cuda.validate_distributed_runtime",
+        fail_preflight,
+    )
+    monkeypatch.setattr(
+        "gepa_mindfulness.training.engine.random.seed",
+        lambda seed: forbidden("rng"),
+    )
+    config = _cuda_config(
+        distributed=DistributedRuntimeConfig(
+            strategy="ddp",
+            world_size=2,
+            rank=0,
+            local_rank=0,
+        )
+    )
+    engine = RLTrainingEngine(
+        config,
+        capability_provider=provider,
+        backend_factory=lambda value: forbidden("model"),
+        dataset_factory=lambda value: forbidden("dataset"),
+        logger_factory=lambda value: forbidden("output"),
+    )
+
+    with pytest.raises(CapabilityError, match="process group mismatch"):
+        engine.collect()
+
+    assert events == ["capability", "distributed_preflight"]
+
+
+def test_rank_local_fields_do_not_change_distributed_checkpoint_compatibility_hash() -> None:
+    rank_zero = _cuda_config(
+        device="cuda:0",
+        distributed=DistributedRuntimeConfig(
+            strategy="ddp",
+            world_size=2,
+            rank=0,
+            local_rank=0,
+        ),
+    )
+    rank_one = _cuda_config(
+        device="cuda:1",
+        distributed=DistributedRuntimeConfig(
+            strategy="ddp",
+            world_size=2,
+            rank=1,
+            local_rank=1,
+        ),
+    )
+
+    assert _config_hash(rank_zero) == _config_hash(rank_one)
+
+
+def test_nonzero_engine_logger_uses_inert_rank_aware_sink(tmp_path: Path) -> None:
+    config = RLRunConfig(
+        runtime=RuntimeConfig(
+            backend="cuda",
+            device="cuda:1",
+            distributed=DistributedRuntimeConfig(
+                strategy="ddp",
+                world_size=2,
+                rank=1,
+                local_rank=1,
+            ),
+        ),
+        logging=LoggingConfig(log_dir=str(tmp_path)),
+    )
+
+    logger = _JSONLRunLogger(config, "a" * 64)
+
+    assert logger.sink.rank == 1
+    assert not logger.directory.exists()
+
+
+def test_run_level_scalar_metrics_are_mean_reduced_across_ranks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _cuda_config(
+        distributed=DistributedRuntimeConfig(
+            strategy="ddp",
+            world_size=2,
+            rank=0,
+            local_rank=0,
+        )
+    )
+    original_tensor = torch.tensor
+    reductions: list[torch.Tensor] = []
+    monkeypatch.setattr(
+        torch,
+        "tensor",
+        lambda values, **kwargs: original_tensor(values, dtype=kwargs.get("dtype")),
+    )
+
+    def fake_all_reduce(values: torch.Tensor, *, op: object) -> None:
+        assert op is torch.distributed.ReduceOp.SUM
+        reductions.append(values.clone())
+        values.add_(original_tensor([3.0, 7.0], dtype=values.dtype))
+
+    monkeypatch.setattr(torch.distributed, "all_reduce", fake_all_reduce)
+
+    reduced = _distributed_mean_scalars(
+        config,
+        {"policy_loss": 1.0, "total_reward": 5.0},
+    )
+
+    assert len(reductions) == 1
+    assert reduced == {"policy_loss": 2.0, "total_reward": 6.0}
+
+
+@pytest.mark.parametrize("strategy", ["ddp", "fsdp"])
+def test_cuda_factory_wraps_only_trainable_policy_with_selected_strategy(
+    monkeypatch: pytest.MonkeyPatch,
+    strategy: str,
+) -> None:
+    _available_cuda(monkeypatch, device_count=2)
+    monkeypatch.setattr(torch.distributed, "is_available", lambda: True)
+    monkeypatch.setattr(torch.distributed, "is_initialized", lambda: True)
+    monkeypatch.setattr(torch.distributed, "get_world_size", lambda: 2)
+    monkeypatch.setattr(torch.distributed, "get_rank", lambda: 0)
+    captured: dict[str, object] = {}
+
+    class RecordingWrapper(nn.Module):
+        def __init__(self, module: nn.Module, **kwargs: object) -> None:
+            super().__init__()
+            self.module = module
+            captured["wrapper_kwargs"] = kwargs
+
+        def forward(self, *args: object, **kwargs: object) -> object:
+            return self.module(*args, **kwargs)
+
+    def fake_backend(**kwargs: object) -> SimpleNamespace:
+        captured.update(kwargs)
+        return SimpleNamespace(**kwargs)
+
+    monkeypatch.setattr(
+        "gepa_mindfulness.training.backends.torch_cuda.DistributedDataParallel",
+        RecordingWrapper,
+    )
+    monkeypatch.setattr(
+        "gepa_mindfulness.training.backends.torch_cuda.FullyShardedDataParallel",
+        RecordingWrapper,
+    )
+    monkeypatch.setattr(
+        "gepa_mindfulness.training.backends.torch_cuda.TorchPolicyBackend",
+        fake_backend,
+    )
+    policy = _TinyCudaCausalLM()
+    monkeypatch.setattr(policy, "to", lambda device: policy)
+    config = _cuda_config(
+        distributed=DistributedRuntimeConfig(
+            strategy=strategy,
+            world_size=2,
+            rank=0,
+            local_rank=0,
+        )
+    )
+
+    create_cuda_backend(config, lambda: (policy, _TinyCudaTokenizer()))
+
+    wrapped = captured["policy_model"]
+    assert isinstance(wrapped, RecordingWrapper)
+    assert wrapped.module is policy
+    assert isinstance(captured["reference_model"], _TinyCudaCausalLM)
+    assert not isinstance(captured["reference_model"], RecordingWrapper)
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:-1", "cuda:one", "cuda:0:1"])
@@ -585,6 +974,23 @@ def test_cuda_single_gpu_template_is_strict_and_uses_bundled_pairs() -> None:
     assert config.dataset.train_path == "data/synthetic/reward_integrity/rl_pairs_v1.jsonl"
 
 
+def test_cuda_ddp_template_is_strict_and_uses_bundled_pairs() -> None:
+    path = Path(__file__).parents[1] / "configs" / "rl" / "cuda_ddp.yaml"
+
+    config = load_rl_config(path)
+
+    assert config.runtime.backend == "cuda"
+    assert config.runtime.device == "cuda:0"
+    assert config.runtime.distributed == DistributedRuntimeConfig(
+        strategy="ddp",
+        world_size=2,
+        rank=0,
+        local_rank=0,
+    )
+    assert config.policy.model_name == "LOCAL_MODEL_PATH"
+    assert config.dataset.train_path == "data/synthetic/reward_integrity/rl_pairs_v1.jsonl"
+
+
 def test_cuda_operator_guide_has_executable_commands_and_honest_host_status() -> None:
     """Omitting an operator step would leave CUDA setup, recovery, or evidence ambiguous."""
     path = Path(__file__).parents[1] / "docs" / "rl" / "README.md"
@@ -606,6 +1012,43 @@ def test_cuda_operator_guide_has_executable_commands_and_honest_host_status() ->
 
     for expected in required_text:
         assert expected in guide
+
+
+@pytest.mark.cuda
+def test_two_gpu_ddp_smoke_has_one_manifest_and_unique_trajectory_stream(tmp_path: Path) -> None:
+    if not torch.cuda.is_available() or torch.cuda.device_count() < 2:
+        pytest.skip("requires at least two visible CUDA devices")
+    if not torch.distributed.is_available() or not torch.distributed.is_nccl_available():
+        pytest.skip("requires torch.distributed with NCCL support")
+    dataset_path = tmp_path / "pairs.jsonl"
+    checkpoint_dir = tmp_path / "checkpoints"
+    log_dir = tmp_path / "logs"
+    init_file = tmp_path / "process-group-init"
+    _write_cuda_pair_dataset(dataset_path)
+
+    torch.multiprocessing.spawn(
+        _distributed_cuda_smoke_worker,
+        args=(
+            str(dataset_path),
+            str(checkpoint_dir),
+            str(log_dir),
+            str(init_file),
+        ),
+        nprocs=2,
+        join=True,
+    )
+
+    manifests = list(log_dir.rglob("run_manifest.json"))
+    assert len(manifests) == 1
+    trajectory_paths = list(log_dir.rglob("trajectories.jsonl"))
+    assert len(trajectory_paths) == 1
+    trajectories = [
+        json.loads(line) for line in trajectory_paths[0].read_text(encoding="utf-8").splitlines()
+    ]
+    trajectory_ids = [record["trajectory"]["trajectory_id"] for record in trajectories]
+    assert trajectory_ids
+    assert len(trajectory_ids) == len(set(trajectory_ids))
+    assert len(list(checkpoint_dir.glob("checkpoint-*/manifest.json"))) == 1
 
 
 @pytest.mark.cuda

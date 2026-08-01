@@ -178,21 +178,23 @@ def test_nonzero_rank_does_not_write_manifest_or_aggregate_metrics(tmp_path: Pat
     assert list(tmp_path.iterdir()) == []
 
 
-def test_nonzero_rank_can_write_response_metrics_without_duplicate_records(tmp_path: Path) -> None:
+def test_nonzero_rank_cannot_write_response_metrics_or_trajectories(tmp_path: Path) -> None:
     rank_zero = JSONLLoggingSink(tmp_path, rank=0)
     rank_zero.start_run(_manifest())
     rank_one = JSONLLoggingSink(tmp_path, rank=1)
     record = _metric(record_id="response-1", scope="response")
 
-    assert rank_one.log_metrics(record) is True
-    assert rank_zero.log_metrics(record) is False
+    assert rank_one.log_metrics(record) is False
+    assert rank_one.log_trajectory(_trajectory_record()) is False
+    assert rank_zero.log_metrics(record) is True
 
     records = _jsonl(tmp_path / "metrics.jsonl")
     assert len(records) == 1
     assert records[0]["record_id"] == "response-1"
+    assert (tmp_path / "trajectories.jsonl").read_bytes() == b""
 
 
-def test_parallel_ranks_append_one_complete_record_for_a_shared_id(tmp_path: Path) -> None:
+def test_parallel_nonzero_ranks_never_append_to_canonical_stream(tmp_path: Path) -> None:
     rank_zero = JSONLLoggingSink(tmp_path, rank=0)
     rank_zero.start_run(_manifest())
     context = multiprocessing.get_context("spawn")
@@ -209,7 +211,7 @@ def test_parallel_ranks_append_one_complete_record_for_a_shared_id(tmp_path: Pat
 
     assert all(process.exitcode == 0 for process in processes)
     records = _jsonl(tmp_path / "metrics.jsonl")
-    assert [record["record_id"] for record in records] == ["shared-response-" + "x" * 500_000]
+    assert records == []
 
 
 def test_metric_record_preserves_individual_reward_and_loss_components(tmp_path: Path) -> None:

@@ -13,6 +13,7 @@ from gepa_mindfulness.training.runtime_config import (
     AlgorithmConfig,
     CheckpointConfig,
     DatasetConfig,
+    DistributedRuntimeConfig,
     LoggingConfig,
     PolicyConfig,
     RewardConfig,
@@ -93,6 +94,103 @@ def test_canonical_mapping_produces_frozen_nested_sections() -> None:
     assert config.algorithm.name == "ppo"
     with pytest.raises(FrozenInstanceError):
         config.runtime.device = "cuda"
+
+
+@pytest.mark.parametrize(
+    "distributed",
+    [
+        DistributedRuntimeConfig(),
+        DistributedRuntimeConfig(strategy="ddp", world_size=2, rank=0, local_rank=0),
+        DistributedRuntimeConfig(strategy="ddp", world_size=2, rank=1, local_rank=1),
+        DistributedRuntimeConfig(
+            strategy="fsdp",
+            world_size=4,
+            rank=3,
+            local_rank=3,
+            sharded_optimizer=True,
+        ),
+    ],
+)
+def test_distributed_runtime_config_accepts_closed_valid_matrix(
+    distributed: DistributedRuntimeConfig,
+) -> None:
+    assert (
+        DistributedRuntimeConfig.from_mapping(
+            {
+                "strategy": distributed.strategy,
+                "world_size": distributed.world_size,
+                "rank": distributed.rank,
+                "local_rank": distributed.local_rank,
+                "sharded_optimizer": distributed.sharded_optimizer,
+            }
+        )
+        == distributed
+    )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"strategy": "tensor_parallel"},
+        {"strategy": "none", "world_size": 2},
+        {"strategy": "ddp", "world_size": 1},
+        {"strategy": "ddp", "world_size": 2, "rank": 2},
+        {"strategy": "ddp", "world_size": 2, "local_rank": -1},
+        {"strategy": "ddp", "world_size": 2, "sharded_optimizer": True},
+        {"strategy": "fsdp", "world_size": True},
+        {"unknown": 1},
+    ],
+)
+def test_distributed_runtime_config_rejects_invalid_matrix(payload: dict[str, object]) -> None:
+    with pytest.raises((TypeError, ValueError)):
+        DistributedRuntimeConfig.from_mapping(payload)
+
+
+def test_runtime_config_preserves_single_process_defaults_and_validates_local_device() -> None:
+    assert RuntimeConfig().distributed == DistributedRuntimeConfig()
+
+    runtime = RuntimeConfig(
+        backend="cuda",
+        device="cuda:1",
+        distributed=DistributedRuntimeConfig(
+            strategy="ddp",
+            world_size=2,
+            rank=1,
+            local_rank=1,
+        ),
+    )
+    assert runtime.distributed.rank == 1
+
+    with pytest.raises(ValueError, match="local_rank"):
+        RuntimeConfig(
+            backend="cuda",
+            device="cuda:0",
+            distributed=DistributedRuntimeConfig(
+                strategy="ddp",
+                world_size=2,
+                rank=1,
+                local_rank=1,
+            ),
+        )
+
+
+def test_canonical_mapping_rejects_unknown_distributed_keys_strictly() -> None:
+    payload = canonical_payload()
+    payload["runtime"] = {
+        "backend": "cuda",
+        "device": "cuda:0",
+        "distributed": {
+            "strategy": "ddp",
+            "world_size": 2,
+            "rank": 0,
+            "local_rank": 0,
+            "sharded_optimizer": False,
+            "typo": True,
+        },
+    }
+
+    with pytest.raises(ValueError, match="distributed.*unknown keys"):
+        RLRunConfig.from_mapping(payload)
 
 
 def test_grpo_normalization_config_has_approved_defaults() -> None:

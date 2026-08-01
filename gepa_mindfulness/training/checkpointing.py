@@ -279,6 +279,7 @@ class LocalCheckpointStore:
         backend_snapshot: BackendSnapshot | None = None,
         backend_rollback: BackendRollback | None = None,
         rng_topology: CheckpointRNGTopology | None = None,
+        rank: int = 0,
     ) -> None:
         if not isinstance(root, Path):
             raise TypeError("checkpoint root must be a pathlib.Path")
@@ -296,7 +297,9 @@ class LocalCheckpointStore:
             raise ValueError("backend_snapshot and backend_rollback must be configured together")
         if rng_topology is not None and not isinstance(rng_topology, CheckpointRNGTopology):
             raise TypeError("rng_topology must be a CheckpointRNGTopology")
+        _validate_non_negative_integer(rank, "rank")
         self.root = root.resolve(strict=False)
+        self.rank = rank
         self.backend_save = backend_save
         self.backend_preflight = backend_preflight
         self.backend_load_bytes = backend_load_bytes
@@ -309,10 +312,12 @@ class LocalCheckpointStore:
         snapshot: CheckpointSnapshot,
         *,
         checkpoint_id: str | None = None,
-    ) -> CheckpointManifest:
+    ) -> CheckpointManifest | None:
         """Verify and atomically publish one new sibling checkpoint directory."""
         if not isinstance(snapshot, CheckpointSnapshot):
             raise TypeError("snapshot must be a CheckpointSnapshot")
+        if self.rank != 0:
+            return None
         if self.backend_save is None:
             raise RuntimeError("backend_save is required to create a checkpoint")
         self._validate_rng_topology(

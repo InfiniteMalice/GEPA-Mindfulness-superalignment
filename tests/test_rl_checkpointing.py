@@ -76,6 +76,20 @@ def backend_callbacks() -> tuple[list[bytes], object, _BackendBytesCallbacks]:
     return restored, save_backend, _BackendBytesCallbacks(restored)
 
 
+def test_nonzero_rank_checkpoint_store_never_creates_or_truncates_output(tmp_path: Path) -> None:
+    backend_calls: list[Path] = []
+
+    def unexpected_backend_save(path: Path) -> BackendCheckpointResult:
+        backend_calls.append(path)
+        raise AssertionError("nonzero rank must not publish a backend checkpoint")
+
+    store = LocalCheckpointStore(tmp_path, rank=1, backend_save=unexpected_backend_save)
+
+    assert store.save(_snapshot()) is None
+    assert backend_calls == []
+    assert list(tmp_path.iterdir()) == []
+
+
 def test_checkpoint_round_trip_restores_step_rng_parent_and_state(
     tmp_path: Path,
     backend_callbacks: tuple[list[bytes], object, _BackendBytesCallbacks],
