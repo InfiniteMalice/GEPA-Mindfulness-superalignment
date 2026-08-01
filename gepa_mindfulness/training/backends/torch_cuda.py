@@ -43,6 +43,12 @@ class _DistributedLike(Protocol):
     def get_rank(self) -> int: ...
 
 
+class _CudaLike(Protocol):
+    def set_device(self, device: int | str | torch.device) -> None: ...
+
+    def current_device(self) -> int: ...
+
+
 class CudaOutOfMemoryError(RuntimeError):
     """A CUDA allocation failure with the run settings needed for remediation."""
 
@@ -157,6 +163,7 @@ def validate_distributed_runtime(
     config: RLRunConfig,
     *,
     distributed: _DistributedLike | ModuleType = torch.distributed,
+    cuda: _CudaLike | ModuleType = torch.cuda,
 ) -> None:
     """Fail before model loading unless the configured process group is exact."""
     if not isinstance(config, RLRunConfig):
@@ -168,6 +175,25 @@ def validate_distributed_runtime(
         raise CapabilityError(
             "FSDP sharded optimizer and checkpoint restore are not supported; "
             "use the validated full-state FSDP mode or DDP."
+        )
+    try:
+        cuda.set_device(topology.local_rank)
+    except (AssertionError, RuntimeError, TypeError, ValueError) as error:
+        raise CapabilityError(
+            f"CUDA device {config.runtime.device} could not be activated for "
+            f"local_rank={topology.local_rank}: {error}"
+        ) from error
+    try:
+        current_device = int(cuda.current_device())
+    except (AssertionError, RuntimeError, TypeError, ValueError) as error:
+        raise CapabilityError(
+            f"CUDA current device could not be verified after activating "
+            f"{config.runtime.device}: {error}"
+        ) from error
+    if current_device != topology.local_rank:
+        raise CapabilityError(
+            f"current CUDA device cuda:{current_device} does not match configured "
+            f"{config.runtime.device} for local_rank={topology.local_rank}"
         )
     if not distributed.is_available():
         raise CapabilityError("torch.distributed is unavailable in this PyTorch runtime")

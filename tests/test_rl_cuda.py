@@ -273,6 +273,8 @@ def _available_cuda(
         lambda index: _RecordingDeviceContext([], index),
     )
     monkeypatch.setattr(torch.cuda, "is_bf16_supported", lambda: bf16_supported)
+    monkeypatch.setattr(torch.cuda, "set_device", lambda index: None)
+    monkeypatch.setattr(torch.cuda, "current_device", lambda: 0)
 
 
 def _distributed_cuda_smoke_worker(
@@ -291,7 +293,6 @@ def _distributed_cuda_smoke_worker(
         }
     )
     template = load_rl_config(config_path)
-    torch.cuda.set_device(rank)
     torch.distributed.init_process_group(
         "nccl",
         init_method=f"file://{Path(init_file).as_posix()}",
@@ -435,9 +436,137 @@ def test_distributed_preflight_rejects_unavailable_torch_distributed() -> None:
         )
     )
     fake_distributed = SimpleNamespace(is_available=lambda: False)
+    fake_cuda = SimpleNamespace(
+        set_device=lambda index: None,
+        current_device=lambda: 0,
+    )
 
     with pytest.raises(CapabilityError, match="torch.distributed"):
-        validate_distributed_runtime(config, distributed=fake_distributed)
+        validate_distributed_runtime(
+            config,
+            distributed=fake_distributed,
+            cuda=fake_cuda,
+        )
+
+
+def test_distributed_preflight_activates_and_verifies_local_cuda_before_group_queries() -> None:
+    events: list[str] = []
+    config = _cuda_config(
+        device="cuda:1",
+        distributed=DistributedRuntimeConfig(
+            strategy="ddp",
+            world_size=2,
+            rank=1,
+            local_rank=1,
+        ),
+    )
+    fake_cuda = SimpleNamespace(
+        set_device=lambda index: events.append(f"cuda.set_device:{index}"),
+        current_device=lambda: (events.append("cuda.current_device"), 1)[1],
+    )
+    fake_distributed = SimpleNamespace(
+        is_available=lambda: (events.append("distributed.is_available"), True)[1],
+        is_initialized=lambda: (events.append("distributed.is_initialized"), True)[1],
+        get_world_size=lambda: (events.append("distributed.get_world_size"), 2)[1],
+        get_rank=lambda: (events.append("distributed.get_rank"), 1)[1],
+    )
+
+    validate_distributed_runtime(
+        config,
+        distributed=fake_distributed,
+        cuda=fake_cuda,
+    )
+
+    assert events == [
+        "cuda.set_device:1",
+        "cuda.current_device",
+        "distributed.is_available",
+        "distributed.is_initialized",
+        "distributed.get_world_size",
+        "distributed.get_rank",
+    ]
+
+
+def test_distributed_preflight_rejects_device_activation_before_group_queries() -> None:
+    events: list[str] = []
+    config = _cuda_config(
+        device="cuda:1",
+        distributed=DistributedRuntimeConfig(
+            strategy="ddp",
+            world_size=2,
+            rank=1,
+            local_rank=1,
+        ),
+    )
+
+    def fail_set_device(index: int) -> None:
+        events.append(f"cuda.set_device:{index}")
+        raise RuntimeError("driver refused activation")
+
+    fake_cuda = SimpleNamespace(
+        set_device=fail_set_device,
+        current_device=lambda: events.append("cuda.current_device"),
+    )
+    fake_distributed = SimpleNamespace(
+        is_available=lambda: events.append("distributed.is_available"),
+    )
+
+    with pytest.raises(CapabilityError, match=r"cuda:1.*activate.*driver refused"):
+        validate_distributed_runtime(
+            config,
+            distributed=fake_distributed,
+            cuda=fake_cuda,
+        )
+
+    assert events == ["cuda.set_device:1"]
+
+
+def test_distributed_preflight_rejects_current_cuda_mismatch_before_group_queries() -> None:
+    events: list[str] = []
+    config = _cuda_config(
+        device="cuda:1",
+        distributed=DistributedRuntimeConfig(
+            strategy="ddp",
+            world_size=2,
+            rank=1,
+            local_rank=1,
+        ),
+    )
+    fake_cuda = SimpleNamespace(
+        set_device=lambda index: events.append(f"cuda.set_device:{index}"),
+        current_device=lambda: (events.append("cuda.current_device"), 0)[1],
+    )
+    fake_distributed = SimpleNamespace(
+        is_available=lambda: events.append("distributed.is_available"),
+    )
+
+    with pytest.raises(CapabilityError, match=r"current CUDA device cuda:0.*cuda:1"):
+        validate_distributed_runtime(
+            config,
+            distributed=fake_distributed,
+            cuda=fake_cuda,
+        )
+
+    assert events == ["cuda.set_device:1", "cuda.current_device"]
+
+
+def test_single_process_preflight_never_activates_cuda_or_queries_process_group() -> None:
+    calls: list[str] = []
+    fake_cuda = SimpleNamespace(
+        set_device=lambda index: calls.append("cuda.set_device"),
+        current_device=lambda: calls.append("cuda.current_device"),
+    )
+    fake_distributed = SimpleNamespace(
+        is_available=lambda: calls.append("distributed.is_available"),
+    )
+
+    validate_distributed_runtime(
+        _cuda_config(),
+        distributed=fake_distributed,
+        cuda=fake_cuda,
+    )
+
+    assert calls == []
 
 
 def test_fsdp_sharded_optimizer_fails_before_model_or_checkpoint_side_effects(
