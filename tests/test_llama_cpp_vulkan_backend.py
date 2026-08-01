@@ -160,17 +160,28 @@ def _completion(
     if probabilities is not None:
         pieces = content.split("|")
         assert len(pieces) == len(probabilities)
+        assert tokens is not None and len(tokens) == len(probabilities)
         body["completion_probabilities"] = [
             {
-                "content": piece,
-                "probs": [
+                "id": token_id,
+                "token": piece,
+                "bytes": list(piece.encode("utf-8")),
+                "logprob": math.log(probability),
+                "top_logprobs": [
                     {
-                        "prob": probability,
-                        "tok_str": piece,
+                        "id": token_id,
+                        "token": piece,
+                        "bytes": list(piece.encode("utf-8")),
+                        "logprob": math.log(probability),
                     }
                 ],
             }
-            for piece, probability in zip(pieces, probabilities, strict=True)
+            for piece, probability, token_id in zip(
+                pieces,
+                probabilities,
+                tokens,
+                strict=True,
+            )
         ]
         body["content"] = "".join(pieces)
     return body
@@ -447,7 +458,9 @@ def test_grouped_completions_preserve_order_and_forward_effective_sampling(
         {
             "n_predict": 7,
             "n_probs": 1,
+            "post_sampling_probs": False,
             "prompt": "grouped",
+            "return_tokens": True,
             "model": "tiny-model.gguf",
             "seed": 40,
             "stream": False,
@@ -457,7 +470,9 @@ def test_grouped_completions_preserve_order_and_forward_effective_sampling(
         {
             "n_predict": 7,
             "n_probs": 1,
+            "post_sampling_probs": False,
             "prompt": "grouped",
+            "return_tokens": True,
             "model": "tiny-model.gguf",
             "seed": 41,
             "stream": False,
@@ -467,7 +482,9 @@ def test_grouped_completions_preserve_order_and_forward_effective_sampling(
         {
             "n_predict": 32,
             "n_probs": 1,
+            "post_sampling_probs": False,
             "prompt": "single",
+            "return_tokens": True,
             "model": "tiny-model.gguf",
             "seed": 90,
             "stream": False,
@@ -626,22 +643,52 @@ def test_capabilities_use_only_observed_server_evidence(
             {
                 "content": "x",
                 "model": "tiny-model.gguf",
-                "tokens": [1, 2],
+                "tokens": [1],
                 "completion_probabilities": [
-                    {"content": "x", "probs": [{"prob": 0.5, "tok_str": "x"}]}
+                    {
+                        "id": 2,
+                        "token": "x",
+                        "bytes": [120],
+                        "logprob": -0.5,
+                        "top_logprobs": [],
+                    }
                 ],
             },
-            "align",
+            "selected.*IDs",
         ),
         (
             {
                 "content": "x",
                 "model": "tiny-model.gguf",
+                "tokens": [1],
                 "completion_probabilities": [
-                    {"content": "x", "probs": [{"prob": float("nan"), "tok_str": "x"}]}
+                    {
+                        "id": 1,
+                        "token": "x",
+                        "bytes": [256],
+                        "logprob": -0.5,
+                        "top_logprobs": [],
+                    }
                 ],
             },
-            "finite",
+            "bytes",
+        ),
+        (
+            {
+                "content": "x",
+                "model": "tiny-model.gguf",
+                "tokens": [1],
+                "completion_probabilities": [
+                    {
+                        "id": 1,
+                        "token": "x",
+                        "bytes": [120],
+                        "logprob": 0.01,
+                        "top_logprobs": [],
+                    }
+                ],
+            },
+            "logprob",
         ),
     ],
 )
@@ -681,17 +728,10 @@ def test_empty_probability_array_does_not_claim_token_probability_evidence(
     )
 
 
-@pytest.mark.parametrize(
-    "invalid_candidate",
-    [
-        "not-an-object",
-        {"prob": 0.25, "tok_str": 7},
-        {"prob": 1.5, "tok_str": "other"},
-    ],
-)
-def test_probability_validation_rejects_every_invalid_candidate(
+@pytest.mark.parametrize("invalid_top_record", ["not-an-object", {"id": True}])
+def test_probability_validation_rejects_every_invalid_top_record(
     mock_llama_server: _MockLlamaServer,
-    invalid_candidate: object,
+    invalid_top_record: object,
 ) -> None:
     mock_llama_server.prime_metadata()
     mock_llama_server.enqueue(
@@ -700,20 +740,36 @@ def test_probability_validation_rejects_every_invalid_candidate(
         {
             "content": "x",
             "model": "tiny-model.gguf",
+            "tokens": [1],
             "completion_probabilities": [
                 {
-                    "content": "x",
-                    "probs": [
-                        {"prob": 0.5, "tok_str": "x"},
-                        invalid_candidate,
-                    ],
+                    "id": 1,
+                    "token": "x",
+                    "bytes": [120],
+                    "logprob": -0.5,
+                    "top_logprobs": [invalid_top_record],
                 }
             ],
         },
     )
     backend = LlamaCppVulkanBackend(mock_llama_server.endpoint)
 
-    with pytest.raises(LlamaCppServerError, match="candidate"):
+    with pytest.raises(LlamaCppServerError, match="top_logprobs"):
+        backend.generate([RolloutRequest(prompt="hello")])
+
+
+def test_probability_validation_bounds_top_logprobs_to_requested_count(
+    mock_llama_server: _MockLlamaServer,
+) -> None:
+    body = _completion("x", tokens=[1], probabilities=[0.5])
+    records = cast(list[dict[str, object]], body["completion_probabilities"])
+    top_records = cast(list[dict[str, object]], records[0]["top_logprobs"])
+    records[0]["top_logprobs"] = [top_records[0], dict(top_records[0])]
+    mock_llama_server.prime_metadata()
+    mock_llama_server.enqueue("POST", "/completion", body)
+    backend = LlamaCppVulkanBackend(mock_llama_server.endpoint)
+
+    with pytest.raises(LlamaCppServerError, match="at most one"):
         backend.generate([RolloutRequest(prompt="hello")])
 
 
@@ -727,9 +783,22 @@ def test_probability_record_text_must_reconstruct_completion_content(
         {
             "content": "xy",
             "model": "tiny-model.gguf",
+            "tokens": [1, 2],
             "completion_probabilities": [
-                {"content": "x", "probs": [{"prob": 0.5, "tok_str": "x"}]},
-                {"content": "z", "probs": [{"prob": 0.5, "tok_str": "z"}]},
+                {
+                    "id": 1,
+                    "token": "x",
+                    "bytes": [120],
+                    "logprob": -0.5,
+                    "top_logprobs": [],
+                },
+                {
+                    "id": 2,
+                    "token": "z",
+                    "bytes": [122],
+                    "logprob": -0.5,
+                    "top_logprobs": [],
+                },
             ],
         },
     )
@@ -737,6 +806,44 @@ def test_probability_record_text_must_reconstruct_completion_content(
 
     with pytest.raises(LlamaCppServerError, match="probability.*text.*completion"):
         backend.generate([RolloutRequest(prompt="hello")])
+
+
+def test_probability_bytes_reconstruct_utf8_split_across_tokens(
+    mock_llama_server: _MockLlamaServer,
+) -> None:
+    mock_llama_server.prime_metadata()
+    mock_llama_server.enqueue(
+        "POST",
+        "/completion",
+        {
+            "content": "😀",
+            "model": "tiny-model.gguf",
+            "tokens": [101, 102],
+            "completion_probabilities": [
+                {
+                    "id": 101,
+                    "token": "<0xF0><0x9F>",
+                    "bytes": [240, 159],
+                    "logprob": -0.25,
+                    "top_logprobs": [],
+                },
+                {
+                    "id": 102,
+                    "token": "<0x98><0x80>",
+                    "bytes": [152, 128],
+                    "logprob": -0.5,
+                    "top_logprobs": [],
+                },
+            ],
+        },
+    )
+    backend = LlamaCppVulkanBackend(mock_llama_server.endpoint)
+
+    trajectory = backend.generate([RolloutRequest(prompt="hello")])[0]
+
+    assert trajectory.response == "😀"
+    assert trajectory.response_token_ids == (101, 102)
+    assert trajectory.old_log_probs == (-0.25, -0.5)
 
 
 @pytest.mark.parametrize(

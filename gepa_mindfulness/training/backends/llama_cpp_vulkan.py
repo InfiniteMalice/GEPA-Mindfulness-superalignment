@@ -48,7 +48,15 @@ _UNSUPPORTED_TRAINING_CAPABILITIES = frozenset(
         Capability.SUPPORTS_VALUE_HEAD,
     }
 )
+_LLAMA_VERSION_LINE = re.compile(
+    r"^version:\s*[1-9]\d*\s*\([0-9a-f]{7,40}\)$",
+    re.IGNORECASE,
+)
+_LLAMA_BUILD_LINE = re.compile(r"^built with\s+\S(?:.*\S)?\s+for\s+\S(?:.*\S)?$")
 _VULKAN_BUILD_FLAG = re.compile(r"\bGGML_VULKAN\s*(?:=|:)\s*(?:1|ON|TRUE)\b", re.IGNORECASE)
+_VULKAN_DEVICE_LINE = re.compile(
+    r"^ggml_vulkan: Found ([1-9]\d*) Vulkan devices:$",
+)
 
 
 class LlamaCppServerError(RuntimeError):
@@ -244,6 +252,7 @@ class LlamaCppServerClient:
 class _CommandProbe:
     output: str | None
     failure: str | None
+    lines: tuple[str, ...] = ()
 
 
 class _CappedProbeOutput:
@@ -327,11 +336,14 @@ def detect_llama_cpp_runtime(
     )
 
     vulkan_evidence = detect_vulkan_evidence(timeout_seconds=timeout)
-    if executable_probe.output is not None and _VULKAN_BUILD_FLAG.search(executable_probe.output):
+    if executable_probe.output is not None and (
+        _VULKAN_BUILD_FLAG.search(executable_probe.output)
+        or any(_VULKAN_DEVICE_LINE.fullmatch(line) for line in executable_probe.lines)
+    ):
         vulkan_evidence = CapabilityEvidence(
             state=CapabilityState.SUPPORTED,
             evidence=(
-                "llama-server --version reported explicit Vulkan build flag: "
+                "llama-server --version reported positive Vulkan evidence: "
                 f"{executable_probe.output}"
             ),
         )
@@ -366,7 +378,7 @@ def _detect_llama_executable(timeout_seconds: float) -> _CommandProbe:
         timeout_seconds=timeout_seconds,
         display_name="llama-server --version",
     )
-    if probe.output is not None and "llama" not in probe.output.casefold():
+    if probe.output is not None and not _has_llama_version_structure(probe.lines):
         return _CommandProbe(
             output=None,
             failure=(
@@ -461,7 +473,11 @@ def _run_read_only_probe(
             output=None,
             failure=f"{display_name} returned no usable build or runtime evidence.",
         )
-    return _CommandProbe(output=output, failure=None)
+    return _CommandProbe(
+        output=output,
+        failure=None,
+        lines=_sanitize_probe_lines(stdout, stderr),
+    )
 
 
 def _read_probe_stream(
@@ -513,6 +529,16 @@ def _sanitize_probe_output(stdout: object, stderr: object) -> str | None:
     return output or None
 
 
+def _sanitize_probe_lines(stdout: object, stderr: object) -> tuple[str, ...]:
+    lines: list[str] = []
+    for stream in (stdout, stderr):
+        for line in _decode_probe_stream(stream).splitlines():
+            sanitized = _sanitize_text(line)
+            if sanitized:
+                lines.append(sanitized)
+    return tuple(lines)
+
+
 def _decode_probe_stream(value: object) -> str:
     if isinstance(value, bytes):
         return value.decode("utf-8", errors="replace")
@@ -532,6 +558,12 @@ def _sanitize_text(value: str) -> str:
 def _has_positive_vulkaninfo_evidence(output: str) -> bool:
     normalized = output.casefold()
     return "vulkan instance version" in normalized or "devicename" in normalized
+
+
+def _has_llama_version_structure(lines: tuple[str, ...]) -> bool:
+    return any(_LLAMA_VERSION_LINE.fullmatch(line) for line in lines) and any(
+        _LLAMA_BUILD_LINE.fullmatch(line) for line in lines
+    )
 
 
 def _unknown_runtime_capabilities() -> dict[Capability, CapabilityEvidence]:
@@ -822,7 +854,9 @@ class LlamaCppVulkanBackend:
             "model": model_identifier,
             "n_predict": max_new_tokens,
             "n_probs": 1,
+            "post_sampling_probs": False,
             "prompt": prompt,
+            "return_tokens": True,
             "stream": False,
         }
         do_sample = parameters.get("do_sample")
@@ -859,9 +893,8 @@ class LlamaCppVulkanBackend:
         log_probs = _response_log_probs(
             response.get("completion_probabilities"),
             content,
+            tokens,
         )
-        if tokens is not None and log_probs is not None and len(tokens) != len(log_probs):
-            raise LlamaCppServerError("llama.cpp completion tokens and probabilities must align")
         return content, tokens, log_probs
 
     @staticmethod
@@ -1040,6 +1073,7 @@ def _response_tokens(value: object) -> tuple[int, ...] | None:
 def _response_log_probs(
     value: object,
     completion_content: str,
+    response_tokens: tuple[int, ...] | None,
 ) -> tuple[float, ...] | None:
     if value is None:
         return None
@@ -1047,58 +1081,77 @@ def _response_log_probs(
         raise LlamaCppServerError("llama.cpp completion probabilities must be an array")
     if not value:
         raise LlamaCppServerError("llama.cpp completion probabilities must be non-empty")
+    if response_tokens is None:
+        raise LlamaCppServerError(
+            "llama.cpp completion tokens are required with probability evidence"
+        )
     log_probs: list[float] = []
-    selected_content: list[str] = []
+    selected_ids: list[int] = []
+    selected_bytes = bytearray()
     for index, record in enumerate(value):
         if not isinstance(record, Mapping):
             raise LlamaCppServerError(
                 f"llama.cpp completion probabilities[{index}] must be an object"
             )
-        content = record.get("content")
-        candidates = record.get("probs")
-        if not isinstance(content, str) or not isinstance(candidates, list) or not candidates:
+        context = f"llama.cpp completion probabilities[{index}]"
+        token_id, token_bytes, log_prob = _validate_logprob_record(record, context)
+        top_logprobs = record.get("top_logprobs")
+        if not isinstance(top_logprobs, list) or len(top_logprobs) > 1:
             raise LlamaCppServerError(
-                f"llama.cpp completion probabilities[{index}] has invalid content or probs"
+                f"{context}.top_logprobs must be an array with at most one record"
             )
-        matches: list[Mapping[str, object]] = []
-        for candidate_index, candidate in enumerate(candidates):
-            if not isinstance(candidate, Mapping):
-                raise LlamaCppServerError(
-                    "llama.cpp completion probability "
-                    f"candidate[{index}][{candidate_index}] must be an object"
-                )
-            token_text = candidate.get("tok_str")
-            probability = candidate.get("prob")
-            if not isinstance(token_text, str):
-                raise LlamaCppServerError(
-                    "llama.cpp completion probability "
-                    f"candidate[{index}][{candidate_index}].tok_str must be a string"
-                )
-            if (
-                isinstance(probability, bool)
-                or not isinstance(probability, (int, float))
-                or not math.isfinite(probability)
-                or not 0.0 < probability <= 1.0
-            ):
-                raise LlamaCppServerError(
-                    "llama.cpp completion probability "
-                    f"candidate[{index}][{candidate_index}].prob must be finite in (0, 1]"
-                )
-            if token_text == content:
-                matches.append(candidate)
-        if len(matches) != 1:
-            raise LlamaCppServerError(
-                f"llama.cpp completion probabilities[{index}] must identify one selected token"
+        for top_index, top_record in enumerate(top_logprobs):
+            if not isinstance(top_record, Mapping):
+                raise LlamaCppServerError(f"{context}.top_logprobs[{top_index}] must be an object")
+            _validate_logprob_record(
+                top_record,
+                f"{context}.top_logprobs[{top_index}]",
             )
-        probability = matches[0].get("prob")
-        assert isinstance(probability, (int, float)) and not isinstance(probability, bool)
-        log_probs.append(math.log(float(probability)))
-        selected_content.append(content)
-    if "".join(selected_content) != completion_content:
+        selected_ids.append(token_id)
+        selected_bytes.extend(token_bytes)
+        log_probs.append(log_prob)
+    if tuple(selected_ids) != response_tokens:
         raise LlamaCppServerError(
-            "llama.cpp probability record text must reconstruct completion content"
+            "llama.cpp selected probability IDs must match top-level completion tokens"
+        )
+    try:
+        reconstructed_content = bytes(selected_bytes).decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise LlamaCppServerError(
+            "llama.cpp selected probability bytes must form valid UTF-8"
+        ) from exc
+    if reconstructed_content != completion_content:
+        raise LlamaCppServerError(
+            "llama.cpp probability byte text must reconstruct completion content"
         )
     return tuple(log_probs)
+
+
+def _validate_logprob_record(
+    record: Mapping[str, object],
+    context: str,
+) -> tuple[int, bytes, float]:
+    token_id = record.get("id")
+    if isinstance(token_id, bool) or not isinstance(token_id, int) or token_id < 0:
+        raise LlamaCppServerError(f"{context}.id must be a non-negative integer")
+    token = record.get("token")
+    if not isinstance(token, str):
+        raise LlamaCppServerError(f"{context}.token must be a string")
+    raw_bytes = record.get("bytes")
+    if not isinstance(raw_bytes, list) or not all(
+        isinstance(item, int) and not isinstance(item, bool) and 0 <= item <= 255
+        for item in raw_bytes
+    ):
+        raise LlamaCppServerError(f"{context}.bytes must contain byte integers in [0, 255]")
+    log_prob = record.get("logprob")
+    if (
+        isinstance(log_prob, bool)
+        or not isinstance(log_prob, (int, float))
+        or not math.isfinite(log_prob)
+        or log_prob > 0.0
+    ):
+        raise LlamaCppServerError(f"{context}.logprob must be finite and at most zero")
+    return token_id, bytes(raw_bytes), float(log_prob)
 
 
 __all__ = [

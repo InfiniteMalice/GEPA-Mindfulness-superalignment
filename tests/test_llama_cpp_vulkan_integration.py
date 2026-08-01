@@ -130,7 +130,7 @@ def test_executable_probe_reports_sanitized_build_evidence_without_starting_serv
         if kwargs.get("shell") is not False:
             raise AssertionError("runtime probe must be shell-free")
         return _FakeProcess(
-            stdout=b"llama.cpp build 4242\ncommit abc123\x00ignored",
+            stdout=(b"version: 8769 (21a4933)\n" b"built with Clang 19.1.5 for Windows x86_64\x00"),
             stderr=b"",
         )
 
@@ -141,13 +141,25 @@ def test_executable_probe_reports_sanitized_build_evidence_without_starting_serv
 
     generation = report.capabilities[Capability.SUPPORTS_GENERATION]
     assert generation.state is CapabilityState.UNKNOWN
-    assert "llama.cpp build 4242 commit abc123 ignored" in generation.evidence
+    version = "version: 8769 (21a4933) built with Clang 19.1.5 for Windows x86_64"
+    assert version in generation.evidence
     assert "\n" not in generation.evidence
-    assert report.backend_version == "llama.cpp build 4242 commit abc123 ignored"
+    assert report.backend_version == version
     assert report.state(Capability.SUPPORTS_VULKAN) is CapabilityState.UNKNOWN
 
 
+@pytest.mark.parametrize(
+    "output",
+    [
+        b"unrelated output",
+        b"version: 8769 (21a4933)",
+        b"built with Clang 19.1.5 for Windows x86_64",
+        b"version: 8769 (21a4933) built with Clang 19.1.5 for Windows x86_64",
+        b"version: 8769 (not-a-commit) built with Clang 19.1.5 for Windows x86_64",
+    ],
+)
 def test_malformed_llama_version_output_is_not_reported_as_a_version(
+    output: bytes,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -158,7 +170,7 @@ def test_malformed_llama_version_output_is_not_reported_as_a_version(
     monkeypatch.setattr(
         llama_backend.subprocess,
         "Popen",
-        lambda *args, **kwargs: _FakeProcess(stdout=b"unrelated output"),
+        lambda *args, **kwargs: _FakeProcess(stdout=output),
     )
 
     report = detect_llama_cpp_runtime()
@@ -181,13 +193,77 @@ def test_llama_build_with_explicit_vulkan_flag_is_positive_evidence(
     monkeypatch.setattr(
         llama_backend.subprocess,
         "Popen",
-        lambda *args, **kwargs: _FakeProcess(stdout=b"llama.cpp build 4242 GGML_VULKAN=1"),
+        lambda *args, **kwargs: _FakeProcess(
+            stdout=(
+                b"GGML_VULKAN=1\nversion: 8145 (c9ced49)\n"
+                b"built with GNU 15.2.1 for Linux x86_64"
+            )
+        ),
     )
 
     report = detect_llama_cpp_runtime()
 
     assert report.state(Capability.SUPPORTS_VULKAN) is CapabilityState.SUPPORTED
     assert "GGML_VULKAN=1" in report.capabilities[Capability.SUPPORTS_VULKAN].evidence
+
+
+def test_real_llama_version_and_vulkan_device_output_is_positive_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        llama_backend.shutil,
+        "which",
+        lambda name: "llama-server" if name == "llama-server" else None,
+    )
+    monkeypatch.setattr(
+        llama_backend.subprocess,
+        "Popen",
+        lambda *args, **kwargs: _FakeProcess(
+            stdout=(
+                b"ggml_vulkan: Found 1 Vulkan devices:\n"
+                b"ggml_vulkan: 0 = AMD Radeon RX 7600\n"
+                b"version: 8145 (c9ced49)\n"
+                b"built with GNU 15.2.1 for Linux x86_64"
+            )
+        ),
+    )
+
+    report = detect_llama_cpp_runtime()
+
+    assert report.backend_version.startswith("ggml_vulkan: Found 1 Vulkan devices:")
+    assert report.state(Capability.SUPPORTS_VULKAN) is CapabilityState.SUPPORTED
+    assert "Found 1 Vulkan devices" in report.capabilities[Capability.SUPPORTS_VULKAN].evidence
+
+
+@pytest.mark.parametrize(
+    "prefix",
+    [
+        "ggml_vulkan: Found 0 Vulkan devices:",
+        "Vulkan backend available",
+    ],
+)
+def test_zero_device_or_bare_vulkan_output_remains_unknown(
+    prefix: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        llama_backend.shutil,
+        "which",
+        lambda name: "llama-server" if name == "llama-server" else None,
+    )
+    output = (
+        f"{prefix}\nversion: 8145 (c9ced49)\n" "built with GNU 15.2.1 for Linux x86_64"
+    ).encode()
+    monkeypatch.setattr(
+        llama_backend.subprocess,
+        "Popen",
+        lambda *args, **kwargs: _FakeProcess(stdout=output),
+    )
+
+    report = detect_llama_cpp_runtime()
+
+    assert report.backend_version != "unknown"
+    assert report.state(Capability.SUPPORTS_VULKAN) is CapabilityState.UNKNOWN
 
 
 def test_vulkaninfo_summary_is_sanitized_positive_evidence(
