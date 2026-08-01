@@ -6,6 +6,7 @@ import importlib
 import json
 import math
 import os
+import re
 import stat
 import threading
 import uuid
@@ -16,6 +17,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import BinaryIO, Iterator, Literal, Protocol, cast
 
+from gepa_mindfulness.training.policy_versions import PolicyVersion
 from gepa_mindfulness.training.trajectory import Trajectory
 
 LOG_SCHEMA_VERSION = 1
@@ -113,9 +115,29 @@ _TRAJECTORY_FIELDS = frozenset(
         "trajectory",
     }
 )
+_PUBLICATION_FIELDS = frozenset(
+    {
+        "actor_backend",
+        "adapter_identifier",
+        "adapter_sha256",
+        "backend",
+        "checkpoint_id",
+        "global_step",
+        "learner_backend",
+        "model_identifier",
+        "parent_policy_version",
+        "policy_version",
+        "record_id",
+        "run_id",
+        "schema_version",
+        "timestamp",
+    }
+)
+_SAFE_IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 _TRAJECTORY_PAYLOAD_REQUIRED_FIELDS = frozenset(
     {
         "adapter_identifier",
+        "adapter_sha256",
         "advantage",
         "backend_name",
         "backend_version",
@@ -365,6 +387,71 @@ class TrajectoryRecord:
         return cls(**values)
 
 
+@dataclass(frozen=True)
+class PublicationRecord:
+    """One closed record proving a checkpoint-backed adapter publication succeeded."""
+
+    record_id: str
+    run_id: str
+    timestamp: str
+    global_step: int
+    backend: str
+    actor_backend: str
+    learner_backend: str
+    parent_policy_version: str
+    policy_version: str
+    adapter_identifier: str
+    adapter_sha256: str
+    model_identifier: str
+    checkpoint_id: str
+    schema_version: int = LOG_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        for field_name in (
+            "record_id",
+            "run_id",
+            "timestamp",
+            "backend",
+            "actor_backend",
+            "learner_backend",
+        ):
+            _required_string(getattr(self, field_name), field_name)
+        _non_negative_integer(self.global_step, "global_step")
+        parent = PolicyVersion.from_json(self.parent_policy_version)
+        current = PolicyVersion.from_json(self.policy_version)
+        if current.value != parent.value + 1:
+            raise ValueError("publication policy_version must be the exact next version")
+        for field_name in ("adapter_identifier", "model_identifier", "checkpoint_id"):
+            _safe_identifier(getattr(self, field_name), field_name)
+        _validate_sha256(self.adapter_sha256, "adapter_sha256")
+        if self.schema_version != LOG_SCHEMA_VERSION:
+            raise ValueError(f"publication schema_version must be {LOG_SCHEMA_VERSION}")
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "actor_backend": self.actor_backend,
+            "adapter_identifier": self.adapter_identifier,
+            "adapter_sha256": self.adapter_sha256,
+            "backend": self.backend,
+            "checkpoint_id": self.checkpoint_id,
+            "global_step": self.global_step,
+            "learner_backend": self.learner_backend,
+            "model_identifier": self.model_identifier,
+            "parent_policy_version": self.parent_policy_version,
+            "policy_version": self.policy_version,
+            "record_id": self.record_id,
+            "run_id": self.run_id,
+            "schema_version": self.schema_version,
+            "timestamp": self.timestamp,
+        }
+
+    @classmethod
+    def from_mapping(cls, payload: object) -> "PublicationRecord":
+        if not isinstance(payload, Mapping) or set(payload) != _PUBLICATION_FIELDS:
+            raise ValueError("publication record fields are missing or unrecognized")
+        return cls(**dict(payload))
+
+
 class JSONLLoggingSink:
     """Append validated run records while suppressing duplicate record IDs."""
 
@@ -391,18 +478,25 @@ class JSONLLoggingSink:
         manifest_path = self.directory / "run_manifest.json"
         metrics_path = self.directory / "metrics.jsonl"
         trajectories_path = self.directory / "trajectories.jsonl"
+        publications_path = self.directory / "publications.jsonl"
         with self._path_lock(metrics_path):
             with _open_regular_stream(metrics_path, create=True) as metrics:
                 with _exclusive_stream_lock(metrics):
                     with self._path_lock(trajectories_path):
                         with _open_regular_stream(trajectories_path, create=True) as trajectories:
                             with _exclusive_stream_lock(trajectories):
-                                return self._start_locked(
-                                    parsed,
-                                    manifest_path,
-                                    metrics,
-                                    trajectories,
-                                )
+                                with self._path_lock(publications_path):
+                                    with _open_regular_stream(
+                                        publications_path, create=True
+                                    ) as publications:
+                                        with _exclusive_stream_lock(publications):
+                                            return self._start_locked(
+                                                parsed,
+                                                manifest_path,
+                                                metrics,
+                                                trajectories,
+                                                publications,
+                                            )
 
     def log_metrics(self, record: MetricRecord | Mapping[str, object]) -> bool:
         """Append one metric record only from the canonical rank-zero writer."""
@@ -432,7 +526,25 @@ class JSONLLoggingSink:
             manifest,
         )
 
-    def _require_run(self, record: MetricRecord | TrajectoryRecord) -> RunManifest:
+    def log_publication(self, record: PublicationRecord | Mapping[str, object]) -> bool:
+        """Append one record only after atomic adapter publication succeeds."""
+        if self.rank != 0:
+            return False
+        parsed = (
+            record
+            if isinstance(record, PublicationRecord)
+            else PublicationRecord.from_mapping(record)
+        )
+        manifest = self._require_run(parsed)
+        return self._append_unique(
+            self.directory / "publications.jsonl",
+            parsed.to_dict(),
+            manifest,
+        )
+
+    def _require_run(
+        self, record: MetricRecord | TrajectoryRecord | PublicationRecord
+    ) -> RunManifest:
         manifest_path = self.directory / "run_manifest.json"
         manifest = RunManifest.from_mapping(self._read_json(manifest_path, "run manifest"))
         if manifest.run_id != record.run_id:
@@ -543,9 +655,13 @@ class JSONLLoggingSink:
                     f"JSONL stream has an invalid record at line {line_number}"
                 ) from error
             if path.name == "metrics.jsonl":
-                record: MetricRecord | TrajectoryRecord = MetricRecord.from_mapping(payload)
+                record: MetricRecord | TrajectoryRecord | PublicationRecord = (
+                    MetricRecord.from_mapping(payload)
+                )
             elif path.name == "trajectories.jsonl":
                 record = TrajectoryRecord.from_mapping(payload)
+            elif path.name == "publications.jsonl":
+                record = PublicationRecord.from_mapping(payload)
             else:
                 raise ValueError(f"unrecognized JSONL stream: {path}")
             cls._validate_record_provenance(record, manifest)
@@ -558,7 +674,7 @@ class JSONLLoggingSink:
 
     @staticmethod
     def _validate_record_provenance(
-        record: MetricRecord | TrajectoryRecord,
+        record: MetricRecord | TrajectoryRecord | PublicationRecord,
         manifest: RunManifest,
     ) -> None:
         if record.run_id != manifest.run_id:
@@ -568,6 +684,11 @@ class JSONLLoggingSink:
             for field in ("backend", "actor_backend", "learner_backend")
         ):
             raise ValueError("log record backend provenance does not match the run manifest")
+        if isinstance(record, PublicationRecord) and (
+            record.model_identifier != manifest.model
+            or record.adapter_identifier != manifest.adapter
+        ):
+            raise ValueError("publication identity does not match the run manifest")
 
     @classmethod
     def _path_lock(cls, path: Path) -> threading.RLock:
@@ -609,6 +730,7 @@ class JSONLLoggingSink:
         manifest_path: Path,
         metrics: BinaryIO,
         trajectories: BinaryIO,
+        publications: BinaryIO,
     ) -> bool:
         existing = self._optional_manifest(manifest_path)
         if existing is not None:
@@ -620,10 +742,16 @@ class JSONLLoggingSink:
                 self.directory / "trajectories.jsonl",
                 existing,
             )
+            self._validate_existing_stream(
+                publications,
+                self.directory / "publications.jsonl",
+                existing,
+            )
             return False
         for stream, name in (
             (metrics, "metrics.jsonl"),
             (trajectories, "trajectories.jsonl"),
+            (publications, "publications.jsonl"),
         ):
             stream.seek(0, os.SEEK_END)
             if stream.tell() != 0:
@@ -687,6 +815,13 @@ def _validate_sha256(value: object, field_name: str) -> str:
     ):
         raise ValueError(f"{field_name} must be a lowercase SHA-256 digest")
     return value
+
+
+def _safe_identifier(value: object, field_name: str) -> str:
+    validated = _required_string(value, field_name)
+    if _SAFE_IDENTIFIER.fullmatch(validated) is None:
+        raise ValueError(f"{field_name} must be a safe identifier")
+    return validated
 
 
 def _json_mapping(value: object, field_name: str) -> dict[str, object]:
@@ -785,6 +920,7 @@ __all__ = [
     "JSONLLoggingSink",
     "LOG_SCHEMA_VERSION",
     "MetricRecord",
+    "PublicationRecord",
     "RunManifest",
     "TrajectoryRecord",
 ]

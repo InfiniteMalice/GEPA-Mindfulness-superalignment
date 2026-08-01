@@ -37,6 +37,7 @@ logging:
   log_dir: runs/hybrid_vulkan/logs
   level: INFO
 hybrid:
+  model_id: LOCAL_TRANSFORMERS_MODEL_ID
   adapter_store: runs/hybrid_vulkan/adapters
   training_mode: lora
   staleness_policy: reject

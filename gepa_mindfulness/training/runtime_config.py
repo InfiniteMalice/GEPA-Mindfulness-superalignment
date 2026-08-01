@@ -20,6 +20,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised without optional dep
     yaml = None
 
 _CUDA_DEVICE = re.compile(r"cuda(?::[0-9]+)?$")
+_SAFE_HYBRID_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 _CANONICAL_DATASET_KEYS = {"format", "train_path", "validation_path"}
 _LEGACY_DATASET_KEYS = {"path", "test_split", "train_split", "val_split"}
 ZeroVariancePolicy = Literal["zero", "center_only", "skip"]
@@ -553,6 +554,7 @@ class LoggingConfig:
 class HybridConfig:
     """Strict experimental actor/learner versioning and publication policy."""
 
+    model_id: str = "local-policy"
     adapter_store: str = "runs/hybrid/adapters"
     training_mode: str = "lora"
     staleness_policy: StalenessPolicy = StalenessPolicy.REJECT
@@ -561,6 +563,12 @@ class HybridConfig:
     lora: Mapping[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        if (
+            type(self.model_id) is not str
+            or _SAFE_HYBRID_ID.fullmatch(self.model_id) is None
+            or self.model_id in {".", ".."}
+        ):
+            raise ValueError("hybrid.model_id must be one safe identifier without path separators")
         if not isinstance(self.adapter_store, str) or not self.adapter_store:
             raise ValueError("hybrid.adapter_store must be a non-empty string")
         if self.training_mode != "lora":
@@ -591,6 +599,31 @@ class HybridConfig:
             "task_type",
         }
         _reject_unknown(self.lora, allowed_lora, "hybrid.lora")
+        rank = self.lora.get("r")
+        if rank is not None and (type(rank) is not int or rank <= 0):
+            raise ValueError("hybrid.lora.r must be a positive integer")
+        alpha = self.lora.get("lora_alpha")
+        if alpha is not None and (
+            isinstance(alpha, bool)
+            or not isinstance(alpha, (int, float))
+            or not math.isfinite(alpha)
+            or alpha <= 0
+        ):
+            raise ValueError("hybrid.lora.lora_alpha must be a finite positive number")
+        dropout = self.lora.get("lora_dropout")
+        if dropout is not None and (
+            isinstance(dropout, bool)
+            or not isinstance(dropout, (int, float))
+            or not math.isfinite(dropout)
+            or not 0.0 <= dropout < 1.0
+        ):
+            raise ValueError("hybrid.lora.lora_dropout must be finite and in [0, 1)")
+        bias = self.lora.get("bias")
+        if bias is not None and (type(bias) is not str or bias != "none"):
+            raise ValueError("hybrid.lora.bias must be 'none' for adapter-only export")
+        task_type = self.lora.get("task_type")
+        if task_type is not None and (type(task_type) is not str or task_type != "CAUSAL_LM"):
+            raise ValueError("hybrid.lora.task_type must be 'CAUSAL_LM'")
         for name in ("target_modules", "modules_to_save"):
             value = self.lora.get(name)
             if value is not None and (
@@ -600,6 +633,13 @@ class HybridConfig:
                 or not all(isinstance(item, str) and item for item in value)
             ):
                 raise ValueError(f"hybrid.lora.{name} must be non-empty strings")
+            if value is not None and (
+                len(set(value)) != len(value)
+                or any(
+                    _SAFE_HYBRID_ID.fullmatch(item) is None or item in {".", ".."} for item in value
+                )
+            ):
+                raise ValueError(f"hybrid.lora.{name} must contain unique safe identifiers")
         object.__setattr__(self, "lora", dict(self.lora))
 
     @classmethod
@@ -609,6 +649,7 @@ class HybridConfig:
             payload,
             {
                 "adapter_store",
+                "model_id",
                 "training_mode",
                 "staleness_policy",
                 "max_policy_lag",
@@ -626,6 +667,7 @@ class HybridConfig:
         if decay is not None:
             decay = _number(payload, "downweight_decay", 0.5, "hybrid")
         return cls(
+            model_id=_string(payload, "model_id", "local-policy", "hybrid"),
             adapter_store=_string(
                 payload,
                 "adapter_store",

@@ -45,8 +45,12 @@ from gepa_mindfulness.training.runtime_config import (
     PolicyConfig,
     RLRunConfig,
     RuntimeConfig,
+    load_rl_config,
 )
 from gepa_mindfulness.training.trajectory import RolloutRequest, Trajectory
+
+_BOOTSTRAP_BYTES = b"learner-native-lora-v1"
+_BOOTSTRAP_SHA256 = hashlib.sha256(_BOOTSTRAP_BYTES).hexdigest()
 
 _FAKE_COORDINATOR = r"""import json
 import os
@@ -176,6 +180,7 @@ def trajectory(request, request_index, sample_index):
         "backend_version": "fake-1",
         "model_identifier": "fake-model",
         "adapter_identifier": None,
+        "adapter_sha256": None,
         "policy_version": request["policy_version"],
         "seed": request["seed"],
         "trace_references": [],
@@ -1256,9 +1261,17 @@ class _TinyLoraPolicy(nn.Module):
 
 
 class _MockVersionedActor:
-    def __init__(self, *, model_id: str, adapter_id: str, crash: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        model_id: str,
+        adapter_id: str,
+        adapter_sha256: str = _BOOTSTRAP_SHA256,
+        crash: bool = False,
+    ) -> None:
         self.model_id = model_id
         self.adapter_id = adapter_id
+        self.adapter_sha256 = adapter_sha256
         self.crash = crash
         self.generate_calls = 0
         self.close_calls = 0
@@ -1287,6 +1300,7 @@ class _MockVersionedActor:
                         backend_version="test-1",
                         model_identifier=self.model_id,
                         adapter_identifier=self.adapter_id,
+                        adapter_sha256=self.adapter_sha256,
                         policy_version=request.policy_version,
                         seed=request.seed,
                     )
@@ -1376,7 +1390,7 @@ def _hybrid_config(tmp_path: Path, *, staleness: StalenessPolicy) -> RLRunConfig
     _write_hybrid_pair(dataset)
     return RLRunConfig(
         runtime=RuntimeConfig(backend="mojo-vulkan-llamacpp"),
-        policy=PolicyConfig(model_name="tiny-hybrid-model", max_new_tokens=1),
+        policy=PolicyConfig(model_name=str(tmp_path / "learner-model"), max_new_tokens=1),
         algorithm=AlgorithmConfig(
             name="grpo",
             learning_rate=0.1,
@@ -1389,6 +1403,7 @@ def _hybrid_config(tmp_path: Path, *, staleness: StalenessPolicy) -> RLRunConfig
         checkpoint=CheckpointConfig(output_dir=str(tmp_path / "checkpoints"), save_steps=1),
         logging=LoggingConfig(log_dir=str(tmp_path / "logs")),
         hybrid=HybridConfig(
+            model_id="tiny-hybrid-model",
             adapter_store=str(tmp_path / "adapters"),
             staleness_policy=staleness,
             max_policy_lag=0,
@@ -1400,7 +1415,7 @@ def _hybrid_config(tmp_path: Path, *, staleness: StalenessPolicy) -> RLRunConfig
 
 def _bootstrap_adapter(publisher: LocalAdapterPublisher) -> None:
     artifact = publisher.root.parent / "bootstrap.adapter"
-    artifact.write_bytes(b"learner-native-lora-v1")
+    artifact.write_bytes(_BOOTSTRAP_BYTES)
     digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
     publisher.publish(
         AdapterCandidate(
@@ -1439,11 +1454,19 @@ class _LearnerCapabilityProvider:
 
 def test_hybrid_step_updates_pytorch_and_publishes_exact_next_version(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
     publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
     _bootstrap_adapter(publisher)
     learner = _hybrid_learner(config)
+    learner_close_calls = 0
+
+    def close_learner() -> None:
+        nonlocal learner_close_calls
+        learner_close_calls += 1
+
+    monkeypatch.setattr(learner, "close", close_learner)
     actor = _MockVersionedActor(model_id="tiny-hybrid-model", adapter_id="tiny-lora")
     engine = RLTrainingEngine(
         config,
@@ -1464,6 +1487,7 @@ def test_hybrid_step_updates_pytorch_and_publishes_exact_next_version(
     assert result.published_adapter.format_id == "pytorch-lora-state-dict-v1"
     assert "gguf" not in json.dumps(result.to_dict()).lower()
     assert actor.close_calls == 1
+    assert learner_close_calls == 1
     manifest = json.loads((result.log_directory / "run_manifest.json").read_text(encoding="utf-8"))
     trajectory_record = json.loads(
         (result.log_directory / "trajectories.jsonl").read_text(encoding="utf-8").splitlines()[0]
@@ -1608,12 +1632,20 @@ def test_hybrid_rejects_missing_ahead_or_mismatched_actor_identity_before_update
 
 def test_hybrid_publisher_failure_preserves_current_and_returns_no_success(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
     publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
     _bootstrap_adapter(publisher)
     failing = _FailingPublisher(publisher)
     learner = _hybrid_learner(config)
+    learner_close_calls = 0
+
+    def close_learner() -> None:
+        nonlocal learner_close_calls
+        learner_close_calls += 1
+
+    monkeypatch.setattr(learner, "close", close_learner)
     actor = _MockVersionedActor(model_id="tiny-hybrid-model", adapter_id="tiny-lora")
     engine = RLTrainingEngine(
         config,
@@ -1629,6 +1661,7 @@ def test_hybrid_publisher_failure_preserves_current_and_returns_no_success(
     assert learner._step == 1
     assert publisher.current().policy_version == PolicyVersion(1)  # type: ignore[union-attr]
     assert actor.close_calls == 1
+    assert learner_close_calls == 1
 
 
 def test_hybrid_resume_requires_checkpoint_current_adapter_coherence(tmp_path: Path) -> None:
@@ -1697,3 +1730,353 @@ def test_hybrid_config_is_strict_and_keeps_operator_context_out_of_template() ->
     assert "endpoint:" not in template
     assert "secret" not in template.casefold()
     assert "api_key" not in template.casefold()
+
+
+@pytest.mark.parametrize(
+    "lora",
+    [
+        {"r": True},
+        {"r": 0},
+        {"r": 1.5},
+        {"lora_alpha": True},
+        {"lora_alpha": float("nan")},
+        {"lora_alpha": 0},
+        {"lora_dropout": True},
+        {"lora_dropout": -0.1},
+        {"lora_dropout": 1.0},
+        {"bias": "all"},
+        {"task_type": "SEQ_CLS"},
+        {"target_modules": ["q_proj", "q_proj"]},
+        {"target_modules": ["../q_proj"]},
+        {"modules_to_save": ["head", "head"]},
+    ],
+)
+def test_hybrid_lora_values_fail_strict_preflight(lora: Mapping[str, object]) -> None:
+    with pytest.raises((TypeError, ValueError), match="hybrid.lora"):
+        HybridConfig.from_mapping({"model_id": "safe-model", "lora": lora})
+
+
+def test_hybrid_cli_rejects_invalid_lora_before_engine_or_actor_side_effects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_path = tmp_path / "invalid-hybrid.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "runtime": {"backend": "mojo-vulkan-llamacpp"},
+                "algorithm": {"name": "grpo", "group_size": 2},
+                "checkpoint": {"save_steps": 1},
+                "hybrid": {
+                    "model_id": "safe-model",
+                    "lora": {"r": True},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    events: list[str] = []
+    monkeypatch.setattr(
+        rl_cli,
+        "create_hybrid_engine",
+        lambda config, command: events.append("engine"),
+    )
+
+    exit_code = rl_cli._handle_engine(  # noqa: SLF001 - direct fail-fast contract
+        SimpleNamespace(
+            backend="mojo-vulkan-llamacpp",
+            learner="pytorch",
+            coordinator_command=("coordinator",),
+            actor_endpoint=None,
+            endpoint=None,
+            config=str(config_path),
+            rl_command="train",
+            dataset=None,
+            output=None,
+            max_steps=1,
+        )
+    )
+
+    assert exit_code == 2
+    assert events == []
+
+
+@pytest.mark.parametrize("model_id", ["", ".", "..", "C:/models/learner", "model/id"])
+def test_hybrid_model_id_is_safe_and_distinct_from_learner_locator(model_id: str) -> None:
+    with pytest.raises(ValueError, match="hybrid.model_id"):
+        HybridConfig(model_id=model_id)
+
+
+@pytest.mark.parametrize(
+    "adapter_sha256",
+    [None, "A" * 64, "a" * 63, "b" * 64],
+)
+def test_hybrid_rejects_missing_malformed_or_mismatched_actor_adapter_hash(
+    tmp_path: Path,
+    adapter_sha256: str | None,
+) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    learner = _hybrid_learner(config)
+    actor = _InvalidIdentityActor(change={"adapter_sha256": adapter_sha256})
+
+    with pytest.raises(ValueError, match="adapter.*SHA|adapter hash|adapter_sha256"):
+        RLTrainingEngine(
+            config,
+            capability_provider=_LearnerCapabilityProvider(learner),
+            backend_factory=lambda _: learner,
+            actor_factory=lambda _, manifest: actor,
+            publisher_factory=lambda _: publisher,
+        ).train(max_steps=1)
+
+    assert learner._step == 0
+    assert publisher.current().policy_version == PolicyVersion(1)  # type: ignore[union-attr]
+
+
+@pytest.mark.parametrize("checksum_mode", ["missing", "unchanged"])
+def test_hybrid_requires_per_step_policy_checksum_delta_before_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    checksum_mode: str,
+) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    learner = _hybrid_learner(config)
+    if checksum_mode == "missing":
+        monkeypatch.setattr(learner, "policy_parameter_checksum", None)
+    else:
+        monkeypatch.setattr(learner, "policy_parameter_checksum", lambda: "c" * 64)
+    actor = _MockVersionedActor(model_id="tiny-hybrid-model", adapter_id="tiny-lora")
+
+    with pytest.raises(ValueError, match="policy checksum|policy parameters"):
+        RLTrainingEngine(
+            config,
+            capability_provider=_LearnerCapabilityProvider(learner),
+            backend_factory=lambda _: learner,
+            actor_factory=lambda _, manifest: actor,
+            publisher_factory=lambda _: publisher,
+        ).train(max_steps=1)
+
+    checkpoints = Path(config.checkpoint.output_dir)
+    assert not list(checkpoints.glob("checkpoint-*"))
+    assert publisher.current().policy_version == PolicyVersion(1)  # type: ignore[union-attr]
+
+
+def test_hybrid_alias_rejection_closes_shared_backend_exactly_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    learner = _hybrid_learner(config)
+    close_calls = 0
+
+    def close() -> None:
+        nonlocal close_calls
+        close_calls += 1
+
+    monkeypatch.setattr(learner, "close", close)
+    with pytest.raises(ValueError, match="separate backends"):
+        RLTrainingEngine(
+            config,
+            capability_provider=_LearnerCapabilityProvider(learner),
+            backend_factory=lambda _: learner,
+            actor_factory=lambda _, manifest: learner,
+            publisher_factory=lambda _: publisher,
+        ).train(max_steps=1)
+
+    assert close_calls == 1
+
+
+def test_hybrid_learner_failure_closes_actor_and_learner_exactly_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    learner = _hybrid_learner(config)
+    learner_close_calls = 0
+
+    def fail_evaluate(batch: object) -> None:
+        del batch
+        raise RuntimeError("learner evaluation failure")
+
+    def close_learner() -> None:
+        nonlocal learner_close_calls
+        learner_close_calls += 1
+
+    monkeypatch.setattr(learner, "evaluate", fail_evaluate)
+    monkeypatch.setattr(learner, "close", close_learner)
+    actor = _MockVersionedActor(model_id="tiny-hybrid-model", adapter_id="tiny-lora")
+    with pytest.raises(RuntimeError, match="learner evaluation failure"):
+        RLTrainingEngine(
+            config,
+            capability_provider=_LearnerCapabilityProvider(learner),
+            backend_factory=lambda _: learner,
+            actor_factory=lambda _, manifest: actor,
+            publisher_factory=lambda _: publisher,
+        ).train(max_steps=1)
+
+    assert actor.close_calls == 1
+    assert learner_close_calls == 1
+
+
+def test_hybrid_logs_typed_publication_only_after_atomic_success(tmp_path: Path) -> None:
+    from gepa_mindfulness.training.run_logging import JSONLLoggingSink, PublicationRecord
+
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.DOWN_WEIGHT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    learner = _hybrid_learner(config)
+    actor = _MockVersionedActor(model_id="tiny-hybrid-model", adapter_id="tiny-lora")
+    result = RLTrainingEngine(
+        config,
+        capability_provider=_LearnerCapabilityProvider(learner),
+        backend_factory=lambda _: learner,
+        actor_factory=lambda _, manifest: actor,
+        publisher_factory=lambda _: publisher,
+    ).train(max_steps=2)
+
+    payloads = [
+        json.loads(line)
+        for line in (result.log_directory / "publications.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    records = tuple(PublicationRecord.from_mapping(payload) for payload in payloads)
+    assert [record.parent_policy_version for record in records] == ["1", "2"]
+    assert [record.policy_version for record in records] == ["2", "3"]
+    assert [record.global_step for record in records] == [1, 2]
+    assert all(record.adapter_identifier == "tiny-lora" for record in records)
+    assert all(record.model_identifier == "tiny-hybrid-model" for record in records)
+    assert all(record.actor_backend == "mock-mojo-vulkan" for record in records)
+    assert all(record.learner_backend == "torch_portable" for record in records)
+    assert payloads == [record.to_dict() for record in records]
+    sink = JSONLLoggingSink(result.log_directory)
+    with pytest.raises(ValueError, match="publication identity"):
+        sink.log_publication(
+            replace(
+                records[-1],
+                record_id="publication-cross-run-mismatch",
+                model_identifier="different-safe-model",
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"adapter_sha256": "A" * 64},
+        {"global_step": True},
+        {"model_identifier": "../unsafe"},
+        {"policy_version": "03"},
+        {"extra": "unknown"},
+    ],
+)
+def test_publication_record_rejects_noncanonical_or_open_payloads(
+    change: Mapping[str, object],
+) -> None:
+    from gepa_mindfulness.training.run_logging import PublicationRecord
+
+    payload: dict[str, object] = {
+        "record_id": "publication-1",
+        "run_id": "run-1",
+        "timestamp": "2026-08-01T00:00:00Z",
+        "global_step": 1,
+        "backend": "mock-mojo-vulkan",
+        "actor_backend": "mock-mojo-vulkan",
+        "learner_backend": "torch_portable",
+        "parent_policy_version": "1",
+        "policy_version": "2",
+        "adapter_identifier": "tiny-lora",
+        "adapter_sha256": "a" * 64,
+        "model_identifier": "tiny-hybrid-model",
+        "checkpoint_id": "checkpoint-00000001",
+        "schema_version": 1,
+    }
+    payload.update(change)
+
+    with pytest.raises((TypeError, ValueError)):
+        PublicationRecord.from_mapping(payload)
+
+
+def test_hybrid_publication_failure_emits_no_success_record(tmp_path: Path) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    learner = _hybrid_learner(config)
+    actor = _MockVersionedActor(model_id="tiny-hybrid-model", adapter_id="tiny-lora")
+    engine = RLTrainingEngine(
+        config,
+        capability_provider=_LearnerCapabilityProvider(learner),
+        backend_factory=lambda _: learner,
+        actor_factory=lambda _, manifest: actor,
+        publisher_factory=lambda _: _FailingPublisher(publisher),  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(RuntimeError, match="publisher failure"):
+        engine.train(max_steps=1)
+
+    publications = tuple(Path(config.logging.log_dir).glob("rl-*/publications.jsonl"))
+    assert len(publications) == 1
+    assert publications[0].read_bytes() == b""
+
+
+def test_hybrid_downweight_changes_observable_reward_exactly_once(tmp_path: Path) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.DOWN_WEIGHT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    learner = _hybrid_learner(config)
+    actor = _MockVersionedActor(model_id="tiny-hybrid-model", adapter_id="tiny-lora")
+    result = RLTrainingEngine(
+        config,
+        capability_provider=_LearnerCapabilityProvider(learner),
+        backend_factory=lambda _: learner,
+        actor_factory=lambda _, manifest: actor,
+        publisher_factory=lambda _: publisher,
+    ).train(max_steps=2)
+    metrics = [
+        json.loads(line)
+        for line in (result.log_directory / "metrics.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    rewards = {
+        step: [
+            record["metrics"]["response_reward"]
+            for record in metrics
+            if record["global_step"] == step and "response_reward" in record["metrics"]
+        ]
+        for step in (0, 1)
+    }
+    assert len(rewards[0]) == len(rewards[1]) == 2
+    assert rewards[1] == pytest.approx([value * 0.5 for value in rewards[0]])
+
+
+def test_shipped_hybrid_config_bootstraps_safe_current_manifest(tmp_path: Path) -> None:
+    config = load_rl_config("configs/rl/hybrid_vulkan_grpo.yaml")
+    publisher = LocalAdapterPublisher(tmp_path / "adapters")
+    artifact = tmp_path / "bootstrap.adapter"
+    artifact.write_bytes(_BOOTSTRAP_BYTES)
+    published = publisher.publish(
+        AdapterCandidate(
+            artifact_path=artifact,
+            policy_version=PolicyVersion(1),
+            expected_sha256=_BOOTSTRAP_SHA256,
+            parent_policy_version=None,
+            format_id="pytorch-lora-state-dict-v1",
+            source_id="peft-lora",
+            model_id=config.hybrid.model_id,
+        )
+    )
+
+    assert publisher.current() == published
+    assert published.model_id == config.hybrid.model_id
+    assert config.policy.model_name.startswith("/absolute/path/")
+    readme = Path("docs/rl/README.md").read_text(encoding="utf-8")
+    assert "LocalAdapterPublisher" in readme
+    assert "publisher.current()" in readme

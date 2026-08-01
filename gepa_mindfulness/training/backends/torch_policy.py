@@ -366,6 +366,7 @@ class TorchPolicyBackend:
         self,
         destination: Path,
         *,
+        model_id: str,
         policy_version: PolicyVersion,
         parent_policy_version: PolicyVersion,
     ) -> AdapterCandidate:
@@ -378,6 +379,8 @@ class TorchPolicyBackend:
             raise TypeError("policy_version must be a PolicyVersion")
         if type(parent_policy_version) is not PolicyVersion:
             raise TypeError("parent_policy_version must be a PolicyVersion")
+        if not isinstance(model_id, str) or not model_id:
+            raise ValueError("model_id must be a non-empty string")
         if policy_version.value != parent_policy_version.value + 1:
             raise ValueError("exported adapter policy version must be exactly next")
         trainable = {
@@ -395,7 +398,7 @@ class TorchPolicyBackend:
         payload = {
             "adapter_identifier": self.adapter_identifier,
             "format_id": "pytorch-lora-state-dict-v1",
-            "model_identifier": self.model_identifier,
+            "model_identifier": model_id,
             "policy_version": policy_version.to_json(),
             "state_dict": trainable,
         }
@@ -411,7 +414,7 @@ class TorchPolicyBackend:
             parent_policy_version=parent_policy_version,
             format_id="pytorch-lora-state-dict-v1",
             source_id=self.adapter_identifier or "peft-lora",
-            model_id=self.model_identifier,
+            model_id=model_id,
             metadata={"backend": self.backend_name, "optimizer_step": self._step},
         )
 

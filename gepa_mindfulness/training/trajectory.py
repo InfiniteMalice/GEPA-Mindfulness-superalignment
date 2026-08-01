@@ -25,6 +25,18 @@ def _optional_string(value: object | None, field_name: str) -> str | None:
     return _required_string(value, field_name)
 
 
+def _optional_sha256(value: object | None, field_name: str) -> str | None:
+    if value is None:
+        return None
+    if (
+        type(value) is not str
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise ValueError(f"Expected a canonical lowercase SHA-256 digest for {field_name}.")
+    return value
+
+
 def _optional_int_tuple(
     value: object | None,
     field_name: str,
@@ -158,6 +170,7 @@ class Trajectory:
     backend_version: str = ""
     model_identifier: str = ""
     adapter_identifier: str | None = None
+    adapter_sha256: str | None = None
     policy_version: str | None = None
     seed: int | None = None
     trace_references: tuple[str, ...] = ()
@@ -180,6 +193,7 @@ class Trajectory:
             _required_string(getattr(self, field_name), field_name)
         for field_name in ("case_id", "adapter_identifier", "policy_version"):
             _optional_string(getattr(self, field_name), field_name)
+        adapter_sha256 = _optional_sha256(self.adapter_sha256, "adapter_sha256")
 
         prompt_token_ids = _optional_int_tuple(self.prompt_token_ids, "prompt_token_ids")
         response_token_ids = _optional_int_tuple(self.response_token_ids, "response_token_ids")
@@ -247,6 +261,7 @@ class Trajectory:
             object.__setattr__(self, field_name, values)
         object.__setattr__(self, "reward_total", reward_total)
         object.__setattr__(self, "seed", seed)
+        object.__setattr__(self, "adapter_sha256", adapter_sha256)
         object.__setattr__(self, "reward_components", MappingProxyType(components))
         object.__setattr__(self, "reward_component_evidence", MappingProxyType(component_evidence))
         object.__setattr__(self, "trace_references", trace_references)
@@ -292,6 +307,7 @@ class Trajectory:
             "backend_version": self.backend_version,
             "model_identifier": self.model_identifier,
             "adapter_identifier": self.adapter_identifier,
+            "adapter_sha256": self.adapter_sha256,
             "policy_version": self.policy_version,
             "seed": self.seed,
             "trace_references": list(self.trace_references),
@@ -349,6 +365,7 @@ class Trajectory:
                 data.get("adapter_identifier"),
                 "adapter_identifier",
             ),
+            adapter_sha256=_optional_sha256(data.get("adapter_sha256"), "adapter_sha256"),
             policy_version=_optional_string(data.get("policy_version"), "policy_version"),
             seed=_optional_int(data.get("seed"), "seed"),
             trace_references=_string_tuple(data.get("trace_references"), "trace_references"),

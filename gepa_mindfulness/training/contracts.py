@@ -108,6 +108,7 @@ class AdapterExportingPolicyBackend(Protocol):
         self,
         destination: Path,
         *,
+        model_id: str,
         policy_version: PolicyVersion,
         parent_policy_version: PolicyVersion,
     ) -> AdapterCandidate:

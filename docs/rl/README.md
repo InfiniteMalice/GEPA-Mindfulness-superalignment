@@ -294,6 +294,50 @@ Copy `configs/rl/hybrid_vulkan_grpo.yaml`, replace the local Transformers model 
 coordinator executable and any actor endpoint at invocation time; do not add endpoints or secrets
 to the configuration:
 
+`policy.model_name` is the learner's local filesystem locator. `hybrid.model_id` is the safe,
+path-free identity shared by the actor, trajectories, and adapter manifests; it must match the
+actor server's model identity. After creating a compatible initial LoRA state-dict artifact, run
+this bootstrap once from the repository root (adjust the two paths first):
+
+```bash
+export HYBRID_CONFIG=/absolute/path/to/run.hybrid.yaml
+export BOOTSTRAP_ADAPTER=/absolute/path/to/bootstrap.adapter
+python - <<'PY'
+import hashlib
+import os
+from pathlib import Path
+
+from gepa_mindfulness.training.adapter_publication import (
+    AdapterCandidate,
+    LocalAdapterPublisher,
+)
+from gepa_mindfulness.training.policy_versions import PolicyVersion
+from gepa_mindfulness.training.runtime_config import load_rl_config
+
+config = load_rl_config(os.environ["HYBRID_CONFIG"])
+artifact = Path(os.environ["BOOTSTRAP_ADAPTER"]).resolve(strict=True)
+digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+published = publisher.publish(
+    AdapterCandidate(
+        artifact_path=artifact,
+        policy_version=PolicyVersion(1),
+        expected_sha256=digest,
+        parent_policy_version=None,
+        format_id="pytorch-lora-state-dict-v1",
+        source_id="peft-lora",
+        model_id=config.hybrid.model_id,
+    )
+)
+assert publisher.current() == published
+assert published.model_id == config.hybrid.model_id
+print(published.manifest_path, published.artifact_sha256)
+PY
+```
+
+The publisher rejects an artifact whose bytes do not match the supplied SHA-256, unsafe model or
+adapter identifiers, and any attempt to replace an existing policy version.
+
 ```bash
 gepa rl train \
   --config run.hybrid.yaml \
@@ -313,7 +357,9 @@ alternative and applies its logged weight once to observable rewards.
 
 After each successful PyTorch optimizer step, the engine writes a checkpoint, exports only the
 learner's LoRA trainables, and atomically publishes exactly the next policy version. The result and
-logs prove publication; they do not claim the running actor loaded that adapter. The artifact is a
+closed `publications.jsonl` records prove publication only after atomic success; they do not claim
+the running actor loaded that adapter. Each record binds the checkpoint, parent and published
+policy versions, safe model and adapter identifiers, and exact artifact SHA-256. The artifact is a
 learner-native PyTorch LoRA state dict, not GGUF. GGUF conversion, llama.cpp deployment, and actor
 reload are external operator steps and receive no success claim from this command.
 

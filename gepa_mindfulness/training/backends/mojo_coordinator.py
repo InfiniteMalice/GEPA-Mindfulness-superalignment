@@ -49,6 +49,7 @@ _REQUEST_FIELDS = frozenset(
 _TRAJECTORY_FIELDS = frozenset(
     {
         "adapter_identifier",
+        "adapter_sha256",
         "advantage",
         "backend_name",
         "backend_version",

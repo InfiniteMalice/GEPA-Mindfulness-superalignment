@@ -625,8 +625,8 @@ class RLTrainingEngine:
                     raise ValueError(
                         "hybrid training requires a validated current actor adapter manifest"
                     )
-                if current.model_id != self.config.policy.model_name:
-                    raise ValueError("current actor adapter model does not match policy.model_name")
+                if current.model_id != self.config.hybrid.model_id:
+                    raise ValueError("current actor adapter model does not match hybrid.model_id")
                 if mode == "resume":
                     _validate_hybrid_resume(current, global_step, resume_parent)
                 hybrid_state = _HybridState(
@@ -743,24 +743,9 @@ class RLTrainingEngine:
             primary_error = error
             raise
         finally:
-            actor_close_failure: BaseException | None = None
-            if actor is not None:
-                try:
-                    actor.close()
-                except BaseException as actor_close_error:
-                    if primary_error is None:
-                        actor_close_failure = actor_close_error
-                        primary_error = actor_close_error
-                    else:
-                        _add_close_note(primary_error, "Actor", actor_close_error)
-            try:
-                backend.close()
-            except BaseException as close_error:
-                if primary_error is None:
-                    raise
-                _add_close_note(primary_error, "Learner", close_error)
-            if actor_close_failure is not None:
-                raise actor_close_failure
+            close_failure = _close_backends_once(actor, backend, primary_error)
+            if primary_error is None and close_failure is not None:
+                raise close_failure
 
     def _train_loop(
         self,
@@ -861,6 +846,11 @@ class RLTrainingEngine:
             if accumulated < accumulation_steps:
                 backend.zero_grad()
                 break
+            step_policy_checksum_before = _policy_parameter_checksum(backend)
+            if hybrid_state is not None and step_policy_checksum_before is None:
+                raise ValueError(
+                    "hybrid optimizer step requires policy checksum evidence before update"
+                )
             step_result = backend.optimizer_step()
             updated = getattr(step_result, "updated", True)
             if not isinstance(updated, bool):
@@ -868,6 +858,12 @@ class RLTrainingEngine:
             if not updated:
                 backend.zero_grad()
                 continue
+            step_policy_checksum_after = _policy_parameter_checksum(backend)
+            if hybrid_state is not None and (
+                step_policy_checksum_after is None
+                or step_policy_checksum_after == step_policy_checksum_before
+            ):
+                raise ValueError("hybrid optimizer step must change learner policy parameters")
             expected_step = global_step + 1
             actual_step = getattr(step_result, "step", None)
             if actual_step != expected_step:
@@ -904,6 +900,7 @@ class RLTrainingEngine:
                         saved,
                         global_step,
                     )
+                    _log_publication(logger, published, saved, global_step=global_step)
                     hybrid_state.latest_publication = published
                     hybrid_state.learner_version = published.policy_version
         return (
@@ -1464,21 +1461,23 @@ def _validate_rollout_output(
         return
     expected: dict[str, RolloutRequest] = {}
     for request in requests:
-        if request.case_id is None or not request.case_id:
+        case_id = request.case_id
+        if case_id is None or not case_id:
             raise ValueError("GRPO rollout requests require non-empty unique case IDs")
-        if request.case_id in expected:
+        if case_id in expected:
             raise ValueError("GRPO rollout requests require non-empty unique case IDs")
-        expected[request.case_id] = request
+        expected[case_id] = request
     counts = dict.fromkeys(expected, 0)
     for trajectory in trajectories:
-        request = expected.get(trajectory.case_id or "")
-        if request is None:
+        case_id = trajectory.case_id or ""
+        matched_request = expected.get(case_id)
+        if matched_request is None:
             raise ValueError("GRPO backend output contains an unknown or missing case ID")
-        if trajectory.prompt != request.prompt:
+        if trajectory.prompt != matched_request.prompt:
             raise ValueError("GRPO backend output prompt does not match its requested group")
-        if trajectory.policy_version != request.policy_version:
+        if trajectory.policy_version != matched_request.policy_version:
             raise ValueError("GRPO backend output policy version does not match its request")
-        counts[request.case_id] += 1
+        counts[case_id] += 1
     expected_size = config.algorithm.group_size
     if len(trajectories) != len(expected) * expected_size or any(
         count != expected_size for count in counts.values()
@@ -1767,6 +1766,21 @@ def _log_training_step(
         )
 
 
+def _log_publication(
+    logger: RunLogger,
+    manifest: AdapterManifest,
+    checkpoint: object,
+    *,
+    global_step: int,
+) -> None:
+    handler = getattr(logger, "publication", None)
+    if callable(handler):
+        checkpoint_id = getattr(checkpoint, "checkpoint_id", None)
+        if not isinstance(checkpoint_id, str) or not checkpoint_id:
+            raise ValueError("hybrid publication requires a checkpoint identity")
+        handler(manifest, checkpoint_id=checkpoint_id, global_step=global_step)
+
+
 def _serialized_artifact(value: object | None) -> object | None:
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
@@ -1821,6 +1835,10 @@ def _hybrid_staleness_decisions(
             raise ValueError("actor trajectory model does not match current adapter manifest")
         if trajectory.adapter_identifier != manifest.source_id:
             raise ValueError("actor trajectory adapter does not match current adapter manifest")
+        if trajectory.adapter_sha256 != manifest.artifact_sha256:
+            raise ValueError(
+                "actor trajectory adapter SHA-256 does not match current adapter manifest"
+            )
         try:
             actor_version = PolicyVersion.from_json(trajectory.policy_version)
         except ValueError as exc:
@@ -1855,6 +1873,7 @@ def _export_and_publish_adapter(
     with tempfile.TemporaryDirectory(prefix="gepa-adapter-export-") as directory:
         candidate = exporter.export_adapter(
             Path(directory) / "adapter.pt",
+            model_id=config.hybrid.model_id,
             policy_version=next_version,
             parent_policy_version=parent,
         )
@@ -1864,8 +1883,8 @@ def _export_and_publish_adapter(
             raise ValueError("learner adapter export did not use the exact next policy version")
         if candidate.parent_policy_version != parent:
             raise ValueError("learner adapter export parent does not match learner policy")
-        if candidate.model_id != config.policy.model_name:
-            raise ValueError("learner adapter export model does not match policy.model_name")
+        if candidate.model_id != config.hybrid.model_id:
+            raise ValueError("learner adapter export model does not match hybrid.model_id")
         if candidate.source_id != state.actor_manifest.source_id:
             raise ValueError("learner adapter identifier changed across publication")
         candidate = replace(
@@ -1900,6 +1919,28 @@ def _add_close_note(primary: BaseException, owner: str, close_error: BaseExcepti
         add_note(diagnostic)
     else:  # pragma: no cover - Python 3.10 compatibility
         primary.__cause__ = close_error
+
+
+def _close_backends_once(
+    actor: RolloutBackend | None,
+    learner: TrainablePolicyBackend,
+    primary_error: BaseException | None,
+) -> BaseException | None:
+    seen: set[int] = set()
+    first_failure: BaseException | None = None
+    for owner, backend in (("Actor", actor), ("Learner", learner)):
+        if backend is None or id(backend) in seen:
+            continue
+        seen.add(id(backend))
+        try:
+            backend.close()
+        except BaseException as close_error:
+            target = primary_error or first_failure
+            if target is None:
+                first_failure = close_error
+            else:
+                _add_close_note(target, owner, close_error)
+    return first_failure
 
 
 def _seed_process(config: RLRunConfig) -> None:
@@ -2224,6 +2265,40 @@ class _JSONLRunLogger:
                 trajectory=trajectory,
             )
             self.sink.log_trajectory(record)
+
+    def publication(
+        self,
+        manifest: AdapterManifest,
+        *,
+        checkpoint_id: str,
+        global_step: int,
+    ) -> None:
+        from datetime import datetime, timezone
+
+        from .run_logging import PublicationRecord
+
+        parent = manifest.parent_policy_version
+        if parent is None:
+            raise ValueError("hybrid publication must identify its parent policy version")
+        self._record_counter += 1
+        self.sink.log_publication(
+            PublicationRecord(
+                record_id=f"publication-{global_step}-{self._record_counter}",
+                run_id=self.run_id,
+                timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                global_step=global_step,
+                backend=self.backend_name,
+                actor_backend=self.actor_backend,
+                learner_backend=self.learner_backend,
+                parent_policy_version=parent.to_json(),
+                policy_version=manifest.policy_version.to_json(),
+                adapter_identifier=manifest.source_id,
+                adapter_sha256=manifest.artifact_sha256,
+                model_identifier=manifest.model_id,
+                checkpoint_id=checkpoint_id,
+            )
+        )
+        self.policy_version = manifest.policy_version.to_json()
 
     def metrics(self, rewards: tuple[object, ...], global_step: int) -> None:
         from datetime import datetime, timezone
