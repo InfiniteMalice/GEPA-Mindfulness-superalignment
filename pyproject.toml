@@ -17,10 +17,26 @@ dependencies = [
 
 [project.optional-dependencies]
 base = []
+rl = [
+    "torch>=2.9,<3",
+    "transformers>=4.57,<6",
+    "peft>=0.17,<1",
+]
 train = [
-    "torch>=2.9.0",
+    "torch>=2.9,<3",
     "textual>=0.20",
-    "transformers>=4.37",
+    "transformers>=4.57,<6",
+    "peft>=0.17,<1",
+]
+rl-dev = [
+    "torch>=2.9,<3",
+    "transformers>=4.57,<6",
+    "peft>=0.17,<1",
+    "build>=1.2",
+    "black>=24.0",
+    "mypy>=1.8",
+    "pytest>=8.0",
+    "ruff>=0.4",
 ]
 interpret = [
     "matplotlib>=3.7",
@@ -33,9 +49,10 @@ all = [
     "dspy-ai>=2.5",
     "matplotlib>=3.7",
     "networkx>=3.0",
-    "torch>=2.9.0",
+    "torch>=2.9,<3",
     "textual>=0.20",
-    "transformers>=4.37",
+    "transformers>=4.57,<6",
+    "peft>=0.17,<1",
     "vllm>=0.6",
     "weasyprint>=53",
 ]

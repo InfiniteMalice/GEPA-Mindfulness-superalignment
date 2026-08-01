@@ -42,12 +42,31 @@ imports across the project.
 
 The `training` package turns alignment primitives into GRPO and PPO workflows:
 
-- **Configuration** – `configs.py` defines dataclasses for PPO and GRPO
-  hyperparameters, reward weights, model selection, and dual-path thresholds.
-- **Orchestration** – `grpo_trainer.py` implements GRPO with GEPA rewards, while
-  `pipeline.py` maintains the legacy PPO path for comparison.
-- **CLI tooling** – `train.py` selects between GRPO and PPO modes; `cli.py` stays
-  available for backwards-compatible PPO runs.
+- **Canonical configuration** – `runtime_config.py` validates the closed runtime, policy,
+  algorithm, reward, dataset, checkpoint, logging, and seed sections used by `gepa rl`.
+- **Portable execution** – `engine.py` composes strict pair ingestion, the reward-integrity
+  pipeline, real PPO or GRPO loss computation, `TorchPolicyBackend`, atomic local checkpoints, and
+  structured JSONL logs.
+- **CLI tooling** – `gepa rl` exposes `train`, `resume`, `collect`, `evaluate`, and the model-free
+  `doctor`. Older `train.py` and `cli.py` entry points remain for compatibility.
+
+Install the portable runtime and inspect its command tree:
+
+```bash
+python -m pip install -e '.[rl]'
+gepa rl --help
+```
+
+Before loading a model, diagnose the exact capabilities required by a run:
+
+```bash
+gepa rl doctor --config run.cpu.ppo.yaml
+```
+
+The default loader accepts a local Transformers model directory or an existing cache entry and
+does not download artifacts. Training and evaluation require the strict authored pair JSONL
+format. Read the [portable PyTorch RL guide](rl/README.md) for runnable PPO and GRPO CPU commands,
+resume semantics, artifact layouts, and current limitations.
 
 ## Integration Adapters
 

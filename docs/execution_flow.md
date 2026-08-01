@@ -31,3 +31,22 @@ flags, loads prompts (accepting plaintext or JSONL rows), ensures Transformers i
 available, instantiates policy/reference models plus tokenizer, runs a single `GRPOTrainer`
 epoch, saves weights and tokenizer artefacts, and writes a JSON summary with per-batch
 statistics.
+
+## Stage 6 – Canonical portable RL engine
+
+`gepa rl` is the capability-first execution path for local PPO and GRPO. Before model
+construction, `gepa_mindfulness/training/engine.py` detects the capabilities required by the
+selected mode and algorithm. For training or evaluation, the engine snapshots and validates the
+strict authored pair dataset, generates trajectories through `TorchPolicyBackend`, scores them
+through the reward-integrity pipeline, and prepares response-token batches for the selected
+algorithm.
+
+During training, one optimizer step produces a local checkpoint and structured JSONL records.
+Resume verifies artifact hashes plus dataset and configuration compatibility before it restores
+model, reference, value-head, optimizer, algorithm, and random-number-generator state. A resume
+budget is relative to the restored global step. Collection omits scoring and optimization;
+evaluation omits optimization but retains scoring and policy evaluation.
+
+The default model loader uses local Transformers artifacts only. See the
+[portable PyTorch RL guide](rl/README.md) for exact CPU commands, prerequisites, checkpoint and log
+layouts, and the full-weight/LoRA support boundary.

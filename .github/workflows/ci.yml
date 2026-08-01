@@ -39,8 +39,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install 'torch>=2.9.0' --extra-index-url https://download.pytorch.org/whl/cpu
-          pip install -e '.[dev,pdf,train,interpret]'
+          pip install -e '.[rl-dev,pdf,train,interpret]'
           pip install pytest-cov
 
       - name: Show Black & tooling versions and diffs (CI debug)
@@ -83,6 +82,12 @@ jobs:
             --cov=factuality_certification \
             --cov=evaluation \
             --cov-report=xml --cov-report=term
+
+      - name: Offline CPU RL acceptance
+        env:
+          HF_HUB_OFFLINE: "1"
+          TRANSFORMERS_OFFLINE: "1"
+        run: pytest -q tests/test_rl_engine_cpu.py
 
       - name: Build wheel
         run: python -m build

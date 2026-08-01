@@ -1,8 +1,32 @@
 # Training Modules
 
-The training package wires the GEPA core logic into an end-to-end PPO training
-loop that records Circuit Tracer logs, enforces abstention, and performs dual-path
-checks.
+The training package contains the canonical portable PyTorch RL engine and compatibility training
+surfaces retained for older workflows. Start with the [portable RL guide](../../docs/rl/README.md)
+for offline CPU PPO, GRPO, checkpoint resume, collection, evaluation, and capability diagnosis.
+
+## Canonical portable RL
+
+Install `.[rl]`, prepare a strict authored chosen/rejected JSONL dataset, and point
+`policy.model_name` at a local Transformers model directory or an existing cache entry. The
+default loader passes `local_files_only=True`; it does not download model artifacts.
+
+```bash
+gepa rl doctor --config run.cpu.ppo.yaml
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+  gepa rl train --config run.cpu.ppo.yaml --max-steps 1
+```
+
+`engine.py` composes the dataset adapter, reward pipeline, PPO or GRPO algorithm,
+`TorchPolicyBackend`, local checkpoint store, and structured JSONL logger. The CLI supports
+`train`, `resume`, `collect`, `evaluate`, and `doctor`.
+
+The default CLI path performs full-weight updates. The backend API supports optional PEFT LoRA,
+but the canonical configuration and CLI do not yet expose a LoRA selection field. See the portable
+RL guide for the exact support boundary and artifact layout.
+
+## Compatibility modules
+
+The older modules remain available for existing callers:
 
 - `configs.py` defines Pydantic models and YAML loaders for all configurable
   hyper-parameters including reward weights (α, β, γ, δ).
@@ -11,7 +35,8 @@ checks.
 - `cli.py` exposes a command line entry point for running training or
   dual-path-only sweeps.
 
-All modules assume Python 3.10+ with `torch`, `transformers`, and `trl`.
+Use Python 3.10 or newer. The `rl` extra installs bounded PyTorch, Transformers, and PEFT versions.
+TRL, Datasets, and Accelerate are not runtime dependencies of the canonical engine.
 
 ## Repository workflows
 

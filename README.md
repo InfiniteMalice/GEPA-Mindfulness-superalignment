@@ -33,7 +33,7 @@ python -m pip install --upgrade pip
 pip install -e .[dspy]
 ```
 
-Use `pip install -e .` for the lightweight scoring/viewer CLI. Use named extras for heavier surfaces, for example `pip install -e .[train]`, `pip install -e .[interpret]`, or `pip install -e .[all]`.
+Use `pip install -e .` for the lightweight scoring/viewer CLI. Use named extras for heavier surfaces, for example `pip install -e '.[rl]'`, `pip install -e '.[train]'`, `pip install -e '.[interpret]'`, or `pip install -e '.[all]'`. See the [portable PyTorch RL guide](docs/rl/README.md) for offline CPU PPO and GRPO.
 
 Wheel-installed usage is supported and is the packaging smoke-test target:
 
@@ -155,7 +155,9 @@ Required:
 
 Optional extras:
 
-* `train` - `torch`, `transformers`, and terminal UI dependencies for training and CPU demo support.
+* `rl` - bounded `torch`, `transformers`, and `peft` dependencies for canonical portable RL.
+* `rl-dev` - the `rl` runtime plus build, formatting, lint, type-check, and test tooling.
+* `train` - the synchronized RL runtime plus terminal UI dependencies for training and CPU demo support.
 * `interpret` - `matplotlib` and real `networkx` for attribution graph analysis.
 * `dspy` - DSPy pipelines and compilation via `pip install -e .[dspy]`.
 * `pdf` - PDF export via `pip install -e .[pdf]`.
