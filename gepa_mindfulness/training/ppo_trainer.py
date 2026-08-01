@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import random
+import warnings
 from typing import Sequence
 
 from mindful_trace_gepa.train.grn import GlobalResponseNorm, build_grn
@@ -21,7 +22,7 @@ def _sigmoid(value: float) -> float:
     return 1.0 / (1.0 + math.exp(-value))
 
 
-class PPOTrainer(BaseTrainer):
+class LightweightPPOTrainer(BaseTrainer):
     """Optimise Bernoulli policies using a lightweight PPO-style update."""
 
     def __init__(self, config: PPOConfig) -> None:
@@ -163,4 +164,17 @@ class PPOTrainer(BaseTrainer):
         return float(normalised.squeeze().item())
 
 
-__all__ = ["PPOTrainer"]
+class PPOTrainer(LightweightPPOTrainer):
+    """Deprecated compatibility name for the lightweight PPO trainer."""
+
+    def __init__(self, config: PPOConfig) -> None:
+        warnings.warn(
+            "PPOTrainer is deprecated; use RLTrainingEngine for canonical RL execution "
+            "or LightweightPPOTrainer for legacy behavior.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__(config)
+
+
+__all__ = ["LightweightPPOTrainer", "PPOTrainer"]
