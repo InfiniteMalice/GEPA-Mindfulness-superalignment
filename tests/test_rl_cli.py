@@ -394,6 +394,86 @@ def test_doctor_is_model_free_deterministic_actionable_and_nonzero() -> None:
     assert events == ["capability", "capability"]
 
 
+def test_doctor_lazily_renders_llama_runtime_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from gepa_mindfulness.training.backends import llama_cpp_vulkan
+
+    endpoint = "http://127.0.0.1:8080"
+    calls: list[str | None] = []
+    evidence = {
+        capability: CapabilityEvidence(
+            state=CapabilityState.UNKNOWN,
+            evidence=f"unknown {capability.value}",
+        )
+        for capability in Capability
+    }
+    evidence[Capability.SUPPORTS_GENERATION] = CapabilityEvidence(
+        state=CapabilityState.UNKNOWN,
+        evidence="llama-server executable reported llama.cpp build 4242",
+    )
+    evidence[Capability.SUPPORTS_GGUF] = CapabilityEvidence(
+        state=CapabilityState.SUPPORTED,
+        evidence="trusted meta.format reported GGUF",
+    )
+    evidence[Capability.SUPPORTS_VULKAN] = CapabilityEvidence(
+        state=CapabilityState.UNKNOWN,
+        evidence="vulkaninfo was not found",
+    )
+    for capability in (
+        Capability.SUPPORTS_BACKWARD,
+        Capability.SUPPORTS_OPTIMIZER_STEP,
+        Capability.SUPPORTS_FULL_WEIGHT_TRAINING,
+    ):
+        evidence[capability] = CapabilityEvidence(
+            state=CapabilityState.UNSUPPORTED,
+            evidence="llama.cpp is inference-only",
+        )
+    report = BackendCapabilities(
+        backend_name="llama_cpp_vulkan",
+        backend_version="llama.cpp build 4242",
+        capabilities=evidence,
+    )
+    monkeypatch.setattr(
+        llama_cpp_vulkan,
+        "detect_llama_cpp_runtime",
+        lambda endpoint=None: calls.append(endpoint) or report,
+    )
+    parser = build_parser()
+    args = parser.parse_args(
+        ["rl", "doctor", "--backend", "llama-cpp-vulkan", "--endpoint", endpoint]
+    )
+
+    assert args.func(args) == 2
+    output = capsys.readouterr().out
+    assert calls == [endpoint]
+    assert endpoint in output
+    assert "llama-server executable" in output
+    assert "supports_gguf" in output
+    assert "supports_vulkan" in output
+    assert "supports_backward" in output
+    assert "supports_optimizer_step" in output
+
+
+def test_basic_help_does_not_import_llama_diagnostics() -> None:
+    code = (
+        "import sys; "
+        "from mindful_trace_gepa.cli import build_parser; "
+        "build_parser().format_help(); "
+        "print('gepa_mindfulness.training.backends.llama_cpp_vulkan' in sys.modules)"
+    )
+
+    completed = subprocess.run(
+        [sys.executable, "-c", code],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.stdout.strip() == "False"
+
+
 def test_training_requires_full_weight_capability() -> None:
     assert Capability.SUPPORTS_FULL_WEIGHT_TRAINING in required_capabilities(
         RLRunConfig(),

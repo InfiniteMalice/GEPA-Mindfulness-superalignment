@@ -74,6 +74,34 @@ def _doctor_line(capabilities: BackendCapabilities, capability: Capability) -> s
     return f"{status} {value}: {detail}"
 
 
+def _llama_doctor_report(endpoint: str | None) -> DoctorReport:
+    from .backends.llama_cpp_vulkan import detect_llama_cpp_runtime
+
+    capabilities = detect_llama_cpp_runtime(endpoint=endpoint)
+    inspected = (
+        Capability.SUPPORTS_GENERATION,
+        Capability.SUPPORTS_GGUF,
+        Capability.SUPPORTS_VULKAN,
+        Capability.SUPPORTS_BACKWARD,
+        Capability.SUPPORTS_OPTIMIZER_STEP,
+        Capability.SUPPORTS_VALUE_HEAD,
+        Capability.SUPPORTS_FULL_WEIGHT_TRAINING,
+        Capability.SUPPORTS_LORA_TRAINING,
+        Capability.SUPPORTS_DISTRIBUTED_TRAINING,
+        Capability.SUPPORTS_MIXED_PRECISION,
+    )
+    endpoint_evidence = endpoint or "not configured"
+    lines = (
+        f"INFO backend: {capabilities.backend_name} {capabilities.backend_version}",
+        f"INFO endpoint: {endpoint_evidence}",
+        *(_doctor_line(capabilities, capability) for capability in inspected),
+    )
+    unavailable = any(
+        capabilities.state(capability) is not CapabilityState.SUPPORTED for capability in inspected
+    )
+    return DoctorReport(lines=lines, exit_code=2 if unavailable else 0)
+
+
 def _emit_result(result: _Result) -> None:
     print(json.dumps(result.to_dict(), allow_nan=False, sort_keys=True))
 
@@ -103,8 +131,13 @@ def _handle_engine(args: argparse.Namespace) -> int:
 
 def _handle_doctor(args: argparse.Namespace) -> int:
     try:
-        config = load_rl_run_config(args.config) if args.config else RLRunConfig()
-        report = doctor_report(config)
+        if args.backend == "llama-cpp-vulkan":
+            report = _llama_doctor_report(args.endpoint)
+        else:
+            if args.endpoint is not None:
+                raise ValueError("--endpoint requires --backend llama-cpp-vulkan")
+            config = load_rl_run_config(args.config) if args.config else RLRunConfig()
+            report = doctor_report(config)
     except (OSError, TypeError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
         return 2
@@ -141,6 +174,16 @@ def register_rl_cli(subparsers: argparse._SubParsersAction[argparse.ArgumentPars
 
     doctor = modes.add_parser("doctor", help="Check local RL capability availability")
     doctor.add_argument("--config", help="Optional canonical RL config path")
+    doctor.add_argument(
+        "--backend",
+        choices=("system", "llama-cpp-vulkan"),
+        default="system",
+        help="Diagnostic backend; llama.cpp probing is opt-in",
+    )
+    doctor.add_argument(
+        "--endpoint",
+        help="Optional loopback llama.cpp endpoint for doctor-only metadata probing",
+    )
     doctor.set_defaults(func=_handle_doctor)
 
 

@@ -9,10 +9,12 @@ import re
 import shutil
 import socket
 import subprocess
+import threading
 import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
+from typing import BinaryIO
 from urllib import error, parse, request
 
 from ..capability import (
@@ -29,6 +31,8 @@ _DEFAULT_MAX_RESPONSE_BYTES = 1_048_576
 _MAX_RESPONSE_BYTES = 16_777_216
 _MAX_TIMEOUT_SECONDS = 60.0
 _MAX_EVIDENCE_CHARACTERS = 512
+_MAX_PROBE_OUTPUT_BYTES = 65_536
+_PROBE_READ_BYTES = 8_192
 _RUNTIME_PROBE_TIMEOUT_SECONDS = 2.0
 _SUPPORTED_SAMPLING_PARAMETERS = frozenset({"do_sample", "max_new_tokens", "temperature", "top_p"})
 _UNSUPPORTED_TRAINING_CAPABILITIES = frozenset(
@@ -242,6 +246,35 @@ class _CommandProbe:
     failure: str | None
 
 
+class _CappedProbeOutput:
+    def __init__(self, limit: int) -> None:
+        self.limit = limit
+        self.stdout: list[bytes] = []
+        self.stderr: list[bytes] = []
+        self.total = 0
+        self.lock = threading.Lock()
+        self.changed = threading.Event()
+        self.overflow = threading.Event()
+
+    def append(self, channel: str, chunk: bytes) -> None:
+        with self.lock:
+            remaining = self.limit - self.total
+            target = self.stdout if channel == "stdout" else self.stderr
+            if len(chunk) > remaining:
+                if remaining:
+                    target.append(chunk[:remaining])
+                    self.total += remaining
+                self.overflow.set()
+            else:
+                target.append(chunk)
+                self.total += len(chunk)
+        self.changed.set()
+
+    def values(self) -> tuple[bytes, bytes]:
+        with self.lock:
+            return b"".join(self.stdout), b"".join(self.stderr)
+
+
 def detect_vulkan_evidence(
     *,
     timeout_seconds: float = _RUNTIME_PROBE_TIMEOUT_SECONDS,
@@ -350,20 +383,14 @@ def _run_read_only_probe(
     timeout_seconds: float,
     display_name: str,
 ) -> _CommandProbe:
+    deadline = time.monotonic() + timeout_seconds
     try:
-        completed = subprocess.run(
+        process = subprocess.Popen(
             command,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            timeout=timeout_seconds,
-            check=False,
             shell=False,
-        )
-    except subprocess.TimeoutExpired:
-        return _CommandProbe(
-            output=None,
-            failure=f"{display_name} timed out after {timeout_seconds:g} seconds.",
         )
     except OSError as exc:
         detail = _sanitize_text(str(exc)) or "operating-system error"
@@ -371,9 +398,60 @@ def _run_read_only_probe(
             output=None,
             failure=f"{display_name} failed: {detail}.",
         )
-    output = _sanitize_probe_output(completed.stdout, completed.stderr)
-    if completed.returncode != 0:
-        detail = output or f"exit status {completed.returncode}"
+    assert process.stdout is not None
+    assert process.stderr is not None
+    output_buffer = _CappedProbeOutput(_MAX_PROBE_OUTPUT_BYTES)
+    readers = (
+        threading.Thread(
+            target=_read_probe_stream,
+            args=(process.stdout, output_buffer, "stdout"),
+            daemon=True,
+        ),
+        threading.Thread(
+            target=_read_probe_stream,
+            args=(process.stderr, output_buffer, "stderr"),
+            daemon=True,
+        ),
+    )
+    for reader in readers:
+        reader.start()
+    while process.poll() is None:
+        if output_buffer.overflow.is_set():
+            _terminate_probe_process(process, readers)
+            return _CommandProbe(
+                output=None,
+                failure=(
+                    f"{display_name} exceeded the {_MAX_PROBE_OUTPUT_BYTES}-byte output limit."
+                ),
+            )
+        remaining = deadline - time.monotonic()
+        if remaining <= 0.0:
+            _terminate_probe_process(process, readers)
+            return _CommandProbe(
+                output=None,
+                failure=f"{display_name} timed out after {timeout_seconds:g} seconds.",
+            )
+        output_buffer.changed.wait(min(remaining, 0.01))
+        output_buffer.changed.clear()
+    for reader in readers:
+        reader.join(max(0.0, deadline - time.monotonic()))
+    if any(reader.is_alive() for reader in readers):
+        _terminate_probe_process(process, readers)
+        return _CommandProbe(
+            output=None,
+            failure=f"{display_name} timed out while collecting bounded output.",
+        )
+    returncode = process.wait(timeout=0)
+    _close_probe_streams(process)
+    if output_buffer.overflow.is_set():
+        return _CommandProbe(
+            output=None,
+            failure=f"{display_name} exceeded the {_MAX_PROBE_OUTPUT_BYTES}-byte output limit.",
+        )
+    stdout, stderr = output_buffer.values()
+    output = _sanitize_probe_output(stdout, stderr)
+    if returncode != 0:
+        detail = output or f"exit status {returncode}"
         return _CommandProbe(
             output=None,
             failure=f"{display_name} failed: {detail}.",
@@ -384,6 +462,49 @@ def _run_read_only_probe(
             failure=f"{display_name} returned no usable build or runtime evidence.",
         )
     return _CommandProbe(output=output, failure=None)
+
+
+def _read_probe_stream(
+    stream: BinaryIO,
+    output: _CappedProbeOutput,
+    channel: str,
+) -> None:
+    try:
+        while not output.overflow.is_set():
+            chunk = stream.read(_PROBE_READ_BYTES)
+            if not chunk:
+                return
+            output.append(channel, chunk)
+    except (OSError, ValueError):
+        return
+
+
+def _terminate_probe_process(
+    process: subprocess.Popen[bytes],
+    readers: tuple[threading.Thread, threading.Thread],
+) -> None:
+    if process.poll() is None:
+        try:
+            process.terminate()
+        except OSError:
+            pass
+    try:
+        process.wait(timeout=0.1)
+    except (OSError, subprocess.TimeoutExpired):
+        try:
+            process.kill()
+            process.wait(timeout=0.1)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    for reader in readers:
+        reader.join(0.1)
+    _close_probe_streams(process)
+
+
+def _close_probe_streams(process: subprocess.Popen[bytes]) -> None:
+    for stream in (process.stdout, process.stderr):
+        if stream is not None:
+            stream.close()
 
 
 def _sanitize_probe_output(stdout: object, stderr: object) -> str | None:
@@ -489,10 +610,7 @@ def _detect_endpoint(
 def _model_is_gguf(model: Mapping[str, object]) -> bool:
     metadata = model.get("meta")
     format_name = metadata.get("format") if isinstance(metadata, Mapping) else None
-    model_id = model.get("id")
-    return (isinstance(format_name, str) and format_name.casefold() == "gguf") or (
-        isinstance(model_id, str) and model_id.casefold().endswith(".gguf")
-    )
+    return isinstance(format_name, str) and format_name.casefold() == "gguf"
 
 
 @dataclass(frozen=True)
