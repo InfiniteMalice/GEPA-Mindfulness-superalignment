@@ -22,7 +22,7 @@ import torch
 
 from gepa_mindfulness.training.backends.base import BackendCheckpointResult
 
-CHECKPOINT_SCHEMA_VERSION = 2
+CHECKPOINT_SCHEMA_VERSION = 3
 _ARTIFACT_NAMES = frozenset({"backend.pt", "training_state.pt"})
 _CHECKPOINT_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\Z")
 _MANIFEST_FIELDS = frozenset(
@@ -50,6 +50,7 @@ _STATE_FIELDS = frozenset(
         "global_step",
         "parent_checkpoint",
         "python_rng_state",
+        "rank_rng_states",
         "rollout_cursor",
         "scheduler_state",
         "schema_version",
@@ -104,6 +105,27 @@ class CheckpointRNGTopology:
 
 
 @dataclass(frozen=True)
+class RankRNGState:
+    """One rank's exact Python, Torch CPU, and visible CUDA RNG state."""
+
+    python_rng_state: object
+    torch_cpu_rng_state: torch.Tensor
+    torch_cuda_rng_states: tuple[torch.Tensor, ...]
+
+    def __post_init__(self) -> None:
+        _validate_python_rng_state(self.python_rng_state)
+        cpu_state = _validate_rng_tensor(self.torch_cpu_rng_state, "torch_cpu_rng_state")
+        if not isinstance(self.torch_cuda_rng_states, (list, tuple)):
+            raise TypeError("torch_cuda_rng_states must be a sequence of byte tensors")
+        cuda_states = tuple(
+            _validate_rng_tensor(value, f"torch_cuda_rng_states[{index}]")
+            for index, value in enumerate(self.torch_cuda_rng_states)
+        )
+        object.__setattr__(self, "torch_cpu_rng_state", cpu_state)
+        object.__setattr__(self, "torch_cuda_rng_states", cuda_states)
+
+
+@dataclass(frozen=True)
 class CheckpointSnapshot:
     """Engine-owned state saved beside one opaque backend checkpoint payload."""
 
@@ -116,6 +138,7 @@ class CheckpointSnapshot:
     canonical_config: Mapping[str, object]
     dataset_hash: str
     config_hash: str
+    rank_rng_states: Mapping[int, RankRNGState] | None = None
     batch_cursor: int = 0
     rollout_cursor: int = 0
     parent_checkpoint: str | None = None
@@ -139,6 +162,11 @@ class CheckpointSnapshot:
             _validate_rng_tensor(state, f"torch_cuda_rng_states[{index}]")
             for index, state in enumerate(self.torch_cuda_rng_states)
         )
+        rank_rng_states = (
+            None
+            if self.rank_rng_states is None
+            else MappingProxyType(_validated_rank_rng_states(self.rank_rng_states))
+        )
         _validate_sha256(self.dataset_hash, "dataset_hash")
         _validate_sha256(self.config_hash, "config_hash")
         _validate_optional_string(self.parent_checkpoint, "parent_checkpoint")
@@ -151,6 +179,7 @@ class CheckpointSnapshot:
         object.__setattr__(self, "canonical_config", MappingProxyType(canonical_config))
         object.__setattr__(self, "torch_cpu_rng_state", cpu_rng)
         object.__setattr__(self, "torch_cuda_rng_states", cuda_rng)
+        object.__setattr__(self, "rank_rng_states", rank_rng_states)
 
 
 @dataclass(frozen=True)
@@ -280,6 +309,7 @@ class LocalCheckpointStore:
         backend_rollback: BackendRollback | None = None,
         rng_topology: CheckpointRNGTopology | None = None,
         rank: int = 0,
+        world_size: int = 1,
     ) -> None:
         if not isinstance(root, Path):
             raise TypeError("checkpoint root must be a pathlib.Path")
@@ -298,8 +328,12 @@ class LocalCheckpointStore:
         if rng_topology is not None and not isinstance(rng_topology, CheckpointRNGTopology):
             raise TypeError("rng_topology must be a CheckpointRNGTopology")
         _validate_non_negative_integer(rank, "rank")
+        _validate_positive_integer(world_size, "world_size")
+        if rank >= world_size:
+            raise ValueError("rank must be within world_size")
         self.root = root.resolve(strict=False)
         self.rank = rank
+        self.world_size = world_size
         self.backend_save = backend_save
         self.backend_preflight = backend_preflight
         self.backend_load_bytes = backend_load_bytes
@@ -320,6 +354,19 @@ class LocalCheckpointStore:
             return None
         if self.backend_save is None:
             raise RuntimeError("backend_save is required to create a checkpoint")
+        rank_rng_states = self._snapshot_rank_rng_states(snapshot)
+        if set(rank_rng_states) != set(range(self.world_size)):
+            raise ValueError("checkpoint rank_rng_states must exactly cover world_size")
+        for rank, state in rank_rng_states.items():
+            try:
+                self._validate_rng_topology(
+                    state.torch_cpu_rng_state,
+                    state.torch_cuda_rng_states,
+                )
+            except ValueError as error:
+                raise ValueError(
+                    f"checkpoint rank {rank} has invalid RNG state: {error}"
+                ) from error
         self._validate_rng_topology(
             snapshot.torch_cpu_rng_state,
             snapshot.torch_cuda_rng_states,
@@ -517,24 +564,23 @@ class LocalCheckpointStore:
                 raise ValueError(f"checkpoint artifact {name} failed SHA-256 verification")
         state = self._load_state(artifact_payloads["training_state.pt"])
         self._validate_state_matches_manifest(state, manifest)
-        cpu_rng = _validate_rng_tensor(state["torch_cpu_rng_state"], "torch_cpu_rng_state")
-        cuda_value = state["torch_cuda_rng_states"]
-        if not isinstance(cuda_value, (list, tuple)):
-            raise ValueError("checkpoint torch_cuda_rng_states must be a sequence")
-        cuda_rng = tuple(
-            _validate_rng_tensor(item, f"torch_cuda_rng_states[{index}]")
-            for index, item in enumerate(cuda_value)
+        rank_rng_states = _restored_rank_rng_states(state["rank_rng_states"])
+        if set(rank_rng_states) != set(range(self.world_size)):
+            raise ValueError("checkpoint rank_rng_states do not match world_size")
+        selected_rng = rank_rng_states[self.rank]
+        self._validate_rng_topology(
+            selected_rng.torch_cpu_rng_state,
+            selected_rng.torch_cuda_rng_states,
         )
-        self._validate_rng_topology(cpu_rng, cuda_rng)
         restored = RestoredCheckpoint(
             manifest=manifest,
             algorithm_state=MappingProxyType(
                 _state_mapping(state["algorithm_state"], "algorithm_state")
             ),
             scheduler_state=self._restored_scheduler_state(state["scheduler_state"]),
-            python_rng_state=state["python_rng_state"],
-            torch_cpu_rng_state=cpu_rng,
-            torch_cuda_rng_states=cuda_rng,
+            python_rng_state=selected_rng.python_rng_state,
+            torch_cpu_rng_state=selected_rng.torch_cpu_rng_state,
+            torch_cuda_rng_states=selected_rng.torch_cuda_rng_states,
             canonical_config=MappingProxyType(
                 _state_mapping(state["canonical_config"], "canonical_config")
             ),
@@ -561,6 +607,14 @@ class LocalCheckpointStore:
             "global_step": snapshot.global_step,
             "parent_checkpoint": snapshot.parent_checkpoint,
             "python_rng_state": snapshot.python_rng_state,
+            "rank_rng_states": {
+                rank: {
+                    "python_rng_state": state.python_rng_state,
+                    "torch_cpu_rng_state": state.torch_cpu_rng_state,
+                    "torch_cuda_rng_states": state.torch_cuda_rng_states,
+                }
+                for rank, state in LocalCheckpointStore._snapshot_rank_rng_states(snapshot).items()
+            },
             "rollout_cursor": snapshot.rollout_cursor,
             "scheduler_state": (
                 None if snapshot.scheduler_state is None else dict(snapshot.scheduler_state)
@@ -568,6 +622,18 @@ class LocalCheckpointStore:
             "schema_version": CHECKPOINT_SCHEMA_VERSION,
             "torch_cpu_rng_state": snapshot.torch_cpu_rng_state,
             "torch_cuda_rng_states": snapshot.torch_cuda_rng_states,
+        }
+
+    @staticmethod
+    def _snapshot_rank_rng_states(snapshot: CheckpointSnapshot) -> Mapping[int, RankRNGState]:
+        if snapshot.rank_rng_states is not None:
+            return snapshot.rank_rng_states
+        return {
+            0: RankRNGState(
+                python_rng_state=snapshot.python_rng_state,
+                torch_cpu_rng_state=snapshot.torch_cpu_rng_state,
+                torch_cuda_rng_states=snapshot.torch_cuda_rng_states,
+            )
         }
 
     @staticmethod
@@ -651,6 +717,7 @@ class LocalCheckpointStore:
                     f"checkpoint training state {field_name} does not match the manifest"
                 )
         _validate_python_rng_state(state["python_rng_state"])
+        _restored_rank_rng_states(state["rank_rng_states"])
         cuda_states = state["torch_cuda_rng_states"]
         if not isinstance(cuda_states, (list, tuple)):
             raise ValueError("checkpoint torch_cuda_rng_states must be a sequence")
@@ -755,6 +822,50 @@ def _validate_python_rng_state(value: object) -> None:
         raise ValueError("python_rng_state is incompatible") from error
 
 
+def _validated_rank_rng_states(
+    value: Mapping[int, RankRNGState],
+) -> dict[int, RankRNGState]:
+    if not isinstance(value, Mapping):
+        raise TypeError("rank_rng_states must be a mapping")
+    result: dict[int, RankRNGState] = {}
+    for rank, state in value.items():
+        if isinstance(rank, bool) or not isinstance(rank, int) or rank < 0:
+            raise TypeError("rank_rng_states keys must be non-negative integers")
+        if not isinstance(state, RankRNGState):
+            raise TypeError("rank_rng_states values must be RankRNGState instances")
+        result[rank] = RankRNGState(
+            python_rng_state=state.python_rng_state,
+            torch_cpu_rng_state=state.torch_cpu_rng_state,
+            torch_cuda_rng_states=state.torch_cuda_rng_states,
+        )
+    if not result:
+        raise ValueError("rank_rng_states must not be empty")
+    return result
+
+
+def _restored_rank_rng_states(value: object) -> dict[int, RankRNGState]:
+    if not isinstance(value, Mapping):
+        raise ValueError("checkpoint rank_rng_states must be a mapping")
+    result: dict[int, RankRNGState] = {}
+    for rank, payload in value.items():
+        if isinstance(rank, bool) or not isinstance(rank, int) or rank < 0:
+            raise ValueError("checkpoint rank_rng_states keys must be non-negative integers")
+        if not isinstance(payload, Mapping) or set(payload) != {
+            "python_rng_state",
+            "torch_cpu_rng_state",
+            "torch_cuda_rng_states",
+        }:
+            raise ValueError("checkpoint rank_rng_states entries are malformed")
+        result[rank] = RankRNGState(
+            python_rng_state=payload["python_rng_state"],
+            torch_cpu_rng_state=payload["torch_cpu_rng_state"],
+            torch_cuda_rng_states=payload["torch_cuda_rng_states"],
+        )
+    if not result:
+        raise ValueError("checkpoint rank_rng_states must not be empty")
+    return result
+
+
 def _state_mapping(value: object, field_name: str) -> dict[str, object]:
     if not isinstance(value, Mapping) or not all(isinstance(key, str) for key in value):
         raise TypeError(f"{field_name} must be a mapping with string keys")
@@ -785,5 +896,6 @@ __all__ = [
     "CheckpointRNGTopology",
     "CheckpointSnapshot",
     "LocalCheckpointStore",
+    "RankRNGState",
     "RestoredCheckpoint",
 ]

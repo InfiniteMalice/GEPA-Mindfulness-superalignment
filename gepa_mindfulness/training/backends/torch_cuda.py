@@ -217,15 +217,20 @@ def create_cuda_backend(
     gradient_scaler = _create_grad_scaler() if config.runtime.precision == "fp16" else None
     try:
         reference_model = deepcopy(policy_model)
-        policy_model = _wrap_distributed_policy(
-            policy_model,
-            config.runtime.distributed,
-            config.runtime.device,
-        )
+        value_head: nn.Module | None = None
+        if config.runtime.distributed.strategy != "none":
+            value_head = nn.Linear(_model_hidden_size(policy_model), 1)
+            policy_model, value_head = _wrap_distributed_trainables(
+                policy_model,
+                value_head,
+                config.runtime.distributed,
+                config.runtime.device,
+            )
         return TorchPolicyBackend(
             policy_model=policy_model,
             tokenizer=tokenizer,
             reference_model=reference_model,
+            value_head=value_head,
             device=config.runtime.device,
             learning_rate=config.algorithm.learning_rate,
             max_new_tokens=config.policy.max_new_tokens,
@@ -240,29 +245,51 @@ def create_cuda_backend(
         raise _cuda_oom_error("backend_initialization", config) from error
 
 
-def _wrap_distributed_policy(
+def _wrap_distributed_trainables(
     policy_model: nn.Module,
+    value_head: nn.Module,
+    topology: DistributedRuntimeConfig,
+    device: str,
+) -> tuple[nn.Module, nn.Module]:
+    if topology.strategy == "none":
+        return policy_model, value_head
+    return (
+        _wrap_distributed_module(policy_model, topology, device),
+        _wrap_distributed_module(value_head, topology, device),
+    )
+
+
+def _wrap_distributed_module(
+    module: nn.Module,
     topology: DistributedRuntimeConfig,
     device: str,
 ) -> nn.Module:
-    if topology.strategy == "none":
-        return policy_model
-    policy_model = policy_model.to(device)
+    module = module.to(device)
     if topology.strategy == "ddp":
-        wrapped = DistributedDataParallel(
-            policy_model,
-            device_ids=[topology.local_rank],
-            output_device=topology.local_rank,
+        kwargs = (
+            {"device_ids": [topology.local_rank], "output_device": topology.local_rank}
+            if device.startswith("cuda")
+            else {}
         )
+        wrapped = DistributedDataParallel(module, **kwargs)
     else:
         wrapped = FullyShardedDataParallel(
-            policy_model,
+            module,
             device_id=torch.device(device),
             sharding_strategy=ShardingStrategy.NO_SHARD,
             use_orig_params=True,
         )
     setattr(wrapped, "_gepa_distributed_strategy", topology.strategy)
     return wrapped
+
+
+def _model_hidden_size(model: nn.Module) -> int:
+    config = getattr(model, "config", None)
+    for attribute in ("hidden_size", "n_embd"):
+        value = getattr(config, attribute, None)
+        if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+            return value
+    raise ValueError("policy model config must expose a positive hidden_size or n_embd")
 
 
 def _cuda_oom_error(operation: str, config: RLRunConfig) -> CudaOutOfMemoryError:

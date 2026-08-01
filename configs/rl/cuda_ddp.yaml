@@ -1,12 +1,12 @@
 runtime:
   backend: cuda
-  device: cuda:0
+  device: cuda:LOCAL_RANK
   precision: fp32
   distributed:
     strategy: ddp
-    world_size: 2
-    rank: 0
-    local_rank: 0
+    world_size: WORLD_SIZE
+    rank: RANK
+    local_rank: LOCAL_RANK
     sharded_optimizer: false
 policy:
   model_name: LOCAL_MODEL_PATH

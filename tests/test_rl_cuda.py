@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import random
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -13,6 +16,7 @@ from torch import nn
 
 from gepa_mindfulness.training.backends.torch_cuda import (
     CudaOutOfMemoryError,
+    _wrap_distributed_trainables,
     create_cuda_backend,
     detect_cuda_capabilities,
     validate_distributed_runtime,
@@ -25,11 +29,13 @@ from gepa_mindfulness.training.capability import (
     CapabilityEvidence,
     CapabilityState,
 )
+from gepa_mindfulness.training.checkpointing import RankRNGState
 from gepa_mindfulness.training.engine import (
     RLTrainingEngine,
     SystemCapabilityProvider,
     _config_hash,
     _distributed_mean_scalars,
+    _gather_rank_rng_states,
     _JSONLRunLogger,
     required_capabilities,
 )
@@ -271,11 +277,20 @@ def _available_cuda(
 
 def _distributed_cuda_smoke_worker(
     rank: int,
+    config_path: str,
     dataset_path: str,
     checkpoint_dir: str,
     log_dir: str,
     init_file: str,
 ) -> None:
+    os.environ.update(
+        {
+            "WORLD_SIZE": "2",
+            "RANK": str(rank),
+            "LOCAL_RANK": str(rank),
+        }
+    )
+    template = load_rl_config(config_path)
     torch.cuda.set_device(rank)
     torch.distributed.init_process_group(
         "nccl",
@@ -284,17 +299,8 @@ def _distributed_cuda_smoke_worker(
         rank=rank,
     )
     try:
-        config = RLRunConfig(
-            runtime=RuntimeConfig(
-                backend="cuda",
-                device=f"cuda:{rank}",
-                distributed=DistributedRuntimeConfig(
-                    strategy="ddp",
-                    world_size=2,
-                    rank=rank,
-                    local_rank=rank,
-                ),
-            ),
+        config = replace(
+            template,
             policy=PolicyConfig(model_name="tiny-local-cuda-lm", max_new_tokens=1),
             algorithm=AlgorithmConfig(
                 name="ppo",
@@ -316,6 +322,58 @@ def _distributed_cuda_smoke_worker(
         )
         result = engine.train(max_steps=1)
         assert result.global_step == 1
+    finally:
+        torch.distributed.destroy_process_group()
+
+
+def _ddp_trainable_sync_worker(rank: int, init_file: str, result_dir: str) -> None:
+    torch.distributed.init_process_group(
+        "gloo",
+        init_method=f"file://{Path(init_file).as_posix()}",
+        world_size=2,
+        rank=rank,
+    )
+    try:
+        torch.manual_seed(123)
+        policy = _TinyCudaCausalLM()
+        reference = _TinyCudaCausalLM()
+        reference.load_state_dict(policy.state_dict())
+        value_head = nn.Linear(8, 1)
+        topology = DistributedRuntimeConfig(
+            strategy="ddp",
+            world_size=2,
+            rank=rank,
+            local_rank=rank,
+        )
+        policy, value_head = _wrap_distributed_trainables(
+            policy,
+            value_head,
+            topology,
+            "cpu",
+        )
+        backend = TorchPolicyBackend(
+            policy_model=policy,
+            reference_model=reference,
+            value_head=value_head,
+            tokenizer=_TinyCudaTokenizer(),
+            device="cpu",
+            learning_rate=0.1,
+        )
+        backend.zero_grad()
+        token = 2 + rank
+        input_ids = torch.tensor([[token]], dtype=torch.long)
+        policy_loss = backend.policy_model(input_ids).logits.sum() * float(rank + 1)
+        value_input = torch.full((1, 1, 8), float(rank + 1))
+        value_loss = backend.value_head(value_input).sum() * float(rank + 2)
+        backend.backward(policy_loss + value_loss)
+        backend.optimizer_step()
+        torch.save(
+            {
+                "policy": backend.policy_model.state_dict(),
+                "value_head": backend.value_head.state_dict(),
+            },
+            Path(result_dir) / f"rank-{rank}.pt",
+        )
     finally:
         torch.distributed.destroy_process_group()
 
@@ -538,6 +596,37 @@ def test_rank_local_fields_do_not_change_distributed_checkpoint_compatibility_ha
     assert _config_hash(rank_zero) == _config_hash(rank_one)
 
 
+def test_distributed_checkpoint_gathers_one_rng_state_per_rank() -> None:
+    config = _cuda_config(
+        distributed=DistributedRuntimeConfig(
+            strategy="ddp",
+            world_size=2,
+            rank=0,
+            local_rank=0,
+        )
+    )
+    rank_zero = RankRNGState(
+        python_rng_state=random.Random(101).getstate(),
+        torch_cpu_rng_state=torch.get_rng_state().clone(),
+        torch_cuda_rng_states=(torch.zeros(8, dtype=torch.uint8),),
+    )
+    rank_one = RankRNGState(
+        python_rng_state=random.Random(202).getstate(),
+        torch_cpu_rng_state=torch.get_rng_state().clone(),
+        torch_cuda_rng_states=(torch.ones(8, dtype=torch.uint8),),
+    )
+
+    class FakeDistributed:
+        @staticmethod
+        def all_gather_object(outputs: list[object], local: object) -> None:
+            assert local is rank_zero
+            outputs[:] = [rank_zero, rank_one]
+
+    gathered = _gather_rank_rng_states(config, rank_zero, distributed=FakeDistributed())
+
+    assert gathered == {0: rank_zero, 1: rank_one}
+
+
 def test_nonzero_engine_logger_uses_inert_rank_aware_sink(tmp_path: Path) -> None:
     config = RLRunConfig(
         runtime=RuntimeConfig(
@@ -578,11 +667,16 @@ def test_run_level_scalar_metrics_are_mean_reduced_across_ranks(
         lambda values, **kwargs: original_tensor(values, dtype=kwargs.get("dtype")),
     )
 
+    def fake_all_gather_object(outputs: list[object], local_names: object) -> None:
+        outputs[:] = [local_names, local_names]
+
     def fake_all_reduce(values: torch.Tensor, *, op: object) -> None:
         assert op is torch.distributed.ReduceOp.SUM
         reductions.append(values.clone())
-        values.add_(original_tensor([3.0, 7.0], dtype=values.dtype))
+        additions = ([3.0, 7.0], [1.0, 1.0])
+        values.add_(original_tensor(additions[len(reductions) - 1], dtype=values.dtype))
 
+    monkeypatch.setattr(torch.distributed, "all_gather_object", fake_all_gather_object)
     monkeypatch.setattr(torch.distributed, "all_reduce", fake_all_reduce)
 
     reduced = _distributed_mean_scalars(
@@ -590,8 +684,85 @@ def test_run_level_scalar_metrics_are_mean_reduced_across_ranks(
         {"policy_loss": 1.0, "total_reward": 5.0},
     )
 
-    assert len(reductions) == 1
+    assert len(reductions) == 2
     assert reduced == {"policy_loss": 2.0, "total_reward": 6.0}
+
+
+def test_run_level_scalar_reduction_agrees_keys_and_counts_conditional_presence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _cuda_config(
+        distributed=DistributedRuntimeConfig(
+            strategy="ddp",
+            world_size=2,
+            rank=0,
+            local_rank=0,
+        )
+    )
+    original_tensor = torch.tensor
+    reductions: list[torch.Tensor] = []
+    monkeypatch.setattr(
+        torch,
+        "tensor",
+        lambda values, **kwargs: original_tensor(values, dtype=kwargs.get("dtype")),
+    )
+
+    def fake_all_gather_object(outputs: list[object], local_names: object) -> None:
+        assert local_names == ("alpha", "shared")
+        outputs[:] = [("alpha", "shared"), ("zeta", "shared")]
+
+    def fake_all_reduce(values: torch.Tensor, *, op: object) -> None:
+        assert op is torch.distributed.ReduceOp.SUM
+        reductions.append(values.clone())
+        additions = ([0.0, 8.0, 10.0], [0.0, 1.0, 1.0])
+        values.add_(original_tensor(additions[len(reductions) - 1], dtype=values.dtype))
+
+    monkeypatch.setattr(torch.distributed, "all_gather_object", fake_all_gather_object)
+    monkeypatch.setattr(torch.distributed, "all_reduce", fake_all_reduce)
+
+    reduced = _distributed_mean_scalars(
+        config,
+        {"shared": 4.0, "alpha": 2.0},
+    )
+
+    assert len(reductions) == 2
+    assert reduced == {"alpha": 2.0, "shared": 6.0, "zeta": 10.0}
+
+
+def test_run_level_scalar_reduction_participates_when_local_metrics_are_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _cuda_config(
+        distributed=DistributedRuntimeConfig(
+            strategy="ddp",
+            world_size=2,
+            rank=0,
+            local_rank=0,
+        )
+    )
+    original_tensor = torch.tensor
+    calls: list[str] = []
+    monkeypatch.setattr(
+        torch,
+        "tensor",
+        lambda values, **kwargs: original_tensor(values, dtype=kwargs.get("dtype")),
+    )
+
+    def fake_all_gather_object(outputs: list[object], local_names: object) -> None:
+        calls.append("keys")
+        assert local_names == ()
+        outputs[:] = [(), ("remote_only",)]
+
+    def fake_all_reduce(values: torch.Tensor, *, op: object) -> None:
+        assert op is torch.distributed.ReduceOp.SUM
+        calls.append("reduce")
+        values.add_(original_tensor([9.0 if calls.count("reduce") == 1 else 1.0]))
+
+    monkeypatch.setattr(torch.distributed, "all_gather_object", fake_all_gather_object)
+    monkeypatch.setattr(torch.distributed, "all_reduce", fake_all_reduce)
+
+    assert _distributed_mean_scalars(config, {}) == {"remote_only": 9.0}
+    assert calls == ["keys", "reduce", "reduce"]
 
 
 @pytest.mark.parametrize("strategy", ["ddp", "fsdp"])
@@ -604,13 +775,14 @@ def test_cuda_factory_wraps_only_trainable_policy_with_selected_strategy(
     monkeypatch.setattr(torch.distributed, "is_initialized", lambda: True)
     monkeypatch.setattr(torch.distributed, "get_world_size", lambda: 2)
     monkeypatch.setattr(torch.distributed, "get_rank", lambda: 0)
-    captured: dict[str, object] = {}
+    captured: dict[str, object] = {"wrapped_modules": []}
 
     class RecordingWrapper(nn.Module):
         def __init__(self, module: nn.Module, **kwargs: object) -> None:
             super().__init__()
             self.module = module
             captured["wrapper_kwargs"] = kwargs
+            captured["wrapped_modules"].append(module)
 
         def forward(self, *args: object, **kwargs: object) -> object:
             return self.module(*args, **kwargs)
@@ -631,8 +803,8 @@ def test_cuda_factory_wraps_only_trainable_policy_with_selected_strategy(
         "gepa_mindfulness.training.backends.torch_cuda.TorchPolicyBackend",
         fake_backend,
     )
+    monkeypatch.setattr(nn.Module, "to", lambda module, *args, **kwargs: module)
     policy = _TinyCudaCausalLM()
-    monkeypatch.setattr(policy, "to", lambda device: policy)
     config = _cuda_config(
         distributed=DistributedRuntimeConfig(
             strategy=strategy,
@@ -647,8 +819,34 @@ def test_cuda_factory_wraps_only_trainable_policy_with_selected_strategy(
     wrapped = captured["policy_model"]
     assert isinstance(wrapped, RecordingWrapper)
     assert wrapped.module is policy
+    assert isinstance(captured["value_head"], RecordingWrapper)
+    assert len(captured["wrapped_modules"]) == 2
     assert isinstance(captured["reference_model"], _TinyCudaCausalLM)
     assert not isinstance(captured["reference_model"], RecordingWrapper)
+
+
+def test_ddp_policy_and_value_head_converge_with_different_rank_gradients(tmp_path: Path) -> None:
+    if not torch.distributed.is_available() or not torch.distributed.is_gloo_available():
+        pytest.skip("requires torch.distributed with Gloo support")
+    result_dir = tmp_path / "results"
+    result_dir.mkdir()
+
+    torch.multiprocessing.spawn(
+        _ddp_trainable_sync_worker,
+        args=(str(tmp_path / "process-group-init"), str(result_dir)),
+        nprocs=2,
+        join=True,
+    )
+
+    rank_zero = torch.load(result_dir / "rank-0.pt", weights_only=True)
+    rank_one = torch.load(result_dir / "rank-1.pt", weights_only=True)
+    assert rank_zero.keys() == rank_one.keys()
+    for section in ("policy", "value_head"):
+        assert rank_zero[section].keys() == rank_one[section].keys()
+        assert all(
+            torch.equal(rank_zero[section][name], rank_one[section][name])
+            for name in rank_zero[section]
+        )
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:-1", "cuda:one", "cuda:0:1"])
@@ -974,21 +1172,56 @@ def test_cuda_single_gpu_template_is_strict_and_uses_bundled_pairs() -> None:
     assert config.dataset.train_path == "data/synthetic/reward_integrity/rl_pairs_v1.jsonl"
 
 
-def test_cuda_ddp_template_is_strict_and_uses_bundled_pairs() -> None:
+def test_cuda_ddp_template_resolves_torchrun_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     path = Path(__file__).parents[1] / "configs" / "rl" / "cuda_ddp.yaml"
+    monkeypatch.setenv("WORLD_SIZE", "2")
+    monkeypatch.setenv("RANK", "1")
+    monkeypatch.setenv("LOCAL_RANK", "1")
 
     config = load_rl_config(path)
 
     assert config.runtime.backend == "cuda"
-    assert config.runtime.device == "cuda:0"
+    assert config.runtime.device == "cuda:1"
     assert config.runtime.distributed == DistributedRuntimeConfig(
         strategy="ddp",
         world_size=2,
-        rank=0,
-        local_rank=0,
+        rank=1,
+        local_rank=1,
     )
     assert config.policy.model_name == "LOCAL_MODEL_PATH"
     assert config.dataset.train_path == "data/synthetic/reward_integrity/rl_pairs_v1.jsonl"
+
+
+def test_cuda_ddp_template_rejects_missing_torchrun_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = Path(__file__).parents[1] / "configs" / "rl" / "cuda_ddp.yaml"
+    for name in ("WORLD_SIZE", "RANK", "LOCAL_RANK"):
+        monkeypatch.delenv(name, raising=False)
+
+    with pytest.raises(ValueError, match="WORLD_SIZE.*required"):
+        load_rl_config(path)
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [("WORLD_SIZE", "two"), ("RANK", "1.5"), ("LOCAL_RANK", "-1")],
+)
+def test_cuda_ddp_template_rejects_invalid_torchrun_integer(
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    value: str,
+) -> None:
+    path = Path(__file__).parents[1] / "configs" / "rl" / "cuda_ddp.yaml"
+    monkeypatch.setenv("WORLD_SIZE", "2")
+    monkeypatch.setenv("RANK", "0")
+    monkeypatch.setenv("LOCAL_RANK", "0")
+    monkeypatch.setenv(name, value)
+
+    with pytest.raises(ValueError, match=name):
+        load_rl_config(path)
 
 
 def test_cuda_operator_guide_has_executable_commands_and_honest_host_status() -> None:
@@ -1029,6 +1262,7 @@ def test_two_gpu_ddp_smoke_has_one_manifest_and_unique_trajectory_stream(tmp_pat
     torch.multiprocessing.spawn(
         _distributed_cuda_smoke_worker,
         args=(
+            str(Path(__file__).parents[1] / "configs" / "rl" / "cuda_ddp.yaml"),
             str(dataset_path),
             str(checkpoint_dir),
             str(log_dir),

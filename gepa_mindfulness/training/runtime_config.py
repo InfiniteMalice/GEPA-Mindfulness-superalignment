@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 import warnings
 from collections.abc import Mapping
@@ -130,9 +131,19 @@ class DistributedRuntimeConfig:
             raise TypeError("runtime.distributed.sharded_optimizer must be a boolean")
         return cls(
             strategy=cast(DistributedStrategy, strategy),
-            world_size=_integer(payload, "world_size", 1, "runtime.distributed"),
-            rank=_integer(payload, "rank", 0, "runtime.distributed"),
-            local_rank=_integer(payload, "local_rank", 0, "runtime.distributed"),
+            world_size=_topology_integer(
+                payload,
+                "world_size",
+                1,
+                environment_name="WORLD_SIZE",
+            ),
+            rank=_topology_integer(payload, "rank", 0, environment_name="RANK"),
+            local_rank=_topology_integer(
+                payload,
+                "local_rank",
+                0,
+                environment_name="LOCAL_RANK",
+            ),
             sharded_optimizer=sharded_optimizer,
         )
 
@@ -180,15 +191,35 @@ class RuntimeConfig:
         payload = _mapping(payload, "runtime")
         _reject_unknown(payload, {"backend", "device", "precision", "distributed"}, "runtime")
         backend = _string(payload, "backend", "pytorch", "runtime")
-        device = _string(payload, "device", "cpu", "runtime")
         precision = _string(payload, "precision", "fp32", "runtime")
         distributed = DistributedRuntimeConfig.from_mapping(_section(payload, "distributed"))
+        device = _string(payload, "device", "cpu", "runtime")
+        if device == "cuda:LOCAL_RANK":
+            device = f"cuda:{distributed.local_rank}"
         return cls(
             backend=backend,
             device=device,
             precision=cast(Precision, precision),
             distributed=distributed,
         )
+
+
+def _topology_integer(
+    payload: Mapping[str, Any],
+    key: str,
+    default: int,
+    *,
+    environment_name: str,
+) -> int:
+    value = payload.get(key, default)
+    if value != environment_name:
+        return _integer(payload, key, default, "runtime.distributed")
+    raw = os.environ.get(environment_name)
+    if raw is None:
+        raise ValueError(f"{environment_name} environment variable is required")
+    if re.fullmatch(r"0|[1-9][0-9]*", raw) is None:
+        raise ValueError(f"{environment_name} must be a non-negative base-10 integer")
+    return int(raw)
 
 
 @dataclass(frozen=True)

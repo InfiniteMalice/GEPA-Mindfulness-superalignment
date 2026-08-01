@@ -18,6 +18,7 @@ from gepa_mindfulness.training.checkpointing import (
     CheckpointRNGTopology,
     CheckpointSnapshot,
     LocalCheckpointStore,
+    RankRNGState,
 )
 
 DATASET_HASH = "a" * 64
@@ -83,7 +84,12 @@ def test_nonzero_rank_checkpoint_store_never_creates_or_truncates_output(tmp_pat
         backend_calls.append(path)
         raise AssertionError("nonzero rank must not publish a backend checkpoint")
 
-    store = LocalCheckpointStore(tmp_path, rank=1, backend_save=unexpected_backend_save)
+    store = LocalCheckpointStore(
+        tmp_path,
+        rank=1,
+        world_size=2,
+        backend_save=unexpected_backend_save,
+    )
 
     assert store.save(_snapshot()) is None
     assert backend_calls == []
@@ -124,6 +130,136 @@ def test_checkpoint_round_trip_restores_step_rng_parent_and_state(
     assert restored.rollout_cursor == 9
     assert restored.parent_checkpoint == "checkpoint-00000002"
     assert restored_backend == [b"versioned-backend-payload"]
+
+
+def test_distributed_checkpoint_load_selects_exact_rank_rng_state(
+    tmp_path: Path,
+    backend_callbacks: tuple[list[bytes], object, _BackendBytesCallbacks],
+) -> None:
+    _, save_backend, backend_bytes = backend_callbacks
+    original = torch.get_rng_state()
+    try:
+        torch.manual_seed(101)
+        rank_zero_cpu = torch.get_rng_state().clone()
+        torch.manual_seed(202)
+        rank_one_cpu = torch.get_rng_state().clone()
+    finally:
+        torch.set_rng_state(original)
+    rank_zero_cuda = torch.zeros(8, dtype=torch.uint8)
+    rank_one_cuda = torch.ones(8, dtype=torch.uint8)
+    rank_states = {
+        0: RankRNGState(
+            python_rng_state=random.Random(101).getstate(),
+            torch_cpu_rng_state=rank_zero_cpu,
+            torch_cuda_rng_states=(rank_zero_cuda,),
+        ),
+        1: RankRNGState(
+            python_rng_state=random.Random(202).getstate(),
+            torch_cpu_rng_state=rank_one_cpu,
+            torch_cuda_rng_states=(rank_one_cuda,),
+        ),
+    }
+    snapshot = replace(
+        _snapshot(),
+        torch_cuda_rng_states=(rank_zero_cuda,),
+        rank_rng_states=rank_states,
+    )
+    topology = CheckpointRNGTopology(
+        device_type="cuda",
+        cpu_state_length=len(rank_zero_cpu),
+        cuda_state_lengths=(8,),
+    )
+    publisher = LocalCheckpointStore(
+        tmp_path,
+        rank=0,
+        world_size=2,
+        backend_save=save_backend,
+        backend_preflight=backend_bytes.preflight,
+        backend_load_bytes=backend_bytes.load,
+        backend_snapshot=backend_bytes.snapshot,
+        backend_rollback=backend_bytes.rollback,
+        rng_topology=topology,
+    )
+    manifest = publisher.save(snapshot)
+    rank_one_loader = LocalCheckpointStore(
+        tmp_path,
+        rank=1,
+        world_size=2,
+        backend_save=save_backend,
+        backend_preflight=backend_bytes.preflight,
+        backend_load_bytes=backend_bytes.load,
+        backend_snapshot=backend_bytes.snapshot,
+        backend_rollback=backend_bytes.rollback,
+        rng_topology=topology,
+    )
+
+    restored = rank_one_loader.load(manifest.path)
+
+    assert restored.python_rng_state == rank_states[1].python_rng_state
+    assert torch.equal(restored.torch_cpu_rng_state, rank_one_cpu)
+    assert len(restored.torch_cuda_rng_states) == 1
+    assert torch.equal(restored.torch_cuda_rng_states[0], rank_one_cuda)
+
+
+def test_distributed_checkpoint_rejects_missing_rank_rng_before_publication(
+    tmp_path: Path,
+    backend_callbacks: tuple[list[bytes], object, _BackendBytesCallbacks],
+) -> None:
+    _, save_backend, _ = backend_callbacks
+    snapshot = replace(
+        _snapshot(),
+        rank_rng_states={
+            0: RankRNGState(
+                python_rng_state=random.Random(101).getstate(),
+                torch_cpu_rng_state=torch.get_rng_state().clone(),
+                torch_cuda_rng_states=(),
+            )
+        },
+    )
+    store = LocalCheckpointStore(
+        tmp_path,
+        rank=0,
+        world_size=2,
+        backend_save=save_backend,
+    )
+
+    with pytest.raises(ValueError, match="rank_rng_states.*world_size"):
+        store.save(snapshot)
+
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_distributed_checkpoint_validates_every_rank_rng_before_publication(
+    tmp_path: Path,
+    backend_callbacks: tuple[list[bytes], object, _BackendBytesCallbacks],
+) -> None:
+    _, save_backend, _ = backend_callbacks
+    snapshot = replace(
+        _snapshot(),
+        rank_rng_states={
+            0: RankRNGState(
+                python_rng_state=random.Random(101).getstate(),
+                torch_cpu_rng_state=torch.get_rng_state().clone(),
+                torch_cuda_rng_states=(),
+            ),
+            1: RankRNGState(
+                python_rng_state=random.Random(202).getstate(),
+                torch_cpu_rng_state=torch.zeros(1, dtype=torch.uint8),
+                torch_cuda_rng_states=(),
+            ),
+        },
+    )
+    store = LocalCheckpointStore(
+        tmp_path,
+        rank=0,
+        world_size=2,
+        backend_save=save_backend,
+    )
+
+    with pytest.raises(ValueError, match="rank 1.*CPU RNG state length"):
+        store.save(snapshot)
+
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_checkpoint_manifest_has_exact_versioned_compatibility_fields(
@@ -467,7 +603,7 @@ def test_checkpoint_rejects_rehashed_wrong_rng_length_before_backend_preflight(
     manifest = store.save(_snapshot())
     state_path = manifest.path / "training_state.pt"
     state = torch.load(state_path, map_location="cpu", weights_only=True)
-    state["torch_cpu_rng_state"] = torch.zeros(1, dtype=torch.uint8)
+    state["rank_rng_states"][0]["torch_cpu_rng_state"] = torch.zeros(1, dtype=torch.uint8)
     torch.save(state, state_path)
     manifest_path = manifest.path / "manifest.json"
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))

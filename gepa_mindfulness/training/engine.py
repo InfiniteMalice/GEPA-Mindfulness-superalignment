@@ -31,6 +31,7 @@ if TYPE_CHECKING:
     from torch import nn
 
     from .backends.base import BackendCheckpointResult, TokenizerLike
+    from .checkpointing import RankRNGState
 
 EngineMode = Literal["train", "resume", "collect", "evaluate"]
 
@@ -1726,6 +1727,7 @@ class _LocalCheckpointCoordinator:
             backend_rollback=rollback,
             rng_topology=topology,
             rank=_distributed_runtime(config).rank,
+            world_size=_distributed_runtime(config).world_size,
         )
 
     def load(self, path: Path) -> object:
@@ -1738,6 +1740,7 @@ class _LocalCheckpointCoordinator:
             backend_rollback=self._backend_rollback,
             rng_topology=self._rng_topology,
             rank=_distributed_runtime(self.config).rank,
+            world_size=_distributed_runtime(self.config).world_size,
         )
         return selected_store.load(
             path,
@@ -1759,7 +1762,7 @@ class _LocalCheckpointCoordinator:
         self.rollout_cursor = rollout_cursor
 
     def save(self, global_step: int, parent_checkpoint: str | None) -> object:
-        from .checkpointing import CheckpointSnapshot
+        from .checkpointing import CheckpointSnapshot, RankRNGState
 
         config_payload = asdict(self.config)
         cpu_rng = self._torch.get_rng_state().clone()
@@ -1768,16 +1771,23 @@ class _LocalCheckpointCoordinator:
             if self.config.runtime.device.startswith("cuda")
             else ()
         )
+        local_rng = RankRNGState(
+            python_rng_state=random.getstate(),
+            torch_cpu_rng_state=cpu_rng,
+            torch_cuda_rng_states=cuda_rng,
+        )
+        rank_rng_states = _gather_rank_rng_states(self.config, local_rng)
         snapshot = CheckpointSnapshot(
             global_step=global_step,
             algorithm_state=self.algorithm_state,
             scheduler_state=self.scheduler_state,
-            python_rng_state=random.getstate(),
+            python_rng_state=local_rng.python_rng_state,
             torch_cpu_rng_state=cpu_rng,
             torch_cuda_rng_states=cuda_rng,
             canonical_config=config_payload,
             dataset_hash=self.snapshot.sha256,
             config_hash=_config_hash(self.config),
+            rank_rng_states=rank_rng_states,
             batch_cursor=self.batch_cursor,
             rollout_cursor=self.rollout_cursor,
             parent_checkpoint=parent_checkpoint,
@@ -2033,19 +2043,66 @@ def _distributed_mean_scalars(
 ) -> dict[str, float]:
     values = {name: float(value) for name, value in metrics.items()}
     topology = _distributed_runtime(config)
-    if topology.strategy == "none" or not values:
+    if topology.strategy == "none":
         return values
     import torch
 
-    names = sorted(values)
-    tensor = torch.tensor(
-        [values[name] for name in names],
+    gathered_names: list[object] = [None] * topology.world_size
+    torch.distributed.all_gather_object(gathered_names, tuple(sorted(values)))
+    if not all(
+        isinstance(item, tuple) and all(isinstance(name, str) for name in item)
+        for item in gathered_names
+    ):
+        raise RuntimeError("distributed metric key agreement returned malformed names")
+    names = sorted({name for item in gathered_names for name in cast(tuple[str, ...], item)})
+    value_tensor = torch.tensor(
+        [values.get(name, 0.0) for name in names],
         dtype=torch.float64,
         device=config.runtime.device,
     )
-    torch.distributed.all_reduce(tensor, op=torch.distributed.ReduceOp.SUM)
-    tensor /= topology.world_size
-    return {name: float(value) for name, value in zip(names, tensor.cpu().tolist())}
+    presence_tensor = torch.tensor(
+        [1.0 if name in values else 0.0 for name in names],
+        dtype=torch.float64,
+        device=config.runtime.device,
+    )
+    torch.distributed.all_reduce(value_tensor, op=torch.distributed.ReduceOp.SUM)
+    torch.distributed.all_reduce(presence_tensor, op=torch.distributed.ReduceOp.SUM)
+    return {
+        name: float(total / presence)
+        for name, total, presence in zip(
+            names,
+            value_tensor.cpu().tolist(),
+            presence_tensor.cpu().tolist(),
+            strict=True,
+        )
+        if presence > 0.0
+    }
+
+
+def _gather_rank_rng_states(
+    config: RLRunConfig,
+    local_state: "RankRNGState",
+    *,
+    distributed: object | None = None,
+) -> Mapping[int, "RankRNGState"]:
+    from .checkpointing import RankRNGState
+
+    if not isinstance(local_state, RankRNGState):
+        raise TypeError("local_state must be a RankRNGState")
+    topology = _distributed_runtime(config)
+    if topology.strategy == "none":
+        return MappingProxyType({0: local_state})
+    collective = import_module("torch").distributed if distributed is None else distributed
+    gather = getattr(collective, "all_gather_object", None)
+    if not callable(gather):
+        raise RuntimeError("torch.distributed all_gather_object is required for RNG checkpointing")
+    gathered: list[object] = [None] * topology.world_size
+    gather(gathered, local_state)
+    if not all(isinstance(state, RankRNGState) for state in gathered):
+        raise RuntimeError("distributed RNG gather returned malformed rank state")
+    return MappingProxyType(
+        {rank: cast(RankRNGState, state) for rank, state in enumerate(gathered)}
+    )
 
 
 def _distributed_runtime(config: RLRunConfig) -> DistributedRuntimeConfig:
