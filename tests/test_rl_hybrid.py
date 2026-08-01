@@ -13,6 +13,7 @@ from typing import Iterator
 import pytest
 
 from gepa_mindfulness.training.backends.mojo_coordinator import (
+    ActorHandshake,
     MojoCoordinatorBackend,
     MojoCoordinatorError,
     MojoProcessTransport,
@@ -76,11 +77,49 @@ if mode == "oversized_stderr":
 if mode == "bad_handshake":
     send("hello", hello["request_id"], {"backend_name": "fake", "extra": True})
     raise SystemExit(0)
+if mode == "duplicate_envelope_key":
+    raw = (
+        '{"protocol_version":"gepa-actor-v1","type":"hello","type":"hello",'
+        '"request_id":"%s","payload":{"backend_name":"fake-mojo",'
+        '"backend_version":"fake-1"}}\n' % hello["request_id"]
+    )
+    sys.stdout.write(raw)
+    sys.stdout.flush()
+    raise SystemExit(0)
+if mode == "duplicate_nested_key":
+    raw = (
+        '{"protocol_version":"gepa-actor-v1","type":"hello",'
+        '"request_id":"%s","payload":{"backend_name":"fake-mojo",'
+        '"backend_name":"forged","backend_version":"fake-1"}}\n'
+        % hello["request_id"]
+    )
+    sys.stdout.write(raw)
+    sys.stdout.flush()
+    raise SystemExit(0)
+if mode in ("future_frame", "duplicate_frame"):
+    first = {
+        "protocol_version": "gepa-actor-v1",
+        "type": "hello",
+        "request_id": hello["request_id"],
+        "payload": {"backend_name": "fake-mojo", "backend_version": "fake-1"},
+    }
+    second = dict(first)
+    if mode == "future_frame":
+        second["type"] = "close"
+        second["request_id"] = "request-2"
+        second["payload"] = {}
+    sys.stdout.write(json.dumps(first) + "\n" + json.dumps(second) + "\n")
+    sys.stdout.flush()
+    time.sleep(10)
+    raise SystemExit(0)
 send(
     "hello",
     hello["request_id"],
     {"backend_name": "fake-mojo", "backend_version": "fake-1"},
 )
+if mode == "stop_reading":
+    time.sleep(10)
+    raise SystemExit(0)
 
 
 def trajectory(request, request_index, sample_index):
@@ -136,6 +175,10 @@ while True:
             trajectories.append(trajectory(request, request_index, sample_index))
     if mode == "wrong_policy":
         trajectories[0]["policy_version"] = "999"
+    if mode == "wrong_backend_name":
+        trajectories[0]["backend_name"] = "forged"
+    if mode == "wrong_backend_version":
+        trajectories[0]["backend_version"] = "forged"
     if mode == "wrong_order":
         trajectories.reverse()
     if mode == "duplicate" and len(trajectories) > 1:
@@ -187,6 +230,24 @@ def test_transport_rejects_invalid_command(command: object) -> None:
     """The process boundary never coerces arguments or falls back to a shell."""
     with pytest.raises((TypeError, ValueError), match="command|executable"):
         MojoProcessTransport(command)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        ("wrong", "fake", "1"),
+        ("gepa-actor-v1", "", "1"),
+        ("gepa-actor-v1", "fake\nname", "1"),
+        ("gepa-actor-v1", "x" * 129, "1"),
+        ("gepa-actor-v1", "fake", ""),
+    ],
+)
+def test_handshake_constructor_rejects_forged_or_unsafe_identity(
+    values: tuple[str, str, str],
+) -> None:
+    """Handshake evidence cannot be constructed with forged protocol or unsafe identity."""
+    with pytest.raises(ValueError):
+        ActorHandshake(*values)
 
 
 def test_transport_requires_typed_handshake_and_closes_idempotently(
@@ -289,6 +350,92 @@ def test_backend_rejects_uncorrelated_or_malformed_trajectory_response(
     with pytest.raises(MojoCoordinatorError, match=message):
         backend.generate(requests)
 
+    assert transport.closed is True
+    assert transport.process_running is False
+    with pytest.raises(RuntimeError, match="closed"):
+        backend.generate(requests)
+
+
+@pytest.mark.parametrize("mode", ["wrong_backend_name", "wrong_backend_version"])
+def test_backend_binds_trajectory_identity_to_handshake(
+    fake_coordinator_factory: object,
+    mode: str,
+) -> None:
+    """A coordinator cannot forge trajectory backend provenance after its handshake."""
+    transport = fake_coordinator_factory(mode)  # type: ignore[operator]
+    backend = MojoCoordinatorBackend(transport)
+
+    with pytest.raises(MojoCoordinatorError, match="backend.*identity|provenance"):
+        backend.generate((RolloutRequest(prompt="prompt", policy_version="3"),))
+
+    assert transport.closed is True
+
+
+@pytest.mark.parametrize("mode", ["future_frame", "duplicate_frame"])
+def test_transport_rejects_pres_sent_or_duplicate_response_frames(
+    fake_coordinator_factory: object,
+    mode: str,
+) -> None:
+    """Only one frame may satisfy the active expectation established before a write."""
+    transport = fake_coordinator_factory(mode)  # type: ignore[operator]
+
+    with pytest.raises(MojoCoordinatorError, match="unsolicited|duplicate|response"):
+        transport.start()
+
+
+@pytest.mark.parametrize("mode", ["duplicate_envelope_key", "duplicate_nested_key"])
+def test_transport_rejects_duplicate_json_object_keys(
+    fake_coordinator_factory: object,
+    mode: str,
+) -> None:
+    """Duplicate envelope and nested payload keys cannot overwrite validated evidence."""
+    transport = fake_coordinator_factory(mode)  # type: ignore[operator]
+
+    with pytest.raises(MojoCoordinatorError, match="duplicate|JSON"):
+        transport.start()
+
+
+def _raw_actor_request(**changes: object) -> dict[str, object]:
+    request: dict[str, object] = {
+        "case_id": "case-1",
+        "metadata": {},
+        "num_samples": 1,
+        "policy_version": "3",
+        "prompt": "prompt",
+        "sampling_parameters": {},
+        "seed": None,
+    }
+    request.update(changes)
+    return request
+
+
+@pytest.mark.parametrize(
+    "request_value",
+    [
+        {"prompt": "missing fields"},
+        _raw_actor_request(extra=True),
+        _raw_actor_request(prompt=""),
+        _raw_actor_request(case_id=7),
+        _raw_actor_request(num_samples=0),
+        _raw_actor_request(policy_version="03"),
+        _raw_actor_request(seed=True),
+        _raw_actor_request(metadata=[]),
+        _raw_actor_request(sampling_parameters={"temperature": float("nan")}),
+    ],
+)
+def test_direct_transport_rejects_invalid_request_without_writing(
+    fake_coordinator_factory: object,
+    request_value: dict[str, object],
+) -> None:
+    """Direct callers receive the same closed request validation as backend callers."""
+    transport = fake_coordinator_factory()  # type: ignore[operator]
+    transport.start()
+
+    with pytest.raises((TypeError, ValueError), match="request|prompt|case|sample|policy|seed"):
+        transport.generate((request_value,))
+
+    assert transport._request_number == 1
+
 
 @pytest.mark.parametrize(
     ("mode", "message", "kwargs"),
@@ -369,9 +516,53 @@ def test_close_escalates_cleanup_when_coordinator_does_not_exit(
     assert transport.process_running is False
 
 
+def test_operation_deadlines_bound_reader_start_blocked_write_and_shutdown(
+    fake_coordinator_factory: object,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reader startup, blocked stdin, and shutdown cleanup share total operation budgets."""
+    original = MojoProcessTransport._read_stderr
+
+    def late_reader(transport: MojoProcessTransport, stream: object) -> None:
+        time.sleep(0.2)
+        original(transport, stream)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(MojoProcessTransport, "_read_stderr", late_reader)
+    startup = fake_coordinator_factory(  # type: ignore[operator]
+        "happy",
+        startup_timeout_seconds=0.05,
+    )
+    started_at = time.monotonic()
+    with pytest.raises(MojoCoordinatorError, match="deadline"):
+        startup.start()
+    assert time.monotonic() - started_at < 0.3
+    monkeypatch.setattr(MojoProcessTransport, "_read_stderr", original)
+
+    blocked = fake_coordinator_factory(  # type: ignore[operator]
+        "stop_reading",
+        request_timeout_seconds=0.05,
+        max_frame_bytes=1_000_000,
+    )
+    blocked.start()
+    large = _raw_actor_request(prompt="x" * 500_000)
+    started_at = time.monotonic()
+    with pytest.raises(MojoCoordinatorError, match="deadline|write"):
+        blocked.generate((large,))
+    assert time.monotonic() - started_at < 0.3
+
+    shutdown = fake_coordinator_factory(  # type: ignore[operator]
+        "ignore_close",
+        shutdown_timeout_seconds=0.1,
+    )
+    shutdown.start()
+    started_at = time.monotonic()
+    shutdown.close()
+    assert time.monotonic() - started_at < 0.3
+
+
 @pytest.mark.skipif(shutil.which("mojo") is None, reason="Mojo toolchain is not installed")
 def test_mojo_coordinator_source_runs_hello_and_close_protocol() -> None:
-    """When Mojo is installed, its coordinator source handles hello and close frames."""
+    """When Mojo is installed, validate close, unconfigured generate, and rejection paths."""
     source = Path("mojo/rl_coordinator/main.mojo")
     messages = (
         '{"protocol_version":"gepa-actor-v1","type":"hello",'
@@ -394,3 +585,44 @@ def test_mojo_coordinator_source_runs_hello_and_close_protocol() -> None:
     assert len(frames) == 2
     assert '"type":"hello"' in frames[0].replace(" ", "")
     assert '"type":"close"' in frames[1].replace(" ", "")
+
+    generate_messages = (
+        '{"protocol_version":"gepa-actor-v1","type":"hello",'
+        '"request_id":"request-1","payload":{}}\n'
+        '{"protocol_version":"gepa-actor-v1","type":"generate",'
+        '"request_id":"request-2","payload":{"requests":[]}}\n'
+    )
+    generated = subprocess.run(
+        ["mojo", "run", str(source)],
+        input=generate_messages,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=15,
+    )
+    assert generated.returncode == 0, generated.stderr
+    assert "actor_unconfigured" in generated.stdout
+
+    malformed = subprocess.run(
+        ["mojo", "run", str(source)],
+        input=messages.replace("request-1", "request-9", 1),
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=15,
+    )
+    assert malformed.returncode != 0
+
+
+def test_mojo_source_declares_strict_unconfigured_protocol_contract() -> None:
+    """The checked-in boundary names every accepted type and never emits trajectories."""
+    source = Path("mojo/rl_coordinator/main.mojo").read_text(encoding="utf-8")
+
+    assert "gepa-actor-v1" in source
+    assert '\\"hello\\"' in source
+    assert '\\"generate\\"' in source
+    assert '\\"close\\"' in source
+    assert "actor_unconfigured" in source
+    assert "trajectories" not in source
+    assert "invalid gepa-actor-v1 hello frame" in source
+    assert "invalid gepa-actor-v1 generate or close frame" in source

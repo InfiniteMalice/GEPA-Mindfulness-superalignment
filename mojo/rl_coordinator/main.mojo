@@ -36,6 +36,13 @@ def main() raises:
         )
         return
 
+    var expected_generate = (
+        "{\"protocol_version\":\"gepa-actor-v1\",\"type\":\"generate\","
+        "\"request_id\":\"request-2\",\"payload\":{\"requests\":[]}}"
+    )
+    if request != expected_generate:
+        raise Error("invalid gepa-actor-v1 generate or close frame")
+
     print(
         "{\"protocol_version\":\"gepa-actor-v1\",\"type\":\"error\","
         "\"request_id\":\"request-2\",\"payload\":{\"code\":"

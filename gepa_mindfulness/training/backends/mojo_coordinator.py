@@ -26,6 +26,7 @@ _DEFAULT_MAX_STDERR_BYTES = 65_536
 _MAX_FRAME_BYTES = 16_777_216
 _MAX_STDERR_BYTES = 1_048_576
 _MAX_TIMEOUT_SECONDS = 60.0
+_MAX_IDENTITY_CHARACTERS = 128
 _READ_BYTES = 4096
 _ENVELOPE_FIELDS = frozenset({"protocol_version", "type", "request_id", "payload"})
 _HANDSHAKE_FIELDS = frozenset({"backend_name", "backend_version"})
@@ -97,6 +98,22 @@ class ActorHandshake:
     backend_name: str
     backend_version: str
 
+    def __post_init__(self) -> None:
+        if self.protocol_version != _PROTOCOL_VERSION:
+            raise ValueError("protocol_version must equal gepa-actor-v1")
+        for field_name in ("backend_name", "backend_version"):
+            value = getattr(self, field_name)
+            if (
+                type(value) is not str
+                or not value.strip()
+                or len(value) > _MAX_IDENTITY_CHARACTERS
+                or not all(character.isprintable() for character in value)
+            ):
+                raise ValueError(
+                    f"{field_name} must be a safe nonblank string of at most "
+                    f"{_MAX_IDENTITY_CHARACTERS} characters"
+                )
+
 
 class MojoProcessTransport:
     """Exchange one in-flight request at a time with a JSONL coordinator process."""
@@ -140,6 +157,10 @@ class MojoProcessTransport:
         self._stderr_lock = threading.Lock()
         self._stderr_overflow = threading.Event()
         self._stderr_reader_ready = threading.Event()
+        self._expectation_lock = threading.Lock()
+        self._expected_response: tuple[str, str] | None = None
+        self._response_seen = False
+        self._protocol_error: str | None = None
         self._stdout_thread: threading.Thread | None = None
         self._stderr_thread: threading.Thread | None = None
         self._exchange_lock = threading.RLock()
@@ -161,15 +182,20 @@ class MojoProcessTransport:
 
     def start(self) -> ActorHandshake:
         """Start the child and complete a bounded strict handshake."""
+        operation_deadline = time.monotonic() + self.startup_timeout_seconds
         with self._exchange_lock:
             if self._closed:
                 raise RuntimeError("Mojo coordinator transport is closed")
             if self._started:
                 raise RuntimeError("Mojo coordinator transport is already started")
             try:
-                self._spawn()
+                self._spawn(operation_deadline)
                 self._started = True
-                payload = self._exchange("hello", {}, self.startup_timeout_seconds)
+                payload = self._exchange(
+                    "hello",
+                    {},
+                    _reserved_exchange_deadline(operation_deadline),
+                )
                 if set(payload) != _HANDSHAKE_FIELDS:
                     raise MojoCoordinatorError("Mojo coordinator handshake schema is invalid")
                 backend_name = payload.get("backend_name")
@@ -184,7 +210,7 @@ class MojoProcessTransport:
                     backend_version=backend_version,
                 )
             except (MojoCoordinatorError, OSError) as exc:
-                self._cleanup()
+                self._cleanup(operation_deadline)
                 if isinstance(exc, MojoCoordinatorError):
                     raise
                 raise MojoCoordinatorError("Mojo coordinator process could not start") from exc
@@ -194,6 +220,7 @@ class MojoProcessTransport:
         requests: Sequence[Mapping[str, object]],
     ) -> tuple[Mapping[str, object], ...]:
         """Exchange one generate batch after a successful handshake."""
+        operation_deadline = time.monotonic() + self.request_timeout_seconds
         with self._exchange_lock:
             if self._closed:
                 raise RuntimeError("Mojo coordinator transport is closed")
@@ -202,11 +229,13 @@ class MojoProcessTransport:
             request_list = list(requests)
             if not all(isinstance(item, Mapping) for item in request_list):
                 raise TypeError("actor requests must be JSON objects")
+            for index, request_value in enumerate(request_list):
+                _validate_actor_request(request_value, f"actor requests[{index}]")
             try:
                 payload = self._exchange(
                     "generate",
                     {"requests": request_list},
-                    self.request_timeout_seconds,
+                    _reserved_exchange_deadline(operation_deadline),
                 )
                 if set(payload) != _GENERATE_FIELDS:
                     raise MojoCoordinatorError("Mojo generate response schema is invalid")
@@ -217,27 +246,32 @@ class MojoProcessTransport:
                     raise MojoCoordinatorError("Mojo generate trajectories schema is invalid")
                 return tuple(dict(item) for item in trajectories)
             except MojoCoordinatorError:
-                self._cleanup()
+                self._cleanup(operation_deadline)
                 raise
 
     def close(self) -> None:
         """Request shutdown once, then terminate or kill within bounded cleanup."""
+        operation_deadline = time.monotonic() + self.shutdown_timeout_seconds
         with self._exchange_lock:
             if self._closed:
                 return
             close_error: MojoCoordinatorError | None = None
             if self._started and self.process_running:
                 try:
-                    payload = self._exchange("close", {}, self.shutdown_timeout_seconds)
+                    payload = self._exchange(
+                        "close",
+                        {},
+                        _reserved_exchange_deadline(operation_deadline, reserve_fraction=0.5),
+                    )
                     if payload:
                         raise MojoCoordinatorError("Mojo close response schema is invalid")
                 except MojoCoordinatorError as exc:
                     close_error = exc
-            self._cleanup()
+            self._cleanup(operation_deadline)
             if close_error is not None:
                 raise close_error
 
-    def _spawn(self) -> None:
+    def _spawn(self, deadline: float) -> None:
         self._process = subprocess.Popen(
             list(self.command),
             stdin=subprocess.PIPE,
@@ -260,18 +294,19 @@ class MojoProcessTransport:
         )
         self._stdout_thread.start()
         self._stderr_thread.start()
-        if not self._stderr_reader_ready.wait(self.startup_timeout_seconds):
+        if not self._stderr_reader_ready.wait(_remaining(deadline)):
             raise MojoCoordinatorError("Mojo coordinator stderr reader startup deadline expired")
 
     def _exchange(
         self,
         message_type: str,
         payload: Mapping[str, object],
-        timeout_seconds: float,
+        deadline: float,
     ) -> Mapping[str, object]:
         process = self._process
         if process is None or process.stdin is None:
             raise MojoCoordinatorError("Mojo coordinator process is unavailable")
+        stdin = process.stdin
         if process.poll() is not None:
             raise self._exited_error(process.returncode)
         self._request_number += 1
@@ -293,13 +328,36 @@ class MojoProcessTransport:
             raise MojoCoordinatorError("Mojo request is not finite JSON") from exc
         if len(encoded) > self.max_frame_bytes:
             raise MojoCoordinatorError("Mojo request frame exceeds the configured limit")
-        deadline = time.monotonic() + timeout_seconds
+        with self._expectation_lock:
+            if self._expected_response is not None:
+                raise MojoCoordinatorError("Mojo coordinator already has an active response")
+            if self._protocol_error is not None:
+                raise MojoCoordinatorError(self._protocol_error)
+            self._expected_response = (message_type, request_id)
+            self._response_seen = False
+        write_done = threading.Event()
+        write_errors: list[BaseException] = []
+
+        def write_frame() -> None:
+            try:
+                stdin.write(encoded + b"\n")
+                stdin.flush()
+            except (BrokenPipeError, OSError, ValueError) as exc:
+                write_errors.append(exc)
+            finally:
+                write_done.set()
+
+        writer = threading.Thread(target=write_frame, daemon=True)
+        writer.start()
         try:
-            process.stdin.write(encoded + b"\n")
-            process.stdin.flush()
-        except (BrokenPipeError, OSError, ValueError) as exc:
-            raise self._exited_error(process.poll()) from exc
-        return self._receive(message_type, request_id, deadline)
+            if not write_done.wait(_remaining(deadline)):
+                raise MojoCoordinatorError("Mojo coordinator write deadline expired")
+            if write_errors:
+                raise self._exited_error(process.poll()) from write_errors[0]
+            return self._receive(message_type, request_id, deadline)
+        finally:
+            with self._expectation_lock:
+                self._expected_response = None
 
     def _receive(
         self,
@@ -308,6 +366,10 @@ class MojoProcessTransport:
         deadline: float,
     ) -> Mapping[str, object]:
         while True:
+            with self._expectation_lock:
+                protocol_error = self._protocol_error
+            if protocol_error is not None:
+                raise MojoCoordinatorError(protocol_error)
             if self._stderr_overflow.is_set():
                 raise MojoCoordinatorError("Mojo coordinator stderr exceeded its byte limit")
             remaining = deadline - time.monotonic()
@@ -330,6 +392,10 @@ class MojoProcessTransport:
             self._stderr_overflow.wait(min(remaining, 0.01))
             if self._stderr_overflow.is_set():
                 raise MojoCoordinatorError("Mojo coordinator stderr exceeded its byte limit")
+            with self._expectation_lock:
+                protocol_error = self._protocol_error
+            if protocol_error is not None:
+                raise MojoCoordinatorError(protocol_error)
             return self._decode_envelope(value, message_type, request_id)
 
     def _decode_envelope(
@@ -345,7 +411,11 @@ class MojoProcessTransport:
         except UnicodeDecodeError as exc:
             raise MojoCoordinatorError("Mojo coordinator frame is not valid UTF-8") from exc
         try:
-            decoded = json.loads(text, parse_constant=_reject_json_constant)
+            decoded = json.loads(
+                text,
+                parse_constant=_reject_json_constant,
+                object_pairs_hook=_reject_duplicate_object_keys,
+            )
         except (json.JSONDecodeError, RecursionError, ValueError) as exc:
             raise MojoCoordinatorError("Mojo coordinator frame is not valid finite JSON") from exc
         _validate_json_value(decoded, "Mojo coordinator frame")
@@ -402,7 +472,7 @@ class MojoProcessTransport:
                             "Mojo coordinator stdout frame exceeded its byte limit",
                         )
                         return
-                    self._put_stdout_event("frame", bytes(raw))
+                    self._put_stdout_frame(bytes(raw))
                 if len(pending) > self.max_frame_bytes:
                     self._put_stdout_event(
                         "error",
@@ -426,6 +496,17 @@ class MojoProcessTransport:
                 )
             except queue.Full:
                 pass
+
+    def _put_stdout_frame(self, raw: bytes) -> None:
+        with self._expectation_lock:
+            if self._expected_response is None:
+                self._protocol_error = "Mojo coordinator emitted an unsolicited response frame"
+                return
+            if self._response_seen:
+                self._protocol_error = "Mojo coordinator emitted a duplicate response frame"
+                return
+            self._response_seen = True
+        self._put_stdout_event("frame", raw)
 
     def _read_stderr(self, stream: BinaryIO) -> None:
         self._stderr_reader_ready.set()
@@ -455,20 +536,24 @@ class MojoProcessTransport:
             f"{suffix}"
         )
 
-    def _cleanup(self) -> None:
+    def _cleanup(self, deadline: float | None = None) -> None:
         process = self._process
         self._closed = True
         if process is None:
             return
+        if deadline is None:
+            deadline = time.monotonic() + self.shutdown_timeout_seconds
         if process.stdin is not None:
-            try:
-                process.stdin.close()
-            except OSError:
-                pass
-        phase = self.shutdown_timeout_seconds / 3.0
+            close_thread = threading.Thread(
+                target=_close_stream,
+                args=(process.stdin,),
+                daemon=True,
+            )
+            close_thread.start()
+            close_thread.join(timeout=_remaining(deadline) / 4.0)
         if process.poll() is None:
             try:
-                process.wait(timeout=phase)
+                process.wait(timeout=_remaining(deadline) / 3.0)
             except subprocess.TimeoutExpired:
                 try:
                     process.terminate()
@@ -476,7 +561,7 @@ class MojoProcessTransport:
                     pass
         if process.poll() is None:
             try:
-                process.wait(timeout=phase)
+                process.wait(timeout=_remaining(deadline) / 2.0)
             except subprocess.TimeoutExpired:
                 try:
                     process.kill()
@@ -484,18 +569,15 @@ class MojoProcessTransport:
                     pass
         if process.poll() is None:
             try:
-                process.wait(timeout=phase)
+                process.wait(timeout=_remaining(deadline))
             except subprocess.TimeoutExpired:
                 pass
         for stream in (process.stdout, process.stderr):
-            if stream is not None:
-                try:
-                    stream.close()
-                except OSError:
-                    pass
+            if stream is not None and _remaining(deadline) > 0.0:
+                _close_stream(stream)
         for reader in (self._stdout_thread, self._stderr_thread):
             if reader is not None:
-                reader.join(timeout=phase)
+                reader.join(timeout=_remaining(deadline))
 
 
 class MojoCoordinatorBackend:
@@ -521,33 +603,51 @@ class MojoCoordinatorBackend:
             if not isinstance(handshake, ActorHandshake):
                 raise MojoCoordinatorError("Actor transport returned an invalid handshake")
             self._handshake = handshake
-        raw_trajectories = self.transport.generate(prepared)
-        if len(raw_trajectories) != len(expected):
-            raise MojoCoordinatorError("Mojo trajectory count does not match actor requests")
-        trajectories: list[Trajectory] = []
-        identifiers: set[str] = set()
-        for index, (raw, request) in enumerate(zip(raw_trajectories, expected, strict=True)):
-            keys = set(raw)
-            if (
-                keys != _TRAJECTORY_FIELDS
-                and keys != _TRAJECTORY_FIELDS | _OPTIONAL_TRAJECTORY_FIELDS
-            ):
-                raise MojoCoordinatorError("Mojo trajectory common schema is invalid")
-            try:
-                _validate_json_value(raw, f"Mojo trajectory {index}")
-                trajectory = Trajectory.from_dict(raw)
-            except (TypeError, ValueError, RecursionError) as exc:
-                raise MojoCoordinatorError("Mojo trajectory common schema is invalid") from exc
-            if trajectory.trajectory_id in identifiers:
-                raise MojoCoordinatorError("Mojo trajectory IDs must not contain duplicates")
-            identifiers.add(trajectory.trajectory_id)
-            if trajectory.prompt != request.prompt:
-                raise MojoCoordinatorError("Mojo trajectory order or prompt correlation is invalid")
-            if trajectory.case_id != request.case_id:
-                raise MojoCoordinatorError("Mojo trajectory order or case correlation is invalid")
-            if trajectory.policy_version != request.policy_version:
-                raise MojoCoordinatorError("Mojo trajectory policy_version correlation is invalid")
-            trajectories.append(trajectory)
+        try:
+            raw_trajectories = self.transport.generate(prepared)
+            if len(raw_trajectories) != len(expected):
+                raise MojoCoordinatorError("Mojo trajectory count does not match actor requests")
+            trajectories: list[Trajectory] = []
+            identifiers: set[str] = set()
+            for index, (raw, request) in enumerate(zip(raw_trajectories, expected, strict=True)):
+                keys = set(raw)
+                if (
+                    keys != _TRAJECTORY_FIELDS
+                    and keys != _TRAJECTORY_FIELDS | _OPTIONAL_TRAJECTORY_FIELDS
+                ):
+                    raise MojoCoordinatorError("Mojo trajectory common schema is invalid")
+                try:
+                    _validate_json_value(raw, f"Mojo trajectory {index}")
+                    trajectory = Trajectory.from_dict(raw)
+                except (TypeError, ValueError, RecursionError) as exc:
+                    raise MojoCoordinatorError("Mojo trajectory common schema is invalid") from exc
+                if trajectory.trajectory_id in identifiers:
+                    raise MojoCoordinatorError("Mojo trajectory IDs must not contain duplicates")
+                identifiers.add(trajectory.trajectory_id)
+                if trajectory.prompt != request.prompt:
+                    raise MojoCoordinatorError(
+                        "Mojo trajectory order or prompt correlation is invalid"
+                    )
+                if trajectory.case_id != request.case_id:
+                    raise MojoCoordinatorError(
+                        "Mojo trajectory order or case correlation is invalid"
+                    )
+                if trajectory.policy_version != request.policy_version:
+                    raise MojoCoordinatorError(
+                        "Mojo trajectory policy_version correlation is invalid"
+                    )
+                assert self._handshake is not None
+                if (
+                    trajectory.backend_name != self._handshake.backend_name
+                    or trajectory.backend_version != self._handshake.backend_version
+                ):
+                    raise MojoCoordinatorError(
+                        "Mojo trajectory backend identity provenance is invalid"
+                    )
+                trajectories.append(trajectory)
+        except (MojoCoordinatorError, TypeError, ValueError):
+            self._poison()
+            raise
         self._generation_observed = True
         return tuple(trajectories)
 
@@ -585,6 +685,13 @@ class MojoCoordinatorBackend:
         if not self._closed:
             self.transport.close()
             self._closed = True
+
+    def _poison(self) -> None:
+        try:
+            self.transport.close()
+        except (MojoCoordinatorError, RuntimeError):
+            pass
+        self._closed = True
 
 
 def _prepare_requests(
@@ -624,6 +731,34 @@ def _prepare_requests(
         prepared.append(payload)
         expected.extend(request for _ in range(request.num_samples))
     return tuple(prepared), tuple(expected)
+
+
+def _validate_actor_request(value: Mapping[str, object], field_name: str) -> None:
+    if set(value) != _REQUEST_FIELDS:
+        raise ValueError(f"{field_name} request schema is invalid")
+    prompt = value.get("prompt")
+    if not _nonblank_string(prompt):
+        raise ValueError(f"{field_name} prompt must be a nonblank string")
+    case_id = value.get("case_id")
+    if case_id is not None and type(case_id) is not str:
+        raise ValueError(f"{field_name} case_id must be a string or null")
+    num_samples = value.get("num_samples")
+    if type(num_samples) is not int or num_samples <= 0:
+        raise ValueError(f"{field_name} num_samples must be a positive integer")
+    try:
+        PolicyVersion.from_json(value.get("policy_version"))
+    except ValueError as exc:
+        raise ValueError(f"{field_name} policy_version must be canonical") from exc
+    seed = value.get("seed")
+    if seed is not None and (type(seed) is not int or seed < 0):
+        raise ValueError(f"{field_name} seed must be a non-negative integer or null")
+    for mapping_name in ("metadata", "sampling_parameters"):
+        mapping_value = value.get(mapping_name)
+        if not isinstance(mapping_value, Mapping) or not all(
+            isinstance(key, str) for key in mapping_value
+        ):
+            raise ValueError(f"{field_name} {mapping_name} must be a string-keyed object")
+    _validate_json_value(value, field_name)
 
 
 def _validated_command(command: object) -> tuple[str, ...]:
@@ -666,6 +801,38 @@ def _nonblank_string(value: object) -> bool:
 
 def _reject_json_constant(value: str) -> object:
     raise ValueError(f"non-finite JSON constant {value!r}")
+
+
+def _reject_duplicate_object_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON object key")
+        result[key] = value
+    return result
+
+
+def _remaining(deadline: float) -> float:
+    return max(0.0, deadline - time.monotonic())
+
+
+def _reserved_exchange_deadline(
+    operation_deadline: float,
+    *,
+    reserve_fraction: float = 0.2,
+) -> float:
+    remaining = _remaining(operation_deadline)
+    return time.monotonic() + remaining * (1.0 - reserve_fraction)
+
+
+def _close_stream(stream: object) -> None:
+    close = getattr(stream, "close", None)
+    if not callable(close):
+        return
+    try:
+        close()
+    except (OSError, ValueError):
+        pass
 
 
 def _validate_json_value(value: object, field_name: str) -> None:
