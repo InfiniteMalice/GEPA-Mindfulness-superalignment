@@ -100,7 +100,7 @@ model_dir = Path(os.environ["MODEL_DIR"]).expanduser().resolve(strict=True)
 if not model_dir.is_absolute() or not (model_dir / "config.json").is_file():
     raise SystemExit("MODEL_DIR must be absolute and contain config.json")
 if not any(model_dir.glob("*.safetensors")) and not any(model_dir.glob("*.bin")):
-    raise SystemExit("MODEL_DIR must contain Safetensors or PyTorch model weights")
+    raise SystemExit("MODEL_DIR must contain a candidate weight filename")
 AutoConfig.from_pretrained(model_dir, local_files_only=True)
 AutoTokenizer.from_pretrained(model_dir, local_files_only=True)
 path = Path("run.cuda.ppo.yaml")
@@ -522,17 +522,19 @@ model_dir = model_dir.resolve(strict=True)
 if not (model_dir / "config.json").is_file():
     raise SystemExit("MODEL_DIR must contain config.json")
 if not any(model_dir.glob("*.safetensors")) and not any(model_dir.glob("*.bin")):
-    raise SystemExit("MODEL_DIR must contain Safetensors or PyTorch model weights")
+    raise SystemExit("MODEL_DIR must contain a candidate weight filename")
 AutoConfig.from_pretrained(model_dir, local_files_only=True)
 AutoTokenizer.from_pretrained(model_dir, local_files_only=True)
 print(model_dir)
 PY
 ```
 
-Exit status `0` and the printed absolute directory confirm that the path, model configuration,
-weights, and tokenizer assets are locally readable. Replace `policy.model_name` in the copied YAML
-with that printed directory. `gepa rl doctor` checks execution capabilities but does not perform
-this model-artifact validation.
+Exit status `0` and the printed absolute directory confirm that the path, model configuration, and
+tokenizer assets are locally readable and that a candidate weight filename exists. The filename
+glob does not read or load model weight contents; model construction during `gepa rl train`
+validates the weight contents and load compatibility. Replace `policy.model_name` in the copied
+YAML with that printed directory. `gepa rl doctor` checks execution capabilities but does not
+perform this model-artifact validation.
 
 For GRPO, copy the file to `run.cpu.grpo.yaml`, change `algorithm.name` to `grpo`, and add these
 keys under `policy`:

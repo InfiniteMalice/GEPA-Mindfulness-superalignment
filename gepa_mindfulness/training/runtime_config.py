@@ -14,6 +14,7 @@ from types import MappingProxyType
 from typing import Any, Literal, cast
 
 from .policy_versions import StalenessPolicy
+from .seeds import validate_seed
 
 try:
     import yaml
@@ -743,6 +744,7 @@ class RLRunConfig:
                 raise TypeError(f"configuration.{name} must be a {expected_type.__name__}")
         if isinstance(self.seed, bool) or not isinstance(self.seed, int):
             raise TypeError("configuration.seed must be an integer")
+        validate_seed(self.seed, "configuration.seed")
         if self.algorithm.name == "grpo" and not self.policy.do_sample:
             raise ValueError("GRPO requires stochastic policy generation with do_sample=true")
         if self.runtime.backend == "mojo-vulkan-llamacpp":

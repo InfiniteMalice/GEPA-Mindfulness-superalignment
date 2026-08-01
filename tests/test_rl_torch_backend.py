@@ -665,6 +665,47 @@ def test_generate_rejects_invalid_requests(
         tiny_backend.generate((rollout,))
 
 
+def test_generate_preflights_whole_batch_seed_expansion_before_model_use(
+    tiny_backend: TorchPolicyBackend,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A later invalid request must not let an earlier request reach model generation."""
+    generation_events: list[str] = []
+    encode_events: list[str] = []
+    original_generate = tiny_backend._generate_response
+    original_encode = tiny_backend.tokenizer.encode
+
+    def observed_generate(*args: object, **kwargs: object) -> tuple[int, ...]:
+        generation_events.append("model.generate")
+        return original_generate(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(tiny_backend, "_generate_response", observed_generate)
+    monkeypatch.setattr(
+        tiny_backend.tokenizer,
+        "encode",
+        lambda *args, **kwargs: encode_events.append("tokenizer.encode")
+        or original_encode(*args, **kwargs),
+    )
+    requests = (
+        RolloutRequest(prompt="calm", seed=7),
+        RolloutRequest(prompt="breath", seed=2**32 - 2, num_samples=2),
+    )
+
+    with pytest.raises(ValueError, match="seed.*overflow|seed.*4294967294"):
+        tiny_backend.generate(requests)
+
+    assert generation_events == []
+    assert encode_events == []
+
+
+def test_generate_accepts_and_propagates_largest_portable_seed(
+    tiny_backend: TorchPolicyBackend,
+) -> None:
+    trajectory = tiny_backend.generate((RolloutRequest(prompt="calm", seed=2**32 - 2),))[0]
+
+    assert trajectory.seed == 2**32 - 2
+
+
 def test_backward_zero_grad_and_optimizer_step_update_only_trainable_state(
     tiny_backend: TorchPolicyBackend,
 ) -> None:
@@ -1229,6 +1270,12 @@ def test_native_lora_v1_export_loads_exact_policy_state(tmp_path: Path) -> None:
         target.policy_model.lora_adapter,
         source.policy_model.lora_adapter,
     )
+    assert torch.equal(
+        target.reference_model.lora_adapter,
+        source.policy_model.lora_adapter,
+    )
+    assert target.reference_model.training is False
+    assert all(not parameter.requires_grad for parameter in target.reference_model.parameters())
     exported = torch.load(BytesIO(payload), map_location="cpu", weights_only=True)
     assert set(exported) == {
         "adapter_identifier",
@@ -1238,6 +1285,54 @@ def test_native_lora_v1_export_loads_exact_policy_state(tmp_path: Path) -> None:
         "policy_version",
         "state_dict",
     }
+
+
+def test_native_lora_preflight_is_nonmutating_and_load_rolls_back_both_models(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_model = _fake_lora_model()
+    source = _native_lora_backend(source_model)
+    target = _native_lora_backend(deepcopy(source_model))
+    with torch.no_grad():
+        source.policy_model.lora_adapter.fill_(0.75)
+        target.policy_model.lora_adapter.fill_(-0.25)
+        target.reference_model.lora_adapter.fill_(-0.5)
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    publisher.publish(
+        source.export_adapter(
+            tmp_path / "bootstrap.pt",
+            model_id="tiny-model",
+            policy_version=PolicyVersion(1),
+            parent_policy_version=None,
+        )
+    )
+    manifest, payload = publisher.current_artifact()
+    policy_before = target.policy_model.lora_adapter.detach().clone()
+    reference_before = target.reference_model.lora_adapter.detach().clone()
+
+    assert target.preflight_adapter_bytes(payload, manifest=manifest)
+    assert torch.equal(target.policy_model.lora_adapter, policy_before)
+    assert torch.equal(target.reference_model.lora_adapter, reference_before)
+
+    original_checksum = target._named_tensor_checksum
+    calls = 0
+
+    def fail_reference_checksum(prefix: str, state: Mapping[str, torch.Tensor]) -> str:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise RuntimeError("fault after policy/reference copies")
+        return original_checksum(prefix, state)
+
+    monkeypatch.setattr(target, "_named_tensor_checksum", fail_reference_checksum)
+    with pytest.raises(ValueError, match="transactionally"):
+        target.load_adapter_bytes(payload, manifest=manifest)
+
+    assert torch.equal(target.policy_model.lora_adapter, policy_before)
+    assert torch.equal(target.reference_model.lora_adapter, reference_before)
+    assert target.reference_model.training is False
+    assert all(not parameter.requires_grad for parameter in target.reference_model.parameters())
 
 
 @pytest.mark.parametrize(

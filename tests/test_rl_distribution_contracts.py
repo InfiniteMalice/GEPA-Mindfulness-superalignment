@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -171,10 +172,32 @@ def test_public_rl_guides_never_present_main_mojo_as_a_training_coordinator() ->
     assert "always rejects generate requests" in detailed
     assert "operator-supplied configured coordinator" in detailed
     assert "--coordinator-command /absolute/path/to/configured-coordinator" in detailed
-    assert (
-        "mojo build mojo/rl_coordinator/main.mojo -o /absolute/path/to/rl-coordinator"
-        not in detailed
-    )
+    for guide_path in _RL_GUIDES:
+        guide = guide_path.read_text(encoding="utf-8")
+        code_blocks = re.findall(r"```[^\n]*\n(.*?)```", guide, flags=re.DOTALL)
+        executable_text = "\n".join(code_blocks)
+        assert (
+            re.search(
+                r"(?im)^\s*mojo\s+build\b[^\n]*\bmain\.mojo\b",
+                executable_text,
+            )
+            is None
+        )
+        assert (
+            re.search(
+                r"(?im)--coordinator-command\s+\S*(?:main\.mojo|rl-coordinator)(?:\s|$)",
+                executable_text,
+            )
+            is None
+        )
+
+
+def test_model_path_preflight_does_not_overclaim_weight_readability() -> None:
+    """A filename glob must not be documented as reading or loading every weight byte."""
+    detailed = (_REPOSITORY_ROOT / "docs" / "rl" / "README.md").read_text(encoding="utf-8")
+    assert "candidate weight filename" in detailed
+    assert "does not read or load model weight contents" in detailed
+    assert re.search(r"weights?,? (?:and )?tokenizer assets are locally readable", detailed) is None
 
 
 def test_public_rl_guides_preserve_external_runtime_and_distribution_boundaries() -> None:

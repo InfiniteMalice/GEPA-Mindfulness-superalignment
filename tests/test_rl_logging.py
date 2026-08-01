@@ -151,9 +151,11 @@ def _jsonl(path: Path) -> list[dict[str, object]]:
 
 class _HistoryCountingSink(JSONLLoggingSink):
     historical_rows_validated = 0
+    existing_records_calls = 0
 
     @classmethod
     def _existing_records(cls, stream, path, manifest):
+        cls.existing_records_calls += 1
         records = super()._existing_records(stream, path, manifest)
         cls.historical_rows_validated += len(records)
         return records
@@ -445,6 +447,7 @@ def test_jsonl_appends_complete_newline_delimited_records_and_deduplicates(tmp_p
 
 def test_many_same_process_appends_do_not_revalidate_growing_history(tmp_path: Path) -> None:
     _HistoryCountingSink.historical_rows_validated = 0
+    _HistoryCountingSink.existing_records_calls = 0
     first_sink = _HistoryCountingSink(tmp_path, rank=0)
     second_sink = _HistoryCountingSink(tmp_path, rank=0)
     first_sink.start_run(_manifest())
@@ -458,6 +461,65 @@ def test_many_same_process_appends_do_not_revalidate_growing_history(tmp_path: P
     assert len(_jsonl(tmp_path / "metrics.jsonl")) == append_count
 
 
+def test_cached_appends_retain_index_identity_and_parse_history_once(tmp_path: Path) -> None:
+    """Copying the growing cache on every append must fail deterministic O(1) evidence."""
+    _HistoryCountingSink.existing_records_calls = 0
+    sink = _HistoryCountingSink(tmp_path, rank=0)
+    second_sink = _HistoryCountingSink(tmp_path, rank=0)
+    sink.start_run(_manifest())
+    path = (tmp_path / "metrics.jsonl").resolve()
+    assert sink.log_metrics(_metric(record_id="metric-0")) is True
+    cached_records = sink._validated_streams[path].records
+
+    for index in range(1, 80):
+        writer = sink if index % 2 else second_sink
+        assert writer.log_metrics(_metric(record_id=f"metric-{index}")) is True
+
+    assert sink._validated_streams[path].records is cached_records
+    assert len(cached_records) == 80
+    assert _HistoryCountingSink.existing_records_calls == 1
+
+
+def test_fsync_failure_does_not_publish_or_mutate_cached_record_index(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sink = JSONLLoggingSink(tmp_path, rank=0)
+    sink.start_run(_manifest())
+    assert sink.log_metrics(_metric(record_id="metric-before")) is True
+    path = (tmp_path / "metrics.jsonl").resolve()
+    cached_records = sink._validated_streams[path].records
+    cached_snapshot = dict(cached_records)
+    monkeypatch.setattr(os, "fsync", lambda descriptor: (_ for _ in ()).throw(OSError("fault")))
+
+    with pytest.raises(OSError, match="fault"):
+        sink.log_metrics(_metric(record_id="metric-fsync-fault"))
+
+    assert sink._validated_streams[path].records is cached_records
+    assert cached_records == cached_snapshot
+
+
+def test_external_cache_mutation_forces_reparse_and_corruption_failure(tmp_path: Path) -> None:
+    """In-place caching must not bypass full validation after external stream changes."""
+    _HistoryCountingSink.existing_records_calls = 0
+    sink = _HistoryCountingSink(tmp_path, rank=0)
+    sink.start_run(_manifest())
+    assert sink.log_metrics(_metric(record_id="metric-before")) is True
+    path = tmp_path / "metrics.jsonl"
+    original_cache = sink._validated_streams[path.resolve()].records
+    with path.open("ab") as stream:
+        stream.write(b'{"record_id":"corrupt-external"}\n')
+
+    with pytest.raises(ValueError, match="metric record fields"):
+        sink.log_metrics(_metric(record_id="metric-after"))
+
+    with pytest.raises(ValueError, match="metric record fields"):
+        sink.log_metrics(_metric(record_id="metric-after-again"))
+
+    assert _HistoryCountingSink.existing_records_calls == 3
+    assert sink._validated_streams[path.resolve()].records is original_cache
+
+
 def test_external_append_invalidates_cached_history(tmp_path: Path) -> None:
     sink = JSONLLoggingSink(tmp_path, rank=0)
     sink.start_run(_manifest())
@@ -468,6 +530,64 @@ def test_external_append_invalidates_cached_history(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="metric record fields"):
         sink.log_metrics(_metric(record_id="metric-after-external-append"))
+
+
+def test_valid_external_append_publishes_new_cache_only_after_complete_rescan(
+    tmp_path: Path,
+) -> None:
+    _HistoryCountingSink.existing_records_calls = 0
+    sink = _HistoryCountingSink(tmp_path, rank=0)
+    sink.start_run(_manifest())
+    assert sink.log_metrics(_metric(record_id="metric-before")) is True
+    path = (tmp_path / "metrics.jsonl").resolve()
+    old_records = sink._validated_streams[path].records
+    external = _metric(record_id="metric-external").to_dict()
+    with path.open("ab") as stream:
+        stream.write(json.dumps(external, separators=(",", ":")).encode() + b"\n")
+
+    assert sink.log_metrics(_metric(record_id="metric-after")) is True
+
+    new_records = sink._validated_streams[path].records
+    assert new_records is not old_records
+    assert set(new_records) == {"metric-before", "metric-external", "metric-after"}
+    assert set(old_records) == {"metric-before"}
+    assert _HistoryCountingSink.existing_records_calls == 2
+
+
+def test_external_publication_tail_is_used_for_next_transition(tmp_path: Path) -> None:
+    sink = JSONLLoggingSink(tmp_path, rank=0)
+    sink.start_run(_hybrid_manifest())
+    first = _publication(
+        record_id="publication-1",
+        parent="1",
+        version="2",
+        global_step=1,
+        checkpoint_id="checkpoint-00000001",
+    )
+    assert sink.log_publication(first) is True
+    path = tmp_path / "publications.jsonl"
+    external = _publication(
+        record_id="publication-2",
+        parent="2",
+        version="3",
+        global_step=2,
+        checkpoint_id="checkpoint-00000002",
+    )
+    with path.open("ab") as stream:
+        stream.write(json.dumps(external.to_dict(), separators=(",", ":")).encode() + b"\n")
+
+    assert (
+        sink.log_publication(
+            _publication(
+                record_id="publication-3",
+                parent="3",
+                version="4",
+                global_step=3,
+                checkpoint_id="checkpoint-00000003",
+            )
+        )
+        is True
+    )
 
 
 def test_in_place_mutation_invalidates_cached_history(tmp_path: Path) -> None:

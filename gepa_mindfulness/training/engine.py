@@ -36,6 +36,7 @@ from .contracts import (
 )
 from .policy_versions import PolicyVersion, StalenessDecision, evaluate_staleness
 from .runtime_config import DistributedRuntimeConfig, RLRunConfig
+from .seeds import validate_seed
 from .trajectory import PolicyEvaluation, RolloutRequest, Trajectory, TrajectoryBatch
 
 if TYPE_CHECKING:
@@ -513,6 +514,10 @@ class RLTrainingEngine:
         max_steps: int | None = None,
     ) -> EngineResult:
         step_budget = self._step_budget(max_steps)
+        sample_count = (
+            self.config.algorithm.group_size if self.config.algorithm.name == "grpo" else 1
+        )
+        validate_seed(self.config.seed, "configuration.seed", sample_count=sample_count)
         requirements = set(required_capabilities(self.config, mode))
         requirements.update(_factory_requirements(self.backend_factory, self.config))
         if mode in {"train", "resume"}:
@@ -550,6 +555,23 @@ class RLTrainingEngine:
             require_pairs=self._default_dataset and mode in {"evaluate", "train", "resume"},
             materialize=self._default_dataset,
         )
+        dataset = (
+            _SnapshotDataset(snapshot)
+            if self._default_dataset
+            else cast(DatasetFactory, self.dataset_factory)(self.config)
+        )
+        requests = tuple(dataset.materialize(mode))
+        if not requests:
+            raise ValueError("RL dataset materialized no rollout requests")
+        _preflight_rollout_request_seeds(requests)
+        if mode != "resume":
+            _preflight_planned_rollout_seeds(
+                self.config,
+                mode,
+                requests,
+                step_budget=step_budget,
+                rollout_cursor=0,
+            )
         default_reward = (
             _PairRewardProvider(self.config, snapshot)
             if self._default_reward and mode in {"evaluate", "train", "resume"}
@@ -568,6 +590,7 @@ class RLTrainingEngine:
         latest_checkpoint: object | None = None
         result_trajectories: tuple[Trajectory, ...] = ()
         evaluation_artifacts: dict[str, object] = {}
+        resume_transaction: _ResumeTransaction | None = None
         primary_error: BaseException | None = None
         try:
             initial_backend_requirements = set(requirements)
@@ -575,11 +598,6 @@ class RLTrainingEngine:
                 initial_backend_requirements.discard(Capability.SUPPORTS_GENERATION)
             backend.capabilities().require(initial_backend_requirements)
             algorithm = self._algorithm(mode, cast(TrainablePolicyBackend, backend))
-            dataset = (
-                _SnapshotDataset(snapshot)
-                if self._default_dataset
-                else cast(DatasetFactory, self.dataset_factory)(self.config)
-            )
             reward_provider = (
                 default_reward if self._default_reward else self._reward_provider(mode)
             )
@@ -595,6 +613,7 @@ class RLTrainingEngine:
                 if checkpoint_coordinator is None:  # pragma: no cover - mode selection invariant
                     raise RuntimeError("checkpoint coordinator is unavailable")
                 transaction = _capture_resume_transaction(backend, algorithm)
+                resume_transaction = transaction
                 try:
                     restored = checkpoint_coordinator.load(checkpoint)
                     global_step = self._restored_step(restored)
@@ -612,6 +631,13 @@ class RLTrainingEngine:
                     latest_checkpoint = getattr(restored, "manifest", None)
                     _preflight_engine_state(restored, algorithm)
                     self._restore_engine_state(restored, algorithm)
+                    _preflight_planned_rollout_seeds(
+                        self.config,
+                        mode,
+                        requests,
+                        step_budget=step_budget,
+                        rollout_cursor=rollout_cursor,
+                    )
                 except BaseException as restore_error:
                     _rollback_resume_transaction(transaction, backend, algorithm, restore_error)
                     raise
@@ -623,18 +649,37 @@ class RLTrainingEngine:
                     )
                 publisher = cast(PublisherFactory, self.publisher_factory)(self.config)
                 if mode == "resume":
-                    current = publisher.current()
-                    if current is None:
-                        raise ValueError(
-                            "hybrid training requires a validated current actor adapter manifest"
+                    try:
+                        current, adapter_payload = publisher.current_artifact()
+                        artifact_checksum = backend.preflight_adapter_bytes(
+                            adapter_payload,
+                            manifest=current,
                         )
+                        observed_checksum = _policy_parameter_checksum(backend)
+                        _validate_hybrid_resume(
+                            current,
+                            global_step,
+                            resume_parent,
+                            backend.capabilities().backend_name,
+                            artifact_checksum,
+                            observed_checksum,
+                        )
+                    except BaseException as lineage_error:
+                        if resume_transaction is not None:
+                            _rollback_resume_transaction(
+                                resume_transaction,
+                                backend,
+                                algorithm,
+                                lineage_error,
+                            )
+                        raise
                 else:
                     current, adapter_payload = publisher.current_artifact()
                 if current.model_id != self.config.hybrid.model_id:
                     raise ValueError("current actor adapter model does not match hybrid.model_id")
-                if mode == "resume":
-                    _validate_hybrid_resume(current, global_step, resume_parent)
-                else:
+                if mode != "resume":
+                    _validate_hybrid_fresh(current, backend.capabilities().backend_name)
+                    backend.preflight_adapter_bytes(adapter_payload, manifest=current)
                     loaded_checksum = backend.load_adapter_bytes(
                         adapter_payload,
                         manifest=current,
@@ -686,9 +731,6 @@ class RLTrainingEngine:
                     if self._default_logger
                     else cast(LoggerFactory, self.logger_factory)(self.config)
                 )
-            requests = tuple(dataset.materialize(mode))
-            if not requests:
-                raise ValueError("RL dataset materialized no rollout requests")
             logger.start(mode, global_step, resume_parent, detected)
             checksum_before = _parameter_checksum(backend)
             policy_checksum_before = _policy_parameter_checksum(backend)
@@ -1097,7 +1139,7 @@ class RLTrainingEngine:
         sample_count = (
             self.config.algorithm.group_size if self.config.algorithm.name == "grpo" else 1
         )
-        return tuple(
+        selected = tuple(
             replace(
                 request,
                 num_samples=sample_count,
@@ -1129,6 +1171,8 @@ class RLTrainingEngine:
             )
             for index, request in enumerate(requests)
         )
+        _preflight_rollout_request_seeds(selected)
+        return selected
 
     @staticmethod
     def _restore_engine_state(restored: object, algorithm: RLAlgorithm | None) -> None:
@@ -2060,14 +2104,37 @@ def _validate_hybrid_resume(
     current: AdapterManifest,
     global_step: int,
     checkpoint_id: str | None,
+    backend_name: str,
+    artifact_checksum: str,
+    policy_checksum: str | None,
 ) -> None:
+    expected_version = PolicyVersion(global_step + 1)
+    expected_parent = PolicyVersion(global_step)
+    expected_metadata = {
+        "backend": backend_name,
+        "optimizer_step": global_step,
+        "checkpoint_id": checkpoint_id,
+        "global_step": global_step,
+    }
     if (
-        current.metadata.get("checkpoint_id") != checkpoint_id
-        or current.metadata.get("global_step") != global_step
+        current.policy_version != expected_version
+        or current.parent_policy_version != expected_parent
+        or dict(current.metadata) != expected_metadata
+        or artifact_checksum != policy_checksum
     ):
         raise ValueError(
-            "hybrid resume checkpoint and current adapter policy version are incoherent"
+            "hybrid resume checkpoint, current adapter lineage, and learner state are incoherent"
         )
+
+
+def _validate_hybrid_fresh(current: AdapterManifest, backend_name: str) -> None:
+    expected_metadata = {"backend": backend_name, "optimizer_step": 0}
+    if (
+        current.policy_version != PolicyVersion(1)
+        or current.parent_policy_version is not None
+        or dict(current.metadata) != expected_metadata
+    ):
+        raise ValueError("fresh hybrid training requires the exact bootstrap v1 lineage")
 
 
 def _add_close_note(primary: BaseException, owner: str, close_error: BaseException) -> None:
@@ -2109,6 +2176,46 @@ def _seed_process(config: RLRunConfig) -> None:
     torch_module.manual_seed(config.seed)
     if config.runtime.device.startswith("cuda"):
         torch_module.cuda.manual_seed_all(config.seed)
+
+
+def _preflight_rollout_request_seeds(requests: Sequence[RolloutRequest]) -> None:
+    """Validate every materialized seed expansion before run-level mutation begins."""
+    for index, request in enumerate(requests):
+        if not isinstance(request, RolloutRequest):
+            raise TypeError("RL dataset must materialize RolloutRequest values")
+        validate_seed(
+            request.seed,
+            f"rollout requests[{index}].seed",
+            sample_count=request.num_samples,
+        )
+
+
+def _preflight_planned_rollout_seeds(
+    config: RLRunConfig,
+    mode: EngineMode,
+    requests: Sequence[RolloutRequest],
+    *,
+    step_budget: int,
+    rollout_cursor: int,
+) -> None:
+    """Bound every effective seed a run can materialize before generation effects."""
+    sample_count = config.algorithm.group_size if config.algorithm.name == "grpo" else 1
+    if mode in {"collect", "evaluate"}:
+        final_rollout_cursor = 0
+        final_request_index = len(requests) - 1
+    else:
+        if step_budget == 0:
+            return
+        batch_size = config.algorithm.batch_size
+        batch_count = (len(requests) + batch_size - 1) // batch_size
+        attempt_count = step_budget * batch_count * config.algorithm.gradient_accumulation_steps
+        final_rollout_cursor = rollout_cursor + attempt_count - 1
+        final_request_index = min(batch_size, len(requests)) - 1
+    validate_seed(
+        config.seed + final_rollout_cursor + final_request_index,
+        "planned rollout seed",
+        sample_count=sample_count,
+    )
 
 
 def _default_backend_factory(config: RLRunConfig) -> TrainablePolicyBackend:

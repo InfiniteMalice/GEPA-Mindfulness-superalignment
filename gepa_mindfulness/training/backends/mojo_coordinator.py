@@ -18,6 +18,7 @@ from typing import BinaryIO, Mapping, Sequence
 from ..capability import BackendCapabilities, Capability, CapabilityEvidence, CapabilityState
 from ..contracts import ActorTransport
 from ..policy_versions import PolicyVersion
+from ..seeds import validate_seed
 from ..trajectory import RolloutRequest, Trajectory
 
 _PROTOCOL_VERSION = "gepa-actor-v1"
@@ -797,8 +798,7 @@ def _prepare_requests(
             version = PolicyVersion.from_json(request.policy_version)
         except ValueError as exc:
             raise ValueError("policy_version must be a canonical policy version") from exc
-        if request.seed is not None and (type(request.seed) is not int or request.seed < 0):
-            raise ValueError("seed must be a non-negative integer or null")
+        validate_seed(request.seed, sample_count=request.num_samples)
         payload: dict[str, object] = {
             "case_id": request.case_id,
             "metadata": _json_compatible(request.metadata),
@@ -832,9 +832,7 @@ def _validate_actor_request(value: Mapping[str, object], field_name: str) -> Non
         PolicyVersion.from_json(value.get("policy_version"))
     except ValueError as exc:
         raise ValueError(f"{field_name} policy_version must be canonical") from exc
-    seed = value.get("seed")
-    if seed is not None and (type(seed) is not int or seed < 0):
-        raise ValueError(f"{field_name} seed must be a non-negative integer or null")
+    validate_seed(value.get("seed"), f"{field_name} seed", sample_count=num_samples)
     for mapping_name in ("metadata", "sampling_parameters"):
         mapping_value = value.get(mapping_name)
         if not isinstance(mapping_value, Mapping) or not all(

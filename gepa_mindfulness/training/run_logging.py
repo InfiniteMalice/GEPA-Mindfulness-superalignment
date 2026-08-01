@@ -572,6 +572,7 @@ class JSONLLoggingSink:
         )
         with self._path_lock(path):
             with _open_regular_stream(path, create=False) as stream, _exclusive_stream_lock(stream):
+                self._require_path_matches_stream(stream, path)
                 existing_records = self._validated_records(stream, path, manifest)
                 if record_id in existing_records:
                     if existing_records[record_id] == payload:
@@ -590,9 +591,9 @@ class JSONLLoggingSink:
                 stream.write(serialized)
                 stream.flush()
                 os.fsync(stream.fileno())
-                updated_records = dict(existing_records)
-                updated_records[record_id] = dict(payload)
-                self._remember_validated_stream(stream, path, manifest, updated_records)
+                self._require_path_matches_stream(stream, path)
+                existing_records[record_id] = dict(payload)
+                self._remember_validated_stream(stream, path, manifest, existing_records)
         return True
 
     def _validated_records(
@@ -637,6 +638,17 @@ class JSONLLoggingSink:
     def _stream_metadata(stream: BinaryIO) -> tuple[tuple[int, int], int, int]:
         metadata = os.fstat(stream.fileno())
         return (metadata.st_dev, metadata.st_ino), metadata.st_size, metadata.st_mtime_ns
+
+    @staticmethod
+    def _require_path_matches_stream(stream: BinaryIO, path: Path) -> None:
+        """Reject pathname replacement between open, locking, and cache publication."""
+        try:
+            opened = os.fstat(stream.fileno())
+            current = os.stat(path, follow_symlinks=False)
+        except OSError as error:
+            raise ValueError(f"JSONL stream path changed while locked: {path}") from error
+        if (opened.st_dev, opened.st_ino) != (current.st_dev, current.st_ino):
+            raise ValueError(f"JSONL stream path changed while locked: {path}")
 
     @classmethod
     def _existing_records(

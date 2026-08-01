@@ -23,6 +23,7 @@ from ..capability import (
     CapabilityEvidence,
     CapabilityState,
 )
+from ..seeds import validate_seed
 from ..trajectory import RolloutRequest, Trajectory
 
 _BACKEND_NAME = "llama_cpp_vulkan"
@@ -792,8 +793,7 @@ class LlamaCppVulkanBackend:
             _positive_integer(rollout.num_samples, "num_samples")
             _optional_string(rollout.case_id, "case_id")
             _optional_string(rollout.policy_version, "policy_version")
-            if rollout.seed is not None:
-                _non_negative_integer(rollout.seed, "seed")
+            validate_seed(rollout.seed, sample_count=rollout.num_samples)
             if not isinstance(rollout.sampling_parameters, Mapping) or not all(
                 isinstance(key, str) for key in rollout.sampling_parameters
             ):

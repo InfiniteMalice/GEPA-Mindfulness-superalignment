@@ -50,6 +50,17 @@ def test_direct_canonical_config_construction_rejects_invalid_values(constructor
         constructor()
 
 
+@pytest.mark.parametrize("seed", [-1, 2**32 - 1, 2**32])
+def test_run_config_rejects_seed_outside_the_common_runtime_bound(seed: int) -> None:
+    """Python-only integer acceptance must not leak an unusable seed to native boundaries."""
+    with pytest.raises(ValueError, match="seed.*0.*4294967294"):
+        RLRunConfig(seed=seed)
+
+
+def test_run_config_accepts_the_largest_common_runtime_seed() -> None:
+    assert RLRunConfig(seed=2**32 - 2).seed == 2**32 - 2
+
+
 def test_grpo_direct_config_requires_stochastic_generation() -> None:
     """A deterministic GRPO policy must fail while the config is still side-effect free."""
     with pytest.raises(ValueError, match="GRPO.*stochastic|stochastic.*GRPO"):

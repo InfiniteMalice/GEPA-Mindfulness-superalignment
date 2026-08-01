@@ -27,6 +27,7 @@ from gepa_mindfulness.training.capability import (
     CapabilityState,
 )
 from gepa_mindfulness.training.policy_versions import PolicyVersion
+from gepa_mindfulness.training.seeds import validate_seed
 from gepa_mindfulness.training.trajectory import (
     PolicyEvaluation,
     RolloutRequest,
@@ -121,6 +122,12 @@ class _CheckpointRestorePlan:
     gradient_scaler_state: dict[str, object] | None
 
 
+@dataclass(frozen=True)
+class _AdapterLoadPlan:
+    state: Mapping[str, torch.Tensor]
+    checksum: str
+
+
 class TorchPolicyBackend:
     """Generate, evaluate, and update a causal LM using public RL records."""
 
@@ -207,9 +214,14 @@ class TorchPolicyBackend:
     @_translate_oom("generate")
     def generate(self, requests: Sequence[RolloutRequest]) -> Sequence[Trajectory]:
         """Generate trajectories with response-only token-level model evidence."""
+        request_batch = tuple(requests)
+        for request in request_batch:
+            if not isinstance(request, RolloutRequest):
+                raise TypeError("requests must contain RolloutRequest values")
+            validate_seed(request.seed, sample_count=request.num_samples)
+        prepared = tuple((request, *self._validated_request(request)) for request in request_batch)
         trajectories: list[Trajectory] = []
-        for request_index, request in enumerate(requests):
-            prompt_ids, sample_count, parameters = self._validated_request(request)
+        for request_index, (request, prompt_ids, sample_count, parameters) in enumerate(prepared):
             max_new_tokens = parameters.pop("max_new_tokens", self.max_new_tokens)
             max_new_tokens = self._positive_integer(max_new_tokens, "max_new_tokens")
             self._validate_sampling_parameters(parameters)
@@ -438,6 +450,61 @@ class TorchPolicyBackend:
 
     def load_adapter_bytes(self, payload: bytes, *, manifest: AdapterManifest) -> str:
         """Transactionally load one exact learner-native LoRA publication."""
+        plan = self._prepare_adapter_bytes(payload, manifest=manifest)
+        policy = self._unwrapped_policy()
+        policy_trainable = {
+            name: parameter
+            for name, parameter in policy.named_parameters()
+            if parameter.requires_grad
+        }
+        reference_parameters = dict(self.reference_model.named_parameters())
+        reference_trainable = {name: reference_parameters[name] for name in policy_trainable}
+        policy_snapshot = {
+            name: parameter.detach().clone() for name, parameter in policy_trainable.items()
+        }
+        reference_snapshot = {
+            name: parameter.detach().clone() for name, parameter in reference_trainable.items()
+        }
+        checksum_reader = getattr(self, "policy_parameter_checksum", None)
+        if not callable(checksum_reader):
+            raise ValueError("learner policy checksum evidence is unavailable")
+        try:
+            with torch.no_grad():
+                for name, parameter in policy_trainable.items():
+                    parameter.copy_(plan.state[name].to(device=parameter.device))
+                for name, parameter in reference_trainable.items():
+                    parameter.copy_(plan.state[name].to(device=parameter.device))
+            loaded_checksum = checksum_reader()
+            reference_checksum = self._named_tensor_checksum("policy", reference_trainable)
+            if loaded_checksum != plan.checksum or reference_checksum != plan.checksum:
+                raise ValueError(
+                    "learner policy checksum or reference checksum does not reflect adapter state"
+                )
+        except Exception as exc:
+            with torch.no_grad():
+                for name, parameter in policy_trainable.items():
+                    parameter.copy_(policy_snapshot[name])
+                for name, parameter in reference_trainable.items():
+                    parameter.copy_(reference_snapshot[name])
+            self.reference_model.requires_grad_(False)
+            self.reference_model.eval()
+            if isinstance(exc, ValueError):
+                raise
+            raise ValueError("adapter state could not be loaded transactionally") from exc
+        self.reference_model.requires_grad_(False)
+        self.reference_model.eval()
+        return loaded_checksum
+
+    def preflight_adapter_bytes(self, payload: bytes, *, manifest: AdapterManifest) -> str:
+        """Parse and validate one adapter into a detached CPU plan without mutation."""
+        return self._prepare_adapter_bytes(payload, manifest=manifest).checksum
+
+    def _prepare_adapter_bytes(
+        self,
+        payload: bytes,
+        *,
+        manifest: AdapterManifest,
+    ) -> _AdapterLoadPlan:
         if self.training_mode != "lora":
             raise RuntimeError("adapter load requires a PEFT LoRA learner")
         if not isinstance(payload, bytes) or not payload:
@@ -454,9 +521,6 @@ class TorchPolicyBackend:
             raise ValueError("adapter source identity does not match the learner")
         if manifest.model_id != self.model_identifier:
             raise ValueError("adapter model identity does not match the learner")
-        checksum_reader = getattr(self, "policy_parameter_checksum", None)
-        if not callable(checksum_reader):
-            raise ValueError("learner policy checksum evidence is unavailable")
         try:
             loaded = torch.load(BytesIO(payload), map_location="cpu", weights_only=True)
         except (
@@ -499,27 +563,25 @@ class TorchPolicyBackend:
         }
         if set(state) != set(trainable):
             raise ValueError("adapter tensor names do not match learner LoRA trainables")
+        reference = dict(self.reference_model.named_parameters())
+        if not set(trainable).issubset(reference):
+            raise ValueError("reference model is missing learner LoRA tensors")
+        cloned: dict[str, torch.Tensor] = {}
         for name, parameter in trainable.items():
             tensor = state[name]
             if tensor.shape != parameter.shape or tensor.dtype != parameter.dtype:
                 raise ValueError(f"adapter tensor {name} shape or dtype is incompatible")
-        expected_checksum = self._adapter_state_checksum(state)
-        snapshot = {name: parameter.detach().clone() for name, parameter in trainable.items()}
-        try:
-            with torch.no_grad():
-                for name, parameter in trainable.items():
-                    parameter.copy_(state[name].to(device=parameter.device))
-            loaded_checksum = checksum_reader()
-            if loaded_checksum != expected_checksum:
-                raise ValueError("learner policy checksum does not reflect loaded adapter state")
-        except Exception as exc:
-            with torch.no_grad():
-                for name, parameter in trainable.items():
-                    parameter.copy_(snapshot[name])
-            if isinstance(exc, ValueError):
-                raise
-            raise ValueError("adapter state could not be loaded transactionally") from exc
-        return loaded_checksum
+            reference_parameter = reference[name]
+            if (
+                tensor.shape != reference_parameter.shape
+                or tensor.dtype != reference_parameter.dtype
+            ):
+                raise ValueError(f"reference adapter tensor {name} shape or dtype is incompatible")
+            cloned[name] = tensor.detach().cpu().clone()
+        return _AdapterLoadPlan(
+            state=cloned,
+            checksum=self._adapter_state_checksum(cloned),
+        )
 
     def load_checkpoint(self, source: Path) -> BackendCheckpointResult:
         """Restore a path checkpoint through the same verified-bytes interface."""
@@ -1241,6 +1303,7 @@ class TorchPolicyBackend:
         if not request.prompt or not request.prompt.strip():
             raise ValueError("rollout prompt must not be empty")
         sample_count = self._positive_integer(request.num_samples, "num_samples")
+        validate_seed(request.seed, sample_count=sample_count)
         prompt_ids = self._token_ids(
             self.tokenizer.encode(request.prompt, add_special_tokens=False),
             "prompt_token_ids",

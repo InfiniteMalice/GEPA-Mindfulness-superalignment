@@ -942,6 +942,9 @@ def _raw_actor_request(**changes: object) -> dict[str, object]:
         _raw_actor_request(num_samples=0),
         _raw_actor_request(policy_version="03"),
         _raw_actor_request(seed=True),
+        _raw_actor_request(seed=2**32 - 1),
+        _raw_actor_request(seed=2**32),
+        _raw_actor_request(seed=2**32 - 2, num_samples=2),
         _raw_actor_request(metadata=[]),
         _raw_actor_request(sampling_parameters={"temperature": float("nan")}),
     ],
@@ -958,6 +961,29 @@ def test_direct_transport_rejects_invalid_request_without_writing(
         transport.generate((request_value,))
 
     assert transport._request_number == 1
+
+
+def test_direct_transport_accepts_and_echoes_largest_portable_seed(
+    fake_coordinator_factory: object,
+) -> None:
+    transport = fake_coordinator_factory()  # type: ignore[operator]
+    transport.start()
+
+    trajectories = transport.generate((_raw_actor_request(seed=2**32 - 2),))
+
+    assert trajectories[0]["seed"] == 2**32 - 2
+
+
+def test_mojo_backend_prepares_and_propagates_largest_portable_seed(
+    fake_coordinator_factory: object,
+) -> None:
+    backend = MojoCoordinatorBackend(fake_coordinator_factory())  # type: ignore[operator]
+
+    trajectory = backend.generate(
+        (RolloutRequest(prompt="prompt", policy_version="3", seed=2**32 - 2),)
+    )[0]
+
+    assert trajectory.seed == 2**32 - 2
 
 
 @pytest.mark.parametrize(
@@ -1661,6 +1687,86 @@ def test_fresh_hybrid_rejects_invalid_lineage_before_logger_or_actor(
     assert actor_calls == 0
 
 
+def test_fresh_hybrid_rejects_valid_later_publication_before_logger_or_actor(
+    tmp_path: Path,
+) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    source = _hybrid_learner(config)
+    publisher.publish(
+        source.export_adapter(
+            tmp_path / "later.adapter",
+            model_id="tiny-hybrid-model",
+            policy_version=PolicyVersion(2),
+            parent_policy_version=PolicyVersion(1),
+        )
+    )
+    learner = _hybrid_learner(config)
+    logger_calls = 0
+    actor_calls = 0
+
+    def logger_factory(selected: RLRunConfig) -> _NoOpPublicationLogger:
+        del selected
+        nonlocal logger_calls
+        logger_calls += 1
+        return _NoOpPublicationLogger()
+
+    def actor_factory(selected: RLRunConfig, manifest: AdapterManifest) -> _MockVersionedActor:
+        del selected, manifest
+        nonlocal actor_calls
+        actor_calls += 1
+        return _MockVersionedActor(model_id="tiny-hybrid-model", adapter_id="tiny-lora")
+
+    with pytest.raises(ValueError, match="bootstrap v1"):
+        RLTrainingEngine(
+            config,
+            capability_provider=_LearnerCapabilityProvider(learner),
+            backend_factory=lambda _: learner,
+            actor_factory=actor_factory,
+            publisher_factory=lambda _: publisher,
+            logger_factory=logger_factory,
+        ).train(max_steps=0)
+
+    assert logger_calls == 0
+    assert actor_calls == 0
+
+
+def test_fresh_hybrid_rejects_bootstrap_with_checkpoint_ancestry_metadata(
+    tmp_path: Path,
+) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    manifest = _bootstrap_adapter(publisher)
+    _, payload = publisher.current_artifact()
+    forged = replace(
+        manifest,
+        metadata={
+            **dict(manifest.metadata),
+            "checkpoint_id": "checkpoint-00000000",
+            "global_step": 0,
+        },
+    )
+
+    class ForgedPublisher:
+        def current_artifact(self):  # type: ignore[no-untyped-def]
+            return forged, payload
+
+        def publish(self, candidate: object) -> object:
+            del candidate
+            raise AssertionError("fresh preflight must fail before publication")
+
+    with pytest.raises(ValueError, match="bootstrap v1"):
+        RLTrainingEngine(
+            config,
+            capability_provider=_LearnerCapabilityProvider(_hybrid_learner(config)),
+            backend_factory=lambda _: _hybrid_learner(config),
+            publisher_factory=lambda _: ForgedPublisher(),  # type: ignore[arg-type]
+            actor_factory=lambda *_: (_ for _ in ()).throw(AssertionError("actor must not start")),
+            logger_factory=lambda _: (_ for _ in ()).throw(AssertionError("logger must not start")),
+        ).train(max_steps=0)
+
+
 def test_hybrid_step_updates_pytorch_and_publishes_exact_next_version(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1939,6 +2045,170 @@ def test_hybrid_resume_requires_checkpoint_current_adapter_coherence(
     assert resumed.published_adapter is None
     assert resumed_actor.generate_calls == 0
     assert resumed_actor.close_calls == 1
+
+
+def test_hybrid_resume_rejects_same_metadata_with_different_adapter_state_and_rolls_back(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    first_learner = _hybrid_learner(config)
+    first = RLTrainingEngine(
+        config,
+        capability_provider=_LearnerCapabilityProvider(first_learner),
+        backend_factory=lambda _: first_learner,
+        actor_factory=lambda _, manifest: _MockVersionedActor(
+            model_id="tiny-hybrid-model", adapter_id="tiny-lora"
+        ),
+        publisher_factory=lambda _: publisher,
+    ).train(max_steps=1)
+    checkpoint_path = Path(config.checkpoint.output_dir) / first.checkpoint.checkpoint_id
+    manifest, payload = publisher.current_artifact()
+    decoded = torch.load(BytesIO(payload), map_location="cpu", weights_only=True)
+    decoded["state_dict"]["lora_logits"] = decoded["state_dict"]["lora_logits"] + 0.125
+    changed = BytesIO()
+    torch.save(decoded, changed)
+    changed_payload = changed.getvalue()
+    changed_manifest = replace(
+        manifest,
+        artifact_sha256=hashlib.sha256(changed_payload).hexdigest(),
+        artifact_size=len(changed_payload),
+    )
+    root = Path(config.hybrid.adapter_store)
+    (root / manifest.artifact_path).write_bytes(changed_payload)
+    canonical = json.dumps(changed_manifest.to_dict(), sort_keys=True, separators=(",", ":")) + "\n"
+    (root / manifest.manifest_path).write_bytes(canonical.encode("utf-8"))
+    (root / "current.json").write_bytes(canonical.encode("utf-8"))
+
+    resumed_learner = _hybrid_learner(config)
+    checksum_before = resumed_learner.policy_parameter_checksum()
+    step_before = resumed_learner._step
+    rng_before = torch.get_rng_state().clone()
+    actor_calls = 0
+    logger_calls = 0
+    monkeypatch.setattr(rl_engine, "_seed_process", lambda selected: None)
+
+    def actor_factory(selected: RLRunConfig, selected_manifest: AdapterManifest) -> object:
+        del selected, selected_manifest
+        nonlocal actor_calls
+        actor_calls += 1
+        return _MockVersionedActor(model_id="tiny-hybrid-model", adapter_id="tiny-lora")
+
+    def logger_factory(selected: RLRunConfig) -> object:
+        del selected
+        nonlocal logger_calls
+        logger_calls += 1
+        return _NoOpPublicationLogger()
+
+    with pytest.raises(ValueError, match="incoherent"):
+        RLTrainingEngine(
+            config,
+            capability_provider=_LearnerCapabilityProvider(resumed_learner),
+            backend_factory=lambda _: resumed_learner,
+            actor_factory=actor_factory,
+            publisher_factory=lambda _: publisher,
+            logger_factory=logger_factory,
+        ).resume(checkpoint_path, max_steps=0)
+
+    assert resumed_learner.policy_parameter_checksum() == checksum_before
+    assert resumed_learner._step == step_before
+    assert torch.equal(torch.get_rng_state(), rng_before)
+    assert actor_calls == 0
+    assert logger_calls == 0
+
+
+@pytest.mark.parametrize(
+    "failure",
+    ["later-version", "wrong-source", "wrong-format", "unknown-payload-field"],
+)
+def test_hybrid_resume_rejects_forged_current_artifact_before_logger_or_actor(
+    tmp_path: Path,
+    failure: str,
+) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    first_learner = _hybrid_learner(config)
+    first = RLTrainingEngine(
+        config,
+        capability_provider=_LearnerCapabilityProvider(first_learner),
+        backend_factory=lambda _: first_learner,
+        actor_factory=lambda *_: _MockVersionedActor(
+            model_id="tiny-hybrid-model", adapter_id="tiny-lora"
+        ),
+        publisher_factory=lambda _: publisher,
+    ).train(max_steps=1)
+    checkpoint_path = Path(config.checkpoint.output_dir) / first.checkpoint.checkpoint_id
+    manifest, payload = publisher.current_artifact()
+    decoded = torch.load(BytesIO(payload), map_location="cpu", weights_only=True)
+    if failure == "later-version":
+        decoded["policy_version"] = "3"
+        manifest = replace(
+            manifest,
+            policy_version=PolicyVersion(3),
+            parent_policy_version=PolicyVersion(2),
+            artifact_path="versions/3/adapter.bin",
+            manifest_path="versions/3/manifest.json",
+        )
+    elif failure == "wrong-source":
+        decoded["adapter_identifier"] = "other-lora"
+        manifest = replace(manifest, source_id="other-lora")
+    elif failure == "wrong-format":
+        decoded["format_id"] = "other-format"
+        manifest = replace(manifest, format_id="other-format")
+    else:
+        decoded["unexpected"] = "closed-schema-violation"
+    changed = BytesIO()
+    torch.save(decoded, changed)
+    changed_payload = changed.getvalue()
+    manifest = replace(
+        manifest,
+        artifact_sha256=hashlib.sha256(changed_payload).hexdigest(),
+        artifact_size=len(changed_payload),
+    )
+
+    class ForgedPublisher:
+        calls = 0
+
+        def current_artifact(self):  # type: ignore[no-untyped-def]
+            self.calls += 1
+            return manifest, changed_payload
+
+        def publish(self, candidate: object) -> object:
+            del candidate
+            raise AssertionError("resume preflight must fail before publication")
+
+    forged = ForgedPublisher()
+    actor_calls = 0
+    logger_calls = 0
+
+    def actor_factory(*args: object) -> object:
+        del args
+        nonlocal actor_calls
+        actor_calls += 1
+        raise AssertionError("actor must not start")
+
+    def logger_factory(*args: object) -> object:
+        del args
+        nonlocal logger_calls
+        logger_calls += 1
+        raise AssertionError("logger must not start")
+
+    with pytest.raises(ValueError, match="adapter|payload|incoherent|format|source"):
+        RLTrainingEngine(
+            config,
+            capability_provider=_LearnerCapabilityProvider(_hybrid_learner(config)),
+            backend_factory=lambda _: _hybrid_learner(config),
+            actor_factory=actor_factory,
+            publisher_factory=lambda _: forged,  # type: ignore[arg-type]
+            logger_factory=logger_factory,
+        ).resume(checkpoint_path, max_steps=0)
+
+    assert forged.calls == 1
+    assert actor_calls == 0
+    assert logger_calls == 0
 
 
 @pytest.mark.parametrize("learner", [None, "mojo"])

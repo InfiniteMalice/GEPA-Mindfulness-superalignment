@@ -117,6 +117,9 @@ class AdapterExportingPolicyBackend(Protocol):
     def load_adapter_bytes(self, payload: bytes, *, manifest: AdapterManifest) -> str:
         """Load exact verified learner-native adapter bytes and return their policy checksum."""
 
+    def preflight_adapter_bytes(self, payload: bytes, *, manifest: AdapterManifest) -> str:
+        """Validate exact adapter bytes without mutating live learner state."""
+
 
 @runtime_checkable
 class RewardProvider(Protocol):

@@ -1477,6 +1477,119 @@ def test_malformed_cuda_selector_fails_preflight_before_seed_or_factory(
     assert events == []
 
 
+def test_group_seed_overflow_fails_before_rng_or_factory_side_effects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A valid base seed must still fail if GRPO sample expansion exceeds uint32."""
+    events: list[str] = []
+    config = replace(
+        _config(tmp_path),
+        seed=2**32 - 2,
+        algorithm=AlgorithmConfig(name="grpo", group_size=2, max_steps=1),
+    )
+    monkeypatch.setattr(engine_module, "_seed_process", lambda value: events.append("seed"))
+    engine = RLTrainingEngine(
+        config,
+        capability_provider=_CapabilityProvider(events),
+        backend_factory=lambda value: events.append("backend.factory") or _Backend(events),
+        dataset_factory=lambda value: events.append("dataset.factory") or _Dataset(events),
+    )
+
+    with pytest.raises(ValueError, match="seed.*overflow|seed.*4294967294"):
+        engine.train()
+
+    assert events == []
+
+
+def test_materialized_request_seed_fails_before_rng_model_logger_or_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Dataset request validation must precede every run-level mutating dependency."""
+    events: list[str] = []
+
+    class InvalidSeedDataset:
+        def materialize(self, mode: str) -> tuple[RolloutRequest, ...]:
+            events.append(f"dataset.materialize:{mode}")
+            return (RolloutRequest(prompt="prompt", seed=2**32 - 1),)
+
+    monkeypatch.setattr(engine_module, "_seed_process", lambda value: events.append("seed"))
+    engine = RLTrainingEngine(
+        _config(tmp_path),
+        capability_provider=_CapabilityProvider(events),
+        backend_factory=lambda value: events.append("backend.factory") or _Backend(events),
+        dataset_factory=lambda value: events.append("dataset.factory") or InvalidSeedDataset(),
+        reward_factory=lambda value: events.append("reward.factory") or _Reward(events),
+        logger_factory=lambda value: events.append("logger.factory") or _Logger(events),
+    )
+
+    with pytest.raises(ValueError, match="seed.*4294967294"):
+        engine.train()
+
+    assert events == ["capability", "dataset.factory", "dataset.materialize:train"]
+
+
+def test_later_materialized_request_seed_overflow_fails_before_fresh_run_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Request index must be included in the planned effective seed before RNG mutation."""
+    events: list[str] = []
+
+    class TwoRequestDataset:
+        def materialize(self, mode: str) -> tuple[RolloutRequest, ...]:
+            events.append(f"dataset.materialize:{mode}")
+            return (RolloutRequest(prompt="one"), RolloutRequest(prompt="two"))
+
+    config = replace(_config(tmp_path), seed=2**32 - 2)
+    monkeypatch.setattr(engine_module, "_seed_process", lambda value: events.append("seed"))
+    engine = RLTrainingEngine(
+        config,
+        capability_provider=_CapabilityProvider(events),
+        backend_factory=lambda value: events.append("backend.factory") or _Backend(events),
+        dataset_factory=lambda value: events.append("dataset.factory") or TwoRequestDataset(),
+        reward_factory=lambda value: events.append("reward.factory") or _Reward(events),
+        logger_factory=lambda value: events.append("logger.factory") or _Logger(events),
+    )
+
+    with pytest.raises(ValueError, match="seed.*overflow|seed.*4294967294"):
+        engine.collect()
+
+    assert events == ["capability", "dataset.factory", "dataset.materialize:collect"]
+
+
+def test_restored_rollout_cursor_seed_overflow_fails_before_logger_or_actor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Resume must bound restored cursor expansion before rollout-visible effects."""
+    events: list[str] = []
+    config = replace(_config(tmp_path), seed=2**32 - 2)
+    monkeypatch.setattr(engine_module, "_seed_process", lambda value: events.append("seed"))
+    engine = RLTrainingEngine(
+        config,
+        capability_provider=_CapabilityProvider(events),
+        backend_factory=lambda value: events.append("backend.factory") or _Backend(events),
+        algorithm_factory=lambda value, backend: events.append("algorithm.factory")
+        or _Algorithm(events),
+        dataset_factory=lambda value: events.append("dataset.factory") or _Dataset(events),
+        reward_factory=lambda value: events.append("reward.factory") or _Reward(events),
+        batch_preparer_factory=lambda value: events.append("batch.factory")
+        or _BatchPreparer(events),
+        checkpoint_factory=lambda value, backend: events.append("checkpoint.factory")
+        or _Checkpoint(events, backend),
+        logger_factory=lambda value: events.append("logger.factory") or _Logger(events),
+    )
+
+    with pytest.raises(ValueError, match="seed.*4294967294"):
+        engine.resume(tmp_path / "selected")
+
+    assert "checkpoint.load:selected" in events
+    assert "logger.factory" not in events
+    assert "generate" not in events
+
+
 @pytest.mark.parametrize("fault", ["missing", "extra", "unknown_case", "wrong_prompt"])
 def test_grpo_rejects_backend_outputs_that_break_requested_group_identity(
     tmp_path: Path,

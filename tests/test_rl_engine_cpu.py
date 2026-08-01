@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import random
 import re
 from collections.abc import Mapping
 from copy import deepcopy
@@ -316,6 +317,87 @@ def test_default_nonhybrid_config_keeps_the_pre_phase5_resume_hash() -> None:
     assert _config_hash(RLRunConfig()) == (
         "9f0306ad79e6ed93e0bc40b3918270e12538960e4061456be7f91d6fb1f6f1b2"
     )
+
+
+def test_genuine_pre_phase5_checkpoint_resumes_without_hybrid_or_fixture_mutation() -> None:
+    fixture = Path("tests/fixtures/rl_legacy_checkpoint_v1")
+    checkpoint = fixture / "checkpoints/checkpoint-00000001"
+    provenance = json.loads((fixture / "PROVENANCE.json").read_text(encoding="utf-8"))
+    assert provenance["source_commit"] == "f6f57e746fa6e39c823ce835ff9ebb13520f44ad"
+    tracked = {
+        path.relative_to(fixture).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in fixture.rglob("*")
+        if path.is_file()
+    }
+    assert all(tracked[name] == digest for name, digest in provenance["files"].items())
+    state = torch.load(checkpoint / "training_state.pt", map_location="cpu", weights_only=True)
+    assert "hybrid" not in state["canonical_config"]
+    config = RLRunConfig(
+        policy=PolicyConfig(model_name="legacy-tiny-local", max_new_tokens=1),
+        algorithm=AlgorithmConfig(name="ppo", learning_rate=0.05, batch_size=1, max_steps=1),
+        dataset=DatasetConfig(train_path="tests/fixtures/rl_legacy_checkpoint_v1/pairs.jsonl"),
+        checkpoint=CheckpointConfig(
+            output_dir="tests/fixtures/rl_legacy_checkpoint_v1/checkpoints", save_steps=1
+        ),
+        logging=LoggingConfig(log_dir="tests/fixtures/rl_legacy_checkpoint_v1/logs"),
+        seed=42,
+    )
+    assert (
+        _config_hash(config) == "2b2137714f2206e9409ed4fe277ee805176cfe472a434402ee63161d9c85cbb8"
+    )
+    backends: list[TorchPolicyBackend] = []
+
+    def backend_factory(value: RLRunConfig) -> TorchPolicyBackend:
+        backend = TorchPolicyBackend(
+            policy_model=TinyLocalCausalLM(),
+            tokenizer=TinyLocalTokenizer(),
+            device="cpu",
+            learning_rate=value.algorithm.learning_rate,
+            max_new_tokens=value.policy.max_new_tokens,
+            model_identifier=value.policy.model_name,
+        )
+        backends.append(backend)
+        return backend
+
+    class NoOpLogger:
+        def start(self, *args: object) -> None:
+            del args
+
+        def trajectories(self, *args: object) -> None:
+            del args
+
+        def metrics(self, *args: object) -> None:
+            del args
+
+    def forbidden(*args: object) -> object:
+        del args
+        raise AssertionError("nonhybrid resume must not construct a publisher or actor")
+
+    result = RLTrainingEngine(
+        config,
+        backend_factory=backend_factory,
+        logger_factory=lambda _: NoOpLogger(),
+        publisher_factory=forbidden,
+        actor_factory=forbidden,
+    ).resume(checkpoint, max_steps=0)
+
+    backend = backends[-1]
+    assert result.global_step == 1
+    assert result.checkpoint_parent == "checkpoint-00000001"
+    assert result.trajectory_count == 0
+    assert result.policy_parameters_updated is False
+    assert backend._step == 1
+    assert backend.optimizer.state
+    assert backend.reference_model.training is False
+    assert all(not parameter.requires_grad for parameter in backend.reference_model.parameters())
+    assert random.getstate() == state["rank_rng_states"][0]["python_rng_state"]
+    assert torch.equal(torch.get_rng_state(), state["rank_rng_states"][0]["torch_cpu_rng_state"])
+    after = {
+        path.relative_to(fixture).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in fixture.rglob("*")
+        if path.is_file()
+    }
+    assert after == tracked
 
 
 def test_rl_extras_are_bounded_synchronized_and_keep_heavy_frameworks_optional() -> None:

@@ -934,6 +934,33 @@ def test_backend_rejects_invalid_request_before_server_call(
     assert mock_llama_server.requests == []
 
 
+def test_backend_rejects_seed_expansion_overflow_before_health_or_models(
+    mock_llama_server: _MockLlamaServer,
+) -> None:
+    """The whole batch must fit the common seed bound before the first HTTP request."""
+    backend = LlamaCppVulkanBackend(mock_llama_server.endpoint)
+
+    with pytest.raises(ValueError, match="seed.*overflow|seed.*4294967294"):
+        backend.generate([RolloutRequest(prompt="hello", seed=2**32 - 2, num_samples=2)])
+
+    assert mock_llama_server.requests == []
+
+
+def test_backend_forwards_largest_portable_seed_to_llama_cpp(
+    mock_llama_server: _MockLlamaServer,
+) -> None:
+    mock_llama_server.prime_metadata()
+    mock_llama_server.enqueue("POST", "/completion", _completion("boundary"))
+    backend = LlamaCppVulkanBackend(mock_llama_server.endpoint)
+
+    trajectory = backend.generate([RolloutRequest(prompt="hello", seed=2**32 - 2)])[0]
+
+    payload = mock_llama_server.requests[-1][2]
+    assert isinstance(payload, dict)
+    assert payload["seed"] == 2**32 - 2
+    assert trajectory.seed == 2**32 - 2
+
+
 def test_backend_close_is_idempotent(mock_llama_server: _MockLlamaServer) -> None:
     backend = LlamaCppVulkanBackend(mock_llama_server.endpoint)
 
