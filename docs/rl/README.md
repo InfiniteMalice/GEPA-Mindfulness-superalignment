@@ -279,8 +279,9 @@ PY
 ```
 
 The nullable fields remain JSON `null` unless llama-server returns validated token or probability
-evidence. The run manifest records the doctor's actual Vulkan state; collection does not promote an
-unknown Vulkan state to supported.
+evidence. The run manifest records the collection command's independently detected preflight
+Vulkan state. Collection does not copy a prior doctor report or promote an unknown Vulkan state to
+supported.
 
 ### Dependency version policy
 

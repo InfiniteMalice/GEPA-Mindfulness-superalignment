@@ -485,6 +485,23 @@ def test_shipped_llama_collection_config_has_no_endpoint() -> None:
     assert config.dataset.train_path == "data/synthetic/reward_integrity/rl_pairs_v1.jsonl"
 
 
+def test_default_engine_builder_rejects_llama_config_before_framework_side_effects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    framework_calls: list[str] = []
+    config = RLRunConfig(runtime=RuntimeConfig(backend="llama-cpp-vulkan"))
+    monkeypatch.setattr(
+        engine_module,
+        "_load_local_transformers_assets",
+        lambda model_name: framework_calls.append(model_name),
+    )
+
+    with pytest.raises(ValueError, match="build_llama_cpp_engine.*endpoint"):
+        engine_module.build_default_engine(config)
+
+    assert framework_calls == []
+
+
 def test_llama_collection_rejects_non_loopback_endpoint_before_actor_construction(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

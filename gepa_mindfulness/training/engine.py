@@ -425,6 +425,13 @@ class RLTrainingEngine:
     ) -> None:
         if not isinstance(config, RLRunConfig):
             raise TypeError("config must be an RLRunConfig")
+        if config.runtime.backend == "llama-cpp-vulkan" and (
+            capability_provider is None or backend_factory is None
+        ):
+            raise ValueError(
+                "runtime.backend='llama-cpp-vulkan' requires "
+                "build_llama_cpp_engine(config, endpoint)"
+            )
         self.config = config
         self.capability_provider = capability_provider or SystemCapabilityProvider()
         self.backend_factory = backend_factory or _default_backend_factory
