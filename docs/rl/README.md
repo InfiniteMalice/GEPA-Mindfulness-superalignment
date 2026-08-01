@@ -6,6 +6,28 @@ logs. The default backend
 uses PyTorch and Hugging Face Transformers on CPU or CUDA. It never downloads a model: the model
 identifier must resolve from a local directory or the existing Hugging Face cache.
 
+## RL maturity matrix
+
+| Path | Maturity | Verified boundary |
+| --- | --- | --- |
+| Portable PyTorch CPU PPO/GRPO | Supported | Local automated training, checkpoint, and resume evidence. |
+| PyTorch CUDA and distributed | Implemented; hardware unqualified | Mock/CPU contracts; native CUDA/DDP acceptance must run on target hardware. |
+| llama.cpp/Vulkan actor | Experimental external runtime | Inference/collection only; native Vulkan/llama.cpp was not run here. |
+| Mojo coordinator actor | Experimental external runtime | Operator-supplied configured coordinator only; checked-in source never generates. |
+| Mojo/Vulkan/llama.cpp actor + PyTorch learner | Experimental hybrid | Requires `--learner pytorch`; conversion, deployment, and reload remain external. |
+| Pure Mojo learner | Unsupported / no-go (3/9 supported) | `--learner mojo` fails closed; see the evidence report. |
+
+The [pure Mojo feasibility report](mojo_learner_feasibility.md) records three supported and six
+unknown gates. `--learner mojo` raises `pure Mojo learner is unsupported` before configuration or
+actor startup. The supported command direction for the experimental hybrid is `--learner pytorch`.
+
+`mojo/rl_coordinator/main.mojo` is a non-generating protocol/compile reference. It returns
+`actor_unconfigured` for generate requests and is never a training coordinator. The hybrid path
+requires an operator-supplied configured coordinator with the same protocol and exact provenance.
+The config and Mojo assets require a source checkout and are not included in the wheel.
+Native Mojo was not installed or executed on the verification host. MAX was not probed. Native
+Vulkan/llama.cpp lanes were skipped. Those skips are limitations, not successes.
+
 ## Install the runtime
 
 Use Python 3.10 or newer. Install the runtime extra for execution or the development extra for
@@ -291,13 +313,14 @@ evaluation, backward, optimizer step, checkpointing, and learner-native adapter 
 
 This workflow requires a source checkout. `configs/rl/hybrid_vulkan_grpo.yaml` and
 `mojo/rl_coordinator/main.mojo` are repository operator assets. They are not included in the wheel.
-A wheel installation provides the Python runtime, but it does not provide those two
-paths or a built coordinator. From the source checkout, build the coordinator with the installed
-Mojo toolchain before selecting its absolute path:
+A wheel installation provides the Python runtime, but it does not provide those two paths or a
+built coordinator.
 
-```bash
-mojo build mojo/rl_coordinator/main.mojo -o /absolute/path/to/rl-coordinator
-```
+The checked-in `main.mojo` is intentionally unconfigured. It accepts the protocol hello and close
+frames but always rejects generate requests with `actor_unconfigured`. It is a non-generating
+protocol/compile reference and never a training coordinator. Never pass a binary built from
+`main.mojo` to `--coordinator-command` for training. Supply a separate, operator-supplied configured
+coordinator that implements `gepa-actor-v1` and returns the exact required provenance.
 
 Complete this replacement checklist before hybrid training:
 
@@ -306,9 +329,10 @@ Complete this replacement checklist before hybrid training:
 3. Replace `hybrid.model_id` with the safe model ID that the actor returns in trajectories.
 4. Replace `hybrid.expected_actor_backend` with the exact safe `backend_name` returned by the
    coordinator's `ActorHandshake`.
-5. Ensure the actor is configured to load the `peft-lora` adapter identity produced below.
-6. Replace `--coordinator-command` and `--actor-endpoint` in the training command with the local
-   coordinator executable and actor endpoint.
+5. Configure the external actor and coordinator to return the required model, adapter, version,
+   and checksum provenance. A matching protocol response is not proof that an actor loaded a file.
+6. Replace `--coordinator-command` with the absolute path to the configured coordinator. Replace
+   `--actor-endpoint` with the configured actor endpoint.
 7. Run the bootstrap command and verify that its export, publication, and load assertions pass
    before training.
 
@@ -367,7 +391,7 @@ gepa rl train \
   --config run.hybrid.yaml \
   --backend mojo-vulkan-llamacpp \
   --learner pytorch \
-  --coordinator-command /absolute/path/to/rl-coordinator \
+  --coordinator-command /absolute/path/to/configured-coordinator \
   --actor-endpoint http://127.0.0.1:8080 \
   --max-steps 1
 ```
@@ -384,8 +408,14 @@ learner's LoRA trainables, and atomically publishes exactly the next policy vers
 closed `publications.jsonl` records prove publication only after atomic success; they do not claim
 the running actor loaded that adapter. Each record binds the checkpoint, parent and published
 policy versions, safe model and adapter identifiers, and exact artifact SHA-256. The artifact is a
-learner-native PyTorch LoRA state dict, not GGUF. GGUF conversion, llama.cpp deployment, and actor
-reload are external operator steps and receive no success claim from this command.
+learner-native PyTorch LoRA state dict, not GGUF. GGUF conversion and llama.cpp deployment remain
+external operator steps. The actor reload is also external and receives no success claim from this
+command.
+
+If an operator uses llama.cpp for the actor, the external PEFT-to-GGUF conversion, deployment, and
+reload workflow needs its own evidence. The hybrid command does not perform or verify those steps.
+The engine's provenance comparison and publication record do not claim the running actor loaded a
+newly published learner adapter.
 
 For actor protocol v1 and log schema v1 compatibility, `adapter_sha256` may be absent from legacy
 non-hybrid trajectories and coordinator responses. Readers validate `adapter_sha256` as a
@@ -402,8 +432,10 @@ manifest's `checkpoint_id` and `global_step` metadata with the checkpoint store.
 manifest as the truthful publication state; do not republish the version or roll `current.json`
 back. Repair the external audit sink before resuming from the matching checkpoint.
 
-This CPU-only host validates the mocked coordinator and tiny local PyTorch update. It does not
-provide native Mojo, Vulkan-device, llama.cpp conversion, or post-publication actor-load evidence.
+This CPU-only host validates the mocked coordinator and tiny local PyTorch update. Native Mojo was
+not installed or executed, MAX was not probed, and native Vulkan/llama.cpp lanes were skipped. The
+skips are limitations, not successes. This host provides no llama.cpp conversion, deployment, or
+post-publication actor-load evidence.
 
 ### Dependency version policy
 

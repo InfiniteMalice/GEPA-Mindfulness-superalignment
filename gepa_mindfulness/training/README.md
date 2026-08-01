@@ -4,6 +4,31 @@ The training package contains the canonical portable PyTorch RL engine and compa
 surfaces retained for older workflows. Start with the [portable RL guide](../../docs/rl/README.md)
 for offline CPU PPO, GRPO, checkpoint resume, collection, evaluation, and capability diagnosis.
 
+## RL maturity matrix
+
+| Path | Maturity | Verified boundary |
+| --- | --- | --- |
+| Portable PyTorch CPU PPO/GRPO | Supported | Local automated training, checkpoint, and resume evidence. |
+| PyTorch CUDA and distributed | Implemented; hardware unqualified | Mock/CPU contracts; native CUDA/DDP acceptance must run on target hardware. |
+| llama.cpp/Vulkan actor | Experimental external runtime | Inference/collection only; native Vulkan/llama.cpp was not run here. |
+| Mojo coordinator actor | Experimental external runtime | Operator-supplied configured coordinator only; checked-in source never generates. |
+| Mojo/Vulkan/llama.cpp actor + PyTorch learner | Experimental hybrid | Requires `--learner pytorch`; conversion, deployment, and reload remain external. |
+| Pure Mojo learner | Unsupported / no-go (3/9 supported) | `--learner mojo` fails closed; see the evidence report. |
+
+The [pure Mojo feasibility report](../../docs/rl/mojo_learner_feasibility.md) records why only three
+of nine gates are supported. `--learner mojo` raises `pure Mojo learner is unsupported`. Use
+`--learner pytorch` and follow the
+[hybrid runbook](../../docs/rl/README.md#train-with-the-experimental-hybrid-mojovulkan-actor) for
+the exact command, bootstrap/current-manifest checks, publication audit behavior, and recovery.
+
+`mojo/rl_coordinator/main.mojo` is a non-generating protocol/compile reference. It returns
+`actor_unconfigured` for generate requests and is never a training coordinator. Supply a configured
+coordinator that implements the same protocol and exact provenance. The hybrid config and Mojo
+source require a source checkout and are not included in the wheel.
+Native Mojo was not installed or executed on the verification host. MAX was not probed. Native
+Vulkan/llama.cpp lanes were skipped. Those skips are limitations. The hybrid command does not
+convert PEFT to GGUF, deploy to llama.cpp, or prove an actor reload.
+
 ## Canonical portable RL
 
 `gepa rl` is the sole canonical command path that updates Transformers policy weights. Install

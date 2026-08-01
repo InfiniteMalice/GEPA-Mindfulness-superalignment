@@ -18,6 +18,44 @@ from gepa_mindfulness.training.runtime_config import load_rl_config
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 _PRESET_NAMES = ("pytorch_cpu_ppo.yaml", "pytorch_cpu_grpo.yaml")
 _LOCAL_MODEL_PATH_TEMPLATE = "/absolute/path/to/local-transformers-model"
+_RL_GUIDES = {
+    _REPOSITORY_ROOT / "README.md": "docs/rl/mojo_learner_feasibility.md",
+    _REPOSITORY_ROOT
+    / "gepa_mindfulness"
+    / "training"
+    / "README.md": ("../../docs/rl/mojo_learner_feasibility.md"),
+    _REPOSITORY_ROOT / "docs" / "rl" / "README.md": "mojo_learner_feasibility.md",
+}
+_RL_MATURITY_MATRIX = "\n".join(
+    (
+        "| Path | Maturity | Verified boundary |",
+        "| --- | --- | --- |",
+        (
+            "| Portable PyTorch CPU PPO/GRPO | Supported | Local automated training, checkpoint, "
+            "and resume evidence. |"
+        ),
+        (
+            "| PyTorch CUDA and distributed | Implemented; hardware unqualified | Mock/CPU "
+            "contracts; native CUDA/DDP acceptance must run on target hardware. |"
+        ),
+        (
+            "| llama.cpp/Vulkan actor | Experimental external runtime | Inference/collection "
+            "only; native Vulkan/llama.cpp was not run here. |"
+        ),
+        (
+            "| Mojo coordinator actor | Experimental external runtime | Operator-supplied "
+            "configured coordinator only; checked-in source never generates. |"
+        ),
+        (
+            "| Mojo/Vulkan/llama.cpp actor + PyTorch learner | Experimental hybrid | Requires "
+            "`--learner pytorch`; conversion, deployment, and reload remain external. |"
+        ),
+        (
+            "| Pure Mojo learner | Unsupported / no-go (3/9 supported) | `--learner mojo` fails "
+            "closed; see the evidence report. |"
+        ),
+    )
+)
 
 
 def _preset_path(name: str) -> Path:
@@ -105,3 +143,58 @@ def test_training_guides_keep_model_weight_and_compatibility_maturity_distinct()
     assert "frozen dataclasses" in training_readme
     pydantic_index = training_readme.index("Pydantic")
     assert "not evidence of model-weight training" in training_readme[pydantic_index - 180 :]
+
+
+def test_public_rl_guides_share_the_exact_maturity_matrix() -> None:
+    """Dropping or promoting one runtime row would give operators conflicting support claims."""
+    for path, report_link in _RL_GUIDES.items():
+        guide = path.read_text(encoding="utf-8")
+        assert "## RL maturity matrix" in guide
+        assert _RL_MATURITY_MATRIX in guide
+        assert "--learner pytorch" in guide
+        assert "--learner mojo" in guide
+        assert "pure Mojo learner is unsupported" in guide
+        assert f"]({report_link})" in guide
+        assert (path.parent / report_link).resolve().is_file()
+
+
+def test_public_rl_guides_never_present_main_mojo_as_a_training_coordinator() -> None:
+    """A future doc edit must not route training into the non-generating protocol reference."""
+    for path in _RL_GUIDES:
+        guide = path.read_text(encoding="utf-8")
+        assert "mojo/rl_coordinator/main.mojo" in guide
+        assert "non-generating protocol/compile reference" in guide
+        assert "never a training coordinator" in guide
+        assert "actor_unconfigured" in guide
+
+    detailed = (_REPOSITORY_ROOT / "docs" / "rl" / "README.md").read_text(encoding="utf-8")
+    assert "always rejects generate requests" in detailed
+    assert "operator-supplied configured coordinator" in detailed
+    assert "--coordinator-command /absolute/path/to/configured-coordinator" in detailed
+    assert (
+        "mojo build mojo/rl_coordinator/main.mojo -o /absolute/path/to/rl-coordinator"
+        not in detailed
+    )
+
+
+def test_public_rl_guides_preserve_external_runtime_and_distribution_boundaries() -> None:
+    """Docs must not turn an unrun native lane or repository asset into wheel/runtime support."""
+    for path in _RL_GUIDES:
+        guide = path.read_text(encoding="utf-8")
+        assert "Native Mojo was not installed or executed" in guide
+        assert "MAX was not probed" in guide
+        assert "source checkout" in guide
+        assert "not included in the wheel" in guide
+
+    detailed = (_REPOSITORY_ROOT / "docs" / "rl" / "README.md").read_text(encoding="utf-8")
+    for boundary in (
+        "GGUF conversion",
+        "llama.cpp deployment",
+        "actor reload",
+        "external operator steps",
+        "do not claim the running actor loaded",
+        "publications.jsonl",
+        "publisher.current()",
+        "remains advanced",
+    ):
+        assert boundary in detailed
