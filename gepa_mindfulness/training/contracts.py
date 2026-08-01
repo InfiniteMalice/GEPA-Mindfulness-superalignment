@@ -6,7 +6,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Protocol, Sequence, runtime_checkable
 
+from .adapter_publication import AdapterCandidate
 from .capability import BackendCapabilities, Capability
+from .policy_versions import PolicyVersion
 from .trajectory import (
     EvidenceReference,
     PolicyEvaluation,
@@ -96,6 +98,20 @@ class TrainablePolicyBackend(RolloutBackend, Protocol):
 
     def load_checkpoint(self, source: Path) -> object:
         """Load trainable state and return its manifest."""
+
+
+@runtime_checkable
+class AdapterExportingPolicyBackend(Protocol):
+    """A learner that can substantiate a learner-native adapter-only artifact."""
+
+    def export_adapter(
+        self,
+        destination: Path,
+        *,
+        policy_version: PolicyVersion,
+        parent_policy_version: PolicyVersion,
+    ) -> AdapterCandidate:
+        """Export one adapter-only artifact with typed version evidence."""
 
 
 @runtime_checkable

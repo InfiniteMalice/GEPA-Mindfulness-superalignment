@@ -19,12 +19,14 @@ import torch
 from torch import nn
 from torch.nn import functional as functional
 
+from gepa_mindfulness.training.adapter_publication import AdapterCandidate
 from gepa_mindfulness.training.capability import (
     BackendCapabilities,
     Capability,
     CapabilityEvidence,
     CapabilityState,
 )
+from gepa_mindfulness.training.policy_versions import PolicyVersion
 from gepa_mindfulness.training.trajectory import (
     PolicyEvaluation,
     RolloutRequest,
@@ -358,6 +360,59 @@ class TorchPolicyBackend:
         return BackendCheckpointResult(
             format_version=_CHECKPOINT_FORMAT_VERSION,
             step=self._step,
+        )
+
+    def export_adapter(
+        self,
+        destination: Path,
+        *,
+        policy_version: PolicyVersion,
+        parent_policy_version: PolicyVersion,
+    ) -> AdapterCandidate:
+        """Export only verified LoRA trainables in the learner's native PyTorch format."""
+        if self.training_mode != "lora":
+            raise RuntimeError("adapter export requires a PEFT LoRA learner")
+        if not isinstance(destination, Path):
+            raise TypeError("adapter export destination must be a pathlib.Path")
+        if type(policy_version) is not PolicyVersion:
+            raise TypeError("policy_version must be a PolicyVersion")
+        if type(parent_policy_version) is not PolicyVersion:
+            raise TypeError("parent_policy_version must be a PolicyVersion")
+        if policy_version.value != parent_policy_version.value + 1:
+            raise ValueError("exported adapter policy version must be exactly next")
+        trainable = {
+            name: parameter.detach().cpu().clone()
+            for name, parameter in self._unwrapped_policy().named_parameters()
+            if parameter.requires_grad
+        }
+        if not trainable or not all(
+            "lora_" in name or "modules_to_save" in name for name in trainable
+        ):
+            raise RuntimeError("learner cannot substantiate an adapter-only LoRA export")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if destination.exists() or destination.is_symlink():
+            raise ValueError("adapter export destination must not already exist")
+        payload = {
+            "adapter_identifier": self.adapter_identifier,
+            "format_id": "pytorch-lora-state-dict-v1",
+            "model_identifier": self.model_identifier,
+            "policy_version": policy_version.to_json(),
+            "state_dict": trainable,
+        }
+        try:
+            torch.save(payload, destination)
+            exported = destination.read_bytes()
+        except (OSError, RuntimeError, TypeError, pickle.PickleError) as error:
+            raise RuntimeError("failed to export learner-native LoRA adapter") from error
+        return AdapterCandidate(
+            artifact_path=destination,
+            policy_version=policy_version,
+            expected_sha256=hashlib.sha256(exported).hexdigest(),
+            parent_policy_version=parent_policy_version,
+            format_id="pytorch-lora-state-dict-v1",
+            source_id=self.adapter_identifier or "peft-lora",
+            model_id=self.model_identifier,
+            metadata={"backend": self.backend_name, "optimizer_step": self._step},
         )
 
     def load_checkpoint(self, source: Path) -> BackendCheckpointResult:

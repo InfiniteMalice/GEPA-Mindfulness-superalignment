@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import secrets
@@ -10,12 +11,21 @@ import subprocess
 import sys
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Iterator, Mapping, Sequence
 
 import pytest
+import torch
+from torch import nn
 
+from gepa_mindfulness.training import rl_cli
+from gepa_mindfulness.training.adapter_publication import (
+    AdapterCandidate,
+    LocalAdapterPublisher,
+)
+from gepa_mindfulness.training.backends import TorchPolicyBackend
 from gepa_mindfulness.training.backends.mojo_coordinator import (
     ActorHandshake,
     MojoCoordinatorBackend,
@@ -24,7 +34,19 @@ from gepa_mindfulness.training.backends.mojo_coordinator import (
 )
 from gepa_mindfulness.training.capability import Capability, CapabilityState
 from gepa_mindfulness.training.contracts import ActorTransport, RolloutBackend
-from gepa_mindfulness.training.trajectory import RolloutRequest
+from gepa_mindfulness.training.engine import RLTrainingEngine
+from gepa_mindfulness.training.policy_versions import PolicyVersion, StalenessPolicy
+from gepa_mindfulness.training.runtime_config import (
+    AlgorithmConfig,
+    CheckpointConfig,
+    DatasetConfig,
+    HybridConfig,
+    LoggingConfig,
+    PolicyConfig,
+    RLRunConfig,
+    RuntimeConfig,
+)
+from gepa_mindfulness.training.trajectory import RolloutRequest, Trajectory
 
 _FAKE_COORDINATOR = r"""import json
 import os
@@ -1182,3 +1204,496 @@ def test_mojo_source_declares_strict_unconfigured_protocol_contract() -> None:
     assert '\\"seed\\":null' in source
     assert "invalid gepa-actor-v1 hello frame" in source
     assert "invalid gepa-actor-v1 generate or close frame" in source
+
+
+class _HybridTokenizer:
+    pad_token_id = 0
+    eos_token_id = 1
+    tokens = {"practice": 2, "slowly": 3, "chosen": 4, "rejected": 5}
+
+    def encode(self, text: str, *, add_special_tokens: bool = False) -> list[int]:
+        del add_special_tokens
+        return [self.tokens[word] for word in text.split()]
+
+    def decode(self, token_ids: list[int], *, skip_special_tokens: bool = True) -> str:
+        del skip_special_tokens
+        words = {value: key for key, value in self.tokens.items()}
+        return " ".join(words[token] for token in token_ids)
+
+
+class _TinyLoraPolicy(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.config = SimpleNamespace(hidden_size=4, _name_or_path="tiny-hybrid-model")
+        self.embedding = nn.Embedding(6, 4)
+        self.lm_head = nn.Linear(4, 6, bias=False)
+        self.lora_logits = nn.Parameter(torch.zeros(6))
+        self.embedding.requires_grad_(False)
+        self.lm_head.requires_grad_(False)
+        self.peft_config = {"default": SimpleNamespace(peft_type="LORA")}
+
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        *,
+        attention_mask: torch.Tensor | None = None,
+        output_hidden_states: bool = False,
+    ) -> SimpleNamespace:
+        del attention_mask, output_hidden_states
+        hidden = self.embedding(input_ids)
+        logits = self.lm_head(hidden) + self.lora_logits
+        return SimpleNamespace(logits=logits, hidden_states=(hidden,))
+
+    def generate(self, input_ids: torch.Tensor, **kwargs: object) -> torch.Tensor:
+        del kwargs
+        response = torch.full(
+            (input_ids.shape[0], 1),
+            4,
+            dtype=input_ids.dtype,
+            device=input_ids.device,
+        )
+        return torch.cat((input_ids, response), dim=1)
+
+
+class _MockVersionedActor:
+    def __init__(self, *, model_id: str, adapter_id: str, crash: bool = False) -> None:
+        self.model_id = model_id
+        self.adapter_id = adapter_id
+        self.crash = crash
+        self.generate_calls = 0
+        self.close_calls = 0
+
+    def generate(self, requests: Sequence[RolloutRequest]) -> tuple[Trajectory, ...]:
+        self.generate_calls += 1
+        if self.crash:
+            raise RuntimeError("mock actor crash")
+        trajectories = []
+        for request in requests:
+            for sample in range(request.num_samples):
+                response = "chosen" if sample == 0 else "rejected"
+                trajectories.append(
+                    Trajectory(
+                        trajectory_id=f"actor-{self.generate_calls}-{sample}",
+                        case_id=request.case_id,
+                        prompt=request.prompt,
+                        response=response,
+                        prompt_token_ids=(2, 3),
+                        response_token_ids=(4 if sample == 0 else 5,),
+                        old_log_probs=(-1.0,),
+                        reference_log_probs=(-1.0,),
+                        value_predictions=None,
+                        sampling_parameters=request.sampling_parameters,
+                        backend_name="mock-mojo-vulkan",
+                        backend_version="test-1",
+                        model_identifier=self.model_id,
+                        adapter_identifier=self.adapter_id,
+                        policy_version=request.policy_version,
+                        seed=request.seed,
+                    )
+                )
+        return tuple(trajectories)
+
+    def capabilities(self):  # type: ignore[no-untyped-def]
+        from gepa_mindfulness.training.capability import BackendCapabilities, CapabilityEvidence
+
+        return BackendCapabilities(
+            backend_name="mock-mojo-vulkan",
+            backend_version="test-1",
+            capabilities={
+                capability: CapabilityEvidence(
+                    state=(
+                        CapabilityState.SUPPORTED
+                        if capability is Capability.SUPPORTS_GENERATION
+                        else CapabilityState.UNSUPPORTED
+                    ),
+                    evidence="mock actor generation evidence",
+                )
+                for capability in Capability
+            },
+        )
+
+    def close(self) -> None:
+        self.close_calls += 1
+
+
+class _InvalidIdentityActor(_MockVersionedActor):
+    def __init__(self, *, change: Mapping[str, object]) -> None:
+        super().__init__(model_id="tiny-hybrid-model", adapter_id="tiny-lora")
+        self.change = dict(change)
+
+    def generate(self, requests: Sequence[RolloutRequest]) -> tuple[Trajectory, ...]:
+        return tuple(
+            replace(trajectory, **self.change) for trajectory in super().generate(requests)
+        )
+
+
+class _FailingPublisher:
+    def __init__(self, publisher: LocalAdapterPublisher) -> None:
+        self.publisher = publisher
+
+    def current(self):  # type: ignore[no-untyped-def]
+        return self.publisher.current()
+
+    def publish(self, candidate: AdapterCandidate):  # type: ignore[no-untyped-def]
+        del candidate
+        raise RuntimeError("publisher failure")
+
+
+def _write_hybrid_pair(path: Path) -> None:
+    names = (
+        "objective_fidelity",
+        "feedback_integrity",
+        "skill_transfer",
+        "reality_contact",
+        "exploit_disclosure",
+        "long_horizon_agency",
+        "benign_creativity",
+        "repair_quality",
+    )
+    record = {
+        "record_id": "hybrid:grounded_over_proxy",
+        "source_case_id": "hybrid",
+        "source_case_version": "1.0",
+        "source_path": "authored/hybrid.jsonl",
+        "source_line": 1,
+        "source_sha256": "a" * 64,
+        "pair_rule": "grounded_over_proxy",
+        "prompt": "practice slowly",
+        "chosen": "chosen",
+        "rejected": "rejected",
+        "chosen_class": "grounded_success",
+        "rejected_class": "proxy_exploitation",
+        "chosen_reward_components": {name: 0.5 for name in names},
+        "rejected_reward_components": {name: -0.5 for name in names},
+        "diagnostics": {"central": "authored", "supporting": []},
+        "schema_version": "reward-integrity-rl-pairs-v1",
+    }
+    path.write_text(json.dumps(record, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _hybrid_config(tmp_path: Path, *, staleness: StalenessPolicy) -> RLRunConfig:
+    dataset = tmp_path / "hybrid-pairs.jsonl"
+    _write_hybrid_pair(dataset)
+    return RLRunConfig(
+        runtime=RuntimeConfig(backend="mojo-vulkan-llamacpp"),
+        policy=PolicyConfig(model_name="tiny-hybrid-model", max_new_tokens=1),
+        algorithm=AlgorithmConfig(
+            name="grpo",
+            learning_rate=0.1,
+            batch_size=1,
+            max_steps=1,
+            group_size=2,
+            zero_variance_policy="skip",
+        ),
+        dataset=DatasetConfig(train_path=str(dataset)),
+        checkpoint=CheckpointConfig(output_dir=str(tmp_path / "checkpoints"), save_steps=1),
+        logging=LoggingConfig(log_dir=str(tmp_path / "logs")),
+        hybrid=HybridConfig(
+            adapter_store=str(tmp_path / "adapters"),
+            staleness_policy=staleness,
+            max_policy_lag=0,
+            downweight_decay=0.5 if staleness is StalenessPolicy.DOWN_WEIGHT else None,
+        ),
+        seed=42,
+    )
+
+
+def _bootstrap_adapter(publisher: LocalAdapterPublisher) -> None:
+    artifact = publisher.root.parent / "bootstrap.adapter"
+    artifact.write_bytes(b"learner-native-lora-v1")
+    digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    publisher.publish(
+        AdapterCandidate(
+            artifact_path=artifact,
+            policy_version=PolicyVersion(1),
+            expected_sha256=digest,
+            parent_policy_version=None,
+            format_id="pytorch-lora-state-dict-v1",
+            source_id="tiny-lora",
+            model_id="tiny-hybrid-model",
+        )
+    )
+
+
+def _hybrid_learner(config: RLRunConfig) -> TorchPolicyBackend:
+    return TorchPolicyBackend(
+        policy_model=_TinyLoraPolicy(),
+        tokenizer=_HybridTokenizer(),
+        device="cpu",
+        learning_rate=config.algorithm.learning_rate,
+        max_new_tokens=1,
+        training_mode="lora",
+        model_identifier="tiny-hybrid-model",
+        adapter_identifier="tiny-lora",
+    )
+
+
+class _LearnerCapabilityProvider:
+    def __init__(self, learner: TorchPolicyBackend) -> None:
+        self.learner = learner
+
+    def detect(self, config: RLRunConfig):  # type: ignore[no-untyped-def]
+        del config
+        return self.learner.capabilities()
+
+
+def test_hybrid_step_updates_pytorch_and_publishes_exact_next_version(
+    tmp_path: Path,
+) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    learner = _hybrid_learner(config)
+    actor = _MockVersionedActor(model_id="tiny-hybrid-model", adapter_id="tiny-lora")
+    engine = RLTrainingEngine(
+        config,
+        capability_provider=_LearnerCapabilityProvider(learner),
+        backend_factory=lambda _: learner,
+        actor_factory=lambda _, manifest: actor,
+        publisher_factory=lambda _: publisher,
+    )
+
+    result = engine.train(max_steps=1)
+
+    assert result.policy_parameters_updated is True
+    assert result.checkpoint is not None
+    assert result.published_adapter is not None
+    assert result.published_adapter.policy_version == PolicyVersion(2)
+    assert result.published_adapter.parent_policy_version == PolicyVersion(1)
+    assert publisher.current() == result.published_adapter
+    assert result.published_adapter.format_id == "pytorch-lora-state-dict-v1"
+    assert "gguf" not in json.dumps(result.to_dict()).lower()
+    assert actor.close_calls == 1
+    manifest = json.loads((result.log_directory / "run_manifest.json").read_text(encoding="utf-8"))
+    trajectory_record = json.loads(
+        (result.log_directory / "trajectories.jsonl").read_text(encoding="utf-8").splitlines()[0]
+    )
+    actor_policy = manifest["device_capabilities"]["hybrid_actor_policy"]
+    assert manifest["actor_backend"] == "mock-mojo-vulkan"
+    assert manifest["learner_backend"] == "torch_portable"
+    assert manifest["adapter"] == "tiny-lora"
+    assert actor_policy["policy_version"] == "1"
+    assert actor_policy["adapter_sha256"] == hashlib.sha256(b"learner-native-lora-v1").hexdigest()
+    assert trajectory_record["actor_backend"] == manifest["actor_backend"]
+    assert trajectory_record["learner_backend"] == manifest["learner_backend"]
+    assert trajectory_record["policy_version"] == actor_policy["policy_version"]
+    assert trajectory_record["trajectory"]["adapter_identifier"] == manifest["adapter"]
+
+
+def test_hybrid_second_step_rejects_stale_actor_before_scoring(tmp_path: Path) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    learner = _hybrid_learner(config)
+    actor = _MockVersionedActor(model_id="tiny-hybrid-model", adapter_id="tiny-lora")
+    engine = RLTrainingEngine(
+        config,
+        capability_provider=_LearnerCapabilityProvider(learner),
+        backend_factory=lambda _: learner,
+        actor_factory=lambda _, manifest: actor,
+        publisher_factory=lambda _: publisher,
+    )
+
+    with pytest.raises(ValueError, match="stale actor policy"):
+        engine.train(max_steps=2)
+
+    assert publisher.current().policy_version == PolicyVersion(2)  # type: ignore[union-attr]
+    assert actor.generate_calls == 2
+    assert actor.close_calls == 1
+
+
+def test_hybrid_downweights_stale_reward_once_and_publishes_next_version(
+    tmp_path: Path,
+) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.DOWN_WEIGHT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    learner = _hybrid_learner(config)
+    actor = _MockVersionedActor(model_id="tiny-hybrid-model", adapter_id="tiny-lora")
+    result = RLTrainingEngine(
+        config,
+        capability_provider=_LearnerCapabilityProvider(learner),
+        backend_factory=lambda _: learner,
+        actor_factory=lambda _, manifest: actor,
+        publisher_factory=lambda _: publisher,
+    ).train(max_steps=2)
+
+    assert result.published_adapter is not None
+    assert result.published_adapter.policy_version == PolicyVersion(3)
+    records = [
+        json.loads(line)
+        for line in (result.log_directory / "metrics.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    stale = [
+        record
+        for record in records
+        if "staleness_weight" in record["metrics"] and record["metrics"]["staleness_lag"] == 1.0
+    ]
+    assert len(stale) == 2
+    assert {record["metrics"]["staleness_weight"] for record in stale} == {0.5}
+    assert {record["metrics"]["staleness_accepted"] for record in stale} == {1.0}
+
+
+def test_hybrid_actor_crash_closes_actor_and_learner_without_publication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    learner = _hybrid_learner(config)
+    learner_closes = 0
+
+    def close_learner() -> None:
+        nonlocal learner_closes
+        learner_closes += 1
+
+    monkeypatch.setattr(learner, "close", close_learner)
+    actor = _MockVersionedActor(
+        model_id="tiny-hybrid-model",
+        adapter_id="tiny-lora",
+        crash=True,
+    )
+    engine = RLTrainingEngine(
+        config,
+        capability_provider=_LearnerCapabilityProvider(learner),
+        backend_factory=lambda _: learner,
+        actor_factory=lambda _, manifest: actor,
+        publisher_factory=lambda _: publisher,
+    )
+
+    with pytest.raises(RuntimeError, match="mock actor crash"):
+        engine.train(max_steps=1)
+
+    assert actor.close_calls == 1
+    assert learner_closes == 1
+    assert publisher.current().policy_version == PolicyVersion(1)  # type: ignore[union-attr]
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        ({"policy_version": None}, "policy version"),
+        ({"policy_version": "2"}, "policy version"),
+        ({"model_identifier": "wrong-model"}, "model"),
+        ({"adapter_identifier": "wrong-adapter"}, "adapter"),
+    ],
+)
+def test_hybrid_rejects_missing_ahead_or_mismatched_actor_identity_before_update(
+    tmp_path: Path,
+    change: Mapping[str, object],
+    message: str,
+) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    learner = _hybrid_learner(config)
+    actor = _InvalidIdentityActor(change=change)
+
+    with pytest.raises(ValueError, match=message):
+        RLTrainingEngine(
+            config,
+            capability_provider=_LearnerCapabilityProvider(learner),
+            backend_factory=lambda _: learner,
+            actor_factory=lambda _, manifest: actor,
+            publisher_factory=lambda _: publisher,
+        ).train(max_steps=1)
+
+    assert learner._step == 0
+    assert publisher.current().policy_version == PolicyVersion(1)  # type: ignore[union-attr]
+    assert actor.close_calls == 1
+
+
+def test_hybrid_publisher_failure_preserves_current_and_returns_no_success(
+    tmp_path: Path,
+) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    failing = _FailingPublisher(publisher)
+    learner = _hybrid_learner(config)
+    actor = _MockVersionedActor(model_id="tiny-hybrid-model", adapter_id="tiny-lora")
+    engine = RLTrainingEngine(
+        config,
+        capability_provider=_LearnerCapabilityProvider(learner),
+        backend_factory=lambda _: learner,
+        actor_factory=lambda _, manifest: actor,
+        publisher_factory=lambda _: failing,  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(RuntimeError, match="publisher failure"):
+        engine.train(max_steps=1)
+
+    assert learner._step == 1
+    assert publisher.current().policy_version == PolicyVersion(1)  # type: ignore[union-attr]
+    assert actor.close_calls == 1
+
+
+def test_hybrid_resume_requires_checkpoint_current_adapter_coherence(tmp_path: Path) -> None:
+    config = _hybrid_config(tmp_path, staleness=StalenessPolicy.REJECT)
+    publisher = LocalAdapterPublisher(config.hybrid.adapter_store)
+    _bootstrap_adapter(publisher)
+    first_actor = _MockVersionedActor(model_id="tiny-hybrid-model", adapter_id="tiny-lora")
+    first_learner = _hybrid_learner(config)
+    first = RLTrainingEngine(
+        config,
+        capability_provider=_LearnerCapabilityProvider(first_learner),
+        backend_factory=lambda _: first_learner,
+        actor_factory=lambda _, manifest: first_actor,
+        publisher_factory=lambda _: publisher,
+    ).train(max_steps=1)
+    checkpoint_path = Path(config.checkpoint.output_dir) / first.checkpoint.checkpoint_id
+    resumed_actor = _MockVersionedActor(model_id="tiny-hybrid-model", adapter_id="tiny-lora")
+    resumed_learner = _hybrid_learner(config)
+
+    resumed = RLTrainingEngine(
+        config,
+        capability_provider=_LearnerCapabilityProvider(resumed_learner),
+        backend_factory=lambda _: resumed_learner,
+        actor_factory=lambda _, manifest: resumed_actor,
+        publisher_factory=lambda _: publisher,
+    ).resume(checkpoint_path, max_steps=0)
+
+    assert resumed.global_step == 1
+    assert resumed.trajectory_count == 0
+    assert resumed.policy_parameters_updated is False
+    assert resumed.published_adapter is None
+    assert resumed_actor.generate_calls == 0
+    assert resumed_actor.close_calls == 1
+
+
+@pytest.mark.parametrize("learner", [None, "mojo"])
+def test_hybrid_cli_rejects_missing_or_mojo_learner_before_config_loading(
+    monkeypatch: pytest.MonkeyPatch,
+    learner: str | None,
+) -> None:
+    events: list[str] = []
+
+    def load_config(path: str) -> RLRunConfig:
+        events.append(f"config:{path}")
+        raise AssertionError("config must not load")
+
+    monkeypatch.setattr(rl_cli, "load_rl_run_config", load_config)
+    result = rl_cli._handle_engine(  # noqa: SLF001 - direct fail-fast contract
+        SimpleNamespace(
+            backend="mojo-vulkan-llamacpp",
+            learner=learner,
+            config="should-not-load.yaml",
+        )
+    )
+
+    assert result == 2
+    assert events == []
+
+
+def test_hybrid_config_is_strict_and_keeps_operator_context_out_of_template() -> None:
+    with pytest.raises(ValueError, match="hybrid.lora contains unknown keys"):
+        HybridConfig.from_mapping({"lora": {"unknown": 1}})
+
+    template = Path("configs/rl/hybrid_vulkan_grpo.yaml").read_text(encoding="utf-8")
+    assert "mojo-vulkan-llamacpp" in template
+    assert "endpoint:" not in template
+    assert "secret" not in template.casefold()
+    assert "api_key" not in template.casefold()

@@ -49,6 +49,16 @@ def create_llama_cpp_engine(config: RLRunConfig, endpoint: str) -> RLTrainingEng
     return build_llama_cpp_engine(config, endpoint)
 
 
+def create_hybrid_engine(
+    config: RLRunConfig,
+    coordinator_command: tuple[str, ...],
+) -> RLTrainingEngine:
+    """Create the experimental Mojo actor and PyTorch learner engine."""
+    from .engine import build_hybrid_engine
+
+    return build_hybrid_engine(config, coordinator_command)
+
+
 def doctor_report(
     config: RLRunConfig,
     provider: CapabilityProvider | None = None,
@@ -115,21 +125,51 @@ def _emit_result(result: _Result) -> None:
 
 def _handle_engine(args: argparse.Namespace) -> int:
     try:
+        requested_backend = getattr(args, "backend", None)
+        learner = getattr(args, "learner", None)
+        coordinator_command = getattr(args, "coordinator_command", None)
+        actor_endpoint = getattr(args, "actor_endpoint", None)
+        if requested_backend == "mojo-vulkan-llamacpp" and learner != "pytorch":
+            raise ValueError(
+                "--backend mojo-vulkan-llamacpp requires explicit --learner pytorch; "
+                "pure Mojo training is unsupported"
+            )
         config = load_rl_run_config(args.config)
-        selected_backend = args.backend or config.runtime.backend
+        selected_backend = requested_backend or config.runtime.backend
         if selected_backend != config.runtime.backend:
             raise ValueError(
                 f"--backend {selected_backend!r} does not match configured "
                 f"runtime.backend {config.runtime.backend!r}"
             )
         config = _apply_operator_overrides(config, args)
-        if selected_backend == "llama-cpp-vulkan":
+        if selected_backend == "mojo-vulkan-llamacpp":
+            if learner != "pytorch":
+                raise ValueError(
+                    "hybrid training requires explicit --learner pytorch; "
+                    "pure Mojo training is unsupported"
+                )
+            if args.rl_command not in {"train", "resume"}:
+                raise ValueError("mojo-vulkan-llamacpp supports hybrid train/resume only")
+            if args.endpoint is not None:
+                raise ValueError("use --actor-endpoint for mojo-vulkan-llamacpp")
+            command = coordinator_command
+            if not command:
+                raise ValueError("--coordinator-command is required for hybrid training")
+            command_values = tuple(command)
+            if actor_endpoint is not None:
+                command_values = (*command_values, "--endpoint", actor_endpoint)
+            engine = create_hybrid_engine(config, command_values)
+        elif selected_backend == "llama-cpp-vulkan":
             if args.rl_command != "collect":
                 raise ValueError("runtime.backend='llama-cpp-vulkan' is collection only")
             if args.endpoint is None:
                 raise ValueError("--endpoint is required for llama-cpp-vulkan collection")
             engine = create_llama_cpp_engine(config, args.endpoint)
         else:
+            if learner is not None:
+                raise ValueError("--learner is supported only by mojo-vulkan-llamacpp")
+            if coordinator_command or actor_endpoint is not None:
+                raise ValueError("coordinator options require --backend mojo-vulkan-llamacpp")
             if args.endpoint is not None:
                 raise ValueError("--endpoint requires --backend llama-cpp-vulkan")
             engine = create_engine(config)
@@ -228,18 +268,33 @@ def register_rl_cli(subparsers: argparse._SubParsersAction[argparse.ArgumentPars
 def _add_engine_backend_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--backend",
-        choices=("pytorch", "cuda", "llama-cpp-vulkan"),
+        choices=("pytorch", "cuda", "llama-cpp-vulkan", "mojo-vulkan-llamacpp"),
         help="Backend selector; when provided it must match runtime.backend",
     )
     parser.add_argument(
         "--endpoint",
         help="Loopback llama.cpp endpoint; required only for llama-cpp-vulkan collection",
     )
+    parser.add_argument(
+        "--learner",
+        choices=("pytorch", "mojo"),
+        help="Explicit hybrid learner; only pytorch is supported",
+    )
+    parser.add_argument(
+        "--coordinator-command",
+        nargs="+",
+        help="Operator-supplied coordinator argv; executed directly without a shell",
+    )
+    parser.add_argument(
+        "--actor-endpoint",
+        help="Optional operator-supplied actor endpoint passed to the coordinator argv",
+    )
 
 
 __all__ = [
     "DoctorReport",
     "create_engine",
+    "create_hybrid_engine",
     "create_llama_cpp_engine",
     "doctor_report",
     "load_rl_run_config",

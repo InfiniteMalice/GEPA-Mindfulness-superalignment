@@ -8,6 +8,7 @@ import json
 import math
 import random
 import re
+import tempfile
 import uuid
 from collections.abc import Callable, Mapping, Sequence
 from copy import deepcopy
@@ -17,6 +18,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Literal, Protocol, cast
 
+from .adapter_publication import AdapterCandidate, AdapterManifest, LocalAdapterPublisher
 from .capability import (
     BackendCapabilities,
     Capability,
@@ -24,12 +26,14 @@ from .capability import (
     CapabilityState,
 )
 from .contracts import (
+    AdapterExportingPolicyBackend,
     RewardProvider,
     RewardRequest,
     RLAlgorithm,
     RolloutBackend,
     TrainablePolicyBackend,
 )
+from .policy_versions import PolicyVersion, StalenessDecision, evaluate_staleness
 from .runtime_config import DistributedRuntimeConfig, RLRunConfig
 from .trajectory import PolicyEvaluation, RolloutRequest, Trajectory, TrajectoryBatch
 
@@ -66,6 +70,7 @@ class EngineResult:
     dataset_hash: str | None = None
     trajectories: tuple[Trajectory, ...] = ()
     evaluation_artifacts: Mapping[str, object] | None = None
+    published_adapter: AdapterManifest | None = None
 
     def to_dict(self) -> dict[str, object]:
         checkpoint_payload = _serialized_artifact(self.checkpoint)
@@ -83,6 +88,9 @@ class EngineResult:
             "policy_parameter_checksum_after": self.policy_parameter_checksum_after,
             "policy_parameter_checksum_before": self.policy_parameter_checksum_before,
             "policy_parameters_updated": self.policy_parameters_updated,
+            "published_adapter": (
+                None if self.published_adapter is None else self.published_adapter.to_dict()
+            ),
             "run_id": self.run_id,
             "trajectories": [trajectory.to_dict() for trajectory in self.trajectories],
             "trajectory_count": self.trajectory_count,
@@ -116,6 +124,14 @@ class _DatasetSnapshot:
     sha256: str
     requests: tuple[RolloutRequest, ...]
     pairs: Mapping[str, Mapping[str, object]]
+
+
+@dataclass
+class _HybridState:
+    actor_manifest: AdapterManifest
+    learner_version: PolicyVersion
+    publisher: LocalAdapterPublisher
+    latest_publication: AdapterManifest | None = None
 
 
 class CapabilityProvider(Protocol):
@@ -166,6 +182,8 @@ class RunLogger(Protocol):
 
 
 BackendFactory = Callable[[RLRunConfig], RolloutBackend]
+ActorFactory = Callable[[RLRunConfig, AdapterManifest], RolloutBackend]
+PublisherFactory = Callable[[RLRunConfig], LocalAdapterPublisher]
 AlgorithmFactory = Callable[[RLRunConfig, TrainablePolicyBackend], RLAlgorithm]
 DatasetFactory = Callable[[RLRunConfig], DatasetProvider]
 RewardFactory = Callable[[RLRunConfig], RewardProvider]
@@ -179,7 +197,8 @@ LoggerFactory = Callable[[RLRunConfig], RunLogger]
 
 def required_capabilities(config: RLRunConfig, mode: EngineMode) -> frozenset[Capability]:
     """Return requirements without constructing an algorithm or model."""
-    required = {Capability.SUPPORTS_GENERATION}
+    hybrid = config.runtime.backend == "mojo-vulkan-llamacpp"
+    required = set() if hybrid else {Capability.SUPPORTS_GENERATION}
     if mode in {"evaluate", "train", "resume"}:
         required.update(
             {
@@ -193,9 +212,13 @@ def required_capabilities(config: RLRunConfig, mode: EngineMode) -> frozenset[Ca
         required.update(
             {
                 Capability.SUPPORTS_BACKWARD,
-                Capability.SUPPORTS_FULL_WEIGHT_TRAINING,
                 Capability.SUPPORTS_OPTIMIZER_STEP,
             }
+        )
+        required.add(
+            Capability.SUPPORTS_LORA_TRAINING
+            if hybrid
+            else Capability.SUPPORTS_FULL_WEIGHT_TRAINING
         )
     if config.runtime.device.startswith("cuda"):
         required.add(Capability.SUPPORTS_CUDA)
@@ -226,6 +249,7 @@ class SystemCapabilityProvider:
     def detect(self, config: RLRunConfig) -> BackendCapabilities:
         torch_available = importlib.util.find_spec("torch") is not None
         transformers_available = importlib.util.find_spec("transformers") is not None
+        peft_available = importlib.util.find_spec("peft") is not None
         implementation_available = torch_available and transformers_available
         cuda_available, cuda_evidence = self._cuda_support(config, torch_available)
         mixed_available, mixed_evidence = self._mixed_precision_support(
@@ -247,6 +271,8 @@ class SystemCapabilityProvider:
             Capability.SUPPORTS_TOKEN_LOG_PROBS,
             Capability.SUPPORTS_VALUE_HEAD,
         }
+        if config.runtime.backend == "mojo-vulkan-llamacpp" and peft_available:
+            implemented.add(Capability.SUPPORTS_LORA_TRAINING)
         for capability in Capability:
             supported = capability in implemented and implementation_available
             if capability is Capability.SUPPORTS_CUDA:
@@ -422,6 +448,8 @@ class RLTrainingEngine:
         batch_preparer_factory: BatchPreparerFactory | None = None,
         checkpoint_factory: CheckpointFactory | None = None,
         logger_factory: LoggerFactory | None = None,
+        actor_factory: ActorFactory | None = None,
+        publisher_factory: PublisherFactory | None = None,
     ) -> None:
         if not isinstance(config, RLRunConfig):
             raise TypeError("config must be an RLRunConfig")
@@ -431,6 +459,12 @@ class RLTrainingEngine:
             raise ValueError(
                 "runtime.backend='llama-cpp-vulkan' requires "
                 "build_llama_cpp_engine(config, endpoint)"
+            )
+        if config.runtime.backend == "mojo-vulkan-llamacpp" and (
+            actor_factory is None or publisher_factory is None
+        ):
+            raise ValueError(
+                "runtime.backend='mojo-vulkan-llamacpp' requires an actor and adapter publisher"
             )
         self.config = config
         self.capability_provider = capability_provider or SystemCapabilityProvider()
@@ -447,6 +481,8 @@ class RLTrainingEngine:
         )
         self.checkpoint_factory = checkpoint_factory
         self.logger_factory = logger_factory
+        self.actor_factory = actor_factory
+        self.publisher_factory = publisher_factory
 
     def train(self, *, max_steps: int | None = None) -> EngineResult:
         """Run one training invocation with a relative optimizer-step budget.
@@ -519,7 +555,9 @@ class RLTrainingEngine:
             else None
         )
         _seed_process(self.config)
-        backend = self.backend_factory(self.config)
+        backend = cast(TrainablePolicyBackend, self.backend_factory(self.config))
+        actor: RolloutBackend | None = None
+        hybrid_state: _HybridState | None = None
         global_step = 0
         batch_cursor = 0
         rollout_cursor = 0
@@ -549,11 +587,6 @@ class RLTrainingEngine:
                 if self._default_checkpoint and mode in {"train", "resume"}
                 else self._checkpoint(mode, backend)
             )
-            logger = (
-                _JSONLRunLogger(self.config, snapshot.sha256)
-                if self._default_logger
-                else cast(LoggerFactory, self.logger_factory)(self.config)
-            )
             if mode == "resume":
                 if checkpoint is None:  # pragma: no cover - public resume enforces this
                     raise ValueError("resume requires an operator-selected checkpoint")
@@ -581,6 +614,43 @@ class RLTrainingEngine:
                     _rollback_resume_transaction(transaction, backend, algorithm, restore_error)
                     raise
                 target_step = global_step + step_budget
+            if self.config.runtime.backend == "mojo-vulkan-llamacpp":
+                if not isinstance(backend, AdapterExportingPolicyBackend):
+                    raise RuntimeError(
+                        "PyTorch learner cannot substantiate learner-native adapter-only export"
+                    )
+                publisher = cast(PublisherFactory, self.publisher_factory)(self.config)
+                current = publisher.current()
+                if current is None:
+                    raise ValueError(
+                        "hybrid training requires a validated current actor adapter manifest"
+                    )
+                if current.model_id != self.config.policy.model_name:
+                    raise ValueError("current actor adapter model does not match policy.model_name")
+                if mode == "resume":
+                    _validate_hybrid_resume(current, global_step, resume_parent)
+                hybrid_state = _HybridState(
+                    actor_manifest=current,
+                    learner_version=current.policy_version,
+                    publisher=publisher,
+                )
+                actor = cast(ActorFactory, self.actor_factory)(self.config, current)
+                if not isinstance(actor, RolloutBackend):
+                    raise TypeError("hybrid actor must implement RolloutBackend")
+                if actor is backend:
+                    raise ValueError("hybrid actor and learner must be separate backends")
+            generation_backend = actor or backend
+            logger = (
+                _JSONLRunLogger(
+                    self.config,
+                    snapshot.sha256,
+                    actor_manifest=None if hybrid_state is None else hybrid_state.actor_manifest,
+                    actor_backend=generation_backend.capabilities().backend_name,
+                    learner_backend=backend.capabilities().backend_name,
+                )
+                if self._default_logger
+                else cast(LoggerFactory, self.logger_factory)(self.config)
+            )
             requests = tuple(dataset.materialize(mode))
             if not requests:
                 raise ValueError("RL dataset materialized no rollout requests")
@@ -589,7 +659,9 @@ class RLTrainingEngine:
             policy_checksum_before = _policy_parameter_checksum(backend)
             if mode == "collect":
                 selected = self._rollout_requests(requests, global_step, rollout_index=0)
-                trajectories = tuple(backend.generate(selected))
+                trajectories = tuple(generation_backend.generate(selected))
+                if hybrid_state is not None:
+                    generation_backend.capabilities().require({Capability.SUPPORTS_GENERATION})
                 _validate_rollout_output(self.config, selected, trajectories)
                 backend.capabilities().require(requirements)
                 logger.trajectories(trajectories, global_step)
@@ -597,7 +669,9 @@ class RLTrainingEngine:
                 result_trajectories = trajectories
             elif mode == "evaluate":
                 selected = self._rollout_requests(requests, global_step, rollout_index=0)
-                trajectories = tuple(backend.generate(selected))
+                trajectories = tuple(generation_backend.generate(selected))
+                if hybrid_state is not None:
+                    generation_backend.capabilities().require({Capability.SUPPORTS_GENERATION})
                 _validate_rollout_output(self.config, selected, trajectories)
                 scored, rewards = self._score(trajectories, reward_provider)
                 if batch_preparer is None:  # pragma: no cover - mode selection invariant
@@ -620,6 +694,8 @@ class RLTrainingEngine:
                     evaluation_artifacts,
                 ) = self._train_loop(
                     backend=backend,
+                    generation_backend=generation_backend,
+                    hybrid_state=hybrid_state,
                     algorithm=cast(RLAlgorithm, algorithm),
                     requests=requests,
                     reward_provider=cast(RewardProvider, reward_provider),
@@ -659,29 +735,39 @@ class RLTrainingEngine:
                 dataset_hash=snapshot.sha256,
                 trajectories=result_trajectories,
                 evaluation_artifacts=evaluation_artifacts,
+                published_adapter=(
+                    None if hybrid_state is None else hybrid_state.latest_publication
+                ),
             )
         except BaseException as error:
             primary_error = error
             raise
         finally:
+            actor_close_failure: BaseException | None = None
+            if actor is not None:
+                try:
+                    actor.close()
+                except BaseException as actor_close_error:
+                    if primary_error is None:
+                        actor_close_failure = actor_close_error
+                        primary_error = actor_close_error
+                    else:
+                        _add_close_note(primary_error, "Actor", actor_close_error)
             try:
                 backend.close()
             except BaseException as close_error:
                 if primary_error is None:
                     raise
-                diagnostic = (
-                    "Backend close also failed: " f"{type(close_error).__name__}: {close_error}"
-                )
-                add_note = getattr(primary_error, "add_note", None)
-                if callable(add_note):
-                    add_note(diagnostic)
-                else:  # pragma: no cover - Python 3.10 compatibility
-                    primary_error.__cause__ = close_error
+                _add_close_note(primary_error, "Learner", close_error)
+            if actor_close_failure is not None:
+                raise actor_close_failure
 
     def _train_loop(
         self,
         *,
         backend: TrainablePolicyBackend,
+        generation_backend: RolloutBackend,
+        hybrid_state: _HybridState | None,
         algorithm: RLAlgorithm,
         requests: tuple[RolloutRequest, ...],
         reward_provider: RewardProvider,
@@ -716,11 +802,34 @@ class RLTrainingEngine:
                     request_batch,
                     global_step,
                     rollout_index=rollout_cursor,
+                    actor_manifest=(None if hybrid_state is None else hybrid_state.actor_manifest),
                 )
                 rollout_cursor += 1
-                trajectories = tuple(backend.generate(selected))
+                trajectories = tuple(generation_backend.generate(selected))
+                if hybrid_state is not None:
+                    generation_backend.capabilities().require({Capability.SUPPORTS_GENERATION})
                 _validate_rollout_output(self.config, selected, trajectories)
-                scored, rewards = self._score(trajectories, reward_provider)
+                decisions = _hybrid_staleness_decisions(
+                    self.config,
+                    trajectories,
+                    hybrid_state,
+                )
+                _log_staleness(
+                    logger,
+                    decisions,
+                    global_step=global_step,
+                    rollout_index=rollout_cursor - 1,
+                )
+                rejected = next((item for item in decisions if not item.accepted), None)
+                if rejected is not None:
+                    raise ValueError(f"stale actor policy rejected: {rejected.reason}")
+                scored, rewards = self._score(
+                    trajectories,
+                    reward_provider,
+                    weights=(
+                        None if hybrid_state is None else tuple(item.weight for item in decisions)
+                    ),
+                )
                 prepared = _as_prepared(
                     batch_preparer.prepare(scored, rewards, algorithm),
                     scored,
@@ -740,8 +849,9 @@ class RLTrainingEngine:
                 evaluation = backend.evaluate(prepared.batch)
                 loss = algorithm.compute_loss(prepared.batch, evaluation)
                 total_loss = getattr(loss, "total_loss", loss)
+                scaled_loss: object = total_loss
                 try:
-                    scaled_loss = total_loss / accumulation_steps
+                    scaled_loss = total_loss / accumulation_steps  # type: ignore[operator]
                 except TypeError:
                     scaled_loss = total_loss
                 backend.backward(scaled_loss)
@@ -786,6 +896,16 @@ class RLTrainingEngine:
                 saved = checkpoint.save(global_step, next_parent)
                 latest_checkpoint = saved
                 next_parent = getattr(saved, "checkpoint_id", next_parent)
+                if hybrid_state is not None:
+                    published = _export_and_publish_adapter(
+                        self.config,
+                        backend,
+                        hybrid_state,
+                        saved,
+                        global_step,
+                    )
+                    hybrid_state.latest_publication = published
+                    hybrid_state.learner_version = published.policy_version
         return (
             global_step,
             trajectory_count,
@@ -828,6 +948,8 @@ class RLTrainingEngine:
     def _score(
         trajectories: tuple[Trajectory, ...],
         provider: RewardProvider | None,
+        *,
+        weights: tuple[float, ...] | None = None,
     ) -> tuple[tuple[Trajectory, ...], tuple[object, ...]]:
         if provider is None:  # pragma: no cover - mode selection enforces a provider
             raise RuntimeError("reward provider is unavailable")
@@ -844,6 +966,13 @@ class RLTrainingEngine:
             )
             for trajectory in trajectories
         )
+        if weights is not None:
+            if len(weights) != len(results):
+                raise ValueError("staleness weights must align with scored trajectories")
+            results = tuple(
+                _weighted_reward(result, weight)
+                for result, weight in zip(results, weights, strict=True)
+            )
         scored = tuple(
             _bind_reward(trajectory, result)
             for trajectory, result in zip(trajectories, results, strict=True)
@@ -869,6 +998,7 @@ class RLTrainingEngine:
         global_step: int,
         *,
         rollout_index: int,
+        actor_manifest: AdapterManifest | None = None,
     ) -> tuple[RolloutRequest, ...]:
         sample_count = (
             self.config.algorithm.group_size if self.config.algorithm.name == "grpo" else 1
@@ -877,13 +1007,30 @@ class RLTrainingEngine:
             replace(
                 request,
                 num_samples=sample_count,
-                policy_version=f"policy-{global_step}",
+                policy_version=(
+                    f"policy-{global_step}"
+                    if actor_manifest is None
+                    else actor_manifest.policy_version.to_json()
+                ),
                 seed=self.config.seed + rollout_index + index,
                 sampling_parameters={
                     **dict(request.sampling_parameters),
                     "do_sample": self.config.policy.do_sample,
                     "temperature": self.config.policy.temperature,
                     "top_p": self.config.policy.top_p,
+                },
+                metadata={
+                    **dict(request.metadata),
+                    **(
+                        {}
+                        if actor_manifest is None
+                        else {
+                            "adapter_identifier": actor_manifest.source_id,
+                            "adapter_sha256": actor_manifest.artifact_sha256,
+                            "model_identifier": actor_manifest.model_id,
+                            "policy_version": actor_manifest.policy_version.to_json(),
+                        }
+                    ),
                 },
             )
             for index, request in enumerate(requests)
@@ -1588,6 +1735,18 @@ def _log_group_metrics(
         handler(metrics, global_step=global_step, rollout_index=rollout_index)
 
 
+def _log_staleness(
+    logger: RunLogger,
+    decisions: tuple[StalenessDecision, ...],
+    *,
+    global_step: int,
+    rollout_index: int,
+) -> None:
+    handler = getattr(logger, "staleness", None)
+    if callable(handler) and decisions:
+        handler(decisions, global_step=global_step, rollout_index=rollout_index)
+
+
 def _log_training_step(
     logger: RunLogger,
     *,
@@ -1632,6 +1791,117 @@ def _reward_value(result: object) -> float:
     return float(value)
 
 
+def _weighted_reward(result: object, weight: float) -> object:
+    if not math.isfinite(weight) or not 0.0 < weight <= 1.0:
+        raise ValueError("accepted staleness weight must be finite and in (0, 1]")
+    if weight == 1.0:
+        return result
+    if isinstance(result, RewardAssessment):
+        return replace(
+            result,
+            total=result.total * weight,
+            components={name: value * weight for name, value in result.components.items()},
+        )
+    if isinstance(result, (int, float)) and not isinstance(result, bool):
+        return float(result) * weight
+    raise TypeError("down-weighting requires a numeric or RewardAssessment reward")
+
+
+def _hybrid_staleness_decisions(
+    config: RLRunConfig,
+    trajectories: tuple[Trajectory, ...],
+    state: _HybridState | None,
+) -> tuple[StalenessDecision, ...]:
+    if state is None:
+        return ()
+    manifest = state.actor_manifest
+    decisions: list[StalenessDecision] = []
+    for trajectory in trajectories:
+        if trajectory.model_identifier != manifest.model_id:
+            raise ValueError("actor trajectory model does not match current adapter manifest")
+        if trajectory.adapter_identifier != manifest.source_id:
+            raise ValueError("actor trajectory adapter does not match current adapter manifest")
+        try:
+            actor_version = PolicyVersion.from_json(trajectory.policy_version)
+        except ValueError as exc:
+            raise ValueError("actor trajectory policy version is missing or non-canonical") from exc
+        if actor_version != manifest.policy_version:
+            raise ValueError("actor trajectory policy version does not match current manifest")
+        decisions.append(
+            evaluate_staleness(
+                state.learner_version,
+                actor_version,
+                max_lag=config.hybrid.max_policy_lag,
+                policy=config.hybrid.staleness_policy,
+                downweight_decay=config.hybrid.downweight_decay,
+            )
+        )
+    return tuple(decisions)
+
+
+def _export_and_publish_adapter(
+    config: RLRunConfig,
+    backend: TrainablePolicyBackend,
+    state: _HybridState,
+    checkpoint: object,
+    global_step: int,
+) -> AdapterManifest:
+    exporter = cast(AdapterExportingPolicyBackend, backend)
+    parent = state.learner_version
+    next_version = PolicyVersion(parent.value + 1)
+    checkpoint_id = getattr(checkpoint, "checkpoint_id", None)
+    if not isinstance(checkpoint_id, str) or not checkpoint_id:
+        raise ValueError("hybrid publication requires a checkpoint identity")
+    with tempfile.TemporaryDirectory(prefix="gepa-adapter-export-") as directory:
+        candidate = exporter.export_adapter(
+            Path(directory) / "adapter.pt",
+            policy_version=next_version,
+            parent_policy_version=parent,
+        )
+        if type(candidate) is not AdapterCandidate:
+            raise TypeError("learner export_adapter must return an AdapterCandidate")
+        if candidate.policy_version != next_version:
+            raise ValueError("learner adapter export did not use the exact next policy version")
+        if candidate.parent_policy_version != parent:
+            raise ValueError("learner adapter export parent does not match learner policy")
+        if candidate.model_id != config.policy.model_name:
+            raise ValueError("learner adapter export model does not match policy.model_name")
+        if candidate.source_id != state.actor_manifest.source_id:
+            raise ValueError("learner adapter identifier changed across publication")
+        candidate = replace(
+            candidate,
+            metadata={
+                **dict(candidate.metadata),
+                "checkpoint_id": checkpoint_id,
+                "global_step": global_step,
+            },
+        )
+        return state.publisher.publish(candidate)
+
+
+def _validate_hybrid_resume(
+    current: AdapterManifest,
+    global_step: int,
+    checkpoint_id: str | None,
+) -> None:
+    if (
+        current.metadata.get("checkpoint_id") != checkpoint_id
+        or current.metadata.get("global_step") != global_step
+    ):
+        raise ValueError(
+            "hybrid resume checkpoint and current adapter policy version are incoherent"
+        )
+
+
+def _add_close_note(primary: BaseException, owner: str, close_error: BaseException) -> None:
+    diagnostic = f"{owner} close also failed: {type(close_error).__name__}: {close_error}"
+    add_note = getattr(primary, "add_note", None)
+    if callable(add_note):
+        add_note(diagnostic)
+    else:  # pragma: no cover - Python 3.10 compatibility
+        primary.__cause__ = close_error
+
+
 def _seed_process(config: RLRunConfig) -> None:
     random.seed(config.seed)
     if importlib.util.find_spec("torch") is None:
@@ -1651,6 +1921,16 @@ def _default_backend_factory(config: RLRunConfig) -> TrainablePolicyBackend:
             lambda: _load_local_transformers_assets(config.policy.model_name),
         )
     policy_model, tokenizer = _load_local_transformers_assets(config.policy.model_name)
+    if config.runtime.backend == "mojo-vulkan-llamacpp":
+        from .backends.torch_portable import create_portable_backend
+
+        return create_portable_backend(
+            config,
+            policy_model=policy_model,
+            tokenizer=tokenizer,
+            training_mode="lora",
+            lora_config=config.hybrid.lora,
+        )
     from .backends.torch_policy import TorchPolicyBackend
 
     return TorchPolicyBackend(
@@ -1803,6 +2083,8 @@ class _LocalCheckpointCoordinator:
         from .checkpointing import CheckpointSnapshot, RankRNGState
 
         config_payload = asdict(self.config)
+        hybrid_payload = cast(dict[str, object], config_payload["hybrid"])
+        hybrid_payload["staleness_policy"] = self.config.hybrid.staleness_policy.value
         cpu_rng = self._torch.get_rng_state().clone()
         cuda_rng = (
             tuple(self._torch.cuda.get_rng_state_all())
@@ -1834,7 +2116,15 @@ class _LocalCheckpointCoordinator:
 
 
 class _JSONLRunLogger:
-    def __init__(self, config: RLRunConfig, dataset_hash: str) -> None:
+    def __init__(
+        self,
+        config: RLRunConfig,
+        dataset_hash: str,
+        *,
+        actor_manifest: AdapterManifest | None = None,
+        actor_backend: str = "torch_portable",
+        learner_backend: str = "torch_portable",
+    ) -> None:
         from .run_logging import JSONLLoggingSink
 
         self.config = config
@@ -1845,7 +2135,13 @@ class _JSONLRunLogger:
             rank=_distributed_runtime(config).rank,
         )
         self.dataset_hash = dataset_hash
-        self.backend_name = "torch_portable"
+        self.actor_manifest = actor_manifest
+        self.backend_name = actor_backend
+        self.actor_backend = actor_backend
+        self.learner_backend = learner_backend
+        self.policy_version = (
+            None if actor_manifest is None else actor_manifest.policy_version.to_json()
+        )
         self._record_counter = 0
 
     def start(
@@ -1859,7 +2155,10 @@ class _JSONLRunLogger:
 
         from .run_logging import RunManifest
 
-        self.backend_name = capabilities.backend_name
+        if self.actor_manifest is None:
+            self.backend_name = capabilities.backend_name
+            self.actor_backend = capabilities.backend_name
+            self.learner_backend = capabilities.backend_name
         evidence = {
             capability.value: {
                 "evidence": item.evidence,
@@ -1867,20 +2166,35 @@ class _JSONLRunLogger:
             }
             for capability, item in capabilities.capabilities.items()
         }
+        capability_payload: dict[str, object] = {
+            "mode": mode,
+            "capabilities": evidence,
+        }
+        if self.actor_manifest is not None:
+            capability_payload["hybrid_actor_policy"] = {
+                "adapter_identifier": self.actor_manifest.source_id,
+                "adapter_sha256": self.actor_manifest.artifact_sha256,
+                "model_identifier": self.actor_manifest.model_id,
+                "policy_version": self.actor_manifest.policy_version.to_json(),
+            }
         manifest = RunManifest(
             run_id=self.run_id,
             algorithm=self.config.algorithm.name,
             backend=self.backend_name,
-            actor_backend=self.backend_name,
-            learner_backend=self.backend_name,
-            model=self.config.policy.model_name,
+            actor_backend=self.actor_backend,
+            learner_backend=self.learner_backend,
+            model=(
+                self.config.policy.model_name
+                if self.actor_manifest is None
+                else self.actor_manifest.model_id
+            ),
             reference_model=self.config.policy.model_name,
-            adapter=None,
+            adapter=(None if self.actor_manifest is None else self.actor_manifest.source_id),
             dataset_hash=self.dataset_hash,
             config_hash=_config_hash(self.config),
             seed=self.config.seed,
             software_versions={"backend": capabilities.backend_version},
-            device_capabilities={"mode": mode, "capabilities": evidence},
+            device_capabilities=capability_payload,
             start_time=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             checkpoint_parent=checkpoint_parent,
         )
@@ -1904,8 +2218,8 @@ class _JSONLRunLogger:
                 timestamp=timestamp,
                 global_step=global_step,
                 backend=self.backend_name,
-                actor_backend=self.backend_name,
-                learner_backend=self.backend_name,
+                actor_backend=self.actor_backend,
+                learner_backend=self.learner_backend,
                 policy_version=policy_version,
                 trajectory=trajectory,
             )
@@ -1941,9 +2255,9 @@ class _JSONLRunLogger:
             global_step=global_step,
             scope="aggregate",
             backend=self.backend_name,
-            actor_backend=self.backend_name,
-            learner_backend=self.backend_name,
-            policy_version=f"policy-{global_step}",
+            actor_backend=self.actor_backend,
+            learner_backend=self.learner_backend,
+            policy_version=self.policy_version or f"policy-{global_step}",
             metrics=_distributed_mean_scalars(
                 self.config,
                 {"total_reward": mean, **component_means},
@@ -1963,9 +2277,9 @@ class _JSONLRunLogger:
                     global_step=global_step,
                     scope="response",
                     backend=self.backend_name,
-                    actor_backend=self.backend_name,
-                    learner_backend=self.backend_name,
-                    policy_version=f"policy-{global_step}",
+                    actor_backend=self.actor_backend,
+                    learner_backend=self.learner_backend,
+                    policy_version=self.policy_version or f"policy-{global_step}",
                     metrics=response_metrics,
                 )
             )
@@ -2012,9 +2326,9 @@ class _JSONLRunLogger:
                 global_step=global_step,
                 scope="aggregate",
                 backend=self.backend_name,
-                actor_backend=self.backend_name,
-                learner_backend=self.backend_name,
-                policy_version=f"policy-{global_step - 1}",
+                actor_backend=self.actor_backend,
+                learner_backend=self.learner_backend,
+                policy_version=self.policy_version or f"policy-{global_step - 1}",
                 metrics=_distributed_mean_scalars(self.config, metrics),
             )
         )
@@ -2040,10 +2354,46 @@ class _JSONLRunLogger:
                     global_step=global_step,
                     scope="group",
                     backend=self.backend_name,
-                    actor_backend=self.backend_name,
-                    learner_backend=self.backend_name,
-                    policy_version=f"policy-{global_step}",
+                    actor_backend=self.actor_backend,
+                    learner_backend=self.learner_backend,
+                    policy_version=self.policy_version or f"policy-{global_step}",
                     metrics=group,
+                )
+            )
+
+    def staleness(
+        self,
+        decisions: tuple[StalenessDecision, ...],
+        *,
+        global_step: int,
+        rollout_index: int,
+    ) -> None:
+        from datetime import datetime, timezone
+
+        from .run_logging import MetricRecord
+
+        timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        for index, decision in enumerate(decisions):
+            self._record_counter += 1
+            self.sink.log_metrics(
+                MetricRecord(
+                    record_id=(
+                        f"staleness-{global_step}-{rollout_index}-{index}-"
+                        f"{self._record_counter}"
+                    ),
+                    run_id=self.run_id,
+                    timestamp=timestamp,
+                    global_step=global_step,
+                    scope="response",
+                    backend=self.backend_name,
+                    actor_backend=self.actor_backend,
+                    learner_backend=self.learner_backend,
+                    policy_version=decision.actor_version.to_json(),
+                    metrics={
+                        "staleness_accepted": 1.0 if decision.accepted else 0.0,
+                        "staleness_lag": float(decision.lag),
+                        "staleness_weight": decision.weight,
+                    },
                 )
             )
 
@@ -2205,6 +2555,32 @@ def build_llama_cpp_engine(config: RLRunConfig, endpoint: str) -> RLTrainingEngi
     )
 
 
+def build_hybrid_engine(
+    config: RLRunConfig,
+    coordinator_command: Sequence[str],
+) -> RLTrainingEngine:
+    """Build experimental Mojo/Vulkan actor plus PyTorch LoRA learner composition."""
+    if config.runtime.backend != "mojo-vulkan-llamacpp":
+        raise ValueError("hybrid engine requires runtime.backend='mojo-vulkan-llamacpp'")
+    if isinstance(coordinator_command, (str, bytes)) or not coordinator_command:
+        raise ValueError("hybrid training requires a coordinator argv sequence")
+
+    from .backends.mojo_coordinator import MojoCoordinatorBackend, MojoProcessTransport
+
+    def actor_factory(
+        selected: RLRunConfig,
+        manifest: AdapterManifest,
+    ) -> RolloutBackend:
+        del selected, manifest
+        return MojoCoordinatorBackend(MojoProcessTransport(tuple(coordinator_command)))
+
+    return RLTrainingEngine(
+        config,
+        actor_factory=actor_factory,
+        publisher_factory=lambda selected: LocalAdapterPublisher(selected.hybrid.adapter_store),
+    )
+
+
 __all__ = [
     "CapabilityProvider",
     "EngineDependencyError",
@@ -2213,6 +2589,7 @@ __all__ = [
     "RLTrainingEngine",
     "SystemCapabilityProvider",
     "build_default_engine",
+    "build_hybrid_engine",
     "build_llama_cpp_engine",
     "required_capabilities",
 ]

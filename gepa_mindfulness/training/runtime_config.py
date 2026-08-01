@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, cast
 
+from .policy_versions import StalenessPolicy
+
 try:
     import yaml
 except ModuleNotFoundError:  # pragma: no cover - exercised without optional dependency
@@ -166,18 +168,28 @@ class RuntimeConfig:
             raise TypeError("runtime.precision must be a string")
         if not isinstance(self.distributed, DistributedRuntimeConfig):
             raise TypeError("runtime.distributed must be a DistributedRuntimeConfig")
-        if self.backend not in {"pytorch", "cuda", "llama-cpp-vulkan"}:
-            raise ValueError("runtime.backend must be 'pytorch', 'cuda', or 'llama-cpp-vulkan'")
+        supported_backends = {
+            "pytorch",
+            "cuda",
+            "llama-cpp-vulkan",
+            "mojo-vulkan-llamacpp",
+        }
+        if self.backend not in supported_backends:
+            raise ValueError(
+                "runtime.backend must be 'pytorch', 'cuda', 'llama-cpp-vulkan', or "
+                "'mojo-vulkan-llamacpp'"
+            )
         if self.device != "cpu" and not _CUDA_DEVICE.fullmatch(self.device):
             raise ValueError("runtime.device must be 'cpu', 'cuda', or 'cuda:<index>'")
         if self.precision not in {"fp32", "fp16", "bf16"}:
             raise ValueError("runtime.precision must be 'fp32', 'fp16', or 'bf16'")
         if self.backend == "cuda" and not _CUDA_DEVICE.fullmatch(self.device):
             raise ValueError("runtime.backend='cuda' requires a CUDA device selector")
-        if self.backend == "llama-cpp-vulkan" and self.device != "cpu":
-            raise ValueError("runtime.backend='llama-cpp-vulkan' requires runtime.device='cpu'")
-        if self.backend == "llama-cpp-vulkan" and self.precision != "fp32":
-            raise ValueError("runtime.backend='llama-cpp-vulkan' requires runtime.precision='fp32'")
+        actor_backends = {"llama-cpp-vulkan", "mojo-vulkan-llamacpp"}
+        if self.backend in actor_backends and self.device != "cpu":
+            raise ValueError(f"runtime.backend={self.backend!r} requires runtime.device='cpu'")
+        if self.backend in actor_backends and self.precision != "fp32":
+            raise ValueError(f"runtime.backend={self.backend!r} requires runtime.precision='fp32'")
         if self.precision != "fp32" and not _CUDA_DEVICE.fullmatch(self.device):
             raise ValueError("mixed precision requires a CUDA device selector")
         if self.distributed.strategy != "none":
@@ -538,6 +550,97 @@ class LoggingConfig:
 
 
 @dataclass(frozen=True)
+class HybridConfig:
+    """Strict experimental actor/learner versioning and publication policy."""
+
+    adapter_store: str = "runs/hybrid/adapters"
+    training_mode: str = "lora"
+    staleness_policy: StalenessPolicy = StalenessPolicy.REJECT
+    max_policy_lag: int = 0
+    downweight_decay: float | None = None
+    lora: Mapping[str, object] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.adapter_store, str) or not self.adapter_store:
+            raise ValueError("hybrid.adapter_store must be a non-empty string")
+        if self.training_mode != "lora":
+            raise ValueError("hybrid.training_mode must be 'lora'")
+        if type(self.staleness_policy) is not StalenessPolicy:
+            raise TypeError("hybrid.staleness_policy must be a StalenessPolicy")
+        if type(self.max_policy_lag) is not int or self.max_policy_lag < 0:
+            raise ValueError("hybrid.max_policy_lag must be a non-negative integer")
+        if self.staleness_policy is StalenessPolicy.REJECT:
+            if self.downweight_decay is not None:
+                raise ValueError("hybrid.downweight_decay must be null for reject policy")
+        elif (
+            isinstance(self.downweight_decay, bool)
+            or not isinstance(self.downweight_decay, (int, float))
+            or not math.isfinite(self.downweight_decay)
+            or not 0.0 < self.downweight_decay < 1.0
+        ):
+            raise ValueError("hybrid.downweight_decay must be finite and in (0, 1)")
+        if not isinstance(self.lora, Mapping) or not all(isinstance(key, str) for key in self.lora):
+            raise TypeError("hybrid.lora must be a string-keyed mapping")
+        allowed_lora = {
+            "bias",
+            "lora_alpha",
+            "lora_dropout",
+            "modules_to_save",
+            "r",
+            "target_modules",
+            "task_type",
+        }
+        _reject_unknown(self.lora, allowed_lora, "hybrid.lora")
+        for name in ("target_modules", "modules_to_save"):
+            value = self.lora.get(name)
+            if value is not None and (
+                isinstance(value, (str, bytes))
+                or not isinstance(value, (list, tuple))
+                or not value
+                or not all(isinstance(item, str) and item for item in value)
+            ):
+                raise ValueError(f"hybrid.lora.{name} must be non-empty strings")
+        object.__setattr__(self, "lora", dict(self.lora))
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any]) -> "HybridConfig":
+        payload = _mapping(payload, "hybrid")
+        _reject_unknown(
+            payload,
+            {
+                "adapter_store",
+                "training_mode",
+                "staleness_policy",
+                "max_policy_lag",
+                "downweight_decay",
+                "lora",
+            },
+            "hybrid",
+        )
+        policy = _string(payload, "staleness_policy", "reject", "hybrid")
+        try:
+            staleness_policy = StalenessPolicy(policy)
+        except ValueError as exc:
+            raise ValueError("hybrid.staleness_policy must be 'reject' or 'down_weight'") from exc
+        decay = payload.get("downweight_decay")
+        if decay is not None:
+            decay = _number(payload, "downweight_decay", 0.5, "hybrid")
+        return cls(
+            adapter_store=_string(
+                payload,
+                "adapter_store",
+                "runs/hybrid/adapters",
+                "hybrid",
+            ),
+            training_mode=_string(payload, "training_mode", "lora", "hybrid"),
+            staleness_policy=staleness_policy,
+            max_policy_lag=_integer(payload, "max_policy_lag", 0, "hybrid"),
+            downweight_decay=decay,
+            lora=dict(_section(payload, "lora")),
+        )
+
+
+@dataclass(frozen=True)
 class RLRunConfig:
     """Complete immutable configuration for a canonical PyTorch RL run."""
 
@@ -548,6 +651,7 @@ class RLRunConfig:
     dataset: DatasetConfig = field(default_factory=DatasetConfig)
     checkpoint: CheckpointConfig = field(default_factory=CheckpointConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
+    hybrid: HybridConfig = field(default_factory=HybridConfig)
     seed: int = 42
 
     def __post_init__(self) -> None:
@@ -559,6 +663,7 @@ class RLRunConfig:
             "dataset": DatasetConfig,
             "checkpoint": CheckpointConfig,
             "logging": LoggingConfig,
+            "hybrid": HybridConfig,
         }
         for name, expected_type in sections.items():
             if not isinstance(getattr(self, name), expected_type):
@@ -567,6 +672,11 @@ class RLRunConfig:
             raise TypeError("configuration.seed must be an integer")
         if self.algorithm.name == "grpo" and not self.policy.do_sample:
             raise ValueError("GRPO requires stochastic policy generation with do_sample=true")
+        if self.runtime.backend == "mojo-vulkan-llamacpp":
+            if self.algorithm.name != "grpo":
+                raise ValueError("hybrid Mojo training requires algorithm.name='grpo'")
+            if self.checkpoint.save_steps != 1:
+                raise ValueError("hybrid Mojo training requires checkpoint.save_steps=1")
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "RLRunConfig":
@@ -581,6 +691,7 @@ class RLRunConfig:
                 "dataset",
                 "checkpoint",
                 "logging",
+                "hybrid",
                 "seed",
             },
             "configuration",
@@ -594,6 +705,7 @@ class RLRunConfig:
             dataset=DatasetConfig.from_mapping(_section(payload, "dataset")),
             checkpoint=CheckpointConfig.from_mapping(_section(payload, "checkpoint")),
             logging=LoggingConfig.from_mapping(_section(payload, "logging")),
+            hybrid=HybridConfig.from_mapping(_section(payload, "hybrid")),
             seed=seed,
         )
 
@@ -793,6 +905,7 @@ __all__ = [
     "DatasetConfig",
     "DistributedRuntimeConfig",
     "DistributedStrategy",
+    "HybridConfig",
     "LoggingConfig",
     "PolicyConfig",
     "Precision",

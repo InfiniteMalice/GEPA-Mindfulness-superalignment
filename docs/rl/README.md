@@ -283,6 +283,43 @@ evidence. The run manifest records the collection command's independently detect
 Vulkan state. Collection does not copy a prior doctor report or promote an unknown Vulkan state to
 supported.
 
+### Train with the experimental hybrid Mojo/Vulkan actor
+
+This path is experimental hybrid training, not production readiness and not pure Mojo training.
+The external coordinator performs generation only. A local PyTorch LoRA learner performs GRPO
+evaluation, backward, optimizer step, checkpointing, and learner-native adapter export.
+
+Copy `configs/rl/hybrid_vulkan_grpo.yaml`, replace the local Transformers model path, and bootstrap
+`hybrid.adapter_store` with a verified current adapter through `LocalAdapterPublisher`. Supply the
+coordinator executable and any actor endpoint at invocation time; do not add endpoints or secrets
+to the configuration:
+
+```bash
+gepa rl train \
+  --config run.hybrid.yaml \
+  --backend mojo-vulkan-llamacpp \
+  --learner pytorch \
+  --coordinator-command /absolute/path/to/rl-coordinator \
+  --actor-endpoint http://127.0.0.1:8080 \
+  --max-steps 1
+```
+
+The command executes the supplied coordinator argv directly without a shell. `--learner mojo`, a
+missing learner selection, a missing current manifest, or a learner without adapter-only export
+evidence fails before actor startup. The actor request is bound to the current manifest's model,
+adapter identifier, SHA-256, and canonical policy version. Default staleness policy rejects lagged
+actor trajectories before reward scoring or learner evaluation. `down_weight` is an explicit
+alternative and applies its logged weight once to observable rewards.
+
+After each successful PyTorch optimizer step, the engine writes a checkpoint, exports only the
+learner's LoRA trainables, and atomically publishes exactly the next policy version. The result and
+logs prove publication; they do not claim the running actor loaded that adapter. The artifact is a
+learner-native PyTorch LoRA state dict, not GGUF. GGUF conversion, llama.cpp deployment, and actor
+reload are external operator steps and receive no success claim from this command.
+
+This CPU-only host validates the mocked coordinator and tiny local PyTorch update. It does not
+provide native Mojo, Vulkan-device, llama.cpp conversion, or post-publication actor-load evidence.
+
 ### Dependency version policy
 
 The `dev` and `rl-dev` extras require `pytest>=8.0,<10`. Pytest 8 and 9 are the declared supported
