@@ -39,8 +39,9 @@ The labels apply to narrowly defined capabilities, not to Mojo or MAX as product
 
 The official Mojo documentation and release pages reviewed here identify Mojo `1.0.0b2` as the
 stable release. The MAX release page identifies MAX `26.4` as stable. Those are documentation and
-release-page versions only. Neither Mojo, Pixi, nor MAX was installed or executed on the local host,
-so this assessment does **not** claim a locally tested Mojo or MAX version.
+release-page versions only. The named command probes did not find Mojo or Pixi. MAX was not executed
+or otherwise probed locally, so its installation state is unknown. This assessment therefore does
+**not** claim a locally tested Mojo or MAX version.
 
 Official version sources:
 
@@ -58,7 +59,8 @@ Local observations:
 | WSL | Ubuntu under WSL2; kernel `6.6.87.2-microsoft-standard-WSL2`, x86_64 |
 | Windows `mojo` / `pixi` | Not found |
 | Ubuntu WSL2 `mojo` / `pixi` | Not found |
-| Local Mojo/MAX execution | Not tested because the toolchain is not installed |
+| Local MAX installation state | Not probed; unknown |
+| Local Mojo/MAX execution | Not executed or tested |
 
 Reproduce the non-mutating host probe in PowerShell:
 
@@ -320,8 +322,8 @@ local smoke test on the selected path.
 **Observed evidence.** Mojo documents Windows use through WSL and an x86-64-v3 CPU baseline, with a
 CPU execution path that does not require a GPU. That establishes a supported runtime substrate in
 scope. The local AMD Radeon 610M does not appear in the reviewed supported-GPU list, and the absent
-local toolchain prevents a CPU or GPU smoke test. Therefore this status does not claim Radeon 610M
-acceleration, local host qualification, or learner support.
+Mojo command prevented a Mojo CPU or GPU smoke test. MAX was not executed or probed. Therefore this
+status does not claim Radeon 610M acceleration, local host qualification, or learner support.
 
 **Reproduce.** After installing a pinned supported release inside WSL2, record the actual versions,
 verify CPU feature requirements, run the tensor smoke test on CPU, and separately test any proposed
@@ -366,7 +368,8 @@ Reassess before any replacement proposal and whenever the pinned Mojo/MAX releas
 dtype, device, or adapter schema changes:
 
 1. Record the date, official stable release pages, and the exact locally executed versions. Keep
-   documentation versions separate from installed versions.
+   documentation versions separate from installed versions. For MAX, use the pinned release's
+   documented version-reporting command; this snapshot did not run or infer one.
 2. Re-run the host probe above and archive its output. Check the current requirements matrix rather
    than assuming that an unlisted GPU became supported.
 3. Re-open every direct source in this document. Record redirects or missing pages; replace a source
@@ -398,6 +401,8 @@ $versionProbe = 'mojo --version 2>/dev/null || echo mojo:not-found; ' +
   'pixi --version 2>/dev/null || echo pixi:not-found'
 wsl.exe -d Ubuntu -- sh -lc $versionProbe
 ```
+
+The command above rechecks Mojo and Pixi only. It does not determine whether MAX is installed.
 
 An HTTP success verifies reachability, not the truth of a capability. Promotion requires the stated
 acceptance evidence and a reproducible local result where execution is part of that evidence.
