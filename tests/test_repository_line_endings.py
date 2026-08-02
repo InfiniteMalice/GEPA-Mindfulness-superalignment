@@ -6,11 +6,16 @@ import shutil
 import subprocess
 from pathlib import Path
 
+# Third-party
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_jsonl_checkout_preserves_provenance_bytes_with_autocrlf(tmp_path: Path) -> None:
     """A Windows checkout must not change JSONL bytes referenced by provenance hashes."""
+    if shutil.which("git") is None:
+        pytest.skip("git is required to exercise checkout line-ending normalization")
     repository = tmp_path / "repository"
     repository.mkdir()
     subprocess.run(["git", "init", "--quiet"], cwd=repository, check=True)

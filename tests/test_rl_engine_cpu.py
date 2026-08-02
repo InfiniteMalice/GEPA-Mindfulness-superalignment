@@ -433,7 +433,7 @@ def test_default_nonhybrid_config_keeps_the_pre_phase5_resume_hash() -> None:
 def test_genuine_pre_phase5_checkpoint_resumes_without_hybrid_or_fixture_mutation(
     tmp_path: Path,
 ) -> None:
-    tracked_fixture = Path("tests/fixtures/rl_legacy_checkpoint_v1")
+    tracked_fixture = Path(__file__).parent / "fixtures" / "rl_legacy_checkpoint_v1"
     tracked = _tree_hashes(tracked_fixture)
     with _assert_tree_unchanged(tracked_fixture, tracked):
         provenance = json.loads((tracked_fixture / "PROVENANCE.json").read_text(encoding="utf-8"))

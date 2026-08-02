@@ -173,6 +173,7 @@ class _ValidatedStreamState:
     size: int
     mtime_ns: int
     manifest: dict[str, object]
+    # Full-history digests preserve exact duplicate/conflict detection without cached payloads.
     records: dict[str, str]
     publication_tail: tuple[PolicyVersion, int] | None
 
@@ -664,19 +665,19 @@ class JSONLLoggingSink:
                 self._validated_streams[resolved] = state
                 self._validated_streams.move_to_end(resolved)
                 return
-            if len(self._validated_streams) >= self._VALIDATED_STREAM_LIMIT:
+            self._validated_streams[resolved] = state
+            while len(self._validated_streams) > self._VALIDATED_STREAM_LIMIT:
                 evicted = next(
                     (
                         candidate
                         for candidate in self._validated_streams
-                        if candidate not in self._active_paths
+                        if candidate != resolved and candidate not in self._active_paths
                     ),
                     None,
                 )
                 if evicted is None:
-                    return
+                    break
                 del self._validated_streams[evicted]
-            self._validated_streams[resolved] = state
 
     @staticmethod
     def _stream_metadata(stream: BinaryIO) -> tuple[tuple[int, int], int, int]:

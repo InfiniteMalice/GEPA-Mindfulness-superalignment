@@ -85,10 +85,9 @@ def test_checked_in_pairs_retain_current_source_provenance() -> None:
     """Stale hashes or line metadata would disconnect checked-in pairs from their source rows."""
     source_rows = {
         record["id"]: (line_number, record["version"])
-        for line_number, record in enumerate(
-            (json.loads(line) for line in SOURCE.read_text(encoding="utf-8").splitlines()),
-            start=1,
-        )
+        for line_number, line in enumerate(SOURCE.read_text(encoding="utf-8").splitlines(), start=1)
+        if line.strip()
+        for record in (json.loads(line),)
     }
     source_sha256 = hashlib.sha256(SOURCE.read_bytes()).hexdigest()
     pairs = [

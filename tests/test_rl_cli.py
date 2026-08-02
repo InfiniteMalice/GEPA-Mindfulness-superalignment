@@ -167,7 +167,7 @@ class _Backend:
 
 
 def test_trainable_policy_protocol_keeps_gradient_sync_optional(tmp_path: Path) -> None:
-    """Adding gradient_sync to the base protocol rejects compatible external backends."""
+    """gradient_sync remains optional so compatible external backends are accepted."""
 
     class ExternalBackend(_Backend):
         def save_checkpoint(self, destination: Path) -> object:
@@ -1104,10 +1104,106 @@ def test_rollout_seed_allocation_is_disjoint_across_rollouts_and_ranks() -> None
 
     assert [request.seed for request in rank_zero_first] == [42, 45]
     assert [request.seed for request in rank_one_first] == [48, 51]
-    assert [request.seed for request in rank_zero_second] == [60, 63]
+    assert [request.seed for request in rank_zero_second] == [54, 57]
     assert effective(rank_zero_first).isdisjoint(effective(rank_one_first))
     assert effective(rank_zero_first).isdisjoint(effective(rank_zero_second))
     assert effective(rank_one_first).isdisjoint(effective(rank_zero_second))
+
+
+def test_long_grpo_run_uses_linear_seed_capacity_in_preflight_and_runtime() -> None:
+    """A realistic 6,000-step run must not exhaust uint32 seeds through pairing growth."""
+    config = RLRunConfig(
+        seed=42,
+        algorithm=AlgorithmConfig(
+            name="grpo",
+            batch_size=8,
+            group_size=8,
+            max_steps=6_000,
+        ),
+    )
+    requests = tuple(RolloutRequest(prompt=f"prompt-{index}") for index in range(8))
+
+    engine_module._preflight_planned_rollout_seeds(
+        config,
+        "train",
+        requests,
+        step_budget=6_000,
+        rollout_cursor=0,
+    )
+    selected = RLTrainingEngine(config)._rollout_requests(
+        requests,
+        5_999,
+        rollout_index=23_999,
+    )
+
+    assert tuple(request.seed for request in selected) == (
+        1_535_978,
+        1_535_986,
+        1_535_994,
+        1_536_002,
+        1_536_010,
+        1_536_018,
+        1_536_026,
+        1_536_034,
+    )
+
+
+def test_training_seed_preflight_uses_the_runtime_batch_width_at_uint32_boundary() -> None:
+    """Preflight and runtime must accept the same final effective training seed."""
+    config = RLRunConfig(
+        seed=4_294_967_247,
+        algorithm=AlgorithmConfig(name="grpo", batch_size=2, group_size=3),
+    )
+    requests = tuple(RolloutRequest(prompt=f"prompt-{index}") for index in range(3))
+
+    engine_module._preflight_planned_rollout_seeds(
+        config,
+        "train",
+        requests,
+        step_budget=1,
+        rollout_cursor=0,
+    )
+    selected = RLTrainingEngine(config)._rollout_requests(
+        requests[:2],
+        0,
+        rollout_index=7,
+    )
+
+    assert selected[-1].seed == 4_294_967_292
+
+    overflow = replace(config, seed=config.seed + 1)
+    with pytest.raises(ValueError, match="planned rollout seed.*overflow"):
+        engine_module._preflight_planned_rollout_seeds(
+            overflow,
+            "train",
+            requests,
+            step_budget=1,
+            rollout_cursor=0,
+        )
+    with pytest.raises(ValueError, match="rollout seed.*overflow"):
+        RLTrainingEngine(overflow)._rollout_requests(
+            requests[:2],
+            0,
+            rollout_index=7,
+        )
+
+
+@pytest.mark.parametrize("batch_slot", [-1, 2])
+def test_rollout_seed_rejects_batch_slots_outside_fixed_width(batch_slot: int) -> None:
+    """An out-of-width slot could alias a neighboring rollout's request ordinal."""
+    config = RLRunConfig(
+        algorithm=AlgorithmConfig(name="grpo", batch_size=2, group_size=3),
+    )
+
+    with pytest.raises(ValueError, match="batch_slot.*batch_width"):
+        engine_module._rollout_request_seed(
+            config,
+            0,
+            batch_slot,
+            3,
+            "rollout seed",
+            batch_width=2,
+        )
 
 
 def test_rollout_seed_allocation_handles_requests_beyond_training_batch_size() -> None:
@@ -1148,8 +1244,22 @@ def test_rollout_seed_stride_is_independent_of_actual_sample_count() -> None:
         seed=42,
         algorithm=AlgorithmConfig(name="grpo", batch_size=2, group_size=3),
     )
-    group_base = engine_module._rollout_request_seed(config, 0, 0, 3, "rollout seed")
-    single_base = engine_module._rollout_request_seed(config, 0, 1, 1, "rollout seed")
+    group_base = engine_module._rollout_request_seed(
+        config,
+        0,
+        0,
+        3,
+        "rollout seed",
+        batch_width=2,
+    )
+    single_base = engine_module._rollout_request_seed(
+        config,
+        0,
+        1,
+        1,
+        "rollout seed",
+        batch_width=2,
+    )
 
     assert set(range(group_base, group_base + 3)).isdisjoint({single_base})
 
@@ -1457,7 +1567,7 @@ def test_pair_preference_comparisons_retain_ends_and_cap_repetitive_inputs(
 
     assert math.isfinite(margin) and -1.0 <= margin <= 1.0
     assert token_inputs and all(len(sequence) <= 256 for sequence in token_inputs)
-    assert character_inputs and all(len(sequence) <= 4_096 for sequence in character_inputs)
+    assert character_inputs and all(len(sequence) <= 1_024 for sequence in character_inputs)
     assert all(sequence[0].endswith("start") for sequence in token_inputs)
     assert all(sequence[-1].endswith("end") for sequence in token_inputs)
     character_starts = ("responsestart", "chosenstart", "rejectedstart")
@@ -1829,10 +1939,16 @@ def test_unique_child_log_directories_and_expected_cli_failures(
 
 def test_close_failure_preserves_primary_rollout_error(tmp_path: Path) -> None:
     events: list[str] = []
+    original_cause = LookupError("original rollout cause")
+
+    class Python310RuntimeError(RuntimeError):
+        add_note = None
+
+    primary = Python310RuntimeError("primary rollout failure")
 
     class BrokenCloseBackend(_Backend):
         def generate(self, requests: object) -> tuple[Trajectory, ...]:
-            raise RuntimeError("primary rollout failure")
+            raise primary from original_cause
 
         def close(self) -> None:
             raise RuntimeError("secondary close failure")
@@ -1843,7 +1959,18 @@ def test_close_failure_preserves_primary_rollout_error(tmp_path: Path) -> None:
     with pytest.raises(RuntimeError, match="primary rollout failure") as caught:
         engine.collect()
 
-    assert any("secondary close failure" in note for note in getattr(caught.value, "__notes__", ()))
+    assert caught.value is primary
+    assert str(caught.value) == "primary rollout failure"
+    notes = getattr(caught.value, "__notes__", ())
+    if notes:
+        assert any("secondary close failure" in note for note in notes)
+        assert caught.value.__cause__ is original_cause
+    else:
+        diagnostic = caught.value.__cause__
+        assert isinstance(diagnostic, RuntimeError)
+        assert "Learner close also failed" in str(diagnostic)
+        assert "secondary close failure" in str(diagnostic)
+        assert diagnostic.__cause__ is original_cause
 
 
 @pytest.mark.parametrize("selector", ["cuda:-1", "cuda:", "cuda:x", "gpu:0"])

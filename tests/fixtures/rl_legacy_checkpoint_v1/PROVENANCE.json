@@ -10,13 +10,13 @@
   },
   "dataset": {
     "path": "tests/fixtures/rl_legacy_checkpoint_v1/pairs.jsonl",
-    "sha256": "9c7ec2b6b11a715cd48e66c2a99546aae11d743a06edf5ae8fee54ff55141237"
+    "sha256": "86f716cb1d59a14a5f7c862887f0b06c8998a6c4257bed0d18b4c39c964dc96f"
   },
   "files": {
     "checkpoints/checkpoint-00000001/backend.pt": "5b11e6d4875bc93bb63e1cf18267386a07d59df27a8a7404deac5b4a95ba8044",
-    "checkpoints/checkpoint-00000001/manifest.json": "8e8d13ade196c712769936fbb8169136edd36ce1adacfe435a6679abc6ca9d00",
-    "checkpoints/checkpoint-00000001/training_state.pt": "895a0d0ed7f12963bc9345d3ce96cf1cb40a541c5f61f8a1af44185bfd6fa10f",
-    "pairs.jsonl": "9c7ec2b6b11a715cd48e66c2a99546aae11d743a06edf5ae8fee54ff55141237"
+    "checkpoints/checkpoint-00000001/manifest.json": "f421ea46e0ad90e53eb2f438bca60ee241498dc9342ceeeea3ac05881d3ea108",
+    "checkpoints/checkpoint-00000001/training_state.pt": "aea6f0f1b9a361814e0af01cbaaba5c0a84dd26e043aca4b04663c9e7a1ccc63",
+    "pairs.jsonl": "86f716cb1d59a14a5f7c862887f0b06c8998a6c4257bed0d18b4c39c964dc96f"
   },
   "model": {
     "class": "local test-only torch.nn.Module",

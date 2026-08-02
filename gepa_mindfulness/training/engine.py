@@ -1158,6 +1158,7 @@ class RLTrainingEngine:
         sample_count = (
             self.config.algorithm.group_size if self.config.algorithm.name == "grpo" else 1
         )
+        batch_width = _rollout_batch_width(self.config, len(requests))
         selected = tuple(
             replace(
                 request,
@@ -1173,6 +1174,7 @@ class RLTrainingEngine:
                     index,
                     sample_count,
                     "rollout seed",
+                    batch_width=batch_width,
                 ),
                 sampling_parameters={
                     **dict(request.sampling_parameters),
@@ -2408,6 +2410,7 @@ def _preflight_planned_rollout_seeds(
     if mode in {"collect", "evaluate"}:
         final_rollout_cursor = 0
         final_request_index = len(requests) - 1
+        request_span = len(requests)
     else:
         if step_budget == 0:
             return
@@ -2421,13 +2424,23 @@ def _preflight_planned_rollout_seeds(
         )
         final_rollout_cursor = rollout_cursor + attempt_count - 1
         final_request_index = min(batch_size, len(requests)) - 1
+        request_span = min(batch_size, len(requests))
+    batch_width = _rollout_batch_width(config, request_span)
     _rollout_request_seed(
         config,
         final_rollout_cursor,
         final_request_index,
         sample_count,
         "planned rollout seed",
+        batch_width=batch_width,
     )
+
+
+def _rollout_batch_width(config: RLRunConfig, request_count: int) -> int:
+    """Return the fixed request-slot width used by runtime and seed preflight."""
+    if type(request_count) is not int or request_count < 0:
+        raise ValueError("request_count must be a non-negative integer")
+    return max(config.algorithm.batch_size, request_count)
 
 
 def _rollout_request_seed(
@@ -2436,14 +2449,17 @@ def _rollout_request_seed(
     batch_slot: int,
     sample_count: int,
     field_name: str,
+    *,
+    batch_width: int,
 ) -> int:
     """Reserve one disjoint consecutive seed range for a rollout request."""
+    if type(batch_width) is not int or batch_width <= 0:
+        raise ValueError("batch_width must be a positive integer")
+    if type(batch_slot) is not int or not 0 <= batch_slot < batch_width:
+        raise ValueError("batch_slot must be an integer within batch_width")
     distributed = getattr(config.runtime, "distributed", DistributedRuntimeConfig())
     rollout_rank = rollout_index * distributed.world_size + distributed.rank
-    if rollout_rank >= batch_slot:
-        request_index = rollout_rank * rollout_rank + rollout_rank + batch_slot
-    else:
-        request_index = batch_slot * batch_slot + rollout_rank
+    request_index = rollout_rank * batch_width + batch_slot
     sample_stride = config.algorithm.group_size if config.algorithm.name == "grpo" else 1
     seed = config.seed + request_index * sample_stride
     validated = validate_seed(seed, field_name, sample_count=sample_count)

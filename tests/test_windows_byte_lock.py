@@ -341,7 +341,7 @@ def test_adapter_publication_windows_path_uses_shared_byte_lock(
         yield
 
     monkeypatch.setattr(publication_module, "os", SimpleNamespace(name="nt"))
-    monkeypatch.setattr(publication_module, "windows_byte_lock", recording_lock, raising=False)
+    monkeypatch.setattr(publication_module, "windows_byte_lock", recording_lock)
 
     with publication_module._descriptor_lock(41):
         pass
@@ -361,7 +361,7 @@ def test_jsonl_logging_windows_path_uses_shared_byte_lock(
 
     stream = SimpleNamespace(fileno=lambda: 43)
     monkeypatch.setattr(logging_module, "os", SimpleNamespace(name="nt"))
-    monkeypatch.setattr(logging_module, "windows_byte_lock", recording_lock, raising=False)
+    monkeypatch.setattr(logging_module, "windows_byte_lock", recording_lock)
 
     with logging_module._exclusive_stream_lock(stream):
         pass

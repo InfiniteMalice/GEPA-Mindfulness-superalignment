@@ -9,7 +9,7 @@ import multiprocessing
 import os
 import time
 from collections.abc import Callable, Iterator, Sequence
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
@@ -172,6 +172,24 @@ def _publication(
 
 def _jsonl(path: Path) -> list[dict[str, object]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+
+
+@contextmanager
+def _isolated_logging_registries() -> Iterator[None]:
+    """Restore process-global logging registries after a cache or lock test."""
+    with JSONLLoggingSink._locks_guard:
+        validated_streams = list(JSONLLoggingSink._validated_streams.items())
+        path_locks = list(JSONLLoggingSink._path_locks.items())
+        JSONLLoggingSink._validated_streams.clear()
+        JSONLLoggingSink._path_locks.clear()
+    try:
+        yield
+    finally:
+        with JSONLLoggingSink._locks_guard:
+            JSONLLoggingSink._validated_streams.clear()
+            JSONLLoggingSink._validated_streams.update(validated_streams)
+            JSONLLoggingSink._path_locks.clear()
+            JSONLLoggingSink._path_locks.update(path_locks)
 
 
 class _HistoryCountingSink(JSONLLoggingSink):
@@ -820,17 +838,15 @@ def test_cached_publication_tail_retains_only_immutable_transition_fields(
 
 def test_validated_stream_registry_never_exceeds_configured_limit(tmp_path: Path) -> None:
     configured_limit = getattr(JSONLLoggingSink, "_VALIDATED_STREAM_LIMIT", 64)
-    with JSONLLoggingSink._locks_guard:
-        JSONLLoggingSink._validated_streams.clear()
+    with _isolated_logging_registries():
+        for index in range(configured_limit + 5):
+            directory = tmp_path / f"run-{index}"
+            sink = JSONLLoggingSink(directory, rank=0)
+            sink.start_run(_manifest())
+            assert sink.log_metrics(_metric(record_id=f"metric-{index}")) is True
 
-    for index in range(configured_limit + 5):
-        directory = tmp_path / f"run-{index}"
-        sink = JSONLLoggingSink(directory, rank=0)
-        sink.start_run(_manifest())
-        assert sink.log_metrics(_metric(record_id=f"metric-{index}")) is True
-
-    with JSONLLoggingSink._locks_guard:
-        assert len(JSONLLoggingSink._validated_streams) <= configured_limit
+        with JSONLLoggingSink._locks_guard:
+            assert len(JSONLLoggingSink._validated_streams) <= configured_limit
 
 
 def test_validated_stream_lru_refreshes_hits_and_skips_active_paths(
@@ -838,61 +854,94 @@ def test_validated_stream_lru_refreshes_hits_and_skips_active_paths(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(JSONLLoggingSink, "_VALIDATED_STREAM_LIMIT", 3)
-    with JSONLLoggingSink._locks_guard:
-        JSONLLoggingSink._validated_streams.clear()
+    with _isolated_logging_registries():
+        sinks: list[JSONLLoggingSink] = []
+        paths: list[Path] = []
+        for index in range(3):
+            sink = JSONLLoggingSink(tmp_path / f"lru-{index}", rank=0)
+            sink.start_run(_manifest())
+            assert sink.log_metrics(_metric(record_id=f"lru-metric-{index}")) is True
+            sinks.append(sink)
+            paths.append((sink.directory / "metrics.jsonl").resolve())
 
-    sinks: list[JSONLLoggingSink] = []
-    paths: list[Path] = []
-    for index in range(3):
-        sink = JSONLLoggingSink(tmp_path / f"lru-{index}", rank=0)
-        sink.start_run(_manifest())
-        assert sink.log_metrics(_metric(record_id=f"lru-metric-{index}")) is True
-        sinks.append(sink)
-        paths.append((sink.directory / "metrics.jsonl").resolve())
-
-    first_records = JSONLLoggingSink._validated_streams[paths[0]].records
-    assert sinks[0].log_metrics(_metric(record_id="lru-metric-0")) is False
-    newest = JSONLLoggingSink(tmp_path / "lru-3", rank=0)
-    newest.start_run(_manifest())
-    assert newest.log_metrics(_metric(record_id="lru-metric-3")) is True
-    with JSONLLoggingSink._locks_guard:
-        assert paths[0] in JSONLLoggingSink._validated_streams
-        assert paths[1] not in JSONLLoggingSink._validated_streams
-        assert JSONLLoggingSink._validated_streams[paths[0]].records is first_records
-
-    with JSONLLoggingSink._locked_path(paths[2]):
-        fourth = JSONLLoggingSink(tmp_path / "lru-4", rank=0)
-        fourth.start_run(_manifest())
-        assert fourth.log_metrics(_metric(record_id="lru-metric-4")) is True
+        first_records = JSONLLoggingSink._validated_streams[paths[0]].records
+        assert sinks[0].log_metrics(_metric(record_id="lru-metric-0")) is False
+        newest = JSONLLoggingSink(tmp_path / "lru-3", rank=0)
+        newest.start_run(_manifest())
+        assert newest.log_metrics(_metric(record_id="lru-metric-3")) is True
         with JSONLLoggingSink._locks_guard:
-            assert paths[2] in JSONLLoggingSink._validated_streams
-    fifth = JSONLLoggingSink(tmp_path / "lru-5", rank=0)
-    fifth.start_run(_manifest())
-    assert fifth.log_metrics(_metric(record_id="lru-metric-5")) is True
-    with JSONLLoggingSink._locks_guard:
-        assert paths[2] not in JSONLLoggingSink._validated_streams
+            assert paths[0] in JSONLLoggingSink._validated_streams
+            assert paths[1] not in JSONLLoggingSink._validated_streams
+            assert JSONLLoggingSink._validated_streams[paths[0]].records is first_records
+
+        with JSONLLoggingSink._locked_path(paths[2]):
+            fourth = JSONLLoggingSink(tmp_path / "lru-4", rank=0)
+            fourth.start_run(_manifest())
+            assert fourth.log_metrics(_metric(record_id="lru-metric-4")) is True
+            with JSONLLoggingSink._locks_guard:
+                assert paths[2] in JSONLLoggingSink._validated_streams
+        fifth = JSONLLoggingSink(tmp_path / "lru-5", rank=0)
+        fifth.start_run(_manifest())
+        assert fifth.log_metrics(_metric(record_id="lru-metric-5")) is True
+        with JSONLLoggingSink._locks_guard:
+            assert paths[2] not in JSONLLoggingSink._validated_streams
+
+
+def test_all_active_cache_saturation_retains_new_state_then_prunes_inactive_entries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Dropping a new state when every cached path is active forces a history reparse."""
+    monkeypatch.setattr(JSONLLoggingSink, "_VALIDATED_STREAM_LIMIT", 3)
+    with _isolated_logging_registries():
+        for index in range(3):
+            seed = JSONLLoggingSink(tmp_path / f"seed-{index}", rank=0)
+            seed.start_run(_manifest())
+            assert seed.log_metrics(_metric(record_id=f"seed-metric-{index}")) is True
+        with JSONLLoggingSink._locks_guard:
+            cached_paths = tuple(JSONLLoggingSink._validated_streams)
+            assert len(cached_paths) == 3
+
+        _HistoryCountingSink.existing_records_calls = 0
+        with ExitStack() as active_paths:
+            for path in cached_paths:
+                active_paths.enter_context(JSONLLoggingSink._locked_path(path))
+            saturated = _HistoryCountingSink(tmp_path / "saturated", rank=0)
+            saturated.start_run(_manifest())
+            record = _metric(record_id="saturated-metric")
+            assert saturated.log_metrics(record) is True
+            calls_after_append = _HistoryCountingSink.existing_records_calls
+            assert saturated.log_metrics(record) is False
+            assert _HistoryCountingSink.existing_records_calls == calls_after_append
+            with JSONLLoggingSink._locks_guard:
+                assert len(JSONLLoggingSink._validated_streams) == 4
+
+        pruning = JSONLLoggingSink(tmp_path / "pruning", rank=0)
+        pruning.start_run(_manifest())
+        assert pruning.log_metrics(_metric(record_id="pruning-metric")) is True
+        with JSONLLoggingSink._locks_guard:
+            assert len(JSONLLoggingSink._validated_streams) == 3
 
 
 def test_path_lock_registry_reuses_active_lock_and_releases_inactive_paths(
     tmp_path: Path,
 ) -> None:
-    with JSONLLoggingSink._locks_guard:
-        JSONLLoggingSink._path_locks.clear()
-    shared_path = tmp_path / "shared.jsonl"
-    first_lock = JSONLLoggingSink._path_lock(shared_path)
-    with first_lock:
-        second_lock = JSONLLoggingSink._path_lock(shared_path)
-        assert second_lock is first_lock
-    del second_lock
-    del first_lock
+    with _isolated_logging_registries():
+        shared_path = tmp_path / "shared.jsonl"
+        first_lock = JSONLLoggingSink._path_lock(shared_path)
+        with first_lock:
+            second_lock = JSONLLoggingSink._path_lock(shared_path)
+            assert second_lock is first_lock
+        del second_lock
+        del first_lock
 
-    for index in range(200):
-        lock = JSONLLoggingSink._path_lock(tmp_path / f"inactive-{index}.jsonl")
-        del lock
-    gc.collect()
+        for index in range(200):
+            lock = JSONLLoggingSink._path_lock(tmp_path / f"inactive-{index}.jsonl")
+            del lock
+        gc.collect()
 
-    with JSONLLoggingSink._locks_guard:
-        assert len(JSONLLoggingSink._path_locks) == 0
+        with JSONLLoggingSink._locks_guard:
+            assert len(JSONLLoggingSink._path_locks) == 0
 
 
 def test_in_place_mutation_invalidates_cached_history(tmp_path: Path) -> None:

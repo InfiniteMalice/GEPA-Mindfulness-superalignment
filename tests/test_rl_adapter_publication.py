@@ -237,6 +237,12 @@ def test_copy_failure_does_not_close_reused_descriptor_after_fdopen_owns_it(
             del payload
             raise OSError("simulated destination write failure")
 
+        def flush(self) -> None:
+            self.stream.flush()  # type: ignore[attr-defined]
+
+        def fileno(self) -> int:
+            return self.stream.fileno()  # type: ignore[attr-defined,no-any-return]
+
     def reusing_fdopen(
         descriptor: int,
         mode: str,
