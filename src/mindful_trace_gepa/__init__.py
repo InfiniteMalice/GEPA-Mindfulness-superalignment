@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
-from .cli import main as cli_main
-
 __all__ = ["cli_main", "main"]
 
 
-def main() -> None:
-    """Entry point for ``python -m mindful_trace_gepa``."""
-    cli_main(None)
+def cli_main(argv: list[str] | None = None) -> int:
+    """Load the command implementation only when the CLI is invoked."""
+    from .cli import main as cli
+
+    return cli(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Run the package CLI with explicit arguments or process-global arguments when omitted."""
+    return cli_main(argv)

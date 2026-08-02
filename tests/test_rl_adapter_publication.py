@@ -1,0 +1,713 @@
+"""Atomic, hash-verified publication tests for prebuilt policy adapters."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import multiprocessing
+import os
+import shutil
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+import pytest
+
+import gepa_mindfulness.training.adapter_publication as publication_module
+from gepa_mindfulness.training.adapter_publication import (
+    AdapterCandidate,
+    ArtifactHashError,
+    LocalAdapterPublisher,
+)
+from gepa_mindfulness.training.policy_versions import PolicyVersion
+
+
+def _spawn_publish(root: str, artifact: str, version: int, gate: object, queue: object) -> None:
+    gate.wait()  # type: ignore[attr-defined]
+    path = Path(artifact)
+    candidate = AdapterCandidate(
+        artifact_path=path,
+        policy_version=PolicyVersion(version),
+        expected_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+        parent_policy_version=None,
+        format_id="safetensors-v1",
+        source_id="spawn-worker",
+        model_id="tiny-model",
+    )
+    try:
+        LocalAdapterPublisher(root).publish(candidate)
+        queue.put(("ok", version))  # type: ignore[attr-defined]
+    except Exception as exc:
+        queue.put(("error", type(exc).__name__))  # type: ignore[attr-defined]
+
+
+def _spawn_hold_lock(root: str, ready: object, acquired: object, release: object) -> None:
+    publisher = LocalAdapterPublisher(root)
+    ready.set()  # type: ignore[attr-defined]
+    with publisher._transaction_lock():
+        acquired.set()  # type: ignore[attr-defined]
+        release.wait(15)  # type: ignore[attr-defined]
+
+
+def _candidate(
+    tmp_path: Path,
+    version: int,
+    *,
+    parent: int | None,
+    content: bytes | None = None,
+    expected_sha256: str | None = None,
+) -> AdapterCandidate:
+    payload = content if content is not None else f"adapter-{version}".encode()
+    artifact = tmp_path / f"candidate-{version}.safetensors"
+    artifact.write_bytes(payload)
+    digest = expected_sha256 or hashlib.sha256(payload).hexdigest()
+    return AdapterCandidate(
+        artifact_path=artifact,
+        policy_version=PolicyVersion(version),
+        expected_sha256=digest,
+        parent_policy_version=None if parent is None else PolicyVersion(parent),
+        format_id="safetensors-v1",
+        source_id="pytorch-learner",
+        model_id="tiny-model",
+        metadata={"rank": 8, "scale": 0.25, "producer": "unit-test"},
+    )
+
+
+def test_successful_publication_is_versioned_hash_verified_and_atomic(tmp_path: Path) -> None:
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    candidate = _candidate(tmp_path, 1, parent=None)
+
+    manifest = publisher.publish(candidate)
+
+    assert manifest.policy_version == PolicyVersion(1)
+    assert manifest.parent_policy_version is None
+    assert manifest.artifact_sha256 == candidate.expected_sha256
+    assert publisher.current() == manifest
+    assert (publisher.root / manifest.artifact_path).read_bytes() == b"adapter-1"
+    assert not any(path.name.startswith(".adapter-stage-") for path in publisher.root.iterdir())
+
+
+def test_current_artifact_reads_artifact_bytes_once_and_returns_verified_payload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    manifest = publisher.publish(_candidate(tmp_path, 1, parent=None))
+    real_open = publication_module._open_regular
+    artifact_reads = 0
+
+    def counting_open(path: Path, field_name: str) -> object:
+        nonlocal artifact_reads
+        if field_name == "artifact_path":
+            artifact_reads += 1
+        return real_open(path, field_name)
+
+    monkeypatch.setattr(publication_module, "_open_regular", counting_open)
+
+    current, payload = publisher.current_artifact()
+
+    assert artifact_reads == 1
+    assert current == manifest
+    assert payload == b"adapter-1"
+    assert hashlib.sha256(payload).hexdigest() == current.artifact_sha256
+    assert len(payload) == current.artifact_size
+
+
+def test_current_artifact_rejects_tampered_artifact_bytes(tmp_path: Path) -> None:
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    manifest = publisher.publish(_candidate(tmp_path, 1, parent=None))
+    (publisher.root / manifest.artifact_path).write_bytes(b"tampered")
+
+    with pytest.raises(ArtifactHashError, match="published"):
+        publisher.current_artifact()
+
+
+def test_checksum_mismatch_preserves_previous_readable_manifest(tmp_path: Path) -> None:
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    current = publisher.publish(_candidate(tmp_path, 1, parent=None))
+    corrupt = _candidate(tmp_path, 2, parent=1, expected_sha256="0" * 64)
+
+    with pytest.raises(ArtifactHashError, match="candidate"):
+        publisher.publish(corrupt)
+
+    assert publisher.current() == current
+    assert (publisher.root / current.artifact_path).read_bytes() == b"adapter-1"
+
+
+@pytest.mark.parametrize(
+    ("version", "parent", "message"),
+    [
+        (2, None, "parent"),
+        (2, 0, "parent"),
+        (1, 1, "newer"),
+        (0, 1, "newer"),
+        (3, 1, "next"),
+        (2, 2, "parent"),
+    ],
+)
+def test_parent_mismatch_replay_rollback_and_skip_are_rejected(
+    tmp_path: Path,
+    version: int,
+    parent: int | None,
+    message: str,
+) -> None:
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    current = publisher.publish(_candidate(tmp_path, 1, parent=None))
+
+    with pytest.raises(ValueError, match=message):
+        publisher.publish(_candidate(tmp_path, version, parent=parent))
+
+    assert publisher.current() == current
+
+
+def test_first_publication_rejects_a_parent(tmp_path: Path) -> None:
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+
+    with pytest.raises(ValueError, match="first.*parent"):
+        publisher.publish(_candidate(tmp_path, 1, parent=0))
+
+    assert publisher.current() is None
+
+
+def test_destination_collision_is_rejected_without_overwrite(tmp_path: Path) -> None:
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    current = publisher.publish(_candidate(tmp_path, 1, parent=None))
+    collision = publisher.root / "versions" / "2"
+    collision.mkdir()
+    marker = collision / "foreign"
+    marker.write_text("keep", encoding="utf-8")
+
+    with pytest.raises(FileExistsError, match="version"):
+        publisher.publish(_candidate(tmp_path, 2, parent=1))
+
+    assert marker.read_text(encoding="utf-8") == "keep"
+    with pytest.raises(ValueError, match="orphan"):
+        publisher.current()
+    assert (publisher.root / current.artifact_path).read_bytes() == b"adapter-1"
+
+
+def test_interrupted_stage_copy_cleans_exact_stage_and_preserves_current(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    current = publisher.publish(_candidate(tmp_path, 1, parent=None))
+
+    def interrupted_copy(source: Path, destination: Path) -> str:
+        del source
+        destination.write_bytes(b"partial")
+        raise OSError("simulated copy interruption")
+
+    monkeypatch.setattr(LocalAdapterPublisher, "_copy_artifact", staticmethod(interrupted_copy))
+
+    with pytest.raises(OSError, match="copy interruption"):
+        publisher.publish(_candidate(tmp_path, 2, parent=1))
+
+    assert publisher.current() == current
+    assert not any(path.name.startswith(".adapter-stage-") for path in publisher.root.iterdir())
+
+
+def test_copy_failure_does_not_close_reused_descriptor_after_fdopen_owns_it(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "source.bin"
+    source.write_bytes(b"adapter")
+    destination = tmp_path / "destination.bin"
+    guard = tmp_path / "descriptor-guard.bin"
+    guard.write_bytes(b"guard")
+    real_fdopen = publication_module.os.fdopen
+    destination_descriptor: int | None = None
+    guard_descriptor: int | None = None
+
+    class FailingOutput:
+        def __init__(self, stream: object) -> None:
+            self.stream = stream
+
+        def __enter__(self) -> FailingOutput:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            nonlocal guard_descriptor
+            self.stream.close()  # type: ignore[attr-defined]
+            flags = os.O_RDONLY | getattr(os, "O_BINARY", 0)
+            guard_descriptor = os.open(guard, flags)
+
+        def write(self, payload: bytes) -> None:
+            del payload
+            raise OSError("simulated destination write failure")
+
+        def flush(self) -> None:
+            self.stream.flush()  # type: ignore[attr-defined]
+
+        def fileno(self) -> int:
+            return self.stream.fileno()  # type: ignore[attr-defined,no-any-return]
+
+    def reusing_fdopen(
+        descriptor: int,
+        mode: str,
+        *,
+        closefd: bool = True,
+    ) -> object:
+        nonlocal destination_descriptor
+        if mode != "wb":
+            return real_fdopen(descriptor, mode, closefd=closefd)
+        destination_descriptor = descriptor
+        return FailingOutput(real_fdopen(descriptor, mode, closefd=closefd))
+
+    monkeypatch.setattr(publication_module.os, "fdopen", reusing_fdopen)
+
+    with pytest.raises(OSError, match="destination write failure"):
+        LocalAdapterPublisher._copy_artifact(source, destination)
+
+    assert guard_descriptor == destination_descriptor
+    assert guard_descriptor is not None
+    try:
+        os.fstat(guard_descriptor)
+    except OSError:
+        guard_is_open = False
+    else:
+        guard_is_open = True
+        os.close(guard_descriptor)
+    assert guard_is_open
+
+
+def test_copy_closes_source_stream_when_destination_open_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "source.bin"
+    source.write_bytes(b"adapter")
+    destination = tmp_path / "destination.bin"
+    real_open_regular = publication_module._open_regular
+    real_os_open = publication_module.os.open
+    source_stream: object | None = None
+
+    def tracking_open(path: Path, field_name: str) -> tuple[object, object]:
+        nonlocal source_stream
+        info, stream = real_open_regular(path, field_name)
+        source_stream = stream
+        return info, stream
+
+    def failing_destination_open(
+        path: str | bytes | os.PathLike[str],
+        flags: int,
+        mode: int = 0o777,
+    ) -> int:
+        if Path(path) == destination:
+            raise OSError("simulated destination open failure")
+        return real_os_open(path, flags, mode)
+
+    monkeypatch.setattr(publication_module, "_open_regular", tracking_open)
+    monkeypatch.setattr(publication_module.os, "open", failing_destination_open)
+
+    with pytest.raises(OSError, match="destination open failure"):
+        LocalAdapterPublisher._copy_artifact(source, destination)
+
+    assert source_stream is not None
+    assert source_stream.closed  # type: ignore[attr-defined]
+    assert not destination.exists()
+
+
+def test_copy_closes_destination_descriptor_when_fdopen_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "source.bin"
+    source.write_bytes(b"adapter")
+    destination = tmp_path / "destination.bin"
+    real_fdopen = publication_module.os.fdopen
+    real_open_regular = publication_module._open_regular
+    destination_descriptor: int | None = None
+    source_stream: object | None = None
+
+    def tracking_open(path: Path, field_name: str) -> tuple[object, object]:
+        nonlocal source_stream
+        info, stream = real_open_regular(path, field_name)
+        source_stream = stream
+        return info, stream
+
+    def failing_fdopen(
+        descriptor: int,
+        mode: str,
+        *,
+        closefd: bool = True,
+    ) -> object:
+        nonlocal destination_descriptor
+        if mode != "wb":
+            return real_fdopen(descriptor, mode, closefd=closefd)
+        destination_descriptor = descriptor
+        raise OSError("simulated fdopen failure")
+
+    monkeypatch.setattr(publication_module, "_open_regular", tracking_open)
+    monkeypatch.setattr(publication_module.os, "fdopen", failing_fdopen)
+
+    with pytest.raises(OSError, match="fdopen failure"):
+        LocalAdapterPublisher._copy_artifact(source, destination)
+
+    assert destination_descriptor is not None
+    try:
+        os.fstat(destination_descriptor)
+    except OSError:
+        destination_is_closed = True
+    else:
+        destination_is_closed = False
+        os.close(destination_descriptor)
+    assert destination_is_closed
+    assert source_stream is not None
+    assert source_stream.closed  # type: ignore[attr-defined]
+
+
+def test_interrupted_current_replace_preserves_previous_publication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    current = publisher.publish(_candidate(tmp_path, 1, parent=None))
+    real_replace = publication_module.os.replace
+
+    def interrupted_replace(source: str | bytes | os.PathLike[str], destination: object) -> None:
+        if Path(destination) == publisher.root / "current.json":  # type: ignore[arg-type]
+            raise OSError("simulated pointer interruption")
+        real_replace(source, destination)
+
+    monkeypatch.setattr(publication_module.os, "replace", interrupted_replace)
+
+    with pytest.raises(OSError, match="pointer interruption"):
+        publisher.publish(_candidate(tmp_path, 2, parent=1))
+
+    assert publisher.current() == current
+    assert not (publisher.root / "versions" / "2").exists()
+    assert not any(path.name.startswith(".current-") for path in publisher.root.iterdir())
+
+
+def test_tampered_current_schema_and_paths_fail_closed(tmp_path: Path) -> None:
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    publisher.publish(_candidate(tmp_path, 1, parent=None))
+    current_path = publisher.root / "current.json"
+    payload = json.loads(current_path.read_text(encoding="utf-8"))
+
+    payload["unexpected"] = True
+    current_path.write_bytes(
+        (json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n").encode()
+    )
+    with pytest.raises(ValueError, match="fields"):
+        publisher.current()
+
+    payload.pop("unexpected")
+    payload["artifact_path"] = "../secret"
+    current_path.write_bytes(
+        (json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n").encode()
+    )
+    with pytest.raises(ValueError, match="artifact_path"):
+        publisher.current()
+
+
+def test_tampered_artifact_hash_fails_closed(tmp_path: Path) -> None:
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    manifest = publisher.publish(_candidate(tmp_path, 1, parent=None))
+    (publisher.root / manifest.artifact_path).write_bytes(b"tampered")
+
+    with pytest.raises(ArtifactHashError, match="published"):
+        publisher.current()
+
+
+def test_current_missing_is_none_only_for_genuinely_empty_store(tmp_path: Path) -> None:
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    assert publisher.current() is None
+    (publisher.root / "versions" / "orphan").mkdir()
+
+    with pytest.raises(ValueError, match="current"):
+        publisher.current()
+
+
+def test_symlink_candidate_and_published_symlink_are_rejected(tmp_path: Path) -> None:
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    target = tmp_path / "target.bin"
+    target.write_bytes(b"adapter")
+    link = tmp_path / "candidate-link"
+    try:
+        link.symlink_to(target)
+    except OSError:
+        pytest.skip("symlink creation is unavailable")
+    candidate = AdapterCandidate(
+        artifact_path=link,
+        policy_version=PolicyVersion(1),
+        expected_sha256=hashlib.sha256(b"adapter").hexdigest(),
+        parent_policy_version=None,
+        format_id="safetensors-v1",
+        source_id="pytorch-learner",
+        model_id="tiny-model",
+    )
+
+    with pytest.raises(ValueError, match="symlink|regular"):
+        publisher.publish(candidate)
+
+    manifest = publisher.publish(_candidate(tmp_path, 1, parent=None))
+    artifact = publisher.root / manifest.artifact_path
+    artifact.unlink()
+    artifact.symlink_to(target)
+    with pytest.raises(ValueError, match="symlink|regular"):
+        publisher.current()
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"expected_sha256": "A" * 64},
+        {"format_id": "../unsafe"},
+        {"source_id": "bad\nsource"},
+        {"model_id": "org/model"},
+        {"metadata": {"nan": float("nan")}},
+        {"metadata": {"bool-as-int": True}},
+    ],
+)
+def test_candidate_rejects_noncanonical_or_unsafe_scalars(
+    tmp_path: Path,
+    overrides: dict[str, object],
+) -> None:
+    values: dict[str, object] = {
+        "artifact_path": tmp_path / "adapter.bin",
+        "policy_version": PolicyVersion(1),
+        "expected_sha256": "0" * 64,
+        "parent_policy_version": None,
+        "format_id": "safetensors-v1",
+        "source_id": "pytorch-learner",
+        "model_id": "tiny-model",
+        "metadata": {},
+    }
+    values.update(overrides)
+
+    with pytest.raises((TypeError, ValueError)):
+        AdapterCandidate(**values)
+
+
+@pytest.mark.parametrize("schema_version", [True, 1.0])
+@pytest.mark.parametrize("target", ["current.json", "versions/1/manifest.json"])
+def test_schema_version_rejects_bool_and_float(
+    tmp_path: Path,
+    schema_version: object,
+    target: str,
+) -> None:
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    publisher.publish(_candidate(tmp_path, 1, parent=None))
+    path = publisher.root / target
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["schema_version"] = schema_version
+    path.write_bytes((json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n").encode())
+
+    with pytest.raises(ValueError, match="schema_version"):
+        publisher.current()
+
+
+def test_two_publishers_serialize_first_publication_without_orphan(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "published"
+    first = LocalAdapterPublisher(root)
+    second = LocalAdapterPublisher(root)
+    barrier = threading.Barrier(2)
+
+    def publish(publisher: LocalAdapterPublisher, version: int) -> object:
+        barrier.wait()
+        return publisher.publish(_candidate(tmp_path, version, parent=None))
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(publish, first, 1), pool.submit(publish, second, 2)]
+    successes = [future.result() for future in futures if future.exception() is None]
+    failures = [future.exception() for future in futures if future.exception() is not None]
+
+    assert len(successes) == 1
+    assert len(failures) == 1
+    assert isinstance(failures[0], ValueError)
+    current = first.current()
+    assert current is not None
+    assert [path.name for path in (root / "versions").iterdir()] == [
+        current.policy_version.to_json()
+    ]
+
+
+@pytest.mark.parametrize("name", ["foreign.txt", ".adapter-stage-orphan", ".current-orphan.tmp"])
+def test_current_rejects_nonempty_control_layout(tmp_path: Path, name: str) -> None:
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    path = publisher.root / name
+    if "stage" in name:
+        path.mkdir()
+    else:
+        path.write_text("orphan", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="layout|current"):
+        publisher.current()
+
+
+def test_internal_artifact_symlink_and_version_directory_symlink_fail_closed(
+    tmp_path: Path,
+) -> None:
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    manifest = publisher.publish(_candidate(tmp_path, 1, parent=None))
+    target = tmp_path / "target"
+    target.write_bytes(b"adapter-1")
+    artifact = publisher.root / manifest.artifact_path
+    artifact.unlink()
+    try:
+        artifact.symlink_to(target)
+    except OSError:
+        pytest.skip("symlink creation is unavailable")
+    with pytest.raises(ValueError, match="symlink|unsafe"):
+        publisher.current()
+
+    artifact.unlink()
+    version = artifact.parent
+    (version / "manifest.json").unlink()
+    version.rmdir()
+    version.symlink_to(tmp_path, target_is_directory=True)
+    with pytest.raises(ValueError, match="real local directory"):
+        publisher.current()
+
+
+def test_parent_swap_between_check_and_read_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    manifest = publisher.publish(_candidate(tmp_path, 1, parent=None))
+    version = (publisher.root / manifest.artifact_path).parent
+    external = tmp_path / "external"
+    shutil.copytree(version, external)
+    real_open = publication_module._open_regular
+    swapped = False
+
+    def swapping_open(path: Path, field_name: str) -> object:
+        nonlocal swapped
+        if not swapped and path.name == "manifest.json":
+            swapped = True
+            moved = tmp_path / "original-version"
+            version.rename(moved)
+            external.rename(version)
+        return real_open(path, field_name)
+
+    monkeypatch.setattr(publication_module, "_open_regular", swapping_open)
+    with pytest.raises(ValueError, match="changed|unsafe"):
+        publisher.current()
+
+
+def test_spawned_publishers_serialize_first_publication(tmp_path: Path) -> None:
+    context = multiprocessing.get_context("spawn")
+    root = tmp_path / "published"
+    LocalAdapterPublisher(root)
+    artifacts = []
+    for version in (1, 2):
+        path = tmp_path / f"spawn-{version}.bin"
+        path.write_bytes(f"spawn-{version}".encode())
+        artifacts.append(path)
+    gate = context.Event()
+    queue = context.Queue()
+    processes = [
+        context.Process(target=_spawn_publish, args=(str(root), str(path), version, gate, queue))
+        for version, path in zip((1, 2), artifacts, strict=True)
+    ]
+    for process in processes:
+        process.start()
+    gate.set()
+    for process in processes:
+        process.join(15)
+        assert process.exitcode == 0
+    results = [queue.get(timeout=5), queue.get(timeout=5)]
+    assert sorted(result[0] for result in results) == ["error", "ok"]
+    current = LocalAdapterPublisher(root).current()
+    assert current is not None
+    assert len(tuple((root / "versions").iterdir())) == 1
+    assert not any(
+        path.name.startswith((".adapter-stage-", ".current-")) for path in root.iterdir()
+    )
+
+
+def test_spawned_process_blocks_on_actual_os_lock(tmp_path: Path) -> None:
+    context = multiprocessing.get_context("spawn")
+    root = tmp_path / "published"
+    LocalAdapterPublisher(root)
+    first_ready, first_acquired, first_release = context.Event(), context.Event(), context.Event()
+    second_ready, second_acquired, second_release = (
+        context.Event(),
+        context.Event(),
+        context.Event(),
+    )
+    first = context.Process(
+        target=_spawn_hold_lock,
+        args=(str(root), first_ready, first_acquired, first_release),
+    )
+    first.start()
+    assert first_ready.wait(10)
+    assert first_acquired.wait(10)
+    second = context.Process(
+        target=_spawn_hold_lock,
+        args=(str(root), second_ready, second_acquired, second_release),
+    )
+    second.start()
+    assert second_ready.wait(10)
+    assert not second_acquired.wait(0.5)
+    first_release.set()
+    assert second_acquired.wait(10)
+    second_release.set()
+    first.join(10)
+    second.join(10)
+    assert first.exitcode == second.exitcode == 0
+
+
+def test_contained_hash_streams_without_retaining_artifact_bytes(tmp_path: Path) -> None:
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    payload = b"stream-me" * 200_000
+    manifest = publisher.publish(_candidate(tmp_path, 1, parent=None, content=payload))
+
+    retained, digest, size = publication_module._contained_read(
+        publisher.root,
+        manifest.artifact_path,
+        "artifact_path",
+        retain=False,
+    )
+    hashed_digest, hashed_size = publication_module._contained_hash(
+        publisher.root, manifest.artifact_path, "artifact_path"
+    )
+
+    assert retained == b""
+    assert digest == hashed_digest == hashlib.sha256(payload).hexdigest()
+    assert size == hashed_size == len(payload)
+
+
+def test_oversized_contained_manifest_stops_at_limit_plus_one(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    manifest = publisher.publish(_candidate(tmp_path, 1, parent=None))
+    path = publisher.root / manifest.manifest_path
+    path.write_bytes(b"x" * (publication_module._MAX_MANIFEST_BYTES * 4))
+    real_open = publication_module._open_regular
+    bytes_read = 0
+
+    class CountingStream:
+        def __init__(self, stream: object) -> None:
+            self.stream = stream
+
+        def __enter__(self) -> CountingStream:
+            self.stream.__enter__()  # type: ignore[attr-defined]
+            return self
+
+        def __exit__(self, *args: object) -> object:
+            return self.stream.__exit__(*args)  # type: ignore[attr-defined]
+
+        def read(self, size: int) -> bytes:
+            nonlocal bytes_read
+            chunk = self.stream.read(size)  # type: ignore[attr-defined]
+            bytes_read += len(chunk)
+            if bytes_read > publication_module._MAX_MANIFEST_BYTES + 1:
+                raise AssertionError("oversized manifest read exceeded its bound")
+            return chunk
+
+    def counting_open(candidate: Path, field_name: str) -> tuple[object, object]:
+        info, stream = real_open(candidate, field_name)
+        return info, CountingStream(stream)
+
+    monkeypatch.setattr(publication_module, "_open_regular", counting_open)
+    with pytest.raises(ValueError, match="bounded manifest size"):
+        publication_module._contained_bytes(publisher.root, manifest.manifest_path, "manifest_path")
+    assert bytes_read == publication_module._MAX_MANIFEST_BYTES + 1

@@ -14,8 +14,6 @@ from typing import Any
 
 import click
 
-from .cli_deception import register_cli as register_deception_cli
-from .cli_scoring import register_cli as register_scoring_cli
 from .configuration import dump_json, load_dspy_config
 from .deception.circuit_analysis import detect_deception_heuristic
 from .deception.fingerprints import DeceptionFingerprint, FingerprintCollector
@@ -59,15 +57,31 @@ def _raise_dspy_import_error(component: str, detail: str) -> None:
 
 yaml = optional_import("yaml")
 
-_dspy_pipeline = import_module("mindful_trace_gepa.dspy_modules.pipeline")
-GEPA_CHAIN_CLS = getattr(_dspy_pipeline, "GEPAChain", None)
-DUAL_PATH_CHAIN_CLS = getattr(_dspy_pipeline, "DualPathGEPAChain", None)
+_DSPY_UNRESOLVED = object()
+GEPA_CHAIN_CLS: Any = _DSPY_UNRESOLVED
+DUAL_PATH_CHAIN_CLS: Any = _DSPY_UNRESOLVED
+GEPA_COMPILER_CLS: Any = _DSPY_UNRESOLVED
+CREATE_GEPA_METRIC: Any = _DSPY_UNRESOLVED
+dspy_pkg: Any = _DSPY_UNRESOLVED
 
-_dspy_compile = import_module("mindful_trace_gepa.dspy_modules.compile")
-GEPA_COMPILER_CLS = getattr(_dspy_compile, "GEPACompiler", None)
-CREATE_GEPA_METRIC = getattr(_dspy_compile, "create_gepa_metric", None)
 
-dspy_pkg = optional_import("dspy")
+def _resolve_dspy_components() -> None:
+    global CREATE_GEPA_METRIC
+    global DUAL_PATH_CHAIN_CLS
+    global GEPA_CHAIN_CLS
+    global GEPA_COMPILER_CLS
+    global dspy_pkg
+
+    if GEPA_CHAIN_CLS is _DSPY_UNRESOLVED:
+        pipeline = import_module("mindful_trace_gepa.dspy_modules.pipeline")
+        GEPA_CHAIN_CLS = getattr(pipeline, "GEPAChain", None)
+        DUAL_PATH_CHAIN_CLS = getattr(pipeline, "DualPathGEPAChain", None)
+    if GEPA_COMPILER_CLS is _DSPY_UNRESOLVED:
+        compiler = import_module("mindful_trace_gepa.dspy_modules.compile")
+        GEPA_COMPILER_CLS = getattr(compiler, "GEPACompiler", None)
+        CREATE_GEPA_METRIC = getattr(compiler, "create_gepa_metric", None)
+    if dspy_pkg is _DSPY_UNRESOLVED:
+        dspy_pkg = optional_import("dspy")
 
 
 def _resolve_cli_path(path_str: str, *, require_exists: bool = True) -> Path:
@@ -201,6 +215,7 @@ def _ensure_within_dir(base_dir: Path, candidate: Path) -> Path:
 
 
 def handle_dspy_run(args: argparse.Namespace) -> None:
+    _resolve_dspy_components()
     dual_path_flag = getattr(args, "dual_path", False)
     if dual_path_flag and DUAL_PATH_CHAIN_CLS is None:
         _raise_dspy_import_error("dual-path pipeline", _DSPY_PIPELINE_ERROR)
@@ -314,6 +329,7 @@ def handle_dspy_run(args: argparse.Namespace) -> None:
 
 
 def handle_dspy_compile(args: argparse.Namespace) -> None:
+    _resolve_dspy_components()
     if GEPA_COMPILER_CLS is None or CREATE_GEPA_METRIC is None:
         _raise_dspy_import_error("compiler", _DSPY_COMPILE_ERROR)
     if dspy_pkg is None:
@@ -757,7 +773,102 @@ def handle_score(args: argparse.Namespace) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _deferred_cli_handler(
+    module_name: str,
+    handler_name: str,
+) -> Callable[[argparse.Namespace], int | None]:
+    def handle(args: argparse.Namespace) -> int | None:
+        module = import_module(module_name)
+        handler = getattr(module, handler_name)
+        result = handler(args)
+        return result if isinstance(result, int) else None
+
+    return handle
+
+
+def _register_deception_cli(
+    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
+) -> None:
+    parser = subparsers.add_parser("deception", help="Deception research utilities")
+    commands = parser.add_subparsers(dest="deception_command")
+
+    probes = commands.add_parser("probes", help="Run linear probe deception analysis")
+    probes.add_argument("--trace", required=True, help="Trace JSONL file with activations")
+    probes.add_argument("--model", required=True, help="Model identifier or endpoint")
+    probes.add_argument("--probe", required=True, help="Path to probe weight file")
+    probes.add_argument("--config", required=True, help="Configuration YAML for the probe")
+    probes.add_argument("--out", help="Output JSON path for probe scores")
+    probes.set_defaults(
+        func=_deferred_cli_handler(
+            "mindful_trace_gepa.cli_deception",
+            "handle_deception_probes",
+        )
+    )
+
+    summary = commands.add_parser("summary", help="Merge deception artifacts into a summary")
+    summary.add_argument("--out", required=True, help="Deception summary JSON destination")
+    summary.add_argument("--probe", help="Optional override path for probe results")
+    summary.add_argument("--dual-path", dest="dual_path", help="Dual-path results override")
+    summary.add_argument("--paired", dest="dual_path", help=argparse.SUPPRESS)
+    summary.add_argument("--mm", help="Optional multimodal evaluation metrics override")
+    summary.add_argument("--runs", help="Directory to search for deception artifacts")
+    summary.set_defaults(
+        func=_deferred_cli_handler(
+            "mindful_trace_gepa.cli_deception",
+            "handle_deception_summary",
+        )
+    )
+    parser.set_defaults(func=lambda args: parser.print_help())
+
+
+def _register_scoring_cli(
+    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
+) -> None:
+    scoring = subparsers.add_parser("score-auto", help="Run tiered wisdom scoring")
+    scoring.add_argument("--trace", required=True, help="Trace JSONL path")
+    scoring.add_argument("--policy", help="Optional policy YAML")
+    scoring.add_argument("--out", required=True, help="Output scores JSON")
+    scoring.add_argument("--config", help="Scoring config YAML")
+    scoring.add_argument("--judge", action="store_true", help="Include LLM judge tier")
+    scoring.add_argument("--classifier", action="store_true", help="Include classifier tier")
+    scoring.add_argument("--classifier-config", help="Classifier config YAML")
+    scoring.add_argument("--classifier-artifacts", help="Trained classifier directory")
+    scoring.add_argument("--no-print", action="store_false", dest="print")
+    scoring.set_defaults(
+        func=_deferred_cli_handler("mindful_trace_gepa.cli_scoring", "handle_score_auto")
+    )
+
+    judge = subparsers.add_parser("judge", help="Interact with the tiered judge")
+    judge.add_argument("--trace", required=True, help="Trace JSONL path")
+    judge.add_argument("--out", required=True, help="Where to write judge response")
+    judge.add_argument("--model", help="Model name override")
+    judge.add_argument("--mock", action="store_true", help="Force mock judge response")
+    judge.set_defaults(
+        func=_deferred_cli_handler("mindful_trace_gepa.cli_scoring", "handle_judge_run")
+    )
+
+    classifier = subparsers.add_parser("clf", help="Classifier utilities")
+    classifier_commands = classifier.add_subparsers(dest="classifier_command")
+    train = classifier_commands.add_parser("train", help="Train the tier-2 classifier")
+    train.add_argument("--labels", required=True, help="Labelled dataset JSONL")
+    train.add_argument("--config", required=True, help="Classifier config YAML")
+    train.add_argument("--out", required=True, help="Artifacts directory")
+    train.set_defaults(
+        func=_deferred_cli_handler("mindful_trace_gepa.cli_scoring", "handle_classifier_train")
+    )
+
+    triage = classifier_commands.add_parser("triage", help="Export low-confidence dimensions")
+    triage.add_argument("--scores", required=True, help="Aggregate scores JSON")
+    triage.add_argument("--out", required=True, help="Output JSONL path")
+    triage.add_argument("--threshold", type=float, default=0.6, help="Confidence threshold")
+    triage.set_defaults(
+        func=_deferred_cli_handler("mindful_trace_gepa.cli_scoring", "handle_lowconf_triage")
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
+    from gepa_mindfulness.training.rl_cli import register_rl_cli
+
     parser = argparse.ArgumentParser(prog="gepa", description="Mindful Trace GEPA CLI")
     subparsers = parser.add_subparsers(dest="command")
 
@@ -905,8 +1016,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     score_parser.set_defaults(func=handle_score)
 
-    register_deception_cli(subparsers)
-    register_scoring_cli(subparsers)
+    _register_deception_cli(subparsers)
+    _register_scoring_cli(subparsers)
+    register_rl_cli(subparsers)
 
     return parser
 
@@ -993,7 +1105,7 @@ def click_dspy_contrastive(
     )
 
 
-def main(argv: list[str] | None = None) -> None:
+def main(argv: list[str] | None = None) -> int:
     """Parse CLI arguments and dispatch to the selected handler.
 
     Args:
@@ -1001,11 +1113,12 @@ def main(argv: list[str] | None = None) -> None:
     """
     parser = build_parser()
     args = parser.parse_args(argv)
-    handler: Callable[[argparse.Namespace], None] | None = getattr(args, "func", None)
+    handler: Callable[[argparse.Namespace], int | None] | None = getattr(args, "func", None)
     if handler is None:
         parser.print_help()
-        return
-    handler(args)
+        return 0
+    result = handler(args)
+    return result if isinstance(result, int) else 0
 
 
 __all__ = ["main", "build_parser"]

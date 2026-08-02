@@ -5,6 +5,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
+import warnings
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
@@ -29,7 +30,7 @@ class RolloutResult:
     contradiction_report: Mapping[str, object] | None = None
 
 
-class TrainingOrchestrator:
+class LightweightTrainingOrchestrator:
     """Simplified orchestrator that only implements reward shaping used in tests."""
 
     def __init__(self, config: TrainingConfig) -> None:
@@ -222,4 +223,17 @@ class TrainingOrchestrator:
         return []
 
 
-__all__ = ["TrainingOrchestrator", "RolloutResult"]
+class TrainingOrchestrator(LightweightTrainingOrchestrator):
+    """Deprecated compatibility name for the lightweight orchestrator."""
+
+    def __init__(self, config: TrainingConfig) -> None:
+        warnings.warn(
+            "TrainingOrchestrator is deprecated; use RLTrainingEngine for canonical RL "
+            "execution or LightweightTrainingOrchestrator for legacy behavior.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__(config)
+
+
+__all__ = ["LightweightTrainingOrchestrator", "TrainingOrchestrator", "RolloutResult"]

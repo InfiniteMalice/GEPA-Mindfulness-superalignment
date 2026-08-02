@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sys
+
 import pytest
 
 from gepa_mindfulness.core.abstention import AbstentionAssessment, AbstentionQuality
@@ -28,6 +30,17 @@ def test_reward_weights_validation() -> None:
     weights.validate()
     with pytest.raises(ValueError):
         RewardWeights(alpha=0.5, beta=0.5, gamma=0.5, delta=-0.5).validate()
+
+
+def test_reward_weights_reject_non_finite_total_mass() -> None:
+    """Finite component weights must not be allowed to overflow their aggregate mass."""
+    with pytest.raises(ValueError, match="total mass must be finite"):
+        RewardWeights(
+            alpha=sys.float_info.max,
+            beta=sys.float_info.max,
+            gamma=0.0,
+            delta=0.0,
+        ).validate()
 
 
 def test_correct_answer_reward_positive(calculator: GEPARewardCalculator) -> None:

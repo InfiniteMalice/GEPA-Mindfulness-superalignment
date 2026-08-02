@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from gepa_mindfulness.training.configs import TrainingConfig
+import pytest
+
+from gepa_mindfulness.training.configs import RLRunConfig, TrainingConfig, translate_legacy_config
 
 
 def test_training_config_supports_nested_sections() -> None:
@@ -33,3 +35,11 @@ def test_training_config_supports_nested_sections() -> None:
     assert config.ppo.batch_size == 2
     assert config.ppo.learning_rate == 1e-5
     assert config.model.policy_model == "microsoft/Phi-3-mini-4k-instruct"
+
+
+def test_training_configs_exports_legacy_translation() -> None:
+    with pytest.warns(DeprecationWarning):
+        config = translate_legacy_config({"trainer_type": "grpo", "device": "cpu"})
+
+    assert isinstance(config, RLRunConfig)
+    assert config.algorithm.name == "grpo"

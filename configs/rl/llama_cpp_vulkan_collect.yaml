@@ -1,0 +1,32 @@
+runtime:
+  backend: llama-cpp-vulkan
+  device: cpu
+  precision: fp32
+  distributed:
+    strategy: none
+    world_size: 1
+    rank: 0
+    local_rank: 0
+    sharded_optimizer: false
+policy:
+  model_name: LOCAL_GGUF_MODEL_ID
+  max_new_tokens: 32
+  do_sample: true
+  temperature: 0.8
+  top_p: 0.95
+algorithm:
+  name: ppo
+  learning_rate: 1.0e-5
+  batch_size: 1
+  gradient_accumulation_steps: 1
+  max_steps: 1
+dataset:
+  train_path: data/synthetic/reward_integrity/rl_pairs_v1.jsonl
+  format: jsonl
+checkpoint:
+  output_dir: runs/llama_cpp_vulkan/checkpoints
+  save_steps: 1
+logging:
+  log_dir: runs/llama_cpp_vulkan/logs
+  level: INFO
+seed: 42

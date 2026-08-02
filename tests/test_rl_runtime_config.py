@@ -1,0 +1,572 @@
+"""Tests for the canonical portable PyTorch RL runtime configuration."""
+
+from __future__ import annotations
+
+import inspect
+import warnings
+from dataclasses import FrozenInstanceError
+from pathlib import Path
+
+import pytest
+
+from gepa_mindfulness.training.runtime_config import (
+    AlgorithmConfig,
+    CheckpointConfig,
+    DatasetConfig,
+    DistributedRuntimeConfig,
+    LoggingConfig,
+    PolicyConfig,
+    RewardConfig,
+    RLRunConfig,
+    RuntimeConfig,
+    load_rl_config,
+    translate_legacy_config,
+)
+
+
+def _deprecation_warnings(captured: list[warnings.WarningMessage]) -> list[warnings.WarningMessage]:
+    return [warning for warning in captured if issubclass(warning.category, DeprecationWarning)]
+
+
+@pytest.mark.parametrize(
+    "constructor",
+    [
+        lambda: RuntimeConfig(backend=1),
+        lambda: PolicyConfig(model_name=""),
+        lambda: PolicyConfig(max_new_tokens=True),
+        lambda: PolicyConfig(temperature=float("nan")),
+        lambda: PolicyConfig(top_p=0.0),
+        lambda: AlgorithmConfig(learning_rate=float("inf")),
+        lambda: AlgorithmConfig(batch_size=True),
+        lambda: AlgorithmConfig(max_grad_norm=0.0),
+        lambda: RewardConfig(alpha=-1.0),
+        lambda: RewardConfig(overlay_weight=float("nan")),
+        lambda: DatasetConfig(validation_path=1),
+        lambda: CheckpointConfig(save_steps=0),
+        lambda: LoggingConfig(level="verbose"),
+        lambda: RLRunConfig(seed=True),
+        lambda: RLRunConfig(policy=object()),
+    ],
+)
+def test_direct_canonical_config_construction_rejects_invalid_values(constructor: object) -> None:
+    """Removing constructor validation must let an invalid canonical config escape."""
+    with pytest.raises((TypeError, ValueError)):
+        constructor()
+
+
+@pytest.mark.parametrize("seed", [-1, 2**32 - 1, 2**32])
+def test_run_config_rejects_seed_outside_the_common_runtime_bound(seed: int) -> None:
+    """Python-only integer acceptance must not leak an unusable seed to native boundaries."""
+    with pytest.raises(ValueError, match="seed.*0.*4294967294"):
+        RLRunConfig(seed=seed)
+
+
+def test_run_config_accepts_the_largest_common_runtime_seed() -> None:
+    assert RLRunConfig(seed=2**32 - 2).seed == 2**32 - 2
+
+
+def test_grpo_direct_config_requires_stochastic_generation() -> None:
+    """A deterministic GRPO policy must fail while the config is still side-effect free."""
+    with pytest.raises(ValueError, match="GRPO.*stochastic|stochastic.*GRPO"):
+        RLRunConfig(
+            policy=PolicyConfig(do_sample=False),
+            algorithm=AlgorithmConfig(name="grpo"),
+        )
+
+
+def test_reward_integrity_overlay_is_explicit_and_default_disabled() -> None:
+    config = RewardConfig()
+
+    assert config.overlay_weight == 0.0
+    assert config.integrity_overlay_enabled is False
+
+
+def canonical_payload() -> dict[str, object]:
+    """Return a complete canonical configuration suitable for CPU smoke runs."""
+    return {
+        "runtime": {"backend": "pytorch", "device": "cpu"},
+        "policy": {"model_name": "demo-model", "max_new_tokens": 32},
+        "algorithm": {
+            "name": "ppo",
+            "learning_rate": 1e-5,
+            "batch_size": 2,
+            "gradient_accumulation_steps": 1,
+            "max_steps": 2,
+        },
+        "reward": {"weights": {"alpha": 0.3, "beta": 0.3, "gamma": 0.2, "delta": 0.2}},
+        "dataset": {"train_path": "prompts.txt", "format": "text"},
+        "checkpoint": {"output_dir": "runs/cpu"},
+        "logging": {"log_dir": "runs/cpu/logs", "level": "INFO"},
+        "seed": 42,
+    }
+
+
+def test_canonical_mapping_produces_frozen_nested_sections() -> None:
+    config = RLRunConfig.from_mapping(canonical_payload())
+
+    assert config.runtime.backend == "pytorch"
+    assert config.policy.max_new_tokens == 32
+    assert config.algorithm.name == "ppo"
+    with pytest.raises(FrozenInstanceError):
+        config.runtime.device = "cuda"
+
+
+@pytest.mark.parametrize(
+    "distributed",
+    [
+        DistributedRuntimeConfig(),
+        DistributedRuntimeConfig(strategy="ddp", world_size=2, rank=0, local_rank=0),
+        DistributedRuntimeConfig(strategy="ddp", world_size=2, rank=1, local_rank=1),
+        DistributedRuntimeConfig(
+            strategy="fsdp",
+            world_size=4,
+            rank=3,
+            local_rank=3,
+            sharded_optimizer=True,
+        ),
+    ],
+)
+def test_distributed_runtime_config_accepts_closed_valid_matrix(
+    distributed: DistributedRuntimeConfig,
+) -> None:
+    assert (
+        DistributedRuntimeConfig.from_mapping(
+            {
+                "strategy": distributed.strategy,
+                "world_size": distributed.world_size,
+                "rank": distributed.rank,
+                "local_rank": distributed.local_rank,
+                "sharded_optimizer": distributed.sharded_optimizer,
+            }
+        )
+        == distributed
+    )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"strategy": "tensor_parallel"},
+        {"strategy": "none", "world_size": 2},
+        {"strategy": "ddp", "world_size": 1},
+        {"strategy": "ddp", "world_size": 2, "rank": 2},
+        {"strategy": "ddp", "world_size": 2, "local_rank": -1},
+        {"strategy": "ddp", "world_size": 2, "sharded_optimizer": True},
+        {"strategy": "fsdp", "world_size": True},
+        {"unknown": 1},
+    ],
+)
+def test_distributed_runtime_config_rejects_invalid_matrix(payload: dict[str, object]) -> None:
+    with pytest.raises((TypeError, ValueError)):
+        DistributedRuntimeConfig.from_mapping(payload)
+
+
+def test_runtime_config_preserves_single_process_defaults_and_validates_local_device() -> None:
+    assert RuntimeConfig().distributed == DistributedRuntimeConfig()
+
+    runtime = RuntimeConfig(
+        backend="cuda",
+        device="cuda:1",
+        distributed=DistributedRuntimeConfig(
+            strategy="ddp",
+            world_size=2,
+            rank=1,
+            local_rank=1,
+        ),
+    )
+    assert runtime.distributed.rank == 1
+
+    with pytest.raises(ValueError, match="local_rank"):
+        RuntimeConfig(
+            backend="cuda",
+            device="cuda:0",
+            distributed=DistributedRuntimeConfig(
+                strategy="ddp",
+                world_size=2,
+                rank=1,
+                local_rank=1,
+            ),
+        )
+
+
+def test_canonical_mapping_rejects_unknown_distributed_keys_strictly() -> None:
+    payload = canonical_payload()
+    payload["runtime"] = {
+        "backend": "cuda",
+        "device": "cuda:0",
+        "distributed": {
+            "strategy": "ddp",
+            "world_size": 2,
+            "rank": 0,
+            "local_rank": 0,
+            "sharded_optimizer": False,
+            "typo": True,
+        },
+    }
+
+    with pytest.raises(ValueError, match="distributed.*unknown keys"):
+        RLRunConfig.from_mapping(payload)
+
+
+def test_grpo_normalization_config_has_approved_defaults() -> None:
+    config = AlgorithmConfig.from_mapping({"name": "grpo"})
+
+    assert config.group_normalization_epsilon == pytest.approx(1e-8)
+    assert config.zero_variance_policy == "zero"
+
+
+def test_grpo_normalization_config_accepts_canonical_values() -> None:
+    config = AlgorithmConfig.from_mapping(
+        {
+            "name": "grpo",
+            "group_normalization_epsilon": 1e-6,
+            "zero_variance_policy": "skip",
+        }
+    )
+
+    assert config.group_normalization_epsilon == pytest.approx(1e-6)
+    assert config.zero_variance_policy == "skip"
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"group_normalization_epsilon": 0.0},
+        {"group_normalization_epsilon": -1.0},
+        {"group_normalization_epsilon": float("nan")},
+        {"group_normalization_epsilon": True},
+        {"zero_variance_policy": "error"},
+        {"zero_variance_policy": 1},
+    ],
+)
+def test_grpo_normalization_config_rejects_invalid_values(payload: dict[str, object]) -> None:
+    with pytest.raises((TypeError, ValueError)):
+        AlgorithmConfig.from_mapping({"name": "grpo", **payload})
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ({"runtime": {"backend": "pytorch", "device": "mps"}}, "device"),
+        ({"runtime": {"backend": "pytorch", "device": 1}}, "runtime.device"),
+        ({"policy": {"unknown": "value"}}, "policy"),
+        ({"seed": "42"}, "seed"),
+    ],
+)
+def test_canonical_mapping_rejects_invalid_values_without_coercion(
+    payload: dict[str, object],
+    message: str,
+) -> None:
+    with pytest.raises((TypeError, ValueError), match=message):
+        RLRunConfig.from_mapping(payload)
+
+
+def test_legacy_grpo_config_translates_to_canonical() -> None:
+    with pytest.warns(DeprecationWarning):
+        config = translate_legacy_config({"grpo": {"group_size": 4}, "device": "cpu"})
+
+    assert config.runtime.backend == "pytorch"
+    assert config.algorithm.name == "grpo"
+    assert config.algorithm.group_size == 4
+    assert config.reward.overlay_weight == 0.0
+    assert config.reward.integrity_overlay_enabled is False
+
+
+def test_canonical_file_load_has_no_deprecation_warning(tmp_path: Path) -> None:
+    yaml = pytest.importorskip("yaml")
+    path = tmp_path / "canonical.yaml"
+    path.write_text(yaml.safe_dump(canonical_payload()), encoding="utf-8")
+
+    with warnings.catch_warnings(record=True) as captured:
+        warnings.simplefilter("always")
+        config = load_rl_config(path)
+
+    assert config.runtime.device == "cpu"
+    assert not _deprecation_warnings(captured)
+
+
+def test_legacy_file_load_warns_and_translates(tmp_path: Path) -> None:
+    yaml = pytest.importorskip("yaml")
+    path = tmp_path / "legacy.yaml"
+    path.write_text(yaml.safe_dump({"trainer_type": "ppo", "device": "cpu"}), encoding="utf-8")
+
+    with pytest.warns(DeprecationWarning):
+        config = load_rl_config(path)
+
+    assert config.algorithm.name == "ppo"
+
+
+@pytest.mark.parametrize("name", ["pytorch_cpu_ppo.yaml", "pytorch_cpu_grpo.yaml"])
+def test_cpu_runtime_examples_load(name: str) -> None:
+    path = Path(__file__).parents[1] / "configs" / "rl" / name
+
+    config = load_rl_config(path)
+
+    assert config.runtime.device == "cpu"
+    assert config.algorithm.name in {"ppo", "grpo"}
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"seed": 7},
+        {"dataset": {"train_path": "prompts.jsonl"}},
+    ],
+)
+def test_partial_canonical_file_load_is_warning_free(
+    tmp_path: Path,
+    payload: dict[str, object],
+) -> None:
+    yaml = pytest.importorskip("yaml")
+    path = tmp_path / "partial.yaml"
+    path.write_text(yaml.safe_dump(payload), encoding="utf-8")
+
+    with warnings.catch_warnings(record=True) as captured:
+        warnings.simplefilter("always")
+        config = load_rl_config(path)
+
+    assert config.seed == payload.get("seed", 42)
+    expected_path = payload.get("dataset", {}).get("train_path", "")
+    assert config.dataset.train_path == expected_path
+    assert not _deprecation_warnings(captured)
+
+
+def test_deprecation_warning_filter_includes_custom_subclasses() -> None:
+    class CustomDeprecationWarning(DeprecationWarning):
+        pass
+
+    with warnings.catch_warnings(record=True) as captured:
+        warnings.simplefilter("always")
+        warnings.warn("custom deprecation", CustomDeprecationWarning, stacklevel=1)
+
+    assert len(_deprecation_warnings(captured)) == 1
+
+
+def test_real_legacy_dataset_path_translates_to_train_path() -> None:
+    path = Path(__file__).parents[1] / "configs" / "training" / "phi3_dual_path.yml"
+
+    with pytest.warns(DeprecationWarning):
+        config = load_rl_config(path)
+
+    assert config.dataset.train_path == "datasets/dual_path/data.jsonl"
+
+
+@pytest.mark.parametrize(
+    ("payload", "invalid"),
+    [
+        ({"algorithm": {"learning_rate": None}}, float("nan")),
+        ({"algorithm": {"kl_coef": None}}, float("inf")),
+        ({"algorithm": {"clip_range": None}}, float("-inf")),
+        ({"algorithm": {"value_coef": None}}, float("nan")),
+        ({"reward": {"weights": {"alpha": None}}}, float("nan")),
+        ({"reward": {"weights": {"beta": None}}}, float("inf")),
+        ({"reward": {"weights": {"gamma": None}}}, float("-inf")),
+        ({"reward": {"weights": {"delta": None}}}, float("nan")),
+    ],
+)
+def test_canonical_float_values_must_be_finite(
+    payload: dict[str, object],
+    invalid: float,
+) -> None:
+    section = next(iter(payload.values()))
+    assert isinstance(section, dict)
+    target = section.get("weights", section)
+    assert isinstance(target, dict)
+    key = next(key for key, value in target.items() if value is None)
+    target[key] = invalid
+
+    with pytest.raises(ValueError, match="finite"):
+        RLRunConfig.from_mapping(payload)
+
+
+def test_direct_legacy_translation_warning_points_to_caller() -> None:
+    with warnings.catch_warnings(record=True) as captured:
+        warnings.simplefilter("always")
+        expected_line = inspect.currentframe().f_lineno + 1
+        translate_legacy_config({"trainer_type": "ppo"})
+
+    assert len(captured) == 1
+    warning = captured[0]
+    assert Path(warning.filename).resolve() == Path(__file__).resolve()
+    assert warning.lineno == expected_line
+
+
+def test_legacy_file_warning_points_to_loader_caller(tmp_path: Path) -> None:
+    yaml = pytest.importorskip("yaml")
+    path = tmp_path / "legacy.yaml"
+    path.write_text(yaml.safe_dump({"trainer_type": "ppo"}), encoding="utf-8")
+
+    with warnings.catch_warnings(record=True) as captured:
+        warnings.simplefilter("always")
+        expected_line = inspect.currentframe().f_lineno + 1
+        load_rl_config(path)
+
+    assert len(captured) == 1
+    warning = captured[0]
+    assert Path(warning.filename).resolve() == Path(__file__).resolve()
+    assert warning.lineno == expected_line
+
+
+@pytest.mark.parametrize(
+    ("marker", "value"),
+    [
+        ("device", "cuda"),
+        ("grpo", {"group_size": 4}),
+        ("model", {"name": "legacy-model"}),
+        ("model_name", "legacy-model"),
+        ("output", {"checkpoint_dir": "runs/legacy"}),
+        ("output_dir", "runs/legacy"),
+        ("ppo", {"batch_size": 2}),
+        ("reward_weights", {"alpha": 1.0}),
+        ("trainer_type", "ppo"),
+        ("training", {"max_steps": 2}),
+    ],
+)
+def test_canonical_section_rejects_mixed_legacy_marker(
+    tmp_path: Path,
+    marker: str,
+    value: object,
+) -> None:
+    yaml = pytest.importorskip("yaml")
+    path = tmp_path / "mixed.yaml"
+    payload = {"runtime": {"backend": "pytorch", "device": "cpu"}, marker: value}
+    path.write_text(yaml.safe_dump(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="unknown keys"):
+        load_rl_config(path)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"device": "cpu"},
+        {"trainer_type": "grpo", "grpo": {"group_size": 4}},
+        {"dataset": {"path": "legacy.jsonl"}},
+    ],
+)
+def test_pure_legacy_markers_still_translate(
+    tmp_path: Path,
+    payload: dict[str, object],
+) -> None:
+    yaml = pytest.importorskip("yaml")
+    path = tmp_path / "legacy.yaml"
+    path.write_text(yaml.safe_dump(payload), encoding="utf-8")
+
+    with pytest.warns(DeprecationWarning):
+        config = load_rl_config(path)
+
+    assert isinstance(config, RLRunConfig)
+
+
+@pytest.mark.parametrize(
+    "dataset",
+    [
+        {"train_path": "canonical.jsonl", "path": "legacy.jsonl"},
+        {"unknown": "value"},
+    ],
+)
+def test_dataset_with_canonical_or_unknown_subkeys_uses_strict_parser(
+    tmp_path: Path,
+    dataset: dict[str, object],
+) -> None:
+    yaml = pytest.importorskip("yaml")
+    path = tmp_path / "dataset.yaml"
+    path.write_text(yaml.safe_dump({"dataset": dataset}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="dataset contains unknown keys"):
+        load_rl_config(path)
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("path", "legacy.jsonl"),
+        ("train_split", 0.7),
+        ("val_split", 0.15),
+        ("test_split", 0.15),
+    ],
+)
+def test_known_legacy_dataset_subkeys_translate(
+    tmp_path: Path,
+    key: str,
+    value: object,
+) -> None:
+    yaml = pytest.importorskip("yaml")
+    dataset = {"path": "legacy.jsonl"}
+    dataset[key] = value
+    path = tmp_path / "legacy.yaml"
+    path.write_text(yaml.safe_dump({"dataset": dataset}), encoding="utf-8")
+
+    with pytest.warns(DeprecationWarning):
+        config = load_rl_config(path)
+
+    assert config.dataset.train_path == "legacy.jsonl"
+
+
+@pytest.mark.parametrize(
+    "dataset",
+    [
+        {"path": "legacy.jsonl", "train_splt": 0.7},
+        {"path": "legacy.jsonl", "validation_path": "validation.jsonl"},
+        {"path": "legacy.jsonl", "format": "jsonl"},
+    ],
+)
+def test_legacy_path_with_nonlegacy_subkey_uses_strict_parser(
+    tmp_path: Path,
+    dataset: dict[str, object],
+) -> None:
+    yaml = pytest.importorskip("yaml")
+    path = tmp_path / "mixed-dataset.yaml"
+    path.write_text(yaml.safe_dump({"dataset": dataset}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="dataset contains unknown keys"):
+        load_rl_config(path)
+
+
+@pytest.mark.parametrize(
+    "dataset",
+    [
+        ["legacy.jsonl"],
+        {"path": 123},
+        {"path": "legacy.jsonl", "train_split": "0.7"},
+        {"path": "legacy.jsonl", "val_split": True},
+        {"path": "legacy.jsonl", "test_split": float("nan")},
+    ],
+)
+def test_legacy_dataset_rejects_invalid_types(
+    tmp_path: Path,
+    dataset: object,
+) -> None:
+    yaml = pytest.importorskip("yaml")
+    path = tmp_path / "invalid-dataset.yaml"
+    path.write_text(yaml.safe_dump({"dataset": dataset}), encoding="utf-8")
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        with pytest.raises((TypeError, ValueError)):
+            load_rl_config(path)
+
+
+def test_direct_legacy_translation_rejects_unknown_dataset_key() -> None:
+    payload = {"dataset": {"path": "legacy.jsonl", "train_splt": 0.7}}
+
+    with pytest.warns(DeprecationWarning):
+        with pytest.raises(ValueError, match="legacy dataset contains unknown keys"):
+            translate_legacy_config(payload)
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("train_path", "canonical.jsonl"),
+        ("validation_path", "validation.jsonl"),
+        ("format", "jsonl"),
+    ],
+)
+def test_direct_legacy_translation_rejects_canonical_dataset_key(
+    key: str,
+    value: str,
+) -> None:
+    with pytest.warns(DeprecationWarning):
+        with pytest.raises(ValueError, match="legacy dataset contains canonical keys"):
+            translate_legacy_config({"dataset": {key: value}})

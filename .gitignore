@@ -9,6 +9,7 @@ dist/
 
 # Virtual environments
 .venv/
+.worktrees/
 .env
 .envrc
 

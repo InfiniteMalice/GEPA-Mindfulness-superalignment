@@ -1,0 +1,38 @@
+runtime:
+  backend: cuda
+  device: cuda:LOCAL_RANK
+  precision: fp32
+  distributed:
+    strategy: ddp
+    world_size: WORLD_SIZE
+    rank: RANK
+    local_rank: LOCAL_RANK
+    sharded_optimizer: false
+policy:
+  model_name: LOCAL_MODEL_PATH
+  max_new_tokens: 32
+algorithm:
+  name: ppo
+  learning_rate: 1.0e-5
+  batch_size: 1
+  gradient_accumulation_steps: 1
+  max_steps: 10
+  clip_range: 0.2
+  value_coef: 0.1
+  max_grad_norm: 1.0
+reward:
+  weights:
+    alpha: 0.3
+    beta: 0.3
+    gamma: 0.2
+    delta: 0.2
+dataset:
+  train_path: data/synthetic/reward_integrity/rl_pairs_v1.jsonl
+  format: jsonl
+checkpoint:
+  output_dir: runs/rl_cuda_ddp
+  save_steps: 10
+logging:
+  log_dir: runs/rl_cuda_ddp/logs
+  level: INFO
+seed: 42

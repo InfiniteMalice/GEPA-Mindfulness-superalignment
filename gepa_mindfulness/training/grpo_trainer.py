@@ -7,6 +7,7 @@ import math
 import pathlib
 import random
 import typing
+import warnings
 
 try:  # pragma: no cover - torch is optional for lightweight tests
     import torch
@@ -56,7 +57,7 @@ class GRPOEpochSum:
         return float(sum(batch.mean_reward for batch in self.batches) / max(len(self.batches), 1))
 
 
-class GRPOTrainer(BaseTrainer):
+class LightweightGRPOTrainer(BaseTrainer):
     """Minimal trainer implementing the GRPO interface exercised by tests."""
 
     def __init__(self, *args, seed: int | None = None, **kwargs) -> None:
@@ -326,4 +327,23 @@ class GRPOTrainer(BaseTrainer):
         return GRPOEpochSum(steps=steps, batches=batches)
 
 
-__all__ = ["GRPOTrainer", "GRPOTrainingStats", "GRPOBatchSummary", "GRPOEpochSum"]
+class GRPOTrainer(LightweightGRPOTrainer):
+    """Deprecated compatibility name for the lightweight GRPO trainer."""
+
+    def __init__(self, *args: typing.Any, **kwargs: typing.Any) -> None:
+        warnings.warn(
+            "GRPOTrainer is deprecated; use RLTrainingEngine for canonical RL execution "
+            "or LightweightGRPOTrainer for legacy behavior.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__(*args, **kwargs)
+
+
+__all__ = [
+    "GRPOTrainer",
+    "GRPOTrainingStats",
+    "GRPOBatchSummary",
+    "GRPOEpochSum",
+    "LightweightGRPOTrainer",
+]

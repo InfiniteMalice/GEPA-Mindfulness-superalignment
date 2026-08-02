@@ -20,6 +20,8 @@ from gepa_mindfulness.core.rewards import (
 )
 from mindful_trace_gepa.train.grn import GRNSettings
 
+from .runtime_config import RLRunConfig, load_rl_config, translate_legacy_config
+
 
 def _clamp(value: float, minimum: float, maximum: float) -> float:
     return max(minimum, min(maximum, value))
@@ -234,6 +236,12 @@ class GRPOConfig(BaseTrainerConfig):
 
 
 def load_trainer_config(path: Path | str) -> BaseTrainerConfig:
+    warnings.warn(
+        "load_trainer_config is deprecated; use load_rl_config for canonical runtime "
+        "configuration.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     path = Path(path)
     raw = path.read_text(encoding="utf-8")
     payload = yaml.safe_load(raw) if yaml is not None else _fallback_load_mapping(raw)
@@ -278,7 +286,10 @@ __all__ = [
     "GRPOConfig",
     "HallucinationPenaltyConfig",
     "load_config_dict",
+    "load_rl_config",
     "load_trainer_config",
     "PPOConfig",
+    "RLRunConfig",
     "RewardWeightsConfig",
+    "translate_legacy_config",
 ]

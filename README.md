@@ -4,6 +4,33 @@ GEPA Mindfulness Superalignment pairs GEPA-inspired reflective reasoning with tr
 
 The project targets **Python 3.10+**.
 
+## RL maturity matrix
+
+| Path | Maturity | Verified boundary |
+| --- | --- | --- |
+| Portable PyTorch CPU PPO/GRPO | Supported | Local automated training, checkpoint, and resume evidence. |
+| PyTorch CUDA and distributed | Implemented; hardware unqualified | Mock/CPU contracts; native CUDA/DDP acceptance must run on target hardware. |
+| llama.cpp/Vulkan actor | Experimental external runtime | Inference/collection only; native Vulkan/llama.cpp was not run here. |
+| Mojo coordinator actor | Experimental external runtime | Operator-supplied configured coordinator only; checked-in source never generates. |
+| Mojo/Vulkan/llama.cpp actor + PyTorch learner | Experimental hybrid | Requires `--learner pytorch`; conversion, deployment, and reload remain external. |
+| Pure Mojo learner | Unsupported / no-go (3/9 supported) | `--learner mojo` fails closed; see the evidence report. |
+
+Use `--learner pytorch` for the experimental hybrid path. A request for `--learner mojo` fails with
+`pure Mojo learner is unsupported`. The
+[pure Mojo feasibility report](docs/rl/mojo_learner_feasibility.md) records the nine capability
+gates. The
+[portable RL guide](docs/rl/README.md#train-with-the-experimental-hybrid-mojovulkan-actor)
+contains the exact hybrid command, bootstrap/current-manifest procedure, publication audit log,
+and recovery semantics.
+
+`mojo/rl_coordinator/main.mojo` is a non-generating protocol/compile reference. It returns
+`actor_unconfigured` for generate requests and is never a training coordinator. Hybrid training
+requires an operator-supplied configured coordinator with the same protocol and exact provenance.
+The config and Mojo assets require a source checkout and are not included in the wheel.
+Native Mojo was not installed or executed on the verification host. MAX was not probed. Native
+Vulkan/llama.cpp lanes were skipped. Those skips are limitations, not successes. The hybrid
+command does not claim PEFT-to-GGUF conversion, llama.cpp deployment, or actor reload.
+
 ## Memory Safety, CPT, SSR, and Structured Logs
 
 The repository includes opt-in scaffolding for four longitudinal reflective-stability surfaces:
@@ -33,7 +60,7 @@ python -m pip install --upgrade pip
 pip install -e .[dspy]
 ```
 
-Use `pip install -e .` for the lightweight scoring/viewer CLI. Use named extras for heavier surfaces, for example `pip install -e .[train]`, `pip install -e .[interpret]`, or `pip install -e .[all]`.
+Use `pip install -e .` for the lightweight scoring/viewer CLI. Use named extras for heavier surfaces, for example `pip install -e '.[rl]'`, `pip install -e '.[train]'`, `pip install -e '.[interpret]'`, or `pip install -e '.[all]'`. See the [portable PyTorch RL guide](docs/rl/README.md) for offline CPU PPO and GRPO.
 
 Wheel-installed usage is supported and is the packaging smoke-test target:
 
@@ -155,7 +182,9 @@ Required:
 
 Optional extras:
 
-* `train` - `torch`, `transformers`, and terminal UI dependencies for training and CPU demo support.
+* `rl` - bounded `torch`, `transformers`, and `peft` dependencies for canonical portable RL.
+* `rl-dev` - the `rl` runtime plus build, formatting, lint, type-check, and test tooling.
+* `train` - the synchronized RL runtime plus terminal UI dependencies for training and CPU demo support.
 * `interpret` - `matplotlib` and real `networkx` for attribution graph analysis.
 * `dspy` - DSPy pipelines and compilation via `pip install -e .[dspy]`.
 * `pdf` - PDF export via `pip install -e .[pdf]`.

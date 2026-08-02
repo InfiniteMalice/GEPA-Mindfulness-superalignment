@@ -14,9 +14,9 @@ import click
 
 from .config import GRPOConfig, PPOConfig, load_config_dict
 from .configs import TrainingConfig
-from .grpo_trainer import GRPOTrainer
-from .pipeline import RolloutResult, TrainingOrchestrator
-from .ppo_trainer import PPOTrainer
+from .grpo_trainer import LightweightGRPOTrainer
+from .pipeline import LightweightTrainingOrchestrator, RolloutResult
+from .ppo_trainer import LightweightPPOTrainer
 
 
 def load_training_config(path: Path) -> TrainingConfig:
@@ -31,7 +31,7 @@ def read_dataset(path: Path) -> list[str]:
 def _resolve_orchestrator_factory():
     target = os.environ.get("GEPA_MINDFULNESS_TRAINING_ORCHESTRATOR")
     if not target:
-        return TrainingOrchestrator
+        return LightweightTrainingOrchestrator
     module_name, _, attribute = target.partition(":")
     if not module_name or not attribute:
         raise RuntimeError(
@@ -150,10 +150,10 @@ def train(trainer: str, config_path: Path, output_dir: Path | None) -> None:
         payload["output_dir"] = str(output_dir)
     if trainer == "ppo":
         config = PPOConfig.from_mapping(payload)
-        trainer_impl = PPOTrainer(config)
+        trainer_impl = LightweightPPOTrainer(config)
     else:
         config = GRPOConfig.from_mapping(payload)
-        trainer_impl = GRPOTrainer(config)
+        trainer_impl = LightweightGRPOTrainer(config)
     trainer_impl.train()
     click.echo(f"Training finished. Outputs written to {trainer_impl.output_dir}")
 

@@ -139,6 +139,61 @@ Create a blank template:
 python scripts/synthetic_dataset_tool.py scaffold data/synthetic/templates/new_case.json --case-id syn-new-001
 ```
 
+## Reward-integrity curriculum and rollout adapters
+
+`data/synthetic/reward_integrity/reward_integrity_curriculum_v1.jsonl` is the
+source of truth for the reward-integrity curriculum. The rich source contains
+the eight cases, their versions, and their reward-integrity evidence.
+`data/synthetic/reward_integrity/rl_pairs_v1.jsonl` and
+`data/synthetic/reward_integrity/curriculum_manifest.json` are derived files.
+
+From the repository root, rebuild both derived files after changing the rich
+source:
+
+```bash
+python scripts/build_reward_integrity_rl_dataset.py
+```
+
+The rebuild succeeds when the command prints `built 8 cases and 48 preference
+pairs`. The builder preserves source-line order and records the source SHA-256
+hash in every pair and in the manifest.
+
+Validate the rich source before rebuilding or committing it:
+
+```bash
+python scripts/synthetic_dataset_tool.py validate data/synthetic/reward_integrity/reward_integrity_curriculum_v1.jsonl
+```
+
+The validation succeeds when the command exits with status code `0`. To inspect
+case counts and schema diagnostics, run:
+
+```bash
+python scripts/synthetic_dataset_tool.py summary data/synthetic/reward_integrity/reward_integrity_curriculum_v1.jsonl
+```
+
+`SyntheticCaseAdapter` streams rich source rows into `RolloutRequest` values.
+`FlatJSONLAdapter` streams derived preference-pair rows into `RolloutRequest`
+values. Both adapters preserve case ID, version, source path, source line, and
+source SHA-256 provenance in request metadata. If an adapter encounters invalid
+JSON, a non-object row, a missing required field, or a type mismatch, it raises
+`ValueError` with the JSONL path and physical line number.
+
+For derived pairs, `FlatJSONLAdapter` uses the installable
+`validate_pair_record` boundary. The validator requires the exact
+`reward-integrity-rl-pairs-v1` field set, schema version, six relation/class
+tuples, eight bounded component names, lowercase SHA-256 provenance, and
+positive source line and source version. The validator rejects unknown fields
+instead of retaining them as request metadata.
+
+Run the adapter and curriculum checks after a rebuild:
+
+```bash
+python -m pytest tests/test_rl_adapters.py tests/test_reward_integrity_dataset.py -q
+```
+
+These adapters prepare request data only. They do not execute a rollout backend,
+compute an RL reward, or update a policy.
+
 ## Extending the dataset
 
 1. Scaffold a new case template.

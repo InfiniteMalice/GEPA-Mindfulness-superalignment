@@ -12,7 +12,7 @@ import torch
 
 from ..core.rewards import RewardWeights
 from .configs import TrainingConfig, load_training_config
-from .grpo_trainer import GRPOTrainer
+from .grpo_trainer import LightweightGRPOTrainer
 
 LOGGER = logging.getLogger(__name__)
 
@@ -76,7 +76,7 @@ def _run_grpo(args: argparse.Namespace, config: TrainingConfig) -> None:
     device = torch.device(config.device)
     reward_weights = RewardWeights.from_mapping(config.grpo.reward_weights.dict())
 
-    trainer = GRPOTrainer(
+    trainer = LightweightGRPOTrainer(
         policy,
         reference,
         tokenizer,

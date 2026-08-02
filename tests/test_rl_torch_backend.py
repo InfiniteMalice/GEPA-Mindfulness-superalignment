@@ -1,0 +1,1903 @@
+"""Tests for the portable PyTorch policy backend."""
+
+from __future__ import annotations
+
+import hashlib
+import sys
+from collections.abc import Callable, Mapping
+from copy import deepcopy
+from dataclasses import replace
+from enum import Enum
+from io import BytesIO
+from pathlib import Path
+from types import ModuleType, SimpleNamespace
+from typing import Any
+
+import pytest
+import torch
+from torch import nn
+
+from gepa_mindfulness.training.adapter_publication import LocalAdapterPublisher
+from gepa_mindfulness.training.algorithms import (
+    GRPOAlgorithm,
+    GRPOAlgorithmConfig,
+    PPOAlgorithm,
+    PPOAlgorithmConfig,
+)
+from gepa_mindfulness.training.backends import (
+    CudaOutOfMemoryError,
+    TorchPolicyBackend,
+    TorchTensorOps,
+    create_portable_backend,
+)
+from gepa_mindfulness.training.capability import Capability, CapabilityState
+from gepa_mindfulness.training.contracts import TrainablePolicyBackend
+from gepa_mindfulness.training.policy_versions import PolicyVersion
+from gepa_mindfulness.training.runtime_config import RLRunConfig, RuntimeConfig
+from gepa_mindfulness.training.trajectory import RolloutRequest, Trajectory, TrajectoryBatch
+
+
+class TinyTokenizer:
+    """Entirely local whitespace tokenizer used by backend contract tests."""
+
+    pad_token_id = 0
+    eos_token_id = 1
+
+    def __init__(self) -> None:
+        self._tokens = {
+            "<pad>": 0,
+            "<eos>": 1,
+            "calm": 2,
+            "breath": 3,
+            "now": 4,
+            "slowly": 5,
+        }
+        self._words = {token_id: token for token, token_id in self._tokens.items()}
+
+    def encode(self, text: str, *, add_special_tokens: bool = False) -> list[int]:
+        del add_special_tokens
+        return [self._tokens[word] for word in text.split()]
+
+    def decode(self, token_ids: list[int], *, skip_special_tokens: bool = True) -> str:
+        ignored = {self.pad_token_id, self.eos_token_id} if skip_special_tokens else set()
+        return " ".join(self._words[token_id] for token_id in token_ids if token_id not in ignored)
+
+
+class TinyCausalLM(nn.Module):
+    """Small causal model with an offline deterministic generation method."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.config = SimpleNamespace(hidden_size=6, _name_or_path="tiny-local")
+        self.embedding = nn.Embedding(6, self.config.hidden_size)
+        self.lm_head = nn.Linear(self.config.hidden_size, 6, bias=False)
+        self.generate_calls: list[dict[str, Any]] = []
+
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        *,
+        attention_mask: torch.Tensor | None = None,
+        output_hidden_states: bool = False,
+    ) -> SimpleNamespace:
+        del attention_mask, output_hidden_states
+        hidden = self.embedding(input_ids)
+        return SimpleNamespace(logits=self.lm_head(hidden), hidden_states=(hidden,))
+
+    def generate(
+        self,
+        input_ids: torch.Tensor,
+        *,
+        attention_mask: torch.Tensor,
+        max_new_tokens: int,
+        **sampling_parameters: object,
+    ) -> torch.Tensor:
+        assert "generator" not in sampling_parameters
+        self.generate_calls.append(
+            {
+                "attention_mask": attention_mask.detach().clone(),
+                "max_new_tokens": max_new_tokens,
+                **sampling_parameters,
+            }
+        )
+        response = torch.full(
+            (input_ids.shape[0], max_new_tokens),
+            TinyTokenizer.eos_token_id + 2,
+            dtype=input_ids.dtype,
+            device=input_ids.device,
+        )
+        return torch.cat((input_ids, response), dim=1)
+
+
+class DropoutCausalLM(TinyCausalLM):
+    """Tiny model whose policy distribution deterministically distinguishes train/eval mode."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.dropout = nn.Dropout(p=1.0)
+        self.generation_modes: list[bool] = []
+        with torch.no_grad():
+            self.embedding.weight.fill_(1.0)
+            self.lm_head.weight.zero_()
+            self.lm_head.weight[3].fill_(1.0)
+
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        *,
+        attention_mask: torch.Tensor | None = None,
+        output_hidden_states: bool = False,
+    ) -> SimpleNamespace:
+        del attention_mask, output_hidden_states
+        hidden = self.dropout(self.embedding(input_ids))
+        return SimpleNamespace(logits=self.lm_head(hidden), hidden_states=(hidden,))
+
+    def generate(
+        self,
+        input_ids: torch.Tensor,
+        *,
+        attention_mask: torch.Tensor,
+        max_new_tokens: int,
+        **sampling_parameters: object,
+    ) -> torch.Tensor:
+        self.generation_modes.append(self.training)
+        return super().generate(
+            input_ids,
+            attention_mask=attention_mask,
+            max_new_tokens=max_new_tokens,
+            **sampling_parameters,
+        )
+
+
+class MalformedValueHead(nn.Module):
+    """Value head returning a caller-selected invalid output shape."""
+
+    def __init__(self, failure: str) -> None:
+        super().__init__()
+        self.failure = failure
+        self.anchor = nn.Parameter(torch.zeros(()))
+
+    def forward(self, hidden: torch.Tensor) -> torch.Tensor:
+        if self.failure == "rank":
+            return hidden[..., 0] + self.anchor
+        batch, tokens, _ = hidden.shape
+        shape = (batch, tokens + 1, 1)
+        return torch.zeros(shape, dtype=hidden.dtype, device=hidden.device) + self.anchor
+
+
+class FakePeftType(str, Enum):
+    """PEFT-style adapter type used to exercise enum normalization."""
+
+    LORA = "LORA"
+    IA3 = "IA3"
+
+
+class NoNoteRuntimeError(RuntimeError):
+    """RuntimeError shaped like Python 3.10 exceptions without PEP 678 notes."""
+
+    add_note = None
+
+
+def _assert_rollback_diagnostic(error: BaseException, fragment: str) -> None:
+    """Accept PEP 678 notes or the Python 3.10 cause-chain fallback."""
+    if any(fragment in note for note in getattr(error, "__notes__", ())):
+        return
+    diagnostic = error.__cause__
+    assert isinstance(diagnostic, RuntimeError)
+    assert fragment in str(diagnostic)
+
+
+class FakeGradientScaler:
+    """Stateful loss scaler double with observable skip and restore behavior."""
+
+    def __init__(
+        self,
+        *,
+        scale: float = 8.0,
+        growth_tracker: int = 0,
+        skip_step: bool = False,
+        fail_next_load: bool = False,
+    ) -> None:
+        self.current_scale = scale
+        self.growth_tracker = growth_tracker
+        self.skip_step = skip_step
+        self.fail_next_load = fail_next_load
+
+    def scale(self, output: torch.Tensor) -> torch.Tensor:
+        return output
+
+    def unscale_(self, optimizer: torch.optim.Optimizer) -> None:
+        del optimizer
+
+    def step(self, optimizer: torch.optim.Optimizer) -> object:
+        if self.skip_step:
+            return None
+        return optimizer.step()
+
+    def update(self) -> None:
+        if self.skip_step:
+            self.current_scale /= 2.0
+        else:
+            self.growth_tracker += 1
+
+    def get_scale(self) -> float:
+        return self.current_scale
+
+    def state_dict(self) -> dict[str, object]:
+        return {
+            "scale": self.current_scale,
+            "growth_tracker": self.growth_tracker,
+        }
+
+    def load_state_dict(self, state: Mapping[str, object]) -> None:
+        if set(state) != {"scale", "growth_tracker"}:
+            raise ValueError("fake scaler state is malformed")
+        self.current_scale = float(state["scale"])
+        self.growth_tracker = int(state["growth_tracker"])
+        if self.fail_next_load:
+            self.fail_next_load = False
+            raise RuntimeError("injected scaler restore failure")
+
+    def __deepcopy__(self, memo: dict[int, object]) -> "FakeGradientScaler":
+        del memo
+        return FakeGradientScaler(
+            scale=self.current_scale,
+            growth_tracker=self.growth_tracker,
+            skip_step=self.skip_step,
+        )
+
+
+def _fake_lora_model(config: object | None = None) -> TinyCausalLM:
+    model = TinyCausalLM()
+    for parameter in model.parameters():
+        parameter.requires_grad_(False)
+    model.register_parameter("lora_adapter", nn.Parameter(torch.zeros(1)))
+    adapter_config = config or SimpleNamespace(adapter_type="LORA")
+    model.peft_config = {"default": adapter_config}
+    return model
+
+
+def _clone_state(module: nn.Module) -> dict[str, torch.Tensor]:
+    return {name: value.detach().clone() for name, value in module.state_dict().items()}
+
+
+def _assert_nested_equal(left: object, right: object) -> None:
+    if isinstance(left, torch.Tensor):
+        assert isinstance(right, torch.Tensor)
+        assert torch.equal(left, right)
+    elif isinstance(left, dict):
+        assert isinstance(right, dict)
+        assert left.keys() == right.keys()
+        for key in left:
+            _assert_nested_equal(left[key], right[key])
+    elif isinstance(left, (list, tuple)):
+        assert isinstance(right, type(left))
+        assert len(left) == len(right)
+        for left_item, right_item in zip(left, right):
+            _assert_nested_equal(left_item, right_item)
+    else:
+        assert left == right
+
+
+def _train_backend_step(backend: TorchPolicyBackend) -> int:
+    trajectory = backend.generate((RolloutRequest(prompt="calm breath", seed=17),))[0]
+    assert trajectory.response_token_ids is not None
+    selected_tokens = (True,) * len(trajectory.response_token_ids)
+    batch = TrajectoryBatch((trajectory,), (selected_tokens,))
+    backend.zero_grad()
+    evaluation = backend.evaluate(batch)
+    backend.backward(-(evaluation.log_probs + evaluation.value_predictions).mean())
+    return backend.optimizer_step().step
+
+
+def _backend_snapshot(backend: TorchPolicyBackend) -> dict[str, object]:
+    return {
+        "policy": _clone_state(backend.policy_model),
+        "reference": _clone_state(backend.reference_model),
+        "value_head": _clone_state(backend.value_head),
+        "optimizer": deepcopy(backend.optimizer.state_dict()),
+        "step": backend._step,
+        "max_new_tokens": backend.max_new_tokens,
+        "learning_rate": backend.learning_rate,
+        "cpu_rng_state": torch.get_rng_state().clone(),
+    }
+
+
+def _assert_backend_snapshot(
+    backend: TorchPolicyBackend,
+    snapshot: dict[str, object],
+) -> None:
+    _assert_nested_equal(snapshot["policy"], backend.policy_model.state_dict())
+    _assert_nested_equal(snapshot["reference"], backend.reference_model.state_dict())
+    _assert_nested_equal(snapshot["value_head"], backend.value_head.state_dict())
+    _assert_nested_equal(snapshot["optimizer"], backend.optimizer.state_dict())
+    assert backend._step == snapshot["step"]
+    assert backend.max_new_tokens == snapshot["max_new_tokens"]
+    assert backend.learning_rate == snapshot["learning_rate"]
+    _assert_nested_equal(snapshot["cpu_rng_state"], torch.get_rng_state())
+
+
+def _checkpoint_payload_before_divergence(
+    backend: TorchPolicyBackend,
+    tmp_path: Path,
+) -> tuple[dict[str, object], dict[str, object]]:
+    assert _train_backend_step(backend) == 1
+    source = tmp_path / "source.pt"
+    backend.save_checkpoint(source)
+    payload = torch.load(source, map_location="cpu", weights_only=True)
+    assert isinstance(payload, dict)
+
+    assert _train_backend_step(backend) == 2
+    with torch.no_grad():
+        for parameter in backend.reference_model.parameters():
+            parameter.add_(4.0)
+    backend.max_new_tokens += 3
+    backend.learning_rate *= 2.0
+    torch.manual_seed(2027)
+    return payload, _backend_snapshot(backend)
+
+
+def _new_tiny_backend(
+    *,
+    oom_error_factory: Callable[[str], BaseException] | None = None,
+) -> TorchPolicyBackend:
+    torch.manual_seed(7)
+    optional: dict[str, object] = {}
+    if oom_error_factory is not None:
+        optional["oom_error_factory"] = oom_error_factory
+    return TorchPolicyBackend(
+        policy_model=TinyCausalLM(),
+        tokenizer=TinyTokenizer(),
+        device="cpu",
+        learning_rate=0.05,
+        max_new_tokens=2,
+        model_identifier="tiny-local",
+        **optional,
+    )
+
+
+def _attach_fake_scaler(
+    backend: TorchPolicyBackend,
+    scaler: FakeGradientScaler,
+) -> None:
+    backend.autocast_dtype = torch.float16
+    backend.gradient_scaler = scaler
+
+
+@pytest.fixture
+def tiny_backend() -> TorchPolicyBackend:
+    """Build a deterministic CPU backend without loading external assets."""
+    return _new_tiny_backend()
+
+
+def _trajectory(
+    *,
+    prompt_ids: tuple[int, ...] | None = (2, 3),
+    response_ids: tuple[int, ...] | None = (4, 5),
+) -> Trajectory:
+    return Trajectory(
+        trajectory_id="trajectory-1",
+        case_id="case-1",
+        prompt="calm breath",
+        response="now slowly",
+        prompt_token_ids=prompt_ids,
+        response_token_ids=response_ids,
+    )
+
+
+@pytest.mark.parametrize("operation", ["generate", "evaluate", "backward", "optimizer_step"])
+def test_cuda_oom_boundary_translates_each_training_operation_with_cause(
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+) -> None:
+    """A CUDA OOM from any training operation must cross one structured backend boundary."""
+    config = RLRunConfig(runtime=RuntimeConfig(backend="cuda", device="cuda:0"))
+    backend = _new_tiny_backend(
+        oom_error_factory=lambda selected: CudaOutOfMemoryError(selected, config)
+    )
+    original = torch.OutOfMemoryError(f"{operation} allocation failed")
+
+    def fail(*args: object, **kwargs: object) -> object:
+        del args, kwargs
+        raise original
+
+    if operation == "generate":
+        monkeypatch.setattr(backend, "_validated_request", fail)
+
+        def invoke() -> object:
+            return backend.generate((RolloutRequest(prompt="calm"),))
+
+    elif operation == "evaluate":
+        monkeypatch.setattr(backend, "_validated_batch", fail)
+
+        def invoke() -> object:
+            return backend.evaluate(TrajectoryBatch(()))
+
+    elif operation == "backward":
+        backend.gradient_scaler = SimpleNamespace(scale=fail)
+
+        def invoke() -> object:
+            return backend.backward(torch.ones((), requires_grad=True))
+
+    else:
+        for parameter in (*backend.policy_parameters(), *backend.value_head.parameters()):
+            parameter.grad = torch.ones_like(parameter)
+        monkeypatch.setattr(backend.optimizer, "step", fail)
+        invoke = backend.optimizer_step
+
+    with pytest.raises(CudaOutOfMemoryError) as captured:
+        invoke()
+
+    assert captured.value.operation == operation
+    assert captured.value.__cause__ is original
+
+
+def test_cuda_oom_boundary_preserves_non_oom_exception_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The boundary must not relabel model validation failures as memory exhaustion."""
+    config = RLRunConfig(runtime=RuntimeConfig(backend="cuda", device="cuda:0"))
+    backend = _new_tiny_backend(
+        oom_error_factory=lambda selected: CudaOutOfMemoryError(selected, config)
+    )
+    original = RuntimeError("invalid generation assets")
+
+    def fail(*args: object, **kwargs: object) -> object:
+        del args, kwargs
+        raise original
+
+    monkeypatch.setattr(backend, "_validated_request", fail)
+
+    with pytest.raises(RuntimeError) as captured:
+        backend.generate((RolloutRequest(prompt="calm"),))
+
+    assert captured.value is original
+
+
+def test_tensor_ops_preserve_float_dtype_device_and_nested_shape() -> None:
+    """Algorithm data adopts the policy tensor's floating point representation."""
+    like = torch.ones((1,), dtype=torch.float64)
+
+    result = TorchTensorOps.from_data([[1.0, 2.0], [3.0, 4.0]], like=like)
+
+    assert result.shape == (2, 2)
+    assert result.dtype is torch.float64
+    assert result.device == like.device
+
+
+def test_tensor_ops_create_boolean_masks_and_reject_empty_selection() -> None:
+    """Masks are boolean and cannot silently reduce an empty token selection."""
+    like = torch.ones((2, 2), dtype=torch.float32)
+    mask = TorchTensorOps.from_data([[True, False], [False, True]], like=like, kind="bool")
+
+    assert mask.dtype is torch.bool
+    assert TorchTensorOps.masked_mean(like, mask).item() == pytest.approx(1.0)
+    with pytest.raises(ValueError, match="at least one selected"):
+        TorchTensorOps.masked_mean(like, torch.zeros_like(mask))
+
+
+def test_generate_records_response_aligned_policy_evidence(
+    tiny_backend: TorchPolicyBackend,
+) -> None:
+    """Generated trajectories contain real response-only token evidence."""
+    request = RolloutRequest(
+        prompt="calm breath",
+        case_id="case-7",
+        num_samples=2,
+        sampling_parameters={"max_new_tokens": 2, "temperature": 0.7},
+        policy_version="policy-3",
+        seed=11,
+    )
+
+    trajectories = tiny_backend.generate((request,))
+
+    assert len(trajectories) == 2
+    for sample_index, trajectory in enumerate(trajectories):
+        assert trajectory.trajectory_id == f"case-7-policy-3-{sample_index}"
+        assert trajectory.prompt_token_ids == (2, 3)
+        assert trajectory.response_token_ids == (3, 3)
+        assert trajectory.response == "breath breath"
+        assert len(trajectory.old_log_probs or ()) == 2
+        assert len(trajectory.reference_log_probs or ()) == 2
+        assert len(trajectory.value_predictions or ()) == 2
+        assert trajectory.backend_name == "torch_portable"
+        assert trajectory.model_identifier == "tiny-local"
+        assert trajectory.policy_version == "policy-3"
+        assert trajectory.seed == 11 + sample_index
+
+        batch = TrajectoryBatch(
+            trajectories=(trajectory,),
+            response_token_masks=((True, True),),
+        )
+        evaluation = tiny_backend.evaluate(batch)
+        torch.testing.assert_close(
+            evaluation.log_probs.detach(),
+            torch.tensor([trajectory.old_log_probs]),
+        )
+        torch.testing.assert_close(
+            evaluation.reference_log_probs.detach(),
+            torch.tensor([trajectory.reference_log_probs]),
+        )
+        torch.testing.assert_close(
+            evaluation.value_predictions.detach(),
+            torch.tensor([trajectory.value_predictions]),
+        )
+
+
+def test_generate_evaluates_evidence_in_eval_mode_and_restores_training() -> None:
+    """Dropout cannot make recorded old log probabilities differ from generation mode."""
+    backend = TorchPolicyBackend(
+        policy_model=DropoutCausalLM(),
+        tokenizer=TinyTokenizer(),
+        max_new_tokens=1,
+    )
+    backend.policy_model.train()
+
+    trajectory = backend.generate((RolloutRequest(prompt="calm breath"),))[0]
+
+    assert backend.policy_model.training
+    assert backend.policy_model.generation_modes == [False]
+    backend.policy_model.eval()
+    evaluation = backend.evaluate(
+        TrajectoryBatch(
+            trajectories=(trajectory,),
+            response_token_masks=((True,),),
+        )
+    )
+    torch.testing.assert_close(
+        torch.tensor([trajectory.old_log_probs]),
+        evaluation.log_probs.detach(),
+    )
+
+
+def test_evaluate_selects_only_response_token_predictions(
+    tiny_backend: TorchPolicyBackend,
+) -> None:
+    """The first response token uses the final prompt position as its predictor."""
+    trajectory = _trajectory()
+    batch = TrajectoryBatch(
+        trajectories=(trajectory,),
+        response_token_masks=((True, False),),
+    )
+
+    evaluation = tiny_backend.evaluate(batch)
+
+    input_ids = torch.tensor([[2, 3, 4, 5]])
+    outputs = tiny_backend.policy_model(input_ids, output_hidden_states=True)
+    all_selected = torch.log_softmax(outputs.logits[:, :-1], dim=-1).gather(
+        -1,
+        input_ids[:, 1:].unsqueeze(-1),
+    )
+    expected = all_selected.squeeze(-1)[:, 1:]
+    torch.testing.assert_close(evaluation.log_probs, expected)
+    assert evaluation.log_probs.shape == (1, 2)
+    assert evaluation.reference_log_probs.shape == (1, 2)
+    assert evaluation.value_predictions.shape == (1, 2)
+    assert evaluation.entropy.shape == (1, 2)
+
+
+def test_evaluate_pads_variable_responses_without_fabricating_masked_values(
+    tiny_backend: TorchPolicyBackend,
+) -> None:
+    """Variable responses are padded only where the public batch mask excludes tokens."""
+    batch = TrajectoryBatch(
+        trajectories=(
+            _trajectory(response_ids=(4,)),
+            _trajectory(response_ids=(4, 5)),
+        ),
+        response_token_masks=((True, False), (True, True)),
+    )
+
+    evaluation = tiny_backend.evaluate(batch)
+
+    for tensor in (
+        evaluation.log_probs,
+        evaluation.reference_log_probs,
+        evaluation.value_predictions,
+        evaluation.entropy,
+    ):
+        assert tensor.shape == (2, 2)
+        assert tensor[0, 1].item() == 0.0
+
+
+@pytest.mark.parametrize("failure", ["rank", "width"])
+def test_evaluate_rejects_malformed_value_head_output(failure: str) -> None:
+    """A custom value head must return one scalar for every response predictor position."""
+    backend = TorchPolicyBackend(
+        policy_model=TinyCausalLM(),
+        tokenizer=TinyTokenizer(),
+        value_head=MalformedValueHead(failure),
+    )
+    batch = TrajectoryBatch(
+        trajectories=(_trajectory(),),
+        response_token_masks=((True, True),),
+    )
+
+    with pytest.raises(RuntimeError, match=r"value_head.*\[batch, response_tokens, 1\]"):
+        backend.evaluate(batch)
+
+
+@pytest.mark.parametrize(
+    ("batch", "message"),
+    [
+        (TrajectoryBatch(trajectories=()), "at least one trajectory"),
+        (TrajectoryBatch(trajectories=(_trajectory(),)), "response_token_masks"),
+        (
+            TrajectoryBatch(
+                trajectories=(_trajectory(prompt_ids=None),),
+                response_token_masks=((True, True),),
+            ),
+            "prompt_token_ids",
+        ),
+        (
+            TrajectoryBatch(
+                trajectories=(_trajectory(response_ids=None),),
+                response_token_masks=((True, True),),
+            ),
+            "response_token_ids",
+        ),
+        (
+            TrajectoryBatch(
+                trajectories=(_trajectory(),),
+                response_token_masks=((True,),),
+            ),
+            "mask",
+        ),
+        (
+            TrajectoryBatch(
+                trajectories=(_trajectory(),),
+                response_token_masks=((False, False),),
+            ),
+            "selected response token",
+        ),
+    ],
+)
+def test_evaluate_fails_closed_for_incomplete_or_misaligned_trajectories(
+    tiny_backend: TorchPolicyBackend,
+    batch: TrajectoryBatch,
+    message: str,
+) -> None:
+    """Training never substitutes fabricated token data for missing evidence."""
+    with pytest.raises(ValueError, match=message):
+        tiny_backend.evaluate(batch)
+
+
+@pytest.mark.parametrize(
+    "rollout",
+    [
+        RolloutRequest(prompt=""),
+        RolloutRequest(prompt="calm", num_samples=0),
+        RolloutRequest(prompt="calm", sampling_parameters={"max_new_tokens": 0}),
+        RolloutRequest(prompt="calm", sampling_parameters={"temperature": 0.0}),
+    ],
+)
+def test_generate_rejects_invalid_requests(
+    tiny_backend: TorchPolicyBackend,
+    rollout: RolloutRequest,
+) -> None:
+    """Malformed rollout requests fail before invoking model generation."""
+    with pytest.raises((TypeError, ValueError)):
+        tiny_backend.generate((rollout,))
+
+
+def test_generate_preflights_whole_batch_seed_expansion_before_model_use(
+    tiny_backend: TorchPolicyBackend,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A later invalid request must not let an earlier request reach model generation."""
+    generation_events: list[str] = []
+    encode_events: list[str] = []
+    original_generate = tiny_backend._generate_response
+    original_encode = tiny_backend.tokenizer.encode
+
+    def observed_generate(*args: object, **kwargs: object) -> tuple[int, ...]:
+        generation_events.append("model.generate")
+        return original_generate(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(tiny_backend, "_generate_response", observed_generate)
+    monkeypatch.setattr(
+        tiny_backend.tokenizer,
+        "encode",
+        lambda *args, **kwargs: encode_events.append("tokenizer.encode")
+        or original_encode(*args, **kwargs),
+    )
+    requests = (
+        RolloutRequest(prompt="calm", seed=7),
+        RolloutRequest(prompt="breath", seed=2**32 - 2, num_samples=2),
+    )
+
+    with pytest.raises(ValueError, match="seed.*overflow|seed.*4294967294"):
+        tiny_backend.generate(requests)
+
+    assert generation_events == []
+    assert encode_events == []
+
+
+def test_generate_accepts_and_propagates_largest_portable_seed(
+    tiny_backend: TorchPolicyBackend,
+) -> None:
+    trajectory = tiny_backend.generate((RolloutRequest(prompt="calm", seed=2**32 - 2),))[0]
+
+    assert trajectory.seed == 2**32 - 2
+
+
+def test_backward_zero_grad_and_optimizer_step_update_only_trainable_state(
+    tiny_backend: TorchPolicyBackend,
+) -> None:
+    """A differentiable backend loss changes policy state while its reference stays frozen."""
+    trajectory = tiny_backend.generate((RolloutRequest(prompt="calm breath"),))[0]
+    batch = TrajectoryBatch(
+        trajectories=(trajectory,),
+        response_token_masks=((True, True),),
+    )
+    policy_before = [parameter.detach().clone() for parameter in tiny_backend.policy_parameters()]
+    reference_before = [
+        parameter.detach().clone() for parameter in tiny_backend.reference_model.parameters()
+    ]
+
+    tiny_backend.zero_grad()
+    evaluation = tiny_backend.evaluate(batch)
+    loss = -(evaluation.log_probs + evaluation.value_predictions).mean()
+    tiny_backend.backward(loss)
+    assert any(parameter.grad is not None for parameter in tiny_backend.policy_parameters())
+    result = tiny_backend.optimizer_step()
+
+    policy_after = list(tiny_backend.policy_parameters())
+    assert result.step == 1
+    assert any(not torch.equal(old, new.detach()) for old, new in zip(policy_before, policy_after))
+    assert all(
+        torch.equal(old, new.detach())
+        for old, new in zip(reference_before, tiny_backend.reference_model.parameters())
+    )
+    assert all(
+        not parameter.requires_grad for parameter in tiny_backend.reference_model.parameters()
+    )
+
+    tiny_backend.zero_grad()
+    assert all(parameter.grad is None for parameter in tiny_backend.policy_parameters())
+
+
+def test_optimizer_step_clips_policy_and_value_gradients_and_reports_preclip_norm() -> None:
+    """Removing clipping must leave oversized trainable gradients at their original norm."""
+    backend = TorchPolicyBackend(
+        policy_model=TinyCausalLM(),
+        tokenizer=TinyTokenizer(),
+        device="cpu",
+        max_grad_norm=0.1,
+    )
+    trainable = [*backend.policy_parameters(), *backend.value_head.parameters()]
+    for parameter in trainable:
+        parameter.grad = torch.full_like(parameter, 10.0)
+
+    result = backend.optimizer_step()
+    remaining_norm = torch.linalg.vector_norm(
+        torch.cat([parameter.grad.detach().flatten() for parameter in trainable])
+    ).item()
+
+    assert result.gradient_norm is not None and result.gradient_norm > 0.1
+    assert remaining_norm == pytest.approx(0.1, rel=1e-4)
+
+
+@pytest.mark.parametrize("optimizer_kind", ["missing", "foreign"])
+def test_constructor_rejects_optimizer_with_wrong_parameter_ownership(
+    optimizer_kind: str,
+) -> None:
+    """An injected optimizer must own every backend trainable and no unrelated parameter."""
+    model = TinyCausalLM()
+    value_head = nn.Linear(model.config.hidden_size, 1)
+    intended = [*model.parameters(), *value_head.parameters()]
+    parameters = intended[:-1]
+    if optimizer_kind == "foreign":
+        parameters = [*intended, nn.Parameter(torch.ones(1))]
+    optimizer = torch.optim.AdamW(parameters, lr=0.01)
+
+    with pytest.raises(ValueError, match="optimizer.*exactly"):
+        TorchPolicyBackend(
+            policy_model=model,
+            tokenizer=TinyTokenizer(),
+            value_head=value_head,
+            optimizer=optimizer,
+        )
+
+
+def test_backend_conforms_to_trainable_policy_protocol(
+    tiny_backend: TorchPolicyBackend,
+) -> None:
+    """The concrete backend implements every operation on the public trainable protocol."""
+    assert isinstance(tiny_backend, TrainablePolicyBackend)
+
+
+def test_fp16_scaler_checkpoint_round_trip_and_preflight_are_state_complete(
+    tmp_path: Path,
+) -> None:
+    """Omitting scaler state makes an FP16 resume numerically different after overflow."""
+    backend = _new_tiny_backend()
+    scaler = FakeGradientScaler(scale=8.0, growth_tracker=3)
+    _attach_fake_scaler(backend, scaler)
+    checkpoint = tmp_path / "fp16-scaler.pt"
+
+    saved = backend.save_checkpoint(checkpoint)
+    scaler.current_scale = 2.0
+    scaler.growth_tracker = 9
+    preflight = backend.preflight_checkpoint_bytes(checkpoint.read_bytes())
+
+    assert saved.format_version == 2
+    assert preflight.format_version == 2
+    assert scaler.state_dict() == {"scale": 2.0, "growth_tracker": 9}
+
+    restored = backend.load_checkpoint(checkpoint)
+
+    assert restored.format_version == 2
+    assert scaler.state_dict() == {"scale": 8.0, "growth_tracker": 3}
+
+
+def test_checkpoint_v1_is_accepted_only_without_mixed_precision(
+    tmp_path: Path,
+) -> None:
+    """Legacy checkpoints without scaler state are safe only for an FP32 backend."""
+    backend = _new_tiny_backend()
+    current = tmp_path / "current.pt"
+    legacy = tmp_path / "legacy.pt"
+    backend.save_checkpoint(current)
+    payload = torch.load(current, map_location="cpu", weights_only=True)
+    payload["format_version"] = 1
+    payload.pop("autocast_dtype", None)
+    payload.pop("gradient_scaler_state", None)
+    torch.save(payload, legacy)
+
+    assert backend.load_checkpoint(legacy).format_version == 1
+
+    _attach_fake_scaler(backend, FakeGradientScaler())
+    with pytest.raises(ValueError, match="version 1.*mixed precision|mixed precision.*version 1"):
+        backend.load_checkpoint(legacy)
+
+
+def test_scaler_restore_failure_rolls_back_live_scaler_state(
+    tmp_path: Path,
+) -> None:
+    """A late scaler load failure must not leave the live loss scale partially restored."""
+    backend = _new_tiny_backend()
+    scaler = FakeGradientScaler(scale=8.0, growth_tracker=3)
+    _attach_fake_scaler(backend, scaler)
+    checkpoint = tmp_path / "scaler-rollback.pt"
+    backend.save_checkpoint(checkpoint)
+    scaler.current_scale = 2.0
+    scaler.growth_tracker = 9
+    scaler.fail_next_load = True
+
+    with pytest.raises(ValueError, match="incompatible training state"):
+        backend.load_checkpoint(checkpoint)
+
+    assert scaler.state_dict() == {"scale": 2.0, "growth_tracker": 9}
+
+
+def test_grad_scaler_skipped_update_does_not_advance_backend_step(tmp_path: Path) -> None:
+    """A loss-scale overflow must not produce false parameter-update or step evidence."""
+    backend = _new_tiny_backend()
+    scaler = FakeGradientScaler(scale=8.0, skip_step=True)
+    _attach_fake_scaler(backend, scaler)
+    for parameter in (*backend.policy_parameters(), *backend.value_head.parameters()):
+        parameter.grad = torch.ones_like(parameter)
+    checksum_before = backend.parameter_checksum()
+
+    result = backend.optimizer_step()
+
+    assert backend.parameter_checksum() == checksum_before
+    assert scaler.get_scale() == 4.0
+    assert result.step == 0
+    assert result.updated is False
+    assert backend.save_checkpoint(tmp_path / "skipped-step.pt").step == 0
+
+
+def test_checkpoint_round_trip_restores_trainable_reference_optimizer_step_and_rng(
+    tiny_backend: TorchPolicyBackend,
+    tmp_path: Path,
+) -> None:
+    """Backend checkpoint state resumes one CPU training process without invented defaults."""
+    trajectory = tiny_backend.generate((RolloutRequest(prompt="calm breath"),))[0]
+    batch = TrajectoryBatch((trajectory,), ((True, True),))
+    tiny_backend.zero_grad()
+    evaluation = tiny_backend.evaluate(batch)
+    tiny_backend.backward(-(evaluation.log_probs + evaluation.value_predictions).mean())
+    tiny_backend.optimizer_step()
+    policy_state = _clone_state(tiny_backend.policy_model)
+    reference_state = _clone_state(tiny_backend.reference_model)
+    value_state = _clone_state(tiny_backend.value_head)
+    optimizer_state = deepcopy(tiny_backend.optimizer.state_dict())
+    torch.manual_seed(1234)
+    checkpoint = tmp_path / "backend.pt"
+
+    save_result = tiny_backend.save_checkpoint(checkpoint)
+    expected_random = torch.rand(4)
+    assert save_result.step == 1
+    assert checkpoint.is_file()
+
+    tiny_backend.zero_grad()
+    changed_evaluation = tiny_backend.evaluate(batch)
+    changed_loss = -(changed_evaluation.log_probs + changed_evaluation.value_predictions).mean()
+    tiny_backend.backward(changed_loss)
+    assert tiny_backend.optimizer_step().step == 2
+    with torch.no_grad():
+        for parameter in tiny_backend.reference_model.parameters():
+            parameter.add_(10.0)
+    torch.manual_seed(9999)
+
+    load_result = tiny_backend.load_checkpoint(checkpoint)
+
+    assert load_result.step == 1
+    _assert_nested_equal(policy_state, tiny_backend.policy_model.state_dict())
+    _assert_nested_equal(reference_state, tiny_backend.reference_model.state_dict())
+    _assert_nested_equal(value_state, tiny_backend.value_head.state_dict())
+    _assert_nested_equal(optimizer_state, tiny_backend.optimizer.state_dict())
+    assert torch.equal(expected_random, torch.rand(4))
+    assert all(
+        not parameter.requires_grad for parameter in tiny_backend.reference_model.parameters()
+    )
+
+
+def test_checkpoint_bytes_preflight_is_nonmutating_and_load_reuses_verified_payload(
+    tiny_backend: TorchPolicyBackend,
+    tmp_path: Path,
+) -> None:
+    """Store-facing bytes APIs separate validation from one transactional restore."""
+    assert _train_backend_step(tiny_backend) == 1
+    checkpoint = tmp_path / "backend.pt"
+    tiny_backend.save_checkpoint(checkpoint)
+    payload = checkpoint.read_bytes()
+    saved_policy = _clone_state(tiny_backend.policy_model)
+    assert _train_backend_step(tiny_backend) == 2
+    divergent = _backend_snapshot(tiny_backend)
+    transaction_snapshot = tiny_backend.capture_checkpoint_restore_state()
+
+    preflight = tiny_backend.preflight_checkpoint_bytes(payload)
+
+    assert preflight.step == 1
+    _assert_backend_snapshot(tiny_backend, divergent)
+
+    restored = tiny_backend.load_checkpoint_bytes(payload)
+
+    assert restored.step == 1
+    _assert_nested_equal(saved_policy, tiny_backend.policy_model.state_dict())
+
+    tiny_backend.rollback_checkpoint_restore_state(transaction_snapshot)
+
+    _assert_backend_snapshot(tiny_backend, divergent)
+
+
+def test_checkpoint_load_rejects_incompatible_payload_without_mutation(
+    tiny_backend: TorchPolicyBackend,
+    tmp_path: Path,
+) -> None:
+    """An incompatible checkpoint fails before any backend parameters are changed."""
+    checkpoint = tmp_path / "incompatible.pt"
+    torch.save({"format_version": 999}, checkpoint)
+    policy_state = _clone_state(tiny_backend.policy_model)
+
+    with pytest.raises(ValueError, match="checkpoint format_version"):
+        tiny_backend.load_checkpoint(checkpoint)
+
+    _assert_nested_equal(policy_state, tiny_backend.policy_model.state_dict())
+
+
+def test_checkpoint_invalid_rng_length_is_rejected_without_any_mutation(
+    tiny_backend: TorchPolicyBackend,
+    tmp_path: Path,
+) -> None:
+    """A late-invalid CPU RNG state cannot partially restore older backend state."""
+    payload, snapshot = _checkpoint_payload_before_divergence(tiny_backend, tmp_path)
+    payload["cpu_rng_state"] = torch.zeros(1, dtype=torch.uint8)
+    checkpoint = tmp_path / "invalid-rng.pt"
+    torch.save(payload, checkpoint)
+
+    caught: Exception | None = None
+    try:
+        tiny_backend.load_checkpoint(checkpoint)
+    except Exception as error:  # noqa: BLE001 - the regression captures the public failure type
+        caught = error
+
+    _assert_backend_snapshot(tiny_backend, snapshot)
+    assert isinstance(caught, ValueError)
+    assert "cpu_rng_state" in str(caught)
+
+
+def test_checkpoint_cpu_backend_rejects_cuda_rng_state_without_any_mutation(
+    tiny_backend: TorchPolicyBackend,
+    tmp_path: Path,
+) -> None:
+    """A CPU checkpoint cannot claim an inactive CUDA process RNG state."""
+    payload, snapshot = _checkpoint_payload_before_divergence(tiny_backend, tmp_path)
+    payload["cuda_rng_state"] = torch.zeros(8, dtype=torch.uint8)
+    checkpoint = tmp_path / "unexpected-cuda-rng.pt"
+    torch.save(payload, checkpoint)
+
+    caught: Exception | None = None
+    try:
+        tiny_backend.load_checkpoint(checkpoint)
+    except Exception as error:  # noqa: BLE001 - rejection type follows the state assertion
+        caught = error
+
+    _assert_backend_snapshot(tiny_backend, snapshot)
+    assert isinstance(caught, ValueError)
+    assert "cuda_rng_state" in str(caught)
+    assert "CPU" in str(caught)
+
+
+@pytest.mark.parametrize("corruption", ["parameter_ids", "state_tensor"])
+def test_checkpoint_malformed_optimizer_is_rejected_without_any_mutation(
+    tiny_backend: TorchPolicyBackend,
+    tmp_path: Path,
+    corruption: str,
+) -> None:
+    """Malformed optimizer identities or tensors cannot alter current backend state."""
+    payload, snapshot = _checkpoint_payload_before_divergence(tiny_backend, tmp_path)
+    optimizer_state = payload["optimizer_state"]
+    assert isinstance(optimizer_state, dict)
+    if corruption == "parameter_ids":
+        group = optimizer_state["param_groups"][0]
+        group["params"][0] = 999_999
+    else:
+        first_state = next(iter(optimizer_state["state"].values()))
+        first_state["exp_avg"] = torch.zeros(1)
+    checkpoint = tmp_path / f"invalid-optimizer-{corruption}.pt"
+    torch.save(payload, checkpoint)
+
+    caught: Exception | None = None
+    try:
+        tiny_backend.load_checkpoint(checkpoint)
+    except Exception as error:  # noqa: BLE001 - the regression captures the public failure type
+        caught = error
+
+    _assert_backend_snapshot(tiny_backend, snapshot)
+    assert isinstance(caught, ValueError)
+    assert "optimizer" in str(caught)
+
+
+@pytest.mark.parametrize(
+    ("corruption", "replacement"),
+    [
+        ("missing_exp_avg", None),
+        ("missing_exp_avg_sq", None),
+        ("string_exp_avg", "not-a-tensor"),
+        ("scalar_exp_avg", 0.0),
+    ],
+)
+def test_checkpoint_optimizer_structure_rejection_preserves_a_healthy_live_optimizer(
+    tiny_backend: TorchPolicyBackend,
+    tmp_path: Path,
+    corruption: str,
+    replacement: object,
+) -> None:
+    """Incomplete or wrong-kind AdamW state cannot damage the live optimizer."""
+    payload, snapshot = _checkpoint_payload_before_divergence(tiny_backend, tmp_path)
+    optimizer_state = payload["optimizer_state"]
+    assert isinstance(optimizer_state, dict)
+    first_state = next(iter(optimizer_state["state"].values()))
+    if corruption == "missing_exp_avg":
+        first_state.pop("exp_avg")
+    elif corruption == "missing_exp_avg_sq":
+        first_state.pop("exp_avg_sq")
+    else:
+        first_state["exp_avg"] = replacement
+    checkpoint = tmp_path / f"invalid-optimizer-structure-{corruption}.pt"
+    torch.save(payload, checkpoint)
+
+    caught: Exception | None = None
+    try:
+        tiny_backend.load_checkpoint(checkpoint)
+    except Exception as error:  # noqa: BLE001 - rejection type follows the state assertion
+        caught = error
+
+    _assert_backend_snapshot(tiny_backend, snapshot)
+    assert isinstance(caught, ValueError)
+    assert "optimizer" in str(caught)
+    assert _train_backend_step(tiny_backend) == 3
+
+
+@pytest.mark.parametrize("corruption", ["one_parameter", "all_parameters"])
+def test_checkpoint_missing_initialized_optimizer_entries_are_rejected_without_mutation(
+    tiny_backend: TorchPolicyBackend,
+    tmp_path: Path,
+    corruption: str,
+) -> None:
+    """A checkpoint cannot silently discard initialized AdamW parameter moments."""
+    payload, snapshot = _checkpoint_payload_before_divergence(tiny_backend, tmp_path)
+    optimizer_state = payload["optimizer_state"]
+    assert isinstance(optimizer_state, dict)
+    saved_state = optimizer_state["state"]
+    assert isinstance(saved_state, dict)
+    assert saved_state
+    if corruption == "one_parameter":
+        saved_state.pop(next(iter(saved_state)))
+    else:
+        saved_state.clear()
+    checkpoint = tmp_path / f"missing-optimizer-state-{corruption}.pt"
+    torch.save(payload, checkpoint)
+
+    with pytest.raises(ValueError, match="optimizer state.*parameter IDs"):
+        tiny_backend.load_checkpoint(checkpoint)
+
+    _assert_backend_snapshot(tiny_backend, snapshot)
+    assert _train_backend_step(tiny_backend) == 3
+
+
+def test_checkpoint_initialized_optimizer_restores_into_fresh_optimizer(
+    tiny_backend: TorchPolicyBackend,
+    tmp_path: Path,
+) -> None:
+    """A fresh optimizer may restore initialized moments from a compatible checkpoint."""
+    assert _train_backend_step(tiny_backend) == 1
+    checkpoint = tmp_path / "initialized-optimizer.pt"
+    tiny_backend.save_checkpoint(checkpoint)
+    expected_optimizer_state = deepcopy(tiny_backend.optimizer.state_dict())
+    fresh_backend = _new_tiny_backend()
+    assert fresh_backend.optimizer.state_dict()["state"] == {}
+
+    result = fresh_backend.load_checkpoint(checkpoint)
+
+    assert result.step == 1
+    _assert_nested_equal(expected_optimizer_state, fresh_backend.optimizer.state_dict())
+    assert _train_backend_step(fresh_backend) == 2
+
+
+def test_checkpoint_late_restore_failure_rolls_back_and_preserves_primary_error(
+    tiny_backend: TorchPolicyBackend,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A restore and rollback RNG failure preserves current state and the primary exception."""
+    payload, snapshot = _checkpoint_payload_before_divergence(tiny_backend, tmp_path)
+    checkpoint = tmp_path / "late-rng-failure.pt"
+    torch.save(payload, checkpoint)
+    original_set_rng_state = torch.set_rng_state
+    call_count = 0
+    primary = RuntimeError("primary RNG restore failure")
+
+    def fail_primary_and_rollback(state: torch.Tensor) -> None:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise primary
+        if call_count == 2:
+            raise RuntimeError("secondary rollback RNG failure")
+        original_set_rng_state(state)
+
+    monkeypatch.setattr(torch, "set_rng_state", fail_primary_and_rollback)
+    caught: Exception | None = None
+    try:
+        tiny_backend.load_checkpoint(checkpoint)
+    except Exception as error:  # noqa: BLE001 - cause identity is the behavior under test
+        caught = error
+
+    _assert_backend_snapshot(tiny_backend, snapshot)
+    assert caught is primary
+    assert str(caught) == "primary RNG restore failure"
+    _assert_rollback_diagnostic(primary, "secondary rollback RNG failure")
+    assert call_count == 2
+
+
+def test_checkpoint_rollback_chains_diagnostics_when_primary_cannot_add_notes(
+    tiny_backend: TorchPolicyBackend,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Python 3.10 keeps the optimizer failure and every policy/value rollback failure."""
+    checkpoint = tmp_path / "python-310-rollback.pt"
+    tiny_backend.save_checkpoint(checkpoint)
+    primary = NoNoteRuntimeError("optimizer state restore failed")
+    original_cause = LookupError("optimizer state was rejected")
+    primary.__cause__ = original_cause
+    original_policy_load = tiny_backend.policy_model.load_state_dict
+    original_value_load = tiny_backend.value_head.load_state_dict
+    original_optimizer_load = tiny_backend.optimizer.load_state_dict
+    policy_calls = 0
+    value_calls = 0
+    optimizer_calls = 0
+
+    def fail_policy_rollback(
+        state: Mapping[str, torch.Tensor],
+        strict: bool = True,
+    ) -> object:
+        nonlocal policy_calls
+        policy_calls += 1
+        if policy_calls == 2:
+            raise RuntimeError("policy rollback failed")
+        return original_policy_load(state, strict=strict)
+
+    def fail_value_rollback(
+        state: Mapping[str, torch.Tensor],
+        strict: bool = True,
+    ) -> object:
+        nonlocal value_calls
+        value_calls += 1
+        if value_calls == 2:
+            raise RuntimeError("value rollback failed")
+        return original_value_load(state, strict=strict)
+
+    def fail_optimizer_restore(state: Mapping[str, object]) -> None:
+        nonlocal optimizer_calls
+        optimizer_calls += 1
+        if optimizer_calls == 1:
+            raise primary
+        original_optimizer_load(state)
+
+    monkeypatch.setattr(tiny_backend.policy_model, "load_state_dict", fail_policy_rollback)
+    monkeypatch.setattr(tiny_backend.value_head, "load_state_dict", fail_value_rollback)
+    monkeypatch.setattr(tiny_backend.optimizer, "load_state_dict", fail_optimizer_restore)
+
+    with pytest.raises(NoNoteRuntimeError) as caught:
+        tiny_backend.load_checkpoint_bytes(checkpoint.read_bytes())
+
+    assert caught.value is primary
+    assert str(caught.value) == "optimizer state restore failed"
+    diagnostic = caught.value.__cause__
+    assert isinstance(diagnostic, RuntimeError)
+    assert "policy rollback failed" in str(diagnostic)
+    assert "value rollback failed" in str(diagnostic)
+    assert diagnostic.__cause__ is original_cause
+
+
+def test_full_weight_capabilities_have_explicit_evidence(
+    tiny_backend: TorchPolicyBackend,
+) -> None:
+    """Capability discovery explicitly distinguishes supported and absent features."""
+    report = tiny_backend.capabilities()
+
+    assert set(report.capabilities) == set(Capability)
+    assert all(evidence.evidence for evidence in report.capabilities.values())
+    for supported in (
+        Capability.SUPPORTS_GENERATION,
+        Capability.SUPPORTS_TOKEN_LOG_PROBS,
+        Capability.SUPPORTS_REFERENCE_LOG_PROBS,
+        Capability.SUPPORTS_BACKWARD,
+        Capability.SUPPORTS_OPTIMIZER_STEP,
+        Capability.SUPPORTS_VALUE_HEAD,
+        Capability.SUPPORTS_FULL_WEIGHT_TRAINING,
+    ):
+        assert report.state(supported) is CapabilityState.SUPPORTED
+    assert report.state(Capability.SUPPORTS_LORA_TRAINING) is CapabilityState.UNSUPPORTED
+    assert report.state(Capability.SUPPORTS_CUDA) is CapabilityState.UNSUPPORTED
+
+
+def test_capabilities_satisfy_exact_ppo_and_grpo_requirements(
+    tiny_backend: TorchPolicyBackend,
+) -> None:
+    """The backend substantiates every operation required by both portable objectives."""
+    ppo = PPOAlgorithm(TorchTensorOps(), PPOAlgorithmConfig())
+    grpo = GRPOAlgorithm(TorchTensorOps(), GRPOAlgorithmConfig(), group_size=2)
+
+    report = tiny_backend.capabilities()
+    report.require(ppo.required_capabilities())
+    report.require(grpo.required_capabilities())
+
+
+def test_direct_lora_mode_rejects_an_ordinary_trainable_model() -> None:
+    """A mode label alone cannot claim PEFT LoRA capability evidence."""
+    with pytest.raises(ValueError, match="PEFT LoRA"):
+        TorchPolicyBackend(
+            policy_model=TinyCausalLM(),
+            tokenizer=TinyTokenizer(),
+            training_mode="lora",
+        )
+
+
+@pytest.mark.parametrize(
+    "adapter_config",
+    [
+        SimpleNamespace(peft_type="lora"),
+        SimpleNamespace(peft_type=FakePeftType.LORA),
+        {"adapter_type": "LORA"},
+        "LORA",
+        FakePeftType.LORA,
+    ],
+)
+def test_direct_lora_mode_accepts_verified_adapter_only_trainables(
+    adapter_config: object,
+) -> None:
+    """A PEFT-marked model with adapter-only trainables substantiates LoRA capability."""
+    backend = TorchPolicyBackend(
+        policy_model=_fake_lora_model(adapter_config),
+        tokenizer=TinyTokenizer(),
+        training_mode="lora",
+    )
+
+    assert (
+        backend.capabilities().state(Capability.SUPPORTS_LORA_TRAINING) is CapabilityState.SUPPORTED
+    )
+    trainable = [
+        name
+        for name, parameter in backend.policy_model.named_parameters()
+        if parameter.requires_grad
+    ]
+    assert trainable == ["lora_adapter"]
+
+
+def _native_lora_backend(model: nn.Module) -> TorchPolicyBackend:
+    return TorchPolicyBackend(
+        policy_model=model,
+        tokenizer=TinyTokenizer(),
+        training_mode="lora",
+        model_identifier="tiny-model",
+        adapter_identifier="tiny-lora",
+    )
+
+
+def test_native_lora_v1_export_loads_exact_policy_state(tmp_path: Path) -> None:
+    source_model = _fake_lora_model()
+    target_model = deepcopy(source_model)
+    source = _native_lora_backend(source_model)
+    target = _native_lora_backend(target_model)
+    with torch.no_grad():
+        source.policy_model.lora_adapter.fill_(0.75)
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    candidate = source.export_adapter(
+        tmp_path / "bootstrap.pt",
+        model_id="tiny-model",
+        policy_version=PolicyVersion(1),
+        parent_policy_version=None,
+    )
+    published = publisher.publish(candidate)
+    manifest, payload = publisher.current_artifact()
+
+    loaded_checksum = target.load_adapter_bytes(payload, manifest=manifest)
+
+    assert manifest == published
+    assert loaded_checksum == source.policy_parameter_checksum()
+    assert target.policy_parameter_checksum() == source.policy_parameter_checksum()
+    assert torch.equal(
+        target.policy_model.lora_adapter,
+        source.policy_model.lora_adapter,
+    )
+    assert torch.equal(
+        target.reference_model.lora_adapter,
+        source.policy_model.lora_adapter,
+    )
+    assert target.reference_model.training is False
+    assert all(not parameter.requires_grad for parameter in target.reference_model.parameters())
+    exported = torch.load(BytesIO(payload), map_location="cpu", weights_only=True)
+    assert set(exported) == {
+        "adapter_identifier",
+        "base_model_sha256",
+        "format_id",
+        "model_identifier",
+        "policy_version",
+        "state_dict",
+    }
+
+
+def test_native_lora_preflight_is_nonmutating_and_load_rolls_back_both_models(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_model = _fake_lora_model()
+    source = _native_lora_backend(source_model)
+    target = _native_lora_backend(deepcopy(source_model))
+    with torch.no_grad():
+        source.policy_model.lora_adapter.fill_(0.75)
+        target.policy_model.lora_adapter.fill_(-0.25)
+        target.reference_model.lora_adapter.fill_(-0.5)
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    publisher.publish(
+        source.export_adapter(
+            tmp_path / "bootstrap.pt",
+            model_id="tiny-model",
+            policy_version=PolicyVersion(1),
+            parent_policy_version=None,
+        )
+    )
+    manifest, payload = publisher.current_artifact()
+    policy_before = target.policy_model.lora_adapter.detach().clone()
+    reference_before = target.reference_model.lora_adapter.detach().clone()
+
+    assert target.preflight_adapter_bytes(payload, manifest=manifest)
+    assert torch.equal(target.policy_model.lora_adapter, policy_before)
+    assert torch.equal(target.reference_model.lora_adapter, reference_before)
+
+    original_checksum = target._named_tensor_checksum
+    calls = 0
+
+    primary = RuntimeError("fault after policy/reference copies")
+
+    def fail_reference_checksum(prefix: str, state: Mapping[str, torch.Tensor]) -> str:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise primary
+        return original_checksum(prefix, state)
+
+    monkeypatch.setattr(target, "_named_tensor_checksum", fail_reference_checksum)
+    with pytest.raises(RuntimeError, match="fault after") as caught:
+        target.load_adapter_bytes(payload, manifest=manifest)
+
+    assert caught.value is primary
+
+    assert torch.equal(target.policy_model.lora_adapter, policy_before)
+    assert torch.equal(target.reference_model.lora_adapter, reference_before)
+    assert target.reference_model.training is False
+    assert all(not parameter.requires_grad for parameter in target.reference_model.parameters())
+
+
+@pytest.mark.parametrize(
+    "corruption",
+    [
+        "hash",
+        "unknown-field",
+        "wrong-format",
+        "wrong-source",
+        "wrong-model",
+        "wrong-policy",
+        "missing-state",
+        "full-model-state",
+        "wrong-shape",
+        "wrong-dtype",
+        "independent-base",
+    ],
+)
+def test_native_lora_load_rejects_untrusted_or_incompatible_payload_without_mutation(
+    tmp_path: Path,
+    corruption: str,
+) -> None:
+    source_model = _fake_lora_model()
+    target_model = deepcopy(source_model)
+    source = _native_lora_backend(source_model)
+    target = _native_lora_backend(target_model)
+    with torch.no_grad():
+        source.policy_model.lora_adapter.fill_(0.5)
+        target.policy_model.lora_adapter.fill_(-0.25)
+    candidate = source.export_adapter(
+        tmp_path / "bootstrap.pt",
+        model_id="tiny-model",
+        policy_version=PolicyVersion(1),
+        parent_policy_version=None,
+    )
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    manifest = publisher.publish(candidate)
+    _, original = publisher.current_artifact()
+    payload = torch.load(BytesIO(original), map_location="cpu", weights_only=True)
+    assert isinstance(payload, dict)
+    if corruption == "unknown-field":
+        payload["unexpected"] = "unsafe"
+    elif corruption == "wrong-format":
+        payload["format_id"] = "full-model-v1"
+    elif corruption == "wrong-source":
+        payload["adapter_identifier"] = "other-lora"
+    elif corruption == "wrong-model":
+        payload["model_identifier"] = "other-model"
+    elif corruption == "wrong-policy":
+        payload["policy_version"] = "2"
+    elif corruption == "missing-state":
+        payload["state_dict"] = {}
+    elif corruption == "full-model-state":
+        payload["state_dict"]["embedding.weight"] = source.policy_model.embedding.weight
+    elif corruption == "wrong-shape":
+        payload["state_dict"]["lora_adapter"] = torch.zeros(2)
+    elif corruption == "wrong-dtype":
+        payload["state_dict"]["lora_adapter"] = torch.zeros(1, dtype=torch.float64)
+    elif corruption == "independent-base":
+        payload["base_model_sha256"] = "b" * 64
+    changed = BytesIO()
+    torch.save(payload, changed)
+    changed_payload = changed.getvalue()
+    changed_manifest = replace(
+        manifest,
+        artifact_sha256=hashlib.sha256(changed_payload).hexdigest(),
+        artifact_size=len(changed_payload),
+    )
+    if corruption == "hash":
+        changed_payload = original + b"corrupt"
+        changed_manifest = manifest
+    policy_before = target.policy_model.lora_adapter.detach().clone()
+
+    with pytest.raises(ValueError, match="adapter|payload|hash|identity|state|tensor|base"):
+        target.load_adapter_bytes(changed_payload, manifest=changed_manifest)
+
+    assert torch.equal(target.policy_model.lora_adapter, policy_before)
+
+
+@pytest.mark.parametrize(
+    "peft_config",
+    [
+        {"default": SimpleNamespace(peft_type="IA3")},
+        {"default": SimpleNamespace()},
+        {"default": SimpleNamespace(peft_type="unknown")},
+        {
+            "lora": SimpleNamespace(peft_type=FakePeftType.LORA),
+            "other": SimpleNamespace(peft_type=FakePeftType.IA3),
+        },
+        {
+            "default": {
+                "peft_type": "LORA",
+                "adapter_type": "IA3",
+            }
+        },
+        {
+            "default": SimpleNamespace(
+                peft_type=FakePeftType.LORA,
+                adapter_type=FakePeftType.IA3,
+            )
+        },
+    ],
+)
+def test_direct_lora_mode_rejects_non_lora_or_ambiguous_peft_configs(
+    peft_config: dict[str, object],
+) -> None:
+    """LoRA-looking parameter names cannot override non-LoRA or missing config evidence."""
+    model = _fake_lora_model()
+    model.peft_config = peft_config
+
+    with pytest.raises(ValueError, match="PEFT LoRA.*config"):
+        TorchPolicyBackend(
+            policy_model=model,
+            tokenizer=TinyTokenizer(),
+            training_mode="lora",
+        )
+
+
+def test_factory_uses_injected_local_assets_and_runtime_config() -> None:
+    """The portable factory can run entirely from already-loaded model assets."""
+    config = RLRunConfig.from_mapping(
+        {
+            "runtime": {"backend": "pytorch", "device": "cpu"},
+            "policy": {"model_name": "configured-tiny", "max_new_tokens": 1},
+            "algorithm": {"learning_rate": 0.02},
+        }
+    )
+
+    backend = create_portable_backend(
+        config,
+        policy_model=TinyCausalLM(),
+        tokenizer=TinyTokenizer(),
+    )
+    trajectory = backend.generate((RolloutRequest(prompt="calm"),))[0]
+
+    assert trajectory.response_token_ids == (3,)
+    assert trajectory.model_identifier == "configured-tiny"
+
+
+def test_factory_loads_both_transformers_assets_local_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Removing either local-only flag must fail the public factory's offline contract."""
+    calls: list[tuple[str, str, dict[str, object]]] = []
+    fake_transformers = ModuleType("transformers")
+
+    class FakeTokenizerLoader:
+        @staticmethod
+        def from_pretrained(model_name: str, **kwargs: object) -> TinyTokenizer:
+            calls.append(("tokenizer", model_name, kwargs))
+            return TinyTokenizer()
+
+    class FakeModelLoader:
+        @staticmethod
+        def from_pretrained(model_name: str, **kwargs: object) -> TinyCausalLM:
+            calls.append(("model", model_name, kwargs))
+            return TinyCausalLM()
+
+    fake_transformers.AutoTokenizer = FakeTokenizerLoader
+    fake_transformers.AutoModelForCausalLM = FakeModelLoader
+    monkeypatch.setitem(sys.modules, "transformers", fake_transformers)
+
+    backend = create_portable_backend(RLRunConfig())
+
+    assert backend.model_identifier == "demo-model"
+    assert calls == [
+        ("tokenizer", "demo-model", {"local_files_only": True}),
+        ("model", "demo-model", {"local_files_only": True}),
+    ]
+
+
+@pytest.mark.parametrize("asset", ["tokenizer", "model"])
+@pytest.mark.parametrize("failure", [OSError("cache miss"), ValueError("bad local asset")])
+def test_factory_reports_actionable_local_cache_miss(
+    monkeypatch: pytest.MonkeyPatch,
+    asset: str,
+    failure: Exception,
+) -> None:
+    """A missing local model must name the model and state that downloads are disabled."""
+    fake_transformers = ModuleType("transformers")
+
+    class FailingTokenizerLoader:
+        @staticmethod
+        def from_pretrained(model_name: str, **kwargs: object) -> object:
+            del model_name, kwargs
+            if asset == "tokenizer":
+                raise failure
+            return TinyTokenizer()
+
+    class FailingModelLoader:
+        @staticmethod
+        def from_pretrained(model_name: str, **kwargs: object) -> object:
+            del model_name, kwargs
+            if asset == "model":
+                raise failure
+            return TinyCausalLM()
+
+    fake_transformers.AutoTokenizer = FailingTokenizerLoader
+    fake_transformers.AutoModelForCausalLM = FailingModelLoader
+    monkeypatch.setitem(sys.modules, "transformers", fake_transformers)
+
+    with pytest.raises(
+        RuntimeError,
+        match="demo-model.*not available locally.*downloads are disabled",
+    ):
+        create_portable_backend(RLRunConfig())
+
+
+def test_factory_reports_actionable_error_when_peft_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """LoRA selection names its optional dependency instead of silently using full weights."""
+    monkeypatch.setitem(sys.modules, "peft", None)
+
+    with pytest.raises(RuntimeError, match="PEFT.*peft"):
+        create_portable_backend(
+            RLRunConfig(),
+            policy_model=TinyCausalLM(),
+            tokenizer=TinyTokenizer(),
+            training_mode="lora",
+        )
+
+
+def test_factory_supports_lora_when_peft_is_available(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """An installed PEFT adapter yields LoRA-only trainability and capability evidence."""
+    fake_peft = ModuleType("peft")
+
+    class FakeLoraConfig:
+        def __init__(self, **values: object) -> None:
+            self.values = values
+            self.peft_type = FakePeftType.LORA
+
+    class FakeLoraTiny(TinyCausalLM):
+        def forward(
+            self,
+            input_ids: torch.Tensor,
+            *,
+            attention_mask: torch.Tensor | None = None,
+            output_hidden_states: bool = False,
+        ) -> SimpleNamespace:
+            outputs = super().forward(
+                input_ids,
+                attention_mask=attention_mask,
+                output_hidden_states=output_hidden_states,
+            )
+            logits = outputs.logits.clone()
+            logits[..., 0] += self.lora_adapter[0]
+            return SimpleNamespace(logits=logits, hidden_states=outputs.hidden_states)
+
+    peft_calls = 0
+
+    def fake_get_peft_model(model: nn.Module, config: FakeLoraConfig) -> nn.Module:
+        nonlocal peft_calls
+        peft_calls += 1
+        assert config.values["task_type"] == "CAUSAL_LM"
+        for parameter in model.parameters():
+            parameter.requires_grad_(False)
+        model.register_parameter(
+            "lora_adapter",
+            nn.Parameter(torch.tensor([float(peft_calls)])),
+        )
+        model.peft_config = {"default": config}
+        return model
+
+    fake_peft.LoraConfig = FakeLoraConfig
+    fake_peft.TaskType = SimpleNamespace(CAUSAL_LM="CAUSAL_LM")
+    fake_peft.get_peft_model = fake_get_peft_model
+    monkeypatch.setitem(sys.modules, "peft", fake_peft)
+
+    config = RLRunConfig.from_mapping(
+        {
+            "runtime": {"backend": "mojo-vulkan-llamacpp"},
+            "algorithm": {"name": "grpo"},
+            "checkpoint": {"save_steps": 1},
+            "policy": {"model_name": "local/learner-assets"},
+            "hybrid": {"model_id": "published-policy"},
+        }
+    )
+    backend = create_portable_backend(
+        config,
+        policy_model=FakeLoraTiny(),
+        tokenizer=TinyTokenizer(),
+        training_mode="lora",
+        lora_config={"r": 2, "target_modules": ["lm_head"]},
+    )
+
+    assert peft_calls == 1
+    assert backend.policy_model is not backend.reference_model
+    assert (
+        backend.capabilities().state(Capability.SUPPORTS_LORA_TRAINING) is CapabilityState.SUPPORTED
+    )
+    assert (
+        backend.capabilities().state(Capability.SUPPORTS_FULL_WEIGHT_TRAINING)
+        is CapabilityState.UNSUPPORTED
+    )
+    assert backend.model_identifier == "published-policy"
+    trainable = [
+        name
+        for name, parameter in backend.policy_model.named_parameters()
+        if parameter.requires_grad
+    ]
+    assert trainable == ["lora_adapter"]
+    reference_names = dict(backend.reference_model.named_parameters())
+    assert "lora_adapter" in reference_names
+    assert (
+        reference_names["lora_adapter"]
+        is not dict(backend.policy_model.named_parameters())["lora_adapter"]
+    )
+    policy_state = backend.policy_model.state_dict()
+    reference_state = backend.reference_model.state_dict()
+    assert policy_state.keys() == reference_state.keys()
+    assert all(torch.equal(policy_state[name], reference_state[name]) for name in policy_state)
+    input_ids = torch.tensor([[TinyTokenizer().encode("calm")[0]]])
+    policy_logits = backend.policy_model(input_ids).logits
+    reference_logits = backend.reference_model(input_ids).logits
+    assert torch.equal(policy_logits, reference_logits)
+    assert backend.reference_model.training is False
+    assert all(not parameter.requires_grad for parameter in backend.reference_model.parameters())
+    candidate = backend.export_adapter(
+        tmp_path / "factory-lora.pt",
+        model_id="published-policy",
+        policy_version=PolicyVersion(1),
+        parent_policy_version=None,
+    )
+    publisher = LocalAdapterPublisher(tmp_path / "factory-publication")
+    manifest = publisher.publish(candidate)
+    _, payload = publisher.current_artifact()
+    assert backend.preflight_adapter_bytes(payload, manifest=manifest)
+    assert backend.load_adapter_bytes(payload, manifest=manifest)
+
+
+def test_lora_load_catches_keyboard_interrupt_and_restores_both_models(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = _native_lora_backend(_fake_lora_model())
+    target = _native_lora_backend(deepcopy(source.policy_model))
+    with torch.no_grad():
+        source.policy_model.lora_adapter.fill_(0.75)
+        target.policy_model.lora_adapter.fill_(-0.25)
+        target.reference_model.lora_adapter.fill_(-0.5)
+    publisher = LocalAdapterPublisher(tmp_path / "interrupt-publication")
+    manifest = publisher.publish(
+        source.export_adapter(
+            tmp_path / "interrupt.pt",
+            model_id="tiny-model",
+            policy_version=PolicyVersion(1),
+            parent_policy_version=None,
+        )
+    )
+    _, payload = publisher.current_artifact()
+    policy_before = target.policy_model.lora_adapter.detach().clone()
+    reference_before = target.reference_model.lora_adapter.detach().clone()
+    primary = KeyboardInterrupt("stop")
+    original_checksum = target._named_tensor_checksum
+    calls = 0
+
+    def interrupt_checksum(prefix: str, state: Mapping[str, torch.Tensor]) -> str:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise primary
+        return original_checksum(prefix, state)
+
+    monkeypatch.setattr(target, "_named_tensor_checksum", interrupt_checksum)
+    with pytest.raises(KeyboardInterrupt) as caught:
+        target.load_adapter_bytes(payload, manifest=manifest)
+
+    assert caught.value is primary
+    assert torch.equal(target.policy_model.lora_adapter, policy_before)
+    assert torch.equal(target.reference_model.lora_adapter, reference_before)
+
+
+def test_lora_load_rolls_back_when_final_reference_freeze_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = _native_lora_backend(_fake_lora_model())
+    target = _native_lora_backend(deepcopy(source.policy_model))
+    with torch.no_grad():
+        source.policy_model.lora_adapter.fill_(0.75)
+        target.policy_model.lora_adapter.fill_(-0.25)
+        target.reference_model.lora_adapter.fill_(-0.5)
+    publisher = LocalAdapterPublisher(tmp_path / "final-freeze-publication")
+    manifest = publisher.publish(
+        source.export_adapter(
+            tmp_path / "final-freeze.pt",
+            model_id="tiny-model",
+            policy_version=PolicyVersion(1),
+            parent_policy_version=None,
+        )
+    )
+    _, payload = publisher.current_artifact()
+    policy_before = target.policy_model.lora_adapter.detach().clone()
+    reference_before = target.reference_model.lora_adapter.detach().clone()
+    primary = KeyboardInterrupt("final reference freeze failed")
+    original_requires_grad = target.reference_model.requires_grad_
+    calls = 0
+
+    def fail_once(requires_grad: bool = True) -> nn.Module:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise primary
+        return original_requires_grad(requires_grad)
+
+    monkeypatch.setattr(target.reference_model, "requires_grad_", fail_once)
+    with pytest.raises(KeyboardInterrupt) as caught:
+        target.load_adapter_bytes(payload, manifest=manifest)
+
+    assert caught.value is primary
+    assert calls == 2
+    assert torch.equal(target.policy_model.lora_adapter, policy_before)
+    assert torch.equal(target.reference_model.lora_adapter, reference_before)
+    assert target.reference_model.training is False
+    assert all(not parameter.requires_grad for parameter in target.reference_model.parameters())
+
+
+def test_lora_rollback_continues_after_one_copy_failure_and_preserves_primary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model = _fake_lora_model()
+    model.register_parameter("lora_second", nn.Parameter(torch.zeros(1)))
+    source = _native_lora_backend(model)
+    target = _native_lora_backend(deepcopy(model))
+    with torch.no_grad():
+        source.policy_model.lora_adapter.fill_(0.75)
+        source.policy_model.lora_second.fill_(0.5)
+        target.policy_model.lora_adapter.fill_(-0.25)
+        target.policy_model.lora_second.fill_(-0.125)
+        target.reference_model.lora_adapter.fill_(-0.5)
+        target.reference_model.lora_second.fill_(-0.375)
+    publisher = LocalAdapterPublisher(tmp_path / "rollback-failure-publication")
+    manifest = publisher.publish(
+        source.export_adapter(
+            tmp_path / "rollback-failure.pt",
+            model_id="tiny-model",
+            policy_version=PolicyVersion(1),
+            parent_policy_version=None,
+        )
+    )
+    _, payload = publisher.current_artifact()
+    snapshots = {
+        "policy_second": target.policy_model.lora_second.detach().clone(),
+        "reference_adapter": target.reference_model.lora_adapter.detach().clone(),
+        "reference_second": target.reference_model.lora_second.detach().clone(),
+    }
+    primary = NoNoteRuntimeError("primary post-copy failure")
+    original_cause = LookupError("adapter checksum was rejected")
+    primary.__cause__ = original_cause
+    checksum_calls = 0
+    original_checksum = target._named_tensor_checksum
+
+    def fail_checksum(prefix: str, state: Mapping[str, torch.Tensor]) -> str:
+        nonlocal checksum_calls
+        checksum_calls += 1
+        if checksum_calls == 2:
+            raise primary
+        return original_checksum(prefix, state)
+
+    copy_calls = 0
+    original_copy = torch.Tensor.copy_
+
+    def fail_first_rollback_copy(self: torch.Tensor, other: torch.Tensor) -> torch.Tensor:
+        nonlocal copy_calls
+        copy_calls += 1
+        if copy_calls == 5:
+            raise RuntimeError("rollback copy failed")
+        return original_copy(self, other)
+
+    monkeypatch.setattr(target, "_named_tensor_checksum", fail_checksum)
+    monkeypatch.setattr(torch.Tensor, "copy_", fail_first_rollback_copy)
+    with pytest.raises(RuntimeError, match="primary post-copy failure") as caught:
+        target.load_adapter_bytes(payload, manifest=manifest)
+
+    assert caught.value is primary
+    assert copy_calls == 8
+    assert torch.equal(target.policy_model.lora_second, snapshots["policy_second"])
+    assert torch.equal(target.reference_model.lora_adapter, snapshots["reference_adapter"])
+    assert torch.equal(target.reference_model.lora_second, snapshots["reference_second"])
+    _assert_rollback_diagnostic(primary, "rollback copy failed")
+    assert isinstance(primary.__cause__, RuntimeError)
+    assert primary.__cause__.__cause__ is original_cause

@@ -1,0 +1,54 @@
+runtime:
+  backend: mojo-vulkan-llamacpp
+  device: cpu
+  precision: fp32
+policy:
+  model_name: /absolute/path/to/local-transformers-model
+  max_new_tokens: 32
+  do_sample: true
+  temperature: 0.7
+  top_p: 0.9
+algorithm:
+  name: grpo
+  learning_rate: 1.0e-5
+  batch_size: 1
+  gradient_accumulation_steps: 1
+  max_steps: 1
+  group_size: 4
+  kl_coef: 0.05
+  group_normalization_epsilon: 1.0e-8
+  zero_variance_policy: skip
+  max_grad_norm: 1.0
+reward:
+  weights:
+    alpha: 0.3
+    beta: 0.3
+    gamma: 0.2
+    delta: 0.2
+  overlay_weight: 0.25
+  integrity_overlay_enabled: true
+dataset:
+  train_path: data/synthetic/reward_integrity/rl_pairs_v1.jsonl
+  format: jsonl
+checkpoint:
+  output_dir: runs/hybrid_vulkan/checkpoints
+  save_steps: 1
+logging:
+  log_dir: runs/hybrid_vulkan/logs
+  level: INFO
+hybrid:
+  model_id: LOCAL_TRANSFORMERS_MODEL_ID
+  expected_actor_backend: MOJO_ACTOR_BACKEND_ID
+  adapter_store: runs/hybrid_vulkan/adapters
+  training_mode: lora
+  staleness_policy: reject
+  max_policy_lag: 0
+  downweight_decay: null
+  lora:
+    r: 8
+    lora_alpha: 16
+    lora_dropout: 0.0
+    target_modules:
+      - q_proj
+      - v_proj
+seed: 42
