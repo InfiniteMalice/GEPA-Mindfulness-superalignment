@@ -891,7 +891,7 @@ def test_all_active_cache_saturation_retains_new_state_then_prunes_inactive_entr
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Dropping a new state when every cached path is active forces a history reparse."""
+    """Retain a new state while all cached paths are active, then prune after release."""
     monkeypatch.setattr(JSONLLoggingSink, "_VALIDATED_STREAM_LIMIT", 3)
     with _isolated_logging_registries():
         for index in range(3):
