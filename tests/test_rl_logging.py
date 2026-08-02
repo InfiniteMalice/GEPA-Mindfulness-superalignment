@@ -2,16 +2,23 @@
 
 from __future__ import annotations
 
+import gc
+import hashlib
 import json
 import multiprocessing
 import os
+import time
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
+from typing import Protocol
 
 import pytest
 
 from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
+from gepa_mindfulness.training.policy_versions import PolicyVersion
 from gepa_mindfulness.training.run_logging import (
     LOG_SCHEMA_VERSION,
     JSONLLoggingSink,
@@ -21,6 +28,24 @@ from gepa_mindfulness.training.run_logging import (
     TrajectoryRecord,
 )
 from gepa_mindfulness.training.trajectory import Trajectory
+
+
+class _ManagedProcess(Protocol):
+    exitcode: int | None
+
+    def is_alive(self) -> bool: ...
+
+    def join(self, timeout: float | None = None) -> None: ...
+
+    def kill(self) -> None: ...
+
+    def terminate(self) -> None: ...
+
+
+class _ManagedQueue(Protocol):
+    def close(self) -> None: ...
+
+    def join_thread(self) -> None: ...
 
 
 def _manifest() -> RunManifest:
@@ -156,9 +181,9 @@ class _HistoryCountingSink(JSONLLoggingSink):
     @classmethod
     def _existing_records(cls, stream, path, manifest):
         cls.existing_records_calls += 1
-        records = super()._existing_records(stream, path, manifest)
+        records, publication_tail = super()._existing_records(stream, path, manifest)
         cls.historical_rows_validated += len(records)
-        return records
+        return records, publication_tail
 
 
 def _concurrent_duplicate_writer(directory: str, start: object) -> None:
@@ -186,6 +211,151 @@ def _racing_manifest_writer(
         queue.put((run_id, "started" if started else "same"))
     except Exception as exc:  # pragma: no cover - asserted through process result
         queue.put((run_id, f"error:{type(exc).__name__}:{exc}"))
+
+
+def _sleeping_child(started: object) -> None:
+    started.set()  # type: ignore[attr-defined]
+    while True:
+        time.sleep(1)
+
+
+class _NoNoteRuntimeError(RuntimeError):
+    add_note = None
+
+
+class _FailingCleanupQueue:
+    def close(self) -> None:
+        raise OSError("queue close failed")
+
+    def join_thread(self) -> None:
+        raise RuntimeError("queue join_thread failed")
+
+
+@contextmanager
+def _multiprocess_cleanup(
+    processes: Sequence[_ManagedProcess],
+    *,
+    queues: Sequence[_ManagedQueue] = (),
+    join_timeout: float = 1.0,
+) -> Iterator[None]:
+    primary_error: BaseException | None = None
+    try:
+        yield
+    except BaseException as error:
+        primary_error = error
+        raise
+    finally:
+        cleanup_failures: list[str] = []
+
+        def attempt(label: str, callback: Callable[[], None]) -> None:
+            try:
+                callback()
+            except BaseException as error:
+                cleanup_failures.append(f"{label}: {type(error).__name__}: {error}")
+
+        def is_alive(index: int, process: _ManagedProcess) -> bool:
+            try:
+                return process.is_alive()
+            except BaseException as error:
+                cleanup_failures.append(
+                    f"process {index} liveness: {type(error).__name__}: {error}"
+                )
+                return False
+
+        for index, process in enumerate(processes):
+            attempt(
+                f"process {index} initial join",
+                lambda process=process: process.join(join_timeout),
+            )
+            if is_alive(index, process):
+                attempt(f"process {index} terminate", process.terminate)
+                attempt(
+                    f"process {index} post-terminate join",
+                    lambda process=process: process.join(join_timeout),
+                )
+            if is_alive(index, process):
+                attempt(f"process {index} kill", process.kill)
+                attempt(
+                    f"process {index} final join",
+                    lambda process=process: process.join(join_timeout),
+                )
+            if is_alive(index, process):
+                cleanup_failures.append(f"process {index} remained alive after kill")
+
+        for index, queue in enumerate(queues):
+            attempt(f"queue {index} close", queue.close)
+            attempt(f"queue {index} join_thread", queue.join_thread)
+
+        if cleanup_failures:
+            diagnostic = "multiprocess cleanup failures: " + "; ".join(cleanup_failures)
+            if primary_error is None:
+                raise RuntimeError(diagnostic)
+            add_note = getattr(primary_error, "add_note", None)
+            if callable(add_note):
+                add_note(diagnostic)
+            else:
+                cleanup_error = RuntimeError(diagnostic)
+                cleanup_error.__cause__ = primary_error.__cause__
+                primary_error.__cause__ = cleanup_error
+
+
+def test_multiprocess_cleanup_preserves_body_error_and_reaps_children_and_queue_threads() -> None:
+    context = multiprocessing.get_context("spawn")
+    started = context.Event()
+    process = context.Process(target=_sleeping_child, args=(started,))
+    queue = context.Queue()
+    queue.put("start feeder thread")
+    process.start()
+
+    with pytest.raises(RuntimeError, match="sentinel test-body failure"):
+        with _multiprocess_cleanup((process,), queues=(queue,), join_timeout=0.05):
+            assert started.wait(5)
+            raise RuntimeError("sentinel test-body failure")
+
+    assert not process.is_alive()
+    assert process.exitcode is not None
+    with pytest.raises(ValueError, match="closed"):
+        queue.put("must be closed")
+    feeder = queue._thread  # type: ignore[attr-defined]
+    assert feeder is None or not feeder.is_alive()
+
+
+def test_multiprocess_cleanup_chains_every_failure_when_primary_cannot_accept_notes() -> None:
+    context = multiprocessing.get_context("spawn")
+    started = context.Event()
+    running = context.Process(target=_sleeping_child, args=(started,))
+    unstarted = context.Process(target=_sleeping_child, args=(context.Event(),))
+    queue = _FailingCleanupQueue()
+    primary = _NoNoteRuntimeError("primary test-body failure")
+    running.start()
+
+    with pytest.raises(_NoNoteRuntimeError) as caught:
+        with _multiprocess_cleanup(
+            (running, unstarted),
+            queues=(queue,),
+            join_timeout=0.05,
+        ):
+            assert started.wait(5)
+            raise primary
+
+    assert caught.value is primary
+    assert str(caught.value) == "primary test-body failure"
+    diagnostic = caught.value.__cause__
+    assert isinstance(diagnostic, RuntimeError)
+    assert "process 1 initial join: AssertionError" in str(diagnostic)
+    assert "queue 0 close: OSError: queue close failed" in str(diagnostic)
+    assert "queue 0 join_thread: RuntimeError: queue join_thread failed" in str(diagnostic)
+    assert not running.is_alive()
+    assert unstarted.exitcode is None
+
+
+def test_multiprocess_cleanup_raises_diagnostic_without_primary_error() -> None:
+    context = multiprocessing.get_context("spawn")
+    unstarted = context.Process(target=_sleeping_child, args=(context.Event(),))
+
+    with pytest.raises(RuntimeError, match="process 0 initial join: AssertionError"):
+        with _multiprocess_cleanup((unstarted,), join_timeout=0.01):
+            pass
 
 
 def test_rank_zero_start_run_writes_exact_manifest_and_empty_jsonl_files(tmp_path: Path) -> None:
@@ -335,13 +505,14 @@ def test_parallel_nonzero_ranks_never_append_to_canonical_stream(tmp_path: Path)
         context.Process(target=_concurrent_duplicate_writer, args=(str(tmp_path), start))
         for _ in range(8)
     ]
-    for process in processes:
-        process.start()
-    start.set()
-    for process in processes:
-        process.join(timeout=30)
+    with _multiprocess_cleanup(processes):
+        for process in processes:
+            process.start()
+        start.set()
+        for process in processes:
+            process.join(timeout=30)
 
-    assert all(process.exitcode == 0 for process in processes)
+        assert all(process.exitcode == 0 for process in processes)
     records = _jsonl(tmp_path / "metrics.jsonl")
     assert records == []
 
@@ -443,6 +614,40 @@ def test_jsonl_appends_complete_newline_delimited_records_and_deduplicates(tmp_p
         "metric-1",
         "metric-2",
     ]
+
+
+def test_cached_trajectory_uses_canonical_digest_without_retaining_large_payload(
+    tmp_path: Path,
+) -> None:
+    sink = JSONLLoggingSink(tmp_path, rank=0)
+    sink.start_run(_manifest())
+    payload = _trajectory_record().to_dict()
+    payload["record_id"] = "large-trajectory"
+    trajectory = payload["trajectory"]
+    assert isinstance(trajectory, dict)
+    sentinel = "large-sensitive-payload-" + "x" * 500_000
+    trajectory["response"] = sentinel
+
+    assert sink.log_trajectory(payload) is True
+    assert sink.log_trajectory(payload) is False
+    conflicting = deepcopy(payload)
+    conflicting_trajectory = conflicting["trajectory"]
+    assert isinstance(conflicting_trajectory, dict)
+    conflicting_trajectory["response"] = "different response"
+    with pytest.raises(ValueError, match="record_id.*different payload"):
+        sink.log_trajectory(conflicting)
+
+    path = (tmp_path / "trajectories.jsonl").resolve()
+    cached_records = sink._validated_streams[path].records
+    canonical = json.dumps(
+        payload,
+        allow_nan=False,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    assert cached_records["large-trajectory"] == hashlib.sha256(canonical).hexdigest()
+    assert sentinel not in repr(sink._validated_streams[path])
 
 
 def test_many_same_process_appends_do_not_revalidate_growing_history(tmp_path: Path) -> None:
@@ -590,6 +795,106 @@ def test_external_publication_tail_is_used_for_next_transition(tmp_path: Path) -
     )
 
 
+def test_cached_publication_tail_retains_only_immutable_transition_fields(
+    tmp_path: Path,
+) -> None:
+    sink = JSONLLoggingSink(tmp_path, rank=0)
+    sink.start_run(_hybrid_manifest())
+    payload = _publication(
+        record_id="publication-large-payload",
+        parent="1",
+        version="2",
+        global_step=1,
+        checkpoint_id="checkpoint-00000001",
+    ).to_dict()
+    sentinel = "large-publication-payload-" + "x" * 500_000
+    payload["timestamp"] = sentinel
+
+    assert sink.log_publication(payload) is True
+
+    path = (tmp_path / "publications.jsonl").resolve()
+    state = sink._validated_streams[path]
+    assert state.publication_tail == (PolicyVersion.from_json("2"), 1)
+    assert sentinel not in repr(state)
+
+
+def test_validated_stream_registry_never_exceeds_configured_limit(tmp_path: Path) -> None:
+    configured_limit = getattr(JSONLLoggingSink, "_VALIDATED_STREAM_LIMIT", 64)
+    with JSONLLoggingSink._locks_guard:
+        JSONLLoggingSink._validated_streams.clear()
+
+    for index in range(configured_limit + 5):
+        directory = tmp_path / f"run-{index}"
+        sink = JSONLLoggingSink(directory, rank=0)
+        sink.start_run(_manifest())
+        assert sink.log_metrics(_metric(record_id=f"metric-{index}")) is True
+
+    with JSONLLoggingSink._locks_guard:
+        assert len(JSONLLoggingSink._validated_streams) <= configured_limit
+
+
+def test_validated_stream_lru_refreshes_hits_and_skips_active_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(JSONLLoggingSink, "_VALIDATED_STREAM_LIMIT", 3)
+    with JSONLLoggingSink._locks_guard:
+        JSONLLoggingSink._validated_streams.clear()
+
+    sinks: list[JSONLLoggingSink] = []
+    paths: list[Path] = []
+    for index in range(3):
+        sink = JSONLLoggingSink(tmp_path / f"lru-{index}", rank=0)
+        sink.start_run(_manifest())
+        assert sink.log_metrics(_metric(record_id=f"lru-metric-{index}")) is True
+        sinks.append(sink)
+        paths.append((sink.directory / "metrics.jsonl").resolve())
+
+    first_records = JSONLLoggingSink._validated_streams[paths[0]].records
+    assert sinks[0].log_metrics(_metric(record_id="lru-metric-0")) is False
+    newest = JSONLLoggingSink(tmp_path / "lru-3", rank=0)
+    newest.start_run(_manifest())
+    assert newest.log_metrics(_metric(record_id="lru-metric-3")) is True
+    with JSONLLoggingSink._locks_guard:
+        assert paths[0] in JSONLLoggingSink._validated_streams
+        assert paths[1] not in JSONLLoggingSink._validated_streams
+        assert JSONLLoggingSink._validated_streams[paths[0]].records is first_records
+
+    with JSONLLoggingSink._locked_path(paths[2]):
+        fourth = JSONLLoggingSink(tmp_path / "lru-4", rank=0)
+        fourth.start_run(_manifest())
+        assert fourth.log_metrics(_metric(record_id="lru-metric-4")) is True
+        with JSONLLoggingSink._locks_guard:
+            assert paths[2] in JSONLLoggingSink._validated_streams
+    fifth = JSONLLoggingSink(tmp_path / "lru-5", rank=0)
+    fifth.start_run(_manifest())
+    assert fifth.log_metrics(_metric(record_id="lru-metric-5")) is True
+    with JSONLLoggingSink._locks_guard:
+        assert paths[2] not in JSONLLoggingSink._validated_streams
+
+
+def test_path_lock_registry_reuses_active_lock_and_releases_inactive_paths(
+    tmp_path: Path,
+) -> None:
+    with JSONLLoggingSink._locks_guard:
+        JSONLLoggingSink._path_locks.clear()
+    shared_path = tmp_path / "shared.jsonl"
+    first_lock = JSONLLoggingSink._path_lock(shared_path)
+    with first_lock:
+        second_lock = JSONLLoggingSink._path_lock(shared_path)
+        assert second_lock is first_lock
+    del second_lock
+    del first_lock
+
+    for index in range(200):
+        lock = JSONLLoggingSink._path_lock(tmp_path / f"inactive-{index}.jsonl")
+        del lock
+    gc.collect()
+
+    with JSONLLoggingSink._locks_guard:
+        assert len(JSONLLoggingSink._path_locks) == 0
+
+
 def test_in_place_mutation_invalidates_cached_history(tmp_path: Path) -> None:
     sink = JSONLLoggingSink(tmp_path, rank=0)
     sink.start_run(_manifest())
@@ -670,15 +975,19 @@ def test_multiprocess_start_run_publishes_exactly_one_conflicting_manifest(
         )
         for run_id in ("run-a", "run-b")
     ]
-    for process in processes:
-        process.start()
-    start.set()
-    for process in processes:
-        process.join(timeout=30)
+    with _multiprocess_cleanup(processes, queues=(results,)):
+        for process in processes:
+            process.start()
+        start.set()
+        for process in processes:
+            process.join(timeout=30)
 
-    assert all(process.exitcode == 0 for process in processes)
-    outcomes = [results.get(timeout=5) for _ in processes]
-    assert sorted(outcome.split(":", 1)[0] for _, outcome in outcomes) == ["error", "started"]
+        assert all(process.exitcode == 0 for process in processes)
+        outcomes = [results.get(timeout=5) for _ in processes]
+        assert sorted(outcome.split(":", 1)[0] for _, outcome in outcomes) == [
+            "error",
+            "started",
+        ]
     published = json.loads((tmp_path / "run_manifest.json").read_text(encoding="utf-8"))
     winner = next(run_id for run_id, outcome in outcomes if outcome == "started")
     assert published["run_id"] == winner

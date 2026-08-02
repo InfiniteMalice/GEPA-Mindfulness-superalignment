@@ -87,16 +87,39 @@ def test_successful_publication_is_versioned_hash_verified_and_atomic(tmp_path: 
     assert not any(path.name.startswith(".adapter-stage-") for path in publisher.root.iterdir())
 
 
-def test_current_artifact_returns_the_exact_verified_manifest_and_bytes(tmp_path: Path) -> None:
+def test_current_artifact_reads_artifact_bytes_once_and_returns_verified_payload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     publisher = LocalAdapterPublisher(tmp_path / "published")
     manifest = publisher.publish(_candidate(tmp_path, 1, parent=None))
+    real_open = publication_module._open_regular
+    artifact_reads = 0
+
+    def counting_open(path: Path, field_name: str) -> object:
+        nonlocal artifact_reads
+        if field_name == "artifact_path":
+            artifact_reads += 1
+        return real_open(path, field_name)
+
+    monkeypatch.setattr(publication_module, "_open_regular", counting_open)
 
     current, payload = publisher.current_artifact()
 
+    assert artifact_reads == 1
     assert current == manifest
     assert payload == b"adapter-1"
     assert hashlib.sha256(payload).hexdigest() == current.artifact_sha256
     assert len(payload) == current.artifact_size
+
+
+def test_current_artifact_rejects_tampered_artifact_bytes(tmp_path: Path) -> None:
+    publisher = LocalAdapterPublisher(tmp_path / "published")
+    manifest = publisher.publish(_candidate(tmp_path, 1, parent=None))
+    (publisher.root / manifest.artifact_path).write_bytes(b"tampered")
+
+    with pytest.raises(ArtifactHashError, match="published"):
+        publisher.current_artifact()
 
 
 def test_checksum_mismatch_preserves_previous_readable_manifest(tmp_path: Path) -> None:
@@ -182,6 +205,151 @@ def test_interrupted_stage_copy_cleans_exact_stage_and_preserves_current(
 
     assert publisher.current() == current
     assert not any(path.name.startswith(".adapter-stage-") for path in publisher.root.iterdir())
+
+
+def test_copy_failure_does_not_close_reused_descriptor_after_fdopen_owns_it(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "source.bin"
+    source.write_bytes(b"adapter")
+    destination = tmp_path / "destination.bin"
+    guard = tmp_path / "descriptor-guard.bin"
+    guard.write_bytes(b"guard")
+    real_fdopen = publication_module.os.fdopen
+    destination_descriptor: int | None = None
+    guard_descriptor: int | None = None
+
+    class FailingOutput:
+        def __init__(self, stream: object) -> None:
+            self.stream = stream
+
+        def __enter__(self) -> FailingOutput:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            nonlocal guard_descriptor
+            self.stream.close()  # type: ignore[attr-defined]
+            flags = os.O_RDONLY | getattr(os, "O_BINARY", 0)
+            guard_descriptor = os.open(guard, flags)
+
+        def write(self, payload: bytes) -> None:
+            del payload
+            raise OSError("simulated destination write failure")
+
+    def reusing_fdopen(
+        descriptor: int,
+        mode: str,
+        *,
+        closefd: bool = True,
+    ) -> object:
+        nonlocal destination_descriptor
+        if mode != "wb":
+            return real_fdopen(descriptor, mode, closefd=closefd)
+        destination_descriptor = descriptor
+        return FailingOutput(real_fdopen(descriptor, mode, closefd=closefd))
+
+    monkeypatch.setattr(publication_module.os, "fdopen", reusing_fdopen)
+
+    with pytest.raises(OSError, match="destination write failure"):
+        LocalAdapterPublisher._copy_artifact(source, destination)
+
+    assert guard_descriptor == destination_descriptor
+    assert guard_descriptor is not None
+    try:
+        os.fstat(guard_descriptor)
+    except OSError:
+        guard_is_open = False
+    else:
+        guard_is_open = True
+        os.close(guard_descriptor)
+    assert guard_is_open
+
+
+def test_copy_closes_source_stream_when_destination_open_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "source.bin"
+    source.write_bytes(b"adapter")
+    destination = tmp_path / "destination.bin"
+    real_open_regular = publication_module._open_regular
+    real_os_open = publication_module.os.open
+    source_stream: object | None = None
+
+    def tracking_open(path: Path, field_name: str) -> tuple[object, object]:
+        nonlocal source_stream
+        info, stream = real_open_regular(path, field_name)
+        source_stream = stream
+        return info, stream
+
+    def failing_destination_open(
+        path: str | bytes | os.PathLike[str],
+        flags: int,
+        mode: int = 0o777,
+    ) -> int:
+        if Path(path) == destination:
+            raise OSError("simulated destination open failure")
+        return real_os_open(path, flags, mode)
+
+    monkeypatch.setattr(publication_module, "_open_regular", tracking_open)
+    monkeypatch.setattr(publication_module.os, "open", failing_destination_open)
+
+    with pytest.raises(OSError, match="destination open failure"):
+        LocalAdapterPublisher._copy_artifact(source, destination)
+
+    assert source_stream is not None
+    assert source_stream.closed  # type: ignore[attr-defined]
+    assert not destination.exists()
+
+
+def test_copy_closes_destination_descriptor_when_fdopen_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "source.bin"
+    source.write_bytes(b"adapter")
+    destination = tmp_path / "destination.bin"
+    real_fdopen = publication_module.os.fdopen
+    real_open_regular = publication_module._open_regular
+    destination_descriptor: int | None = None
+    source_stream: object | None = None
+
+    def tracking_open(path: Path, field_name: str) -> tuple[object, object]:
+        nonlocal source_stream
+        info, stream = real_open_regular(path, field_name)
+        source_stream = stream
+        return info, stream
+
+    def failing_fdopen(
+        descriptor: int,
+        mode: str,
+        *,
+        closefd: bool = True,
+    ) -> object:
+        nonlocal destination_descriptor
+        if mode != "wb":
+            return real_fdopen(descriptor, mode, closefd=closefd)
+        destination_descriptor = descriptor
+        raise OSError("simulated fdopen failure")
+
+    monkeypatch.setattr(publication_module, "_open_regular", tracking_open)
+    monkeypatch.setattr(publication_module.os, "fdopen", failing_fdopen)
+
+    with pytest.raises(OSError, match="fdopen failure"):
+        LocalAdapterPublisher._copy_artifact(source, destination)
+
+    assert destination_descriptor is not None
+    try:
+        os.fstat(destination_descriptor)
+    except OSError:
+        destination_is_closed = True
+    else:
+        destination_is_closed = False
+        os.close(destination_descriptor)
+    assert destination_is_closed
+    assert source_stream is not None
+    assert source_stream.closed  # type: ignore[attr-defined]
 
 
 def test_interrupted_current_replace_preserves_previous_publication(
@@ -387,7 +555,7 @@ def test_internal_artifact_symlink_and_version_directory_symlink_fail_closed(
     (version / "manifest.json").unlink()
     version.rmdir()
     version.symlink_to(tmp_path, target_is_directory=True)
-    with pytest.raises(ValueError, match="symlink|unsafe|canonical"):
+    with pytest.raises(ValueError, match="real local directory"):
         publisher.current()
 
 

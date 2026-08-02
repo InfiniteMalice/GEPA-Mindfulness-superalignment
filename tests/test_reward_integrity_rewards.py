@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
 from math import isclose
 
@@ -257,6 +258,15 @@ def test_weighted_aggregate_uses_every_component() -> None:
     assert isclose(result.aggregate, 0.3)
     assert result.objective_fidelity == 1.0
     assert result.feedback_integrity == 0.0
+
+
+def test_integrity_weights_reject_non_finite_total_mass() -> None:
+    """Finite component weights must not be allowed to overflow their aggregate mass."""
+    with pytest.raises(ValueError, match="total mass must be finite"):
+        RewardIntegrityWeights(
+            objective_fidelity=sys.float_info.max,
+            feedback_integrity=sys.float_info.max,
+        ).validate()
 
 
 def test_pipeline_is_disabled_by_default() -> None:

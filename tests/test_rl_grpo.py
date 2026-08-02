@@ -49,11 +49,86 @@ class _TorchOps:
 OPS = _TorchOps()
 
 
+class _TensorWithoutShape:
+    """Tensor-like test value missing the shape contract required by algorithms."""
+
+
+class _TensorWithRaisingShapeProperty:
+    """Tensor-like test value whose backend fails while resolving its shape."""
+
+    @property
+    def shape(self) -> object:
+        raise RuntimeError("shape property failed")
+
+
+class _RaisingShapeIterator:
+    def __iter__(self) -> object:
+        raise RuntimeError("shape iteration failed")
+
+
+class _TensorWithRaisingShapeIterator:
+    """Tensor-like test value whose backend fails while iterating its shape."""
+
+    shape = _RaisingShapeIterator()
+
+
 def test_group_advantages_use_population_standard_deviation() -> None:
     advantages = compute_group_advantages([1.0, 2.0, 3.0])
 
     expected_edge = math.sqrt(1.5)
     assert advantages == pytest.approx([-expected_edge, 0.0, expected_edge])
+
+
+def test_algorithm_batch_rejects_tensor_like_inputs_without_shapes() -> None:
+    """Missing shape metadata must not disable broadcast-safety validation."""
+    with pytest.raises(ValueError, match="old_log_probs.*valid shape"):
+        AlgorithmBatch(
+            old_log_probs=_TensorWithoutShape(),
+            advantages=_TensorWithoutShape(),
+            mask=_TensorWithoutShape(),
+        )
+
+
+def test_algorithm_batch_rejects_mismatching_shapes_with_field_name() -> None:
+    """A shape mismatch must identify the input that cannot align with the reference."""
+    with pytest.raises(ValueError, match="advantages.*matching shape"):
+        AlgorithmBatch(
+            old_log_probs=torch.zeros(2),
+            advantages=torch.zeros(3),
+            mask=torch.ones(2, dtype=torch.bool),
+        )
+
+
+def test_algorithm_batch_labels_shape_property_errors() -> None:
+    """Backend shape-property failures must identify the invalid batch field."""
+    with pytest.raises(ValueError, match="old_log_probs.*valid shape") as exc_info:
+        AlgorithmBatch(
+            old_log_probs=_TensorWithRaisingShapeProperty(),
+            advantages=torch.zeros(2),
+            mask=torch.ones(2, dtype=torch.bool),
+        )
+
+    assert isinstance(exc_info.value.__cause__, RuntimeError)
+    assert str(exc_info.value.__cause__) == "shape property failed"
+
+
+def test_grpo_labels_evaluation_shape_iterator_errors() -> None:
+    """Backend shape-iteration failures must identify the invalid evaluation field."""
+    batch = AlgorithmBatch(
+        old_log_probs=torch.zeros(2),
+        advantages=torch.ones(2),
+        mask=torch.ones(2, dtype=torch.bool),
+    )
+    evaluation = PolicyEvaluation(
+        log_probs=_TensorWithRaisingShapeIterator(),
+        reference_log_probs=torch.zeros(2),
+    )
+
+    with pytest.raises(ValueError, match="log_probs.*valid shape") as exc_info:
+        compute_grpo_loss(OPS, batch, evaluation, GRPOAlgorithmConfig())
+
+    assert isinstance(exc_info.value.__cause__, RuntimeError)
+    assert str(exc_info.value.__cause__) == "shape iteration failed"
 
 
 def test_identical_group_rewards_produce_zero_advantages() -> None:

@@ -1,10 +1,12 @@
 """Contracts for the authored reward-integrity curriculum source."""
 
 # Standard library
+import copy
 import json
 from pathlib import Path
 
 # Local
+from gepa_mindfulness.synthetic_dataset_validation import _validate_value
 from scripts.synthetic_dataset_tool import _validate_jsonl
 
 DATASET_PATH = (
@@ -20,6 +22,17 @@ GOLD_PATH = (
     / "synthetic"
     / "gold"
     / "superalignment_gold_v1.jsonl"
+)
+SCHEMA_PATHS = (
+    Path(__file__).resolve().parents[1]
+    / "data"
+    / "synthetic"
+    / "schema"
+    / "synthetic_case.schema.json",
+    Path(__file__).resolve().parents[1]
+    / "gepa_mindfulness"
+    / "data"
+    / "synthetic_case.schema.json",
 )
 CENTRAL_DIAGNOSTIC = (
     "If the reward channel disappeared and reality alone judged the result, would this still "
@@ -105,6 +118,33 @@ def test_curriculum_cases_validate_and_cover_the_eight_exact_families() -> None:
     assert errors == []
     assert {record["id"] for record in records} == EXPECTED_IDS
     assert {record["case_metadata"]["scenario_family"] for record in records} == EXPECTED_FAMILIES
+
+
+def test_schema_conditionally_requires_reward_integrity_for_prefixed_cases() -> None:
+    """Removing the ID condition would reject legacy rows or admit incomplete new rows."""
+    prefixed = copy.deepcopy(_records()[0])
+    prefixed.pop("reward_integrity")
+    legacy = copy.deepcopy(prefixed)
+    legacy["id"] = "legacy-synthetic-case"
+
+    for schema_path in SCHEMA_PATHS:
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        prefixed_errors: list[str] = []
+        legacy_errors: list[str] = []
+        _validate_value(prefixed, schema, schema, "record", prefixed_errors)
+        _validate_value(legacy, schema, schema, "record", legacy_errors)
+
+        assert "record.reward_integrity is required" in prefixed_errors, schema_path
+        assert legacy_errors == [], schema_path
+
+
+def test_curriculum_test_integrity_metadata_matches_present_flag() -> None:
+    """Metadata drift would misclassify whether a curriculum row exercises test integrity."""
+    for record in _records():
+        assert (
+            record["case_metadata"]["contains_test_integrity"]
+            is record["test_integrity"]["present"]
+        ), record["id"]
 
 
 def test_cases_have_complete_observable_reward_integrity_contracts() -> None:

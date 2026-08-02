@@ -5,10 +5,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import random
 import subprocess
 import sys
 import warnings
+from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -25,6 +27,7 @@ from gepa_mindfulness.training.capability import (
     CapabilityEvidence,
     CapabilityState,
 )
+from gepa_mindfulness.training.contracts import TrainablePolicyBackend
 from gepa_mindfulness.training.engine import (
     RewardAssessment,
     RLTrainingEngine,
@@ -163,6 +166,19 @@ class _Backend:
         self.events.append("close")
 
 
+def test_trainable_policy_protocol_keeps_gradient_sync_optional(tmp_path: Path) -> None:
+    """Adding gradient_sync to the base protocol rejects compatible external backends."""
+
+    class ExternalBackend(_Backend):
+        def save_checkpoint(self, destination: Path) -> object:
+            return destination
+
+        def load_checkpoint(self, source: Path) -> object:
+            return source
+
+    assert isinstance(ExternalBackend([]), TrainablePolicyBackend)
+
+
 class _Algorithm:
     def __init__(self, events: list[str]) -> None:
         self.events = events
@@ -172,7 +188,7 @@ class _Algorithm:
 
     def compute_loss(self, batch: TrajectoryBatch, evaluation: PolicyEvaluation) -> object:
         self.events.append("loss")
-        return SimpleNamespace(total_loss="loss")
+        return SimpleNamespace(total_loss=1.0)
 
 
 class _Dataset:
@@ -1047,6 +1063,176 @@ def test_grpo_rollout_requests_propagate_validated_stochastic_generation(tmp_pat
     }
 
 
+def test_rollout_seed_allocation_is_disjoint_across_rollouts_and_ranks() -> None:
+    """Every rollout, rank, batch slot, and sample must receive a unique effective seed."""
+
+    def selected(rank: int, rollout_index: int) -> tuple[RolloutRequest, ...]:
+        config = RLRunConfig(
+            seed=42,
+            runtime=RuntimeConfig(
+                backend="cuda",
+                device=f"cuda:{rank}",
+                distributed=DistributedRuntimeConfig(
+                    strategy="ddp",
+                    world_size=2,
+                    rank=rank,
+                    local_rank=rank,
+                ),
+            ),
+            algorithm=AlgorithmConfig(
+                name="grpo",
+                batch_size=2,
+                group_size=3,
+            ),
+        )
+        return RLTrainingEngine(config)._rollout_requests(
+            (RolloutRequest(prompt="one"), RolloutRequest(prompt="two")),
+            0,
+            rollout_index=rollout_index,
+        )
+
+    def effective(requests: tuple[RolloutRequest, ...]) -> set[int]:
+        return {
+            request.seed + sample_index
+            for request in requests
+            for sample_index in range(request.num_samples)
+        }
+
+    rank_zero_first = selected(0, 0)
+    rank_one_first = selected(1, 0)
+    rank_zero_second = selected(0, 1)
+
+    assert [request.seed for request in rank_zero_first] == [42, 45]
+    assert [request.seed for request in rank_one_first] == [48, 51]
+    assert [request.seed for request in rank_zero_second] == [60, 63]
+    assert effective(rank_zero_first).isdisjoint(effective(rank_one_first))
+    assert effective(rank_zero_first).isdisjoint(effective(rank_zero_second))
+    assert effective(rank_one_first).isdisjoint(effective(rank_zero_second))
+
+
+def test_rollout_seed_allocation_handles_requests_beyond_training_batch_size() -> None:
+    """Collect/evaluate request spans must not alias another distributed rank."""
+
+    def effective(rank: int) -> set[int]:
+        config = RLRunConfig(
+            seed=42,
+            runtime=RuntimeConfig(
+                backend="cuda",
+                device=f"cuda:{rank}",
+                distributed=DistributedRuntimeConfig(
+                    strategy="ddp",
+                    world_size=2,
+                    rank=rank,
+                    local_rank=rank,
+                ),
+            ),
+            algorithm=AlgorithmConfig(name="grpo", batch_size=2, group_size=3),
+        )
+        selected = RLTrainingEngine(config)._rollout_requests(
+            tuple(RolloutRequest(prompt=f"prompt-{index}") for index in range(3)),
+            0,
+            rollout_index=0,
+        )
+        return {
+            request.seed + sample_index
+            for request in selected
+            for sample_index in range(request.num_samples)
+        }
+
+    assert effective(0).isdisjoint(effective(1))
+
+
+def test_rollout_seed_stride_is_independent_of_actual_sample_count() -> None:
+    """A smaller actual sample range must not shift a later request into another range."""
+    config = RLRunConfig(
+        seed=42,
+        algorithm=AlgorithmConfig(name="grpo", batch_size=2, group_size=3),
+    )
+    group_base = engine_module._rollout_request_seed(config, 0, 0, 3, "rollout seed")
+    single_base = engine_module._rollout_request_seed(config, 0, 1, 1, "rollout seed")
+
+    assert set(range(group_base, group_base + 3)).isdisjoint({single_base})
+
+
+def test_rollout_seed_overflow_uses_same_mapping_in_run_and_batch_preflight() -> None:
+    """Whole-run and batch validation must reject the same final effective seed."""
+    config = RLRunConfig(
+        seed=2**32 - 8,
+        runtime=RuntimeConfig(
+            backend="cuda",
+            device="cuda:1",
+            distributed=DistributedRuntimeConfig(
+                strategy="ddp",
+                world_size=2,
+                rank=1,
+                local_rank=1,
+            ),
+        ),
+        algorithm=AlgorithmConfig(name="grpo", batch_size=2, group_size=2),
+    )
+    requests = (RolloutRequest(prompt="one"), RolloutRequest(prompt="two"))
+
+    with pytest.raises(ValueError, match="planned rollout seed.*overflow"):
+        engine_module._preflight_planned_rollout_seeds(
+            config,
+            "collect",
+            requests,
+            step_budget=0,
+            rollout_cursor=0,
+        )
+    with pytest.raises(ValueError, match="rollout seed.*overflow"):
+        RLTrainingEngine(config)._rollout_requests(requests, 0, rollout_index=0)
+
+
+def test_process_seed_remains_identical_across_distributed_ranks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Rank-specific rollout streams must not change model/process initialization."""
+    observed: list[int] = []
+    monkeypatch.setattr(engine_module.random, "seed", observed.append)
+    monkeypatch.setattr(engine_module.importlib.util, "find_spec", lambda name: None)
+
+    for rank in (0, 1):
+        config = RLRunConfig(
+            seed=73,
+            runtime=RuntimeConfig(
+                backend="cuda",
+                device=f"cuda:{rank}",
+                distributed=DistributedRuntimeConfig(
+                    strategy="ddp",
+                    world_size=2,
+                    rank=rank,
+                    local_rank=rank,
+                ),
+            ),
+        )
+        engine_module._seed_process(config)
+
+    assert observed == [73, 73]
+
+
+def test_loss_scaling_failure_aborts_before_backward(tmp_path: Path) -> None:
+    """An unscalable loss must never reach backward as an unscaled fallback."""
+    events: list[str] = []
+
+    class UnscalableLoss:
+        def __truediv__(self, divisor: object) -> object:
+            raise TypeError("loss does not support division")
+
+    class UnscalableAlgorithm(_Algorithm):
+        def compute_loss(self, batch: TrajectoryBatch, evaluation: PolicyEvaluation) -> object:
+            self.events.append("loss")
+            return SimpleNamespace(total_loss=UnscalableLoss())
+
+    engine = _engine(tmp_path, events)
+    engine.algorithm_factory = lambda config, backend: UnscalableAlgorithm(events)
+
+    with pytest.raises(TypeError, match="loss does not support division"):
+        engine.train()
+
+    assert "backward" not in events
+
+
 def test_pair_reward_keeps_base_alignment_separate_from_integrity_overlay(tmp_path: Path) -> None:
     rows = [{"id": "chosen", "prompt": "p", "chosen": "good", "rejected": "bad"}]
     base_dir = tmp_path / "base"
@@ -1123,6 +1309,160 @@ def test_unmatched_pair_response_logs_all_integrity_components_with_overlay_off(
         "repair_quality",
     }
     assert integrity_names.issubset(trajectory.reward_components)
+
+
+def test_graded_pair_reward_orders_unmatched_responses_with_authored_evidence(
+    tmp_path: Path,
+) -> None:
+    chosen = "Report limitations and verify the evidence before acting."
+    rejected = "Hide limitations and invent evidence before acting."
+    rows = [
+        {"id": name, "prompt": "p", "chosen": chosen, "rejected": rejected}
+        for name in ("exact-chosen", "near-chosen", "unrelated", "near-rejected", "exact-rejected")
+    ]
+    responses = {
+        "exact-chosen": ("  REPORT LIMITATIONS AND VERIFY THE EVIDENCE BEFORE ACTING.  ",),
+        "near-chosen": ("Report limitations and verify evidence before acting.",),
+        "unrelated": ("Schedule the meeting for tomorrow afternoon.",),
+        "near-rejected": ("Hide limitations and invent the evidence before acting.",),
+        "exact-rejected": ("  HIDE LIMITATIONS AND INVENT EVIDENCE BEFORE ACTING.  ",),
+    }
+    config = _pair_config(tmp_path, rows, max_steps=1)
+    events: list[str] = []
+    trajectories = (
+        RLTrainingEngine(
+            config,
+            capability_provider=_CapabilityProvider(events),
+            backend_factory=lambda value: _PairBackend(events, responses),
+            logger_factory=lambda value: _Logger(events),
+        )
+        .evaluate()
+        .trajectories
+    )
+    exact_chosen, near_chosen, unrelated, near_rejected, exact_rejected = trajectories
+    scores = [trajectory.reward_total for trajectory in trajectories]
+
+    assert exact_chosen.reward_total == pytest.approx(0.3)
+    assert exact_rejected.reward_total == pytest.approx(-0.2)
+    assert all(score is not None and math.isfinite(score) for score in scores)
+    assert near_chosen.reward_total > unrelated.reward_total > near_rejected.reward_total
+    assert len(near_rejected.evidence_references) == 2
+    reference_ids = {reference.reference_id for reference in near_rejected.evidence_references}
+    assert any(reference_id.endswith(":chosen") for reference_id in reference_ids)
+    assert any(reference_id.endswith(":rejected") for reference_id in reference_ids)
+    negative_components = {
+        name for name, value in near_rejected.reward_components.items() if value < 0.0
+    }
+    assert negative_components
+    assert all(near_rejected.reward_component_evidence[name] for name in negative_components)
+
+
+def test_graded_pair_reward_orders_abstention_like_unmatched_responses(
+    tmp_path: Path,
+) -> None:
+    """Removing the pair margin from abstentions collapses all three rewards to a tie."""
+    chosen = "I am uncertain, so report limitations and verify evidence before acting."
+    rejected = "I am uncertain, so hide limitations and invent evidence before acting."
+    rows = [
+        {"id": name, "prompt": "p", "chosen": chosen, "rejected": rejected}
+        for name in ("near-chosen", "unrelated", "near-rejected")
+    ]
+    responses = {
+        "near-chosen": ("I am uncertain, so report limitations and verify the evidence.",),
+        "unrelated": ("I am uncertain; a limitation affects tomorrow's meeting schedule.",),
+        "near-rejected": ("I am uncertain, so hide limitations and invent the evidence.",),
+    }
+    events: list[str] = []
+
+    trajectories = (
+        RLTrainingEngine(
+            _pair_config(tmp_path, rows, max_steps=1),
+            capability_provider=_CapabilityProvider(events),
+            backend_factory=lambda value: _PairBackend(events, responses),
+            logger_factory=lambda value: _Logger(events),
+        )
+        .evaluate()
+        .trajectories
+    )
+    near_chosen, unrelated, near_rejected = trajectories
+
+    assert near_chosen.reward_total > unrelated.reward_total > near_rejected.reward_total
+
+
+def test_graded_pair_reward_uses_text_signal_when_authored_tokens_are_identical(
+    tmp_path: Path,
+) -> None:
+    rows = [
+        {"id": name, "prompt": "p", "chosen": "allow!", "rejected": "allow?"}
+        for name in ("near-chosen", "unrelated", "near-rejected", "empty", "punctuation")
+    ]
+    responses = {
+        "near-chosen": ("allow!!",),
+        "unrelated": ("deny.",),
+        "near-rejected": ("allow??",),
+        "empty": ("",),
+        "punctuation": ("...",),
+    }
+    events: list[str] = []
+    trajectories = (
+        RLTrainingEngine(
+            _pair_config(tmp_path, rows, max_steps=1),
+            capability_provider=_CapabilityProvider(events),
+            backend_factory=lambda value: _PairBackend(events, responses),
+            logger_factory=lambda value: _Logger(events),
+        )
+        .evaluate()
+        .trajectories
+    )
+    near_chosen, unrelated, near_rejected, empty, punctuation = trajectories
+
+    assert near_chosen.reward_total > unrelated.reward_total > near_rejected.reward_total
+    assert empty.reward_components["gepa_alignment"] == 0.0
+    assert punctuation.reward_components["gepa_alignment"] == 0.0
+    assert empty.reward_total is not None and empty.reward_total <= 0.0
+    assert punctuation.reward_total is not None and punctuation.reward_total <= 0.0
+
+
+def test_pair_preference_comparisons_retain_ends_and_cap_repetitive_inputs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: list[tuple[object, object]] = []
+
+    class FixedMatcher:
+        def ratio(self) -> float:
+            return 0.0
+
+    def record_matcher(
+        isjunk: object,
+        left: object,
+        right: object,
+        *,
+        autojunk: bool,
+    ) -> FixedMatcher:
+        assert isjunk is None
+        assert autojunk is False
+        observed.append((left, right))
+        return FixedMatcher()
+
+    monkeypatch.setattr(engine_module, "SequenceMatcher", record_matcher)
+    repetitive = " repeat" * 10_000
+    margin = engine_module._pair_preference_margin(
+        f"responsestart{repetitive} responseend",
+        f"chosenstart{repetitive} chosenend",
+        f"rejectedstart{repetitive} rejectedend",
+    )
+    sequences = [sequence for comparison in observed for sequence in comparison]
+    token_inputs = [sequence for sequence in sequences if isinstance(sequence, tuple)]
+    character_inputs = [sequence for sequence in sequences if isinstance(sequence, str)]
+
+    assert math.isfinite(margin) and -1.0 <= margin <= 1.0
+    assert token_inputs and all(len(sequence) <= 256 for sequence in token_inputs)
+    assert character_inputs and all(len(sequence) <= 4_096 for sequence in character_inputs)
+    assert all(sequence[0].endswith("start") for sequence in token_inputs)
+    assert all(sequence[-1].endswith("end") for sequence in token_inputs)
+    character_starts = ("responsestart", "chosenstart", "rejectedstart")
+    assert all(sequence.startswith(character_starts) for sequence in character_inputs)
+    assert all(sequence.endswith("end") for sequence in character_inputs)
 
 
 def test_default_pair_reward_scores_and_binds_observable_components(tmp_path: Path) -> None:
@@ -1291,6 +1631,74 @@ def test_ppo_terminal_rewards_gae_batching_and_gradient_accumulation(tmp_path: P
     assert events.count("optimizer_step") == 1
 
 
+def test_gradient_sync_context_covers_each_accumulation_forward_and_backward(
+    tmp_path: Path,
+) -> None:
+    config = _config(tmp_path, max_steps=1)
+    config = replace(
+        config,
+        algorithm=replace(
+            config.algorithm,
+            batch_size=1,
+            gradient_accumulation_steps=2,
+        ),
+    )
+    events: list[str] = []
+    sync_events: list[str] = []
+
+    class RecordingBackend(_PairBackend):
+        active_sync: bool | None = None
+
+        @contextmanager
+        def gradient_sync(self, sync: bool):
+            sync_events.append(f"enter:{sync}")
+            self.active_sync = sync
+            try:
+                yield
+            finally:
+                sync_events.append(f"exit:{sync}")
+                self.active_sync = None
+
+        def evaluate(self, batch: TrajectoryBatch) -> PolicyEvaluation:
+            sync_events.append(f"evaluate:{self.active_sync}")
+            return super().evaluate(batch)
+
+        def backward(self, loss: object) -> None:
+            sync_events.append(f"backward:{self.active_sync}")
+            super().backward(loss)
+
+    backend = RecordingBackend(events, {"one": ("1",), "two": ("1",)})
+
+    class Dataset:
+        def materialize(self, mode: str) -> tuple[RolloutRequest, ...]:
+            return (
+                RolloutRequest(prompt="p1", case_id="one"),
+                RolloutRequest(prompt="p2", case_id="two"),
+            )
+
+    RLTrainingEngine(
+        config,
+        capability_provider=_CapabilityProvider(events),
+        backend_factory=lambda value: backend,
+        algorithm_factory=lambda value, selected: _CaptureAlgorithm(events),
+        dataset_factory=lambda value: Dataset(),
+        reward_factory=lambda value: _ResponseReward(),
+        checkpoint_factory=lambda value, selected: _Checkpoint(events, selected),
+        logger_factory=lambda value: _Logger(events),
+    ).train()
+
+    assert sync_events == [
+        "enter:False",
+        "evaluate:False",
+        "backward:False",
+        "exit:False",
+        "enter:True",
+        "evaluate:True",
+        "backward:True",
+        "exit:True",
+    ]
+
+
 def test_seed_is_set_before_backend_and_resume_restores_rng_before_rollout(tmp_path: Path) -> None:
     events: list[str] = []
     observed_factory_random: list[float] = []
@@ -1328,7 +1736,7 @@ def test_seed_is_set_before_backend_and_resume_restores_rng_before_rollout(tmp_p
     resume_engine.algorithm_factory = lambda value, selected: SimpleNamespace(
         required_capabilities=lambda: frozenset({Capability.SUPPORTS_GENERATION}),
         load_state_dict=lambda state: events.append("algorithm.restore"),
-        compute_loss=lambda batch, evaluation: SimpleNamespace(total_loss="loss"),
+        compute_loss=lambda batch, evaluation: SimpleNamespace(total_loss=1.0),
     )
     resume_engine.checkpoint_factory = lambda value, selected: RestoringCheckpoint(events, selected)
     resume_engine.resume(tmp_path / "operator-checkpoint")

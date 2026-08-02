@@ -5,8 +5,8 @@ from __future__ import annotations
 import hashlib
 import math
 import pickle
-from collections.abc import Mapping
-from contextlib import AbstractContextManager, nullcontext
+from collections.abc import Iterator, Mapping
+from contextlib import AbstractContextManager, ExitStack, contextmanager, nullcontext
 from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum
@@ -126,6 +126,18 @@ class _CheckpointRestorePlan:
 class _AdapterLoadPlan:
     state: Mapping[str, torch.Tensor]
     checksum: str
+
+
+@contextmanager
+def _distributed_no_sync(*modules: nn.Module) -> Iterator[None]:
+    """Enter every distributed wrapper's no-sync context as one atomic scope."""
+    with ExitStack() as stack:
+        for module in modules:
+            no_sync = getattr(module, "no_sync", None)
+            if not callable(no_sync):
+                raise RuntimeError("distributed trainable wrapper must implement no_sync()")
+            stack.enter_context(no_sync())
+        yield
 
 
 class TorchPolicyBackend:
@@ -302,6 +314,27 @@ class TorchPolicyBackend:
             value_predictions=torch.stack(value_rows),
             entropy=torch.stack(entropy_rows),
         )
+
+    def gradient_sync(self, sync: bool) -> AbstractContextManager[None]:
+        """Suppress distributed gradient synchronization for a non-final microstep."""
+        if not isinstance(sync, bool):
+            raise TypeError("sync must be a boolean")
+        if sync or self.distributed_strategy == "none":
+            return nullcontext()
+        return _distributed_no_sync(self.policy_model, self.value_head)
+
+    def batch_available_on_all_ranks(self, available: bool) -> bool:
+        """Return whether every distributed rank prepared a training batch."""
+        if not isinstance(available, bool):
+            raise TypeError("available must be a boolean")
+        if self.distributed_strategy == "none":
+            return available
+        distributed = torch.distributed
+        if not distributed.is_available() or not distributed.is_initialized():
+            raise RuntimeError("distributed batch agreement requires an initialized process group")
+        readiness = torch.tensor(int(available), dtype=torch.int32, device=self.device)
+        distributed.all_reduce(readiness, op=distributed.ReduceOp.MIN)
+        return bool(readiness.item())
 
     @_translate_oom("backward")
     def backward(self, loss: object) -> None:
@@ -662,13 +695,20 @@ class TorchPolicyBackend:
             self.reference_model.eval()
         except Exception as error:
             rollback_errors = self._rollback_backend_state(snapshot)
-            failure_message = "backend checkpoint contains incompatible training state"
             if rollback_errors:
-                failure_message += (
-                    "; checkpoint rollback encountered secondary errors: "
-                    + "; ".join(type(item).__name__ for item in rollback_errors)
+                diagnostic = "Backend checkpoint rollback also failed: " + "; ".join(
+                    f"{type(item).__name__}: {item}" for item in rollback_errors
                 )
-            raise ValueError(failure_message) from error
+                add_note = getattr(error, "add_note", None)
+                if callable(add_note):
+                    add_note(diagnostic)
+                else:  # pragma: no cover - exercised through a Python 3.10-shaped exception
+                    previous_cause = error.__cause__
+                    rollback_diagnostic = RuntimeError(diagnostic)
+                    rollback_diagnostic.__cause__ = previous_cause
+                    error.__cause__ = rollback_diagnostic
+                raise
+            raise ValueError("backend checkpoint contains incompatible training state") from error
         return BackendCheckpointResult(
             format_version=cast(int, checkpoint["format_version"]),
             step=self._step,

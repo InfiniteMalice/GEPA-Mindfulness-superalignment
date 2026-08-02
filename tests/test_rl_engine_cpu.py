@@ -6,7 +6,9 @@ import hashlib
 import json
 import random
 import re
-from collections.abc import Mapping
+import shutil
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
@@ -27,6 +29,7 @@ from gepa_mindfulness.training.backends import TorchPolicyBackend, TorchTensorOp
 from gepa_mindfulness.training.engine import (
     EngineResult,
     RLTrainingEngine,
+    _close_backends_once,
     _config_hash,
     _config_payload,
 )
@@ -54,6 +57,114 @@ def _dependency_name(requirement: str) -> str:
     if match is None:
         raise AssertionError(f"invalid requirement: {requirement!r}")
     return re.sub(r"[-_.]+", "-", match.group(0)).lower()
+
+
+def _tree_hashes(root: Path) -> dict[str, str]:
+    return {
+        path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in root.rglob("*")
+        if path.is_file()
+    }
+
+
+@contextmanager
+def _assert_tree_unchanged(root: Path, expected: Mapping[str, str]) -> Iterator[None]:
+    primary_error: BaseException | None = None
+    try:
+        yield
+    except BaseException as error:
+        primary_error = error
+        raise
+    finally:
+        try:
+            if _tree_hashes(root) != expected:
+                raise AssertionError(f"fixture tree changed while guarded: {root}")
+        except BaseException as immutability_error:
+            if primary_error is None:
+                raise
+            add_note = getattr(primary_error, "add_note", None)
+            if callable(add_note):
+                add_note(str(immutability_error))
+            else:  # pragma: no cover - Python 3.10 compatibility
+                old_cause = primary_error.__cause__
+                immutability_error.__cause__ = old_cause
+                immutability_error.__suppress_context__ = old_cause is not None
+                primary_error.__cause__ = immutability_error
+                primary_error.__suppress_context__ = True
+
+
+def test_tree_immutability_guard_preserves_body_failure_and_reports_mutation(
+    tmp_path: Path,
+) -> None:
+    fixture = tmp_path / "fixture"
+    fixture.mkdir()
+    tracked = fixture / "tracked.txt"
+    tracked.write_text("original", encoding="utf-8")
+    expected = _tree_hashes(fixture)
+
+    with pytest.raises(RuntimeError, match="sentinel body failure") as captured:
+        with _assert_tree_unchanged(fixture, expected):
+            tracked.write_text("mutated", encoding="utf-8")
+            raise RuntimeError("sentinel body failure")
+
+    error = captured.value
+    notes = getattr(error, "__notes__", ())
+    cause = error.__cause__
+    assert any("fixture tree changed" in note for note in notes) or (
+        isinstance(cause, (AssertionError, RuntimeError)) and "fixture tree changed" in str(cause)
+    )
+
+
+def test_tree_immutability_guard_preserves_existing_cause_without_add_note(
+    tmp_path: Path,
+) -> None:
+    fixture = tmp_path / "fixture"
+    fixture.mkdir()
+    tracked = fixture / "tracked.txt"
+    tracked.write_text("original", encoding="utf-8")
+    expected = _tree_hashes(fixture)
+    original_cause = ValueError("original cause")
+    primary = RuntimeError("primary failure")
+    primary.add_note = None
+
+    with pytest.raises(RuntimeError, match="primary failure") as captured:
+        try:
+            raise primary from original_cause
+        except RuntimeError:
+            with _assert_tree_unchanged(fixture, expected):
+                tracked.write_text("mutated", encoding="utf-8")
+                raise
+
+    assert captured.value is primary
+    diagnostic = primary.__cause__
+    assert isinstance(diagnostic, (AssertionError, RuntimeError))
+    assert "fixture tree changed" in str(diagnostic)
+    assert diagnostic.__cause__ is original_cause
+
+
+def test_backend_close_preserves_existing_cause_without_add_note() -> None:
+    def fail_close() -> None:
+        raise OSError("learner close failed")
+
+    learner = SimpleNamespace(close=fail_close)
+    original_cause = LookupError("original training cause")
+    primary = RuntimeError("training failed")
+    primary.add_note = None
+
+    try:
+        raise primary from original_cause
+    except RuntimeError as caught:
+        assert caught is primary
+        result = _close_backends_once(None, learner, caught)
+
+    assert result is None
+    diagnostic = primary.__cause__
+    assert isinstance(diagnostic, RuntimeError)
+    assert "Learner close also failed" in str(diagnostic)
+    assert "OSError: learner close failed" in str(diagnostic)
+    assert diagnostic.__cause__ is original_cause
+    assert primary.__suppress_context__ is True
+    assert diagnostic.__suppress_context__ is True
 
 
 _RL_RUNTIME = {
@@ -319,85 +430,92 @@ def test_default_nonhybrid_config_keeps_the_pre_phase5_resume_hash() -> None:
     )
 
 
-def test_genuine_pre_phase5_checkpoint_resumes_without_hybrid_or_fixture_mutation() -> None:
-    fixture = Path("tests/fixtures/rl_legacy_checkpoint_v1")
-    checkpoint = fixture / "checkpoints/checkpoint-00000001"
-    provenance = json.loads((fixture / "PROVENANCE.json").read_text(encoding="utf-8"))
-    assert provenance["source_commit"] == "f6f57e746fa6e39c823ce835ff9ebb13520f44ad"
-    tracked = {
-        path.relative_to(fixture).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
-        for path in fixture.rglob("*")
-        if path.is_file()
-    }
-    assert all(tracked[name] == digest for name, digest in provenance["files"].items())
-    state = torch.load(checkpoint / "training_state.pt", map_location="cpu", weights_only=True)
-    assert "hybrid" not in state["canonical_config"]
-    config = RLRunConfig(
-        policy=PolicyConfig(model_name="legacy-tiny-local", max_new_tokens=1),
-        algorithm=AlgorithmConfig(name="ppo", learning_rate=0.05, batch_size=1, max_steps=1),
-        dataset=DatasetConfig(train_path="tests/fixtures/rl_legacy_checkpoint_v1/pairs.jsonl"),
-        checkpoint=CheckpointConfig(
-            output_dir="tests/fixtures/rl_legacy_checkpoint_v1/checkpoints", save_steps=1
-        ),
-        logging=LoggingConfig(log_dir="tests/fixtures/rl_legacy_checkpoint_v1/logs"),
-        seed=42,
-    )
-    assert (
-        _config_hash(config) == "2b2137714f2206e9409ed4fe277ee805176cfe472a434402ee63161d9c85cbb8"
-    )
-    backends: list[TorchPolicyBackend] = []
-
-    def backend_factory(value: RLRunConfig) -> TorchPolicyBackend:
-        backend = TorchPolicyBackend(
-            policy_model=TinyLocalCausalLM(),
-            tokenizer=TinyLocalTokenizer(),
-            device="cpu",
-            learning_rate=value.algorithm.learning_rate,
-            max_new_tokens=value.policy.max_new_tokens,
-            model_identifier=value.policy.model_name,
+def test_genuine_pre_phase5_checkpoint_resumes_without_hybrid_or_fixture_mutation(
+    tmp_path: Path,
+) -> None:
+    tracked_fixture = Path("tests/fixtures/rl_legacy_checkpoint_v1")
+    tracked = _tree_hashes(tracked_fixture)
+    with _assert_tree_unchanged(tracked_fixture, tracked):
+        provenance = json.loads((tracked_fixture / "PROVENANCE.json").read_text(encoding="utf-8"))
+        assert provenance["source_commit"] == "f6f57e746fa6e39c823ce835ff9ebb13520f44ad"
+        assert all(tracked[name] == digest for name, digest in provenance["files"].items())
+        fixture = shutil.copytree(tracked_fixture, tmp_path / tracked_fixture.name)
+        assert _tree_hashes(fixture) == tracked
+        checkpoint = fixture / "checkpoints/checkpoint-00000001"
+        state = torch.load(checkpoint / "training_state.pt", map_location="cpu", weights_only=True)
+        assert "hybrid" not in state["canonical_config"]
+        config = RLRunConfig(
+            policy=PolicyConfig(model_name="legacy-tiny-local", max_new_tokens=1),
+            algorithm=AlgorithmConfig(name="ppo", learning_rate=0.05, batch_size=1, max_steps=1),
+            dataset=DatasetConfig(train_path=str(fixture / "pairs.jsonl")),
+            checkpoint=CheckpointConfig(output_dir=str(fixture / "checkpoints"), save_steps=1),
+            logging=LoggingConfig(log_dir=str(fixture / "logs")),
+            seed=42,
         )
-        backends.append(backend)
-        return backend
+        writable_paths = {
+            "dataset.train_path": Path(config.dataset.train_path),
+            "checkpoint.output_dir": Path(config.checkpoint.output_dir),
+            "logging.log_dir": Path(config.logging.log_dir),
+        }
+        assert all(
+            path.resolve().is_relative_to(tmp_path.resolve()) for path in writable_paths.values()
+        )
+        assert (
+            _config_hash(config)
+            == "2b2137714f2206e9409ed4fe277ee805176cfe472a434402ee63161d9c85cbb8"
+        )
+        backends: list[TorchPolicyBackend] = []
 
-    class NoOpLogger:
-        def start(self, *args: object) -> None:
+        def backend_factory(value: RLRunConfig) -> TorchPolicyBackend:
+            backend = TorchPolicyBackend(
+                policy_model=TinyLocalCausalLM(),
+                tokenizer=TinyLocalTokenizer(),
+                device="cpu",
+                learning_rate=value.algorithm.learning_rate,
+                max_new_tokens=value.policy.max_new_tokens,
+                model_identifier=value.policy.model_name,
+            )
+            backends.append(backend)
+            return backend
+
+        class NoOpLogger:
+            def start(self, *args: object) -> None:
+                del args
+
+            def trajectories(self, *args: object) -> None:
+                del args
+
+            def metrics(self, *args: object) -> None:
+                del args
+
+        def forbidden(*args: object) -> object:
             del args
+            raise AssertionError("nonhybrid resume must not construct a publisher or actor")
 
-        def trajectories(self, *args: object) -> None:
-            del args
+        result = RLTrainingEngine(
+            config,
+            backend_factory=backend_factory,
+            logger_factory=lambda _: NoOpLogger(),
+            publisher_factory=forbidden,
+            actor_factory=forbidden,
+        ).resume(checkpoint, max_steps=0)
 
-        def metrics(self, *args: object) -> None:
-            del args
-
-    def forbidden(*args: object) -> object:
-        del args
-        raise AssertionError("nonhybrid resume must not construct a publisher or actor")
-
-    result = RLTrainingEngine(
-        config,
-        backend_factory=backend_factory,
-        logger_factory=lambda _: NoOpLogger(),
-        publisher_factory=forbidden,
-        actor_factory=forbidden,
-    ).resume(checkpoint, max_steps=0)
-
-    backend = backends[-1]
-    assert result.global_step == 1
-    assert result.checkpoint_parent == "checkpoint-00000001"
-    assert result.trajectory_count == 0
-    assert result.policy_parameters_updated is False
-    assert backend._step == 1
-    assert backend.optimizer.state
-    assert backend.reference_model.training is False
-    assert all(not parameter.requires_grad for parameter in backend.reference_model.parameters())
-    assert random.getstate() == state["rank_rng_states"][0]["python_rng_state"]
-    assert torch.equal(torch.get_rng_state(), state["rank_rng_states"][0]["torch_cpu_rng_state"])
-    after = {
-        path.relative_to(fixture).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
-        for path in fixture.rglob("*")
-        if path.is_file()
-    }
-    assert after == tracked
+        backend = backends[-1]
+        assert result.global_step == 1
+        assert result.checkpoint_parent == "checkpoint-00000001"
+        assert result.trajectory_count == 0
+        assert result.policy_parameters_updated is False
+        assert backend._step == 1
+        assert backend.optimizer.state
+        assert backend.reference_model.training is False
+        assert all(
+            not parameter.requires_grad for parameter in backend.reference_model.parameters()
+        )
+        assert random.getstate() == state["rank_rng_states"][0]["python_rng_state"]
+        assert torch.equal(
+            torch.get_rng_state(),
+            state["rank_rng_states"][0]["torch_cpu_rng_state"],
+        )
 
 
 def test_rl_extras_are_bounded_synchronized_and_keep_heavy_frameworks_optional() -> None:

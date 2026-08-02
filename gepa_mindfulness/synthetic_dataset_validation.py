@@ -3,6 +3,7 @@
 # Standard library
 import json
 import math
+import re
 from importlib.resources import files
 from typing import Any
 
@@ -73,7 +74,7 @@ def _reward_integrity_structure(schema: dict[str, Any]) -> tuple[set[str], set[s
 
 def _matches_type(value: object, schema_type: str) -> bool:
     """Return whether a JSON value has the declared finite JSON Schema type."""
-    type_map: dict[str, object] = {
+    type_map: dict[str, type[Any] | tuple[type[Any], ...]] = {
         "array": list,
         "boolean": bool,
         "integer": int,
@@ -105,6 +106,20 @@ def _validate_value(
         errors.append(f"{path}: {error}")
         return
 
+    all_of = resolved.get("allOf")
+    if isinstance(all_of, list):
+        for subschema in all_of:
+            if isinstance(subschema, dict):
+                _validate_value(value, subschema, root, path, errors)
+
+    condition = resolved.get("if")
+    consequence = resolved.get("then")
+    if isinstance(condition, dict) and isinstance(consequence, dict):
+        condition_errors: list[str] = []
+        _validate_value(value, condition, root, path, condition_errors)
+        if not condition_errors:
+            _validate_value(value, consequence, root, path, errors)
+
     schema_type = resolved.get("type")
     if isinstance(schema_type, str) and not _matches_type(value, schema_type):
         errors.append(f"{path} must be {schema_type}")
@@ -123,6 +138,9 @@ def _validate_value(
             errors.append(f"{path} must be <= {maximum}")
 
     if isinstance(value, str):
+        pattern = resolved.get("pattern")
+        if isinstance(pattern, str) and re.search(pattern, value) is None:
+            errors.append(f"{path} must match pattern {pattern!r}")
         min_length = resolved.get("minLength")
         max_length = resolved.get("maxLength")
         if isinstance(min_length, int) and len(value) < min_length:

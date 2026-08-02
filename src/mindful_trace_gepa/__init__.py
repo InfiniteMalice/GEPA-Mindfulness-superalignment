@@ -12,6 +12,6 @@ def cli_main(argv: list[str] | None = None) -> int:
     return cli(argv)
 
 
-def main() -> int:
-    """Entry point for ``python -m mindful_trace_gepa``."""
-    return cli_main(None)
+def main(argv: list[str] | None = None) -> int:
+    """Run the package CLI with explicit arguments or process-global arguments when omitted."""
+    return cli_main(argv)

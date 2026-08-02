@@ -24,6 +24,10 @@ from gepa_mindfulness.training.runtime_config import (
 )
 
 
+def _deprecation_warnings(captured: list[warnings.WarningMessage]) -> list[warnings.WarningMessage]:
+    return [warning for warning in captured if issubclass(warning.category, DeprecationWarning)]
+
+
 @pytest.mark.parametrize(
     "constructor",
     [
@@ -278,7 +282,7 @@ def test_canonical_file_load_has_no_deprecation_warning(tmp_path: Path) -> None:
         config = load_rl_config(path)
 
     assert config.runtime.device == "cpu"
-    assert not [warning for warning in captured if warning.category is DeprecationWarning]
+    assert not _deprecation_warnings(captured)
 
 
 def test_legacy_file_load_warns_and_translates(tmp_path: Path) -> None:
@@ -324,7 +328,18 @@ def test_partial_canonical_file_load_is_warning_free(
     assert config.seed == payload.get("seed", 42)
     expected_path = payload.get("dataset", {}).get("train_path", "")
     assert config.dataset.train_path == expected_path
-    assert not [warning for warning in captured if warning.category is DeprecationWarning]
+    assert not _deprecation_warnings(captured)
+
+
+def test_deprecation_warning_filter_includes_custom_subclasses() -> None:
+    class CustomDeprecationWarning(DeprecationWarning):
+        pass
+
+    with warnings.catch_warnings(record=True) as captured:
+        warnings.simplefilter("always")
+        warnings.warn("custom deprecation", CustomDeprecationWarning, stacklevel=1)
+
+    assert len(_deprecation_warnings(captured)) == 1
 
 
 def test_real_legacy_dataset_path_translates_to_train_path() -> None:

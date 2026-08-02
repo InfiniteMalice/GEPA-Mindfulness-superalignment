@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import operator
 from dataclasses import dataclass
 
 from gepa_mindfulness.training.runtime_config import AlgorithmConfig
@@ -28,6 +29,7 @@ class AlgorithmBatch:
             self.mask,
             self.returns,
             self.old_values,
+            names=("old_log_probs", "advantages", "mask", "returns", "old_values"),
         )
 
 
@@ -42,14 +44,40 @@ class AlgorithmLoss:
     kl: Tensor
 
 
-def require_matching_shapes(reference: Tensor, *values: Tensor | None) -> None:
+def require_matching_shapes(
+    reference: Tensor,
+    *values: Tensor | None,
+    names: tuple[str, ...] | None = None,
+) -> None:
     """Reject tensor inputs that would otherwise broadcast silently."""
-    reference_shape = getattr(reference, "shape", None)
-    if reference_shape is None:
-        return
-    for value in values:
-        if value is not None and getattr(value, "shape", None) != reference_shape:
-            raise ValueError("algorithm tensors must have matching shapes")
+    field_names = names or (
+        "reference",
+        *(f"value[{index}]" for index in range(len(values))),
+    )
+    if len(field_names) != len(values) + 1:
+        raise ValueError("algorithm tensor shape names must identify every guarded value")
+    reference_shape = _valid_tensor_shape(reference, field_names[0])
+    for field_name, value in zip(field_names[1:], values):
+        if value is None:
+            continue
+        value_shape = _valid_tensor_shape(value, field_name)
+        if value_shape != reference_shape:
+            raise ValueError(
+                f"algorithm tensor {field_name} must satisfy matching shapes; "
+                f"expected {reference_shape}, got {value_shape}"
+            )
+
+
+def _valid_tensor_shape(value: Tensor, field_name: str) -> tuple[int, ...]:
+    """Return a comparable tensor shape or reject missing and malformed shape metadata."""
+    try:
+        shape = getattr(value, "shape")
+        dimensions = tuple(operator.index(dimension) for dimension in shape)
+    except Exception as exc:
+        raise ValueError(f"algorithm tensor {field_name} must have a valid shape") from exc
+    if any(dimension < 0 for dimension in dimensions):
+        raise ValueError(f"algorithm tensor {field_name} must have a valid shape")
+    return dimensions
 
 
 def _required_trajectory_rows(

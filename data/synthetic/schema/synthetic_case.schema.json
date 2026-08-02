@@ -3,6 +3,25 @@
   "$id": "https://example.com/gepa-mindfulness/synthetic_case.schema.json",
   "title": "GEPA Synthetic Superalignment Case",
   "type": "object",
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "id": {
+            "pattern": "^reward-integrity-"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "then": {
+        "required": [
+          "reward_integrity"
+        ]
+      }
+    }
+  ],
   "required": [
     "id",
     "version",

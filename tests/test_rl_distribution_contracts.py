@@ -59,6 +59,11 @@ _RL_MATURITY_MATRIX = "\n".join(
 )
 
 
+def _text_before_phrase(text: str, phrase: str) -> str:
+    index = text.index(phrase)
+    return text[max(0, index - 180) : index]
+
+
 def _preset_path(name: str) -> Path:
     return _REPOSITORY_ROOT / "configs" / "rl" / name
 
@@ -142,8 +147,26 @@ def test_training_guides_keep_model_weight_and_compatibility_maturity_distinct()
 
     training_readme = guides[0]
     assert "frozen dataclasses" in training_readme
-    pydantic_index = training_readme.index("Pydantic")
-    assert "not evidence of model-weight training" in training_readme[pydantic_index - 180 :]
+    assert "not evidence of model-weight training" in _text_before_phrase(
+        training_readme,
+        "Pydantic",
+    )
+
+
+def test_newcomer_doctor_command_uses_a_shipped_config() -> None:
+    guide = (_REPOSITORY_ROOT / "docs" / "NEWCOMER_GUIDE.md").read_text(encoding="utf-8")
+    match = re.search(r"(?m)^gepa rl doctor --config (\S+)$", guide)
+
+    assert match is not None
+    config_path = match.group(1)
+    assert config_path == "configs/rl/pytorch_cpu_ppo.yaml"
+    assert (_REPOSITORY_ROOT / config_path).is_file()
+
+
+def test_preceding_text_never_wraps_to_a_late_phrase_at_end_of_file() -> None:
+    text = "Pydantic" + ("x" * 220) + "not evidence of model-weight training"
+
+    assert "not evidence of model-weight training" not in _text_before_phrase(text, "Pydantic")
 
 
 def test_public_rl_guides_share_the_exact_maturity_matrix() -> None:

@@ -129,6 +129,8 @@ class RewardIntegrityWeights:
             value = self[name]
             if not isfinite(value) or value < 0.0:
                 raise ValueError(f"Weight {name} must be finite and non-negative.")
+        if not isfinite(self.total):
+            raise ValueError("Reward-integrity weight total mass must be finite.")
         if self.total <= 0.0:
             raise ValueError("Reward-integrity weights must have positive mass.")
 

@@ -11,8 +11,10 @@ import re
 import tempfile
 import uuid
 from collections.abc import Callable, Mapping, Sequence
+from contextlib import AbstractContextManager, nullcontext
 from copy import deepcopy
 from dataclasses import dataclass, fields, is_dataclass, replace
+from difflib import SequenceMatcher
 from enum import Enum
 from importlib import import_module, metadata
 from pathlib import Path
@@ -40,6 +42,9 @@ from .seeds import validate_seed
 from .trajectory import PolicyEvaluation, RolloutRequest, Trajectory, TrajectoryBatch
 
 _MAX_SKIPPED_OPTIMIZER_RETRIES = 3
+_PAIR_MAX_CHARACTERS = 1_024
+_PAIR_MAX_TOKENS = 256
+_PAIR_TOKEN_PATTERN = re.compile(r"[^\W_]+(?:['’][^\W_]+)?", re.UNICODE)
 
 if TYPE_CHECKING:
     from torch import nn
@@ -951,17 +956,22 @@ class RLTrainingEngine:
                 )
                 trajectory_count += len(scored)
                 all_trajectories.extend(scored)
-                if prepared.batch is None:
+                batch_available = prepared.batch is not None
+                if not _batch_available_on_all_ranks(
+                    backend,
+                    batch_available,
+                    distributed=_distributed_runtime(self.config).strategy != "none",
+                ):
                     continue
-                evaluation = backend.evaluate(prepared.batch)
-                loss = algorithm.compute_loss(prepared.batch, evaluation)
-                total_loss = getattr(loss, "total_loss", loss)
-                scaled_loss: object = total_loss
-                try:
+                if prepared.batch is None:  # pragma: no cover - agreement preserves local truth
+                    raise RuntimeError("distributed batch agreement returned inconsistent evidence")
+                sync = accumulated + 1 == accumulation_steps
+                with _gradient_sync_context(backend, sync):
+                    evaluation = backend.evaluate(prepared.batch)
+                    loss = algorithm.compute_loss(prepared.batch, evaluation)
+                    total_loss = getattr(loss, "total_loss", loss)
                     scaled_loss = total_loss / accumulation_steps
-                except TypeError:
-                    scaled_loss = total_loss
-                backend.backward(scaled_loss)
+                    backend.backward(scaled_loss)
                 accumulated += 1
                 step_losses.append(loss)
                 step_evaluations.append(evaluation)
@@ -1157,7 +1167,13 @@ class RLTrainingEngine:
                     if actor_manifest is None
                     else actor_manifest.policy_version.to_json()
                 ),
-                seed=self.config.seed + rollout_index + index,
+                seed=_rollout_request_seed(
+                    self.config,
+                    rollout_index,
+                    index,
+                    sample_count,
+                    "rollout seed",
+                ),
                 sampling_parameters={
                     **dict(request.sampling_parameters),
                     "do_sample": self.config.policy.do_sample,
@@ -1321,6 +1337,104 @@ def _reject_json_constant(value: str) -> None:
     raise ValueError(f"non-standard JSON constant {value!r}")
 
 
+def _gradient_sync_context(
+    backend: TrainablePolicyBackend,
+    sync: bool,
+) -> AbstractContextManager[object]:
+    """Return a backend sync context, defaulting to no-op for portable implementations."""
+    gradient_sync = getattr(backend, "gradient_sync", None)
+    if gradient_sync is None:
+        return nullcontext()
+    if not callable(gradient_sync):
+        raise TypeError("backend gradient_sync must be callable")
+    return cast(AbstractContextManager[object], gradient_sync(sync))
+
+
+def _batch_available_on_all_ranks(
+    backend: TrainablePolicyBackend,
+    available: bool,
+    *,
+    distributed: bool,
+) -> bool:
+    """Coordinate optional rank-local batch preparation before distributed training."""
+    agreement = getattr(backend, "batch_available_on_all_ranks", None)
+    if agreement is None:
+        if distributed:
+            raise EngineDependencyError(
+                "distributed training backend must implement "
+                "batch_available_on_all_ranks for rank-safe batch preparation"
+            )
+        return available
+    if not callable(agreement):
+        raise TypeError("backend batch_available_on_all_ranks must be callable")
+    all_available = agreement(available)
+    if not isinstance(all_available, bool):
+        raise TypeError("backend batch_available_on_all_ranks must return a boolean")
+    return all_available
+
+
+def _pair_preference_margin(response: str, chosen: str, rejected: str) -> float:
+    """Return a bounded token-and-character margin between authored references."""
+
+    response_text = response.casefold()
+    response_tokens = _bounded_pair_tokens(response_text)
+    if not response_tokens:
+        return 0.0
+
+    chosen_text = chosen.casefold()
+    rejected_text = rejected.casefold()
+    token_margin = _sequence_margin(
+        response_tokens,
+        _bounded_pair_tokens(chosen_text),
+        _bounded_pair_tokens(rejected_text),
+    )
+    character_margin = _sequence_margin(
+        _bounded_pair_text(response_text),
+        _bounded_pair_text(chosen_text),
+        _bounded_pair_text(rejected_text),
+    )
+    return max(-1.0, min(1.0, (token_margin + character_margin) / 2.0))
+
+
+def _bounded_pair_tokens(text: str) -> tuple[str, ...]:
+    """Retain a fixed token prefix and suffix for bounded sequence comparison."""
+
+    tokens = tuple(_PAIR_TOKEN_PATTERN.findall(text))
+    if len(tokens) <= _PAIR_MAX_TOKENS:
+        return tokens
+    prefix_width = _PAIR_MAX_TOKENS // 2
+    return tokens[:prefix_width] + tokens[-(_PAIR_MAX_TOKENS - prefix_width) :]
+
+
+def _bounded_pair_text(text: str) -> str:
+    """Retain a fixed character prefix and suffix for bounded sequence comparison."""
+
+    if len(text) <= _PAIR_MAX_CHARACTERS:
+        return text
+    prefix_width = _PAIR_MAX_CHARACTERS // 2
+    return text[:prefix_width] + text[-(_PAIR_MAX_CHARACTERS - prefix_width) :]
+
+
+def _sequence_margin(
+    response: Sequence[str],
+    chosen: Sequence[str],
+    rejected: Sequence[str],
+) -> float:
+    """Return the chosen-minus-rejected SequenceMatcher ratio difference."""
+
+    chosen_similarity = _sequence_similarity(response, chosen)
+    rejected_similarity = _sequence_similarity(response, rejected)
+    return chosen_similarity - rejected_similarity
+
+
+def _sequence_similarity(left: Sequence[str], right: Sequence[str]) -> float:
+    """Return zero for an empty side or one deterministic local sequence ratio."""
+
+    if not left or not right:
+        return 0.0
+    return SequenceMatcher(None, left, right, autojunk=False).ratio()
+
+
 class _PairRewardProvider:
     def __init__(self, config: RLRunConfig, snapshot: _DatasetSnapshot) -> None:
         if not snapshot.pairs:
@@ -1390,6 +1504,19 @@ class _PairRewardProvider:
         )
 
         if matched is None:
+            preference_margin = _pair_preference_margin(
+                request.trajectory.response,
+                chosen,
+                rejected,
+            )
+            base = self.calculator.compute_reward(
+                response=request.trajectory.response,
+                reference_answers=(chosen,),
+                gepa_scores={"authored_pair_margin": preference_margin},
+                imperatives=None,
+                confidence=1.0,
+                trace_summary={},
+            )
             integrity_components = {name: 0.0 for name in COMPONENT_NAMES}
             components = {
                 **integrity_components,
@@ -2216,7 +2343,12 @@ def _add_close_note(primary: BaseException, owner: str, close_error: BaseExcepti
     if callable(add_note):
         add_note(diagnostic)
     else:  # pragma: no cover - Python 3.10 compatibility
-        primary.__cause__ = close_error
+        diagnostic_error = RuntimeError(diagnostic)
+        old_cause = primary.__cause__
+        diagnostic_error.__cause__ = old_cause
+        diagnostic_error.__suppress_context__ = old_cause is not None
+        primary.__cause__ = diagnostic_error
+        primary.__suppress_context__ = True
 
 
 def _close_backends_once(
@@ -2289,11 +2421,35 @@ def _preflight_planned_rollout_seeds(
         )
         final_rollout_cursor = rollout_cursor + attempt_count - 1
         final_request_index = min(batch_size, len(requests)) - 1
-    validate_seed(
-        config.seed + final_rollout_cursor + final_request_index,
+    _rollout_request_seed(
+        config,
+        final_rollout_cursor,
+        final_request_index,
+        sample_count,
         "planned rollout seed",
-        sample_count=sample_count,
     )
+
+
+def _rollout_request_seed(
+    config: RLRunConfig,
+    rollout_index: int,
+    batch_slot: int,
+    sample_count: int,
+    field_name: str,
+) -> int:
+    """Reserve one disjoint consecutive seed range for a rollout request."""
+    distributed = getattr(config.runtime, "distributed", DistributedRuntimeConfig())
+    rollout_rank = rollout_index * distributed.world_size + distributed.rank
+    if rollout_rank >= batch_slot:
+        request_index = rollout_rank * rollout_rank + rollout_rank + batch_slot
+    else:
+        request_index = batch_slot * batch_slot + rollout_rank
+    sample_stride = config.algorithm.group_size if config.algorithm.name == "grpo" else 1
+    seed = config.seed + request_index * sample_stride
+    validated = validate_seed(seed, field_name, sample_count=sample_count)
+    if validated is None:  # pragma: no cover - RLRunConfig always supplies an integer seed
+        raise RuntimeError("configured seed unexpectedly resolved to null")
+    return validated
 
 
 def _default_backend_factory(config: RLRunConfig) -> TrainablePolicyBackend:

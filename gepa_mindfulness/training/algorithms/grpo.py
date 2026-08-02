@@ -101,6 +101,7 @@ def compute_grpo_loss(
         evaluation.log_probs,
         evaluation.reference_log_probs,
         evaluation.entropy,
+        names=("old_log_probs", "log_probs", "reference_log_probs", "entropy"),
     )
     if batch.returns is not None or batch.old_values is not None:
         raise ValueError("GRPO batches must not contain value targets")

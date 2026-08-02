@@ -23,6 +23,6 @@ class FlatJSONLAdapter:
             validated = validate_pair_record(row, self.path, line_number)
             yield RolloutRequest(
                 prompt=cast(str, validated["prompt"]),
-                case_id=cast(str, validated["source_case_id"]),
+                case_id=cast(str, validated["record_id"]),
                 metadata={field: value for field, value in validated.items() if field != "prompt"},
             )

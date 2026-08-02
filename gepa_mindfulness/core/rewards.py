@@ -47,6 +47,8 @@ class RewardWeights:
         }.items():
             if value < 0.0:
                 raise ValueError(f"weight {name} must be non-negative")
+        if not math.isfinite(self.total):
+            raise ValueError("reward weight total mass must be finite")
         if self.total <= 0.0:
             raise ValueError("reward weights must have positive mass")
 

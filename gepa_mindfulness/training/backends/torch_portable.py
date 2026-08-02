@@ -32,9 +32,12 @@ def create_portable_backend(
     if tokenizer is None:  # pragma: no cover - narrowed by the checks above
         raise AssertionError("tokenizer must be available")
     if training_mode == "lora":
-        reference_model = deepcopy(policy_model) if reference_model is None else reference_model
         policy_model = _apply_lora(policy_model, lora_config)
-        reference_model = _apply_lora(reference_model, lora_config)
+        reference_model = (
+            deepcopy(policy_model)
+            if reference_model is None
+            else _apply_lora(reference_model, lora_config)
+        )
         adapter_identifier = "peft-lora"
     elif training_mode == "full":
         if lora_config is not None:

@@ -172,6 +172,12 @@ class FakePeftType(str, Enum):
     IA3 = "IA3"
 
 
+class NoNoteRuntimeError(RuntimeError):
+    """RuntimeError shaped like Python 3.10 exceptions without PEP 678 notes."""
+
+    add_note = None
+
+
 class FakeGradientScaler:
     """Stateful loss scaler double with observable skip and restore behavior."""
 
@@ -1135,12 +1141,13 @@ def test_checkpoint_late_restore_failure_rolls_back_and_preserves_primary_error(
     torch.save(payload, checkpoint)
     original_set_rng_state = torch.set_rng_state
     call_count = 0
+    primary = RuntimeError("primary RNG restore failure")
 
     def fail_primary_and_rollback(state: torch.Tensor) -> None:
         nonlocal call_count
         call_count += 1
         if call_count == 1:
-            raise RuntimeError("primary RNG restore failure")
+            raise primary
         if call_count == 2:
             raise RuntimeError("secondary rollback RNG failure")
         original_set_rng_state(state)
@@ -1153,10 +1160,73 @@ def test_checkpoint_late_restore_failure_rolls_back_and_preserves_primary_error(
         caught = error
 
     _assert_backend_snapshot(tiny_backend, snapshot)
-    assert isinstance(caught, ValueError)
-    assert isinstance(caught.__cause__, RuntimeError)
-    assert str(caught.__cause__) == "primary RNG restore failure"
+    assert caught is primary
+    assert str(caught) == "primary RNG restore failure"
+    assert any(
+        "secondary rollback RNG failure" in note for note in getattr(primary, "__notes__", ())
+    )
     assert call_count == 2
+
+
+def test_checkpoint_rollback_chains_diagnostics_when_primary_cannot_add_notes(
+    tiny_backend: TorchPolicyBackend,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Python 3.10 keeps the optimizer failure and every policy/value rollback failure."""
+    checkpoint = tmp_path / "python-310-rollback.pt"
+    tiny_backend.save_checkpoint(checkpoint)
+    primary = NoNoteRuntimeError("optimizer state restore failed")
+    original_cause = LookupError("optimizer state was rejected")
+    primary.__cause__ = original_cause
+    original_policy_load = tiny_backend.policy_model.load_state_dict
+    original_value_load = tiny_backend.value_head.load_state_dict
+    original_optimizer_load = tiny_backend.optimizer.load_state_dict
+    policy_calls = 0
+    value_calls = 0
+    optimizer_calls = 0
+
+    def fail_policy_rollback(
+        state: Mapping[str, torch.Tensor],
+        strict: bool = True,
+    ) -> object:
+        nonlocal policy_calls
+        policy_calls += 1
+        if policy_calls == 2:
+            raise RuntimeError("policy rollback failed")
+        return original_policy_load(state, strict=strict)
+
+    def fail_value_rollback(
+        state: Mapping[str, torch.Tensor],
+        strict: bool = True,
+    ) -> object:
+        nonlocal value_calls
+        value_calls += 1
+        if value_calls == 2:
+            raise RuntimeError("value rollback failed")
+        return original_value_load(state, strict=strict)
+
+    def fail_optimizer_restore(state: Mapping[str, object]) -> None:
+        nonlocal optimizer_calls
+        optimizer_calls += 1
+        if optimizer_calls == 1:
+            raise primary
+        original_optimizer_load(state)
+
+    monkeypatch.setattr(tiny_backend.policy_model, "load_state_dict", fail_policy_rollback)
+    monkeypatch.setattr(tiny_backend.value_head, "load_state_dict", fail_value_rollback)
+    monkeypatch.setattr(tiny_backend.optimizer, "load_state_dict", fail_optimizer_restore)
+
+    with pytest.raises(NoNoteRuntimeError) as caught:
+        tiny_backend.load_checkpoint_bytes(checkpoint.read_bytes())
+
+    assert caught.value is primary
+    assert str(caught.value) == "optimizer state restore failed"
+    diagnostic = caught.value.__cause__
+    assert isinstance(diagnostic, RuntimeError)
+    assert "policy rollback failed" in str(diagnostic)
+    assert "value rollback failed" in str(diagnostic)
+    assert diagnostic.__cause__ is original_cause
 
 
 def test_full_weight_capabilities_have_explicit_evidence(
@@ -1572,11 +1642,37 @@ def test_factory_supports_lora_when_peft_is_available(
             self.values = values
             self.peft_type = FakePeftType.LORA
 
+    class FakeLoraTiny(TinyCausalLM):
+        def forward(
+            self,
+            input_ids: torch.Tensor,
+            *,
+            attention_mask: torch.Tensor | None = None,
+            output_hidden_states: bool = False,
+        ) -> SimpleNamespace:
+            outputs = super().forward(
+                input_ids,
+                attention_mask=attention_mask,
+                output_hidden_states=output_hidden_states,
+            )
+            logits = outputs.logits.clone()
+            logits[..., 0] += self.lora_adapter[0]
+            return SimpleNamespace(logits=logits, hidden_states=outputs.hidden_states)
+
+    peft_calls = 0
+
     def fake_get_peft_model(model: nn.Module, config: FakeLoraConfig) -> nn.Module:
+        nonlocal peft_calls
+        peft_calls += 1
         assert config.values["task_type"] == "CAUSAL_LM"
-        adapted = _fake_lora_model()
-        adapted.peft_config["default"] = config
-        return adapted
+        for parameter in model.parameters():
+            parameter.requires_grad_(False)
+        model.register_parameter(
+            "lora_adapter",
+            nn.Parameter(torch.tensor([float(peft_calls)])),
+        )
+        model.peft_config = {"default": config}
+        return model
 
     fake_peft.LoraConfig = FakeLoraConfig
     fake_peft.TaskType = SimpleNamespace(CAUSAL_LM="CAUSAL_LM")
@@ -1594,12 +1690,14 @@ def test_factory_supports_lora_when_peft_is_available(
     )
     backend = create_portable_backend(
         config,
-        policy_model=TinyCausalLM(),
+        policy_model=FakeLoraTiny(),
         tokenizer=TinyTokenizer(),
         training_mode="lora",
         lora_config={"r": 2, "target_modules": ["lm_head"]},
     )
 
+    assert peft_calls == 1
+    assert backend.policy_model is not backend.reference_model
     assert (
         backend.capabilities().state(Capability.SUPPORTS_LORA_TRAINING) is CapabilityState.SUPPORTED
     )
@@ -1620,6 +1718,14 @@ def test_factory_supports_lora_when_peft_is_available(
         reference_names["lora_adapter"]
         is not dict(backend.policy_model.named_parameters())["lora_adapter"]
     )
+    policy_state = backend.policy_model.state_dict()
+    reference_state = backend.reference_model.state_dict()
+    assert policy_state.keys() == reference_state.keys()
+    assert all(torch.equal(policy_state[name], reference_state[name]) for name in policy_state)
+    input_ids = torch.tensor([[TinyTokenizer().encode("calm")[0]]])
+    policy_logits = backend.policy_model(input_ids).logits
+    reference_logits = backend.reference_model(input_ids).logits
+    assert torch.equal(policy_logits, reference_logits)
     assert backend.reference_model.training is False
     assert all(not parameter.requires_grad for parameter in backend.reference_model.parameters())
     candidate = backend.export_adapter(

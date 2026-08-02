@@ -15,6 +15,8 @@ from scripts.build_reward_integrity_rl_dataset import PAIR_RULES, build_dataset
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "data" / "synthetic" / "reward_integrity" / "reward_integrity_curriculum_v1.jsonl"
+CHECKED_IN_PAIRS = SOURCE.with_name("rl_pairs_v1.jsonl")
+CHECKED_IN_MANIFEST = SOURCE.with_name("curriculum_manifest.json")
 
 
 def build_into(output_dir: Path):
@@ -77,6 +79,44 @@ def test_manifest_hashes_the_source_and_generated_pairs(tmp_path: Path) -> None:
     )
     assert manifest["pairs_sha256"] == hashlib.sha256(result.pairs.read_bytes()).hexdigest()
     assert manifest["pair_rules"] == [rule[2] for rule in PAIR_RULES]
+
+
+def test_checked_in_pairs_retain_current_source_provenance() -> None:
+    """Stale hashes or line metadata would disconnect checked-in pairs from their source rows."""
+    source_rows = {
+        record["id"]: (line_number, record["version"])
+        for line_number, record in enumerate(
+            (json.loads(line) for line in SOURCE.read_text(encoding="utf-8").splitlines()),
+            start=1,
+        )
+    }
+    source_sha256 = hashlib.sha256(SOURCE.read_bytes()).hexdigest()
+    pairs = [
+        json.loads(line)
+        for line in CHECKED_IN_PAIRS.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+    assert len(pairs) == 48
+    for pair in pairs:
+        source_line, source_version = source_rows[pair["source_case_id"]]
+        assert pair["source_sha256"] == source_sha256
+        assert pair["source_line"] == source_line
+        assert pair["source_case_version"] == source_version
+
+
+def test_checked_in_manifest_hashes_current_source_and_pairs() -> None:
+    """A stale checked-in manifest would advertise provenance the shipped bytes do not have."""
+    manifest = json.loads(CHECKED_IN_MANIFEST.read_text(encoding="utf-8"))
+    pair_count = len(
+        [line for line in CHECKED_IN_PAIRS.read_text(encoding="utf-8").splitlines() if line.strip()]
+    )
+    case_count = len([line for line in SOURCE.read_text(encoding="utf-8").splitlines() if line])
+
+    assert manifest["source_sha256"] == hashlib.sha256(SOURCE.read_bytes()).hexdigest()
+    assert manifest["pairs_sha256"] == hashlib.sha256(CHECKED_IN_PAIRS.read_bytes()).hexdigest()
+    assert manifest["case_count"] == case_count
+    assert manifest["pair_count"] == pair_count
 
 
 def test_builder_script_runs_from_the_repository_root() -> None:

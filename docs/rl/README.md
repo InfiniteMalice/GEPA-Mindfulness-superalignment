@@ -558,6 +558,51 @@ Then add these keys under `algorithm`:
 Use a dataset and model that can produce reward variation, or a GRPO invocation can finish without
 an optimizer step.
 
+### Graded rewards for unmatched pair responses
+
+The previous pair scorer used exact normalized text equality. Exact chosen responses received the
+authored chosen endpoint, exact rejected responses received the authored rejected endpoint, and
+every unmatched response received the same wrong-answer reward. That collapse could
+produce zero within-group variance for Group Relative Policy Optimization (GRPO).
+
+The scorer still preserves both exact normalized endpoints. For every unmatched response, including
+abstention-like language, the scorer case-folds each text and builds ordered word-token and
+character representations. Each representation uses local `difflib.SequenceMatcher` ratios against
+both authored references. The scorer averages the token and character
+`chosen_similarity - rejected_similarity` margins. The resulting GEPA alignment signal is finite
+and in `[-1.0, 1.0]`. The normalized GEPA `beta` weight scales that signal. A negative signal records
+both authored pair references as observable evidence. Empty, punctuation-only, or token-free
+responses use a zero signal and cannot gain a positive alignment contribution.
+
+Abstention quality remains a separately computed part of the base reward breakdown; applying the
+authored-pair margin does not bypass or replace abstention classification.
+
+Each comparison retains at most 256 tokens and 1,024 characters. For an over-limit representation,
+the scorer retains equal-sized prefix and suffix regions and discards the middle. This bound avoids
+unbounded matching work on repetitive model output while retaining response openings and endings.
+
+The strict near-chosen > unrelated > near-rejected reward order requires a normalized `beta` value
+greater than `0.0` and distinct signed margins from the retained representations. Under those
+conditions, the order gives Group Relative Policy Optimization (GRPO) a usable within-group signal
+when sampled responses are not exact copies of either authored answer. If `beta` is `0.0`, the
+scorer logs the alignment component but does not change total reward. If case folding, tokenization,
+or middle truncation makes the retained representations indistinguishable, the responses can tie
+and GRPO can apply its configured zero-variance policy.
+
+The signal is a lexical proxy, not a semantic judge. Synonym-heavy paraphrases, token reordering,
+negation changes, long shared boilerplate, differences only in a discarded middle region, and
+languages without compatible word-token boundaries can receive misleading or collapsed scores.
+Evaluate changes to normalization, bounds, or pair wording with:
+
+```bash
+python -m pytest tests/test_rl_cli.py -k "graded_pair_reward or pair_preference_comparisons" -q
+```
+
+The focused tests verify exact endpoints, strict ordering for ordinary and token-equivalent
+references, finite scores, bounded comparison inputs, retained prefixes and suffixes, token-free
+response behavior, and observable authored-reference evidence. The focused tests do not establish
+semantic equivalence beyond the listed lexical failure cases.
+
 The reward-integrity overlay is disabled by default. To enable it, set
 `reward.integrity_overlay_enabled: true` and set `reward.overlay_weight` to a finite positive value.
 The GEPA `beta` weight continues to control only base GEPA alignment. Logs preserve

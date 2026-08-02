@@ -1,5 +1,6 @@
 # Ensure consistent line endings across platforms
 * text=auto
+.gitattributes text eol=lf
 
 # Enforce LF endings for source and config files to avoid Black churn
 *.py text eol=lf
@@ -10,6 +11,7 @@
 *.yaml text eol=lf
 *.toml text eol=lf
 *.json text eol=lf
+*.jsonl text eol=lf
 *.txt text eol=lf
 *.sh text eol=lf
 *.cfg text eol=lf

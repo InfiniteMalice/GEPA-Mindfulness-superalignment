@@ -7,10 +7,12 @@ import json
 import os
 import random
 import socket
-from contextlib import contextmanager
+import time
+from contextlib import contextmanager, nullcontext
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 import torch
@@ -34,8 +36,10 @@ from gepa_mindfulness.training.capability import (
 )
 from gepa_mindfulness.training.checkpointing import RankRNGState
 from gepa_mindfulness.training.engine import (
+    EngineDependencyError,
     RLTrainingEngine,
     SystemCapabilityProvider,
+    _batch_available_on_all_ranks,
     _config_hash,
     _distributed_mean_scalars,
     _gather_rank_rng_states,
@@ -53,7 +57,12 @@ from gepa_mindfulness.training.runtime_config import (
     RuntimeConfig,
     load_rl_config,
 )
-from gepa_mindfulness.training.trajectory import RolloutRequest
+from gepa_mindfulness.training.trajectory import (
+    PolicyEvaluation,
+    RolloutRequest,
+    Trajectory,
+    TrajectoryBatch,
+)
 
 
 class _RecordingDeviceContext:
@@ -340,6 +349,34 @@ def _ddp_trainable_sync_worker(rank: int, init_file: str, result_dir: str) -> No
     )
     try:
         torch.manual_seed(123)
+        local_policy = _TinyCudaCausalLM()
+        local_reference = _TinyCudaCausalLM()
+        local_reference.load_state_dict(local_policy.state_dict())
+        local_value_head = nn.Linear(8, 1)
+        local_optimizer = torch.optim.SGD(
+            [*local_policy.parameters(), *local_value_head.parameters()],
+            lr=0.1,
+        )
+        local_backend = TorchPolicyBackend(
+            policy_model=local_policy,
+            reference_model=local_reference,
+            value_head=local_value_head,
+            optimizer=local_optimizer,
+            tokenizer=_TinyCudaTokenizer(),
+            device="cpu",
+            learning_rate=0.1,
+        )
+        local_backend.zero_grad()
+        local_evaluation = local_backend.evaluate(_ddp_rank_batch(rank))
+        local_loss = local_evaluation.log_probs.sum() + local_evaluation.value_predictions.sum()
+        local_backend.backward(local_loss)
+        local_backend.optimizer_step()
+        local_state = {
+            "policy": local_backend.policy_model.state_dict(),
+            "value_head": local_backend.value_head.state_dict(),
+        }
+
+        torch.manual_seed(123)
         policy = _TinyCudaCausalLM()
         reference = _TinyCudaCausalLM()
         reference.load_state_dict(policy.state_dict())
@@ -356,24 +393,27 @@ def _ddp_trainable_sync_worker(rank: int, init_file: str, result_dir: str) -> No
             topology,
             "cpu",
         )
+        optimizer = torch.optim.SGD(
+            [*policy.parameters(), *value_head.parameters()],
+            lr=0.1,
+        )
         backend = TorchPolicyBackend(
             policy_model=policy,
             reference_model=reference,
             value_head=value_head,
+            optimizer=optimizer,
             tokenizer=_TinyCudaTokenizer(),
             device="cpu",
             learning_rate=0.1,
         )
         backend.zero_grad()
-        token = 2 + rank
-        input_ids = torch.tensor([[token]], dtype=torch.long)
-        policy_loss = backend.policy_model(input_ids).logits.sum() * float(rank + 1)
-        value_input = torch.full((1, 1, 8), float(rank + 1))
-        value_loss = backend.value_head(value_input).sum() * float(rank + 2)
-        backend.backward(policy_loss + value_loss)
+        evaluation = backend.evaluate(_ddp_rank_batch(rank))
+        combined_loss = evaluation.log_probs.sum() + evaluation.value_predictions.sum()
+        backend.backward(combined_loss)
         backend.optimizer_step()
         torch.save(
             {
+                "local": local_state,
                 "policy": backend.policy_model.state_dict(),
                 "value_head": backend.value_head.state_dict(),
             },
@@ -381,6 +421,189 @@ def _ddp_trainable_sync_worker(rank: int, init_file: str, result_dir: str) -> No
         )
     finally:
         torch.distributed.destroy_process_group()
+
+
+class _CountingTorchPolicyBackend(TorchPolicyBackend):
+    """Record only explicit training evaluations, not rollout evidence evaluation."""
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.training_evaluations = 0
+
+    def evaluate(self, batch: TrajectoryBatch) -> PolicyEvaluation:
+        self.training_evaluations += 1
+        return super().evaluate(batch)
+
+    def capabilities(self) -> BackendCapabilities:
+        return _all_supported_capabilities()
+
+
+class _RankReward:
+    def __init__(self, rank: int) -> None:
+        self.rank = rank
+        self.calls = 0
+
+    def score(self, request: object) -> float:
+        del request
+        self.calls += 1
+        return 1.0 if self.rank == 0 else float(self.calls)
+
+
+def _all_supported_capabilities() -> BackendCapabilities:
+    return BackendCapabilities(
+        backend_name="test-gloo",
+        backend_version=torch.__version__,
+        capabilities={
+            capability: CapabilityEvidence(
+                state=CapabilityState.SUPPORTED,
+                evidence="two-rank Gloo regression",
+            )
+            for capability in Capability
+        },
+    )
+
+
+def _ddp_asymmetric_grpo_skip_worker(
+    rank: int,
+    init_file: str,
+    result_dir: str,
+) -> None:
+    torch.distributed.init_process_group(
+        "gloo",
+        init_method=f"file://{Path(init_file).as_posix()}",
+        world_size=2,
+        rank=rank,
+    )
+    try:
+        topology = DistributedRuntimeConfig(
+            strategy="ddp",
+            world_size=2,
+            rank=rank,
+            local_rank=rank,
+        )
+        config = RLRunConfig(
+            runtime=RuntimeConfig(
+                backend="cuda",
+                device=f"cuda:{rank}",
+                distributed=topology,
+            ),
+            policy=PolicyConfig(model_name="tiny-local-gloo-lm", max_new_tokens=1),
+            algorithm=AlgorithmConfig(
+                name="grpo",
+                batch_size=1,
+                group_size=2,
+                max_steps=1,
+                zero_variance_policy="skip",
+            ),
+            checkpoint=CheckpointConfig(
+                output_dir=str(Path(result_dir) / f"checkpoints-{rank}"),
+                save_steps=1,
+            ),
+            logging=LoggingConfig(log_dir=str(Path(result_dir) / f"logs-{rank}")),
+            seed=42,
+        )
+        created: list[_CountingTorchPolicyBackend] = []
+
+        def build_backend(value: RLRunConfig) -> _CountingTorchPolicyBackend:
+            del value
+            torch.manual_seed(123)
+            policy = _TinyCudaCausalLM()
+            reference = _TinyCudaCausalLM()
+            reference.load_state_dict(policy.state_dict())
+            value_head = nn.Linear(8, 1)
+            policy, value_head = _wrap_distributed_trainables(
+                policy,
+                value_head,
+                topology,
+                "cpu",
+            )
+            optimizer = torch.optim.SGD(
+                [*policy.parameters(), *value_head.parameters()],
+                lr=0.1,
+            )
+            backend = _CountingTorchPolicyBackend(
+                policy_model=policy,
+                reference_model=reference,
+                value_head=value_head,
+                optimizer=optimizer,
+                tokenizer=_TinyCudaTokenizer(),
+                device="cpu",
+                learning_rate=0.1,
+                model_identifier="tiny-local-gloo-lm",
+            )
+            created.append(backend)
+            return backend
+
+        logger = SimpleNamespace(
+            start=lambda *args: None,
+            trajectories=lambda *args: None,
+            metrics=lambda *args: None,
+        )
+        dataset = SimpleNamespace(
+            materialize=lambda mode: (
+                RolloutRequest(prompt="practice slowly", case_id="shared-grpo-group"),
+            )
+        )
+        checkpoint = SimpleNamespace(
+            save=lambda *args: (_ for _ in ()).throw(
+                AssertionError("a collectively skipped GRPO batch must not checkpoint")
+            )
+        )
+        torch_cuda_backend.distributed_runtime_context = lambda value: nullcontext()
+        engine = RLTrainingEngine(
+            config,
+            capability_provider=SimpleNamespace(detect=lambda value: _all_supported_capabilities()),
+            backend_factory=build_backend,
+            dataset_factory=lambda value: dataset,
+            reward_factory=lambda value: _RankReward(rank),
+            checkpoint_factory=lambda value, backend: checkpoint,
+            logger_factory=lambda value: logger,
+        )
+
+        result = engine.train(max_steps=1)
+        torch.distributed.barrier()
+        backend = created[0]
+        torch.save(
+            {
+                "global_step": result.global_step,
+                "training_evaluations": backend.training_evaluations,
+            },
+            Path(result_dir) / f"asymmetric-rank-{rank}.pt",
+        )
+    finally:
+        torch.distributed.destroy_process_group()
+
+
+def _ddp_rank_batch(rank: int) -> TrajectoryBatch:
+    trajectories = tuple(
+        Trajectory(
+            trajectory_id=f"rank-{rank}-trajectory-{index}",
+            case_id=f"rank-{rank}-case-{index}",
+            prompt="practice",
+            response="chosen",
+            prompt_token_ids=(2 + rank,),
+            response_token_ids=(4 + index,),
+        )
+        for index in range(2)
+    )
+    return TrajectoryBatch(
+        trajectories=trajectories,
+        response_token_masks=((True,), (True,)),
+    )
+
+
+def _join_spawned_processes(context: object, timeout_seconds: float) -> None:
+    deadline = time.monotonic() + timeout_seconds
+    try:
+        while not context.join(timeout=min(1.0, max(0.0, deadline - time.monotonic()))):
+            if time.monotonic() >= deadline:
+                pytest.fail(f"distributed test exceeded {timeout_seconds:.0f}-second timeout")
+    finally:
+        for process in context.processes:
+            if process.is_alive():
+                process.terminate()
+        for process in context.processes:
+            process.join(timeout=5.0)
 
 
 def _never_called() -> tuple[object, object]:
@@ -685,6 +908,62 @@ def test_managed_distributed_runtime_destroys_owned_group_when_execution_fails()
 
     assert events[-1] == "destroy"
     assert initialized is False
+
+
+def test_distributed_cleanup_preserves_existing_cause_without_add_note() -> None:
+    initialized = False
+    config = _cuda_config(
+        distributed=DistributedRuntimeConfig(
+            strategy="ddp",
+            world_size=2,
+            rank=0,
+            local_rank=0,
+        )
+    )
+
+    def is_initialized() -> bool:
+        return initialized
+
+    def init_process_group(backend: str, **kwargs: object) -> None:
+        nonlocal initialized
+        del backend, kwargs
+        initialized = True
+
+    def destroy_process_group() -> None:
+        raise OSError("destroy failed")
+
+    fake_distributed = SimpleNamespace(
+        is_available=lambda: True,
+        is_initialized=is_initialized,
+        init_process_group=init_process_group,
+        get_world_size=lambda: 2,
+        get_rank=lambda: 0,
+        destroy_process_group=destroy_process_group,
+    )
+    fake_cuda = SimpleNamespace(set_device=lambda index: None, current_device=lambda: 0)
+    original_cause = LookupError("original execution cause")
+    primary = RuntimeError("engine failed")
+    primary.add_note = None
+
+    with pytest.raises(RuntimeError, match="engine failed") as captured:
+        try:
+            raise primary from original_cause
+        except RuntimeError:
+            with torch_cuda_backend.distributed_runtime_context(
+                config,
+                distributed=fake_distributed,
+                cuda=fake_cuda,
+            ):
+                raise
+
+    assert captured.value is primary
+    diagnostic = primary.__cause__
+    assert isinstance(diagnostic, RuntimeError)
+    assert "process-group cleanup also failed" in str(diagnostic)
+    assert "OSError: destroy failed" in str(diagnostic)
+    assert diagnostic.__cause__ is original_cause
+    assert primary.__suppress_context__ is True
+    assert diagnostic.__suppress_context__ is True
 
 
 def test_managed_distributed_runtime_preserves_external_process_group() -> None:
@@ -1198,28 +1477,165 @@ def test_cuda_factory_wraps_only_trainable_policy_with_selected_strategy(
     assert not isinstance(captured["reference_model"], RecordingWrapper)
 
 
-def test_ddp_policy_and_value_head_converge_with_different_rank_gradients(tmp_path: Path) -> None:
+@pytest.mark.parametrize("strategy", ["ddp", "fsdp"])
+def test_cuda_factory_normalizes_value_head_before_distributed_wrapping(
+    monkeypatch: pytest.MonkeyPatch,
+    strategy: str,
+) -> None:
+    _available_cuda(monkeypatch, device_count=2)
+    monkeypatch.setattr(torch.cuda, "current_device", lambda: 1)
+    monkeypatch.setattr(torch.distributed, "is_available", lambda: True)
+    monkeypatch.setattr(torch.distributed, "is_initialized", lambda: True)
+    monkeypatch.setattr(torch.distributed, "get_world_size", lambda: 2)
+    monkeypatch.setattr(torch.distributed, "get_rank", lambda: 0)
+    observations: list[tuple[torch.dtype, str | None]] = []
+    original_to = nn.Module.to
+
+    def logical_to(module: nn.Module, *args: object, **kwargs: object) -> nn.Module:
+        target_device = kwargs.get("device")
+        target_dtype = kwargs.get("dtype")
+        for value in args:
+            if isinstance(value, torch.dtype):
+                target_dtype = value
+            elif isinstance(value, (str, torch.device)):
+                target_device = value
+        if isinstance(target_dtype, torch.dtype):
+            original_to(module, dtype=target_dtype)
+        if target_device is not None:
+            setattr(module, "_logical_test_device", str(target_device))
+        return module
+
+    class RecordingWrapper(nn.Module):
+        def __init__(self, module: nn.Module, **kwargs: object) -> None:
+            super().__init__()
+            del kwargs
+            self.module = module
+            parameter = next(module.parameters())
+            observations.append((parameter.dtype, getattr(module, "_logical_test_device", None)))
+
+        def forward(self, *args: object, **kwargs: object) -> object:
+            return self.module(*args, **kwargs)
+
+    def cpu_backend(**kwargs: object) -> TorchPolicyBackend:
+        kwargs["device"] = "cpu"
+        return TorchPolicyBackend(**kwargs)
+
+    monkeypatch.setattr(nn.Module, "to", logical_to)
+    monkeypatch.setattr(torch_cuda_backend, "DistributedDataParallel", RecordingWrapper)
+    monkeypatch.setattr(torch_cuda_backend, "FullyShardedDataParallel", RecordingWrapper)
+    monkeypatch.setattr(torch_cuda_backend, "TorchPolicyBackend", cpu_backend)
+    config = _cuda_config(
+        device="cuda:1",
+        distributed=DistributedRuntimeConfig(
+            strategy=strategy,
+            world_size=2,
+            rank=0,
+            local_rank=1,
+        ),
+    )
+    policy = _TinyCudaCausalLM().double()
+
+    backend = create_cuda_backend(config, lambda: (policy, _TinyCudaTokenizer()))
+
+    assert observations == [
+        (torch.float64, "cuda:1"),
+        (torch.float64, "cuda:1"),
+    ]
+    backend.zero_grad()
+    evaluation = backend.evaluate(_ddp_rank_batch(0))
+    backend.backward(evaluation.log_probs.sum() + evaluation.value_predictions.sum())
+    assert any(parameter.grad is not None for parameter in backend.policy_parameters())
+    assert any(parameter.grad is not None for parameter in backend.value_head.parameters())
+
+
+def test_value_head_dtype_requires_a_floating_policy_parameter() -> None:
+    policy = nn.Module()
+    policy.register_parameter(
+        "integer_state",
+        nn.Parameter(torch.ones(1, dtype=torch.int64), requires_grad=False),
+    )
+
+    with pytest.raises(ValueError, match="floating-point parameter"):
+        torch_cuda_backend._model_floating_dtype_and_device(policy)
+
+
+def test_ddp_multi_trajectory_evaluation_converges_across_ranks(tmp_path: Path) -> None:
     if not torch.distributed.is_available() or not torch.distributed.is_gloo_available():
         pytest.skip("requires torch.distributed with Gloo support")
     result_dir = tmp_path / "results"
     result_dir.mkdir()
 
-    torch.multiprocessing.spawn(
+    context = torch.multiprocessing.spawn(
         _ddp_trainable_sync_worker,
         args=(str(tmp_path / "process-group-init"), str(result_dir)),
         nprocs=2,
-        join=True,
+        join=False,
     )
+    _join_spawned_processes(context, timeout_seconds=30.0)
 
     rank_zero = torch.load(result_dir / "rank-0.pt", weights_only=True)
     rank_one = torch.load(result_dir / "rank-1.pt", weights_only=True)
     assert rank_zero.keys() == rank_one.keys()
+    for section in ("policy", "value_head"):
+        assert any(
+            not torch.equal(rank_zero["local"][section][name], rank_one["local"][section][name])
+            for name in rank_zero["local"][section]
+        )
     for section in ("policy", "value_head"):
         assert rank_zero[section].keys() == rank_one[section].keys()
         assert all(
             torch.equal(rank_zero[section][name], rank_one[section][name])
             for name in rank_zero[section]
         )
+
+
+def test_ddp_grpo_skips_all_ranks_when_only_one_rank_has_reward_variance(
+    tmp_path: Path,
+) -> None:
+    """A rank-local skip must not leave a peer blocked in its DDP training forward."""
+    if not torch.distributed.is_available() or not torch.distributed.is_gloo_available():
+        pytest.skip("requires torch.distributed with Gloo support")
+    result_dir = tmp_path / "asymmetric-results"
+    result_dir.mkdir()
+
+    context = torch.multiprocessing.spawn(
+        _ddp_asymmetric_grpo_skip_worker,
+        args=(str(tmp_path / "asymmetric-process-group-init"), str(result_dir)),
+        nprocs=2,
+        join=False,
+    )
+    _join_spawned_processes(context, timeout_seconds=30.0)
+
+    rank_results = [
+        torch.load(result_dir / f"asymmetric-rank-{rank}.pt", weights_only=True)
+        for rank in range(2)
+    ]
+    assert rank_results == [
+        {"global_step": 0, "training_evaluations": 0},
+        {"global_step": 0, "training_evaluations": 0},
+    ]
+
+
+def test_distributed_batch_agreement_fails_closed_without_backend_capability() -> None:
+    """Falling back to rank-local truth would reintroduce divergent DDP control flow."""
+    with pytest.raises(
+        EngineDependencyError,
+        match="distributed.*batch_available_on_all_ranks",
+    ):
+        _batch_available_on_all_ranks(SimpleNamespace(), True, distributed=True)
+
+
+def test_distributed_batch_agreement_rejects_nonboolean_backend_evidence() -> None:
+    """Truthy non-booleans cannot provide explicit rank-agreement evidence."""
+    backend = SimpleNamespace(batch_available_on_all_ranks=lambda available: 1)
+
+    with pytest.raises(TypeError, match="return a boolean"):
+        _batch_available_on_all_ranks(backend, True, distributed=True)
+
+
+def test_single_process_batch_availability_needs_no_backend_capability() -> None:
+    """Portable external backends remain valid when distributed execution is disabled."""
+    assert not _batch_available_on_all_ranks(SimpleNamespace(), False, distributed=False)
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:-1", "cuda:one", "cuda:0:1"])

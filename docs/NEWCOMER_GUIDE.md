@@ -61,7 +61,7 @@ gepa rl --help
 Before loading a model, diagnose the exact capabilities required by a run:
 
 ```bash
-gepa rl doctor --config run.cpu.ppo.yaml
+gepa rl doctor --config configs/rl/pytorch_cpu_ppo.yaml
 ```
 
 The default loader accepts a local Transformers model directory or an existing cache entry and

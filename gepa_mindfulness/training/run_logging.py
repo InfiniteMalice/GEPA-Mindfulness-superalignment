@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib
 import json
 import math
@@ -10,6 +11,8 @@ import re
 import stat
 import threading
 import uuid
+import weakref
+from collections import OrderedDict
 from collections.abc import Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -17,6 +20,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import BinaryIO, Iterator, Literal, Protocol, cast
 
+from gepa_mindfulness.training._windows_file_lock import windows_byte_lock
 from gepa_mindfulness.training.policy_versions import PolicyVersion
 from gepa_mindfulness.training.trajectory import Trajectory
 
@@ -169,7 +173,8 @@ class _ValidatedStreamState:
     size: int
     mtime_ns: int
     manifest: dict[str, object]
-    records: dict[str, object]
+    records: dict[str, str]
+    publication_tail: tuple[PolicyVersion, int] | None
 
 
 @dataclass(frozen=True)
@@ -455,10 +460,12 @@ class PublicationRecord:
 class JSONLLoggingSink:
     """Append validated run records while suppressing duplicate record IDs."""
 
+    _VALIDATED_STREAM_LIMIT = 64
     _locks_guard = threading.Lock()
-    _path_locks: dict[Path, threading.RLock] = {}
-    # Access each cache entry only while holding its path lock and the opened stream lock.
-    _validated_streams: dict[Path, _ValidatedStreamState] = {}
+    _path_locks: weakref.WeakValueDictionary[Path, threading.RLock] = weakref.WeakValueDictionary()
+    _active_paths: dict[Path, int] = {}
+    # The guard bounds global retention; path locks protect each stream state's mutable index.
+    _validated_streams: OrderedDict[Path, _ValidatedStreamState] = OrderedDict()
 
     def __init__(self, directory: Path, *, rank: int = 0) -> None:
         if not isinstance(directory, Path):
@@ -479,13 +486,13 @@ class JSONLLoggingSink:
         metrics_path = self.directory / "metrics.jsonl"
         trajectories_path = self.directory / "trajectories.jsonl"
         publications_path = self.directory / "publications.jsonl"
-        with self._path_lock(metrics_path):
+        with self._locked_path(metrics_path):
             with _open_regular_stream(metrics_path, create=True) as metrics:
                 with _exclusive_stream_lock(metrics):
-                    with self._path_lock(trajectories_path):
+                    with self._locked_path(trajectories_path):
                         with _open_regular_stream(trajectories_path, create=True) as trajectories:
                             with _exclusive_stream_lock(trajectories):
-                                with self._path_lock(publications_path):
+                                with self._locked_path(publications_path):
                                     with _open_regular_stream(
                                         publications_path, create=True
                                     ) as publications:
@@ -570,30 +577,38 @@ class JSONLLoggingSink:
             ).encode("utf-8")
             + b"\n"
         )
-        with self._path_lock(path):
+        payload_digest = hashlib.sha256(serialized[:-1]).hexdigest()
+        with self._locked_path(path):
             with _open_regular_stream(path, create=False) as stream, _exclusive_stream_lock(stream):
                 self._require_path_matches_stream(stream, path)
-                existing_records = self._validated_records(stream, path, manifest)
+                existing_records, publication_tail = self._validated_records(
+                    stream,
+                    path,
+                    manifest,
+                )
                 if record_id in existing_records:
-                    if existing_records[record_id] == payload:
+                    if existing_records[record_id] == payload_digest:
                         return False
                     raise ValueError("record_id already identifies a different payload")
                 if path.name == "publications.jsonl":
-                    previous = (
-                        next(reversed(existing_records.values())) if existing_records else None
-                    )
-                    self._validate_publication_transition(
+                    publication_tail = self._validate_publication_transition(
                         dict(payload),
                         manifest,
-                        previous,
+                        publication_tail,
                     )
                 stream.seek(0, os.SEEK_END)
                 stream.write(serialized)
                 stream.flush()
                 os.fsync(stream.fileno())
                 self._require_path_matches_stream(stream, path)
-                existing_records[record_id] = dict(payload)
-                self._remember_validated_stream(stream, path, manifest, existing_records)
+                existing_records[record_id] = payload_digest
+                self._remember_validated_stream(
+                    stream,
+                    path,
+                    manifest,
+                    existing_records,
+                    publication_tail,
+                )
         return True
 
     def _validated_records(
@@ -601,38 +616,67 @@ class JSONLLoggingSink:
         stream: BinaryIO,
         path: Path,
         manifest: RunManifest,
-    ) -> dict[str, object]:
+    ) -> tuple[dict[str, str], tuple[PolicyVersion, int] | None]:
         resolved = path.resolve(strict=False)
         file_identity, size, mtime_ns = self._stream_metadata(stream)
         manifest_payload = manifest.to_dict()
-        cached = self._validated_streams.get(resolved)
-        if (
-            cached is not None
-            and cached.file_identity == file_identity
-            and cached.size == size
-            and cached.mtime_ns == mtime_ns
-            and cached.manifest == manifest_payload
-        ):
-            return cached.records
-        records = self._existing_records(stream, path, manifest)
-        self._remember_validated_stream(stream, path, manifest, records)
-        return records
+        with self._locks_guard:
+            cached = self._validated_streams.get(resolved)
+            if (
+                cached is not None
+                and cached.file_identity == file_identity
+                and cached.size == size
+                and cached.mtime_ns == mtime_ns
+                and cached.manifest == manifest_payload
+            ):
+                self._validated_streams.move_to_end(resolved)
+                return cached.records, cached.publication_tail
+        records, publication_tail = self._existing_records(stream, path, manifest)
+        self._remember_validated_stream(
+            stream,
+            path,
+            manifest,
+            records,
+            publication_tail,
+        )
+        return records, publication_tail
 
     def _remember_validated_stream(
         self,
         stream: BinaryIO,
         path: Path,
         manifest: RunManifest,
-        records: dict[str, object],
+        records: dict[str, str],
+        publication_tail: tuple[PolicyVersion, int] | None,
     ) -> None:
         file_identity, size, mtime_ns = self._stream_metadata(stream)
-        self._validated_streams[path.resolve(strict=False)] = _ValidatedStreamState(
+        resolved = path.resolve(strict=False)
+        state = _ValidatedStreamState(
             file_identity=file_identity,
             size=size,
             mtime_ns=mtime_ns,
             manifest=manifest.to_dict(),
             records=records,
+            publication_tail=publication_tail,
         )
+        with self._locks_guard:
+            if resolved in self._validated_streams:
+                self._validated_streams[resolved] = state
+                self._validated_streams.move_to_end(resolved)
+                return
+            if len(self._validated_streams) >= self._VALIDATED_STREAM_LIMIT:
+                evicted = next(
+                    (
+                        candidate
+                        for candidate in self._validated_streams
+                        if candidate not in self._active_paths
+                    ),
+                    None,
+                )
+                if evicted is None:
+                    return
+                del self._validated_streams[evicted]
+            self._validated_streams[resolved] = state
 
     @staticmethod
     def _stream_metadata(stream: BinaryIO) -> tuple[tuple[int, int], int, int]:
@@ -656,9 +700,9 @@ class JSONLLoggingSink:
         stream: BinaryIO,
         path: Path,
         manifest: RunManifest,
-    ) -> dict[str, object]:
-        records: dict[str, object] = {}
-        previous_publication: object | None = None
+    ) -> tuple[dict[str, str], tuple[PolicyVersion, int] | None]:
+        records: dict[str, str] = {}
+        previous_publication: tuple[PolicyVersion, int] | None = None
         try:
             stream.seek(0)
             content = stream.read()
@@ -689,30 +733,30 @@ class JSONLLoggingSink:
             cls._validate_record_provenance(record, manifest)
             validated_payload = record.to_dict()
             if path.name == "publications.jsonl":
-                cls._validate_publication_transition(
+                previous_publication = cls._validate_publication_transition(
                     validated_payload,
                     manifest,
                     previous_publication,
                 )
-                previous_publication = validated_payload
             previous = records.get(record.record_id)
+            payload_digest = _canonical_payload_digest(validated_payload)
             if previous is not None:
                 if path.name == "publications.jsonl":
                     raise ValueError("publication record IDs must not repeat")
-                if previous != validated_payload:
+                if previous != payload_digest:
                     raise ValueError("record_id already identifies a different payload")
-            records[record.record_id] = validated_payload
-        return records
+            records[record.record_id] = payload_digest
+        return records, previous_publication
 
     @staticmethod
     def _validate_publication_transition(
         payload: object,
         manifest: RunManifest,
-        previous_payload: object | None,
-    ) -> None:
+        previous_tail: tuple[PolicyVersion, int] | None,
+    ) -> tuple[PolicyVersion, int]:
         record = PublicationRecord.from_mapping(payload)
         parent = PolicyVersion.from_json(record.parent_policy_version)
-        if previous_payload is None:
+        if previous_tail is None:
             actor_policy = manifest.device_capabilities.get("hybrid_actor_policy")
             if not isinstance(actor_policy, Mapping):
                 raise ValueError("publication chain requires run manifest actor policy evidence")
@@ -724,13 +768,12 @@ class JSONLLoggingSink:
                 ) from error
             previous_step = -1
         else:
-            previous = PublicationRecord.from_mapping(previous_payload)
-            previous_version = PolicyVersion.from_json(previous.policy_version)
-            previous_step = previous.global_step
+            previous_version, previous_step = previous_tail
         if parent != previous_version:
             raise ValueError("publication chain parent does not match the previous policy")
         if record.global_step <= previous_step:
             raise ValueError("publication chain global_step values must strictly increase")
+        return PolicyVersion.from_json(record.policy_version), record.global_step
 
     @staticmethod
     def _validate_record_provenance(
@@ -755,6 +798,24 @@ class JSONLLoggingSink:
         resolved = path.resolve(strict=False)
         with cls._locks_guard:
             return cls._path_locks.setdefault(resolved, threading.RLock())
+
+    @classmethod
+    @contextmanager
+    def _locked_path(cls, path: Path) -> Iterator[None]:
+        resolved = path.resolve(strict=False)
+        lock = cls._path_lock(resolved)
+        with cls._locks_guard:
+            cls._active_paths[resolved] = cls._active_paths.get(resolved, 0) + 1
+        try:
+            with lock:
+                yield
+        finally:
+            with cls._locks_guard:
+                remaining = cls._active_paths[resolved] - 1
+                if remaining:
+                    cls._active_paths[resolved] = remaining
+                else:
+                    del cls._active_paths[resolved]
 
     @staticmethod
     def _write_atomic_file(path: Path, payload: Mapping[str, object]) -> None:
@@ -921,6 +982,17 @@ def _validate_json_value(value: object, field_name: str) -> None:
     raise TypeError(f"{field_name} contains a value that is not JSON-serializable")
 
 
+def _canonical_payload_digest(payload: Mapping[str, object]) -> str:
+    canonical = json.dumps(
+        payload,
+        allow_nan=False,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
+
+
 @contextmanager
 def _open_regular_stream(path: Path, *, create: bool) -> Iterator[BinaryIO]:
     """Open one stable regular file while rejecting symlinks before and after open."""
@@ -965,15 +1037,8 @@ def _open_regular_stream(path: Path, *, create: bool) -> Iterator[BinaryIO]:
 def _exclusive_stream_lock(stream: BinaryIO) -> Iterator[None]:
     """Hold one cross-process exclusive lock without creating extra run artifacts."""
     if os.name == "nt":
-        import msvcrt
-
-        stream.seek(0)
-        msvcrt.locking(stream.fileno(), msvcrt.LK_LOCK, 1)
-        try:
+        with windows_byte_lock(stream.fileno()):
             yield
-        finally:
-            stream.seek(0)
-            msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
         return
 
     fcntl = cast(_FcntlLike, importlib.import_module("fcntl"))

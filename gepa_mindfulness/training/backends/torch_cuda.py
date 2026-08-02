@@ -248,7 +248,12 @@ def distributed_runtime_context(
                 if callable(add_note):
                     add_note(diagnostic)
                 else:  # pragma: no cover - Python 3.10 compatibility
-                    primary_error.__cause__ = cleanup_error
+                    diagnostic_error = RuntimeError(diagnostic)
+                    old_cause = primary_error.__cause__
+                    diagnostic_error.__cause__ = old_cause
+                    diagnostic_error.__suppress_context__ = old_cause is not None
+                    primary_error.__cause__ = diagnostic_error
+                    primary_error.__suppress_context__ = True
 
 
 def _validate_distributed_configuration(topology: DistributedRuntimeConfig) -> None:
@@ -338,7 +343,12 @@ def create_cuda_backend(
         reference_model = deepcopy(policy_model)
         value_head: nn.Module | None = None
         if config.runtime.distributed.strategy != "none":
-            value_head = nn.Linear(_model_hidden_size(policy_model), 1)
+            policy_model = policy_model.to(config.runtime.device)
+            policy_dtype, policy_device = _model_floating_dtype_and_device(policy_model)
+            value_head = nn.Linear(_model_hidden_size(policy_model), 1).to(
+                device=policy_device,
+                dtype=policy_dtype,
+            )
             policy_model, value_head = _wrap_distributed_trainables(
                 policy_model,
                 value_head,
@@ -409,6 +419,13 @@ def _model_hidden_size(model: nn.Module) -> int:
         if isinstance(value, int) and not isinstance(value, bool) and value > 0:
             return value
     raise ValueError("policy model config must expose a positive hidden_size or n_embd")
+
+
+def _model_floating_dtype_and_device(model: nn.Module) -> tuple[torch.dtype, torch.device]:
+    for parameter in model.parameters():
+        if parameter.is_floating_point():
+            return parameter.dtype, parameter.device
+    raise ValueError("policy model must expose at least one floating-point parameter")
 
 
 def _cuda_oom_error(operation: str, config: RLRunConfig) -> CudaOutOfMemoryError:

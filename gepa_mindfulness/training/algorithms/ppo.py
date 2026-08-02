@@ -65,7 +65,14 @@ def compute_gae(
         raise ValueError("GAE tensors must have shape [tokens] or [batch, tokens]")
     if any(dimension == 0 for dimension in shape):
         raise ValueError("GAE requires at least one reward")
-    require_matching_shapes(rewards, values, next_values, continuation, mask)
+    require_matching_shapes(
+        rewards,
+        values,
+        next_values,
+        continuation,
+        mask,
+        names=("rewards", "values", "next_values", "continuation", "mask"),
+    )
 
     batched = len(shape) == 2
     row_count = shape[0] if batched else 1
@@ -117,6 +124,13 @@ def compute_ppo_loss(
         reference_log_probs,
         value_predictions,
         evaluation.entropy,
+        names=(
+            "old_log_probs",
+            "log_probs",
+            "reference_log_probs",
+            "value_predictions",
+            "entropy",
+        ),
     )
     policy_loss = clipped_policy_loss(
         ops,

@@ -96,7 +96,8 @@ def test_flat_adapter_preserves_pair_provenance() -> None:
     """Dropping pair provenance would make a rollout request unauditable."""
     request = next(FlatJSONLAdapter(PAIRS_PATH).iter_requests())
 
-    assert request.case_id == "reward-integrity-001"
+    assert request.case_id == "reward-integrity-001:grounded_over_proxy"
+    assert request.metadata["source_case_id"] == "reward-integrity-001"
     assert request.metadata["source_case_version"] == "1.0"
     assert request.metadata["source_line"] == 1
     assert request.metadata["source_sha256"] == hashlib.sha256(CASES_PATH.read_bytes()).hexdigest()

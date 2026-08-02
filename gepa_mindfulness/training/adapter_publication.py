@@ -17,6 +17,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import BinaryIO
 
+from ._windows_file_lock import windows_byte_lock
 from .policy_versions import PolicyVersion
 
 ADAPTER_SCHEMA_VERSION = 1
@@ -233,17 +234,9 @@ class LocalAdapterPublisher:
     def current_artifact(self) -> tuple[AdapterManifest, bytes]:
         """Return one current manifest with the exact verified artifact bytes it identifies."""
         with self._transaction_lock():
-            manifest = self._current_unlocked()
+            manifest, payload = self._read_current_unlocked(retain_artifact=True)
             if manifest is None:
                 raise ValueError("adapter publication store has no current artifact")
-            payload, digest, size = _contained_read(
-                self.root,
-                manifest.artifact_path,
-                "artifact_path",
-                retain=True,
-            )
-            if digest != manifest.artifact_sha256 or size != manifest.artifact_size:
-                raise ArtifactHashError("published adapter failed SHA-256 verification")
             return manifest, payload
 
     def _current_unlocked(
@@ -251,6 +244,18 @@ class LocalAdapterPublisher:
         *,
         validate_version_layout: bool = True,
     ) -> AdapterManifest | None:
+        manifest, _ = self._read_current_unlocked(
+            validate_version_layout=validate_version_layout,
+            retain_artifact=False,
+        )
+        return manifest
+
+    def _read_current_unlocked(
+        self,
+        *,
+        validate_version_layout: bool = True,
+        retain_artifact: bool,
+    ) -> tuple[AdapterManifest | None, bytes]:
         self._validate_store()
         allowed_root = {".publication.lock", "current.json", "versions"}
         if any(path.name not in allowed_root for path in self.root.iterdir()):
@@ -259,7 +264,7 @@ class LocalAdapterPublisher:
         if not current_path.exists() and not current_path.is_symlink():
             if any(self.versions.iterdir()):
                 raise ValueError("adapter versions exist without a current manifest")
-            return None
+            return None, b""
         current_payload = _read_canonical_json(current_path, "current adapter manifest")
         manifest = AdapterManifest.from_dict(current_payload)
         version_values: list[PolicyVersion] = []
@@ -270,8 +275,11 @@ class LocalAdapterPublisher:
             not version_values or max(version_values) != manifest.policy_version
         ):
             raise ValueError("adapter versions contain an orphan or omit the current version")
-        artifact_digest, artifact_size = _contained_hash(
-            self.root, manifest.artifact_path, "artifact_path"
+        artifact_payload, artifact_digest, artifact_size = _contained_read(
+            self.root,
+            manifest.artifact_path,
+            "artifact_path",
+            retain=retain_artifact,
         )
         version_payload = _contained_bytes(
             self.root,
@@ -284,7 +292,7 @@ class LocalAdapterPublisher:
             raise ValueError("current adapter manifest does not match its version manifest")
         if artifact_digest != manifest.artifact_sha256 or artifact_size != manifest.artifact_size:
             raise ArtifactHashError("published adapter failed SHA-256 verification")
-        return manifest
+        return manifest, artifact_payload
 
     @contextmanager
     def _transaction_lock(self) -> Iterator[None]:
@@ -318,12 +326,8 @@ class LocalAdapterPublisher:
                     os.write(descriptor, b"0")
                     os.fsync(descriptor)
                 os.lseek(descriptor, 0, os.SEEK_SET)
-                _lock_descriptor(descriptor)
-                try:
+                with _descriptor_lock(descriptor):
                     yield
-                finally:
-                    os.lseek(descriptor, 0, os.SEEK_SET)
-                    _unlock_descriptor(descriptor)
             finally:
                 os.close(descriptor)
 
@@ -351,10 +355,18 @@ class LocalAdapterPublisher:
     def _copy_artifact(source: Path, destination: Path) -> str:
         source_stat, source_stream = _open_regular(source, "candidate adapter")
         digest = hashlib.sha256()
-        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0)
-        destination_descriptor = os.open(destination, flags, 0o600)
-        try:
-            with source_stream, os.fdopen(destination_descriptor, "wb") as output:
+        with source_stream:
+            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0)
+            destination_descriptor = os.open(destination, flags, 0o600)
+            try:
+                output = os.fdopen(destination_descriptor, "wb", closefd=True)
+            except BaseException:
+                try:
+                    os.close(destination_descriptor)
+                except OSError:
+                    pass
+                raise
+            with output:
                 while True:
                     chunk = source_stream.read(1024 * 1024)
                     if not chunk:
@@ -363,15 +375,9 @@ class LocalAdapterPublisher:
                     digest.update(chunk)
                 output.flush()
                 os.fsync(output.fileno())
-            after = source.stat(follow_symlinks=False)
-            if (source_stat.st_dev, source_stat.st_ino) != (after.st_dev, after.st_ino):
-                raise ValueError("candidate adapter changed while it was copied")
-        except BaseException:
-            try:
-                os.close(destination_descriptor)
-            except OSError:
-                pass
-            raise
+        after = source.stat(follow_symlinks=False)
+        if (source_stat.st_dev, source_stat.st_ino) != (after.st_dev, after.st_ino):
+            raise ValueError("candidate adapter changed while it was copied")
         return digest.hexdigest()
 
     def _remove_pointer(self, path: Path) -> None:
@@ -627,25 +633,20 @@ def _contained_hash(root: Path, relative: str, field_name: str) -> tuple[str, in
     return digest, size
 
 
-def _lock_descriptor(descriptor: int) -> None:
+@contextmanager
+def _descriptor_lock(descriptor: int) -> Iterator[None]:
     if os.name == "nt":
-        import msvcrt
+        with windows_byte_lock(descriptor):
+            yield
+        return
 
-        msvcrt.locking(descriptor, msvcrt.LK_LOCK, 1)
-    else:
-        import fcntl
+    import fcntl
 
-        getattr(fcntl, "flock")(descriptor, getattr(fcntl, "LOCK_EX"))
-
-
-def _unlock_descriptor(descriptor: int) -> None:
-    if os.name == "nt":
-        import msvcrt
-
-        msvcrt.locking(descriptor, msvcrt.LK_UNLCK, 1)
-    else:
-        import fcntl
-
+    getattr(fcntl, "flock")(descriptor, getattr(fcntl, "LOCK_EX"))
+    try:
+        yield
+    finally:
+        os.lseek(descriptor, 0, os.SEEK_SET)
         getattr(fcntl, "flock")(descriptor, getattr(fcntl, "LOCK_UN"))
 
 
