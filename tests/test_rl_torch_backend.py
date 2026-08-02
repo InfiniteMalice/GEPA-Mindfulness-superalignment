@@ -178,6 +178,15 @@ class NoNoteRuntimeError(RuntimeError):
     add_note = None
 
 
+def _assert_rollback_diagnostic(error: BaseException, fragment: str) -> None:
+    """Accept PEP 678 notes or the Python 3.10 cause-chain fallback."""
+    if any(fragment in note for note in getattr(error, "__notes__", ())):
+        return
+    diagnostic = error.__cause__
+    assert isinstance(diagnostic, RuntimeError)
+    assert fragment in str(diagnostic)
+
+
 class FakeGradientScaler:
     """Stateful loss scaler double with observable skip and restore behavior."""
 
@@ -1162,9 +1171,7 @@ def test_checkpoint_late_restore_failure_rolls_back_and_preserves_primary_error(
     _assert_backend_snapshot(tiny_backend, snapshot)
     assert caught is primary
     assert str(caught) == "primary RNG restore failure"
-    assert any(
-        "secondary rollback RNG failure" in note for note in getattr(primary, "__notes__", ())
-    )
+    _assert_rollback_diagnostic(primary, "secondary rollback RNG failure")
     assert call_count == 2
 
 
@@ -1858,7 +1865,9 @@ def test_lora_rollback_continues_after_one_copy_failure_and_preserves_primary(
         "reference_adapter": target.reference_model.lora_adapter.detach().clone(),
         "reference_second": target.reference_model.lora_second.detach().clone(),
     }
-    primary = RuntimeError("primary post-copy failure")
+    primary = NoNoteRuntimeError("primary post-copy failure")
+    original_cause = LookupError("adapter checksum was rejected")
+    primary.__cause__ = original_cause
     checksum_calls = 0
     original_checksum = target._named_tensor_checksum
 
@@ -1889,4 +1898,6 @@ def test_lora_rollback_continues_after_one_copy_failure_and_preserves_primary(
     assert torch.equal(target.policy_model.lora_second, snapshots["policy_second"])
     assert torch.equal(target.reference_model.lora_adapter, snapshots["reference_adapter"])
     assert torch.equal(target.reference_model.lora_second, snapshots["reference_second"])
-    assert any("rollback copy failed" in note for note in getattr(primary, "__notes__", ()))
+    _assert_rollback_diagnostic(primary, "rollback copy failed")
+    assert isinstance(primary.__cause__, RuntimeError)
+    assert primary.__cause__.__cause__ is original_cause

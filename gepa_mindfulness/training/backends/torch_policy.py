@@ -547,9 +547,15 @@ class TorchPolicyBackend:
                     f"reference eval: {type(rollback_error).__name__}: {rollback_error}"
                 )
             if rollback_failures:
+                diagnostic = "adapter rollback failures: " + "; ".join(rollback_failures)
                 add_note = getattr(exc, "add_note", None)
                 if callable(add_note):
-                    add_note("adapter rollback failures: " + "; ".join(rollback_failures))
+                    add_note(diagnostic)
+                else:  # pragma: no cover - exercised through a Python 3.10-shaped exception
+                    previous_cause = exc.__cause__
+                    rollback_diagnostic = RuntimeError(diagnostic)
+                    rollback_diagnostic.__cause__ = previous_cause
+                    exc.__cause__ = rollback_diagnostic
             raise
         return loaded_checksum
 
