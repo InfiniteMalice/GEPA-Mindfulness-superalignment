@@ -77,7 +77,7 @@ All commands ran from the feature worktree after the final canonical digest was 
 
 | Command | Result |
 | --- | --- |
-| `npm.cmd test` | PASS: 6 files, 45 tests |
+| `npm.cmd test` | PASS: 6 files, 46 tests |
 | `npm.cmd run lint` | PASS: exit 0, no diagnostics |
 | `npm.cmd run build` | PASS: all five vinext/Vite 8.2.1 environments built |
 | `npm.cmd exec vinext check` | PASS: 100% compatible; 6 supported, 0 partial, 0 issues |

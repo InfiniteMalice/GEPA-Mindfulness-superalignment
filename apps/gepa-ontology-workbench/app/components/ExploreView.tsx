@@ -80,7 +80,14 @@ export function ExploreView({
       {results.length === 0 ? (
         <div className="empty-results" role="status">
           <p>No concepts match “{query}”.</p>
-          {onClearSearch && <button type="button" onClick={onClearSearch}>Clear search</button>}
+          {onClearSearch && <button
+            type="button"
+            onClick={() => {
+              setLayer("all");
+              setPredicate("all");
+              onClearSearch();
+            }}
+          >Clear search</button>}
         </div>
       ) : (
         <div className="ontology-map">

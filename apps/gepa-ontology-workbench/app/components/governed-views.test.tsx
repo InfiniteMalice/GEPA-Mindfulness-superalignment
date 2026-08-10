@@ -83,6 +83,28 @@ describe("governed workbench views", () => {
     expect(screen.queryByLabelText("Relation traversal")).not.toBeInTheDocument();
   });
 
+  it("clears local Explore filters together with the parent search", async () => {
+    const user = userEvent.setup();
+    const onClearSearch = vi.fn();
+    render(
+      <ExploreView
+        query=""
+        selectedId="failure:goal_fixation"
+        onSelect={() => undefined}
+        onClearSearch={onClearSearch}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "operational" }));
+    await user.selectOptions(screen.getByLabelText("Relation predicate"), "mitigates");
+    await user.click(screen.getByRole("button", { name: "Clear search" }));
+
+    expect(onClearSearch).toHaveBeenCalledOnce();
+    expect(screen.getByRole("button", { name: "all" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("Relation predicate")).toHaveValue("all");
+    expect(screen.queryByRole("button", { name: "Clear search" })).not.toBeInTheDocument();
+  });
+
   it("renders unavailable detail quantities without inventing a zero-valued evidence bar", () => {
     const assessment: Assessment = {
       ...assessments[0],
