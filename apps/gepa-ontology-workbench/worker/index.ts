@@ -34,8 +34,15 @@ const worker = {
       return handleImageOptimization(request, {
         fetchAsset: (path) => env.ASSETS.fetch(new Request(new URL(path, request.url))),
         transformImage: async (body, { width, format, quality }) => {
-          const result = await env.IMAGES.input(body).transform(width > 0 ? { width } : {}).output({ format, quality });
-          return result.response();
+          try {
+            const result = await env.IMAGES
+              .input(body)
+              .transform(width > 0 ? { width } : {})
+              .output({ format, quality });
+            return result.response();
+          } catch {
+            return new Response("Image transformation failed.", { status: 502 });
+          }
         },
       }, allowedWidths);
     }

@@ -18,14 +18,14 @@ const quantityPresentation = (quantity: Quantity) => {
   return "Unavailable";
 };
 
-const quantityWarnings = (quantity: Quantity) => {
+const quantityWarnings = (quantity: Quantity, source: "Support" | "Opposition") => {
   const warnings: string[] = [];
   const hasRange = quantity.lower !== undefined && quantity.upper !== undefined;
   if ((!hasRange && quantity.estimate === undefined && !quantity.qualitative?.trim()) || /uncalibrated/i.test(quantity.qualitative ?? "")) {
-    warnings.push("Evidence quality warning: quantity is unavailable or uncalibrated.");
+    warnings.push(`Evidence quality warning: ${source} quantity is unavailable or uncalibrated.`);
   }
   if (quantity.estimate !== undefined && !hasRange && !quantity.qualitative?.trim()) {
-    warnings.push("Point estimate has no interval or qualitative uncertainty.");
+    warnings.push(`${source} point estimate has no interval or qualitative uncertainty.`);
   }
   return warnings;
 };
@@ -50,28 +50,39 @@ export function AssessView({ assessments, nodes }: AssessViewProps) {
           const correlatedEvidence = [...evidenceByDependency]
             .filter(([, evidence]) => evidence.length > 1)
             .map(([dependencyGroup, evidence]) => `${evidence.map((item) => item.label).join(" and ")} share dependency group ${dependencyGroup}. Correlated evidence is not independent confirmation.`);
-          const qualityWarnings = [...quantityWarnings(assessment.support), ...quantityWarnings(assessment.opposition)];
-          const maturityGaps = [subject, target].flatMap((node) => node
+          const qualityWarnings = [
+            ...quantityWarnings(assessment.support, "Support")
+              .map((message) => ({ key: `support:${message}`, message })),
+            ...quantityWarnings(assessment.opposition, "Opposition")
+              .map((message) => ({ key: `opposition:${message}`, message })),
+          ];
+          const maturityGaps = ([
+            ["subject", subject],
+            ["target", target],
+          ] as const).flatMap(([role, node]) => node
             ? (Object.entries(node.maturity) as [keyof MaturityFacets, boolean][])
               .filter(([, available]) => !available)
-              .map(([facet]) => `Maturity gap: ${node.label} — ${maturityLabel(facet)} is false.`)
+              .map(([facet]) => ({
+                key: `${role}:${node.id}:${facet}`,
+                message: `Maturity gap: ${node.label} — ${maturityLabel(facet)} is false.`,
+              }))
             : []);
           return (
             <article className="assessment-card" key={assessment.id} aria-labelledby={`${assessment.id}-heading`}>
               <p className="assessment-id">{assessment.id.replace("assessment:", "")}</p>
               <h2 id={`${assessment.id}-heading`}>{labelFor(assessment.subject, nodes)} <span aria-hidden="true">→</span> {labelFor(assessment.target, nodes)}</h2>
-              <div className="evidence-quality-warnings" aria-label="Evidence quality warnings">
+              <div className="evidence-quality-warnings" role="group" aria-label="Evidence quality warnings">
                 {correlatedEvidence.map((warning) => <p className="evidence-warning" role="note" key={warning}>{warning}</p>)}
                 {assessment.provenance.length === 0 && <p className="evidence-warning" role="note">Missing provenance.</p>}
-                {qualityWarnings.map((warning) => <p className="evidence-warning" role="note" key={warning}>{warning}</p>)}
-                {maturityGaps.map((warning) => <p className="evidence-warning" role="note" key={warning}>{warning}</p>)}
+                {qualityWarnings.map((warning) => <p className="evidence-warning" role="note" key={warning.key}>{warning.message}</p>)}
+                {maturityGaps.map((warning) => <p className="evidence-warning" role="note" key={warning.key}>{warning.message}</p>)}
               </div>
               <div className="assessment-quantities">
                 <QuantitySummary label="Support" quantity={assessment.support} tone="support" />
                 <QuantitySummary label="Opposition" quantity={assessment.opposition} tone="opposition" />
               </div>
               <dl className="assessment-facts">
-                <div><dt>Computed contradiction</dt><dd>Contradiction: {percentage(assessment.contradiction)}</dd></div>
+                <div><dt>Computed contradiction</dt><dd>{percentage(assessment.contradiction)}</dd></div>
                 <div><dt>Dependency groups</dt><dd>{[...new Set(assessment.evidence.map((evidence) => evidence.dependencyGroup).filter(Boolean))].join("; ") || "No dependency group recorded."}</dd></div>
                 <div><dt>Unresolved tension</dt><dd>{assessment.contradiction > 0 ? "Present — retain both support and opposition for review." : "None recorded."}</dd></div>
                 <div><dt>Scalarization policy</dt><dd>{assessment.scalarizationPolicy ?? "No scalarization applied."}</dd></div>

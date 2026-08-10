@@ -118,6 +118,7 @@ export function Workbench() {
             relations={ontologyRelations}
             assessments={assessments}
             invariants={invariants}
+            canonicalDigestStatus={canonicalDigestStatus}
             onOpenInvariant={(key) => { setRequestedInvariantKey(key); setTab("invariants"); }}
           />}
           {tab === "invariants" && <InvariantsView key={requestedInvariantKey ?? "all"} invariants={invariants} requestedInvariantKey={requestedInvariantKey} />}

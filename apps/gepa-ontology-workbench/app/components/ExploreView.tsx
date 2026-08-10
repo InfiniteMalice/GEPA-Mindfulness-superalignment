@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { ontologyNodes, ontologyRelations } from "../data/ontology";
+import type { OntologyNode } from "../lib/ontology-types";
 import { searchNodes } from "../lib/search";
 
 export interface ExploreViewProps {
@@ -31,7 +32,7 @@ export function ExploreView({
     [predicate],
   );
   const connectedIds = useMemo(
-    () => new Set(matchingRelations.flatMap((relation) => [relation.source, relation.target])),
+    () => new Set<string>(matchingRelations.flatMap((relation) => [relation.source, relation.target])),
     [matchingRelations],
   );
   const results = useMemo(
@@ -79,14 +80,14 @@ export function ExploreView({
       {results.length === 0 ? (
         <div className="empty-results" role="status">
           <p>No concepts match “{query}”.</p>
-          <button type="button" onClick={onClearSearch}>Clear search</button>
+          {onClearSearch && <button type="button" onClick={onClearSearch}>Clear search</button>}
         </div>
       ) : (
         <div className="ontology-map">
           <ConceptColumn label="Normative" description="What ought to hold" nodes={normative} selectedId={selectedId} onSelect={onSelect} />
           <div className="evidence-bridge">
             <p>Evidence informs.<br /><strong>It does not define.</strong></p>
-            <div className="relation-chips" aria-label="Relation traversal">
+            {onRelationSelect && <div className="relation-chips" aria-label="Relation traversal">
               {matchingRelations.map((relation) => {
                 const source = ontologyNodes.find((node) => node.id === relation.source)?.label ?? relation.source;
                 const target = ontologyNodes.find((node) => node.id === relation.target)?.label ?? relation.target;
@@ -97,10 +98,10 @@ export function ExploreView({
                   aria-label={`Select relation ${label}`}
                   aria-pressed={selectedRelationId === relation.id}
                   className={selectedRelationId === relation.id ? "is-selected" : undefined}
-                  onClick={() => onRelationSelect?.(relation.id)}
+                  onClick={() => onRelationSelect(relation.id)}
                 >{label}</button>;
               })}
-            </div>
+            </div>}
           </div>
           <ConceptColumn label="Operational" description="What is observed and tested" nodes={operational} selectedId={selectedId} onSelect={onSelect} />
         </div>
@@ -112,7 +113,7 @@ export function ExploreView({
 function ConceptColumn({ label, description, nodes, selectedId, onSelect }: {
   label: "Normative" | "Operational";
   description: string;
-  nodes: readonly (typeof ontologyNodes)[number][];
+  nodes: readonly OntologyNode[];
   selectedId: string;
   onSelect: (id: string) => void;
 }) {

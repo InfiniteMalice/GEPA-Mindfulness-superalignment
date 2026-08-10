@@ -2,7 +2,14 @@ export type Layer = "normative" | "operational";
 export type Lifecycle = "proposed" | "experimental" | "accepted" | "active" | "deprecated" | "retired";
 export type EpistemicStatus = "defined" | "theoretical" | "hypothesized" | "observationally_supported" | "experimentally_supported" | "contested" | "deprecated";
 export type RelationFamily = "structural" | "normative" | "evidential" | "causal_risk";
-export type QuantityKind = "probability" | "confidence" | "heuristic_score" | "belief_weight" | "normalized_metric";
+export const QUANTITY_KINDS = [
+  "probability",
+  "confidence",
+  "heuristic_score",
+  "belief_weight",
+  "normalized_metric",
+] as const;
+export type QuantityKind = (typeof QUANTITY_KINDS)[number];
 
 export interface Quantity {
   estimate?: number;
@@ -118,23 +125,20 @@ export interface TrainingFixture {
   forbiddenInferences: readonly string[];
 }
 
+export type TrainingBundleContent = Omit<TrainingFixture, "targetId">;
+
 export interface ContextBundle {
   kind: "context" | "training";
   ontologyVersion: string;
   ontologyHash: string;
   generatedAt: string;
   authority: "generated_noncanonical_bundle";
-  targets: readonly OntologyNode[];
+  requestedTargetIds: readonly string[];
+  nodes: readonly OntologyNode[];
   relations: readonly OntologyRelation[];
   assessments: readonly Assessment[];
   invariants: readonly Invariant[];
   unresolvedTensions: readonly string[];
   policies: readonly string[];
-  training?: {
-    objective: string;
-    positiveExamples: readonly TrainingExample[];
-    negativeExamples: readonly TrainingExample[];
-    evaluatorTargets: readonly string[];
-    forbiddenInferences: readonly string[];
-  };
+  training?: TrainingBundleContent;
 }

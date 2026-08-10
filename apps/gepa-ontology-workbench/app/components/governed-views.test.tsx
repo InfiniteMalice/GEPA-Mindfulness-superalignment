@@ -7,6 +7,7 @@ import { assessments, invariants, ontologyNodes, ontologyRelations } from "../da
 import type { Assessment, OntologyNode } from "../lib/ontology-types";
 import { AssessView } from "./AssessView";
 import { ConceptDetail } from "./ConceptDetail";
+import { ExploreView } from "./ExploreView";
 import { ImproveView } from "./ImproveView";
 import { InvariantsView } from "./InvariantsView";
 import { Workbench } from "./Workbench";
@@ -17,13 +18,18 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const renderImprove = (overrides: Partial<React.ComponentProps<typeof ImproveView>> = {}) => render(
+type ImproveOverrides = Partial<React.ComponentProps<typeof ImproveView>> & {
+  canonicalDigestStatus?: "checking" | "verified" | "unverified";
+};
+
+const renderImprove = (overrides: ImproveOverrides = {}) => render(
   <ImproveView
     selectedId="failure:goal_fixation"
     nodes={ontologyNodes}
     relations={ontologyRelations}
     assessments={assessments}
     invariants={invariants}
+    canonicalDigestStatus="verified"
     onOpenInvariant={() => undefined}
     {...overrides}
   />,
@@ -52,11 +58,29 @@ describe("governed workbench views", () => {
     render(<AssessView assessments={[assessment]} nodes={nodes} />);
 
     expect(screen.getByText("Unavailable")).toBeVisible();
-    expect(screen.getByText("Evidence quality warning: quantity is unavailable or uncalibrated.")).toBeVisible();
+    expect(screen.getByText("Evidence quality warning: Support quantity is unavailable or uncalibrated.")).toBeVisible();
     expect(screen.getAllByText("Missing provenance.")[0]).toHaveAttribute("role", "note");
-    expect(screen.getByText("Point estimate has no interval or qualitative uncertainty.")).toBeVisible();
+    expect(screen.getByText("Opposition point estimate has no interval or qualitative uncertainty.")).toBeVisible();
     expect(screen.getByText("Maturity gap: Goal Fixation — dataset backed is false.")).toBeVisible();
     expect(screen.queryByText("0%")).not.toBeInTheDocument();
+  });
+
+  it("exposes warning semantics and renders contradiction values without a duplicate label", () => {
+    render(<AssessView assessments={[assessments[0]]} nodes={ontologyNodes} />);
+
+    expect(screen.getByRole("group", { name: "Evidence quality warnings" })).toBeVisible();
+    expect(screen.getByText("Computed contradiction").nextElementSibling).toHaveTextContent(/^31%$/);
+    expect(screen.queryByText("Contradiction: 31%")).not.toBeInTheDocument();
+  });
+
+  it("does not render callback-dependent Explore controls without callbacks", () => {
+    const { rerender } = render(
+      <ExploreView query="no-such-concept" selectedId="failure:goal_fixation" onSelect={() => undefined} />,
+    );
+    expect(screen.queryByRole("button", { name: "Clear search" })).not.toBeInTheDocument();
+
+    rerender(<ExploreView query="" selectedId="failure:goal_fixation" onSelect={() => undefined} />);
+    expect(screen.queryByLabelText("Relation traversal")).not.toBeInTheDocument();
   });
 
   it("renders unavailable detail quantities without inventing a zero-valued evidence bar", () => {
@@ -133,6 +157,16 @@ describe("governed workbench views", () => {
     expect(search).toHaveValue("training-intent-not-success");
     await waitFor(() => expect(search).toHaveFocus());
     expect(screen.getByText("Training intent does not establish training success.")).toBeVisible();
+  });
+
+  it("keeps export gated until the canonical digest is verified", async () => {
+    const user = userEvent.setup();
+    renderImprove({ canonicalDigestStatus: "unverified" });
+
+    await user.click(screen.getByRole("button", { name: "Run semantic checks" }));
+
+    expect(screen.getByRole("button", { name: "Generate governed bundle" })).toBeDisabled();
+    expect(screen.getByText("Verify the canonical ontology digest before generating a bundle.")).toBeVisible();
   });
 
   it("generates a governed bundle with one serialized timestamp and retains checked form state on generation error", async () => {

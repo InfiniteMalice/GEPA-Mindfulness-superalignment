@@ -20,7 +20,7 @@ body { margin: 0; background: var(--mineral); color: var(--ivory); font-family: 
 button, input { font: inherit; }
 button { color: inherit; cursor: pointer; }
 button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
-.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 .workbench-shell { width: min(1500px, calc(100% - 40px)); margin: 0 auto; padding: 28px 0 56px; }
 .workbench-header { display: grid; grid-template-columns: auto auto minmax(280px, 1fr) auto; align-items: center; gap: 22px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }

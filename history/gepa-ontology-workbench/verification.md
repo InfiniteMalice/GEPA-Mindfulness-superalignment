@@ -2,7 +2,7 @@
 
 Date: 2026-08-10
 
-Branch: `feature/gepa-ontology-workbench`
+Branch: `feature/gepa-ontology-workbench-pr`
 
 Status: Complete; source worktree preserved locally. A separate private Sites deployment was
 performed after verification; no public publishing or access-policy change was made.
@@ -11,9 +11,9 @@ performed after verification; no public publishing or access-policy change was m
 
 The fix wave was reviewed against:
 
-- `docs/superpowers/specs/2026-08-10-gepa-ontology-workbench-design.md`
+- `history/gepa-ontology-workbench/design.md`
 - the attached GEPA Mindfulness Ontology source
-- `.superpowers/sdd/2026-08-10-gepa-ontology-workbench/final-fix-findings.md`
+- the unresolved Codex and CodeRabbit review threads on PR #750
 - the repository quality gate and documentation precision checks
 
 The approved design and ontology source governed any ambiguity in the implementation plan.
@@ -49,7 +49,12 @@ The initial audit reported 19 vulnerabilities: 1 critical, 11 high, 6 moderate, 
 ### Residual upstream development findings
 
 - `drizzle-kit@0.31.10 -> @esbuild-kit/esm-loader -> @esbuild-kit/core-utils -> esbuild<=0.24.2`: GHSA-67mh-4wv8-2f99, a development-server request/read issue. `0.31.10` is the latest stable `drizzle-kit`; npm only proposes a breaking downgrade to `0.18.1`. Mitigation: keep database generation local and do not expose this development tooling to untrusted networks.
-- `vinext@0.0.50 -> image-size`: GHSA-w3rx-r6r6-pgpr and GHSA-5p2g-fcmc-qvqq, denial-of-service risks in ICNS/JXL/HEIF parsing. `0.0.50` is the latest stable `vinext`; npm only proposes a breaking downgrade to `0.0.45`. Mitigation: the workbench does not accept or process user-supplied images, and this package remains outside the production dependency audit.
+- `vinext@0.0.50 -> image-size`: GHSA-w3rx-r6r6-pgpr and GHSA-5p2g-fcmc-qvqq,
+  denial-of-service risks in ICNS/JXL/HEIF parsing. `0.2.1` is the latest non-beta `vinext`
+  release, and it still depends on vulnerable `image-size@2.0.2`; npm's `latest` tag currently
+  points to `1.0.0-beta.5`, which has the same dependency. Mitigation: the workbench does not
+  accept or process user-supplied images, and this package remains outside the production
+  dependency audit. Reevaluate the pinned version when a fixed `vinext` release is available.
 
 `npm audit fix --force` was intentionally not used because its proposed downgrades are breaking and would weaken the validated Sites toolchain. These residuals should be reevaluated when fixed stable `drizzle-kit` or `vinext` releases are available.
 
@@ -72,9 +77,10 @@ All commands ran from the feature worktree after the final canonical digest was 
 
 | Command | Result |
 | --- | --- |
-| `npm.cmd test` | PASS: 5 files, 38 tests |
+| `npm.cmd test` | PASS: 6 files, 45 tests |
 | `npm.cmd run lint` | PASS: exit 0, no diagnostics |
 | `npm.cmd run build` | PASS: all five vinext/Vite 8.2.1 environments built |
+| `npm.cmd exec vinext check` | PASS: 100% compatible; 6 supported, 0 partial, 0 issues |
 | `npm.cmd audit --omit=dev` | PASS: 0 vulnerabilities |
 | `npm.cmd audit` | Expected nonzero: 6 development findings, 2 high and 4 moderate, limited to the two paths above |
 | focused ontology/hash suite | PASS: 7 tests |
@@ -83,11 +89,10 @@ All commands ran from the feature worktree after the final canonical digest was 
 
 The production build emits two future Vite native-config warnings for the existing JSON import and extensionless Sites plugin import in `vite.config.ts`; they do not affect the current build and are outside this fix wave.
 
-## Commit series
+## PR integration
 
-- `3170562` - `fix: complete governed workbench safeguards`
-- `40401b9` - `docs: record final fix verification` (final plan EOF cleanup)
-- report follow-up - this report; its hash is recorded in the branch history and handoff response
+PR #750 began with integration commit `bf6273f`. The review fixes are consolidated in the next
+commit on `feature/gepa-ontology-workbench-pr`; `git log` is the canonical commit record.
 
 ## Scope and remaining concerns
 

@@ -3,7 +3,7 @@ import { ontologyNodes, ontologyRelations } from "../data/ontology";
 import type { Proposal } from "./ontology-types";
 import { validateProposal } from "./proposal-validation";
 
-const valid = {
+const valid: Proposal = {
   id: "op:novel_calibration_evaluator",
   label: "Novel Calibration Evaluator",
   layer: "operational",
@@ -16,7 +16,7 @@ const valid = {
   governanceClassification: "ordinary",
   operationalMapping: "eval:novel_calibration",
   maturityEvidence: "dataset:calibration-pilot",
-} as Proposal & Record<string, unknown>;
+};
 
 const codes = (issues: readonly { code: string }[]) => issues.map((issue) => issue.code);
 
@@ -51,6 +51,14 @@ describe("validateProposal", () => {
       ...valid,
       uncertainty: { kind: "confidence", estimate: 0.99 },
     } as Proposal, ontologyNodes, ontologyRelations))).toContain("unsupported-certainty");
+    expect(codes(validateProposal({
+      ...valid,
+      uncertainty: { kind: "confidence", lower: 0.8, upper: 0.2 },
+    }, ontologyNodes, ontologyRelations))).toContain("invalid-uncertainty");
+    expect(codes(validateProposal({
+      ...valid,
+      uncertainty: { kind: "unsupported", qualitative: "low confidence" },
+    } as unknown as Proposal, ontologyNodes, ontologyRelations))).toContain("invalid-uncertainty");
   });
 
   it("uses explicit node-type and layer registries", () => {
@@ -61,8 +69,18 @@ describe("validateProposal", () => {
   });
 
   it("requires paired relation fields and validates registry family, domain, and range", () => {
-    expect(codes(validateProposal({ ...valid, relationPredicate: "tests" } as Proposal, ontologyNodes, ontologyRelations)))
-      .toContain("incomplete-relation");
+    const incompleteCodes = codes(validateProposal(
+      { ...valid, relationPredicate: "tests" } as Proposal,
+      ontologyNodes,
+      ontologyRelations,
+    ));
+    expect(incompleteCodes.filter((code) => code === "incomplete-relation")).toHaveLength(1);
+    expect(codes(validateProposal({
+      ...valid,
+      relationPredicate: "tests",
+      relationTarget: "failure:goal_fixation",
+      relationFamily: "unsupported",
+    } as unknown as Proposal, ontologyNodes, ontologyRelations))).toContain("unknown-relation-family");
     expect(codes(validateProposal({
       ...valid,
       relationPredicate: "tests",
@@ -118,6 +136,28 @@ describe("validateProposal", () => {
       relationFamily: "normative",
       governanceClassification: "ordinary",
     } as Proposal, ontologyNodes, ontologyRelations))).toContain("protected-kernel-revision");
+    expect(codes(validateProposal({
+      ...valid,
+      id: "norm:corrigibility_constraint",
+      label: "Corrigibility Constraint",
+      layer: "normative",
+      type: "constraint",
+      relationPredicate: "constrains",
+      relationTarget: "norm:corrigibility",
+      relationFamily: "normative",
+      governanceClassification: "ordinary",
+    }, ontologyNodes, ontologyRelations))).toContain("protected-kernel-revision");
+    expect(codes(validateProposal({
+      ...valid,
+      id: "norm:corrigibility_constraint",
+      label: "Corrigibility Constraint",
+      layer: "normative",
+      type: "constraint",
+      relationPredicate: "constrains",
+      relationTarget: "norm:corrigibility",
+      relationFamily: "normative",
+      governanceClassification: "explicit_normative_revision",
+    }, ontologyNodes, ontologyRelations))).not.toContain("protected-kernel-revision");
   });
 
   it("emits each designed evidence, representation, and maturity warning", () => {
@@ -144,5 +184,17 @@ describe("validateProposal", () => {
       .toContain("missing-operational-mapping");
     expect(codes(validateProposal({ ...valid, maturityEvidence: "" } as Proposal, ontologyNodes, ontologyRelations)))
       .toContain("missing-maturity-evidence");
+  });
+
+  it("accepts the documented observational and hypothesis provenance forms", () => {
+    for (const provenance of ["observation: trace review", "hypothesized: drift mechanism"]) {
+      expect(codes(validateProposal({
+        ...valid,
+        relationPredicate: "causes",
+        relationTarget: "failure:goal_fixation",
+        relationFamily: "causal_risk",
+        provenance,
+      }, ontologyNodes, ontologyRelations))).not.toContain("causal-provenance");
+    }
   });
 });

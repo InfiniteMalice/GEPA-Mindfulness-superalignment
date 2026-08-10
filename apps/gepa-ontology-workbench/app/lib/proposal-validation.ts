@@ -11,15 +11,15 @@ import type {
   Quantity,
   ValidationIssue,
 } from "./ontology-types";
+import { QUANTITY_KINDS } from "./ontology-types";
 
 const normalize = (value: string) => value.toLowerCase().replace(/[_:-]+/g, " ").replace(/\s+/g, " ").trim();
 const registryKey = (value: string) => normalize(value.replace(/([a-z0-9])([A-Z])/g, "$1_$2")).replaceAll(" ", "_");
 const words = (value: string) => new Set(normalize(value).split(" ").filter(Boolean));
 const forbiddenPredicates = new Set(["achieves", "proves", "internalizes", "runtime_enforces"]);
 const identityPredicates = new Set(["is_a", "instance_of", "alias_of"]);
-const protectedRevisionPredicates = new Set(["is_a", "instance_of", "alias_of", "derived_from", "violates"]);
 const proxyTypes = new Set(["reward_component", "metric", "evaluator", "observation", "control_signal", "probe"]);
-const quantityKinds = new Set(["probability", "confidence", "heuristic_score", "belief_weight", "normalized_metric"]);
+const quantityKinds = new Set<string>(QUANTITY_KINDS);
 
 const issue = (
   severity: ValidationIssue["severity"],
@@ -114,7 +114,10 @@ export function validateProposal(
   const targetId = proposal.relationTarget?.trim();
   const hasPredicate = Boolean(predicate);
   const hasTarget = Boolean(targetId);
-  if (hasPredicate !== hasTarget || (proposal.relationFamily && !hasPredicate)) {
+  const hasFamily = Boolean(proposal.relationFamily);
+  const hasIncompleteRelation = (hasPredicate || hasTarget || hasFamily)
+    && !(hasPredicate && hasTarget && hasFamily);
+  if (hasIncompleteRelation) {
     issues.push(issue("blocker", "incomplete-relation", "Relation predicate, target, and family must be supplied together."));
   }
 
@@ -130,9 +133,7 @@ export function validateProposal(
     if (!relationDefinition) {
       issues.push(issue("blocker", "unknown-relation-predicate", "Relation predicate is not defined by the ontology registry."));
     } else {
-      if (!proposal.relationFamily) {
-        issues.push(issue("blocker", "incomplete-relation", "Relation predicate, target, and family must be supplied together."));
-      } else if (proposal.relationFamily !== relationDefinition.family) {
+      if (proposal.relationFamily && proposal.relationFamily !== relationDefinition.family) {
         issues.push(issue("blocker", "relation-family-mismatch", "Relation family does not match the registered predicate family."));
       }
       if (!isAllowedLayer(relationDefinition.domainLayers, proposal.layer)) {
@@ -147,11 +148,12 @@ export function validateProposal(
         issues.push(issue("blocker", "forbidden-bridge-identity", "Cross-layer structural identity assertions are forbidden.", ["no-evidence-identity"]));
       }
       if (target?.protected
-        && protectedRevisionPredicates.has(predicate)
+        && proposal.layer === "normative"
+        && ["structural", "normative"].includes(relationDefinition.family)
         && proposal.governanceClassification !== "explicit_normative_revision") {
-        issues.push(issue("blocker", "protected-kernel-revision", "Protected-kernel changes require explicit normative revision governance.", ["corrigible-governance"], [target.id]));
+        issues.push(issue("blocker", "protected-kernel-revision", "Normative or structural relations to protected-kernel concepts require explicit normative revision governance.", ["corrigible-governance"], [target.id]));
       }
-      if (relationDefinition.family === "causal_risk" && !/(experiment|study|observed|hypothesis)/i.test(proposal.provenance)) {
+      if (relationDefinition.family === "causal_risk" && !/(experiment|study|observ(?:ed|ation(?:al(?:ly)?)?)|hypothes(?:is|ized))/i.test(proposal.provenance)) {
         issues.push(issue("warning", "causal-provenance", "Causal relation lacks explicit experimental, observational, study, or hypothesis provenance."));
       }
     }

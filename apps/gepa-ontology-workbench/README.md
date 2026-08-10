@@ -38,11 +38,19 @@ npm test
 npm run lint
 npm run build
 npm audit --omit=dev
-npm audit
+npm audit # informational; currently expected to exit nonzero
 ```
 
-`npm audit --omit=dev` is the production dependency gate. The full audit also reports development-tool dependencies; consult the final-fix report for any remaining upstream-only findings and their mitigations.
+`npm audit --omit=dev` is the production dependency gate and must exit with status `0`. The full
+`npm audit` command is informational and currently exits nonzero because of six known
+development-dependency findings. The verification report records the exact paths and mitigations.
 
 ## Export behavior
 
-After a proposal passes semantic checks, the workbench can generate JSON, YAML, or Markdown previews. Copy and download failures are recoverable and do not discard the preview. Object URLs created for downloads are always revoked.
+After a proposal passes semantic checks and the canonical digest is verified, the workbench can
+generate JSON, YAML, or Markdown previews. Each bundle records the requested target IDs separately
+and includes the node definition for every relation or assessment endpoint. Training bundles
+accept exactly one requested target until a governed multi-target attribution schema exists.
+
+Copy and download failures are recoverable and do not discard the preview. Object URLs created
+for downloads are always revoked.

@@ -25,6 +25,7 @@ export interface ImproveViewProps {
   relations: readonly OntologyRelation[];
   assessments: readonly Assessment[];
   invariants: readonly Invariant[];
+  canonicalDigestStatus: "checking" | "verified" | "unverified";
   onOpenInvariant: (key: string) => void;
 }
 
@@ -45,7 +46,7 @@ const initialProposal: Proposal = {
 
 const formatExtension: Record<BundleFormat, string> = { json: "json", yaml: "yaml", markdown: "md" };
 
-export function ImproveView({ selectedId, nodes, relations, assessments, invariants, onOpenInvariant }: ImproveViewProps) {
+export function ImproveView({ selectedId, nodes, relations, assessments, invariants, canonicalDigestStatus, onOpenInvariant }: ImproveViewProps) {
   const [proposal, setProposal] = useState<Proposal>(initialProposal);
   const [issues, setIssues] = useState<readonly ValidationIssue[] | null>(null);
   const [bundleKind, setBundleKind] = useState<BundleKind>("context");
@@ -58,7 +59,9 @@ export function ImproveView({ selectedId, nodes, relations, assessments, invaria
   const selectedNode = nodes.find((node) => node.id === selectedId);
   const hasCuratedTraining = trainingFixtures.some((fixture) => fixture.targetId === selectedId);
   const validationAllowsExport = issues !== null && blockers.length === 0;
-  const canGenerate = validationAllowsExport && (bundleKind === "context" || hasCuratedTraining);
+  const canGenerate = canonicalDigestStatus === "verified"
+    && validationAllowsExport
+    && (bundleKind === "context" || hasCuratedTraining);
 
   const update = <K extends keyof Proposal>(field: K, value: Proposal[K]) => {
     setProposal((current) => ({ ...current, [field]: value }));
@@ -74,6 +77,10 @@ export function ImproveView({ selectedId, nodes, relations, assessments, invaria
   };
 
   const generateBundle = () => {
+    if (canonicalDigestStatus !== "verified") {
+      setStatus("Could not generate the governed bundle: canonical ontology digest is unverified.");
+      return;
+    }
     try {
       const generatedAt = new Date().toISOString();
       const bundle = buildContextBundle({
@@ -172,7 +179,9 @@ export function ImproveView({ selectedId, nodes, relations, assessments, invaria
           <button className="primary-action" type="button" disabled={!canGenerate} onClick={generateBundle}>Generate governed bundle</button>
         </div>
         {!canGenerate && <p className="bundle-gate" role="status">
-          {validationAllowsExport && bundleKind === "training" && !hasCuratedTraining
+          {canonicalDigestStatus !== "verified"
+            ? "Verify the canonical ontology digest before generating a bundle."
+            : validationAllowsExport && bundleKind === "training" && !hasCuratedTraining
             ? `Training export is unavailable because ${selectedNode?.label ?? selectedId} has no curated behavior examples.`
             : "Run semantic checks with no blockers before generating a bundle."}
         </p>}

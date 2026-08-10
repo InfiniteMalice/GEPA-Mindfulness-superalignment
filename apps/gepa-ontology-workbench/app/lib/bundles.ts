@@ -20,7 +20,10 @@ export interface BuildBundleInput {
   trainingFixtures: readonly TrainingFixture[];
 }
 
-const yamlScalar = (value: unknown) => typeof value === "string" ? JSON.stringify(value) : String(value);
+const yamlScalar = (value: unknown) => {
+  if (value === null || value === undefined) return "null";
+  return typeof value === "string" ? JSON.stringify(value) : String(value);
+};
 const requiredInvariantKeys = new Set([
   "coequal-imperatives", "revisable-goals", "metrics-are-proxies", "no-evidence-identity",
   "independent-support-opposition", "contradiction-is-information", "uncertainty-persists", "no-manufactured-certainty",
@@ -39,10 +42,12 @@ const toYaml = (value: unknown, indent = 0): string => {
     }).join("\n");
   }
   if (value && typeof value === "object") {
-    return Object.entries(value as Record<string, unknown>).map(([key, item]) => {
-      if (item && typeof item === "object") return `${space}${key}:\n${toYaml(item, indent + 2)}`;
-      return `${space}${key}: ${yamlScalar(item)}`;
-    }).join("\n");
+    return Object.entries(value as Record<string, unknown>)
+      .filter(([, item]) => item !== undefined)
+      .map(([key, item]) => {
+        if (item && typeof item === "object") return `${space}${key}:\n${toYaml(item, indent + 2)}`;
+        return `${space}${key}: ${yamlScalar(item)}`;
+      }).join("\n");
   }
   return `${space}${yamlScalar(value)}`;
 };
@@ -56,8 +61,11 @@ const toMarkdown = (bundle: ContextBundle) => [
   `- Generated at: ${bundle.generatedAt}`,
   `- Authority: ${bundle.authority}`,
   "",
-  "## Targets",
-  ...bundle.targets.flatMap((node) => [
+  "## Requested targets",
+  ...bundle.requestedTargetIds.map((id) => `- ${id}`),
+  "",
+  "## Nodes",
+  ...bundle.nodes.flatMap((node) => [
     `- **${node.label}** (${node.id}): ${node.definition}`,
     `  - Layer/type: ${node.layer}/${node.type}; lifecycle: ${node.lifecycle}; protected: ${node.protected}`,
     `  - Aliases: ${node.aliases.join(", ") || "none"}`,
@@ -122,9 +130,14 @@ export function buildContextBundle(input: BuildBundleInput): ContextBundle {
     throw new Error(`Context bundle requires a complete set of 22 invariant keys. Missing: ${missingInvariantKeys.join(", ") || "none"}; extra: ${extraInvariantKeys.join(", ") || "none"}.`);
   }
   const targetIds = new Set(input.targetIds);
-  const targets = input.nodes.filter((node) => targetIds.has(node.id));
   const relations = input.relations.filter((relation) => targetIds.has(relation.source) || targetIds.has(relation.target));
   const assessments = input.assessments.filter((assessment) => targetIds.has(assessment.subject) || targetIds.has(assessment.target));
+  const referencedNodeIds = new Set([
+    ...targetIds,
+    ...relations.flatMap((relation) => [relation.source, relation.target]),
+    ...assessments.flatMap((assessment) => [assessment.subject, assessment.target]),
+  ]);
+  const nodes = input.nodes.filter((node) => referencedNodeIds.has(node.id));
   const unresolvedTensions = assessments
     .filter((assessment) => assessment.contradiction > 0)
     .map((assessment) => `${assessment.id}: contradiction ${assessment.contradiction}`);
@@ -137,7 +150,8 @@ export function buildContextBundle(input: BuildBundleInput): ContextBundle {
     ontologyHash: input.ontologyHash,
     generatedAt: input.generatedAt,
     authority: "generated_noncanonical_bundle",
-    targets,
+    requestedTargetIds: [...targetIds],
+    nodes,
     relations,
     assessments,
     invariants: input.invariants,
@@ -148,25 +162,26 @@ export function buildContextBundle(input: BuildBundleInput): ContextBundle {
 }
 
 function buildTrainingContent(input: BuildBundleInput, relations: readonly OntologyRelation[]) {
-  const fixtures = input.targetIds.map((targetId) => {
-    const fixture = input.trainingFixtures.find((candidate) => candidate.targetId === targetId);
-    if (!fixture || fixture.positiveExamples.length === 0 || fixture.negativeExamples.length === 0) {
-      throw new Error(`No curated training examples are available for target: ${targetId}.`);
-    }
-    return fixture;
-  });
+  if (input.targetIds.length !== 1) {
+    throw new Error("Training bundles require exactly one requested target.");
+  }
+  const [targetId] = input.targetIds;
+  const fixture = input.trainingFixtures.find((candidate) => candidate.targetId === targetId);
+  if (!fixture || fixture.positiveExamples.length === 0 || fixture.negativeExamples.length === 0) {
+    throw new Error(`No curated training examples are available for target: ${targetId}.`);
+  }
   const targetIds = new Set(input.targetIds);
   const relatedEvaluators = relations
     .filter((relation) => targetIds.has(relation.target) && ["evaluates", "tests"].includes(relation.predicate))
     .map((relation) => relation.source);
 
   return {
-    objective: fixtures.map((fixture) => fixture.objective).join(" "),
-    positiveExamples: fixtures.flatMap((fixture) => fixture.positiveExamples),
-    negativeExamples: fixtures.flatMap((fixture) => fixture.negativeExamples),
-    evaluatorTargets: [...new Set([...fixtures.flatMap((fixture) => fixture.evaluatorTargets), ...relatedEvaluators])],
+    objective: fixture.objective,
+    positiveExamples: fixture.positiveExamples,
+    negativeExamples: fixture.negativeExamples,
+    evaluatorTargets: [...new Set([...fixture.evaluatorTargets, ...relatedEvaluators])],
     forbiddenInferences: [...new Set([
-      ...fixtures.flatMap((fixture) => fixture.forbiddenInferences),
+      ...fixture.forbiddenInferences,
       ...input.invariants.map((invariant) => invariant.forbiddenInference),
     ])],
   };
