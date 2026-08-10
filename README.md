@@ -4,6 +4,14 @@ GEPA Mindfulness Superalignment pairs GEPA-inspired reflective reasoning with tr
 
 The project targets **Python 3.10+**.
 
+## Governed ontology workbench
+
+The standalone web interface in [`apps/gepa-ontology-workbench`](apps/gepa-ontology-workbench)
+provides a human- and LLM-readable view of the Mindfulness Constitution ontology. It keeps the
+canonical ontology read-only, exposes the protected kernel and ordered invariants, separates
+normative concepts from operational evidence, validates proposed additions, and exports clearly
+noncanonical evaluation or training bundles.
+
 ## RL maturity matrix
 
 | Path | Maturity | Verified boundary |

@@ -1,0 +1,7 @@
+.superpowers/
+.worktrees/
+.vinext/
+.wrangler/
+node_modules/
+dist/
+tsconfig.tsbuildinfo
