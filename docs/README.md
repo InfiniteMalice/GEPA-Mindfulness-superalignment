@@ -4,6 +4,12 @@ This directory contains project documentation for GEPA Mindfulness Superalignmen
 including alignment foundations, training notes, execution guides, and research
 background for the repository.
 
+## User manual
+
+Use the [ASD-STE100-style user manual](USER_MANUAL.md) for installation,
+command-line workflows, reinforcement learning, the ontology workbench,
+artifact reference, and troubleshooting.
+
 ## 17-Case Framework
 
 The detailed
