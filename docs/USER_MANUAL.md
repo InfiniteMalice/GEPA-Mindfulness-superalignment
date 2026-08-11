@@ -724,7 +724,578 @@ It does not add a new 17-case category.
 ### 12.1 Prepare reasoning units
 
 Use a JSON array, a JSON object with `reasoning_units`, or a JSONL file.
-Each unit uses these fiel…3930 tokens truncated…FLINE=1 \
+Each unit uses these fields:
+
+- `unit_id`
+- `parent_unit_id`
+- `sequence_index`
+- `sub_question`
+- `sub_answer`
+- `evidence_summary`
+- `assumptions`
+- `uncertainty_markers`
+- `confidence`
+- `verifier_status`
+- `repair_status`
+- `dependencies`
+- Optional `metadata`
+
+### 12.2 Run SSR
+
+Run:
+
+```bash
+gepa ssr-run \
+  --input data/ssr/units.jsonl \
+  --out runs/ssr/report.json \
+  --mode evaluation \
+  --max-iterations 2 \
+  --run-id ssr-001
+```
+
+Use `--initial-answer-reference` to attach an answer identifier.
+The result is one `SSRRunReport` JSON file.
+
+## 13. Work with synthetic datasets
+
+### 13.1 Validate a dataset
+
+Run:
+
+```bash
+python scripts/synthetic_dataset_tool.py validate \
+  data/synthetic/gold/superalignment_gold_v1.jsonl
+```
+
+Success gives exit status 0 and a `validation passed` message.
+
+### 13.2 Print a summary
+
+Run:
+
+```bash
+python scripts/synthetic_dataset_tool.py summary \
+  data/synthetic/gold/superalignment_gold_v1.jsonl
+```
+
+Use `--allow-invalid` only when you must inspect an invalid draft. Do not use an
+invalid draft for training.
+
+### 13.3 Create a case scaffold
+
+Run:
+
+```bash
+python scripts/synthetic_dataset_tool.py scaffold \
+  data/synthetic/templates/new_case.jsonl \
+  --case-id syn-new-001
+```
+
+Edit the new record. Add all required sections. Score each item on the 0-to-4
+scale. Then run validation again.
+
+### 13.4 Rebuild the reward-integrity RL data
+
+The rich source is:
+
+```text
+data/synthetic/reward_integrity/reward_integrity_curriculum_v1.jsonl
+```
+
+Validate the rich source. Then rebuild the derived pair file and manifest:
+
+```bash
+python scripts/synthetic_dataset_tool.py validate \
+  data/synthetic/reward_integrity/reward_integrity_curriculum_v1.jsonl
+
+python scripts/build_reward_integrity_rl_dataset.py
+```
+
+The builder must print:
+
+```text
+built 8 cases and 48 preference pairs
+```
+
+The builder writes byte-identical files for identical source input.
+
+### 13.5 Generate constitutional data splits
+
+Run:
+
+```bash
+python scripts/generate_constitutional_dataset.py \
+  --constitution docs/GEPA_Mindfulness_Constitution.md \
+  --input data/constitutional_training/examples.jsonl \
+  --schema data/constitutional_training/schema.json \
+  --out-dir runs/constitutional \
+  --train-ratio 0.8 \
+  --val-ratio 0.1 \
+  --test-ratio 0.1 \
+  --seed 17
+```
+
+The three ratios must describe the intended split. Keep the constitution as the
+canonical source. The derived data does not replace it.
+
+## 14. Run canonical RL on a CPU
+
+Use `gepa rl` when you must update Transformers policy weights.
+Do not use the compatibility CPU demo as weight-update evidence.
+
+### 14.1 Install the RL runtime
+
+Run:
+
+```bash
+python -m pip install -e '.[rl]'
+```
+
+The extra installs bounded versions of PyTorch, Transformers, and PEFT.
+It does not install TRL, Datasets, or Accelerate.
+
+### 14.2 Prepare a local model
+
+The model directory must contain:
+
+- `config.json`
+- Tokenizer assets that `AutoTokenizer` accepts.
+- A `.safetensors` or `.bin` weight file.
+
+The canonical loader uses `local_files_only=True`. It does not download the
+model.
+
+Copy a preset:
+
+```bash
+cp configs/rl/pytorch_cpu_ppo.yaml run.cpu.ppo.yaml
+```
+
+On Windows PowerShell, run:
+
+```powershell
+Copy-Item configs\rl\pytorch_cpu_ppo.yaml run.cpu.ppo.yaml
+```
+
+Replace this placeholder:
+
+```yaml
+policy:
+  model_name: /absolute/path/to/local-transformers-model
+```
+
+Use an absolute path.
+
+### 14.3 Validate the model directory
+
+Set `MODEL_DIR` to the local path. Then run this check:
+
+```bash
+export MODEL_DIR=/absolute/path/to/local-transformers-model
+python - <<'PY'
+import os
+from pathlib import Path
+
+from transformers import AutoConfig, AutoTokenizer
+
+model_dir = Path(os.environ["MODEL_DIR"]).expanduser()
+if not model_dir.is_absolute():
+    raise SystemExit("MODEL_DIR must be an absolute path")
+model_dir = model_dir.resolve(strict=True)
+if not (model_dir / "config.json").is_file():
+    raise SystemExit("MODEL_DIR must contain config.json")
+if not any(model_dir.glob("*.safetensors")) and not any(model_dir.glob("*.bin")):
+    raise SystemExit("MODEL_DIR must contain a candidate weight filename")
+AutoConfig.from_pretrained(model_dir, local_files_only=True)
+AutoTokenizer.from_pretrained(model_dir, local_files_only=True)
+print(model_dir)
+PY
+```
+
+Exit status 0 confirms that the configuration and tokenizer are readable.
+Model construction checks the full weight contents.
+
+### 14.4 Check runtime capabilities
+
+Run:
+
+```bash
+gepa rl doctor --config run.cpu.ppo.yaml
+```
+
+The doctor does not load the model. It prints one `AVAILABLE` or `UNAVAILABLE`
+line for each required capability.
+
+- Exit status 0 means that all required capabilities are available.
+- Exit status 2 means that one or more required capabilities are unavailable.
+
+### 14.5 Run one PPO update
+
+Force offline model access. Then run one optimizer step:
+
+```bash
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+  gepa rl train --config run.cpu.ppo.yaml --max-steps 1
+```
+
+On Windows PowerShell, run:
+
+```powershell
+$env:HF_HUB_OFFLINE = "1"
+$env:TRANSFORMERS_OFFLINE = "1"
+gepa rl train --config run.cpu.ppo.yaml --max-steps 1
+```
+
+The command prints one JSON result. For one successful update, verify these
+conditions:
+
+- `global_step` is 1.
+- `policy_parameters_updated` is `true`.
+- The policy checksums before and after training are different.
+- The result identifies a checkpoint.
+- The result identifies a log directory.
+
+The general `parameters_updated` field also includes the value head.
+Use `policy_parameters_updated` as policy-weight evidence.
+
+### 14.6 Run GRPO
+
+Copy `configs/rl/pytorch_cpu_grpo.yaml`. Replace its model path. Then run:
+
+```bash
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+  gepa rl train --config run.cpu.grpo.yaml --max-steps 1
+```
+
+GRPO requires `policy.do_sample: true` and `algorithm.group_size` of at least 2.
+The shipped preset uses group size 4.
+
+If all responses get the same reward, GRPO applies `zero_variance_policy`.
+The `skip` value omits the response group. A run can then finish without an
+optimizer step.
+
+### 14.7 Collect without training
+
+Run:
+
+```bash
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+  gepa rl collect --config run.cpu.ppo.yaml
+```
+
+Collection generates trajectories. It does not score them. It does not update
+weights.
+
+You can override the dataset and log directory:
+
+```bash
+gepa rl collect \
+  --config run.cpu.ppo.yaml \
+  --dataset data/prompts.txt \
+  --output runs/collection
+```
+
+Collection can use `dataset.format: text`. Each non-empty line becomes one
+prompt.
+
+### 14.8 Evaluate without training
+
+Run:
+
+```bash
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+  gepa rl evaluate --config run.cpu.ppo.yaml
+```
+
+Evaluation generates and scores trajectories. It does not run an optimizer step.
+Evaluation requires the strict chosen/rejected JSONL dataset.
+
+### 14.9 Resume a checkpoint
+
+Select the checkpoint explicitly:
+
+```bash
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+  gepa rl resume \
+  --config run.cpu.ppo.yaml \
+  --checkpoint runs/rl_cpu_ppo/checkpoint-00000001 \
+  --max-steps 1
+```
+
+`--max-steps` is relative to the restored global step.
+Use `--max-steps 0` to verify restoration without a new rollout.
+
+The checkpoint must match the configuration hash and dataset hash.
+The CLI does not select the latest checkpoint for you.
+
+### 14.10 Inspect RL artifacts
+
+A checkpoint directory contains:
+
+```text
+checkpoint-00000001/
+|-- backend.pt
+|-- manifest.json
+`-- training_state.pt
+```
+
+`backend.pt` contains model, value-head, optimizer, and random state.
+`training_state.pt` contains engine and algorithm state.
+`manifest.json` contains hashes, lineage, and global step.
+
+Each invocation creates a log directory:
+
+```text
+rl-<run-id>/
+|-- metrics.jsonl
+|-- run_manifest.json
+`-- trajectories.jsonl
+```
+
+Keep the manifest files with their related artifacts.
+
+## 15. Canonical RL dataset format
+
+Training and evaluation use a closed JSONL schema. Unknown or missing fields
+cause an error before model construction.
+
+Each row contains these main fields:
+
+- `record_id`
+- `source_case_id`
+- `source_case_version`
+- `source_path`
+- `source_line`
+- `source_sha256`
+- `pair_rule`
+- `prompt`
+- `chosen`
+- `rejected`
+- `chosen_class`
+- `rejected_class`
+- `chosen_reward_components`
+- `rejected_reward_components`
+- `diagnostics`
+- `schema_version`
+
+Use this schema version:
+
+```text
+reward-integrity-rl-pairs-v1
+```
+
+The component maps contain eight bounded values:
+
+- `objective_fidelity`
+- `feedback_integrity`
+- `skill_transfer`
+- `reality_contact`
+- `exploit_disclosure`
+- `long_horizon_agency`
+- `benign_creativity`
+- `repair_quality`
+
+Use the derived dataset in this path for a repository test run:
+
+```text
+data/synthetic/reward_integrity/rl_pairs_v1.jsonl
+```
+
+Do not edit the derived file directly. Edit the rich source. Then rebuild the
+derived file.
+
+## 16. Canonical RL configuration reference
+
+The configuration has eight sections and one top-level seed. Unknown keys cause
+an error.
+
+### 16.1 `runtime`
+
+| Key | Type | Default | Constraint |
+| --- | --- | --- | --- |
+| `backend` | String | `pytorch` | Use `pytorch`, `cuda`, `llama-cpp-vulkan`, or `mojo-vulkan-llamacpp`. |
+| `device` | String | `cpu` | Use `cpu`, `cuda`, or `cuda:<index>`. |
+| `precision` | String | `fp32` | Use `fp32`, `fp16`, or `bf16`. Mixed precision requires CUDA. |
+| `distributed` | Map | Single process | See the next table. |
+
+### 16.2 `runtime.distributed`
+
+| Key | Type | Default | Constraint |
+| --- | --- | --- | --- |
+| `strategy` | String | `none` | Use `none`, `ddp`, or `fsdp`. |
+| `world_size` | Integer | 1 | Use 2 or more for a distributed strategy. |
+| `rank` | Integer | 0 | Value must be less than `world_size`. |
+| `local_rank` | Integer | 0 | Value must be less than `world_size`. |
+| `sharded_optimizer` | Boolean | `false` | Use `true` only with FSDP. Restore is not supported. |
+
+The values can use the literal strings `WORLD_SIZE`, `RANK`, and `LOCAL_RANK`.
+The loader then reads the related environment variables.
+
+### 16.3 `policy`
+
+| Key | Type | Default | Constraint |
+| --- | --- | --- | --- |
+| `model_name` | String | `demo-model` | Must not be empty. Use a local path for canonical RL. |
+| `max_new_tokens` | Integer | 256 | Must be greater than zero. |
+| `do_sample` | Boolean | `true` | GRPO requires `true`. |
+| `temperature` | Number | 1.0 | Must be finite and greater than zero. |
+| `top_p` | Number | 1.0 | Must be greater than zero and not more than 1.0. |
+
+### 16.4 `algorithm`
+
+| Key | Type | Default | Constraint |
+| --- | --- | --- | --- |
+| `name` | String | `ppo` | Use `ppo` or `grpo`. |
+| `learning_rate` | Number | `1e-5` | Must be greater than zero. |
+| `batch_size` | Integer | 1 | Must be greater than zero. |
+| `gradient_accumulation_steps` | Integer | 1 | Must be greater than zero. |
+| `max_steps` | Integer | 100 | Must be greater than zero in the file. |
+| `group_size` | Integer | 8 | GRPO requires 2 or more. |
+| `kl_coef` | Number | 0.05 | Must not be negative. |
+| `clip_range` | Number | 0.2 | Must be greater than zero. |
+| `value_coef` | Number | 0.1 | Must not be negative. |
+| `gamma` | Number | 0.99 | Must be from 0 through 1. |
+| `gae_lambda` | Number | 0.95 | Must be from 0 through 1. |
+| `group_normalization_epsilon` | Number | `1e-8` | Must be greater than zero. |
+| `zero_variance_policy` | String | `zero` | Use `zero`, `center_only`, or `skip`. |
+| `max_grad_norm` | Number or null | 1.0 | A number must be greater than zero. Null disables clipping. |
+
+The CLI `--max-steps` option can be zero. That value disables new rollout work
+for the current invocation. It does not change the file constraint.
+
+### 16.5 `reward`
+
+| Key | Type | Default | Constraint |
+| --- | --- | --- | --- |
+| `weights.alpha` | Number | 0.3 | Must not be negative. |
+| `weights.beta` | Number | 0.3 | Must not be negative. |
+| `weights.gamma` | Number | 0.2 | Must not be negative. |
+| `weights.delta` | Number | 0.2 | Must not be negative. |
+| `overlay_weight` | Number | 0.0 | Must not be negative. |
+| `integrity_overlay_enabled` | Boolean | `false` | A true value requires a positive overlay weight. |
+
+The four base weights must have positive total mass.
+If the overlay is off, `overlay_weight` must be 0.
+
+### 16.6 `dataset`
+
+| Key | Type | Default | Constraint |
+| --- | --- | --- | --- |
+| `train_path` | String | Empty | Training requires a usable path. |
+| `validation_path` | String or null | Null | Use a valid optional path. |
+| `format` | String | `jsonl` | Use `jsonl` or `text`. Training and evaluation require strict JSONL pairs. |
+
+### 16.7 `checkpoint`
+
+| Key | Type | Default | Constraint |
+| --- | --- | --- | --- |
+| `output_dir` | String | `runs/default` | Must not be empty. |
+| `save_steps` | Integer | 100 | Must be greater than zero. Hybrid training requires 1. |
+
+### 16.8 `logging`
+
+| Key | Type | Default | Constraint |
+| --- | --- | --- | --- |
+| `log_dir` | String | `runs/logs` | Must not be empty. |
+| `level` | String | `INFO` | Use `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL`. |
+
+### 16.9 `hybrid`
+
+This section applies to the experimental hybrid path.
+
+| Key | Default | Constraint |
+| --- | --- | --- |
+| `model_id` | `local-policy` | Use one safe identifier. Do not use path separators. |
+| `expected_actor_backend` | `mojo-coordinator` | Use one safe identifier. |
+| `adapter_store` | `runs/hybrid/adapters` | Must not be empty. |
+| `training_mode` | `lora` | Only `lora` is accepted. |
+| `staleness_policy` | `reject` | Use `reject` or `down_weight`. |
+| `max_policy_lag` | 0 | Must not be negative. |
+| `downweight_decay` | Null | Use null with `reject`. Use a value between 0 and 1 with `down_weight`. |
+| `lora` | Empty map | Supports `r`, `lora_alpha`, `lora_dropout`, `bias`, `task_type`, `target_modules`, and `modules_to_save`. |
+
+### 16.10 `seed`
+
+The top-level `seed` is an integer. The default is 42.
+
+## 17. Run RL on one NVIDIA GPU
+
+The repository did not qualify this path on its source verification host.
+Run the acceptance tests on your target hardware.
+
+### 17.1 Install a CUDA-enabled PyTorch build
+
+Use the official PyTorch selector. Select a build that matches the operating
+system, driver, and CUDA requirement.
+
+Do not assume that the ordinary `rl` extra installs a CUDA build.
+
+### 17.2 Prepare the configuration
+
+Copy this file:
+
+```text
+configs/rl/cuda_single_gpu.yaml
+```
+
+Replace `LOCAL_MODEL_PATH` with an absolute local model path.
+Keep `runtime.device: cuda:0`.
+Start with `runtime.precision: fp32`.
+
+Set `checkpoint.save_steps: 1` for a one-step acceptance run.
+
+### 17.3 Check and train
+
+Run:
+
+```bash
+gepa rl doctor --config run.cuda.ppo.yaml
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+  gepa rl train --config run.cuda.ppo.yaml --max-steps 1
+```
+
+Verify the same JSON fields that the CPU procedure specifies.
+
+### 17.4 Diagnose out-of-memory errors
+
+Record the complete error. It contains allocator data when PyTorch supplies it.
+
+Run this command to inspect other GPU processes:
+
+```bash
+nvidia-smi --query-compute-apps=pid,used_gpu_memory --format=csv
+```
+
+Stop a process only when you own it.
+
+To reduce memory use, do one or more of these actions:
+
+1. Select a smaller local model.
+2. Reduce `policy.max_new_tokens`.
+3. Reduce `algorithm.batch_size` when it is greater than 1.
+4. Increase gradient accumulation after you reduce the step batch.
+
+The runtime does not change the configuration automatically. It does not retry
+with weaker settings.
+
+### 17.5 Run the CUDA acceptance test
+
+Run:
+
+```bash
+python -m pytest --strict-markers -m cuda tests/test_rl_cuda.py -q -rs
+```
+
+A skipped precision is not a pass. Treat it as unsupported on that device.
+
+## 18. Run two-GPU DDP
+
+Copy `configs/rl/cuda_ddp.yaml`. Replace `LOCAL_MODEL_PATH`.
+
+Then run:
+
+```bash
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
   torchrun --standalone --nnodes=1 --nproc-per-node=2 \
   -m mindful_trace_gepa rl train \
   --config run.cuda.ddp.yaml \
@@ -1370,4 +1941,3 @@ The verification environment did not contain a local Transformers model, CUDA
 hardware, Vulkan hardware, Mojo, or a vLLM server. The related procedures come
 from source validation, repository tests, and checked-in operator guides. They
 are not hardware execution evidence.
-
