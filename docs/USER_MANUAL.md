@@ -43,21 +43,21 @@ Read these notices before you run the software.
 > CAUTION: A trace can contain private prompts, model answers, scores, and metadata.
 > The offline viewer puts this data in one HTML file. Protect that file as you
 > protect the source trace.
-
+>
 > WARNING: The `--response` option in the dual-path evaluator can load a Python
 > file. A Python file can execute arbitrary code. Use only a file that you trust.
-
+>
 > CAUTION: RL training can use much memory. A full policy and a frozen reference
 > model can exist at the same time. The operating system can stop the process
 > before it writes a checkpoint.
-
+>
 > CAUTION: The repository does not download a model for canonical RL. Use a local
 > Transformers model or an existing local cache entry. Verify the model path before
 > you start training.
-
+>
 > CAUTION: A generated ontology bundle is noncanonical. It does not change the
 > canonical ontology. It does not prove that a model learned or deployed a behavior.
-
+>
 > CAUTION: Deception scores are research signals. Synthetic activations, heuristic
 > scores, and simulated judge results are not measured evidence from a real model.
 
@@ -1673,7 +1673,7 @@ option `--paired`. It has the same effect as `--dual-path`.
 | `gepa rl resume` | `--config`, `--checkpoint` | The common backend options and `--max-steps`. |
 | `gepa rl collect` | `--config` | The common backend options; `--dataset`; `--output`. |
 | `gepa rl evaluate` | `--config` | The common backend options. |
-| `gepa rl doctor` | None | `--config`; `--backend system|llama-cpp-vulkan`; `--endpoint`. |
+| `gepa rl doctor` | None | `--config`; use `--backend system` or `--backend llama-cpp-vulkan`; `--endpoint`. |
 
 The common engine backend values are:
 
