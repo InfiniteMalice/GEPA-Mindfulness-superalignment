@@ -3,11 +3,89 @@ import pytest
 from gepa_mindfulness.core import (
     ABSTAIN_OUTPUT,
     AbstentionRewardWeights,
+    EpistemicProcessAssessment,
+    EpistemicProcessComponent,
+    RewardProvenance,
+    VerificationRoute,
+    VerifiedProcessComponent,
     compute_abstention_reward,
 )
+from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
 
 DEFAULT_WEIGHTS = AbstentionRewardWeights()
 THRESHOLD = 0.75
+
+
+def _verified_process(
+    component: EpistemicProcessComponent,
+    score: float,
+) -> EpistemicProcessAssessment:
+    provenance = RewardProvenance(
+        component_name=component.value,
+        verification_method="compare against an independently recorded outcome",
+        route=VerificationRoute.OBSERVABLE_EVIDENCE,
+        evidence_refs=(
+            EvidenceReference(
+                reference_id=f"{component.value}-verification",
+                source_kind=EvidenceSourceKind.EXTERNAL_RECORD,
+            ),
+        ),
+    )
+    return EpistemicProcessAssessment(
+        verified_components=(
+            VerifiedProcessComponent(
+                component=component,
+                score=score,
+                provenance=provenance,
+            ),
+        )
+    )
+
+
+def test_thought_alignment_without_verified_process_preserves_case_but_not_h() -> None:
+    reward = compute_abstention_reward(
+        response="paris",
+        reference_answers=["paris"],
+        confidence=0.9,
+        thought_align=True,
+        threshold=THRESHOLD,
+        weights=DEFAULT_WEIGHTS,
+    )
+
+    assert reward.case_id == 1
+    assert reward.thought_align is True
+    assert reward.components["thought"] == 0.0
+
+
+def test_verified_evidence_fidelity_scales_h_by_optimizer_score() -> None:
+    weights = AbstentionRewardWeights(H=2.0)
+    epistemic_process = _verified_process(
+        EpistemicProcessComponent.EVIDENCE_FIDELITY,
+        0.4,
+    )
+    reward = compute_abstention_reward(
+        response="paris",
+        reference_answers=["paris"],
+        confidence=0.9,
+        thought_align=True,
+        threshold=THRESHOLD,
+        weights=weights,
+        epistemic_process=epistemic_process,
+    )
+    unaligned_reward = compute_abstention_reward(
+        response="paris",
+        reference_answers=["paris"],
+        confidence=0.9,
+        thought_align=False,
+        threshold=THRESHOLD,
+        weights=weights,
+        epistemic_process=epistemic_process,
+    )
+
+    assert reward.case_id == 1
+    assert reward.components["thought"] == pytest.approx(0.8)
+    assert unaligned_reward.case_id == 2
+    assert unaligned_reward.components["thought"] == 0.0
 
 
 def test_reward_cases_cover_all_labels() -> None:
@@ -163,7 +241,7 @@ def test_lucky_guess_does_not_push_confidence() -> None:
     assert reward.components["calibration"] == 0.0
 
 
-def test_miscalibrated_idk_penalizes_calibration() -> None:
+def test_miscalibrated_idk_penalizes_calibration_without_unverified_h() -> None:
     reward = compute_abstention_reward(
         response=ABSTAIN_OUTPUT,
         reference_answers=None,
@@ -174,7 +252,7 @@ def test_miscalibrated_idk_penalizes_calibration() -> None:
     )
     assert reward.case_id == 10
     assert reward.components["calibration"] < 0.0
-    assert reward.components["thought"] == DEFAULT_WEIGHTS.H
+    assert reward.components["thought"] == 0.0
 
 
 def test_miscalibrated_ungrounded_idk_gets_no_thought_bonus() -> None:
@@ -257,7 +335,7 @@ def test_abstention_with_no_references_still_scores() -> None:
     assert reward.case_id == 12
 
 
-def test_grounded_low_confidence_idk_gets_thought_bonus() -> None:
+def test_grounded_low_confidence_idk_needs_verification_for_thought_bonus() -> None:
     reward = compute_abstention_reward(
         response=ABSTAIN_OUTPUT,
         reference_answers=["paris"],
@@ -267,7 +345,7 @@ def test_grounded_low_confidence_idk_gets_thought_bonus() -> None:
         weights=DEFAULT_WEIGHTS,
     )
     assert reward.case_id == 12
-    assert reward.components["thought"] == DEFAULT_WEIGHTS.H
+    assert reward.components["thought"] == 0.0
 
 
 def test_ungrounded_low_confidence_idk_gets_no_thought_bonus() -> None:

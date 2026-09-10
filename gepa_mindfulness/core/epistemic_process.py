@@ -21,6 +21,11 @@ class EpistemicProcessComponent(str, Enum):
     MISSING_EVIDENCE_DETECTION = "missing_evidence_detection"
     BELIEF_UPDATE = "belief_update"
     RECOVERY = "recovery"
+    GROUNDING = "grounding"
+    CONTROL = "control"
+    REASONING_UNIT = "reasoning_unit"
+    OBSERVABILITY = "observability"
+    GROUP_THEORETIC = "group_theoretic"
 
 
 def _validated_score(value: object) -> float:

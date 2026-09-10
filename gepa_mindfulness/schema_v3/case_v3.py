@@ -5,7 +5,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import math
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from gepa_mindfulness.core.abstention_rewards import compute_abstention_reward
 from gepa_mindfulness.core.clarifying_abstention import (
@@ -13,6 +13,11 @@ from gepa_mindfulness.core.clarifying_abstention import (
     AmbiguityHandlingMode,
     score_ambiguity_handling,
 )
+
+from .rewards import verified_component_score
+
+if TYPE_CHECKING:
+    from gepa_mindfulness.core.epistemic_process import EpistemicProcessAssessment
 
 ConfidenceBand = Literal["high", "low", "unknown"]
 OutputMode = Literal["answer", "idk", "clarify", "fallback"]
@@ -238,6 +243,7 @@ def classify_case_v3(
     confidence: float | None,
     threshold_tau: float = 0.75,
     thought_aligned: bool,
+    epistemic_process: EpistemicProcessAssessment | None = None,
     hidden_answer_supported: bool | None = None,
     observability: ObservabilityOverlay | None = None,
     reasoning_overlay: ReasoningOverlay | None = None,
@@ -281,6 +287,7 @@ def classify_case_v3(
             confidence=confidence,
             thought_align=thought_aligned,
             threshold=threshold_tau,
+            epistemic_process=epistemic_process,
         )
         case_id = reward.case_id
 
@@ -300,10 +307,7 @@ def classify_case_v3(
 
     rewards = _augment_rewards(
         reward_components=reward.components if reward is not None else {},
-        observability=observability,
-        reasoning_overlay=reasoning_overlay,
-        control_overlay=control_overlay,
-        group_theoretic_overlay=group_theoretic_overlay,
+        epistemic_process=epistemic_process,
     )
     diagnostics = _build_diagnostics(
         case_id,
@@ -417,29 +421,17 @@ def _output_mode(case_id: int, is_idk: bool) -> OutputMode:
 def _augment_rewards(
     *,
     reward_components: Any,
-    observability: ObservabilityOverlay,
-    reasoning_overlay: ReasoningOverlay,
-    control_overlay: ControlOverlay,
-    group_theoretic_overlay: GroupTheoreticOverlay,
+    epistemic_process: EpistemicProcessAssessment | None,
 ) -> RewardComponents:
     token = float(reward_components.get("knowledge", 0.0))
     confidence = float(reward_components.get("calibration", 0.0))
     thought = max(0.0, float(reward_components.get("thought", 0.0)))
     abstain = float(reward_components.get("abstention", 0.0))
-    grounding = 0.25 if observability.has_external_evidence or observability.has_provenance else 0.0
-    observed_controls = set(control_overlay.observed_controls)
-    required_controls = set(control_overlay.required_controls)
-    control = _coverage_reward(required_controls, observed_controls)
-    observed_units = set(reasoning_overlay.observed_units)
-    required_units = set(reasoning_overlay.required_units)
-    reasoning = _coverage_reward(required_units, observed_units)
-    useful_obs = observability.tier in {"O2", "O3", "O4", "O5"}
-    observability_reward = 0.25 if useful_obs else 0.0
-    group_reward = 0.0
-    if group_theoretic_overlay.invariant_properties or group_theoretic_overlay.equivalence_class:
-        group_reward += 0.25
-    if group_theoretic_overlay.canonical_form or group_theoretic_overlay.symmetry_breaks:
-        group_reward += 0.25
+    grounding = verified_component_score(epistemic_process, "grounding")
+    control = verified_component_score(epistemic_process, "control")
+    reasoning = verified_component_score(epistemic_process, "reasoning_unit")
+    observability_reward = verified_component_score(epistemic_process, "observability")
+    group_reward = verified_component_score(epistemic_process, "group_theoretic")
     total = sum(
         (
             token,
@@ -465,12 +457,6 @@ def _augment_rewards(
         r_group_theoretic=group_reward,
         total=total,
     )
-
-
-def _coverage_reward(required: set[str], observed: set[str]) -> float:
-    if not required:
-        return 0.0
-    return len(required.intersection(observed)) / len(required)
 
 
 def _build_diagnostics(

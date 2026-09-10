@@ -4,10 +4,21 @@ from __future__ import annotations
 
 import json
 
-from gepa_mindfulness.core import AmbiguityHandlingMode
+import pytest
+
+from gepa_mindfulness.core import (
+    AmbiguityHandlingMode,
+    EpistemicProcessAssessment,
+    EpistemicProcessComponent,
+    RewardProvenance,
+    VerificationRoute,
+    VerifiedProcessComponent,
+)
+from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
 from gepa_mindfulness.schema_v3 import (
     ControlOverlay,
     GroupTheoreticOverlay,
+    ObservabilityOverlay,
     ReasoningOverlay,
     classify_case_v3,
 )
@@ -37,6 +48,96 @@ def _classify(**kwargs):
     }
     defaults.update(kwargs)
     return classify_case_v3(**defaults)
+
+
+def _verified_process(
+    component: EpistemicProcessComponent,
+    score: float,
+) -> EpistemicProcessAssessment:
+    provenance = RewardProvenance(
+        component_name=component.value,
+        verification_method="compare process property with an independently recorded outcome",
+        route=VerificationRoute.OBSERVABLE_EVIDENCE,
+        evidence_refs=(
+            EvidenceReference(
+                reference_id=f"{component.value}-verification",
+                source_kind=EvidenceSourceKind.EXTERNAL_RECORD,
+            ),
+        ),
+    )
+    return EpistemicProcessAssessment(
+        verified_components=(
+            VerifiedProcessComponent(
+                component=component,
+                score=score,
+                provenance=provenance,
+            ),
+        )
+    )
+
+
+def test_populated_schema_overlays_are_diagnostic_without_verification() -> None:
+    result = _classify(
+        observability=ObservabilityOverlay(
+            tier="O4",
+            has_external_evidence=True,
+            has_provenance=True,
+        ),
+        reasoning_overlay=ReasoningOverlay(
+            required_units=["proof_step_composition"],
+            observed_units=["proof_step_composition"],
+        ),
+        control_overlay=ControlOverlay(
+            required_controls=["task_framing"],
+            observed_controls=["task_framing"],
+        ),
+        group_theoretic_overlay=GroupTheoreticOverlay(
+            invariant_properties=["intent"],
+            equivalence_class="intent:preserved",
+            canonical_form={"intent": "preserved"},
+            symmetry_breaks=["authorization"],
+        ),
+    )
+
+    assert result.reward_components.r_grounding == 0.0
+    assert result.reward_components.r_control == 0.0
+    assert result.reward_components.r_reasoning_unit == 0.0
+    assert result.reward_components.r_observability == 0.0
+    assert result.reward_components.r_group_theoretic == 0.0
+    payload = result.to_dict()
+    assert payload["observability"]["tier"] == "O4"
+    assert payload["reasoning_overlay"]["observed_units"] == ["proof_step_composition"]
+    assert payload["control_overlay"]["observed_controls"] == ["task_framing"]
+    assert payload["group_theoretic_overlay"]["canonical_form"] == {"intent": "preserved"}
+
+
+@pytest.mark.parametrize(
+    ("component_name", "reward_field", "score"),
+    [
+        ("grounding", "r_grounding", 0.2),
+        ("control", "r_control", 0.4),
+        ("reasoning_unit", "r_reasoning_unit", 0.6),
+        ("observability", "r_observability", 0.8),
+        ("group_theoretic", "r_group_theoretic", 1.0),
+    ],
+)
+def test_schema_process_reward_requires_exact_verified_component(
+    component_name: str,
+    reward_field: str,
+    score: float,
+) -> None:
+    component = EpistemicProcessComponent(component_name)
+    result = _classify(epistemic_process=_verified_process(component, score))
+
+    schema_rewards = {
+        "r_grounding": result.reward_components.r_grounding,
+        "r_control": result.reward_components.r_control,
+        "r_reasoning_unit": result.reward_components.r_reasoning_unit,
+        "r_observability": result.reward_components.r_observability,
+        "r_group_theoretic": result.reward_components.r_group_theoretic,
+    }
+    assert schema_rewards[reward_field] == pytest.approx(score)
+    assert sum(value for name, value in schema_rewards.items() if name != reward_field) == 0.0
 
 
 def test_v3_case_object_serializes_to_json():
@@ -174,11 +275,11 @@ def test_thought_reward_is_never_negative():
         assert result.reward_components.r_thought >= 0.0
 
 
-def test_case_12_grounded_idk_gets_abstention_and_thought_reward():
+def test_case_12_grounded_idk_gets_abstention_but_no_unverified_thought_reward():
     result = _classify(is_idk=True, expected_answer=None, confidence=0.3, thought_aligned=True)
     assert result.case_id == 12
     assert result.reward_components.r_abstain > 0.0
-    assert result.reward_components.r_thought > 0.0
+    assert result.reward_components.r_thought == 0.0
 
 
 def test_case_9_lazy_idk_remains_penalized():
@@ -196,7 +297,7 @@ def test_case_6_confident_hallucination_remains_strongly_penalized():
     assert result.diagnostics.primary_failure_mode == "confident_hallucination"
 
 
-def test_reasoning_overlay_attaches_without_changing_case():
+def test_reasoning_overlay_attaches_without_changing_case_or_reward():
     baseline = _classify().case_id
     result = _classify(
         reasoning_overlay=ReasoningOverlay(
@@ -205,10 +306,10 @@ def test_reasoning_overlay_attaches_without_changing_case():
         )
     )
     assert result.case_id == baseline
-    assert result.reward_components.r_reasoning_unit == 1.0
+    assert result.reward_components.r_reasoning_unit == 0.0
 
 
-def test_control_overlay_attaches_without_changing_case():
+def test_control_overlay_attaches_without_changing_case_or_reward():
     result = _classify(
         control_overlay=ControlOverlay(
             required_controls=["task_framing"],
@@ -216,7 +317,7 @@ def test_control_overlay_attaches_without_changing_case():
         )
     )
     assert result.case_id == 1
-    assert result.reward_components.r_control == 1.0
+    assert result.reward_components.r_control == 0.0
 
 
 def test_causal_confounding_requires_scientific_method_check():

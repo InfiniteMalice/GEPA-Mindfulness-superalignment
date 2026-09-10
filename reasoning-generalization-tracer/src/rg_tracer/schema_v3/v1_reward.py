@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import dataclasses
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from gepa_mindfulness.core.epistemic_process import EpistemicProcessAssessment
 
 
 @dataclasses.dataclass(frozen=True)
@@ -22,6 +26,7 @@ def compute_abstention_reward(
     confidence: float,
     thought_align: bool,
     threshold: float,
+    epistemic_process: EpistemicProcessAssessment | None = None,
 ) -> Reward:
     """Classify the unchanged 13+0 abstention reward cases."""
     refs = [] if reference_answers is None else [_normalize(reference_answers)]
@@ -74,7 +79,13 @@ def compute_abstention_reward(
     else:
         case_id = 8
         knowledge = -1.0
-    thought = 1.0 if case_id in {1, 3, 5, 7, 10, 12} and thought_align else 0.0
+    has_verified_process = bool(
+        epistemic_process is not None and epistemic_process.verified_components
+    )
+    if case_id in {1, 3, 5, 7, 10, 12} and thought_align and has_verified_process:
+        thought = epistemic_process.optimizer_score()
+    else:
+        thought = 0.0
     return Reward(
         case_id=case_id,
         components={

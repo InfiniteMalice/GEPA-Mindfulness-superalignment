@@ -6,9 +6,12 @@ import dataclasses
 import logging
 import math
 from types import MappingProxyType
-from typing import Mapping, Sequence
+from typing import TYPE_CHECKING, Mapping, Sequence
 
 from .abstention import ABSTAIN_OUTPUT
+
+if TYPE_CHECKING:
+    from .epistemic_process import EpistemicProcessAssessment
 
 _logger = logging.getLogger(__name__)
 
@@ -112,6 +115,7 @@ def compute_abstention_reward(
     thought_align: bool,
     threshold: float,
     weights: AbstentionRewardWeights | None = None,
+    epistemic_process: EpistemicProcessAssessment | None = None,
 ) -> AbstentionReward:
     """Classify a response into preserved cases 1-13 and compute components.
 
@@ -122,6 +126,7 @@ def compute_abstention_reward(
         thought_align: Whether reasoning is epistemically grounded.
         threshold: Confidence threshold separating high vs. low confidence.
         weights: Optional custom reward weights; defaults are applied when None.
+        epistemic_process: Independently verified process components eligible for `H`.
 
     Returns:
         AbstentionReward containing the total, case_id, component breakdown, and flags.
@@ -198,8 +203,11 @@ def compute_abstention_reward(
             raise ValueError("Unclassified abstention reward case.")
 
         eligible_for_thought = {1, 3, 5, 7, 10, 12}
-        if case_id in eligible_for_thought and thought_align:
-            thought_reward = weights.H
+        has_verified_process = bool(
+            epistemic_process is not None and epistemic_process.verified_components
+        )
+        if case_id in eligible_for_thought and thought_align and has_verified_process:
+            thought_reward = weights.H * epistemic_process.optimizer_score()
         else:
             thought_reward = 0.0
 
