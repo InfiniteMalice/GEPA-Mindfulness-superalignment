@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import math
+from collections.abc import Sequence
+
 import pytest
 
 from gepa_mindfulness.core import (
@@ -12,12 +15,42 @@ from gepa_mindfulness.core import (
     VerifiedProcessComponent,
 )
 from gepa_mindfulness.core.abstention import AbstentionAssessment, AbstentionQuality
+from gepa_mindfulness.core.circuit_tracer_adapter import CircuitTracerAdapter, TraceResult
 from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
 from gepa_mindfulness.core.rewards import (
     GEPARewardCalculator,
     HallucinationConfig,
     RewardWeights,
 )
+from gepa_mindfulness.training.base_trainer import BaseTrainer, GeneratedResponse
+from gepa_mindfulness.training.config import BaseTrainerConfig
+
+
+class _RewardOnlyTrainer(BaseTrainer):
+    def train(self) -> None:
+        pass
+
+    def _compute_advantages(
+        self,
+        grouped_rewards: Sequence[Sequence[float]],
+    ) -> Sequence[Sequence[float]]:
+        return grouped_rewards
+
+
+class _DiagnosticTraceAdapter(CircuitTracerAdapter):
+    def __init__(self, diagnostic_prose: str) -> None:
+        super().__init__(tracer=None)
+        self.diagnostic_prose = diagnostic_prose
+
+    def trace_responses(
+        self,
+        prompts: Sequence[str],
+        responses: Sequence[Sequence[str]],
+        *,
+        rewards: Sequence[Sequence[float]] | None = None,
+    ) -> list[list[TraceResult | None]]:
+        del prompts, rewards
+        return [[self._heuristic_only(self.diagnostic_prose) for _ in group] for group in responses]
 
 
 @pytest.fixture()
@@ -182,3 +215,47 @@ def test_self_reported_uncertainty_without_verification_earns_zero_process_rewar
 
     assert breakdown.epistemic_process == 0.0
     assert breakdown.honesty == 0.0
+
+
+def test_adapter_diagnostic_prose_cannot_change_trainer_reward(tmp_path) -> None:
+    """Adapter-derived abstention labels remain logged but cannot reach optimizer math."""
+    dataset_path = tmp_path / "dataset.jsonl"
+    dataset_path.write_text(
+        '{"prompt": "Question", "answers": ["answer"]}\n',
+        encoding="utf-8",
+    )
+    generated = GeneratedResponse(
+        text="wrong",
+        log_probs=[math.log(0.4)],
+        mask=[1],
+    )
+    diagnostic_prose = {
+        "genuine": ("[PATH 1 REASONING] examined considered tension conflict limitation boundary"),
+        "lazy": "[PATH 1 REASONING] no idea unsure maybe",
+    }
+    outcomes = {}
+
+    for label, prose in diagnostic_prose.items():
+        config = BaseTrainerConfig(
+            dataset_path=str(dataset_path),
+            output_dir=str(tmp_path / label),
+        )
+        trainer = _RewardOnlyTrainer(
+            config,
+            tracer_adapter=_DiagnosticTraceAdapter(prose),
+        )
+        _, breakdown_groups = trainer.compute_batch_rewards(
+            ["Question"],
+            [[generated]],
+            references=[["answer"]],
+            gepa_scores=[None],
+            imperatives=[None],
+        )
+        outcomes[label] = (breakdown_groups[0][0], trainer.logged_metrics[0])
+
+    genuine_breakdown, genuine_log = outcomes["genuine"]
+    lazy_breakdown, lazy_log = outcomes["lazy"]
+    assert genuine_log["abstention_assessment"]["quality"] == "genuine"
+    assert lazy_log["abstention_assessment"]["quality"] == "lazy"
+    assert genuine_log["trace_summary"] != lazy_log["trace_summary"]
+    assert genuine_breakdown == lazy_breakdown

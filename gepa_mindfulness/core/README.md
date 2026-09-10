@@ -43,6 +43,9 @@ value; direct legacy construction can still provide a different `honesty` value.
 `RewardWeights.honesty_trace` property remains an alias for `gamma`; it does not authorize credit
 from `trace_summary` wording. Trace summaries, `reasoning_grounded`, and deception fingerprints
 remain diagnostic data unless a separate verified component records the relevant process property.
+`CircuitTracerAdapter` abstention assessments remain diagnostic in `BaseTrainer`.
+`AbstentionAssessment.quality` remains in trainer metrics. Changing only `thought_align` cannot
+change numeric knowledge, calibration, abstention, or verified-process reward.
 
 For reward formulas, eligibility, component limits, and verification commands, see
 [`docs/epistemic_process_rewards.md`](../../docs/epistemic_process_rewards.md).

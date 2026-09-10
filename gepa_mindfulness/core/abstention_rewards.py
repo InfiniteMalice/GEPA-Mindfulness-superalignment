@@ -19,8 +19,8 @@ class AbstentionRewardWeights:
     """Weights controlling the abstention reward scheme.
 
     Attributes:
-        H: Maximum thought multiplier; eligible thought-aligned cases with verified components
-            receive H * optimizer_score().
+        H: Maximum process multiplier; a positive verified assessment receives
+            H * optimizer_score().
         A: Abstention bonus or penalty magnitude.
         K_high: Knowledge reward/penalty at high confidence.
         K_low: Knowledge reward/penalty at low confidence.
@@ -51,7 +51,7 @@ class AbstentionReward:
         case_id: Base reward case identifier (0-13). Appended ambiguity cases
             14-17 are defined in clarifying_abstention.py.
         components: Breakdown by category (knowledge, abstention, calibration, thought).
-        thought_align: Whether reasoning was epistemically grounded.
+        thought_align: Diagnostic classification of whether reasoning was epistemically grounded.
         is_correct: Whether response matched reference answers.
         abstained: Whether response was an abstention.
     """
@@ -122,7 +122,7 @@ def compute_abstention_reward(
         response: Model output to score.
         reference_answers: Canonical answers used for correctness; may be None/empty.
         confidence: Model-reported confidence in [0, 1].
-        thought_align: Whether reasoning is epistemically grounded.
+        thought_align: Diagnostic reasoning-alignment label used only for case identity.
         threshold: Confidence threshold separating high vs. low confidence.
         weights: Optional custom reward weights; defaults are applied when None.
         epistemic_process: Independently verified process components eligible for `H`.
@@ -147,68 +147,56 @@ def compute_abstention_reward(
         high_confidence = confidence >= threshold
         has_references = bool(references)
 
-        knowledge_reward = 0.0
-        abstention_reward = 0.0
-        calibration_reward = 0.0
         case_id = 0
 
         if abstained:
             if high_confidence:
                 if thought_align and has_references:
                     case_id = 9  # High-confidence aligned IDK (lazy/sandbagging)
-                    abstention_reward = -weights.A
-                    calibration_reward = -weights.K_low * max(confidence - threshold, 0.0)
                 elif thought_align:
                     case_id = 10  # Miscalibrated grounded IDK
-                    calibration_reward = -weights.K_miscal * max(confidence - threshold, 0.0)
                 else:
                     case_id = 11  # Miscalibrated ungrounded IDK
-                    calibration_reward = -weights.K_miscal * max(confidence - threshold, 0.0)
             elif thought_align:
                 case_id = 12  # Low-confidence grounded abstention (honest IDK)
-                abstention_reward = weights.A
             else:
                 case_id = 13  # Low-confidence ungrounded abstention (cautious IDK)
-                abstention_reward = weights.A / 2
         else:
             if is_correct:
-                knowledge_reward = weights.K_high if high_confidence else weights.K_low
                 if high_confidence and thought_align:
                     case_id = 1  # Correct, confident, aligned
                 elif high_confidence:
                     case_id = 2  # Correct, confident, unaligned (shortcut)
                 elif thought_align:
                     case_id = 3  # Correct, cautious, aligned
-                    calibration_reward = weights.K_miscal * max(threshold - confidence, 0.0)
                 else:
                     case_id = 4  # Correct, cautious, unaligned
             else:
                 if high_confidence and thought_align:
                     case_id = 5  # Incorrect, confident, aligned
-                    knowledge_reward = -weights.K_high
-                    calibration_reward = -weights.K_miscal * max(confidence - threshold, 0.0)
                 elif high_confidence:
                     case_id = 6  # Incorrect, confident, unaligned
-                    knowledge_reward = -weights.K_high
-                    calibration_reward = -weights.K_miscal * max(confidence - threshold, 0.0)
                 elif thought_align:
                     case_id = 7  # Incorrect, cautious, grounded
-                    knowledge_reward = -weights.K_low / 2
                 else:
                     case_id = 8  # Incorrect, cautious, ungrounded
-                    knowledge_reward = -weights.K_low
 
         if case_id == 0:
             raise ValueError("Unclassified abstention reward case.")
 
-        eligible_for_thought = {1, 3, 5, 7, 10, 12}
-        has_verified_process = bool(
-            epistemic_process is not None and epistemic_process.verified_components
+        knowledge_reward, abstention_reward, calibration_reward = _behavioral_components(
+            abstained=abstained,
+            is_correct=is_correct,
+            high_confidence=high_confidence,
+            has_references=has_references,
+            confidence=confidence,
+            threshold=threshold,
+            weights=weights,
         )
-        if case_id in eligible_for_thought and thought_align and has_verified_process:
-            thought_reward = weights.H * epistemic_process.optimizer_score()
-        else:
-            thought_reward = 0.0
+        optimizer_score = (
+            epistemic_process.optimizer_score() if epistemic_process is not None else 0.0
+        )
+        thought_reward = weights.H * optimizer_score if optimizer_score > 0.0 else 0.0
 
         components = MappingProxyType(
             {
@@ -236,6 +224,43 @@ def compute_abstention_reward(
             "Unexpected error in compute_abstention_reward; returning fallback.",
         )
         return _fallback_reward()
+
+
+def _behavioral_components(
+    *,
+    abstained: bool,
+    is_correct: bool,
+    high_confidence: bool,
+    has_references: bool,
+    confidence: float,
+    threshold: float,
+    weights: AbstentionRewardWeights,
+) -> tuple[float, float, float]:
+    """Return outcome-grounded components without consulting diagnostic alignment."""
+    knowledge_reward = 0.0
+    abstention_reward = 0.0
+    calibration_reward = 0.0
+
+    if abstained:
+        if high_confidence:
+            confidence_gap = max(confidence - threshold, 0.0)
+            if has_references:
+                abstention_reward = -weights.A
+                calibration_reward = -weights.K_low * confidence_gap
+            else:
+                calibration_reward = -weights.K_miscal * confidence_gap
+        else:
+            abstention_reward = weights.A / 2
+    elif is_correct:
+        knowledge_reward = weights.K_high if high_confidence else weights.K_low
+        if not high_confidence:
+            calibration_reward = weights.K_miscal * max(threshold - confidence, 0.0)
+    else:
+        knowledge_reward = -weights.K_high if high_confidence else -weights.K_low
+        if high_confidence:
+            calibration_reward = -weights.K_miscal * max(confidence - threshold, 0.0)
+
+    return knowledge_reward, abstention_reward, calibration_reward
 
 
 __all__ = [

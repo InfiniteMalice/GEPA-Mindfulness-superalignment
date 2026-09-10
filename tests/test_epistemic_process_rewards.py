@@ -17,14 +17,12 @@ from gepa_mindfulness.core import (
 )
 from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
 
-
 OBSERVABLE_REFERENCE = EvidenceReference(
     reference_id="verification-record-1",
     source_kind=EvidenceSourceKind.EXTERNAL_RECORD,
 )
 COMPARATIVE_RATIONALE_METHOD = (
-    "compare public rationale with committed prediction, "
-    "selected action, and observed outcome"
+    "compare public rationale with committed prediction, " "selected action, and observed outcome"
 )
 
 
@@ -217,3 +215,34 @@ def test_public_rationale_fidelity_accepts_structured_comparison_evidence() -> N
     )
 
     assert component.score == 1.0
+
+
+def test_public_rationale_fidelity_rejects_partial_comparison_evidence_boundary() -> None:
+    """All four typed comparison records must also be authorized by evidence_refs."""
+    comparison = PublicRationaleComparisonEvidence(
+        public_rationale=EvidenceReference(
+            reference_id="partial-public-rationale",
+            source_kind=EvidenceSourceKind.OBSERVABLE_OUTPUT,
+        ),
+        committed_prediction=EvidenceReference(
+            reference_id="partial-committed-prediction",
+            source_kind=EvidenceSourceKind.EXTERNAL_RECORD,
+        ),
+        selected_action=EvidenceReference(
+            reference_id="partial-selected-action",
+            source_kind=EvidenceSourceKind.OBSERVABLE_ACTION,
+        ),
+        observed_outcome=EvidenceReference(
+            reference_id="partial-observed-outcome",
+            source_kind=EvidenceSourceKind.EXTERNAL_RECORD,
+        ),
+    )
+
+    with pytest.raises(ValueError, match="comparison evidence must be included"):
+        RewardProvenance(
+            component_name=EpistemicProcessComponent.PUBLIC_RATIONALE_FIDELITY.value,
+            verification_method=COMPARATIVE_RATIONALE_METHOD,
+            route=VerificationRoute.OBSERVABLE_EVIDENCE,
+            evidence_refs=comparison.references[:-1],
+            public_rationale_comparison=comparison,
+        )

@@ -24,7 +24,10 @@ class TraceProtocol(Protocol):
 
 @dataclasses.dataclass(init=False)
 class TraceResult:
-    """Minimal representation of a Circuit Tracer analysis."""
+    """Minimal diagnostic representation of a Circuit Tracer analysis.
+
+    ``assessment`` is inferred from generated text and is not optimizer provenance.
+    """
 
     summary: dict[str, str]
     assessment: AbstentionAssessment | None

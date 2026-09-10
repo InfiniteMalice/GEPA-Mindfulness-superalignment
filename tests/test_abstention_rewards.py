@@ -85,7 +85,98 @@ def test_verified_evidence_fidelity_scales_h_by_optimizer_score() -> None:
     assert reward.case_id == 1
     assert reward.components["thought"] == pytest.approx(0.8)
     assert unaligned_reward.case_id == 2
-    assert unaligned_reward.components["thought"] == 0.0
+    assert unaligned_reward.components["thought"] == pytest.approx(0.8)
+
+
+@pytest.mark.parametrize(
+    ("response", "reference_answers", "confidence"),
+    [
+        ("paris", ["paris"], 0.9),
+        ("paris", ["paris"], 0.4),
+        ("london", ["paris"], 0.9),
+        ("london", ["paris"], 0.4),
+        (ABSTAIN_OUTPUT, ["paris"], 0.9),
+        (ABSTAIN_OUTPUT, None, 0.9),
+        (ABSTAIN_OUTPUT, ["paris"], 0.4),
+    ],
+)
+def test_diagnostic_alignment_flip_preserves_all_numeric_reward_components(
+    response: str,
+    reference_answers: list[str] | None,
+    confidence: float,
+) -> None:
+    aligned = compute_abstention_reward(
+        response=response,
+        reference_answers=reference_answers,
+        confidence=confidence,
+        thought_align=True,
+        threshold=THRESHOLD,
+        weights=DEFAULT_WEIGHTS,
+    )
+    unaligned = compute_abstention_reward(
+        response=response,
+        reference_answers=reference_answers,
+        confidence=confidence,
+        thought_align=False,
+        threshold=THRESHOLD,
+        weights=DEFAULT_WEIGHTS,
+    )
+
+    assert aligned.case_id != unaligned.case_id
+    assert dict(aligned.components) == dict(unaligned.components)
+    assert aligned.total == unaligned.total
+
+
+def test_zero_score_verified_assessment_is_a_numeric_noop() -> None:
+    zero_score = _verified_process(EpistemicProcessComponent.EVIDENCE_FIDELITY, 0.0)
+    baseline = compute_abstention_reward(
+        response="paris",
+        reference_answers=["paris"],
+        confidence=0.9,
+        thought_align=True,
+        threshold=THRESHOLD,
+        weights=DEFAULT_WEIGHTS,
+    )
+    assessed = compute_abstention_reward(
+        response="paris",
+        reference_answers=["paris"],
+        confidence=0.9,
+        thought_align=True,
+        threshold=THRESHOLD,
+        weights=DEFAULT_WEIGHTS,
+        epistemic_process=zero_score,
+    )
+
+    assert dict(assessed.components) == dict(baseline.components)
+    assert assessed.total == baseline.total
+
+
+@pytest.mark.parametrize("score", [1e-12, 0.4])
+def test_positive_verified_process_is_scaled_without_alignment_gate(score: float) -> None:
+    weights = AbstentionRewardWeights(H=2.0)
+    assessment = _verified_process(EpistemicProcessComponent.EVIDENCE_FIDELITY, score)
+    aligned = compute_abstention_reward(
+        response="paris",
+        reference_answers=["paris"],
+        confidence=0.9,
+        thought_align=True,
+        threshold=THRESHOLD,
+        weights=weights,
+        epistemic_process=assessment,
+    )
+    unaligned = compute_abstention_reward(
+        response="paris",
+        reference_answers=["paris"],
+        confidence=0.9,
+        thought_align=False,
+        threshold=THRESHOLD,
+        weights=weights,
+        epistemic_process=assessment,
+    )
+
+    assert dict(aligned.components) == dict(unaligned.components)
+    assert aligned.components["thought"] == pytest.approx(2.0 * score)
+    assert aligned.total == unaligned.total
 
 
 def test_reward_cases_cover_all_labels() -> None:

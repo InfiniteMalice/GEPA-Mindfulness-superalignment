@@ -19,8 +19,9 @@ handling while preserving the original 13 cases and this V3 reward identity.
 
 The default confidence threshold remains `tau = 0.75` unless callers override
 it. `R_token`, `R_confidence`, `R_thought`, and `R_abstain` remain decomposed.
-`R_thought` is positive-only: `H * optimizer_score()` for an eligible thought-aligned case with
-verified components, otherwise `0`; it is never negative.
+`R_thought` is positive-only: `H * optimizer_score()` for a positive verified assessment,
+otherwise `0`; it is never negative. `thought_aligned` selects diagnostic case identity and does
+not change any numeric reward component.
 
 ## Data model
 

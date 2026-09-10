@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import asdict
 from typing import get_args, get_type_hints
 
 import pytest
@@ -23,6 +24,7 @@ from gepa_mindfulness.schema_v3 import (
     ReasoningOverlay,
     classify_case_v3,
 )
+from gepa_mindfulness.schema_v3.case_v3 import RewardComponents
 from gepa_mindfulness.schema_v3.causal_scientific import (
     causal_confounding_overlay,
     scientific_method_required_control,
@@ -37,6 +39,7 @@ from gepa_mindfulness.schema_v3.group_theoretic import (
 )
 from gepa_mindfulness.schema_v3.mdl_control import mdl_control_gate
 from gepa_mindfulness.schema_v3.reasoning_units import REASONING_UNIT_REGISTRY
+from gepa_mindfulness.schema_v3.rewards import assert_thought_reward_non_negative
 
 
 def _classify(**kwargs):
@@ -159,6 +162,55 @@ def test_schema_process_reward_requires_exact_verified_component(
     }
     assert schema_rewards[reward_field] == pytest.approx(score)
     assert sum(value for name, value in schema_rewards.items() if name != reward_field) == 0.0
+
+
+@pytest.mark.parametrize("score", [None, 0.0, 1e-12, 0.4])
+def test_schema_alignment_is_diagnostic_and_packaged_rewards_match_exactly(
+    score: float | None,
+) -> None:
+    from rg_tracer.schema_v3 import classify_case_v3 as classify_rg_case_v3
+
+    assessment = (
+        None if score is None else _verified_process(EpistemicProcessComponent.GROUNDING, score)
+    )
+    shared = {
+        "output_text": "Lyon",
+        "expected_answer": "Paris",
+        "is_idk": False,
+        "confidence": 0.4,
+        "epistemic_process": assessment,
+    }
+    main_aligned = classify_case_v3(thought_aligned=True, **shared)
+    main_unaligned = classify_case_v3(thought_aligned=False, **shared)
+    package_aligned = classify_rg_case_v3(thought_aligned=True, **shared)
+    package_unaligned = classify_rg_case_v3(thought_aligned=False, **shared)
+
+    assert main_aligned.case_id == package_aligned.case_id == 7
+    assert main_unaligned.case_id == package_unaligned.case_id == 8
+    main_aligned_rewards = asdict(main_aligned.reward_components)
+    main_unaligned_rewards = asdict(main_unaligned.reward_components)
+    package_aligned_rewards = asdict(package_aligned.reward_components)
+    package_unaligned_rewards = asdict(package_unaligned.reward_components)
+    assert main_aligned_rewards == main_unaligned_rewards
+    assert package_aligned_rewards == package_unaligned_rewards
+    assert main_aligned_rewards == package_aligned_rewards
+    assert main_unaligned_rewards == package_unaligned_rewards
+    expected_score = score or 0.0
+    assert main_aligned.reward_components.r_thought == pytest.approx(expected_score)
+    assert main_aligned.reward_components.r_grounding == pytest.approx(expected_score)
+
+
+def test_schema_thought_reward_error_describes_fractional_verified_rule() -> None:
+    from rg_tracer.schema_v3.case_v3 import RewardComponents as RGRewardComponents
+    from rg_tracer.schema_v3.rewards import (
+        assert_thought_reward_non_negative as assert_rg_thought_reward_non_negative,
+    )
+
+    expected_message = r"H \* optimizer_score\(\)"
+    with pytest.raises(ValueError, match=expected_message):
+        assert_thought_reward_non_negative(RewardComponents(r_thought=-0.1))
+    with pytest.raises(ValueError, match=expected_message):
+        assert_rg_thought_reward_non_negative(RGRewardComponents(r_thought=-0.1))
 
 
 def test_v3_case_object_serializes_to_json():

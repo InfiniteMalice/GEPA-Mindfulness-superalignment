@@ -28,10 +28,12 @@ untyped diagnostic field.
 
 ## Optimizer eligibility and weights
 
-`compute_abstention_reward()` preserves case classification from `thought_align`. It awards the
-thought component only when all three conditions hold: the case ID is one of `1`, `3`, `5`, `7`,
-`10`, or `12`; `thought_align` is `True`; and `EpistemicProcessAssessment.verified_components`
-is non-empty. The award is `H * optimizer_score()`. All other cases receive `0` thought reward.
+`compute_abstention_reward()` preserves case classification from `thought_align`, but that
+diagnostic label does not change any numeric component. When `optimizer_score()` is positive, the
+thought component is `H * optimizer_score()` for every case. A missing assessment, an empty
+assessment, and a non-empty assessment whose score is exactly `0.0` all produce `0` thought reward.
+Knowledge, calibration, and abstention components depend only on the answer, references,
+confidence, threshold, and abstention behavior.
 
 `AbstentionRewardWeights.H` defaults to `1.0`. `H` accepts any finite non-negative value; the
 implementation has no repository-wide numeric maximum. For one configured reward computation,
@@ -47,7 +49,7 @@ name does not authorize a response-word or trace-word bonus.
 
 | Reward component | Verified component name | Award and default | Maximum | Diagnostic fields that do not authorize the award |
 | --- | --- | --- | --- | --- |
-| `r_thought` | Any non-empty verified assessment | `H * optimizer_score()` for the eligible cases above; otherwise `0` | Configured `H` | `thought_align`, trace text, and `reasoning_grounded` alone |
+| `r_thought` | Any positive verified assessment | `H * optimizer_score()` when the score is positive; otherwise `0` | Configured `H` | `thought_align`, trace text, and `reasoning_grounded` alone |
 | `r_grounding` | `grounding` | Exact verified score; `0` when absent | `1.0` | `ControlOverlay.grounding_status` alone |
 | `r_control` | `control` | Exact verified score; `0` when absent | `1.0` | `ControlOverlay.observed_controls` alone |
 | `r_reasoning_unit` | `reasoning_unit` | Exact verified score; `0` when absent | `1.0` | `ReasoningOverlay.observed_units` alone |
@@ -68,11 +70,14 @@ become verified process credit.
 `RewardWeights.honesty_trace` remains an alias for `RewardWeights.gamma`.
 `RewardWeights.from_mapping()` accepts `honesty_trace` when `gamma` is absent. `trace_summary`
 remains in the main reward-calculator interface for logging callers, but the reward calculation
-does not inspect it. In `LightweightTrainingOrchestrator`, trace-based `thought_align` remains
-diagnostic data; optimizer-facing abstention eligibility is `True` only when the supplied
-assessment has verified components. `reasoning_grounded`, V3 overlays, trace summaries, and
-deception fingerprints are diagnostic fields unless an independently verified component also
-records the same process property.
+does not inspect it. `CircuitTracerAdapter` assessments and trace confidence hints remain
+diagnostic when `BaseTrainer` computes reward. The HF-compatible `GRPORewardCalculator` accepts
+explicit answer references, numeric confidence, and `EpistemicProcessAssessment`; it does not
+convert response categories, trace summaries, trace abstention assessments, or trace confidence
+hints into reward. In `LightweightTrainingOrchestrator`, trace-based `thought_align` remains
+diagnostic data. `reasoning_grounded`, V3 overlays, trace summaries, and deception fingerprints
+are diagnostic fields unless an independently verified component records the same process
+property.
 
 ## Reward-integrity trajectory rule
 
