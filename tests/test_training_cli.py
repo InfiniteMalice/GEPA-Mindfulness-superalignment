@@ -123,7 +123,12 @@ if "jinja2" not in sys.modules:
     sys.modules["jinja2"] = jinja_stub
 
 cli = importlib.import_module("gepa_mindfulness.training.cli")
-RolloutResult = importlib.import_module("gepa_mindfulness.training.pipeline").RolloutResult
+pipeline = importlib.import_module("gepa_mindfulness.training.pipeline")
+training_configs = importlib.import_module("gepa_mindfulness.training.configs")
+LightweightTrainingOrchestrator = pipeline.LightweightTrainingOrchestrator
+RolloutResult = pipeline.RolloutResult
+DeceptionConfig = training_configs.DeceptionConfig
+TrainingConfig = training_configs.TrainingConfig
 
 
 class _StubOrchestrator:
@@ -200,6 +205,45 @@ def test_training_cli_writes_logs(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
 
     payloads = [json.loads(line) for line in rollout_log.read_text(encoding="utf-8").splitlines()]
     assert payloads == [asdict(result) for result in results]
+
+
+def test_training_cli_runs_legacy_orchestrator_without_epistemic_process(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The legacy command must keep working when process verification is omitted."""
+    config_path, dataset_path = _write_stub_files(tmp_path)
+    log_dir = tmp_path / "logs"
+    config = TrainingConfig(deception=DeceptionConfig(log_fingerprints=False))
+
+    monkeypatch.setattr(cli, "load_training_config", lambda _: config)
+    monkeypatch.setattr(
+        cli,
+        "_resolve_orchestrator_factory",
+        lambda: LightweightTrainingOrchestrator,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "gepa-train",
+            "--config",
+            str(config_path),
+            "--dataset",
+            str(dataset_path),
+            "--log-dir",
+            str(log_dir),
+        ],
+    )
+
+    cli.main()
+
+    payloads = [
+        json.loads(line)
+        for line in (log_dir / "rollouts.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    assert payloads[0]["prompt"] == "prompt one"
+    assert payloads[0]["reward"] == 0.0
 
 
 def test_training_cli_prompts_for_log_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
