@@ -159,11 +159,14 @@ class LightweightTrainingOrchestrator:
                         theta_match=self._theta_match,
                         theta_epistemic=self._theta_epistemic,
                     )
+                optimizer_thought_align = bool(
+                    epistemic_process is not None and epistemic_process.verified_components
+                )
                 abstention_reward = compute_abstention_reward(
                     response=self._last_response_text,
                     reference_answers=self._last_reference_answers,
                     confidence=confidence,
-                    thought_align=thought_align,
+                    thought_align=optimizer_thought_align,
                     threshold=self.config.abstention.threshold,
                     weights=self._abstention_weights,
                     epistemic_process=epistemic_process,
@@ -174,6 +177,7 @@ class LightweightTrainingOrchestrator:
                     "s_match": s_match,
                     "s_epistemic": s_epistemic,
                     "thought_align": thought_align,
+                    "optimizer_thought_align": optimizer_thought_align,
                     "best_reference": best_reference if abstained else None,
                     "components": dict(abstention_reward.components),
                 }

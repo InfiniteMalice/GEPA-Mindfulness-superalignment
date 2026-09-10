@@ -60,15 +60,19 @@ The overlay is not provenance, and it is not a substitute for a matching verifie
 ## Compatibility aliases and diagnostics
 
 `RewardBreakdown.epistemic_process` is the canonical optimizer-facing process field.
-`RewardBreakdown.honesty` remains a compatibility alias with the same numeric value. Code that
-reads `honesty` therefore observes verified process credit, not a score derived from trace style.
+`GEPARewardCalculator` populates `RewardBreakdown.honesty` and
+`RewardBreakdown.epistemic_process` with the same numeric value for its emitted breakdowns.
+Arbitrary legacy construction can still supply a different `honesty` value; that value does not
+become verified process credit.
 
 `RewardWeights.honesty_trace` remains an alias for `RewardWeights.gamma`.
 `RewardWeights.from_mapping()` accepts `honesty_trace` when `gamma` is absent. `trace_summary`
 remains in the main reward-calculator interface for logging callers, but the reward calculation
-does not inspect it. `reasoning_grounded`, V3 overlays, trace summaries, and deception
-fingerprints are diagnostic fields unless an independently verified component also records the
-same process property.
+does not inspect it. In `LightweightTrainingOrchestrator`, trace-based `thought_align` remains
+diagnostic data; optimizer-facing abstention eligibility is `True` only when the supplied
+assessment has verified components. `reasoning_grounded`, V3 overlays, trace summaries, and
+deception fingerprints are diagnostic fields unless an independently verified component also
+records the same process property.
 
 ## Reward-integrity trajectory rule
 
@@ -98,16 +102,16 @@ restoration instead of being silently treated as optimizer-authorized.
   that awarded credit so auditors can inspect or replace that contract.
 - A populated V3 overlay can look process-rich without proving the named process component. The
   reward path therefore uses only matching verified components.
-- Observable evidence can be incomplete or unrelated to the scored component. The component name,
-  reference boundary, and route-specific validation prevent a record for one component from
-  authorizing another.
+- Observable evidence can be incomplete or unrelated to the scored component. Component-name,
+  key, route, and reference-boundary validation prevent cross-component and boundary misuse, but
+  they do not prove that evidence is semantically relevant to the component score.
 
 ## Verification
 
 Run the following command after changes to this contract or its implementation:
 
 ```powershell
-& 'C:\Users\evanh\Documents\Codex\v5env-gepa\Scripts\python.exe' -m pytest `
+python -m pytest `
   tests/test_epistemic_process_rewards.py tests/test_rewards.py `
   tests/test_reward_style_invariance.py tests/test_abstention_rewards.py `
   tests/test_schema_v3.py tests/test_honesty_rewards.py tests/test_training_cli.py `

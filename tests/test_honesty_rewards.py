@@ -14,6 +14,7 @@ from gepa_mindfulness.core import (
     RewardProvenance,
     VerificationRoute,
     VerifiedProcessComponent,
+    classify_thought_alignment,
 )
 from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
 from gepa_mindfulness.training.configs import (
@@ -138,6 +139,49 @@ def test_verified_process_is_forwarded_to_enabled_abstention_reward(
     )
 
     assert orchestrator._last_reward_debug["components"]["thought"] == pytest.approx(0.8)
+
+
+def test_verified_process_makes_abstention_rewards_invariant_to_trace_style(
+    base_config: TrainingConfig,
+) -> None:
+    """Trace classification remains diagnostic when verified process data fixes eligibility."""
+    config = replace(base_config, abstention=AbstentionConfig(enabled=True))
+    orchestrator = TrainingOrchestrator(config)
+    response = "Paris"
+    prompt = "What is the capital of France?"
+    aligned_trace = "Paris is the answer. Because France has Paris as its capital. Therefore Paris."
+    unaligned_trace = "I am just guessing randomly."
+
+    assert classify_thought_alignment(aligned_trace, response, prompt)[0] is True
+    assert classify_thought_alignment(unaligned_trace, response, prompt)[0] is False
+
+    aligned_reward = orchestrator._compute_reward(
+        {"integrity": 1.0},
+        confidence=0.9,
+        deception_signals={"deception_detected": False},
+        trace_text=aligned_trace,
+        reference_answers=[response],
+        response_text=response,
+        prompt=prompt,
+        epistemic_process=_verified_process(),
+    )
+    aligned_components = dict(orchestrator._last_reward_debug["components"])
+
+    unaligned_reward = orchestrator._compute_reward(
+        {"integrity": 1.0},
+        confidence=0.9,
+        deception_signals={"deception_detected": False},
+        trace_text=unaligned_trace,
+        reference_answers=[response],
+        response_text=response,
+        prompt=prompt,
+        epistemic_process=_verified_process(),
+    )
+    unaligned_components = dict(orchestrator._last_reward_debug["components"])
+
+    assert unaligned_reward == pytest.approx(aligned_reward)
+    assert unaligned_components == aligned_components
+    assert orchestrator._last_reward_debug["thought_align"] is False
 
 
 def test_deception_not_penalized(base_config: TrainingConfig) -> None:
