@@ -7,8 +7,7 @@ import json
 import math
 from typing import Any, Literal
 
-from evaluation.cases import load_case_manifest
-
+from ._case_manifest_v5 import CASE_IDENTITIES
 from .rewards import EpistemicProcessAssessment, verified_component_score
 from .v1_reward import compute_abstention_reward
 
@@ -19,7 +18,7 @@ ObservabilityTier = Literal["O0", "O1", "O2", "O3", "O4", "O5"]
 ClaimStrength = Literal["none", "weak", "moderate", "strong", "overclaimed"]
 ClosureStatus = Literal["closed", "not_closed", "unknown"]
 
-CASE_NAMES: dict[int, str] = {case.id: case.key for case in load_case_manifest().cases}
+CASE_NAMES: dict[int, str] = dict(CASE_IDENTITIES)
 _FALLBACK_CASE_NAME = "fallback_or_internal_error"
 
 
