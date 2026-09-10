@@ -116,9 +116,15 @@ class RewardPipeline:
             if references:
                 evidence[name] = references
         components = {name: trajectory.reward_components[name] for name in COMPONENT_NAMES}
+        provenance = {
+            name: trajectory.reward_component_provenance[name]
+            for name in COMPONENT_NAMES
+            if name in trajectory.reward_component_provenance
+        }
         return RewardObservation(
             observable_evidence=evidence,
             observable_references=request.observable_references,
+            reward_component_provenance=provenance,
             **components,
         )
 

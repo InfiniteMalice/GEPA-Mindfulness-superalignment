@@ -6,6 +6,11 @@ from inspect import Parameter, signature
 
 import pytest
 
+from gepa_mindfulness.core.reward_provenance import (
+    RewardProvenance,
+    TrustedEvaluatorContract,
+    VerificationRoute,
+)
 from gepa_mindfulness.training.contracts import (
     RewardProvider,
     RewardRequest,
@@ -26,6 +31,20 @@ def evidence_reference(
 ) -> EvidenceReference:
     """Build one explicitly typed evidence reference."""
     return EvidenceReference(reference_id=reference_id, source_kind=source_kind)
+
+
+def evaluator_provenance(component_name: str) -> RewardProvenance:
+    """Build one versioned trusted-evaluator provenance record."""
+    return RewardProvenance(
+        component_name=component_name,
+        verification_method="apply the declared reward-integrity evaluator contract",
+        route=VerificationRoute.TRUSTED_EVALUATOR,
+        evaluator=TrustedEvaluatorContract(
+            evaluator_id="reward-integrity-evaluator",
+            evaluator_version="2026-09-10",
+            contract_id="reward-integrity-v1",
+        ),
+    )
 
 
 def test_trajectory_round_trip_preserves_null_log_probs() -> None:
@@ -90,6 +109,86 @@ def test_trajectory_restores_prior_json_without_evidence_references() -> None:
 
     assert restored.trace_references == ("legacy-trace-18",)
     assert restored.evidence_references == ()
+
+
+def test_trajectory_json_round_trip_preserves_trusted_evaluator_provenance() -> None:
+    """JSON retains the exact evaluator identity, version, contract, method, and route."""
+    provenance = evaluator_provenance("objective_fidelity")
+    trajectory = Trajectory(
+        trajectory_id="traj-evaluator-provenance",
+        case_id="case-1",
+        prompt="prompt",
+        response="response",
+        reward_components={"objective_fidelity": 0.5},
+        reward_component_provenance={"objective_fidelity": provenance},
+    )
+
+    payload = json.loads(json.dumps(trajectory.to_dict()))
+    restored = Trajectory.from_dict(payload)
+
+    assert payload["reward_component_provenance"] == {
+        "objective_fidelity": {
+            "component_name": "objective_fidelity",
+            "verification_method": "apply the declared reward-integrity evaluator contract",
+            "route": "trusted_evaluator",
+            "evaluator": {
+                "evaluator_id": "reward-integrity-evaluator",
+                "evaluator_version": "2026-09-10",
+                "contract_id": "reward-integrity-v1",
+            },
+        }
+    }
+    assert restored.reward_component_provenance == {"objective_fidelity": provenance}
+
+
+def test_trajectory_json_round_trip_preserves_observable_provenance() -> None:
+    """JSON retains the observable route and its typed evidence references."""
+    reference = evidence_reference("objective-fidelity-audit")
+    provenance = RewardProvenance(
+        component_name="objective_fidelity",
+        verification_method="compare the component with the recorded audit outcome",
+        route=VerificationRoute.OBSERVABLE_EVIDENCE,
+        evidence_refs=(reference,),
+    )
+    trajectory = Trajectory(
+        trajectory_id="traj-observable-provenance",
+        case_id="case-1",
+        prompt="prompt",
+        response="response",
+        reward_components={"objective_fidelity": 0.5},
+        evidence_references=(reference,),
+        reward_component_provenance={"objective_fidelity": provenance},
+    )
+
+    payload = json.loads(json.dumps(trajectory.to_dict()))
+    restored = Trajectory.from_dict(payload)
+
+    assert payload["reward_component_provenance"] == {
+        "objective_fidelity": {
+            "component_name": "objective_fidelity",
+            "verification_method": "compare the component with the recorded audit outcome",
+            "route": "observable_evidence",
+            "evidence_refs": [reference.to_dict()],
+        }
+    }
+    assert restored.reward_component_provenance == {"objective_fidelity": provenance}
+
+
+def test_trajectory_prior_json_does_not_invent_reward_component_provenance() -> None:
+    """Restoring legacy nonzero components leaves provenance explicitly absent."""
+    payload = Trajectory(
+        trajectory_id="traj-prior-provenance",
+        case_id=None,
+        prompt="prompt",
+        response="response",
+        reward_components={"objective_fidelity": 0.5},
+    ).to_dict()
+    payload.pop("reward_component_provenance", None)
+
+    restored = Trajectory.from_dict(payload)
+
+    assert restored.reward_component_provenance == {}
+    assert "reward_component_provenance" not in restored.to_dict()
 
 
 def test_trajectory_is_immutable() -> None:

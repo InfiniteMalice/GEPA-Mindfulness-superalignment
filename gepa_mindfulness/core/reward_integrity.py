@@ -8,6 +8,7 @@ from math import isfinite
 from types import MappingProxyType
 
 from .evidence import EvidenceReference
+from .reward_provenance import RewardProvenance, VerificationRoute
 
 COMPONENT_NAMES = (
     "objective_fidelity",
@@ -60,6 +61,36 @@ def _validated_observable_evidence(
     return MappingProxyType(evidence)
 
 
+def _validated_component_provenance(
+    value: object,
+    components: Mapping[str, float],
+    observable_references: tuple[EvidenceReference, ...],
+) -> Mapping[str, RewardProvenance]:
+    """Bind each nonzero component to one route valid inside the observable boundary."""
+    if not isinstance(value, Mapping):
+        raise ValueError("Expected reward_component_provenance as a component mapping.")
+    provenance_by_component: dict[str, RewardProvenance] = {}
+    for component, provenance in value.items():
+        if component not in COMPONENT_NAMES:
+            raise ValueError(f"Provenance was provided for unknown component {component!r}.")
+        if not isinstance(provenance, RewardProvenance):
+            raise ValueError(f"Provenance for {component!r} must be a RewardProvenance record.")
+        if provenance.component_name != component:
+            raise ValueError(f"Provenance for {component!r} has a different component_name.")
+        if provenance.route is VerificationRoute.OBSERVABLE_EVIDENCE and not set(
+            provenance.evidence_refs
+        ).issubset(observable_references):
+            raise ValueError(
+                f"Provenance for {component!r} must use authorized observable references."
+            )
+        provenance_by_component[component] = provenance
+
+    for component, component_value in components.items():
+        if component_value != 0.0 and component not in provenance_by_component:
+            raise ValueError(f"Nonzero {component} requires reward provenance.")
+    return MappingProxyType(provenance_by_component)
+
+
 @dataclass(frozen=True)
 class RewardObservation:
     """The observable component values and citations available to the overlay."""
@@ -74,6 +105,7 @@ class RewardObservation:
     repair_quality: float = 0.0
     observable_evidence: Mapping[str, Sequence[EvidenceReference]] = field(default_factory=dict)
     observable_references: Sequence[EvidenceReference] = ()
+    reward_component_provenance: Mapping[str, RewardProvenance] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Bound values and bind every negative value to observable evidence."""
@@ -90,8 +122,14 @@ class RewardObservation:
         for name, value in self.components.items():
             if value < 0.0 and not evidence.get(name):
                 raise ValueError(f"Negative {name} requires observable evidence.")
+        provenance = _validated_component_provenance(
+            self.reward_component_provenance,
+            self.components,
+            observable_references,
+        )
         object.__setattr__(self, "observable_evidence", MappingProxyType(evidence))
         object.__setattr__(self, "observable_references", observable_references)
+        object.__setattr__(self, "reward_component_provenance", provenance)
 
     @property
     def components(self) -> Mapping[str, float]:
@@ -151,6 +189,7 @@ class RewardIntegrityBreakdown:
     observable_evidence: Mapping[str, Sequence[EvidenceReference]] = field(default_factory=dict)
     observable_references: Sequence[EvidenceReference] = ()
     weights: RewardIntegrityWeights = field(default_factory=RewardIntegrityWeights)
+    reward_component_provenance: Mapping[str, RewardProvenance] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Keep public component and aggregate records in their bounded range."""
@@ -169,8 +208,14 @@ class RewardIntegrityBreakdown:
         for name, value in self.components.items():
             if value < 0.0 and not evidence.get(name):
                 raise ValueError(f"Negative {name} requires observable evidence.")
+        provenance = _validated_component_provenance(
+            self.reward_component_provenance,
+            self.components,
+            observable_references,
+        )
         object.__setattr__(self, "observable_evidence", evidence)
         object.__setattr__(self, "observable_references", observable_references)
+        object.__setattr__(self, "reward_component_provenance", provenance)
 
     @property
     def components(self) -> Mapping[str, float]:
@@ -208,6 +253,7 @@ class RewardIntegrityCalculator:
             aggregate=aggregate_components(components, self.weights),
             observable_evidence=observation.observable_evidence,
             observable_references=observation.observable_references,
+            reward_component_provenance=observation.reward_component_provenance,
             weights=self.weights,
         )
 

@@ -9,6 +9,12 @@ from typing import Mapping, Sequence
 
 from gepa_mindfulness.core.evidence import EvidenceReference
 from gepa_mindfulness.core.evidence import EvidenceSourceKind as EvidenceSourceKind
+from gepa_mindfulness.core.reward_provenance import (
+    PublicRationaleComparisonEvidence,
+    RewardProvenance,
+    TrustedEvaluatorContract,
+    VerificationRoute,
+)
 
 
 def _required_string(value: object, field_name: str) -> str:
@@ -148,6 +154,144 @@ def _component_evidence(
     return evidence
 
 
+def _trusted_evaluator_contract(value: object) -> TrustedEvaluatorContract:
+    """Restore the exact identity fields of one trusted evaluator contract."""
+    data = _mapping(value, "reward provenance evaluator")
+    expected_fields = {"evaluator_id", "evaluator_version", "contract_id"}
+    if set(data) != expected_fields:
+        raise ValueError(
+            "Trusted evaluator contract requires exactly evaluator_id, evaluator_version, "
+            "and contract_id."
+        )
+    return TrustedEvaluatorContract(
+        evaluator_id=_required_string(data["evaluator_id"], "evaluator_id"),
+        evaluator_version=_required_string(data["evaluator_version"], "evaluator_version"),
+        contract_id=_required_string(data["contract_id"], "contract_id"),
+    )
+
+
+def _public_rationale_comparison(value: object) -> PublicRationaleComparisonEvidence:
+    """Restore every role in a structured public-rationale comparison."""
+    data = _mapping(value, "public_rationale_comparison")
+    expected_fields = {
+        "public_rationale",
+        "committed_prediction",
+        "selected_action",
+        "observed_outcome",
+    }
+    if set(data) != expected_fields:
+        raise ValueError("Public rationale comparison requires exactly four evidence roles.")
+    return PublicRationaleComparisonEvidence(
+        public_rationale=EvidenceReference.from_dict(data["public_rationale"]),
+        committed_prediction=EvidenceReference.from_dict(data["committed_prediction"]),
+        selected_action=EvidenceReference.from_dict(data["selected_action"]),
+        observed_outcome=EvidenceReference.from_dict(data["observed_outcome"]),
+    )
+
+
+def _reward_provenance_from_dict(value: object) -> RewardProvenance:
+    """Restore one exclusive provenance route without filling absent route fields."""
+    data = _mapping(value, "reward component provenance")
+    common_fields = {"component_name", "verification_method", "route"}
+    if not common_fields.issubset(data):
+        raise ValueError(
+            "Reward provenance requires component_name, verification_method, and route."
+        )
+    route_value = _required_string(data["route"], "route")
+    try:
+        route = VerificationRoute(route_value)
+    except ValueError as error:
+        raise ValueError(f"Unknown reward provenance route {route_value!r}.") from error
+
+    component_name = _required_string(data["component_name"], "component_name")
+    verification_method = _required_string(data["verification_method"], "verification_method")
+    if route is VerificationRoute.OBSERVABLE_EVIDENCE:
+        allowed_fields = common_fields | {"evidence_refs", "public_rationale_comparison"}
+        if "evidence_refs" not in data or not set(data).issubset(allowed_fields):
+            raise ValueError("Observable reward provenance has invalid or missing route fields.")
+        comparison = (
+            _public_rationale_comparison(data["public_rationale_comparison"])
+            if "public_rationale_comparison" in data
+            else None
+        )
+        return RewardProvenance(
+            component_name=component_name,
+            verification_method=verification_method,
+            route=route,
+            evidence_refs=_evidence_reference_tuple(
+                data["evidence_refs"],
+                "reward provenance evidence_refs",
+                restore=True,
+            ),
+            public_rationale_comparison=comparison,
+        )
+
+    if set(data) != common_fields | {"evaluator"}:
+        raise ValueError("Trusted-evaluator reward provenance requires exactly evaluator fields.")
+    return RewardProvenance(
+        component_name=component_name,
+        verification_method=verification_method,
+        route=route,
+        evaluator=_trusted_evaluator_contract(data["evaluator"]),
+    )
+
+
+def _reward_provenance_to_dict(provenance: RewardProvenance) -> dict[str, object]:
+    """Serialize only the fields carried by the selected provenance route."""
+    data: dict[str, object] = {
+        "component_name": provenance.component_name,
+        "verification_method": provenance.verification_method,
+        "route": provenance.route.value,
+    }
+    if provenance.route is VerificationRoute.OBSERVABLE_EVIDENCE:
+        data["evidence_refs"] = [reference.to_dict() for reference in provenance.evidence_refs]
+        comparison = provenance.public_rationale_comparison
+        if comparison is not None:
+            data["public_rationale_comparison"] = {
+                "public_rationale": comparison.public_rationale.to_dict(),
+                "committed_prediction": comparison.committed_prediction.to_dict(),
+                "selected_action": comparison.selected_action.to_dict(),
+                "observed_outcome": comparison.observed_outcome.to_dict(),
+            }
+        return data
+
+    evaluator = provenance.evaluator
+    if evaluator is None:
+        raise ValueError("Trusted-evaluator reward provenance requires an evaluator contract.")
+    data["evaluator"] = {
+        "evaluator_id": evaluator.evaluator_id,
+        "evaluator_version": evaluator.evaluator_version,
+        "contract_id": evaluator.contract_id,
+    }
+    return data
+
+
+def _component_provenance(
+    value: object | None,
+    *,
+    restore: bool = False,
+) -> Mapping[str, RewardProvenance]:
+    """Copy or restore the component-keyed reward provenance mapping."""
+    raw_provenance = _mapping(value, "reward_component_provenance")
+    provenance_by_component: dict[str, RewardProvenance] = {}
+    for component, provenance in raw_provenance.items():
+        if restore:
+            try:
+                parsed = _reward_provenance_from_dict(provenance)
+            except ValueError as error:
+                raise ValueError(
+                    f"Invalid reward_component_provenance.{component}: {error}"
+                ) from error
+        elif isinstance(provenance, RewardProvenance):
+            parsed = provenance
+        else:
+            raise ValueError(
+                f"Expected RewardProvenance for reward_component_provenance.{component}."
+            )
+        provenance_by_component[component] = parsed
+    return provenance_by_component
+
+
 @dataclass(frozen=True)
 class Trajectory:
     """One completed rollout with optional data that the backend actually observed."""
@@ -176,6 +320,10 @@ class Trajectory:
     trace_references: tuple[str, ...] = ()
     evidence_references: tuple[EvidenceReference, ...] = field(default=(), kw_only=True)
     reward_component_evidence: Mapping[str, tuple[EvidenceReference, ...]] = field(
+        default_factory=dict,
+        kw_only=True,
+    )
+    reward_component_provenance: Mapping[str, RewardProvenance] = field(
         default_factory=dict,
         kw_only=True,
     )
@@ -243,6 +391,21 @@ class Trajectory:
                     f"Evidence for {component!r} must use recorded evidence references."
                 )
 
+        component_provenance = _component_provenance(self.reward_component_provenance)
+        for component, provenance in component_provenance.items():
+            if component not in components:
+                raise ValueError(
+                    f"Provenance was provided for unknown reward component {component!r}."
+                )
+            if provenance.component_name != component:
+                raise ValueError(f"Provenance for {component!r} has a different component_name.")
+            if provenance.route is VerificationRoute.OBSERVABLE_EVIDENCE and not set(
+                provenance.evidence_refs
+            ).issubset(recorded_references):
+                raise ValueError(
+                    f"Provenance for {component!r} must use recorded evidence references."
+                )
+
         for component, value in components.items():
             if value < 0.0 and not component_evidence.get(component):
                 raise ValueError(
@@ -264,6 +427,11 @@ class Trajectory:
         object.__setattr__(self, "adapter_sha256", adapter_sha256)
         object.__setattr__(self, "reward_components", MappingProxyType(components))
         object.__setattr__(self, "reward_component_evidence", MappingProxyType(component_evidence))
+        object.__setattr__(
+            self,
+            "reward_component_provenance",
+            MappingProxyType(component_provenance),
+        )
         object.__setattr__(self, "trace_references", trace_references)
         object.__setattr__(self, "evidence_references", evidence_references)
         object.__setattr__(
@@ -316,6 +484,11 @@ class Trajectory:
             data["evidence_references"] = [
                 reference.to_dict() for reference in self.evidence_references
             ]
+        if self.reward_component_provenance:
+            data["reward_component_provenance"] = {
+                component: _reward_provenance_to_dict(provenance)
+                for component, provenance in self.reward_component_provenance.items()
+            }
         return data
 
     @classmethod
@@ -350,6 +523,10 @@ class Trajectory:
             reward_components=components,
             reward_component_evidence=_component_evidence(
                 data.get("reward_component_evidence"),
+                restore=True,
+            ),
+            reward_component_provenance=_component_provenance(
+                data.get("reward_component_provenance"),
                 restore=True,
             ),
             advantage=_optional_float_tuple(data.get("advantage"), "advantage"),
