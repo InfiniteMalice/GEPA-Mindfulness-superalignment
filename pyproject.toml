@@ -106,6 +106,7 @@ exclude = [
 ]
 
 [tool.setuptools.package-data]
+evaluation = ["cases/*.yaml"]
 gepa_mindfulness = [
     "data/*.json",
 ]
