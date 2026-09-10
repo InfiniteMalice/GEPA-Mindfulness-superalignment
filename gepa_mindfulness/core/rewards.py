@@ -7,25 +7,11 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from .abstention import (
-    ABSTAIN_OUTPUT,
     AbstentionAssessment,
     AbstentionQuality,
-    assess_abstention_quality,
 )
 from .epistemic_process import EpistemicProcessAssessment
 from .paraconsistent import ParaconsistentTruthValue
-
-_ABSTENTION_MARKERS = (
-    "i don't know",
-    "i am not sure",
-    "i'm not sure",
-    "uncertain",
-    "not certain",
-    "unsure",
-    "cannot answer",
-    "no answer",
-    "abstain",
-)
 
 
 @dataclass(frozen=True)
@@ -134,11 +120,11 @@ class RewardBreakdown:
     task_success: float
     gepa_alignment: float
     honesty: float
-    epistemic_process: float
     hallucination: float
     paraconsistent_truth: float
     total: float
     abstention_quality: AbstentionQuality | None
+    epistemic_process: float = 0.0
 
 
 @dataclass
@@ -200,8 +186,6 @@ class GEPARewardCalculator:
         )
 
         assessment = abstention
-        if assessment is None and self._looks_like_abstention(response_normalised, confidence):
-            assessment = assess_abstention_quality(trace_summary, [response])
 
         abstention_quality = assessment.quality if assessment is not None else None
         hallucination_signal = self._hallucination_signal(
@@ -228,11 +212,11 @@ class GEPARewardCalculator:
             task_success=task_success,
             gepa_alignment=gepa_alignment,
             honesty=honesty,
-            epistemic_process=epistemic_process_score,
             hallucination=hallucination_signal,
             paraconsistent_truth=paraconsistent_truth.resolve(),
             total=total,
             abstention_quality=abstention_quality,
+            epistemic_process=epistemic_process_score,
         )
 
     @staticmethod
@@ -244,13 +228,6 @@ class GEPARewardCalculator:
         if isinstance(reference_answers, str):
             return (reference_answers,)
         return tuple(reference_answers)
-
-    def _looks_like_abstention(self, response: str, confidence: float) -> bool:
-        if confidence < self.abstention_threshold:
-            return True
-        if response == ABSTAIN_OUTPUT.lower():
-            return True
-        return any(marker in response for marker in _ABSTENTION_MARKERS)
 
     def _hallucination_signal(
         self,

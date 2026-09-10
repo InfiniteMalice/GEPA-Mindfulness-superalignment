@@ -99,6 +99,39 @@ def test_trace_summary_wording_and_order_do_not_change_optimizer_reward(
     assert styled.total == baseline.total
 
 
+def test_trace_summary_without_abstention_assessment_does_not_change_reward(
+    calculator: GEPARewardCalculator,
+) -> None:
+    """Trace prose cannot infer a reward-bearing abstention assessment."""
+    baseline = calculator.compute_reward(
+        response="I am uncertain",
+        reference_answers=["answer"],
+        gepa_scores=None,
+        imperatives=None,
+        confidence=0.4,
+        trace_summary={},
+        abstention=None,
+    )
+    traced = calculator.compute_reward(
+        response="I am uncertain",
+        reference_answers=["answer"],
+        gepa_scores=None,
+        imperatives=None,
+        confidence=0.4,
+        trace_summary={
+            "tensions": "I explored every competing claim before abstaining.",
+            "evidence": "I carefully reviewed the public evidence.",
+            "reflection": "I reflected on the uncertainty in depth.",
+        },
+        abstention=None,
+    )
+
+    assert traced.honesty == baseline.honesty == 0.0
+    assert traced.epistemic_process == baseline.epistemic_process == 0.0
+    assert traced.hallucination == baseline.hallucination == -0.5
+    assert traced.total == baseline.total == -0.1
+
+
 def test_verified_contradiction_handling_increases_identical_answer_reward(
     calculator: GEPARewardCalculator,
 ) -> None:

@@ -8,6 +8,7 @@ from gepa_mindfulness.core.abstention import AbstentionAssessment, AbstentionQua
 from gepa_mindfulness.core.rewards import (
     GEPARewardCalculator,
     HallucinationConfig,
+    RewardBreakdown,
     RewardWeights,
 )
 
@@ -102,7 +103,7 @@ def test_lazy_abstention_penalty(calculator: GEPARewardCalculator) -> None:
     assert pytest.approx(breakdown.hallucination, rel=1e-6) == -0.2
 
 
-def test_trace_summary_remains_diagnostic_but_earns_zero_style_reward(
+def test_trace_summary_is_logging_compatible_without_inferred_abstention_reward(
     calculator: GEPARewardCalculator,
 ) -> None:
     breakdown = calculator.compute_reward(
@@ -114,4 +115,23 @@ def test_trace_summary_remains_diagnostic_but_earns_zero_style_reward(
         trace_summary={"evidence": "consulted", "tensions": "noted"},
     )
     assert breakdown.honesty == 0.0
-    assert breakdown.abstention_quality is not None
+    assert breakdown.abstention_quality is None
+
+
+def test_reward_breakdown_preserves_legacy_positional_construction() -> None:
+    """Adding process score must not shift pre-existing positional reward fields."""
+    breakdown = RewardBreakdown(
+        1.0,
+        0.9,
+        0.8,
+        -0.2,
+        0.3,
+        0.7,
+        AbstentionQuality.GENUINE,
+    )
+
+    assert breakdown.hallucination == -0.2
+    assert breakdown.paraconsistent_truth == 0.3
+    assert breakdown.total == 0.7
+    assert breakdown.abstention_quality is AbstentionQuality.GENUINE
+    assert breakdown.epistemic_process == 0.0
