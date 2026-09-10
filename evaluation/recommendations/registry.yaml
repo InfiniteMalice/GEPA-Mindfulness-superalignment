@@ -1,0 +1,306 @@
+registry_version: 17case-v5
+recommendations:
+  - id: REC-001
+    title: "Verified epistemic-process reward rule."
+    priority: P0
+    status: implemented
+    rationale: >-
+      Optimizer-facing epistemic-process reward requires independently recorded evidence or a
+      trusted evaluator result; generated reasoning style remains diagnostic.
+    targets:
+      - gepa_mindfulness/core/epistemic_process.py
+      - gepa_mindfulness/core/rewards.py
+    supersedes: []
+    dependencies: []
+    research_refs:
+      - REF-HEART
+    repo_refs:
+      - gepa_mindfulness/core/epistemic_process.py
+      - gepa_mindfulness/core/rewards.py
+    acceptance_tests:
+      - tests/test_epistemic_process_rewards.py
+      - tests/test_reward_integrity_rewards.py
+    implementation_refs:
+      - gepa_mindfulness/core/epistemic_process.py
+      - gepa_mindfulness/core/rewards.py
+
+  - id: REC-002
+    title: "Action-bound epistemic commitments."
+    priority: P0
+    status: accepted
+    rationale: >-
+      Prediction commitments must precede actions and remain immutable so later outcomes can
+      evaluate calibration without post-hoc revision.
+    targets:
+      - src/mindful_trace_gepa/logging_schema.py
+      - evaluation/v5_records.py
+    supersedes: []
+    dependencies:
+      - REC-001
+    research_refs:
+      - REF-WMLLM
+      - REF-DWM
+    repo_refs:
+      - src/mindful_trace_gepa/logging_schema.py
+    acceptance_tests:
+      - tests/test_logging_schema.py
+      - tests/test_v5_records.py
+    implementation_refs: []
+
+  - id: REC-003
+    title: "One canonical 17-case V5 manifest."
+    priority: P0
+    status: implemented
+    rationale: >-
+      A package-resource manifest prevents case identity from drifting across evaluation code,
+      compatibility maps, and documentation.
+    targets:
+      - evaluation/cases/17_case_manifest.yaml
+      - evaluation/cases/registry.py
+    supersedes: []
+    dependencies: []
+    research_refs: []
+    repo_refs:
+      - evaluation/cases/17_case_manifest.yaml
+      - evaluation/cases/registry.py
+    acceptance_tests:
+      - tests/test_v5_case_registry.py
+      - tests/test_v5_documentation_consistency.py
+    implementation_refs:
+      - evaluation/cases/17_case_manifest.yaml
+      - evaluation/cases/registry.py
+
+  - id: REC-004
+    title: "Versioned recommendation/decision registry."
+    priority: P0
+    status: implemented
+    rationale: >-
+      A strict, versioned registry makes architectural priorities, maturity, dependencies, and
+      acceptance evidence auditable from one authored source.
+    targets:
+      - evaluation/recommendations.py
+      - evaluation/recommendations/registry.yaml
+    supersedes: []
+    dependencies:
+      - REC-003
+    research_refs: []
+    repo_refs:
+      - evaluation/recommendations.py
+      - evaluation/recommendations/registry.yaml
+    acceptance_tests:
+      - tests/test_recommendation_registry.py
+    implementation_refs:
+      - evaluation/recommendations.py
+      - evaluation/recommendations/registry.yaml
+
+  - id: REC-005
+    title: "Case × robustness stripe × repeat evaluation."
+    priority: P0
+    status: accepted
+    rationale: >-
+      V5 evaluation must keep canonical cases separate from perturbation stripes and repeated
+      runs so correctness and consistency can be measured independently.
+    targets:
+      - evaluation/v5_runner.py
+      - evaluation/v5_records.py
+    supersedes: []
+    dependencies:
+      - REC-002
+      - REC-003
+    research_refs:
+      - REF-CONSISTENCY
+    repo_refs:
+      - evaluation/cases/robustness_stripes.yaml
+      - evaluation/cases/registry.py
+    acceptance_tests:
+      - tests/test_v5_runner.py
+      - tests/test_v5_records.py
+    implementation_refs: []
+
+  - id: REC-006
+    title: "World/artifact state != evidence/belief state."
+    priority: P1
+    status: accepted
+    rationale: >-
+      A claim that an action succeeded is not an observed world-state change; distinct types make
+      the verification boundary explicit.
+    targets:
+      - gepa_mindfulness/verification/state.py
+    supersedes: []
+    dependencies:
+      - REC-002
+    research_refs:
+      - REF-EDGEMEM
+    repo_refs:
+      - src/mindful_trace_gepa/logging_schema.py
+    acceptance_tests:
+      - tests/test_verification_state.py
+    implementation_refs: []
+
+  - id: REC-007
+    title: "Structured failure graph."
+    priority: P1
+    status: accepted
+    rationale: >-
+      Failure reports must distinguish anomalies, causes, decisive failures, and symptoms without
+      claiming causality that the available evidence does not support.
+    targets:
+      - gepa_mindfulness/verification/failure_graph.py
+    supersedes: []
+    dependencies:
+      - REC-006
+    research_refs:
+      - REF-AGENTSCOPE
+    repo_refs:
+      - src/mindful_trace_gepa/logging_schema.py
+    acceptance_tests:
+      - tests/test_failure_graph.py
+    implementation_refs: []
+
+  - id: REC-008
+    title: "Runtime Planner/Executor/Verifier authority separation."
+    priority: P1
+    status: accepted
+    rationale: >-
+      Typed authority boundaries prevent a planning or auditing role from silently performing an
+      external action reserved for an authorized executor.
+    targets:
+      - gepa_mindfulness/runtime_governance.py
+      - gepa_mindfulness/verification/interfaces.py
+    supersedes: []
+    dependencies:
+      - REC-006
+    research_refs:
+      - REF-HEART
+    repo_refs:
+      - src/mindful_trace_gepa/logging_schema.py
+    acceptance_tests:
+      - tests/test_runtime_governance.py
+    implementation_refs: []
+
+  - id: REC-009
+    title: "Verified skill lifecycle."
+    priority: P1
+    status: accepted
+    rationale: >-
+      Skill credit must depend on execution evidence and held-out validation rather than an
+      explanatory trace that merely claims a successful procedure.
+    targets:
+      - gepa_mindfulness/skill_lifecycle.py
+    supersedes: []
+    dependencies:
+      - REC-001
+    research_refs:
+      - REF-SEGOS
+      - REF-SKILLGLOW
+      - REF-REPOTOSKILL
+    repo_refs:
+      - gepa_mindfulness/training/reward_pipeline.py
+    acceptance_tests:
+      - tests/test_skill_lifecycle.py
+    implementation_refs: []
+
+  - id: REC-010
+    title: "Online experience collection; offline harness/skill evolution."
+    priority: P1
+    status: accepted
+    rationale: >-
+      Model and harness versions remain fixed during an evaluation episode; evidence collected
+      online informs controlled, reversible changes between episodes.
+    targets:
+      - gepa_mindfulness/learning_surfaces.py
+      - gepa_mindfulness/skill_lifecycle.py
+    supersedes: []
+    dependencies:
+      - REC-005
+      - REC-009
+    research_refs:
+      - REF-COEVOLVE
+      - REF-HOH
+    repo_refs:
+      - gepa_mindfulness/training/reward_pipeline.py
+    acceptance_tests:
+      - tests/test_learning_surfaces.py
+      - tests/test_skill_lifecycle.py
+    implementation_refs: []
+
+  - id: REC-011
+    title: "Multiple competing hypotheses + information-gain inquiry."
+    priority: P2
+    status: experimental
+    rationale: >-
+      Competing hypotheses and targeted inquiry can be evaluated as a disabled overlay without
+      adding canonical cases or making an unverified inference optimizer-facing.
+    targets:
+      - gepa_mindfulness/experimental_overlays.py
+    supersedes: []
+    dependencies:
+      - REC-006
+    research_refs:
+      - REF-PEARL
+    repo_refs:
+      - evaluation/cases/robustness_stripes.yaml
+    acceptance_tests:
+      - tests/test_experimental_overlays.py
+    implementation_refs: []
+
+  - id: REC-012
+    title: "Small adaptive multi-agent topology codebook."
+    priority: P2
+    status: experimental
+    rationale: >-
+      A bounded topology codebook can be tested as a feature-flagged orchestration overlay before
+      it is considered a stable runtime capability.
+    targets:
+      - gepa_mindfulness/experimental_overlays.py
+    supersedes: []
+    dependencies:
+      - REC-008
+    research_refs:
+      - REF-MASKILLS
+    repo_refs:
+      - gepa_mindfulness/training/reward_pipeline.py
+    acceptance_tests:
+      - tests/test_experimental_overlays.py
+    implementation_refs: []
+
+  - id: REC-013
+    title: "Declarative global/focus/local orchestration scope."
+    priority: P2
+    status: experimental
+    rationale: >-
+      Declarative scope can make coordination boundaries inspectable while remaining disabled until
+      runtime authority and outcome evidence demonstrate a safe operating contract.
+    targets:
+      - gepa_mindfulness/experimental_overlays.py
+    supersedes: []
+    dependencies:
+      - REC-008
+    research_refs:
+      - REF-AGENTSCOPE
+    repo_refs:
+      - gepa_mindfulness/training/reward_pipeline.py
+    acceptance_tests:
+      - tests/test_experimental_overlays.py
+    implementation_refs: []
+
+  - id: REC-014
+    title: "Mechanistic/circuit audit of actual model changes."
+    priority: P2
+    status: experimental
+    rationale: >-
+      Mechanistic and circuit signals can guide investigation as a disabled audit overlay, but they
+      do not directly change optimizer fitness without causal validation and behavioral grounding.
+    targets:
+      - gepa_mindfulness/experimental_overlays.py
+    supersedes: []
+    dependencies:
+      - REC-001
+      - REC-010
+    research_refs:
+      - REF-SAE
+    repo_refs:
+      - gepa_mindfulness/core/rewards.py
+    acceptance_tests:
+      - tests/test_experimental_overlays.py
+    implementation_refs: []
