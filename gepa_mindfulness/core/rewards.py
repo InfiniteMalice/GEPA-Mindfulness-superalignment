@@ -115,7 +115,11 @@ class HallucinationConfig:
 
 @dataclass(frozen=True)
 class RewardBreakdown:
-    """Structured reward report; ``honesty`` is a compatibility alias for ``epistemic_process``."""
+    """Structured reward report.
+
+    ``GEPARewardCalculator`` emits ``honesty`` and ``epistemic_process`` with the same verified
+    process value. Direct legacy construction keeps the fields independent for compatibility.
+    """
 
     task_success: float
     gepa_alignment: float
