@@ -102,7 +102,9 @@ def test_lazy_abstention_penalty(calculator: GEPARewardCalculator) -> None:
     assert pytest.approx(breakdown.hallucination, rel=1e-6) == -0.2
 
 
-def test_trace_summary_supports_genuine_uncertainty(calculator: GEPARewardCalculator) -> None:
+def test_trace_summary_remains_diagnostic_but_earns_zero_style_reward(
+    calculator: GEPARewardCalculator,
+) -> None:
     breakdown = calculator.compute_reward(
         response="I am uncertain after reviewing conflicting evidence",
         reference_answers=["answer"],
@@ -111,5 +113,5 @@ def test_trace_summary_supports_genuine_uncertainty(calculator: GEPARewardCalcul
         confidence=0.4,
         trace_summary={"evidence": "consulted", "tensions": "noted"},
     )
-    assert breakdown.honesty > 0
+    assert breakdown.honesty == 0.0
     assert breakdown.abstention_quality is not None
