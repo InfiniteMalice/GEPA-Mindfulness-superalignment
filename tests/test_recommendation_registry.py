@@ -126,10 +126,10 @@ def test_registry_loads_as_a_package_resource_outside_current_directory(
     monkeypatch.chdir(tmp_path)
 
     loaded = recommendations.load_recommendation_registry()
-    package_files = importlib.resources.files("evaluation")
+    package_files = importlib.resources.files("docs.recommendations")
 
     assert len(loaded) == 14
-    assert package_files.joinpath("recommendations", "registry.yaml").is_file()
+    assert package_files.joinpath("registry.yaml").is_file()
 
 
 @pytest.mark.parametrize(
@@ -183,10 +183,6 @@ def test_loader_rejects_invalid_recommendation_fields(
         (lambda payload: payload["recommendations"][1].update(id="REC-001"), "duplicate IDs"),
         (lambda payload: payload["recommendations"][0].update(id="REC-015"), "ordered REC-001"),
         (lambda payload: payload["recommendations"][5].update(priority="P0"), "priority sequence"),
-        (
-            lambda payload: payload["recommendations"][0].update(status="accepted"),
-            "status sequence",
-        ),
         (lambda payload: payload["recommendations"][0].update(dependencies=["REC-001"]), "self"),
         (lambda payload: payload["recommendations"][0].update(supersedes=["REC-001"]), "self"),
         (lambda payload: payload["recommendations"][0].update(dependencies=["REC-999"]), "unknown"),
@@ -201,6 +197,15 @@ def test_loader_rejects_invalid_recommendation_relationships(
 
     with pytest.raises(ValueError, match=message):
         recommendations._parse_recommendation_registry(payload)
+
+
+def test_loader_accepts_an_allowed_status_transition() -> None:
+    payload = _valid_registry_payload()
+    payload["recommendations"][0]["status"] = "accepted"
+
+    parsed = recommendations._parse_recommendation_registry(payload)
+
+    assert parsed[0].status == "accepted"
 
 
 def _valid_registry_payload() -> dict[str, Any]:

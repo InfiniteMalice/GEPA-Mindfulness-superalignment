@@ -79,19 +79,20 @@ recommendations:
       acceptance evidence auditable from one authored source.
     targets:
       - evaluation/recommendations.py
-      - evaluation/recommendations/registry.yaml
+      - docs/recommendations/registry.yaml
     supersedes: []
     dependencies:
       - REC-003
     research_refs: []
     repo_refs:
       - evaluation/recommendations.py
-      - evaluation/recommendations/registry.yaml
+      - docs/recommendations/registry.yaml
     acceptance_tests:
       - tests/test_recommendation_registry.py
+      - tests/test_recommendation_documentation_consistency.py
     implementation_refs:
       - evaluation/recommendations.py
-      - evaluation/recommendations/registry.yaml
+      - docs/recommendations/registry.yaml
 
   - id: REC-005
     title: "Case × robustness stripe × repeat evaluation."

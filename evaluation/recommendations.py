@@ -12,22 +12,6 @@ import yaml
 REGISTRY_VERSION = "17case-v5"
 RECOMMENDATION_IDS = tuple(f"REC-{number:03d}" for number in range(1, 15))
 RECOMMENDATION_PRIORITIES = ("P0",) * 5 + ("P1",) * 5 + ("P2",) * 4
-RECOMMENDATION_STATUSES = (
-    "implemented",
-    "accepted",
-    "implemented",
-    "implemented",
-    "accepted",
-    "accepted",
-    "accepted",
-    "accepted",
-    "accepted",
-    "accepted",
-    "experimental",
-    "experimental",
-    "experimental",
-    "experimental",
-)
 ALLOWED_PRIORITIES = frozenset({"P0", "P1", "P2"})
 ALLOWED_STATUSES = frozenset(
     {"proposed", "experimental", "accepted", "implemented", "rejected", "superseded"}
@@ -109,7 +93,7 @@ class Recommendation:
 def load_recommendation_registry() -> tuple[Recommendation, ...]:
     """Load and validate the bundled V5 recommendation registry."""
 
-    resource = resources.files(__package__).joinpath("recommendations").joinpath("registry.yaml")
+    resource = resources.files("docs.recommendations").joinpath("registry.yaml")
     try:
         with resource.open("r", encoding="utf-8") as stream:
             payload = yaml.load(stream, Loader=_UniqueKeySafeLoader)
@@ -180,13 +164,6 @@ def _validate_registry_sequence(recommendations: tuple[Recommendation, ...]) -> 
         raise ValueError(
             "recommendation priority sequence must be five P0, five P1, then four P2; "
             f"received {priorities}"
-        )
-
-    statuses = tuple(record.status for record in recommendations)
-    if statuses != RECOMMENDATION_STATUSES:
-        raise ValueError(
-            "recommendation status sequence must match the approved repository maturity states; "
-            f"received {statuses}"
         )
 
 
