@@ -133,6 +133,56 @@ def test_manifests_load_as_package_resources_outside_current_directory(
     assert package_files.joinpath("robustness_stripes.yaml").is_file()
 
 
+def test_case_manifest_rejects_duplicate_top_level_yaml_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    yaml_text = """\
+framework_name: GEPA Mindfulness 17-Case Framework V5
+framework_name: overwritten
+"""
+    _replace_package_resource(
+        tmp_path,
+        monkeypatch,
+        filename="17_case_manifest.yaml",
+        yaml_text=yaml_text,
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        registry.load_case_manifest()
+
+    message = str(exc_info.value)
+    assert "17_case_manifest.yaml" in message
+    assert "duplicate YAML mapping key 'framework_name'" in message
+    assert "line 2, column 1" in message
+
+
+def test_stripe_registry_rejects_duplicate_nested_yaml_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    yaml_text = """\
+registry_version: 17case-v5
+stripes:
+  - id: NONE
+    title: No robustness perturbation
+    title: Overwritten title
+    allowed_subtypes: []
+"""
+    _replace_package_resource(
+        tmp_path,
+        monkeypatch,
+        filename="robustness_stripes.yaml",
+        yaml_text=yaml_text,
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        registry.load_stripe_registry()
+
+    message = str(exc_info.value)
+    assert "robustness_stripes.yaml" in message
+    assert "duplicate YAML mapping key 'title'" in message
+    assert "line 5, column 5" in message
+
+
 @pytest.mark.parametrize(
     ("payload", "message"),
     [
@@ -243,3 +293,14 @@ def _valid_case_payload() -> dict[str, Any]:
         "canonical_case_count": 17,
         "cases": cases,
     }
+
+
+def _replace_package_resource(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    filename: str,
+    yaml_text: str,
+) -> None:
+    tmp_path.joinpath(filename).write_text(yaml_text, encoding="utf-8")
+    monkeypatch.setattr(registry.resources, "files", lambda package: tmp_path)

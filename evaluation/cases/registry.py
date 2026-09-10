@@ -51,6 +51,44 @@ _STAKES_SEMANTICS = {"high", "low", "context_dependent", "not_applicable"}
 _LEGACY_VERSIONS = {"v1", "v2", "v3", "v4"}
 
 
+class _UniqueKeySafeLoader(yaml.SafeLoader):
+    """Safe YAML loader that rejects repeated keys before values are overwritten."""
+
+
+def _construct_unique_mapping(
+    loader: _UniqueKeySafeLoader,
+    node: yaml.MappingNode,
+    deep: bool = False,
+) -> dict[Any, Any]:
+    seen: set[Any] = set()
+    for key_node, _ in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        try:
+            duplicate = key in seen
+            seen.add(key)
+        except TypeError as exc:
+            raise yaml.constructor.ConstructorError(
+                "while constructing a mapping",
+                node.start_mark,
+                "found an unhashable YAML mapping key",
+                key_node.start_mark,
+            ) from exc
+        if duplicate:
+            raise yaml.constructor.ConstructorError(
+                "while constructing a mapping",
+                node.start_mark,
+                f"duplicate YAML mapping key {key!r}",
+                key_node.start_mark,
+            )
+    return yaml.SafeLoader.construct_mapping(loader, node, deep=deep)
+
+
+_UniqueKeySafeLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    _construct_unique_mapping,
+)
+
+
 @dataclass(frozen=True, slots=True)
 class CanonicalCase:
     """One canonical case in the GEPA Mindfulness 17-Case Framework V5."""
@@ -107,7 +145,7 @@ def _read_yaml_resource(filename: str) -> Any:
     resource = resources.files(__package__).joinpath(filename)
     try:
         with resource.open("r", encoding="utf-8") as stream:
-            return yaml.safe_load(stream)
+            return yaml.load(stream, Loader=_UniqueKeySafeLoader)
     except (OSError, yaml.YAMLError) as exc:
         raise ValueError(f"could not load bundled V5 manifest {filename!r}: {exc}") from exc
 
