@@ -3,11 +3,21 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
+from gepa_mindfulness.core import (
+    EpistemicProcessAssessment,
+    EpistemicProcessComponent,
+    RewardProvenance,
+    VerificationRoute,
+    VerifiedProcessComponent,
+)
+from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
 from gepa_mindfulness.training.configs import (
+    AbstentionConfig,
     DeceptionConfig,
     HonestyConfig,
     OutputConfig,
@@ -15,6 +25,27 @@ from gepa_mindfulness.training.configs import (
     TrainingConfig,
 )
 from gepa_mindfulness.training.pipeline import TrainingOrchestrator
+
+
+def _verified_process(score: float = 0.8) -> EpistemicProcessAssessment:
+    """Build an independently verified calibration assessment for reward tests."""
+    component = EpistemicProcessComponent.CALIBRATION
+    provenance = RewardProvenance(
+        component_name=component.value,
+        verification_method="compare calibration with recorded outcomes",
+        route=VerificationRoute.OBSERVABLE_EVIDENCE,
+        evidence_refs=(
+            EvidenceReference(
+                reference_id="calibration-record-1",
+                source_kind=EvidenceSourceKind.EXTERNAL_RECORD,
+            ),
+        ),
+    )
+    return EpistemicProcessAssessment(
+        verified_components=(
+            VerifiedProcessComponent(component=component, score=score, provenance=provenance),
+        )
+    )
 
 
 @pytest.fixture()
@@ -36,28 +67,77 @@ def base_config(tmp_path: Path) -> TrainingConfig:
     )
 
 
-def test_honesty_increases_reward(base_config: TrainingConfig) -> None:
+def test_response_style_does_not_change_reward_without_verified_process(
+    base_config: TrainingConfig,
+) -> None:
+    """Changing response wording alone must not create optimizer process credit."""
     orchestrator = TrainingOrchestrator(base_config)
+    gepa_scores = {
+        "integrity": 1.0,
+        "mindfulness": 1.0,
+        "compassion": 1.0,
+        "prudence": 1.0,
+    }
 
-    # High confidence, no uncertainty markers
-    orchestrator._last_response_text = "I am certain of this outcome."
-    orchestrator._last_deception_signals = {"confidence_score": 0.0}
-    reward_confident = orchestrator._compute_reward(
-        {"integrity": 1.0, "mindfulness": 1.0, "compassion": 1.0, "prudence": 1.0},
-        confidence=0.95,
-        deception_signals={"deception_detected": False},
-    )
-
-    # Lower confidence with explicit uncertainty markers
-    orchestrator._last_response_text = "I am uncertain and not sure about the best path."
-    orchestrator._last_deception_signals = {"confidence_score": 0.2}
-    reward_uncertain = orchestrator._compute_reward(
-        {"integrity": 1.0, "mindfulness": 1.0, "compassion": 1.0, "prudence": 1.0},
+    plain_reward = orchestrator._compute_reward(
+        gepa_scores,
         confidence=0.6,
         deception_signals={"deception_detected": False},
+        response_text="The best-supported path is option A.",
+    )
+    uncertainty_wording_reward = orchestrator._compute_reward(
+        gepa_scores,
+        confidence=0.6,
+        deception_signals={"deception_detected": False},
+        response_text="I am uncertain and not sure about the best path.",
     )
 
-    assert reward_uncertain > reward_confident
+    assert uncertainty_wording_reward == pytest.approx(plain_reward)
+
+
+def test_verified_process_increases_reward_by_configured_process_weight(
+    base_config: TrainingConfig,
+) -> None:
+    """A verified process score earns only the legacy compatibility weight."""
+    orchestrator = TrainingOrchestrator(base_config)
+    gepa_scores = {"integrity": 1.0}
+
+    without_verification = orchestrator._compute_reward(
+        gepa_scores,
+        confidence=0.9,
+        deception_signals={"deception_detected": False},
+        response_text="The best-supported path is option A.",
+    )
+    with_verification = orchestrator._compute_reward(
+        gepa_scores,
+        confidence=0.9,
+        deception_signals={"deception_detected": False},
+        response_text="The best-supported path is option A.",
+        epistemic_process=_verified_process(),
+    )
+
+    assert with_verification - without_verification == pytest.approx(0.4)
+
+
+def test_verified_process_is_forwarded_to_enabled_abstention_reward(
+    base_config: TrainingConfig,
+) -> None:
+    """Abstention's thought component must receive the same verified assessment."""
+    config = replace(base_config, abstention=AbstentionConfig(enabled=True))
+    orchestrator = TrainingOrchestrator(config)
+
+    orchestrator._compute_reward(
+        {"integrity": 1.0},
+        confidence=0.9,
+        deception_signals={"deception_detected": False},
+        trace_text="The answer is Paris. Therefore Paris is correct.",
+        reference_answers=["Paris"],
+        response_text="Paris",
+        prompt="What is the capital of France?",
+        epistemic_process=_verified_process(),
+    )
+
+    assert orchestrator._last_reward_debug["components"]["thought"] == pytest.approx(0.8)
 
 
 def test_deception_not_penalized(base_config: TrainingConfig) -> None:
