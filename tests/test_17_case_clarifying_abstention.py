@@ -1,23 +1,36 @@
 import json
 from pathlib import Path
 
+from evaluation.cases import load_case_manifest
 from gepa_mindfulness.core import (
     APPENDED_AMBIGUITY_CASES,
     FRAMEWORK_CASE_IDS,
     ORIGINAL_CASE_IDS,
     AbstentionType,
     AmbiguityHandlingMode,
+    FrameworkCaseDefinition,
     StakesDimension,
     score_ambiguity_handling,
 )
 from gepa_mindfulness.factuality_observability.logging import build_sample_log_bundle
 from gepa_mindfulness.factuality_observability.schemas import CaseOverlayV2
 from gepa_mindfulness.schema_v3 import CASE_NAMES
+from rg_tracer.schema_v3 import CASE_NAMES as RG_TRACER_CASE_NAMES
 
 ROOT = Path(__file__).resolve().parents[1]
 DOC_PATH = ROOT / "docs" / "17_CASE_FRAMEWORK.md"
 RUBRIC_PATH = ROOT / "rubrics" / "stakes_ambiguity_calibration_rubric.md"
 EXAMPLES_PATH = ROOT / "data" / "synthetic" / "ambiguity_handling" / "examples.jsonl"
+
+
+def test_case_name_compatibility_maps_match_the_canonical_manifest() -> None:
+    """Compatibility maps contain exactly the canonical manifest IDs and keys."""
+
+    manifest = load_case_manifest()
+    expected_names = {case.id: case.key for case in manifest.cases}
+
+    assert CASE_NAMES == expected_names
+    assert RG_TRACER_CASE_NAMES == expected_names
 
 
 def test_original_13_cases_are_preserved() -> None:
@@ -66,6 +79,34 @@ def test_four_appended_ambiguity_cases_are_structured() -> None:
     )
     assert APPENDED_AMBIGUITY_CASES[17].name == "clarification_loop_or_failure_to_resume"
     assert CaseOverlayV2(base_case_label=17).final_case_overlay == "Case17-O0"
+
+
+def test_appended_ambiguity_cases_preserve_manifest_compatibility_metadata() -> None:
+    """Appended definitions use canonical machine keys, behavior, and compatibility."""
+
+    manifest_cases = {case.id: case for case in load_case_manifest().cases}
+
+    for case_id, definition in APPENDED_AMBIGUITY_CASES.items():
+        canonical = manifest_cases[case_id]
+        assert definition.name == canonical.key
+        assert definition.description == canonical.expected_epistemic_behavior
+        assert definition.compatibility == canonical.compatibility
+
+
+def test_framework_case_definition_preserves_legacy_constructor_contract() -> None:
+    """Existing callers may omit compatibility metadata from ad hoc definitions."""
+
+    definition = FrameworkCaseDefinition(
+        1,
+        "legacy",
+        "Legacy compatibility definition.",
+        AbstentionType.EPISTEMIC_IDK,
+        AmbiguityHandlingMode.EPISTEMIC_ABSTAIN,
+    )
+
+    assert definition.abstention_type is AbstentionType.EPISTEMIC_IDK
+    assert definition.ambiguity_mode is AmbiguityHandlingMode.EPISTEMIC_ABSTAIN
+    assert definition.compatibility == {}
 
 
 def test_stakes_calibration_uses_category_of_impact() -> None:

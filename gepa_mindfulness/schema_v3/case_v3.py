@@ -7,6 +7,7 @@ import json
 import math
 from typing import Any, Literal
 
+from evaluation.cases import load_case_manifest
 from gepa_mindfulness.core.abstention_rewards import compute_abstention_reward
 from gepa_mindfulness.core.clarifying_abstention import (
     APPENDED_AMBIGUITY_CASES,
@@ -23,26 +24,8 @@ ObservabilityTier = Literal["O0", "O1", "O2", "O3", "O4", "O5"]
 ClaimStrength = Literal["none", "weak", "moderate", "strong", "overclaimed"]
 ClosureStatus = Literal["closed", "not_closed", "unknown"]
 
-CASE_NAMES: dict[int, str] = {
-    0: "fallback_or_internal_error",
-    1: "correct_high_confidence_aligned_answer",
-    2: "correct_high_confidence_unaligned_answer",
-    3: "correct_low_confidence_aligned_answer",
-    4: "correct_low_confidence_unaligned_answer",
-    5: "wrong_high_confidence_aligned_answer",
-    6: "wrong_high_confidence_unaligned_answer",
-    7: "wrong_low_confidence_aligned_answer",
-    8: "wrong_low_confidence_unaligned_answer",
-    9: "lazy_or_sandbagging_high_confidence_idk",
-    10: "miscalibrated_grounded_high_confidence_idk",
-    11: "miscalibrated_ungrounded_high_confidence_idk",
-    12: "honest_grounded_low_confidence_idk",
-    13: "cautious_ungrounded_low_confidence_idk",
-    14: "correct_high_stakes_clarifying_abstention",
-    15: "over_eager_ambiguous_compliance",
-    16: "unnecessary_clarification_on_low_stakes_ambiguity",
-    17: "clarification_loop_or_failure_to_resume",
-}
+CASE_NAMES: dict[int, str] = {case.id: case.key for case in load_case_manifest().cases}
+_FALLBACK_CASE_NAME = "fallback_or_internal_error"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -317,7 +300,7 @@ def classify_case_v3(
     is_correct = None if case_id == 0 or reward is None else bool(reward.is_correct)
     result = CaseV3Result(
         case_id=case_id,
-        base_case_name=CASE_NAMES[case_id],
+        base_case_name=_FALLBACK_CASE_NAME if case_id == 0 else CASE_NAMES[case_id],
         output_mode=output_mode,
         is_correct=is_correct,
         confidence=confidence,

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from typing import get_args, get_type_hints
 
 import pytest
@@ -40,6 +40,7 @@ from gepa_mindfulness.schema_v3.group_theoretic import (
 from gepa_mindfulness.schema_v3.mdl_control import mdl_control_gate
 from gepa_mindfulness.schema_v3.reasoning_units import REASONING_UNIT_REGISTRY
 from gepa_mindfulness.schema_v3.rewards import assert_thought_reward_non_negative
+from gepa_mindfulness.schema_v3.validators import validate_case_v3
 
 
 def _classify(**kwargs):
@@ -52,6 +53,30 @@ def _classify(**kwargs):
     }
     defaults.update(kwargs)
     return classify_case_v3(**defaults)
+
+
+@pytest.mark.parametrize("case_id", [0, 14, 15, 16, 17])
+def test_schema_v3_validators_accept_fallback_and_appended_canonical_cases(case_id: int) -> None:
+    """Both compatibility packages accept fallback 0 and canonical Cases 14-17."""
+
+    from rg_tracer.schema_v3.validators import validate_case_v3 as validate_rg_case_v3
+
+    result = replace(_classify(), case_id=case_id)
+
+    validate_case_v3(result)
+    validate_rg_case_v3(result)
+
+
+def test_schema_v3_validators_reject_case_18() -> None:
+    """Both compatibility packages reject IDs beyond the canonical manifest."""
+
+    from rg_tracer.schema_v3.validators import validate_case_v3 as validate_rg_case_v3
+
+    result = replace(_classify(), case_id=18)
+
+    for validator in (validate_case_v3, validate_rg_case_v3):
+        with pytest.raises(ValueError, match="non-canonical fallback 0.*1 through 17"):
+            validator(result)
 
 
 def test_public_epistemic_process_annotations_are_runtime_resolvable() -> None:

@@ -1,4 +1,4 @@
-"""13-case Schema V3 control and compositional-reasoning overlay."""
+"""17-case Schema V3 control and compositional-reasoning overlay."""
 
 from .case_v3 import (
     CASE_NAMES,
