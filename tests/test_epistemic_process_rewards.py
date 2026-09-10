@@ -9,6 +9,7 @@ import pytest
 from gepa_mindfulness.core import (
     EpistemicProcessAssessment,
     EpistemicProcessComponent,
+    PublicRationaleComparisonEvidence,
     RewardProvenance,
     TrustedEvaluatorContract,
     VerificationRoute,
@@ -159,11 +160,8 @@ def test_optimizer_score_is_arithmetic_mean_of_verified_components() -> None:
     assert isclose(assessment.optimizer_score(), 0.5)
 
 
-def test_public_rationale_fidelity_requires_comparative_observable_provenance() -> None:
-    """Rationale wording alone cannot score without a recorded comparison to commitments and facts.
-
-    The comparison must cover the committed prediction, selected action, and observed outcome.
-    """
+def test_public_rationale_fidelity_rejects_method_text_without_evidence() -> None:
+    """A descriptive verification method is not a record that connects rationale to facts."""
     with pytest.raises(ValueError, match="observable.*evidence"):
         RewardProvenance(
             component_name=EpistemicProcessComponent.PUBLIC_RATIONALE_FIDELITY.value,
@@ -171,9 +169,41 @@ def test_public_rationale_fidelity_requires_comparative_observable_provenance() 
             route=VerificationRoute.OBSERVABLE_EVIDENCE,
         )
 
-    comparison_reference = EvidenceReference(
-        reference_id="public-rationale-prediction-action-outcome-comparison",
+
+def test_public_rationale_fidelity_rejects_generic_observable_evidence() -> None:
+    """A generic observable record cannot stand in for a structured four-way comparison."""
+    generic_observable_reference = EvidenceReference(
+        reference_id="generic-observable-record",
         source_kind=EvidenceSourceKind.EXTERNAL_RECORD,
+    )
+    with pytest.raises(ValueError, match="public rationale.*comparison"):
+        RewardProvenance(
+            component_name=EpistemicProcessComponent.PUBLIC_RATIONALE_FIDELITY.value,
+            verification_method=COMPARATIVE_RATIONALE_METHOD,
+            route=VerificationRoute.OBSERVABLE_EVIDENCE,
+            evidence_refs=(generic_observable_reference,),
+        )
+
+
+def test_public_rationale_fidelity_accepts_structured_comparison_evidence() -> None:
+    """A score may use records that structurally connect rationale, prediction, action, outcome."""
+    comparison = PublicRationaleComparisonEvidence(
+        public_rationale=EvidenceReference(
+            reference_id="public-rationale",
+            source_kind=EvidenceSourceKind.OBSERVABLE_OUTPUT,
+        ),
+        committed_prediction=EvidenceReference(
+            reference_id="committed-prediction",
+            source_kind=EvidenceSourceKind.EXTERNAL_RECORD,
+        ),
+        selected_action=EvidenceReference(
+            reference_id="selected-action",
+            source_kind=EvidenceSourceKind.OBSERVABLE_ACTION,
+        ),
+        observed_outcome=EvidenceReference(
+            reference_id="observed-outcome",
+            source_kind=EvidenceSourceKind.EXTERNAL_RECORD,
+        ),
     )
     component = VerifiedProcessComponent(
         component=EpistemicProcessComponent.PUBLIC_RATIONALE_FIDELITY,
@@ -181,7 +211,8 @@ def test_public_rationale_fidelity_requires_comparative_observable_provenance() 
         provenance=observable_provenance(
             EpistemicProcessComponent.PUBLIC_RATIONALE_FIDELITY,
             verification_method=COMPARATIVE_RATIONALE_METHOD,
-            evidence_refs=(comparison_reference,),
+            evidence_refs=comparison.references,
+            public_rationale_comparison=comparison,
         ),
     )
 

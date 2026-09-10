@@ -40,6 +40,7 @@ from .epistemic_process import (
 from .imperatives import AlignmentImperative, ImperativeEvaluator, ImperativeSignal
 from .paraconsistent import ParaconsistentTruthValue, dialetheic_and
 from .reward_provenance import (
+    PublicRationaleComparisonEvidence,
     RewardProvenance,
     TrustedEvaluatorContract,
     VerificationRoute,
@@ -110,6 +111,7 @@ __all__ = [
     "ImperativeSignal",
     "ORIGINAL_CASE_IDS",
     "ParaconsistentTruthValue",
+    "PublicRationaleComparisonEvidence",
     "RewardSignal",
     "RewardProvenance",
     "RewardWeights",
