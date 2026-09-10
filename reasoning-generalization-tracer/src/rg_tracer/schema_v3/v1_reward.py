@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from gepa_mindfulness.core.epistemic_process import EpistemicProcessAssessment
+from .rewards import EpistemicProcessAssessment
 
 
 @dataclasses.dataclass(frozen=True)

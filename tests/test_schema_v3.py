@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from typing import get_args, get_type_hints
 
 import pytest
 
@@ -48,6 +49,26 @@ def _classify(**kwargs):
     }
     defaults.update(kwargs)
     return classify_case_v3(**defaults)
+
+
+def test_public_epistemic_process_annotations_are_runtime_resolvable() -> None:
+    from gepa_mindfulness.core import compute_abstention_reward
+    from rg_tracer.schema_v3 import classify_case_v3 as classify_rg_case_v3
+
+    for public_function in (
+        compute_abstention_reward,
+        classify_case_v3,
+        classify_rg_case_v3,
+    ):
+        epistemic_process_hint = get_type_hints(public_function)["epistemic_process"]
+        process_types = [
+            hint for hint in get_args(epistemic_process_hint) if hint is not type(None)
+        ]
+
+        assert process_types
+        assert all(process_type is not object for process_type in process_types)
+        assert object not in get_args(epistemic_process_hint)
+        assert all(hasattr(process_type, "optimizer_score") for process_type in process_types)
 
 
 def _verified_process(

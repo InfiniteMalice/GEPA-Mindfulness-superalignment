@@ -2,12 +2,37 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
-    from gepa_mindfulness.core.epistemic_process import EpistemicProcessAssessment
-
     from .case_v3 import RewardComponents
+
+
+class ProcessComponentName(Protocol):
+    """Structural interface for a named verified process component."""
+
+    @property
+    def value(self) -> str: ...
+
+
+class VerifiedProcessComponent(Protocol):
+    """Structural interface consumed by Schema V3 reward lookup."""
+
+    @property
+    def component(self) -> ProcessComponentName: ...
+
+    @property
+    def score(self) -> float: ...
+
+
+class EpistemicProcessAssessment(Protocol):
+    """Dependency-minimal interface for a verified process assessment."""
+
+    @property
+    def verified_components(self) -> Sequence[VerifiedProcessComponent]: ...
+
+    def optimizer_score(self) -> float: ...
 
 
 def verified_component_score(

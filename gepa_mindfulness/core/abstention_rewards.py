@@ -6,12 +6,10 @@ import dataclasses
 import logging
 import math
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Mapping, Sequence
+from typing import Mapping, Sequence
 
 from .abstention import ABSTAIN_OUTPUT
-
-if TYPE_CHECKING:
-    from .epistemic_process import EpistemicProcessAssessment
+from .epistemic_process import EpistemicProcessAssessment
 
 _logger = logging.getLogger(__name__)
 

@@ -5,13 +5,10 @@ from __future__ import annotations
 import dataclasses
 import json
 import math
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
-from .rewards import verified_component_score
+from .rewards import EpistemicProcessAssessment, verified_component_score
 from .v1_reward import compute_abstention_reward
-
-if TYPE_CHECKING:
-    from gepa_mindfulness.core.epistemic_process import EpistemicProcessAssessment
 
 ConfidenceBand = Literal["high", "low", "unknown"]
 OutputMode = Literal["answer", "idk", "clarify", "fallback"]

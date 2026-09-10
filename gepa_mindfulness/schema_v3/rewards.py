@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from gepa_mindfulness.core.epistemic_process import EpistemicProcessAssessment
+from gepa_mindfulness.core.epistemic_process import EpistemicProcessAssessment
 
+if TYPE_CHECKING:
     from .case_v3 import RewardComponents
 
 
