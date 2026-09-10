@@ -32,8 +32,18 @@ from .dual_path import (
     iterate_dual_path_pool,
     sample_dual_path_batch,
 )
+from .epistemic_process import (
+    EpistemicProcessAssessment,
+    EpistemicProcessComponent,
+    VerifiedProcessComponent,
+)
 from .imperatives import AlignmentImperative, ImperativeEvaluator, ImperativeSignal
 from .paraconsistent import ParaconsistentTruthValue, dialetheic_and
+from .reward_provenance import (
+    RewardProvenance,
+    TrustedEvaluatorContract,
+    VerificationRoute,
+)
 from .rewards import RewardSignal, RewardWeights
 from .thought_alignment import (
     classify_thought_alignment,
@@ -90,6 +100,8 @@ __all__ = [
     "ConfidenceDecision",
     "ContemplativePrinciple",
     "DualPathProbeScenario",
+    "EpistemicProcessAssessment",
+    "EpistemicProcessComponent",
     "FRAMEWORK_CASE_IDS",
     "FrameworkCaseDefinition",
     "GEPAPrincipleScore",
@@ -99,10 +111,14 @@ __all__ = [
     "ORIGINAL_CASE_IDS",
     "ParaconsistentTruthValue",
     "RewardSignal",
+    "RewardProvenance",
     "RewardWeights",
     "StakesDimension",
     "ThoughtTrace",
+    "TrustedEvaluatorContract",
     "TraceEvent",
+    "VerificationRoute",
+    "VerifiedProcessComponent",
     "classify_thought_alignment",
     "compute_abstention_reward",
     "compute_epistemic_score",
