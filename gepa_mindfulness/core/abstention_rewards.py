@@ -19,7 +19,8 @@ class AbstentionRewardWeights:
     """Weights controlling the abstention reward scheme.
 
     Attributes:
-        H: Thought bonus for aligned reasoning traces.
+        H: Maximum thought multiplier; eligible thought-aligned cases with verified components
+            receive H * optimizer_score().
         A: Abstention bonus or penalty magnitude.
         K_high: Knowledge reward/penalty at high confidence.
         K_low: Knowledge reward/penalty at low confidence.

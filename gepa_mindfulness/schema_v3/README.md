@@ -19,7 +19,8 @@ handling while preserving the original 13 cases and this V3 reward identity.
 
 The default confidence threshold remains `tau = 0.75` unless callers override
 it. `R_token`, `R_confidence`, `R_thought`, and `R_abstain` remain decomposed.
-`R_thought` is positive-only: `H` or `0`, never negative.
+`R_thought` is positive-only: `H * optimizer_score()` for an eligible thought-aligned case with
+verified components, otherwise `0`; it is never negative.
 
 ## Data model
 
@@ -42,10 +43,13 @@ an object with the unchanged `case_id`, decomposed rewards, diagnostics,
 ## Reward augmentation
 
 V3 adds optional additive components: `r_grounding`, `r_control`,
-`r_reasoning_unit`, `r_observability`, and `r_group_theoretic`. These are
-separate from the base observable answer/confidence/abstention/thought
-components. Missing public reasoning units or controls receive zero overlay
-credit. Hidden/internal thought traces are never penalized directly.
+`r_reasoning_unit`, `r_observability`, and `r_group_theoretic`. Each component is the exact
+`[0.0, 1.0]` score of a matching verified process component, or `0` when that component is
+absent. The overlays are retained in the serialized diagnostic record, but populated overlay
+fields alone do not produce reward. Hidden/internal thought traces are never penalized directly.
+
+The complete optimizer-facing contract, provenance routes, compatibility aliases, and component
+table are in [`docs/epistemic_process_rewards.md`](../../docs/epistemic_process_rewards.md).
 
 ## Group-Theoretic Reasoning: Symmetry, Invariance, and Equivalence
 

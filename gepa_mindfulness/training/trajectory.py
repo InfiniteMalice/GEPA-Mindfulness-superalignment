@@ -9,6 +9,7 @@ from typing import Mapping, Sequence
 
 from gepa_mindfulness.core.evidence import EvidenceReference
 from gepa_mindfulness.core.evidence import EvidenceSourceKind as EvidenceSourceKind
+from gepa_mindfulness.core.reward_integrity import COMPONENT_NAMES
 from gepa_mindfulness.core.reward_provenance import (
     PublicRationaleComparisonEvidence,
     RewardProvenance,
@@ -329,7 +330,7 @@ class Trajectory:
     )
 
     def __post_init__(self) -> None:
-        """Validate reward signals and bind negative values to typed recorded evidence."""
+        """Require evidence for negative rewards and provenance for nonzero integrity components."""
         for field_name in (
             "trajectory_id",
             "prompt",
@@ -416,6 +417,14 @@ class Trajectory:
             ):
                 raise ValueError(
                     f"Negative reward component {component!r} requires an observable source kind."
+                )
+            if (
+                component in COMPONENT_NAMES
+                and value != 0.0
+                and component not in component_provenance
+            ):
+                raise ValueError(
+                    f"Nonzero reward-integrity component {component!r} requires reward provenance."
                 )
 
         object.__setattr__(self, "prompt_token_ids", prompt_token_ids)

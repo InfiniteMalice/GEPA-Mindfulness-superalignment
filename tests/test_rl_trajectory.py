@@ -47,6 +47,19 @@ def evaluator_provenance(component_name: str) -> RewardProvenance:
     )
 
 
+def observable_provenance(
+    component_name: str,
+    reference: EvidenceReference,
+) -> RewardProvenance:
+    """Build provenance that binds a component to one recorded observable reference."""
+    return RewardProvenance(
+        component_name=component_name,
+        verification_method="compare the component with the recorded audit outcome",
+        route=VerificationRoute.OBSERVABLE_EVIDENCE,
+        evidence_refs=(reference,),
+    )
+
+
 def test_trajectory_round_trip_preserves_null_log_probs() -> None:
     """Unavailable probabilities must serialize as JSON null instead of fabricated values."""
     trajectory = Trajectory.minimal("traj-1", "prompt", "response")
@@ -174,21 +187,13 @@ def test_trajectory_json_round_trip_preserves_observable_provenance() -> None:
     assert restored.reward_component_provenance == {"objective_fidelity": provenance}
 
 
-def test_trajectory_prior_json_does_not_invent_reward_component_provenance() -> None:
-    """Restoring legacy nonzero components leaves provenance explicitly absent."""
-    payload = Trajectory(
-        trajectory_id="traj-prior-provenance",
-        case_id=None,
-        prompt="prompt",
-        response="response",
-        reward_components={"objective_fidelity": 0.5},
-    ).to_dict()
-    payload.pop("reward_component_provenance", None)
+def test_trajectory_prior_json_with_nonzero_components_cannot_invent_provenance() -> None:
+    """Legacy nonzero JSON is rejected rather than fabricating component provenance."""
+    payload = Trajectory.minimal("traj-prior-provenance", "prompt", "response").to_dict()
+    payload["reward_components"] = {"objective_fidelity": 0.5}
 
-    restored = Trajectory.from_dict(payload)
-
-    assert restored.reward_component_provenance == {}
-    assert "reward_component_provenance" not in restored.to_dict()
+    with pytest.raises(ValueError, match="Nonzero reward-integrity component.*provenance"):
+        Trajectory.from_dict(payload)
 
 
 def test_trajectory_is_immutable() -> None:
@@ -233,6 +238,22 @@ def test_negative_reward_component_requires_recorded_component_evidence() -> Non
         )
 
 
+def test_negative_reward_component_requires_provenance_after_legacy_evidence_passes() -> None:
+    """Legacy evidence cannot replace the provenance required for a nonzero component."""
+    reference = evidence_reference("feedback-integrity-audit")
+
+    with pytest.raises(ValueError, match="Nonzero reward-integrity component.*provenance"):
+        Trajectory(
+            trajectory_id="traj-negative-missing-provenance",
+            case_id="case-1",
+            prompt="prompt",
+            response="response",
+            reward_components={"feedback_integrity": -0.5},
+            reward_component_evidence={"feedback_integrity": (reference,)},
+            evidence_references=(reference,),
+        )
+
+
 def test_matching_legacy_trace_id_cannot_authorize_negative_reward_component() -> None:
     """Identifier equality cannot promote a diagnostic trace ID into typed evidence."""
     reference = evidence_reference("shared-reference")
@@ -261,6 +282,9 @@ def test_negative_reward_component_uses_separate_typed_evidence_references() -> 
         reward_component_evidence={"feedback_integrity": (reference,)},
         trace_references=("legacy-trace-21",),
         evidence_references=(reference,),
+        reward_component_provenance={
+            "feedback_integrity": observable_provenance("feedback_integrity", reference)
+        },
     )
 
     payload = trajectory.to_dict()
@@ -335,6 +359,9 @@ def test_trajectory_copies_evidence_references_before_binding_negative_evidence(
         reward_component_evidence={"feedback_integrity": (evidence_reference(),)},
         trace_references=("legacy-trace-24",),
         evidence_references=references,
+        reward_component_provenance={
+            "feedback_integrity": observable_provenance("feedback_integrity", references[0])
+        },
     )
     references[0] = evidence_reference(
         "private-reasoning",
@@ -360,6 +387,9 @@ def test_trajectory_retains_existing_positional_argument_order() -> None:
         {"feedback_integrity": 0.5},
         (0.25,),
         (0.5,),
+        reward_component_provenance={
+            "feedback_integrity": evaluator_provenance("feedback_integrity")
+        },
     )
 
     assert trajectory.reward_component_evidence == {}

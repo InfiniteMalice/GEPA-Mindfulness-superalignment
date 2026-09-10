@@ -108,7 +108,7 @@ class RewardObservation:
     reward_component_provenance: Mapping[str, RewardProvenance] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        """Bound values and bind every negative value to observable evidence."""
+        """Require observable evidence for negatives and provenance for every nonzero component."""
         components = self.components
         for name, value in components.items():
             object.__setattr__(self, name, _validated_component(name, value))
@@ -192,7 +192,7 @@ class RewardIntegrityBreakdown:
     reward_component_provenance: Mapping[str, RewardProvenance] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        """Keep public component and aggregate records in their bounded range."""
+        """Bound components, require negative evidence, and bind every nonzero provenance."""
         for name in COMPONENT_NAMES:
             object.__setattr__(self, name, _validated_component(name, getattr(self, name)))
         object.__setattr__(self, "aggregate", _validated_component("aggregate", self.aggregate))
