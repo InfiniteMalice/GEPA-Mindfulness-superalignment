@@ -190,11 +190,14 @@ literal stays neutral `CANDIDATE`; it does not falsely claim `NO_REPAIR`.
 ### Lattice and budget semantics
 
 `build_candidate_lattice()` returns the literal view plus retained derived hypotheses in a
-deterministic order. The default `CandidateBudget` permits at most eight spans, four candidates per
-span, and 24 candidates total. Work is additionally bounded by source and lexicon limits, 64
-orthographic comparisons per output slot, and bounded phonetic discovery and materialization.
-Candidates with the same `(span start, span end, candidate text)` are merged rather than allowed to
-consume several top-k positions.
+deterministic public order: descending confidence, channel value, span start, span end, candidate
+text, orthographic score, phonetic score, contextual score, semantic-similarity score, outcome
+value, provenance tuple, then generation reason. The default `CandidateBudget` permits at most
+eight spans, four candidates per span, and 24 candidates total. Work is additionally bounded by
+source and lexicon limits, 64 orthographic comparisons per output slot, and bounded phonetic
+discovery and materialization. Candidates with the same
+`(span start, span end, candidate text)` are merged rather than allowed to consume several top-k
+positions.
 
 Top-k therefore means the first k eligible repair hypotheses in the validated lattice. Metric
 recall filters before slicing: a candidate is eligible only when it is nonliteral, changes its exact
@@ -263,9 +266,10 @@ case ID, and reports explicit denominator counts. Its formulas are:
   laundering cases; empty denominator = `1.0`; and
 - mean candidates = total retained lattice candidates / all results; direct empty input = `0.0`.
 
-`elapsed_milliseconds` covers case/result snapshot validation and summary aggregation inside that
-API call. It excludes upstream candidate generation, semantic inference, routing, I/O, and model
-latency. It must not be presented as end-to-end latency.
+`elapsed_milliseconds` starts before case/result snapshot validation and ends after all metric
+aggregation values have been computed. The end timestamp precedes construction of the summary
+dataclass. The interval excludes upstream candidate generation, semantic inference, routing, I/O,
+and model latency. It must not be presented as end-to-end latency.
 
 The public `semantic_laundering_risk()` and `intent_tracking_score()` functions retain their
 keyword-only signatures and integer ranges from zero through four. They are compatibility

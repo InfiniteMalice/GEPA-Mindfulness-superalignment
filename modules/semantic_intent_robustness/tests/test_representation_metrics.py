@@ -5,6 +5,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
+import semantic_intent_robustness.representation_metrics as representation_metrics_module
 from evals.semantic_laundering_eval import (
     intent_tracking_score,
     semantic_laundering_risk,
@@ -247,6 +248,49 @@ def test_evaluator_snapshots_one_shot_inputs_and_measures_elapsed_time(
         elapsed_milliseconds=summary.elapsed_milliseconds,
     )
     assert summary.elapsed_milliseconds >= 5.0
+
+
+def test_elapsed_time_ends_after_late_metric_aggregation(
+    metric_fixture: tuple[
+        tuple[RepresentationEvaluationCase, ...],
+        tuple[RepresentationEvaluationResult, ...],
+    ],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Catch an end timestamp taken before false-repair and later metrics are aggregated."""
+
+    cases, results = metric_fixture
+    repair_observed = False
+    clock_calls = 0
+    original = RepresentationEvaluationResult.repair_applied
+
+    def observed_repair(result: RepresentationEvaluationResult) -> bool:
+        nonlocal repair_observed
+        repair_observed = True
+        return original.__get__(result, RepresentationEvaluationResult)
+
+    def deterministic_clock() -> int:
+        nonlocal clock_calls
+        clock_calls += 1
+        if clock_calls == 1:
+            return 100
+        return 900 if repair_observed else 200
+
+    monkeypatch.setattr(
+        RepresentationEvaluationResult,
+        "repair_applied",
+        property(observed_repair),
+    )
+    monkeypatch.setattr(
+        representation_metrics_module,
+        "perf_counter_ns",
+        deterministic_clock,
+    )
+
+    summary = representation_metrics_module.evaluate_representation_cases(cases, results, k=2)
+
+    assert summary.elapsed_milliseconds == 0.0008
+    assert clock_calls == 2
 
 
 def test_metrics_define_neutral_zero_denominator_behavior() -> None:

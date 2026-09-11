@@ -370,7 +370,7 @@ def evaluate_representation_cases(
     *,
     k: int,
 ) -> RepresentationMetricSummary:
-    """Snapshot once, aggregate all metrics, and record measured wall time."""
+    """Time snapshot validation and metric aggregation, then construct the summary."""
 
     started_ns = perf_counter_ns()
     _validate_k(k)
@@ -388,6 +388,34 @@ def evaluate_representation_cases(
         bool(set(case.expected_candidate_texts) & set(_repair_candidate_texts(result, k=k)))
         for case, result in recall_eligible
     )
+    candidate_recall = recall_hits / len(recall_eligible) if recall_eligible else 1.0
+    false_repair = sum(result.repair_applied for _, result in clean) / len(clean) if clean else 0.0
+    abstention_precision_value = (
+        sum(case.abstention_expected for case, _ in abstained) / len(abstained)
+        if abstained
+        else 1.0
+    )
+    abstention_coverage_value = (
+        sum(result.abstained for _, result in abstention_expected) / len(abstention_expected)
+        if abstention_expected
+        else 1.0
+    )
+    disagreement = sum(result.disagreement for _, result in rows) / case_count
+    clean_regression = (
+        sum(
+            result.decision.policy_action is not case.expected_policy_action
+            for case, result in clean
+        )
+        / len(clean)
+        if clean
+        else 0.0
+    )
+    laundering_detection = (
+        sum(result.laundering_detected for _, result in laundering) / len(laundering)
+        if laundering
+        else 1.0
+    )
+    mean_candidate_count = sum(len(result.lattice.candidates) for _, result in rows) / case_count
     elapsed_milliseconds = (perf_counter_ns() - started_ns) / 1_000_000.0
     return RepresentationMetricSummary(
         recall_k=k,
@@ -397,36 +425,14 @@ def evaluate_representation_cases(
         abstention_predicted_count=len(abstained),
         abstention_expected_count=len(abstention_expected),
         laundering_case_count=len(laundering),
-        candidate_recall_at_k=(recall_hits / len(recall_eligible) if recall_eligible else 1.0),
-        false_repair_rate=(
-            sum(result.repair_applied for _, result in clean) / len(clean) if clean else 0.0
-        ),
-        abstention_precision=(
-            sum(case.abstention_expected for case, _ in abstained) / len(abstained)
-            if abstained
-            else 1.0
-        ),
-        abstention_coverage=(
-            sum(result.abstained for _, result in abstention_expected) / len(abstention_expected)
-            if abstention_expected
-            else 1.0
-        ),
-        disagreement_rate=sum(result.disagreement for _, result in rows) / case_count,
-        clean_regression_rate=(
-            sum(
-                result.decision.policy_action is not case.expected_policy_action
-                for case, result in clean
-            )
-            / len(clean)
-            if clean
-            else 0.0
-        ),
-        laundering_detection_rate=(
-            sum(result.laundering_detected for _, result in laundering) / len(laundering)
-            if laundering
-            else 1.0
-        ),
-        mean_candidates=(sum(len(result.lattice.candidates) for _, result in rows) / case_count),
+        candidate_recall_at_k=candidate_recall,
+        false_repair_rate=false_repair,
+        abstention_precision=abstention_precision_value,
+        abstention_coverage=abstention_coverage_value,
+        disagreement_rate=disagreement,
+        clean_regression_rate=clean_regression,
+        laundering_detection_rate=laundering_detection,
+        mean_candidates=mean_candidate_count,
         elapsed_milliseconds=elapsed_milliseconds,
     )
 

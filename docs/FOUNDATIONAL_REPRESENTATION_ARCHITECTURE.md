@@ -122,7 +122,9 @@ Candidate recall is measured only against independently authored expected candid
 meaning-changing candidate can have strong surface evidence and still be wrong. Clean controls,
 false-repair rate, abstention precision and coverage, disagreement rate, clean-policy regression,
 and laundering detection therefore accompany recall. The elapsed metric in the current evaluator
-covers validation and aggregation only, not candidate generation or model inference.
+starts before case/result snapshot validation and stops after all metric aggregation values are
+computed but before summary-dataclass construction. It does not include upstream candidate
+generation, semantic inference, disagreement routing, I/O, or model work.
 
 The present module does not preserve original bytes, implement full grapheme segmentation,
 generate a dedicated alternate-segmentation or contextual channel, learn phonology, access latent
