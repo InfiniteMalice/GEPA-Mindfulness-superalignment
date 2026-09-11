@@ -10,6 +10,7 @@ from time import perf_counter_ns
 
 # Local
 from .representation import (
+    CandidateOutcome,
     RepresentationChannel,
     RepresentationLattice,
     candidate_id_for,
@@ -94,6 +95,16 @@ class RepresentationEvaluationResult:
         candidate_id_rows = tuple(candidate_id_for(item) for item in lattice.candidates)
         if len(set(candidate_id_rows)) != len(candidate_id_rows):
             raise ValueError("lattice candidate IDs must be unique for evaluation")
+        semantic_identities = tuple(
+            (
+                item.source_span.start,
+                item.source_span.end,
+                item.candidate_text,
+            )
+            for item in lattice.candidates
+        )
+        if len(set(semantic_identities)) != len(semantic_identities):
+            raise ValueError("lattice semantic candidate identities must be unique for evaluation")
         candidate_ids = set(candidate_id_rows)
         if not set(decision.selected_candidate_ids) <= candidate_ids:
             raise ValueError("decision candidate IDs must identify candidates in the lattice")
@@ -106,8 +117,14 @@ class RepresentationEvaluationResult:
         applied = candidates_by_id.get(applied_id)
         if applied is None:
             raise ValueError("applied_candidate_id must identify a candidate in the lattice")
+        if applied_id not in decision.selected_candidate_ids:
+            raise ValueError("applied_candidate_id must be selected by the decision")
         if applied.transform_channel is RepresentationChannel.LITERAL:
             raise ValueError("applied_candidate_id must identify a derived candidate")
+        if applied.candidate_text == applied.source_span.raw_text:
+            raise ValueError("an applied candidate must change its exact source span")
+        if applied.outcome is not CandidateOutcome.CANDIDATE:
+            raise ValueError("an applied candidate must have CANDIDATE outcome")
 
     @property
     def repair_applied(self) -> bool:
@@ -257,16 +274,13 @@ def candidate_recall_at_k(
 ) -> float:
     """Return hits/eligible expected-candidate cases; no eligible cases returns 1.0."""
 
-    rows = _paired_snapshots(cases, results)
     _validate_k(k)
+    rows = _paired_snapshots(cases, results)
     eligible = [row for row in rows if row[0].expected_candidate_texts]
     if not eligible:
         return 1.0
     hits = sum(
-        bool(
-            set(case.expected_candidate_texts)
-            & {candidate.candidate_text for candidate in result.lattice.candidates[:k]}
-        )
+        bool(set(case.expected_candidate_texts) & set(_derived_candidate_texts(result, k=k)))
         for case, result in eligible
     )
     return hits / len(eligible)
@@ -361,8 +375,8 @@ def evaluate_representation_cases(
     """Snapshot once, aggregate all metrics, and record measured wall time."""
 
     started_ns = perf_counter_ns()
-    rows = _paired_snapshots(cases, results)
     _validate_k(k)
+    rows = _paired_snapshots(cases, results)
     if not rows:
         raise ValueError("representation evaluation requires at least one case")
 
@@ -373,10 +387,7 @@ def evaluate_representation_cases(
     abstention_expected = [row for row in rows if row[0].abstention_expected]
     laundering = [row for row in rows if row[0].laundering_expected]
     recall_hits = sum(
-        bool(
-            set(case.expected_candidate_texts)
-            & {candidate.candidate_text for candidate in result.lattice.candidates[:k]}
-        )
+        bool(set(case.expected_candidate_texts) & set(_derived_candidate_texts(result, k=k)))
         for case, result in recall_eligible
     )
     elapsed_milliseconds = (perf_counter_ns() - started_ns) / 1_000_000.0
@@ -437,6 +448,18 @@ def _paired_snapshots(
     if case_ids != set(result_by_id):
         raise ValueError("representation evaluation case IDs must match result case IDs exactly")
     return tuple((case, result_by_id[case.case_id]) for case in case_snapshot)
+
+
+def _derived_candidate_texts(
+    result: RepresentationEvaluationResult,
+    *,
+    k: int,
+) -> tuple[str, ...]:
+    return tuple(
+        candidate.candidate_text
+        for candidate in result.lattice.candidates
+        if candidate.transform_channel is not RepresentationChannel.LITERAL
+    )[:k]
 
 
 def _snapshot_cases(
