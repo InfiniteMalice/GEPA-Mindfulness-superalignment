@@ -2,6 +2,7 @@
 
 # Standard library
 from dataclasses import FrozenInstanceError
+from itertools import islice, product
 from math import inf, nan
 from types import MappingProxyType
 
@@ -9,6 +10,7 @@ from types import MappingProxyType
 import pytest
 
 # Local
+from semantic_intent_robustness import representation_candidates as candidates_module
 from semantic_intent_robustness.representation import (
     CandidateOutcome,
     RepresentationChannel,
@@ -152,6 +154,43 @@ def test_conservative_views_are_retained_without_changing_raw_text() -> None:
     assert all(candidate.source_span.raw_text == raw_text for candidate in lattice.candidates)
 
 
+def test_decomposed_grapheme_candidate_span_includes_combining_mark() -> None:
+    raw_text = "cafe\u0301"
+    lattice = build_candidate_lattice(
+        "source-1",
+        raw_text,
+        orthographic_lexicon=("cafés",),
+    )
+    generated = next(
+        candidate
+        for candidate in lattice.candidates
+        if candidate.transform_channel is RepresentationChannel.ORTHOGRAPHIC
+    )
+
+    assert generated.source_span.start == 0
+    assert generated.source_span.end == len(raw_text)
+    assert generated.source_span.raw_text == raw_text
+    assert generated.candidate_text == "cafés"
+
+
+def test_normalized_equivalent_does_not_emit_an_incompatible_grapheme_repair() -> None:
+    raw_text = "cafe\u0301"
+    lattice = build_candidate_lattice(
+        "source-1",
+        raw_text,
+        orthographic_lexicon=("café",),
+    )
+
+    assert all(
+        candidate.transform_channel is not RepresentationChannel.ORTHOGRAPHIC
+        for candidate in lattice.candidates
+    )
+    assert {candidate.candidate_text for candidate in lattice.candidates} == {
+        raw_text,
+        "café",
+    }
+
+
 def test_generated_evidence_scores_do_not_assert_semantic_truth() -> None:
     lattice = build_candidate_lattice(
         "source-1",
@@ -220,6 +259,56 @@ def test_compute_cap_does_not_starve_explicit_phonetic_evidence() -> None:
     )
 
     assert "phone" in tuple(candidate.candidate_text for candidate in lattice.candidates)
+
+
+def test_sorted_phonetic_distractors_cannot_starve_direct_exact_lookup() -> None:
+    distractors = {
+        "a" + "".join(chars): ("noise",)
+        for chars in islice(product("bcdefghijklmnopqrstuvwxyz", repeat=3), 1_536)
+    }
+    forward = {**distractors, "fone": ("phone",)}
+    reverse = dict(reversed(tuple(forward.items())))
+
+    first = build_candidate_lattice("source-1", "fone", phonetic_lexicon=forward)
+    second = build_candidate_lattice("source-1", "fone", phonetic_lexicon=reverse)
+
+    assert first == second
+    assert "phone" in tuple(candidate.candidate_text for candidate in first.candidates)
+    assert first.candidates[0].outcome is CandidateOutcome.CANDIDATE
+
+
+def test_context_boosted_late_alternative_is_pre_ranked_before_proposal_cap() -> None:
+    earlier = tuple(f"aaa{letter}{suffix}" for letter in "abcdef" for suffix in range(16))
+    alternatives = (*earlier, "zebra")
+
+    lattice = build_candidate_lattice(
+        "source-1",
+        "fone",
+        context=("The context explicitly mentions zebra.",),
+        phonetic_lexicon={"fone": alternatives},
+    )
+
+    assert "zebra" in tuple(candidate.candidate_text for candidate in lattice.candidates)
+
+
+def test_truncated_orthographic_search_marks_literal_unknown_not_no_repair() -> None:
+    distractors = tuple(
+        "".join(chars) for chars in islice(product("abcdefghijkl", repeat=4), 1_600)
+    )
+    lattice = build_candidate_lattice(
+        "source-1",
+        "zzzz",
+        orthographic_lexicon=(*distractors, "zzzy"),
+    )
+
+    literal = next(
+        candidate
+        for candidate in lattice.candidates
+        if candidate.transform_channel is RepresentationChannel.LITERAL
+    )
+    assert literal.outcome is CandidateOutcome.UNKNOWN
+    assert "truncated" in literal.generation_reason.lower()
+    assert "candidate-generation:search-truncated" in literal.provenance
 
 
 def test_candidate_order_is_independent_of_lexicon_insertion_order() -> None:
@@ -374,6 +463,78 @@ def test_builder_snapshots_a_mutable_phonetic_mapping() -> None:
 
     assert "the" in tuple(candidate.candidate_text for candidate in lattice.candidates)
     assert "ten" not in tuple(candidate.candidate_text for candidate in lattice.candidates)
+
+
+def test_global_phonetic_alternative_cap_fails_before_traversing_excess_tuple(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+    original = candidates_module._validate_canonical_lexicon_text
+
+    def counting_validation(value: object, *, field_name: str) -> None:
+        nonlocal calls
+        calls += 1
+        original(value, field_name=field_name)
+
+    monkeypatch.setattr(
+        candidates_module,
+        "_validate_canonical_lexicon_text",
+        counting_validation,
+    )
+    alternatives = tuple(f"term{index}" for index in range(64))
+    lexicon = {f"key{index}": alternatives for index in range(65)}
+
+    with pytest.raises(ValueError, match="global phonetic alternative cap"):
+        build_candidate_lattice("source-1", "word", phonetic_lexicon=lexicon)
+
+    assert calls <= 4_160
+
+
+def test_context_tokens_are_snapshotted_once_for_many_proposals(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+    original = candidates_module._context_word_set
+
+    def counting_snapshot(context: tuple[str, ...]) -> frozenset[str]:
+        nonlocal calls
+        calls += 1
+        return original(context)
+
+    monkeypatch.setattr(candidates_module, "_context_word_set", counting_snapshot)
+    alternatives = tuple(f"option{letter}" for letter in "abcdefghijkl")
+
+    build_candidate_lattice(
+        "source-1",
+        "fone",
+        context=("optiona is mentioned once",),
+        phonetic_lexicon={"fone": alternatives},
+    )
+
+    assert calls == 1
+
+
+def test_phonetic_candidate_materialization_is_bounded_by_output_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+    original = candidates_module._candidate
+
+    def counting_candidate(**kwargs: object) -> object:
+        nonlocal calls
+        calls += 1
+        return original(**kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(candidates_module, "_candidate", counting_candidate)
+    alternatives = tuple(f"option{index}" for index in range(500))
+
+    build_candidate_lattice(
+        "source-1",
+        " ".join("fone" for _ in range(10)),
+        phonetic_lexicon={"fone": alternatives},
+    )
+
+    assert calls <= CandidateBudget().max_candidates_total * 4
 
 
 @pytest.mark.parametrize("value", [nan, inf, -inf, -0.0])

@@ -22,9 +22,10 @@ _EVIDENCE_FLOOR = 0.70
 _MAX_SOURCE_LENGTH = 100_000
 _MAX_LEXICON_ENTRIES = 10_000
 _MAX_LEXICON_TEXT_LENGTH = 256
+_MAX_PHONETIC_ALTERNATIVES = 4_096
+_MAX_PHONETIC_TEXT_CHARACTERS = 1_048_576
 _COMPARISONS_PER_OUTPUT_SLOT = 64
 _NEGATION_HINGES = frozenset({"no", "not", "never", "neither", "nor", "without"})
-_WORD_PATTERN = re.compile(r"[^\W_]+(?:['’][^\W_]+)*", re.UNICODE)
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,19 +52,43 @@ class CandidateBudget:
 @dataclass(slots=True)
 class _GenerationLimiter:
     comparisons_remaining: int
-    proposals_remaining: int
+    search_truncated: bool = False
 
     def claim_comparison(self) -> bool:
         if self.comparisons_remaining <= 0:
+            self.search_truncated = True
             return False
         self.comparisons_remaining -= 1
         return True
 
-    def claim_proposal(self) -> bool:
-        if self.proposals_remaining <= 0:
-            return False
-        self.proposals_remaining -= 1
-        return True
+
+@dataclass(frozen=True, slots=True)
+class _Token:
+    start: int
+    end: int
+    text: str
+
+
+@dataclass(slots=True)
+class _PhoneticTrieNode:
+    children: dict[str, "_PhoneticTrieNode"]
+    entries: list[tuple[str, tuple[str, ...]]]
+
+
+@dataclass(frozen=True, slots=True)
+class _PhoneticMatch:
+    start: int
+    end: int
+    observed: str
+    alternatives: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class _PhoneticAlternative:
+    candidate_text: str
+    contextual_score: float
+    confidence: float
+    provenance: tuple[str, ...]
 
 
 def build_candidate_lattice(
@@ -90,7 +115,7 @@ def build_candidate_lattice(
         raise TypeError("budget must be an exact CandidateBudget")
 
     views = conservative_views(source_id, raw_text)
-    generated = _generate_candidates(
+    generated, search_truncated = _generate_candidates(
         source_id,
         raw_text,
         context_snapshot,
@@ -99,7 +124,9 @@ def build_candidate_lattice(
         budget,
     )
     selected = _apply_budget(views, generated, budget)
-    if not generated:
+    if search_truncated:
+        selected = _mark_explicit_unknown(selected)
+    elif not generated:
         selected = _mark_explicit_no_repair(selected)
 
     return RepresentationLattice(
@@ -117,47 +144,24 @@ def _generate_candidates(
     orthographic_lexicon: tuple[str, ...],
     phonetic_lexicon: tuple[tuple[str, tuple[str, ...]], ...],
     budget: CandidateBudget,
-) -> tuple[RepresentationCandidate, ...]:
-    tokens = tuple(_WORD_PATTERN.finditer(raw_text))
-    proposals: list[RepresentationCandidate] = []
+) -> tuple[tuple[RepresentationCandidate, ...], bool]:
+    tokens = _tokenize(raw_text)
+    context_words = _context_word_set(context)
+    phonetic_candidates, phonetic_truncated = _phonetic_candidates(
+        source_id,
+        raw_text,
+        tokens,
+        phonetic_lexicon,
+        context_words,
+        budget,
+    )
+    proposals = list(phonetic_candidates)
     limiter = _GenerationLimiter(
         comparisons_remaining=(budget.max_candidates_total * _COMPARISONS_PER_OUTPUT_SLOT),
-        proposals_remaining=budget.max_candidates_total * 4,
     )
-    for observed, alternatives in phonetic_lexicon:
-        if limiter.comparisons_remaining <= 0 or limiter.proposals_remaining <= 0:
-            break
-        for start, end in _exact_phrase_spans(raw_text, tokens, observed, limiter):
-            source_text = raw_text[start:end]
-            for alternative in alternatives:
-                if not limiter.claim_proposal():
-                    break
-                candidate_text = _apply_case_pattern(source_text, alternative)
-                if candidate_text == source_text:
-                    continue
-                contextual_score = _contextual_score(candidate_text, context)
-                confidence = min(0.89, 0.83 + 0.06 * contextual_score)
-                provenance = [f"phonetic-lexicon:{observed}"]
-                if contextual_score > 0.5:
-                    provenance.append("context-evidence:token-overlap")
-                proposals.append(
-                    _candidate(
-                        source_id=source_id,
-                        raw_text=raw_text,
-                        start=start,
-                        end=end,
-                        candidate_text=candidate_text,
-                        channel=RepresentationChannel.PHONOLOGICAL,
-                        orthographic_score=0.0,
-                        phonetic_score=0.9,
-                        contextual_score=contextual_score,
-                        confidence=confidence,
-                        provenance=tuple(provenance),
-                        reason="Retain an injected phonological hypothesis for evaluation.",
-                    )
-                )
-    for lexicon_text in orthographic_lexicon:
-        if limiter.comparisons_remaining <= 0 or limiter.proposals_remaining <= 0:
+    ranked_orthographic = _rank_orthographic_lexicon(raw_text, orthographic_lexicon)
+    for lexicon_text in ranked_orthographic:
+        if limiter.search_truncated:
             break
         proposals.extend(
             _orthographic_candidates(
@@ -165,23 +169,25 @@ def _generate_candidates(
                 raw_text,
                 tokens,
                 lexicon_text,
-                context,
+                context_words,
                 limiter,
             )
         )
-    return _deduplicate_candidates(proposals)
+    deduplicated = _deduplicate_candidates(proposals)
+    proposal_limit = budget.max_candidates_total * 4
+    return deduplicated[:proposal_limit], phonetic_truncated or limiter.search_truncated
 
 
 def _orthographic_candidates(
     source_id: str,
     raw_text: str,
-    tokens: tuple[re.Match[str], ...],
+    tokens: tuple[_Token, ...],
     lexicon_text: str,
-    context: tuple[str, ...],
+    context_words: frozenset[str],
     limiter: _GenerationLimiter,
 ) -> list[RepresentationCandidate]:
-    lexicon_words = tuple(_WORD_PATTERN.finditer(lexicon_text))
-    if not lexicon_words or "".join(match.group() for match in lexicon_words) != re.sub(
+    lexicon_words = _tokenize(lexicon_text)
+    if not lexicon_words or "".join(token.text for token in lexicon_words) != re.sub(
         r"\s+", "", lexicon_text
     ):
         return []
@@ -193,8 +199,8 @@ def _orthographic_candidates(
         if not limiter.claim_comparison():
             break
         window = tokens[index : index + word_count]
-        start = window[0].start()
-        end = window[-1].end()
+        start = window[0].start
+        end = window[-1].end
         observed = raw_text[start:end]
         if not _orthographic_span_is_eligible(observed, candidate_text, word_count):
             continue
@@ -207,12 +213,10 @@ def _orthographic_candidates(
             continue
         denominator = max(len(_comparison_form(observed)), len(_comparison_form(candidate_text)))
         score = 1.0 - distance / denominator
-        contextual_score = _contextual_score(candidate_text, context)
+        contextual_score = _contextual_score(candidate_text, context_words)
         confidence = min(0.96, 0.70 + 0.24 * score + 0.02 * contextual_score)
         if confidence < _EVIDENCE_FLOOR:
             continue
-        if not limiter.claim_proposal():
-            break
         rendered = _apply_case_pattern(observed, candidate_text)
         provenance = [f"orthographic-lexicon:{lexicon_text}"]
         if contextual_score > 0.5:
@@ -312,6 +316,32 @@ def _apply_budget(
 def _mark_explicit_no_repair(
     candidates: tuple[RepresentationCandidate, ...],
 ) -> tuple[RepresentationCandidate, ...]:
+    return _mark_literal_outcome(
+        candidates,
+        outcome=CandidateOutcome.NO_REPAIR,
+        provenance="candidate-generation:no-evidence-above-floor",
+        reason="Preserve the literal source; no alternate exceeded the evidence floor.",
+    )
+
+
+def _mark_explicit_unknown(
+    candidates: tuple[RepresentationCandidate, ...],
+) -> tuple[RepresentationCandidate, ...]:
+    return _mark_literal_outcome(
+        candidates,
+        outcome=CandidateOutcome.UNKNOWN,
+        provenance="candidate-generation:search-truncated",
+        reason="Preserve the literal source; bounded candidate search was truncated.",
+    )
+
+
+def _mark_literal_outcome(
+    candidates: tuple[RepresentationCandidate, ...],
+    *,
+    outcome: CandidateOutcome,
+    provenance: str,
+    reason: str,
+) -> tuple[RepresentationCandidate, ...]:
     marked: list[RepresentationCandidate] = []
     did_mark = False
     for candidate in candidates:
@@ -321,12 +351,10 @@ def _mark_explicit_no_repair(
                     candidate,
                     provenance=(
                         *candidate.provenance,
-                        "candidate-generation:no-evidence-above-floor",
+                        provenance,
                     ),
-                    generation_reason=(
-                        "Preserve the literal source; no alternate exceeded the evidence floor."
-                    ),
-                    outcome=CandidateOutcome.NO_REPAIR,
+                    generation_reason=reason,
+                    outcome=outcome,
                 )
             )
             did_mark = True
@@ -383,26 +411,182 @@ def _selection_key(candidate: RepresentationCandidate) -> tuple[object, ...]:
     )
 
 
-def _exact_phrase_spans(
+def _phonetic_candidates(
+    source_id: str,
     raw_text: str,
-    tokens: tuple[re.Match[str], ...],
-    observed: str,
-    limiter: _GenerationLimiter,
-) -> tuple[tuple[int, int], ...]:
-    observed_tokens = tuple(_WORD_PATTERN.finditer(observed))
-    if not observed_tokens:
-        return ()
-    count = len(observed_tokens)
-    spans: list[tuple[int, int]] = []
-    for index in range(max(0, len(tokens) - count + 1)):
-        if not limiter.claim_comparison():
+    tokens: tuple[_Token, ...],
+    phonetic_lexicon: tuple[tuple[str, tuple[str, ...]], ...],
+    context_words: frozenset[str],
+    budget: CandidateBudget,
+) -> tuple[tuple[RepresentationCandidate, ...], bool]:
+    root = _PhoneticTrieNode(children={}, entries=[])
+    for observed, alternatives in phonetic_lexicon:
+        build_node = root
+        for token in _tokenize(observed):
+            build_node = build_node.children.setdefault(
+                _comparison_form(token.text),
+                _PhoneticTrieNode(children={}, entries=[]),
+            )
+        build_node.entries.append((observed, alternatives))
+
+    matches: list[_PhoneticMatch] = []
+    for start_index, first_token in enumerate(tokens):
+        search_node = root.children.get(_comparison_form(first_token.text))
+        if search_node is None:
+            continue
+        end_index = start_index
+        while search_node is not None:
+            for observed, alternatives in search_node.entries:
+                start = first_token.start
+                end = tokens[end_index].end
+                source_text = raw_text[start:end]
+                if _comparison_form(source_text) != _comparison_form(observed):
+                    continue
+                matches.append(
+                    _PhoneticMatch(
+                        start,
+                        end,
+                        observed,
+                        alternatives,
+                    )
+                )
+            end_index += 1
+            if end_index >= len(tokens):
+                break
+            search_node = search_node.children.get(_comparison_form(tokens[end_index].text))
+    materialization_limit = budget.max_candidates_total * 4
+    match_limit = max(budget.max_spans * 4, materialization_limit)
+    selected_matches = _evenly_spaced(matches, match_limit)
+    truncated = len(selected_matches) < len(matches)
+    ranked_rows: tuple[tuple[_PhoneticMatch, tuple[_PhoneticAlternative, ...]], ...] = tuple(
+        (
+            match,
+            _rank_phonetic_alternatives(
+                raw_text[match.start : match.end],
+                match.observed,
+                match.alternatives,
+                context_words,
+            ),
+        )
+        for match in selected_matches
+    )
+    candidates: list[RepresentationCandidate] = []
+    alternative_index = 0
+    while len(candidates) < materialization_limit:
+        added = False
+        for match, ranked_alternatives in ranked_rows:
+            if alternative_index >= len(ranked_alternatives):
+                continue
+            alternative = ranked_alternatives[alternative_index]
+            candidates.append(
+                _candidate(
+                    source_id=source_id,
+                    raw_text=raw_text,
+                    start=match.start,
+                    end=match.end,
+                    candidate_text=alternative.candidate_text,
+                    channel=RepresentationChannel.PHONOLOGICAL,
+                    orthographic_score=0.0,
+                    phonetic_score=0.9,
+                    contextual_score=alternative.contextual_score,
+                    confidence=alternative.confidence,
+                    provenance=alternative.provenance,
+                    reason="Retain an injected phonological hypothesis for evaluation.",
+                )
+            )
+            added = True
+            if len(candidates) >= materialization_limit:
+                break
+        if not added:
             break
-        window = tokens[index : index + count]
-        start = window[0].start()
-        end = window[-1].end()
-        if raw_text[start:end].casefold() == observed.casefold():
-            spans.append((start, end))
-    return tuple(spans)
+        alternative_index += 1
+    return tuple(candidates), truncated
+
+
+def _rank_phonetic_alternatives(
+    source_text: str,
+    observed: str,
+    alternatives: tuple[str, ...],
+    context_words: frozenset[str],
+) -> tuple[_PhoneticAlternative, ...]:
+    ranked: list[_PhoneticAlternative] = []
+    for alternative in alternatives:
+        candidate_text = _apply_case_pattern(source_text, alternative)
+        if candidate_text == source_text:
+            continue
+        contextual_score = _contextual_score(candidate_text, context_words)
+        confidence = min(0.89, 0.83 + 0.06 * contextual_score)
+        provenance = [f"phonetic-lexicon:{observed}"]
+        if contextual_score > 0.5:
+            provenance.append("context-evidence:token-overlap")
+        ranked.append(
+            _PhoneticAlternative(
+                candidate_text=candidate_text,
+                contextual_score=contextual_score,
+                confidence=confidence,
+                provenance=tuple(provenance),
+            )
+        )
+    return tuple(
+        sorted(
+            ranked,
+            key=lambda item: (-item.confidence, item.candidate_text, item.provenance),
+        )
+    )
+
+
+def _evenly_spaced(
+    values: list[_PhoneticMatch],
+    limit: int,
+) -> tuple[_PhoneticMatch, ...]:
+    if len(values) <= limit:
+        return tuple(values)
+    if limit == 1:
+        return (values[0],)
+    indices = tuple(round(index * (len(values) - 1) / (limit - 1)) for index in range(limit))
+    return tuple(values[index] for index in indices)
+
+
+def _tokenize(text: str) -> tuple[_Token, ...]:
+    tokens: list[_Token] = []
+    index = 0
+    while index < len(text):
+        if not _is_word_base(text[index]):
+            index += 1
+            continue
+        start = index
+        index += 1
+        while index < len(text):
+            character = text[index]
+            if _is_word_base(character) or unicodedata.category(character).startswith("M"):
+                index += 1
+                continue
+            if character in {"'", "’"} and index + 1 < len(text) and _is_word_base(text[index + 1]):
+                index += 1
+                continue
+            break
+        tokens.append(_Token(start=start, end=index, text=text[start:index]))
+    return tuple(tokens)
+
+
+def _is_word_base(character: str) -> bool:
+    return character != "_" and character.isalnum()
+
+
+def _rank_orthographic_lexicon(
+    raw_text: str,
+    lexicon: tuple[str, ...],
+) -> tuple[str, ...]:
+    source_characters = frozenset(_comparison_form(raw_text))
+
+    def rank(candidate: str) -> tuple[object, ...]:
+        candidate_characters = frozenset(_comparison_form(candidate))
+        overlap = len(source_characters & candidate_characters)
+        union = len(source_characters | candidate_characters)
+        similarity = overlap / union if union else 0.0
+        return (-similarity, abs(len(raw_text) - len(candidate)), candidate.casefold(), candidate)
+
+    return tuple(sorted(lexicon, key=rank))
 
 
 def _bounded_edit_distance(left: str, right: str, limit: int) -> int | None:
@@ -460,13 +644,14 @@ def _apply_case_pattern(source: str, candidate: str) -> str:
     return candidate
 
 
-def _contextual_score(candidate: str, context: tuple[str, ...]) -> float:
-    if not context:
+def _context_word_set(context: tuple[str, ...]) -> frozenset[str]:
+    return frozenset(_comparison_form(token.text) for item in context for token in _tokenize(item))
+
+
+def _contextual_score(candidate: str, context_words: frozenset[str]) -> float:
+    if not context_words:
         return 0.5
-    candidate_words = {match.group().casefold() for match in _WORD_PATTERN.finditer(candidate)}
-    context_words = {
-        match.group().casefold() for item in context for match in _WORD_PATTERN.finditer(item)
-    }
+    candidate_words = {_comparison_form(token.text) for token in _tokenize(candidate)}
     return 0.75 if candidate_words & context_words else 0.5
 
 
@@ -496,12 +681,25 @@ def _snapshot_phonetic_lexicon(
         return ()
     if not isinstance(value, Mapping):
         raise TypeError("phonetic_lexicon must be a mapping or None")
+    if len(value) > _MAX_LEXICON_ENTRIES:
+        raise ValueError("phonetic_lexicon has too many entries")
     items = tuple(value.items())
     if len(items) > _MAX_LEXICON_ENTRIES:
         raise ValueError("phonetic_lexicon has too many entries")
     snapshot: list[tuple[str, tuple[str, ...]]] = []
+    alternative_count = 0
+    text_characters = 0
     for observed, alternatives in items:
+        if type(alternatives) is not tuple:
+            raise TypeError("phonetic alternatives must be an exact tuple")
+        if alternative_count + len(alternatives) > _MAX_PHONETIC_ALTERNATIVES:
+            raise ValueError("phonetic_lexicon exceeds the global phonetic alternative cap")
         _validate_canonical_lexicon_text(observed, field_name="phonetic key")
+        if not _tokenize(observed):
+            raise ValueError("phonetic key must contain at least one word token")
+        text_characters += len(observed)
+        if text_characters > _MAX_PHONETIC_TEXT_CHARACTERS:
+            raise ValueError("phonetic_lexicon exceeds the global text-work cap")
         candidates = _snapshot_string_tuple(
             alternatives,
             field_name="phonetic alternatives",
@@ -509,6 +707,11 @@ def _snapshot_phonetic_lexicon(
         )
         if not candidates:
             raise ValueError("phonetic alternatives must not be empty")
+        alternative_count += len(alternatives)
+        for candidate in candidates:
+            text_characters += len(candidate)
+            if text_characters > _MAX_PHONETIC_TEXT_CHARACTERS:
+                raise ValueError("phonetic_lexicon exceeds the global text-work cap")
         snapshot.append((observed, candidates))
     return tuple(sorted(snapshot, key=lambda item: (item[0], item[1])))
 
