@@ -1,5 +1,13 @@
 """Immutable state and distinct verification-level contracts."""
 
+from .failure_graph import (
+    FailureEdge,
+    FailureGraph,
+    FailureLocalization,
+    FailureNode,
+    FailureRelation,
+    RootCauseStatus,
+)
 from .interfaces import (
     LocalExecutionVerifier,
     LocalVerificationResult,
@@ -15,10 +23,16 @@ from .state import EvidenceClaim, EvidenceState, WorldStateChange
 __all__ = [
     "EvidenceClaim",
     "EvidenceState",
+    "FailureEdge",
+    "FailureGraph",
+    "FailureLocalization",
+    "FailureNode",
+    "FailureRelation",
     "LocalExecutionVerifier",
     "LocalVerificationResult",
     "RelationalEvidenceVerifier",
     "RelationalVerificationResult",
+    "RootCauseStatus",
     "VerificationEvidenceBinding",
     "VerificationLevel",
     "WorldStateChange",
