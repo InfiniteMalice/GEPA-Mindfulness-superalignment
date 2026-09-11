@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 import pytest
+import yaml
 
 from evaluation import recommendations
 
@@ -155,6 +156,11 @@ EXPECTED_RECOMMENDATION_LINKS = {
     "REF-TOKENIZER-BETRAYAL": ("REC-005",),
 }
 
+PUBLIC_REGISTRY_LOADERS = (
+    "load_recommendation_registry",
+    "load_research_reference_registry",
+)
+
 
 def test_bundled_registry_has_every_requested_reference_once() -> None:
     loaded = recommendations.load_research_reference_registry()
@@ -210,6 +216,76 @@ def test_recommendation_links_resolve_and_match_both_registries() -> None:
             assert reference.reference_id in reverse_links[recommendation_id]
 
 
+@pytest.mark.parametrize("loader_name", PUBLIC_REGISTRY_LOADERS)
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        (
+            lambda recommendations_payload, _: recommendations_payload["recommendations"][0][
+                "research_refs"
+            ].append("REF-UNKNOWN"),
+            "recommendation registry research_refs reference unknown IDs",
+        ),
+        (
+            lambda _, references_payload: references_payload["references"][0].update(
+                recommendation_ids=["REC-999"]
+            ),
+            "research reference registry recommendation_ids reference unknown IDs",
+        ),
+        (
+            lambda _, references_payload: references_payload["references"][0][
+                "recommendation_ids"
+            ].remove("REC-001"),
+            "recommendation registry edges missing from research reference registry",
+        ),
+        (
+            lambda recommendations_payload, _: recommendations_payload["recommendations"][0][
+                "research_refs"
+            ].append("REF-PEARL"),
+            "recommendation registry edges missing from research reference registry",
+        ),
+        (
+            lambda recommendations_payload, _: recommendations_payload["recommendations"][0][
+                "research_refs"
+            ].remove("REF-HEART"),
+            "research reference registry edges missing from recommendation registry",
+        ),
+        (
+            lambda _, references_payload: references_payload["references"][1][
+                "recommendation_ids"
+            ].append("REC-001"),
+            "research reference registry edges missing from recommendation registry",
+        ),
+    ],
+    ids=(
+        "unknown-reference-from-recommendation",
+        "unknown-recommendation-from-reference",
+        "missing-reference-side-reciprocal",
+        "extra-recommendation-side-edge",
+        "missing-recommendation-side-reciprocal",
+        "extra-reference-side-edge",
+    ),
+)
+def test_public_loaders_reject_invalid_cross_registry_edges(
+    loader_name: str,
+    mutation: Callable[[dict[str, Any], dict[str, Any]], Any],
+    message: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recommendations_payload, references_payload = _authored_registry_payloads()
+    mutation(recommendations_payload, references_payload)
+    _redirect_registry_resources(
+        tmp_path,
+        monkeypatch,
+        recommendations_payload,
+        references_payload,
+    )
+
+    with pytest.raises(ValueError, match=message):
+        getattr(recommendations, loader_name)()
+
+
 def test_every_local_repository_note_exists() -> None:
     for reference in recommendations.load_research_reference_registry():
         assert reference.local_repo_notes
@@ -255,10 +331,6 @@ def test_loader_rejects_invalid_document_roots(payload: dict[str, Any], message:
         (
             lambda payload: payload["references"][0].update(recommendation_ids=[]),
             "recommendation_ids",
-        ),
-        (
-            lambda payload: payload["references"][0].update(recommendation_ids=["REC-999"]),
-            "unknown IDs",
         ),
         (
             lambda payload: payload["references"][0].update(local_repo_notes=[]),
@@ -347,28 +419,69 @@ def test_loader_accepts_unresolved_metadata_without_a_source_claim() -> None:
     assert parsed[0].source_demonstrates.startswith("No source claim has been verified")
 
 
-def test_traceability_reader_mirrors_registry_identity_and_required_labels() -> None:
+def test_traceability_reader_has_exact_unique_reference_inventory() -> None:
+    reader = TRACEABILITY_PATH.read_text(encoding="utf-8")
+    expected_reference_ids = tuple(item[0] for item in EXPECTED_REFERENCES)
+    anchors = tuple(
+        match.group("anchor")
+        for match in re.finditer(
+            r'^<a id="(?P<anchor>ref-[a-z0-9-]+)"></a>$',
+            reader,
+            flags=re.MULTILINE,
+        )
+    )
+    headings = tuple(
+        match.group("reference_id")
+        for match in re.finditer(
+            r"^## (?P<reference_id>REF-[A-Z0-9-]+) — .+$",
+            reader,
+            flags=re.MULTILINE,
+        )
+    )
+
+    assert anchors == tuple(reference_id.lower() for reference_id in expected_reference_ids)
+    assert headings == expected_reference_ids
+    assert len(anchors) == len(set(anchors))
+    assert len(headings) == len(set(headings))
+
+
+def test_traceability_reader_exactly_mirrors_registry_fields() -> None:
     reader = TRACEABILITY_PATH.read_text(encoding="utf-8")
 
     for reference in recommendations.load_research_reference_registry():
         section = _reference_section(reader, reference.reference_id)
         displayed_title = reference.title or reference.supplied_title
-        assert f'<a id="{reference.reference_id.lower()}"></a>' in reader
-        assert f"## {reference.reference_id} — {displayed_title}" in section
-        assert f"- Metadata status: `{reference.metadata_status}`" in section
-        assert f"- Supplied title: {reference.supplied_title}" in section
-        assert f"- Authors: {', '.join(reference.authors)}" in section
-        assert f"- Year: {reference.year}" in section
-        assert f"- DOI: `{reference.doi}`" in section
-        assert f"- arXiv: [`{reference.arxiv_id}`]({reference.canonical_url})" in section
-        for recommendation_id in reference.recommendation_ids:
-            assert f"`{recommendation_id}`" in section
+        expected_venue = (
+            reference.venue_status
+            if reference.venue_status is not None
+            else "Not supplied by official arXiv metadata."
+        )
+
+        assert _reference_heading(section, reference.reference_id) == displayed_title
+        assert _markdown_list_value(section, "Metadata status") == (
+            f"`{reference.metadata_status}`"
+        )
+        assert _markdown_list_value(section, "Supplied title") == reference.supplied_title
+        assert _markdown_list_value(section, "Authors") == ", ".join(reference.authors)
+        assert _markdown_list_value(section, "Year") == str(reference.year)
+        assert _markdown_list_value(section, "DOI") == f"`{reference.doi}`"
+        assert _markdown_list_value(section, "arXiv") == (
+            f"[`{reference.arxiv_id}`]({reference.canonical_url})"
+        )
+        assert _markdown_list_value(section, "Venue/status") == expected_venue
+        assert _markdown_list_value(section, "Recommendations influenced") == ", ".join(
+            f"`{recommendation_id}`" for recommendation_id in reference.recommendation_ids
+        )
+        assert _markdown_paragraph_value(section, "Source demonstrates") == (
+            reference.source_demonstrates
+        )
+        assert _markdown_paragraph_value(section, "Repository inference") == (
+            reference.repository_inference
+        )
+        assert _markdown_paragraph_value(section, "Maturity") == reference.maturity
         for note in reference.local_repo_notes:
             link_target = Path(relpath(REPOSITORY_ROOT / note, TRACEABILITY_PATH.parent))
             assert f"]({link_target.as_posix()})" in section
-        assert "**Source demonstrates:**" in section
-        assert "**Repository inference:**" in section
-        assert "**Maturity:**" in section
 
 
 def test_traceability_reader_relative_links_resolve() -> None:
@@ -381,16 +494,17 @@ def test_traceability_reader_relative_links_resolve() -> None:
         assert (TRACEABILITY_PATH.parent / path_target).resolve().is_file(), target
 
 
-def test_traceability_connections_do_not_claim_the_sources_prove_the_architecture() -> None:
-    for reference in recommendations.load_research_reference_registry():
-        connection = " ".join(
-            (
-                reference.source_demonstrates,
-                reference.repository_inference,
-                reference.maturity,
-            )
+def test_traceability_reader_avoids_prohibited_proof_language() -> None:
+    reader = TRACEABILITY_PATH.read_text(encoding="utf-8")
+
+    assert (
+        re.search(
+            r"\b(proofs?|proves?|proven|guarantees?|guaranteed|confirms?|confirmed)\b",
+            reader,
+            flags=re.IGNORECASE,
         )
-        assert re.search(r"\b(proves?|proven)\b", connection, flags=re.IGNORECASE) is None
+        is None
+    )
 
 
 def _valid_reference_registry_payload() -> dict[str, Any]:
@@ -418,6 +532,32 @@ def _valid_reference_registry_payload() -> dict[str, Any]:
     return {"registry_version": "17case-v5", "references": records}
 
 
+def _authored_registry_payloads() -> tuple[dict[str, Any], dict[str, Any]]:
+    recommendation_path = REPOSITORY_ROOT / "docs" / "recommendations" / "registry.yaml"
+    reference_path = REPOSITORY_ROOT / "docs" / "recommendations" / "references.yaml"
+    return (
+        yaml.safe_load(recommendation_path.read_text(encoding="utf-8")),
+        yaml.safe_load(reference_path.read_text(encoding="utf-8")),
+    )
+
+
+def _redirect_registry_resources(
+    directory: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    recommendations_payload: dict[str, Any],
+    references_payload: dict[str, Any],
+) -> None:
+    (directory / "registry.yaml").write_text(
+        yaml.safe_dump(recommendations_payload, sort_keys=False),
+        encoding="utf-8",
+    )
+    (directory / "references.yaml").write_text(
+        yaml.safe_dump(references_payload, sort_keys=False),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(recommendations.resources, "files", lambda _: directory)
+
+
 def _mark_unresolved(record: dict[str, Any]) -> None:
     record.update(
         metadata_status="unresolved",
@@ -440,3 +580,36 @@ def _reference_section(reader: str, reference_id: str) -> str:
     )
     assert match is not None, f"missing traceability section for {reference_id}"
     return match.group(0)
+
+
+def _reference_heading(section: str, reference_id: str) -> str:
+    matches = re.findall(
+        rf"^## {re.escape(reference_id)} — (?P<title>.+)$",
+        section,
+        flags=re.MULTILINE,
+    )
+    assert len(matches) == 1, f"expected one heading for {reference_id}"
+    return matches[0]
+
+
+def _markdown_list_value(section: str, label: str) -> str:
+    return _wrapped_markdown_value(section, f"- {label}: ")
+
+
+def _markdown_paragraph_value(section: str, label: str) -> str:
+    return _wrapped_markdown_value(section, f"**{label}:** ")
+
+
+def _wrapped_markdown_value(section: str, prefix: str) -> str:
+    lines = section.splitlines()
+    indexes = [index for index, line in enumerate(lines) if line.startswith(prefix)]
+    assert len(indexes) == 1, f"expected one Markdown field with prefix {prefix!r}"
+    first_index = indexes[0]
+    parts = [lines[first_index][len(prefix) :]]
+    for line in lines[first_index + 1 :]:
+        if not line:
+            break
+        if line.startswith(("- ", "**", "## ", "<a ")):
+            break
+        parts.append(line)
+    return " ".join(parts)

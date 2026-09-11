@@ -181,31 +181,61 @@ class ResearchReference:
 
 
 def load_recommendation_registry() -> tuple[Recommendation, ...]:
-    """Load and validate the bundled V5 recommendation registry."""
+    """Load both bundled V5 registries and return validated recommendations."""
 
-    resource = resources.files("docs.recommendations").joinpath("registry.yaml")
-    try:
-        with resource.open("r", encoding="utf-8") as stream:
-            payload = yaml.load(stream, Loader=_UniqueKeySafeLoader)
-    except (OSError, yaml.YAMLError) as exc:
-        raise ValueError(f"could not load bundled recommendation registry: {exc}") from exc
-    return _parse_recommendation_registry(payload)
+    recommendations, _ = _load_registry_pair()
+    return recommendations
 
 
 def load_research_reference_registry() -> tuple[ResearchReference, ...]:
-    """Load and validate the bundled V5 primary-source reference registry."""
+    """Load both bundled V5 registries and return validated research references."""
 
-    resource = resources.files("docs.recommendations").joinpath("references.yaml")
+    _, references = _load_registry_pair()
+    return references
+
+
+def _load_registry_pair() -> tuple[tuple[Recommendation, ...], tuple[ResearchReference, ...]]:
+    """Load and jointly validate the canonical recommendation and reference resources."""
+
+    recommendation_payload = _load_registry_resource(
+        "registry.yaml",
+        "recommendation registry",
+    )
+    reference_payload = _load_registry_resource(
+        "references.yaml",
+        "research reference registry",
+    )
+    return _parse_registry_pair(recommendation_payload, reference_payload)
+
+
+def _load_registry_resource(filename: str, description: str) -> Any:
+    resource = resources.files("docs.recommendations").joinpath(filename)
     try:
         with resource.open("r", encoding="utf-8") as stream:
-            payload = yaml.load(stream, Loader=_UniqueKeySafeLoader)
+            return yaml.load(stream, Loader=_UniqueKeySafeLoader)
     except (OSError, yaml.YAMLError) as exc:
-        raise ValueError(f"could not load bundled research reference registry: {exc}") from exc
-    return _parse_research_reference_registry(payload)
+        raise ValueError(f"could not load bundled {description}: {exc}") from exc
+
+
+def _parse_registry_pair(
+    recommendation_payload: Any,
+    reference_payload: Any,
+) -> tuple[tuple[Recommendation, ...], tuple[ResearchReference, ...]]:
+    """Parse both documents and enforce their shared relationship contract."""
+
+    recommendations = _parse_recommendation_registry(recommendation_payload)
+    references = _parse_research_reference_registry(reference_payload)
+    _validate_cross_registry_relationships(recommendations, references)
+    return recommendations, references
 
 
 def _parse_recommendation_registry(payload: Any) -> tuple[Recommendation, ...]:
-    """Validate one registry payload loaded from authored YAML."""
+    """Validate one document without cross-registry checks.
+
+    This private function is the explicit low-level boundary for isolated parser tests. Canonical
+    callers must use :func:`load_recommendation_registry` or :func:`_parse_registry_pair` so REF
+    endpoints and reciprocal edges are also validated.
+    """
 
     registry = _require_mapping(payload, "recommendation registry")
     _validate_exact_fields(registry, _REGISTRY_FIELDS, "recommendation registry fields")
@@ -222,7 +252,12 @@ def _parse_recommendation_registry(payload: Any) -> tuple[Recommendation, ...]:
 
 
 def _parse_research_reference_registry(payload: Any) -> tuple[ResearchReference, ...]:
-    """Validate one primary-source registry payload loaded from authored YAML."""
+    """Validate one reference document without cross-registry checks.
+
+    This private function is the explicit low-level boundary for isolated parser tests. Canonical
+    callers must use :func:`load_research_reference_registry` or :func:`_parse_registry_pair` so
+    REC endpoints and reciprocal edges are also validated.
+    """
 
     registry = _require_mapping(payload, "research reference registry")
     _validate_exact_fields(
@@ -238,7 +273,6 @@ def _parse_research_reference_registry(payload: Any) -> tuple[ResearchReference,
         for position, value in enumerate(raw_references, start=1)
     )
     _validate_reference_sequence(references)
-    _validate_reference_relationships(references)
     return references
 
 
@@ -409,14 +443,59 @@ def _validate_relationships(recommendations: tuple[Recommendation, ...]) -> None
                 )
 
 
-def _validate_reference_relationships(references: tuple[ResearchReference, ...]) -> None:
-    known_ids = {record.recommendation_id for record in load_recommendation_registry()}
-    for record in references:
-        unknown = sorted(set(record.recommendation_ids) - known_ids)
-        if unknown:
-            raise ValueError(
-                f"{record.reference_id} recommendation_ids reference unknown IDs: {unknown}"
-            )
+def _validate_cross_registry_relationships(
+    recommendations: tuple[Recommendation, ...],
+    references: tuple[ResearchReference, ...],
+) -> None:
+    known_reference_ids = {record.reference_id for record in references}
+    recommendation_reference_ids = {
+        reference_id for record in recommendations for reference_id in record.research_refs
+    }
+    unknown_reference_ids = sorted(recommendation_reference_ids - known_reference_ids)
+    if unknown_reference_ids:
+        raise ValueError(
+            "recommendation registry research_refs reference unknown IDs: "
+            f"{unknown_reference_ids}"
+        )
+
+    known_recommendation_ids = {record.recommendation_id for record in recommendations}
+    reference_recommendation_ids = {
+        recommendation_id
+        for record in references
+        for recommendation_id in record.recommendation_ids
+    }
+    unknown_recommendation_ids = sorted(reference_recommendation_ids - known_recommendation_ids)
+    if unknown_recommendation_ids:
+        raise ValueError(
+            "research reference registry recommendation_ids reference unknown IDs: "
+            f"{unknown_recommendation_ids}"
+        )
+
+    recommendation_edges = {
+        (record.recommendation_id, reference_id)
+        for record in recommendations
+        for reference_id in record.research_refs
+    }
+    reference_edges = {
+        (recommendation_id, record.reference_id)
+        for record in references
+        for recommendation_id in record.recommendation_ids
+    }
+    missing_from_references = sorted(recommendation_edges - reference_edges)
+    missing_from_recommendations = sorted(reference_edges - recommendation_edges)
+    errors = []
+    if missing_from_references:
+        errors.append(
+            "recommendation registry edges missing from research reference registry: "
+            f"{missing_from_references}"
+        )
+    if missing_from_recommendations:
+        errors.append(
+            "research reference registry edges missing from recommendation registry: "
+            f"{missing_from_recommendations}"
+        )
+    if errors:
+        raise ValueError("; ".join(errors))
 
 
 def _validate_metadata_by_status(
