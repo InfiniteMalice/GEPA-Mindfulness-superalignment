@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import TypeVar, cast
 
+from evaluation.v5_records import V5EvaluationRecord
 from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
 
 EnumT = TypeVar("EnumT", bound=Enum)
@@ -43,6 +46,135 @@ class LessonReviewStatus(str, Enum):
     PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"
+
+
+@dataclass(frozen=True, slots=True)
+class EvaluationEpoch:
+    """One immutable model-and-harness boundary for declared V5 records."""
+
+    epoch_id: str
+    model_version: str
+    harness_version: str
+    record_ids: tuple[str, ...]
+    closed: bool = False
+
+    def __post_init__(self) -> None:
+        _validate_epoch_fields(self)
+
+    def to_dict(self) -> dict[str, object]:
+        """Return an exact JSON-compatible epoch snapshot."""
+
+        snapshot = _snapshot_epoch(self)
+        return {
+            "epoch_id": snapshot.epoch_id,
+            "model_version": snapshot.model_version,
+            "harness_version": snapshot.harness_version,
+            "record_ids": list(snapshot.record_ids),
+            "closed": snapshot.closed,
+        }
+
+    @classmethod
+    def from_dict(cls, data: object) -> EvaluationEpoch:
+        """Restore an epoch from its exact JSON-compatible record."""
+
+        values = _require_exact_mapping(
+            data,
+            {"epoch_id", "model_version", "harness_version", "record_ids", "closed"},
+            "EvaluationEpoch",
+        )
+        raw_record_ids = values["record_ids"]
+        if type(raw_record_ids) is not list:
+            raise ValueError("EvaluationEpoch record_ids must be an array")
+        record_ids = cast(list[object], raw_record_ids)
+        return cls(
+            epoch_id=cast(str, values["epoch_id"]),
+            model_version=cast(str, values["model_version"]),
+            harness_version=cast(str, values["harness_version"]),
+            record_ids=tuple(cast(str, item) for item in record_ids),
+            closed=_require_exact_bool(values["closed"], "closed"),
+        )
+
+
+def evaluation_record_id(record: V5EvaluationRecord) -> str:
+    """Return a content-bound identifier for one revalidated canonical V5 record."""
+
+    snapshot = _snapshot_evaluation_record(record)
+    return _evaluation_record_id_from_snapshot(snapshot)
+
+
+def validate_epoch_record(epoch: EvaluationEpoch, record: V5EvaluationRecord) -> None:
+    """Require one exact V5 record to match its declared immutable epoch membership."""
+
+    epoch_snapshot = _snapshot_epoch(epoch)
+    record_snapshot = _snapshot_evaluation_record(record)
+    if record_snapshot.system.model_version != epoch_snapshot.model_version:
+        raise ValueError("record model_version does not match evaluation epoch")
+    if record_snapshot.system.harness_version != epoch_snapshot.harness_version:
+        raise ValueError("record harness_version does not match evaluation epoch")
+    record_id = _evaluation_record_id_from_snapshot(record_snapshot)
+    if record_id not in epoch_snapshot.record_ids:
+        raise ValueError("record identity is not declared in evaluation epoch record_ids")
+
+
+def append_epoch_record(
+    epoch: EvaluationEpoch,
+    record: V5EvaluationRecord,
+) -> EvaluationEpoch:
+    """Append online evidence without changing the open epoch's system versions."""
+
+    epoch_snapshot = _snapshot_epoch(epoch)
+    if epoch_snapshot.closed:
+        raise ValueError("cannot append a record to a closed evaluation epoch")
+    record_snapshot = _snapshot_evaluation_record(record)
+    if record_snapshot.system.model_version != epoch_snapshot.model_version:
+        raise ValueError("record model_version does not match evaluation epoch")
+    if record_snapshot.system.harness_version != epoch_snapshot.harness_version:
+        raise ValueError("record harness_version does not match evaluation epoch")
+    record_id = _evaluation_record_id_from_snapshot(record_snapshot)
+    if record_id in epoch_snapshot.record_ids:
+        raise ValueError("cannot append a duplicate evaluation record")
+    return EvaluationEpoch(
+        epoch_id=epoch_snapshot.epoch_id,
+        model_version=epoch_snapshot.model_version,
+        harness_version=epoch_snapshot.harness_version,
+        record_ids=epoch_snapshot.record_ids + (record_id,),
+        closed=False,
+    )
+
+
+def begin_candidate_epoch(
+    epoch_history: tuple[EvaluationEpoch, ...],
+    *,
+    epoch_id: str,
+    model_version: str,
+    harness_version: str,
+) -> EvaluationEpoch:
+    """Begin a candidate epoch after a closed lineage with non-reused changed versions."""
+
+    history = _snapshot_epoch_history(epoch_history)
+    source = history[-1]
+    if not source.closed:
+        raise ValueError("source epoch must be closed before a candidate version is evaluated")
+    candidate = EvaluationEpoch(
+        epoch_id=epoch_id,
+        model_version=model_version,
+        harness_version=harness_version,
+        record_ids=(),
+        closed=False,
+    )
+    if candidate.epoch_id in {epoch.epoch_id for epoch in history}:
+        raise ValueError("candidate epoch_id must be new within the declared epoch history")
+    model_changed = candidate.model_version != source.model_version
+    harness_changed = candidate.harness_version != source.harness_version
+    if not model_changed and not harness_changed:
+        raise ValueError("candidate must declare a new model_version or harness_version")
+    if model_changed and candidate.model_version in {epoch.model_version for epoch in history}:
+        raise ValueError("candidate model_version must not reuse a prior model_version")
+    if harness_changed and candidate.harness_version in {
+        epoch.harness_version for epoch in history
+    }:
+        raise ValueError("candidate harness_version must not reuse a prior harness_version")
+    return candidate
 
 
 @dataclass(frozen=True, slots=True)
@@ -217,6 +349,72 @@ def _validate_characteristics_fields(value: LessonCharacteristics) -> None:
     _require_exact_bool(value.difficult_to_reverse, "difficult_to_reverse")
 
 
+def _validate_epoch_fields(value: EvaluationEpoch) -> None:
+    _require_epoch_token(value.epoch_id, "epoch_id")
+    _require_epoch_token(value.model_version, "model_version")
+    _require_epoch_token(value.harness_version, "harness_version")
+    if type(value.record_ids) is not tuple:
+        raise ValueError("record_ids must be an exact tuple")
+    record_ids = tuple(
+        _require_epoch_token(record_id, "record_ids") for record_id in value.record_ids
+    )
+    if len(set(record_ids)) != len(record_ids):
+        raise ValueError("record_ids must not contain duplicate record IDs")
+    _require_exact_bool(value.closed, "closed")
+
+
+def _snapshot_epoch(value: object) -> EvaluationEpoch:
+    if type(value) is not EvaluationEpoch:
+        raise ValueError("epoch must be an exact EvaluationEpoch")
+    _validate_epoch_fields(value)
+    return EvaluationEpoch(
+        epoch_id=value.epoch_id,
+        model_version=value.model_version,
+        harness_version=value.harness_version,
+        record_ids=value.record_ids,
+        closed=value.closed,
+    )
+
+
+def _snapshot_epoch_history(values: object) -> tuple[EvaluationEpoch, ...]:
+    if type(values) is not tuple:
+        raise ValueError("epoch_history must be an exact tuple")
+    epochs = tuple(_snapshot_epoch(value) for value in values)
+    if not epochs:
+        raise ValueError("epoch_history must contain a source epoch")
+    epoch_ids = tuple(epoch.epoch_id for epoch in epochs)
+    if len(set(epoch_ids)) != len(epoch_ids):
+        raise ValueError("epoch_history must contain unique epoch_id values")
+    if any(not epoch.closed for epoch in epochs[:-1]):
+        raise ValueError("every prior evaluation epoch must be closed")
+    return epochs
+
+
+def _snapshot_evaluation_record(value: object) -> V5EvaluationRecord:
+    if type(value) is not V5EvaluationRecord:
+        raise ValueError("record must be an exact V5EvaluationRecord")
+    try:
+        return V5EvaluationRecord.from_dict(value.to_dict())
+    except (AttributeError, TypeError) as exc:
+        raise ValueError("record must remain a valid V5EvaluationRecord") from exc
+
+
+def _evaluation_record_id_from_snapshot(record: V5EvaluationRecord) -> str:
+    payload = json.dumps(
+        record.to_dict(),
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return f"sha256:{hashlib.sha256(payload).hexdigest()}"
+
+
+def _require_epoch_token(value: object, field_name: str) -> str:
+    if type(value) is not str or not value.strip() or value != value.strip():
+        raise ValueError(f"{field_name} must be a nonblank string without surrounding whitespace")
+    return value
+
+
 def _snapshot_characteristics(value: object) -> LessonCharacteristics:
     if type(value) is not LessonCharacteristics:
         raise ValueError("characteristics must be an exact LessonCharacteristics")
@@ -337,10 +535,15 @@ def _require_exact_mapping(
 
 
 __all__ = [
+    "EvaluationEpoch",
     "LearningSurface",
     "LessonCharacteristics",
     "LessonKind",
     "LessonProposal",
     "LessonReviewStatus",
+    "append_epoch_record",
+    "begin_candidate_epoch",
     "classify_learning_surface",
+    "evaluation_record_id",
+    "validate_epoch_record",
 ]
