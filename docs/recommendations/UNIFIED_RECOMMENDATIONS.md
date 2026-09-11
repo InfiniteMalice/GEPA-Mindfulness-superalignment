@@ -48,19 +48,20 @@ a design choice, but do not establish this architecture as an empirical result.
 #### REC-006 — World/artifact state != evidence/belief state.
 
 - Repository evidence: [`logging_schema.py`](../../src/mindful_trace_gepa/logging_schema.py).
-- Planned acceptance checks: `tests/test_verification_state.py`.
+- Acceptance checks: [`test_world_evidence_state.py`](../../tests/test_world_evidence_state.py).
 - Research: [`REF-EDGEMEM`](RESEARCH_TRACEABILITY.md#ref-edgemem), [`REF-GRAPHMEM`](RESEARCH_TRACEABILITY.md#ref-graphmem).
 
 #### REC-007 — Structured failure graph.
 
 - Repository evidence: [`logging_schema.py`](../../src/mindful_trace_gepa/logging_schema.py).
-- Planned acceptance checks: `tests/test_failure_graph.py`.
+- Acceptance checks: [`test_failure_graph.py`](../../tests/test_failure_graph.py).
 - Research: [`REF-AGENTSCOPE`](RESEARCH_TRACEABILITY.md#ref-agentscope).
 
 #### REC-008 — Runtime Planner/Executor/Verifier authority separation.
 
 - Repository evidence: [`logging_schema.py`](../../src/mindful_trace_gepa/logging_schema.py).
-- Planned acceptance checks: `tests/test_runtime_governance.py`.
+- Acceptance checks: [`test_runtime_authority.py`](../../tests/test_runtime_authority.py),
+  [`test_verifier_interfaces.py`](../../tests/test_verifier_interfaces.py).
 - Research: [`REF-HEART`](RESEARCH_TRACEABILITY.md#ref-heart), [`REF-BIOMETRIC-MEM`](RESEARCH_TRACEABILITY.md#ref-biometric-mem).
 
 #### REC-009 — Verified skill lifecycle.

@@ -280,6 +280,10 @@ See `docs/grn_integration.md` for configurable Global Response Normalization usa
 ### Core Alignment Stack
 
 * **GEPA scoring primitives** — `gepa_mindfulness/core` models contemplative principles, paraconsistent imperatives, abstention, and reward shaping.
+* **[Verification and runtime authority](docs/VERIFICATION_AND_RUNTIME_AUTHORITY.md)** —
+  `gepa_mindfulness/verification` keeps observed world changes, evidence claims, verifier findings,
+  failure relations, authority decisions, and bounded recovery as distinct typed records with
+  explicit trust boundaries.
 * **Training orchestration** — `gepa_mindfulness/training` wires PPO utilities, abstention checks, optional deception heuristics, and CLI tooling into reproducible training loops.
 * **DSPy-style pipelines** — `src/mindful_trace_gepa/dspy_modules` provides guardrailed declarative chains that emit GEPA checkpoints and can be compiled into manifests when `dspy-ai` is installed.
 * **Offline trace viewer** — `src/mindful_trace_gepa/viewer` bundles traces, token confidence curves, and deception overlays into a portable HTML file.

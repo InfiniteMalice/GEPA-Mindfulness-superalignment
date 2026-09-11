@@ -140,7 +140,7 @@ recommendations:
     repo_refs:
       - src/mindful_trace_gepa/logging_schema.py
     acceptance_tests:
-      - tests/test_verification_state.py
+      - tests/test_world_evidence_state.py
     implementation_refs: []
 
   - id: REC-007
@@ -182,7 +182,8 @@ recommendations:
     repo_refs:
       - src/mindful_trace_gepa/logging_schema.py
     acceptance_tests:
-      - tests/test_runtime_governance.py
+      - tests/test_runtime_authority.py
+      - tests/test_verifier_interfaces.py
     implementation_refs: []
 
   - id: REC-009
