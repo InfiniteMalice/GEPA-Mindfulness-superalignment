@@ -2,6 +2,7 @@
 
 from .verification.runtime_governance import (
     AuthorityGrant,
+    AuthorityGrantRegistry,
     AuthorizationDecision,
     AuthorizationReason,
     IrreversibleApprovalBinding,
@@ -15,6 +16,7 @@ from .verification.runtime_governance import (
 
 __all__ = [
     "AuthorityGrant",
+    "AuthorityGrantRegistry",
     "AuthorizationDecision",
     "AuthorizationReason",
     "IrreversibleApprovalBinding",

@@ -12,6 +12,7 @@ import pytest
 from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
 from gepa_mindfulness.verification import (
     AuthorityGrant,
+    AuthorityGrantRegistry,
     AuthorizationDecision,
     AuthorizationReason,
     IrreversibleApprovalBinding,
@@ -90,12 +91,14 @@ def _authorize(
     clock: TrustedClock | None = None,
     irreversible_approval: IrreversibleApprovalBinding | None = None,
 ) -> AuthorizationDecision:
+    registry = AuthorityGrantRegistry.enroll(grants)
     return authorize_action(
         _action() if action is None else action,
         principal_id=principal_id,
         role=role,
         capability=capability,
-        grants=grants,
+        grant_registry=registry,
+        grant_ids=tuple(grant.grant_id for grant in grants),
         clock=_clock() if clock is None else clock,
         action_author_id=action_author_id,
         action_executor_id=action_executor_id,
@@ -231,10 +234,8 @@ def test_multiple_matching_grants_fail_closed_as_ambiguous() -> None:
 def test_duplicate_grant_ids_fail_closed() -> None:
     duplicated = (_grant(), _grant())
 
-    decision = _authorize(RuntimeCapability.EXECUTE, duplicated)
-
-    assert decision.authorized is False
-    assert decision.reason == "duplicate_grant_ids"
+    with pytest.raises(ValueError, match="unique"):
+        AuthorityGrantRegistry.enroll(duplicated)
 
 
 def test_coordinator_label_has_only_capabilities_listed_in_typed_grant() -> None:
@@ -540,7 +541,8 @@ def test_authorize_action_rejects_subclasses_and_string_enum_standins() -> None:
             principal_id="executor-1",
             role=cast(Any, "executor"),
             capability=RuntimeCapability.EXECUTE,
-            grants=(grant,),
+            grant_registry=AuthorityGrantRegistry.enroll((grant,)),
+            grant_ids=(grant.grant_id,),
             clock=_clock(),
         )
     with pytest.raises(ValueError, match="capability"):
@@ -549,7 +551,8 @@ def test_authorize_action_rejects_subclasses_and_string_enum_standins() -> None:
             principal_id="executor-1",
             role=RuntimeRole.EXECUTOR,
             capability=cast(Any, "execute"),
-            grants=(grant,),
+            grant_registry=AuthorityGrantRegistry.enroll((grant,)),
+            grant_ids=(grant.grant_id,),
             clock=_clock(),
         )
     with pytest.raises(ValueError, match="exact AuthorityGrant"):
@@ -687,7 +690,7 @@ def test_authorized_decision_is_consumed_only_after_authoritative_revalidation()
     current = consume_authorization(
         serialized,
         action,
-        grants=(grant,),
+        grant_registry=AuthorityGrantRegistry.enroll((grant,)),
         clock=_clock("2026-09-10T11:30:00+00:00"),
     )
 
@@ -710,7 +713,7 @@ def test_consumption_revalidates_structured_irreversible_approval() -> None:
     current = consume_authorization(
         issued,
         action,
-        grants=(executor, human),
+        grant_registry=AuthorityGrantRegistry.enroll((executor, human)),
         clock=_clock("2026-09-10T11:30:00+00:00"),
     )
     forged_data = issued.to_dict()
@@ -723,7 +726,7 @@ def test_consumption_revalidates_structured_irreversible_approval() -> None:
         consume_authorization(
             forged,
             action,
-            grants=(executor, human),
+            grant_registry=AuthorityGrantRegistry.enroll((executor, human)),
             clock=_clock("2026-09-10T11:30:00+00:00"),
         )
 
@@ -743,7 +746,12 @@ def test_consumption_rejects_forged_or_deserialized_decisions(forged_field: str)
     forged = AuthorizationDecision.from_dict(json.loads(json.dumps(data)))
 
     with pytest.raises(PermissionError, match="current authoritative authorization"):
-        consume_authorization(forged, action, grants=(grant,), clock=_clock())
+        consume_authorization(
+            forged,
+            action,
+            grant_registry=AuthorityGrantRegistry.enroll((grant,)),
+            clock=_clock(),
+        )
 
 
 def test_to_dict_revalidates_mutated_decision_and_nested_approval() -> None:
@@ -788,7 +796,7 @@ def test_consumption_rejects_decision_replay_at_effective_expiry() -> None:
         consume_authorization(
             decision,
             action,
-            grants=(grant,),
+            grant_registry=AuthorityGrantRegistry.enroll((grant,)),
             clock=_clock("2026-09-10T12:00:00+00:00"),
         )
 
@@ -811,7 +819,8 @@ def test_authorization_time_comes_only_from_injected_trusted_clock() -> None:
             principal_id="executor-1",
             role=RuntimeRole.EXECUTOR,
             capability=RuntimeCapability.EXECUTE,
-            grants=(grant,),
+            grant_registry=AuthorityGrantRegistry.enroll((grant,)),
+            grant_ids=(grant.grant_id,),
             clock=_clock("2026-09-10T12:00:01+00:00"),
             observed_at="2026-09-10T11:00:00Z",
         )
@@ -859,6 +868,115 @@ def test_top_level_runtime_governance_module_preserves_public_compatibility() ->
     from gepa_mindfulness.verification import runtime_governance as verification_runtime
 
     assert public_runtime.AuthorityGrant is verification_runtime.AuthorityGrant
+    assert public_runtime.AuthorityGrantRegistry is verification_runtime.AuthorityGrantRegistry
     assert public_runtime.AuthorizationDecision is verification_runtime.AuthorizationDecision
     assert public_runtime.authorize_action is verification_runtime.authorize_action
     assert public_runtime.consume_authorization is verification_runtime.consume_authorization
+
+
+def test_enrollment_snapshots_prevent_coherent_grant_retargeting() -> None:
+    original_action = _action()
+    retargeted_action = _action(
+        action_class="delete",
+        reversible=False,
+        scope="repo:tests",
+        prediction_id="prediction-2",
+    )
+    original_grant = _grant(action=original_action)
+    registry = AuthorityGrantRegistry.enroll((original_grant,))
+    object.__setattr__(original_grant, "action_id", retargeted_action.action_id)
+    object.__setattr__(
+        original_grant,
+        "action_digest",
+        action_record_digest(retargeted_action),
+    )
+    object.__setattr__(
+        original_grant,
+        "authorization_scope",
+        retargeted_action.authorization_scope,
+    )
+    object.__setattr__(original_grant, "principal_id", "attacker")
+    object.__setattr__(original_grant, "capabilities", (RuntimeCapability.WRITE,))
+    object.__setattr__(original_grant, "expires_at", "2026-09-11T12:00:00Z")
+
+    original = authorize_action(
+        original_action,
+        principal_id="executor-1",
+        role=RuntimeRole.EXECUTOR,
+        capability=RuntimeCapability.EXECUTE,
+        grant_registry=registry,
+        grant_ids=("grant-1",),
+        clock=_clock(),
+    )
+    retargeted = authorize_action(
+        retargeted_action,
+        principal_id="attacker",
+        role=RuntimeRole.EXECUTOR,
+        capability=RuntimeCapability.WRITE,
+        grant_registry=registry,
+        grant_ids=("grant-1",),
+        clock=_clock(),
+    )
+
+    assert original.authorized is True
+    assert retargeted.reason is AuthorizationReason.NO_MATCHING_GRANT
+
+
+def test_registry_resolution_returns_defensive_snapshots_without_aliases() -> None:
+    grant = _grant()
+    registry = AuthorityGrantRegistry.enroll((grant,))
+    resolved = registry.resolve((grant.grant_id,))[0]
+    object.__setattr__(resolved, "principal_id", "attacker")
+
+    fresh = registry.resolve((grant.grant_id,))[0]
+
+    assert fresh.principal_id == "executor-1"
+    assert fresh is not grant
+    assert fresh is not resolved
+
+
+def test_registry_rejects_duplicate_enrollment_and_ambiguous_or_unknown_resolution() -> None:
+    grant = _grant()
+    with pytest.raises(ValueError, match="unique"):
+        AuthorityGrantRegistry.enroll((grant, grant))
+    registry = AuthorityGrantRegistry.enroll((grant,))
+
+    with pytest.raises(ValueError, match="unique"):
+        registry.resolve((grant.grant_id, grant.grant_id))
+    with pytest.raises(KeyError, match="unknown authority grant"):
+        registry.resolve(("unknown-grant",))
+
+
+def test_authorization_accepts_only_an_enrolled_exact_registry() -> None:
+    action = _action()
+    grant = _grant(action=action)
+
+    with pytest.raises(TypeError, match="unexpected keyword argument 'grants'"):
+        cast(Any, authorize_action)(
+            action,
+            principal_id="executor-1",
+            role=RuntimeRole.EXECUTOR,
+            capability=RuntimeCapability.EXECUTE,
+            grants=(grant,),
+            clock=_clock(),
+        )
+    with pytest.raises(ValueError, match="exact AuthorityGrantRegistry"):
+        authorize_action(
+            action,
+            principal_id="executor-1",
+            role=RuntimeRole.EXECUTOR,
+            capability=RuntimeCapability.EXECUTE,
+            grant_registry=cast(Any, object()),
+            grant_ids=(grant.grant_id,),
+            clock=_clock(),
+        )
+
+
+def test_mutating_authoritative_registry_storage_fails_closed() -> None:
+    grant = _grant()
+    registry = AuthorityGrantRegistry.enroll((grant,))
+    forged = _grant(principal_id="attacker")
+    object.__setattr__(registry, "_entries", (forged,))
+
+    with pytest.raises(ValueError, match="registry integrity"):
+        registry.resolve((grant.grant_id,))

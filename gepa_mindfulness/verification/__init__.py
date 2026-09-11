@@ -20,6 +20,7 @@ from .interfaces import (
 )
 from .runtime_governance import (
     AuthorityGrant,
+    AuthorityGrantRegistry,
     AuthorizationDecision,
     AuthorizationReason,
     IrreversibleApprovalBinding,
@@ -34,6 +35,7 @@ from .state import EvidenceClaim, EvidenceState, WorldStateChange
 
 __all__ = [
     "AuthorityGrant",
+    "AuthorityGrantRegistry",
     "AuthorizationDecision",
     "AuthorizationReason",
     "EvidenceClaim",

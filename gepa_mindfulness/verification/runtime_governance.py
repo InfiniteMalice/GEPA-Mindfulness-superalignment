@@ -1,12 +1,14 @@
 """Least-authority grants for runtime actions.
 
 Before a runtime consumer uses a stored ``AuthorizationDecision``, the consumer must call
-``consume_authorization`` with the current action, authoritative grants, and trusted clock.
+``consume_authorization`` with the current action, authoritative grant registry, and trusted
+clock.
 """
 
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -202,6 +204,55 @@ class AuthorityGrant:
             expires_at=cast(str | None, values["expires_at"]),
             evidence_refs=_restore_evidence_refs(values["evidence_refs"]),
         )
+
+
+class AuthorityGrantRegistry:
+    """An authoritative local store of defensively enrolled grant snapshots.
+
+    ``enroll`` is the trust boundary: the runtime owner must authenticate issuers before
+    enrollment. This local registry detects later mutation but does not authenticate issuers or
+    provide cryptographic signatures. Authorization accepts only an exact enrolled registry and
+    never accepts raw grants.
+    """
+
+    __slots__ = ("_entries", "_seal")
+    _entries: tuple[AuthorityGrant, ...]
+    _seal: str
+
+    def __init__(self) -> None:
+        """Prevent construction that bypasses explicit enrollment."""
+
+        raise TypeError("use AuthorityGrantRegistry.enroll()")
+
+    def __setattr__(self, name: str, value: object) -> None:
+        """Keep enrolled storage read-only through the public object interface."""
+
+        del name, value
+        raise AttributeError("AuthorityGrantRegistry is read-only")
+
+    @classmethod
+    def enroll(cls, grants: Sequence[AuthorityGrant]) -> AuthorityGrantRegistry:
+        """Create an authoritative registry after the runtime owner authenticates issuers."""
+
+        snapshots = _snapshot_grants(grants)
+        grant_ids = tuple(grant.grant_id for grant in snapshots)
+        if len(set(grant_ids)) != len(grant_ids):
+            raise ValueError("enrolled AuthorityGrant IDs must be unique")
+        registry = object.__new__(cls)
+        object.__setattr__(registry, "_entries", snapshots)
+        object.__setattr__(registry, "_seal", _registry_digest(snapshots))
+        return registry
+
+    def resolve(self, grant_ids: Sequence[str]) -> tuple[AuthorityGrant, ...]:
+        """Return defensive snapshots for exact, unique enrolled grant IDs."""
+
+        entries = _validated_registry_entries(self)
+        requested_ids = _snapshot_grant_ids(grant_ids)
+        grants_by_id = {grant.grant_id: grant for grant in entries}
+        missing = [grant_id for grant_id in requested_ids if grant_id not in grants_by_id]
+        if missing:
+            raise KeyError(f"unknown authority grant IDs {missing!r}")
+        return tuple(_snapshot_grant(grants_by_id[grant_id]) for grant_id in requested_ids)
 
 
 @dataclass(frozen=True, slots=True)
@@ -414,7 +465,8 @@ def authorize_action(
     principal_id: str,
     role: RuntimeRole,
     capability: RuntimeCapability,
-    grants: Sequence[AuthorityGrant],
+    grant_registry: AuthorityGrantRegistry,
+    grant_ids: Sequence[str],
     clock: TrustedClock,
     action_author_id: str | None = None,
     action_executor_id: str | None = None,
@@ -437,17 +489,7 @@ def authorize_action(
     observed = _read_trusted_time(clock)
     observed_at = _format_datetime(observed)
     approval = _snapshot_optional_approval(irreversible_approval)
-    snapshots = _snapshot_grants(grants)
-    if len({grant.grant_id for grant in snapshots}) != len(snapshots):
-        return _deny(
-            action,
-            action_digest,
-            principal_id,
-            role,
-            capability,
-            AuthorizationReason.DUPLICATE_GRANT_IDS,
-            observed_at,
-        )
+    snapshots = _resolve_registry_grants(grant_registry, grant_ids)
 
     candidates = _matching_grants(
         action,
@@ -568,7 +610,7 @@ def consume_authorization(
     decision: AuthorizationDecision,
     action: ActionRecord,
     *,
-    grants: Sequence[AuthorityGrant],
+    grant_registry: AuthorityGrantRegistry,
     clock: TrustedClock,
     action_author_id: str | None = None,
     action_executor_id: str | None = None,
@@ -578,17 +620,26 @@ def consume_authorization(
     snapshot = _snapshot_decision(decision)
     if not snapshot.authorized:
         raise PermissionError("decision has no authority to consume")
-    current = authorize_action(
-        action,
-        principal_id=snapshot.principal_id,
-        role=snapshot.role,
-        capability=snapshot.capability,
-        grants=grants,
-        clock=clock,
-        action_author_id=action_author_id,
-        action_executor_id=action_executor_id,
-        irreversible_approval=snapshot.irreversible_approval,
-    )
+    grant_ids = [cast(str, snapshot.grant_id)]
+    if snapshot.irreversible_approval is not None:
+        grant_ids.append(snapshot.irreversible_approval.authorization_grant_id)
+    try:
+        current = authorize_action(
+            action,
+            principal_id=snapshot.principal_id,
+            role=snapshot.role,
+            capability=snapshot.capability,
+            grant_registry=grant_registry,
+            grant_ids=tuple(grant_ids),
+            clock=clock,
+            action_author_id=action_author_id,
+            action_executor_id=action_executor_id,
+            irreversible_approval=snapshot.irreversible_approval,
+        )
+    except KeyError as exc:
+        raise PermissionError(
+            "decision does not match current authoritative authorization"
+        ) from exc
     if not current.authorized or not _same_authority(snapshot, current):
         raise PermissionError("decision does not match current authoritative authorization")
     if _parse_rfc3339(snapshot.observed_at) > _parse_rfc3339(current.observed_at):
@@ -669,6 +720,51 @@ def _snapshot_grants(value: object) -> tuple[AuthorityGrant, ...]:
     if isinstance(value, (str, bytes, Mapping)) or not isinstance(value, Sequence):
         raise ValueError("grants must be an ordered array of AuthorityGrant values")
     return tuple(_snapshot_grant(grant) for grant in value)
+
+
+def _snapshot_grant_ids(value: object) -> tuple[str, ...]:
+    if isinstance(value, (str, bytes, Mapping)) or not isinstance(value, Sequence):
+        raise ValueError("grant_ids must be an ordered array of exact strings")
+    grant_ids: list[str] = []
+    for grant_id in value:
+        grant_ids.append(_require_nonblank_string(grant_id, "grant_ids item"))
+    if len(set(grant_ids)) != len(grant_ids):
+        raise ValueError("grant_ids must be unique")
+    return tuple(grant_ids)
+
+
+def _registry_digest(entries: tuple[AuthorityGrant, ...]) -> str:
+    payload = json.dumps(
+        [grant.to_dict() for grant in entries],
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _validated_registry_entries(registry: object) -> tuple[AuthorityGrant, ...]:
+    if type(registry) is not AuthorityGrantRegistry:
+        raise ValueError("grant_registry must be an exact AuthorityGrantRegistry")
+    entries = registry._entries
+    seal = registry._seal
+    if type(entries) is not tuple or type(seal) is not str:
+        raise ValueError("authority registry integrity check failed")
+    snapshots = _snapshot_grants(entries)
+    if len({grant.grant_id for grant in snapshots}) != len(snapshots):
+        raise ValueError("authority registry integrity check failed")
+    if not hmac.compare_digest(seal, _registry_digest(snapshots)):
+        raise ValueError("authority registry integrity check failed")
+    return snapshots
+
+
+def _resolve_registry_grants(
+    registry: object,
+    grant_ids: object,
+) -> tuple[AuthorityGrant, ...]:
+    if type(registry) is not AuthorityGrantRegistry:
+        raise ValueError("grant_registry must be an exact AuthorityGrantRegistry")
+    return cast(AuthorityGrantRegistry, registry).resolve(cast(Sequence[str], grant_ids))
 
 
 def _snapshot_decision(decision: object) -> AuthorizationDecision:
@@ -943,6 +1039,7 @@ def _restore_evidence_refs(value: object) -> tuple[EvidenceReference, ...]:
 
 __all__ = [
     "AuthorityGrant",
+    "AuthorityGrantRegistry",
     "AuthorizationDecision",
     "AuthorizationReason",
     "IrreversibleApprovalBinding",
