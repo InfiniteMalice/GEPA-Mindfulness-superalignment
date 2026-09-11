@@ -56,6 +56,20 @@ Dry-run mode loads cases and emits planned evaluations:
 python -m evaluation.run_alignment_battery --suite simpleqa --dry-run --output-path alignment_battery_results.jsonl
 ```
 
+## V5 framework planner
+
+The [`evaluation.run_v5_framework`](../evaluation/run_v5_framework.py) module emits deterministic
+case-by-stripe-by-repeat plans without model execution. Provide explicit model and harness versions
+so the generated JSONL records identify the planned system:
+
+```bash
+python -m evaluation.run_v5_framework --dry-run --model-version mindful-model-2026-09-10 \
+  --harness-version v5-harness-1.0.0 --output v5_planned_cells.jsonl
+```
+
+The V5 planner JSONL schema is separate from the legacy alignment battery result schema described
+below. Do not use V5 planned-cell records as legacy benchmark results.
+
 Response scoring mode reads precomputed model answers:
 
 ```bash
