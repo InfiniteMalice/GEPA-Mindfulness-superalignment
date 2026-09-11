@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -53,6 +54,13 @@ class StructuredEventType(str, Enum):
     INTERNAL_STATE_TRAJECTORY_SNAPSHOT = "internal_state_trajectory_snapshot"
     ADAPTIVE_ATTACK_RUN = "adaptive_attack_run"
     MONITOR_BYPASS_TEST_RESULT = "monitor_bypass_test_result"
+    PREDICTION_COMMIT = "prediction_commit"
+    ACTION_PROPOSED = "action_proposed"
+    ACTION_EXECUTED = "action_executed"
+    OUTCOME_OBSERVED = "outcome_observed"
+    VERIFICATION_RESULT = "verification_result"
+    EPISTEMIC_ASSESSMENT = "epistemic_assessment"
+    CASE_ASSESSMENT = "case_assessment"
 
 
 @dataclass(frozen=True)
@@ -74,6 +82,50 @@ class EventEnvelope:
     policy_version: str | None = None
     config_hash: str | None = None
     payload: dict[str, Any] = field(default_factory=dict)
+    action_id: str | None = None
+    parent_event_ids: tuple[str, ...] = ()
+    evidence_refs: tuple[str, ...] = ()
+    model_version: str | None = None
+    harness_version: str | None = None
+    case_version: str | None = None
+    case_id: int | None = None
+    stripe_id: str | None = None
+    repeat_id: int | None = None
+    seed: int | None = None
+    authorization_scope: str | None = None
+    verifier_refs: tuple[str, ...] = ()
+    valid_from: str | None = None
+    valid_until: str | None = None
+    superseded_by: str | None = None
+
+    def __post_init__(self) -> None:
+        """Validate action-bound metadata and snapshot reference collections."""
+
+        for field_name in (
+            "action_id",
+            "model_version",
+            "harness_version",
+            "case_version",
+            "stripe_id",
+            "authorization_scope",
+            "superseded_by",
+        ):
+            _validate_optional_nonblank_string(field_name, getattr(self, field_name))
+
+        for field_name in ("parent_event_ids", "evidence_refs", "verifier_refs"):
+            object.__setattr__(
+                self,
+                field_name,
+                _coerce_reference_tuple(field_name, getattr(self, field_name)),
+            )
+
+        _validate_optional_case_id(self.case_id)
+        _validate_optional_nonnegative_int("repeat_id", self.repeat_id)
+        _validate_optional_int("seed", self.seed)
+        valid_from = _parse_validity_bound("valid_from", self.valid_from)
+        valid_until = _parse_validity_bound("valid_until", self.valid_until)
+        if valid_from is not None and valid_until is not None and valid_until < valid_from:
+            raise ValueError("valid_until must not be earlier than valid_from")
 
     def to_dict(self) -> dict[str, Any]:
         return {key: value for key, value in asdict(self).items() if value is not None}
@@ -163,6 +215,52 @@ def trainer_metric_optional_fields(**refs: Any) -> dict[str, Any]:
         "monitor_bypass_test_result_reference",
     }
     return {key: value for key, value in refs.items() if key in allowed and value is not None}
+
+
+def _validate_optional_nonblank_string(field_name: str, value: object) -> None:
+    if value is not None and (not isinstance(value, str) or not value.strip()):
+        raise ValueError(f"{field_name} must be a nonblank string when supplied")
+
+
+def _coerce_reference_tuple(field_name: str, values: object) -> tuple[str, ...]:
+    if isinstance(values, str) or not isinstance(values, Iterable):
+        raise ValueError(f"{field_name} must be an iterable of nonblank strings")
+    references = tuple(values)
+    for reference in references:
+        if not isinstance(reference, str) or not reference.strip():
+            raise ValueError(f"{field_name} must contain only nonblank strings")
+    return references
+
+
+def _validate_optional_case_id(case_id: object) -> None:
+    if case_id is not None and (type(case_id) is not int or not 0 <= case_id <= 17):
+        raise ValueError("case_id must be a built-in integer from 0 through 17 when supplied")
+
+
+def _validate_optional_nonnegative_int(field_name: str, value: object) -> None:
+    if value is not None and (type(value) is not int or value < 0):
+        raise ValueError(f"{field_name} must be a nonnegative built-in integer when supplied")
+
+
+def _validate_optional_int(field_name: str, value: object) -> None:
+    if value is not None and type(value) is not int:
+        raise ValueError(f"{field_name} must be a built-in integer when supplied")
+
+
+def _parse_validity_bound(field_name: str, value: object) -> datetime | None:
+    if value is None:
+        return None
+    _validate_optional_nonblank_string(field_name, value)
+    timestamp = str(value)
+    if timestamp.endswith("Z"):
+        timestamp = f"{timestamp[:-1]}+00:00"
+    try:
+        parsed = datetime.fromisoformat(timestamp)
+    except ValueError as exc:
+        raise ValueError(f"{field_name} must be an ISO-8601 datetime") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError(f"{field_name} must include an explicit UTC offset")
+    return parsed
 
 
 def _content_from_payload(payload: object) -> str:

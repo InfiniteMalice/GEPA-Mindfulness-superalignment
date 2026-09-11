@@ -1,10 +1,37 @@
 # Structured Logging Contract
 
-New structured events can be wrapped in `EventEnvelope` from `mindful_trace_gepa.logging_schema`. The envelope carries `schema_version`, `event_id`, `event_type`, `timestamp`, optional linkage IDs such as `run_id`, `rollout_id`, `trace_id`, `sample_id`, `conversation_id`, `checkpoint_id`, `checkpoint_step`, `model_id`, `model_checkpoint_hash`, `dataset_id`, `policy_version`, `config_hash`, and a JSON-compatible `payload`.
+New structured events can be wrapped in `EventEnvelope` from
+`mindful_trace_gepa.logging_schema`. An envelope carries `schema_version`, `event_id`, `event_type`,
+`timestamp`, and a JSON-compatible `payload`.
+
+Existing optional linkage fields are `run_id`, `rollout_id`, `trace_id`, `sample_id`,
+`conversation_id`, `checkpoint_id`, `checkpoint_step`, `model_id`, `model_checkpoint_hash`,
+`dataset_id`, `policy_version`, and `config_hash`. Action-bound optional linkage fields are `action_id`,
+`parent_event_ids`, `evidence_refs`, `model_version`, `harness_version`, `case_version`, `case_id`,
+`stripe_id`, `repeat_id`, `seed`, `authorization_scope`, `verifier_refs`, `valid_from`, `valid_until`,
+and `superseded_by`.
 
 Legacy trace rows still load. Viewer code normalizes old rows by treating their `stage` as the event type and leaves missing optional fields empty.
 
-Supported event types include reasoning checkpoints, reward breakdowns, token telemetry, semantic assessments, principle robustness assessments, memory write/retrieval assessments, memory laundering reports, CPT pairwise examples and training metrics, SSR units/resolve attempts/repair reports, deception probes, attribution references, review events, repair events, objective specifications, validator-capture assessments, proxy-objective assessments, novelty assessments, objective-posterior updates, robust-objective decisions, proxy-breakdown reports, and objective-validation interrupts.
+Supported event types include reasoning checkpoints, reward breakdowns, token telemetry, semantic
+assessments, principle robustness assessments, memory write/retrieval assessments, memory laundering
+reports, CPT pairwise examples and training metrics, SSR units/resolve attempts/repair reports, deception
+probes, attribution references, review events, repair events, objective specifications, validator-capture
+assessments, proxy-objective assessments, novelty assessments, objective-posterior updates,
+robust-objective decisions, proxy-breakdown reports, and objective-validation interrupts. Action-bound
+event types are prediction commits, proposed and executed actions, observed outcomes, verification results,
+epistemic assessments, and case assessments.
+
+Action-bound metadata is optional for backward compatibility. Supplied linkage IDs, versions, scopes, and
+reference strings must be nonblank. Reference collections are snapshotted as immutable tuples; they serialize
+as JSON lists. Supplied `case_id` values are built-in integers from 0 through 17, `repeat_id` values are
+nonnegative built-in integers, and `seed` values are built-in integers. Validity bounds are ISO-8601 datetimes
+with an explicit UTC offset; this avoids ambiguous comparisons between naive and aware datetimes.
+
+Raw evidence and raw action or outcome events are append-only. A derived assessment may identify a later
+replacement through `superseded_by`, but that relationship does not rewrite or delete its source event or
+evidence. This schema records linkage metadata only; event ordering and which event types may be superseded
+are enforced by the separate sequence validator introduced in a later change.
 
 Telemetry honesty:
 
