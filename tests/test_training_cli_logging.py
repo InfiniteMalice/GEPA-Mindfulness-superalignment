@@ -8,6 +8,8 @@ STUB_MODULE = """
 from collections.abc import Iterable
 from dataclasses import dataclass
 
+from mindful_trace_gepa.logging_schema import trainer_metric_optional_fields
+
 
 @dataclass
 class StubRollout:
@@ -30,7 +32,15 @@ class StubTrainingOrchestrator:
                 prompt=prompt,
                 response="stub-response",
                 reward=1.23,
-                trace_summary={"trace": True},
+                trace_summary=trainer_metric_optional_fields(
+                    prediction_commit_reference="prediction-commit-1",
+                    action_record_reference="action-record-1",
+                    outcome_observation_reference="outcome-observation-1",
+                    verification_result_reference="verification-result-1",
+                    epistemic_assessment_reference="epistemic-assessment-1",
+                    case_assessment_reference="case-assessment-1",
+                    arbitrary_reference="excluded",
+                ),
                 contradiction_report={"conflict": False},
             )
         ]
@@ -173,6 +183,14 @@ def test_training_cli_prompts_and_logs(tmp_path: Path) -> None:
     with rollouts_log.open("r", encoding="utf-8") as handle:
         lines = [json.loads(line) for line in handle if line.strip()]
     assert lines and lines[0]["response"] == "stub-response"
+    assert lines[0]["trace_summary"] == {
+        "prediction_commit_reference": "prediction-commit-1",
+        "action_record_reference": "action-record-1",
+        "outcome_observation_reference": "outcome-observation-1",
+        "verification_result_reference": "verification-result-1",
+        "epistemic_assessment_reference": "epistemic-assessment-1",
+        "case_assessment_reference": "case-assessment-1",
+    }
 
     # When --log-dir is provided the CLI should write the logs without prompting.
     provided_log_dir = tmp_path / "provided_logs"
