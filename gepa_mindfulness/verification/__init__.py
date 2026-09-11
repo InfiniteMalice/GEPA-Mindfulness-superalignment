@@ -18,6 +18,13 @@ from .interfaces import (
     make_local_verification_event,
     make_relational_verification_event,
 )
+from .recovery import (
+    FailureCategory,
+    RecoveryAction,
+    RecoveryBudget,
+    RecoveryDecision,
+    select_recovery,
+)
 from .runtime_governance import (
     AuthorityGrant,
     AuthorityGrantRegistry,
@@ -45,10 +52,14 @@ __all__ = [
     "FailureLocalization",
     "FailureNode",
     "FailureRelation",
+    "FailureCategory",
     "LocalExecutionVerifier",
     "LocalVerificationResult",
     "RelationalEvidenceVerifier",
     "RelationalVerificationResult",
+    "RecoveryAction",
+    "RecoveryBudget",
+    "RecoveryDecision",
     "RootCauseStatus",
     "IrreversibleApprovalBinding",
     "RuntimeCapability",
@@ -62,4 +73,5 @@ __all__ = [
     "consume_authorization",
     "make_local_verification_event",
     "make_relational_verification_event",
+    "select_recovery",
 ]
