@@ -10,7 +10,7 @@ from evaluation.recommendations import load_recommendation_registry
 
 REPOSITORY_ROOT = Path(__file__).parents[1]
 READER_PATH = REPOSITORY_ROOT / "docs" / "recommendations" / "UNIFIED_RECOMMENDATIONS.md"
-RESEARCH_ANCHOR = "#research-reference-ids-pending-task-5"
+RESEARCH_READER = "RESEARCH_TRACEABILITY.md"
 
 
 def test_recommendation_reader_links_every_record_to_its_traceability_evidence() -> None:
@@ -30,7 +30,8 @@ def test_recommendation_reader_links_every_record_to_its_traceability_evidence()
                 assert "Planned acceptance checks:" in section
                 assert f"`{acceptance_test}`" in section
         for research_ref in recommendation.research_refs:
-            assert f"[`{research_ref}`]({RESEARCH_ANCHOR})" in section
+            anchor = research_ref.lower()
+            assert f"[`{research_ref}`]({RESEARCH_READER}#{anchor})" in section
 
 
 def test_recommendation_reader_relative_links_resolve() -> None:
@@ -39,7 +40,8 @@ def test_recommendation_reader_relative_links_resolve() -> None:
     for target in re.findall(r"\[[^]]+\]\(([^)]+)\)", reader):
         if target.startswith("#"):
             continue
-        assert (READER_PATH.parent / target).resolve().is_file(), target
+        path_target = target.partition("#")[0]
+        assert (READER_PATH.parent / path_target).resolve().is_file(), target
 
 
 def test_recommendation_reader_groups_records_by_priority_and_status() -> None:

@@ -2,8 +2,8 @@
 
 [`registry.yaml`](registry.yaml) is the single authored recommendation registry. This reader
 summarizes current maturity and links each record to repository evidence. Stable research IDs are
-pending Task 5 primary-source metadata verification; they can motivate or support a design choice,
-but do not prove this architecture.
+documented in [`RESEARCH_TRACEABILITY.md`](RESEARCH_TRACEABILITY.md); they can motivate or support
+a design choice, but do not establish this architecture as an empirical result.
 
 ## P0
 
@@ -13,7 +13,7 @@ but do not prove this architecture.
 
 - Repository evidence: [`epistemic_process.py`](../../gepa_mindfulness/core/epistemic_process.py), [`rewards.py`](../../gepa_mindfulness/core/rewards.py).
 - Acceptance tests: [`test_epistemic_process_rewards.py`](../../tests/test_epistemic_process_rewards.py), [`test_reward_integrity_rewards.py`](../../tests/test_reward_integrity_rewards.py).
-- Research: [`REF-HEART`](#research-reference-ids-pending-task-5).
+- Research: [`REF-HEART`](RESEARCH_TRACEABILITY.md#ref-heart).
 
 #### REC-003 — One canonical 17-case V5 manifest.
 
@@ -33,13 +33,13 @@ but do not prove this architecture.
 
 - Repository evidence: [`logging_schema.py`](../../src/mindful_trace_gepa/logging_schema.py).
 - Planned acceptance checks: `tests/test_logging_schema.py`, `tests/test_v5_records.py`.
-- Research: [`REF-WMLLM`](#research-reference-ids-pending-task-5), [`REF-DWM`](#research-reference-ids-pending-task-5).
+- Research: [`REF-WMLLM`](RESEARCH_TRACEABILITY.md#ref-wmllm), [`REF-DWM`](RESEARCH_TRACEABILITY.md#ref-dwm), [`REF-SHEAVES`](RESEARCH_TRACEABILITY.md#ref-sheaves), [`REF-HERO`](RESEARCH_TRACEABILITY.md#ref-hero).
 
 #### REC-005 — Case × robustness stripe × repeat evaluation.
 
 - Repository evidence: [`robustness_stripes.yaml`](../../evaluation/cases/robustness_stripes.yaml), [`registry.py`](../../evaluation/cases/registry.py).
 - Planned acceptance checks: `tests/test_v5_runner.py`, `tests/test_v5_records.py`.
-- Research: [`REF-CONSISTENCY`](#research-reference-ids-pending-task-5).
+- Research: [`REF-CONSISTENCY`](RESEARCH_TRACEABILITY.md#ref-consistency), [`REF-LEXICAL-PERTURB`](RESEARCH_TRACEABILITY.md#ref-lexical-perturb), [`REF-TOKENIZER-BETRAYAL`](RESEARCH_TRACEABILITY.md#ref-tokenizer-betrayal).
 
 ## P1
 
@@ -49,31 +49,31 @@ but do not prove this architecture.
 
 - Repository evidence: [`logging_schema.py`](../../src/mindful_trace_gepa/logging_schema.py).
 - Planned acceptance checks: `tests/test_verification_state.py`.
-- Research: [`REF-EDGEMEM`](#research-reference-ids-pending-task-5).
+- Research: [`REF-EDGEMEM`](RESEARCH_TRACEABILITY.md#ref-edgemem), [`REF-GRAPHMEM`](RESEARCH_TRACEABILITY.md#ref-graphmem).
 
 #### REC-007 — Structured failure graph.
 
 - Repository evidence: [`logging_schema.py`](../../src/mindful_trace_gepa/logging_schema.py).
 - Planned acceptance checks: `tests/test_failure_graph.py`.
-- Research: [`REF-AGENTSCOPE`](#research-reference-ids-pending-task-5).
+- Research: [`REF-AGENTSCOPE`](RESEARCH_TRACEABILITY.md#ref-agentscope).
 
 #### REC-008 — Runtime Planner/Executor/Verifier authority separation.
 
 - Repository evidence: [`logging_schema.py`](../../src/mindful_trace_gepa/logging_schema.py).
 - Planned acceptance checks: `tests/test_runtime_governance.py`.
-- Research: [`REF-HEART`](#research-reference-ids-pending-task-5).
+- Research: [`REF-HEART`](RESEARCH_TRACEABILITY.md#ref-heart), [`REF-BIOMETRIC-MEM`](RESEARCH_TRACEABILITY.md#ref-biometric-mem).
 
 #### REC-009 — Verified skill lifecycle.
 
 - Repository evidence: [`reward_pipeline.py`](../../gepa_mindfulness/training/reward_pipeline.py).
 - Planned acceptance checks: `tests/test_skill_lifecycle.py`.
-- Research: [`REF-SEGOS`](#research-reference-ids-pending-task-5), [`REF-SKILLGLOW`](#research-reference-ids-pending-task-5), [`REF-REPOTOSKILL`](#research-reference-ids-pending-task-5).
+- Research: [`REF-SEGOS`](RESEARCH_TRACEABILITY.md#ref-segos), [`REF-SKILLGLOW`](RESEARCH_TRACEABILITY.md#ref-skillglow), [`REF-REPOTOSKILL`](RESEARCH_TRACEABILITY.md#ref-repotoskill), [`REF-DSR`](RESEARCH_TRACEABILITY.md#ref-dsr).
 
 #### REC-010 — Online experience collection; offline harness/skill evolution.
 
 - Repository evidence: [`reward_pipeline.py`](../../gepa_mindfulness/training/reward_pipeline.py).
 - Planned acceptance checks: `tests/test_learning_surfaces.py`, `tests/test_skill_lifecycle.py`.
-- Research: [`REF-COEVOLVE`](#research-reference-ids-pending-task-5), [`REF-HOH`](#research-reference-ids-pending-task-5).
+- Research: [`REF-COEVOLVE`](RESEARCH_TRACEABILITY.md#ref-coevolve), [`REF-HOH`](RESEARCH_TRACEABILITY.md#ref-hoh).
 
 ## P2
 
@@ -83,27 +83,27 @@ but do not prove this architecture.
 
 - Repository evidence: [`robustness_stripes.yaml`](../../evaluation/cases/robustness_stripes.yaml).
 - Planned acceptance checks: `tests/test_experimental_overlays.py`.
-- Research: [`REF-PEARL`](#research-reference-ids-pending-task-5).
+- Research: [`REF-PEARL`](RESEARCH_TRACEABILITY.md#ref-pearl).
 
 #### REC-012 — Small adaptive multi-agent topology codebook.
 
 - Repository evidence: [`reward_pipeline.py`](../../gepa_mindfulness/training/reward_pipeline.py).
 - Planned acceptance checks: `tests/test_experimental_overlays.py`.
-- Research: [`REF-MASKILLS`](#research-reference-ids-pending-task-5).
+- Research: [`REF-MASKILLS`](RESEARCH_TRACEABILITY.md#ref-maskills).
 
 #### REC-013 — Declarative global/focus/local orchestration scope.
 
 - Repository evidence: [`reward_pipeline.py`](../../gepa_mindfulness/training/reward_pipeline.py).
 - Planned acceptance checks: `tests/test_experimental_overlays.py`.
-- Research: [`REF-AGENTSCOPE`](#research-reference-ids-pending-task-5).
+- Research: [`REF-AGENTSCOPE`](RESEARCH_TRACEABILITY.md#ref-agentscope).
 
 #### REC-014 — Mechanistic/circuit audit of actual model changes.
 
 - Repository evidence: [`rewards.py`](../../gepa_mindfulness/core/rewards.py).
 - Planned acceptance checks: `tests/test_experimental_overlays.py`.
-- Research: [`REF-SAE`](#research-reference-ids-pending-task-5).
+- Research: [`REF-SAE`](RESEARCH_TRACEABILITY.md#ref-sae).
 
-## Research reference IDs pending Task 5
+## Research traceability
 
-Task 5 will retrieve primary metadata and source links for the stable IDs listed above. Until then,
-the IDs identify intended traceability records only and make no bibliographic or empirical claim.
+See [`RESEARCH_TRACEABILITY.md`](RESEARCH_TRACEABILITY.md) for primary metadata, source links,
+repository inferences, and maturity limits for every stable research ID.

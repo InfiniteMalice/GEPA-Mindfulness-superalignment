@@ -40,6 +40,8 @@ recommendations:
     research_refs:
       - REF-WMLLM
       - REF-DWM
+      - REF-SHEAVES
+      - REF-HERO
     repo_refs:
       - src/mindful_trace_gepa/logging_schema.py
     acceptance_tests:
@@ -110,6 +112,8 @@ recommendations:
       - REC-003
     research_refs:
       - REF-CONSISTENCY
+      - REF-LEXICAL-PERTURB
+      - REF-TOKENIZER-BETRAYAL
     repo_refs:
       - evaluation/cases/robustness_stripes.yaml
       - evaluation/cases/registry.py
@@ -132,6 +136,7 @@ recommendations:
       - REC-002
     research_refs:
       - REF-EDGEMEM
+      - REF-GRAPHMEM
     repo_refs:
       - src/mindful_trace_gepa/logging_schema.py
     acceptance_tests:
@@ -173,6 +178,7 @@ recommendations:
       - REC-006
     research_refs:
       - REF-HEART
+      - REF-BIOMETRIC-MEM
     repo_refs:
       - src/mindful_trace_gepa/logging_schema.py
     acceptance_tests:
@@ -195,6 +201,7 @@ recommendations:
       - REF-SEGOS
       - REF-SKILLGLOW
       - REF-REPOTOSKILL
+      - REF-DSR
     repo_refs:
       - gepa_mindfulness/training/reward_pipeline.py
     acceptance_tests:
