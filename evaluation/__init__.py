@@ -11,6 +11,7 @@ from .v5_records import (
     SystemIdentity,
     V5EvaluationRecord,
 )
+from .v5_runner import V5EvaluationCell, plan_v5_cells
 
 __all__ = [
     "BehaviorRecord",
@@ -22,4 +23,6 @@ __all__ = [
     "ScoreRecord",
     "SystemIdentity",
     "V5EvaluationRecord",
+    "V5EvaluationCell",
+    "plan_v5_cells",
 ]
