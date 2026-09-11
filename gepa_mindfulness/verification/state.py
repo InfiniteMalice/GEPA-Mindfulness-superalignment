@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal, cast
 
-from gepa_mindfulness.core.evidence import EvidenceReference
+from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
 
 EvidenceStatus = Literal["unverified", "supported", "contradicted", "superseded"]
 
@@ -116,10 +116,11 @@ class EvidenceClaim:
     def to_dict(self) -> dict[str, object]:
         """Return the stable JSON-compatible evidence-claim record."""
 
+        references = _snapshot_evidence_refs(self.evidence_refs)
         return {
             "claim_id": self.claim_id,
             "proposition": self.proposition,
-            "evidence_refs": [reference.to_dict() for reference in self.evidence_refs],
+            "evidence_refs": [reference.to_dict() for reference in references],
             "status": self.status,
             "superseded_by": self.superseded_by,
         }
@@ -250,10 +251,13 @@ def _snapshot_evidence_refs(values: object) -> tuple[EvidenceReference, ...]:
     for reference in values:
         if type(reference) is not EvidenceReference:
             raise ValueError("evidence_refs must contain exact EvidenceReference values")
-        try:
-            snapshot = EvidenceReference(reference.reference_id, reference.source_kind)
-        except (TypeError, ValueError) as exc:
-            raise ValueError("evidence_refs contains an invalid EvidenceReference") from exc
+        reference_id = reference.reference_id
+        source_kind = reference.source_kind
+        if type(reference_id) is not str or not reference_id.strip():
+            raise ValueError("evidence_refs reference_id must be a nonblank built-in string")
+        if type(source_kind) is not EvidenceSourceKind:
+            raise ValueError("evidence_refs source_kind must be an exact EvidenceSourceKind")
+        snapshot = EvidenceReference(reference_id, source_kind)
         references.append(snapshot)
     return tuple(references)
 

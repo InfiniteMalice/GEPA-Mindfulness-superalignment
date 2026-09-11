@@ -266,6 +266,72 @@ def test_evidence_claim_rejects_reference_subclasses_and_corruption() -> None:
             )
 
 
+def test_evidence_claim_rejects_hostile_reference_id_string_subclass() -> None:
+    """Catch an empty string subclass whose overridden strip method claims content."""
+
+    class HostileEmptyString(str):
+        def strip(self, chars: str | None = None) -> str:
+            return "pretend-valid"
+
+    hostile_id = HostileEmptyString("")
+    hostile_reference = EvidenceReference(
+        hostile_id,
+        EvidenceSourceKind.OBSERVABLE_OUTPUT,
+    )
+    assert json.loads(json.dumps(hostile_reference.to_dict()))["reference_id"] == ""
+
+    with pytest.raises(ValueError, match="evidence_refs.*reference_id"):
+        EvidenceClaim(
+            "claim-1",
+            "I fixed the bug",
+            (hostile_reference,),
+            "supported",
+        )
+
+
+def test_evidence_claim_from_dict_rejects_hostile_reference_id_string_subclass() -> None:
+    """Catch deserialization preserving a deceptive noncanonical reference identifier."""
+
+    class HostileEmptyString(str):
+        def strip(self, chars: str | None = None) -> str:
+            return "pretend-valid"
+
+    payload = {
+        "claim_id": "claim-1",
+        "proposition": "I fixed the bug",
+        "evidence_refs": [
+            {
+                "reference_id": HostileEmptyString(""),
+                "source_kind": "observable_output",
+            }
+        ],
+        "status": "supported",
+        "superseded_by": None,
+    }
+
+    with pytest.raises(ValueError, match="evidence_refs.*reference_id"):
+        EvidenceClaim.from_dict(payload)
+
+
+def test_evidence_claim_refuses_to_serialize_later_hostile_reference_corruption() -> None:
+    """Catch object-level mutation smuggling an empty identifier into persisted evidence."""
+
+    class HostileEmptyString(str):
+        def strip(self, chars: str | None = None) -> str:
+            return "pretend-valid"
+
+    claim = EvidenceClaim(
+        "claim-1",
+        "I fixed the bug",
+        (_reference(),),
+        "supported",
+    )
+    object.__setattr__(claim.evidence_refs[0], "reference_id", HostileEmptyString(""))
+
+    with pytest.raises(ValueError, match="evidence_refs.*reference_id"):
+        claim.to_dict()
+
+
 def test_supersession_preserves_original_claim_and_resolves_terminal_claim() -> None:
     """Catch supersession rewriting history or stopping before the terminal claim."""
 
