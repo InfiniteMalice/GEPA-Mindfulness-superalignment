@@ -439,6 +439,96 @@ def test_recall_counts_only_derived_hypotheses_and_literal_does_not_consume_k() 
     assert candidate_recall_at_k((literal_only_case,), (literal_only_result,), k=1) == 0.0
 
 
+def _single_candidate_recall(
+    candidate: RepresentationCandidate,
+    *,
+    expected_text: str,
+) -> tuple[float, float]:
+    candidate_id = candidate_id_for(candidate)
+    case = RepresentationEvaluationCase(
+        case_id="single-recall",
+        expected_candidate_texts=(expected_text,),
+        clean_input=False,
+        abstention_expected=False,
+        laundering_expected=False,
+        expected_policy_action=PolicyAction.ALLOW,
+    )
+    result = RepresentationEvaluationResult(
+        case_id="single-recall",
+        lattice=RepresentationLattice(
+            source_id="metric-source",
+            raw_text=candidate.source_span.raw_text,
+            candidates=(candidate,),
+            max_candidates=1,
+        ),
+        applied_candidate_id=None,
+        decision=RepresentationDecision(
+            selected_candidate_ids=(candidate_id,),
+            disagreement=False,
+            policy_action=PolicyAction.ALLOW,
+            explanation="Direct recall-eligibility fixture.",
+        ),
+        semantic_laundering_assessment=_laundering_assessment(detected=True),
+    )
+    direct = candidate_recall_at_k((case,), (result,), k=1)
+    aggregate = (
+        SemanticRobustnessEvaluator()
+        .evaluate_representation_cases((case,), (result,), k=1)
+        .candidate_recall_at_k
+    )
+    return direct, aggregate
+
+
+def test_source_identical_nonliteral_candidate_cannot_produce_recall() -> None:
+    unchanged = _candidate(
+        "source",
+        "source",
+        confidence=0.9,
+        channel=RepresentationChannel.CONSERVATIVE_NORMALIZATION,
+    )
+
+    assert _single_candidate_recall(unchanged, expected_text="source") == (0.0, 0.0)
+
+
+@pytest.mark.parametrize(
+    "outcome",
+    [CandidateOutcome.NO_REPAIR, CandidateOutcome.UNKNOWN, CandidateOutcome.ABSTAIN],
+)
+def test_inactive_candidate_outcome_cannot_produce_recall(outcome: CandidateOutcome) -> None:
+    inactive = _candidate(
+        "sorce",
+        "source",
+        confidence=0.9,
+        channel=RepresentationChannel.ORTHOGRAPHIC,
+        outcome=outcome,
+    )
+
+    assert _single_candidate_recall(inactive, expected_text="source") == (0.0, 0.0)
+
+
+@pytest.mark.parametrize(
+    ("source", "candidate_text", "channel"),
+    [
+        ("Cafe\u0301", "Café", RepresentationChannel.CONSERVATIVE_NORMALIZATION),
+        ("sorce", "source", RepresentationChannel.ORTHOGRAPHIC),
+        ("bone apple tea", "bon appétit", RepresentationChannel.PHONOLOGICAL),
+    ],
+)
+def test_active_content_changing_derived_channels_preserve_recall(
+    source: str,
+    candidate_text: str,
+    channel: RepresentationChannel,
+) -> None:
+    candidate = _candidate(
+        source,
+        candidate_text,
+        confidence=0.9,
+        channel=channel,
+    )
+
+    assert _single_candidate_recall(candidate, expected_text=candidate_text) == (1.0, 1.0)
+
+
 def test_applied_candidate_must_be_selected_by_the_decision() -> None:
     source = "sorce"
     selected = _candidate(

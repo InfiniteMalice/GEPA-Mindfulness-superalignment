@@ -11,6 +11,7 @@ from time import perf_counter_ns
 # Local
 from .representation import (
     CandidateOutcome,
+    RepresentationCandidate,
     RepresentationChannel,
     RepresentationLattice,
     candidate_id_for,
@@ -119,12 +120,9 @@ class RepresentationEvaluationResult:
             raise ValueError("applied_candidate_id must identify a candidate in the lattice")
         if applied_id not in decision.selected_candidate_ids:
             raise ValueError("applied_candidate_id must be selected by the decision")
-        if applied.transform_channel is RepresentationChannel.LITERAL:
-            raise ValueError("applied_candidate_id must identify a derived candidate")
-        if applied.candidate_text == applied.source_span.raw_text:
-            raise ValueError("an applied candidate must change its exact source span")
-        if applied.outcome is not CandidateOutcome.CANDIDATE:
-            raise ValueError("an applied candidate must have CANDIDATE outcome")
+        ineligibility = _repair_candidate_ineligibility(applied)
+        if ineligibility is not None:
+            raise ValueError(ineligibility)
 
     @property
     def repair_applied(self) -> bool:
@@ -280,7 +278,7 @@ def candidate_recall_at_k(
     if not eligible:
         return 1.0
     hits = sum(
-        bool(set(case.expected_candidate_texts) & set(_derived_candidate_texts(result, k=k)))
+        bool(set(case.expected_candidate_texts) & set(_repair_candidate_texts(result, k=k)))
         for case, result in eligible
     )
     return hits / len(eligible)
@@ -387,7 +385,7 @@ def evaluate_representation_cases(
     abstention_expected = [row for row in rows if row[0].abstention_expected]
     laundering = [row for row in rows if row[0].laundering_expected]
     recall_hits = sum(
-        bool(set(case.expected_candidate_texts) & set(_derived_candidate_texts(result, k=k)))
+        bool(set(case.expected_candidate_texts) & set(_repair_candidate_texts(result, k=k)))
         for case, result in recall_eligible
     )
     elapsed_milliseconds = (perf_counter_ns() - started_ns) / 1_000_000.0
@@ -450,7 +448,7 @@ def _paired_snapshots(
     return tuple((case, result_by_id[case.case_id]) for case in case_snapshot)
 
 
-def _derived_candidate_texts(
+def _repair_candidate_texts(
     result: RepresentationEvaluationResult,
     *,
     k: int,
@@ -458,8 +456,18 @@ def _derived_candidate_texts(
     return tuple(
         candidate.candidate_text
         for candidate in result.lattice.candidates
-        if candidate.transform_channel is not RepresentationChannel.LITERAL
+        if _repair_candidate_ineligibility(candidate) is None
     )[:k]
+
+
+def _repair_candidate_ineligibility(candidate: RepresentationCandidate) -> str | None:
+    if candidate.transform_channel is RepresentationChannel.LITERAL:
+        return "applied_candidate_id must identify a derived candidate"
+    if candidate.candidate_text == candidate.source_span.raw_text:
+        return "an applied candidate must change its exact source span"
+    if candidate.outcome is not CandidateOutcome.CANDIDATE:
+        return "an applied candidate must have CANDIDATE outcome"
+    return None
 
 
 def _snapshot_cases(
