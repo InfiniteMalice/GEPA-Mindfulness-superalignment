@@ -537,6 +537,41 @@ def test_phonetic_candidate_materialization_is_bounded_by_output_budget(
     assert calls <= CandidateBudget().max_candidates_total * 4
 
 
+def test_casefold_equivalent_phonetic_discovery_constructs_only_bounded_matches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+    original = candidates_module._PhoneticMatch
+
+    def counting_match(*args: object, **kwargs: object) -> object:
+        nonlocal calls
+        calls += 1
+        return original(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(candidates_module, "_PhoneticMatch", counting_match)
+    base = "abcdefgh"
+    variants = tuple(
+        "".join(
+            character.upper() if mask & (1 << index) else character
+            for index, character in enumerate(base)
+        )
+        for mask in range(256)
+    )
+    lexicon = {variant: ("result",) for variant in variants}
+    budget = CandidateBudget(8, 4, 8)
+
+    lattice = build_candidate_lattice(
+        "source-1",
+        " ".join(base for _ in range(500)),
+        phonetic_lexicon=lexicon,
+        budget=budget,
+    )
+
+    assert calls <= max(budget.max_spans * 4, budget.max_candidates_total * 4)
+    assert "result" in tuple(candidate.candidate_text for candidate in lattice.candidates)
+    assert lattice.candidates[0].outcome is CandidateOutcome.UNKNOWN
+
+
 @pytest.mark.parametrize("value", [nan, inf, -inf, -0.0])
 def test_budget_fields_cannot_be_noncanonical_numeric_values(value: float) -> None:
     with pytest.raises(TypeError, match="exact integer"):

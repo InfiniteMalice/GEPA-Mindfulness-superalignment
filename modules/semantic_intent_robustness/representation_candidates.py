@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, replace
 
 # Local
@@ -72,15 +72,14 @@ class _Token:
 @dataclass(slots=True)
 class _PhoneticTrieNode:
     children: dict[str, "_PhoneticTrieNode"]
-    entries: list[tuple[str, tuple[str, ...]]]
+    entries: dict[str, list[tuple[str, tuple[str, ...]]]]
 
 
 @dataclass(frozen=True, slots=True)
 class _PhoneticMatch:
     start: int
     end: int
-    observed: str
-    alternatives: tuple[str, ...]
+    sources: tuple[tuple[str, tuple[str, ...]], ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -419,52 +418,35 @@ def _phonetic_candidates(
     context_words: frozenset[str],
     budget: CandidateBudget,
 ) -> tuple[tuple[RepresentationCandidate, ...], bool]:
-    root = _PhoneticTrieNode(children={}, entries=[])
+    root = _PhoneticTrieNode(children={}, entries={})
     for observed, alternatives in phonetic_lexicon:
         build_node = root
         for token in _tokenize(observed):
             build_node = build_node.children.setdefault(
                 _comparison_form(token.text),
-                _PhoneticTrieNode(children={}, entries=[]),
+                _PhoneticTrieNode(children={}, entries={}),
             )
-        build_node.entries.append((observed, alternatives))
+        comparison_text = _comparison_form(observed)
+        build_node.entries.setdefault(comparison_text, []).append((observed, alternatives))
 
-    matches: list[_PhoneticMatch] = []
-    for start_index, first_token in enumerate(tokens):
-        search_node = root.children.get(_comparison_form(first_token.text))
-        if search_node is None:
-            continue
-        end_index = start_index
-        while search_node is not None:
-            for observed, alternatives in search_node.entries:
-                start = first_token.start
-                end = tokens[end_index].end
-                source_text = raw_text[start:end]
-                if _comparison_form(source_text) != _comparison_form(observed):
-                    continue
-                matches.append(
-                    _PhoneticMatch(
-                        start,
-                        end,
-                        observed,
-                        alternatives,
-                    )
-                )
-            end_index += 1
-            if end_index >= len(tokens):
-                break
-            search_node = search_node.children.get(_comparison_form(tokens[end_index].text))
     materialization_limit = budget.max_candidates_total * 4
     match_limit = max(budget.max_spans * 4, materialization_limit)
-    selected_matches = _evenly_spaced(matches, match_limit)
-    truncated = len(selected_matches) < len(matches)
+    match_count = sum(1 for _ in _iter_phonetic_matches(raw_text, tokens, root))
+    selected_indices = frozenset(_evenly_spaced_indices(match_count, match_limit))
+    selected_matches = tuple(
+        _PhoneticMatch(start=start, end=end, sources=sources)
+        for index, (start, end, sources) in enumerate(
+            _iter_phonetic_matches(raw_text, tokens, root)
+        )
+        if index in selected_indices
+    )
+    truncated = match_count > match_limit
     ranked_rows: tuple[tuple[_PhoneticMatch, tuple[_PhoneticAlternative, ...]], ...] = tuple(
         (
             match,
             _rank_phonetic_alternatives(
                 raw_text[match.start : match.end],
-                match.observed,
-                match.alternatives,
+                match.sources,
                 context_words,
             ),
         )
@@ -503,48 +485,71 @@ def _phonetic_candidates(
     return tuple(candidates), truncated
 
 
+def _iter_phonetic_matches(
+    raw_text: str,
+    tokens: tuple[_Token, ...],
+    root: _PhoneticTrieNode,
+) -> Iterator[tuple[int, int, tuple[tuple[str, tuple[str, ...]], ...]]]:
+    for start_index, first_token in enumerate(tokens):
+        search_node = root.children.get(_comparison_form(first_token.text))
+        if search_node is None:
+            continue
+        end_index = start_index
+        while search_node is not None:
+            start = first_token.start
+            end = tokens[end_index].end
+            comparison_text = _comparison_form(raw_text[start:end])
+            sources = search_node.entries.get(comparison_text)
+            if sources is not None:
+                yield start, end, tuple(sources)
+            end_index += 1
+            if end_index >= len(tokens):
+                break
+            search_node = search_node.children.get(_comparison_form(tokens[end_index].text))
+
+
 def _rank_phonetic_alternatives(
     source_text: str,
-    observed: str,
-    alternatives: tuple[str, ...],
+    sources: tuple[tuple[str, tuple[str, ...]], ...],
     context_words: frozenset[str],
 ) -> tuple[_PhoneticAlternative, ...]:
-    ranked: list[_PhoneticAlternative] = []
-    for alternative in alternatives:
-        candidate_text = _apply_case_pattern(source_text, alternative)
-        if candidate_text == source_text:
-            continue
-        contextual_score = _contextual_score(candidate_text, context_words)
-        confidence = min(0.89, 0.83 + 0.06 * contextual_score)
-        provenance = [f"phonetic-lexicon:{observed}"]
-        if contextual_score > 0.5:
-            provenance.append("context-evidence:token-overlap")
-        ranked.append(
-            _PhoneticAlternative(
+    ranked: dict[str, _PhoneticAlternative] = {}
+    for observed, alternatives in sources:
+        for alternative in alternatives:
+            candidate_text = _apply_case_pattern(source_text, alternative)
+            if candidate_text == source_text:
+                continue
+            contextual_score = _contextual_score(candidate_text, context_words)
+            confidence = min(0.89, 0.83 + 0.06 * contextual_score)
+            provenance = [f"phonetic-lexicon:{observed}"]
+            if contextual_score > 0.5:
+                provenance.append("context-evidence:token-overlap")
+            incumbent = ranked.get(candidate_text)
+            if incumbent is not None:
+                provenance.extend(incumbent.provenance)
+            ranked[candidate_text] = _PhoneticAlternative(
                 candidate_text=candidate_text,
                 contextual_score=contextual_score,
                 confidence=confidence,
-                provenance=tuple(provenance),
+                provenance=tuple(sorted(set(provenance))),
             )
-        )
     return tuple(
         sorted(
-            ranked,
+            ranked.values(),
             key=lambda item: (-item.confidence, item.candidate_text, item.provenance),
         )
     )
 
 
-def _evenly_spaced(
-    values: list[_PhoneticMatch],
+def _evenly_spaced_indices(
+    value_count: int,
     limit: int,
-) -> tuple[_PhoneticMatch, ...]:
-    if len(values) <= limit:
-        return tuple(values)
+) -> tuple[int, ...]:
+    if value_count <= limit:
+        return tuple(range(value_count))
     if limit == 1:
-        return (values[0],)
-    indices = tuple(round(index * (len(values) - 1) / (limit - 1)) for index in range(limit))
-    return tuple(values[index] for index in indices)
+        return (0,)
+    return tuple(round(index * (value_count - 1) / (limit - 1)) for index in range(limit))
 
 
 def _tokenize(text: str) -> tuple[_Token, ...]:
