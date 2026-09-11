@@ -380,6 +380,53 @@ def test_sequence_rejects_leveled_verification_without_observation_parent() -> N
         validate_action_bound_sequence(events)
 
 
+@pytest.mark.parametrize("field_name", ["action_id", "evidence_refs", "verifier_refs"])
+def test_sequence_rejects_matching_string_subclasses_in_leveled_envelope(
+    field_name: str,
+) -> None:
+    """Catch semantically equal string subclasses bypassing the canonical envelope boundary."""
+
+    class StringSubclass(str):
+        pass
+
+    events = _sequence_with_both_leveled_verifications()
+    event = events[4]
+    if field_name == "action_id":
+        events[4] = replace(event, action_id=StringSubclass("action-1"))
+    elif field_name == "evidence_refs":
+        events[4] = replace(event, evidence_refs=(StringSubclass("evidence-2"),))
+    else:
+        events[4] = replace(event, verifier_refs=(StringSubclass("verifier:local-1"),))
+
+    with pytest.raises(ValueError, match=field_name):
+        validate_action_bound_sequence(events)
+
+
+@pytest.mark.parametrize("field_name", ["action_id", "evidence_refs", "verifier_refs"])
+def test_sequence_rejects_hostile_differing_string_subclasses_in_leveled_envelope(
+    field_name: str,
+) -> None:
+    """Catch dishonest equality making a different semantic link appear equal."""
+
+    class LyingString(str):
+        def __eq__(self, other: object) -> bool:
+            return True
+
+        __hash__ = str.__hash__
+
+    events = _sequence_with_both_leveled_verifications()
+    event = events[4]
+    if field_name == "action_id":
+        events[4] = replace(event, action_id=LyingString("other-action"))
+    elif field_name == "evidence_refs":
+        events[4] = replace(event, evidence_refs=(LyingString("other-evidence"),))
+    else:
+        events[4] = replace(event, verifier_refs=(LyingString("verifier:other"),))
+
+    with pytest.raises(ValueError, match=field_name):
+        validate_action_bound_sequence(events)
+
+
 @pytest.mark.parametrize(
     ("mutator", "match"),
     [

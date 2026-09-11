@@ -278,6 +278,13 @@ def _validate_leveled_verification(
     expected_fields = {"verification_level", "result", "verifier_refs"}
     if set(event.payload) != expected_fields:
         raise ValueError("leveled verification payload fields do not match its typed contract")
+    envelope_action_id = _require_exact_envelope_string(event, "action_id")
+    envelope_evidence_refs = _require_exact_envelope_refs(event, "evidence_refs")
+    envelope_verifier_refs = _require_exact_envelope_refs(
+        event,
+        "verifier_refs",
+        required=True,
+    )
     level_value = event.payload["verification_level"]
     if type(level_value) is not str:
         raise ValueError("verification_level must be an exact string")
@@ -302,10 +309,13 @@ def _validate_leveled_verification(
         raise ValueError(f"invalid {result_name} payload: {exc}") from exc
 
     verifier_refs = _parse_verifier_refs(event.payload["verifier_refs"])
-    _require_matching_refs(event, verifier_refs, "verifier_refs")
+    if envelope_verifier_refs != verifier_refs:
+        raise ValueError("verifier_refs must match the typed payload")
     evidence_refs = tuple(reference.reference_id for reference in result.evidence_refs)
-    _require_matching_refs(event, evidence_refs, "evidence_refs")
-    _require_matching_value(event, "action_id", result.action_id)
+    if envelope_evidence_refs != evidence_refs:
+        raise ValueError("evidence_refs must match the typed payload")
+    if envelope_action_id != result.action_id:
+        raise ValueError("action_id must match the typed payload")
 
     if len(event.parent_event_ids) != 1:
         raise ValueError("verification_result requires one earlier outcome_observed parent")
@@ -336,6 +346,36 @@ def _parse_verifier_refs(value: object) -> tuple[str, ...]:
         if type(reference) is not str or not reference.strip():
             raise ValueError("verifier_refs must contain exact nonblank strings")
     return references
+
+
+def _require_exact_envelope_string(event: EventEnvelope, field_name: str) -> str:
+    """Return one exact nonblank envelope semantic link before equality is evaluated."""
+
+    value = getattr(event, field_name)
+    if type(value) is not str or not value.strip():
+        raise ValueError(f"{field_name} must be an exact nonblank built-in string")
+    return value
+
+
+def _require_exact_envelope_refs(
+    event: EventEnvelope,
+    field_name: str,
+    *,
+    required: bool = False,
+) -> tuple[str, ...]:
+    """Return exact envelope reference IDs before tuple equality is evaluated."""
+
+    values = getattr(event, field_name)
+    if type(values) is not tuple:
+        raise ValueError(f"{field_name} must be an exact tuple of built-in strings")
+    references: list[str] = []
+    for reference in values:
+        if type(reference) is not str or not reference.strip():
+            raise ValueError(f"{field_name} must contain exact nonblank built-in strings")
+        references.append(reference)
+    if required and not references:
+        raise ValueError(f"{field_name} must contain at least one reference")
+    return tuple(references)
 
 
 def _require_action_metadata(event: EventEnvelope, action: ActionRecord) -> None:
