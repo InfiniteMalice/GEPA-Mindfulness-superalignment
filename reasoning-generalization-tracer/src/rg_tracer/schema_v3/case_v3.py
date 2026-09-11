@@ -5,6 +5,8 @@ from __future__ import annotations
 import dataclasses
 import json
 import math
+from collections.abc import Mapping
+from types import MappingProxyType
 from typing import Any, Literal
 
 from ._case_manifest_v5 import CASE_IDENTITIES
@@ -18,8 +20,16 @@ ObservabilityTier = Literal["O0", "O1", "O2", "O3", "O4", "O5"]
 ClaimStrength = Literal["none", "weak", "moderate", "strong", "overclaimed"]
 ClosureStatus = Literal["closed", "not_closed", "unknown"]
 
-CASE_NAMES: dict[int, str] = dict(CASE_IDENTITIES)
+_CANONICAL_CASE_NAMES = MappingProxyType(dict(CASE_IDENTITIES))
+CANONICAL_CASE_NAMES: Mapping[int, str] = _CANONICAL_CASE_NAMES
 _FALLBACK_CASE_NAME = "fallback_or_internal_error"
+_CASE_NAMES_BY_ID = MappingProxyType(
+    {
+        0: _FALLBACK_CASE_NAME,
+        **_CANONICAL_CASE_NAMES,
+    }
+)
+CASE_NAMES: dict[int, str] = dict(_CASE_NAMES_BY_ID)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -272,8 +282,10 @@ def classify_case_v3(
     )
     ambiguity_score = None
     if ambiguity_result is not None:
-        case_id, ambiguity_score = ambiguity_result
-        reward = None
+        ambiguity_case_id, ambiguity_score = ambiguity_result
+        if ambiguity_case_id is not None:
+            case_id = ambiguity_case_id
+            reward = None
 
     rewards = _augment_rewards(
         reward_components=reward.components if reward is not None else {},
@@ -289,7 +301,7 @@ def classify_case_v3(
     is_correct = None if case_id == 0 or reward is None else bool(reward.is_correct)
     result = CaseV3Result(
         case_id=case_id,
-        base_case_name=_FALLBACK_CASE_NAME if case_id == 0 else CASE_NAMES[case_id],
+        base_case_name=_CASE_NAMES_BY_ID[case_id],
         output_mode=output_mode,
         is_correct=is_correct,
         confidence=confidence,
@@ -319,7 +331,7 @@ def _classify_ambiguity_case(
     excessive_questions: bool,
     resumed_after_clarification: bool,
     stalled_after_clarification: bool,
-) -> tuple[int, float] | None:
+) -> tuple[int | None, float] | None:
     """Classify explicit ambiguity handling into appended cases 14-17."""
     if ambiguity_mode is None or ambiguity_mode == "epistemic_abstain":
         return None
@@ -337,6 +349,7 @@ def _classify_ambiguity_case(
         stalled_after_clarification=stalled_after_clarification,
     )
 
+    case_id: int | None
     if stalled_after_clarification or (high_stakes and excessive_questions):
         case_id = 17
     elif high_stakes and ambiguity_mode == "clarify" and targeted_clarification:
@@ -344,7 +357,7 @@ def _classify_ambiguity_case(
     elif high_stakes and ambiguity_mode == "clarify":
         case_id = 17
     elif ambiguity_mode in {"answer", "assumptive_proceed"}:
-        case_id = 15
+        case_id = 15 if high_stakes or guessed_silently else None
     elif not high_stakes and ambiguity_mode == "clarify":
         case_id = 16
     else:

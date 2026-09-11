@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable, Iterator
 from os.path import relpath
 from pathlib import Path
 
-from evaluation.recommendations import load_recommendation_registry
+from evaluation.recommendations import Recommendation, load_recommendation_registry
 
 REPOSITORY_ROOT = Path(__file__).parents[1]
 READER_PATH = REPOSITORY_ROOT / "docs" / "recommendations" / "UNIFIED_RECOMMENDATIONS.md"
@@ -32,6 +33,35 @@ def test_recommendation_reader_links_every_record_to_its_traceability_evidence()
         for research_ref in recommendation.research_refs:
             anchor = research_ref.lower()
             assert f"[`{research_ref}`]({RESEARCH_READER}#{anchor})" in section
+
+
+def test_recommendation_reader_has_exact_registry_derived_identity_inventory() -> None:
+    reader = READER_PATH.read_text(encoding="utf-8")
+    recommendations = load_recommendation_registry()
+    expected = tuple(
+        (item.recommendation_id, item.title)
+        for item in _recommendations_in_reader_group_order(recommendations)
+    )
+
+    assert _reader_identity_inventory(reader) == expected
+
+
+def test_recommendation_reader_has_exact_registry_derived_evidence_order() -> None:
+    reader = READER_PATH.read_text(encoding="utf-8")
+
+    for recommendation in load_recommendation_registry():
+        section = _recommendation_section(reader, recommendation.recommendation_id)
+        expected_refs = (
+            recommendation.implementation_refs
+            if recommendation.status == "implemented"
+            else recommendation.repo_refs
+        )
+        expected_targets = tuple(
+            Path(relpath(REPOSITORY_ROOT / ref, READER_PATH.parent)).as_posix()
+            for ref in expected_refs
+        )
+
+        assert _repository_evidence_targets(section) == expected_targets
 
 
 def test_recommendation_reader_relative_links_resolve() -> None:
@@ -71,3 +101,31 @@ def _priority_status_section(reader: str, priority: str, status: str) -> str:
     )
     assert match is not None, f"missing priority/status group {heading}"
     return match.group(0)
+
+
+def _recommendations_in_reader_group_order(
+    recommendations: Iterable[Recommendation],
+) -> Iterator[Recommendation]:
+    recommendations = tuple(recommendations)
+    priorities = dict.fromkeys(item.priority for item in recommendations)
+    for priority in priorities:
+        priority_records = tuple(item for item in recommendations if item.priority == priority)
+        statuses = dict.fromkeys(item.status for item in priority_records)
+        for status in statuses:
+            yield from (item for item in priority_records if item.status == status)
+
+
+def _reader_identity_inventory(reader: str) -> tuple[tuple[str, str], ...]:
+    return tuple(
+        re.findall(
+            r"^#### (REC-\d{3}) — (.+)$",
+            reader,
+            flags=re.MULTILINE,
+        )
+    )
+
+
+def _repository_evidence_targets(section: str) -> tuple[str, ...]:
+    match = re.search(r"^- Repository evidence: (.+)$", section, flags=re.MULTILINE)
+    assert match is not None, "missing repository evidence line"
+    return tuple(re.findall(r"\[[^]]+\]\(([^)]+)\)", match.group(1)))

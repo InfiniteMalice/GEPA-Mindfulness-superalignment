@@ -11,6 +11,8 @@ import pytest
 
 from evaluation import recommendations
 
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+
 EXPECTED_RECOMMENDATIONS = (
     (
         "REC-001",
@@ -113,11 +115,25 @@ def test_bundled_registry_has_the_approved_ordered_recommendations() -> None:
     assert all(isinstance(item.targets, tuple) for item in loaded)
 
 
+def test_bundled_implementation_evidence_paths_exist() -> None:
+    loaded = recommendations.load_recommendation_registry()
+
+    assert any(item.status == "implemented" for item in loaded)
+    for item in loaded:
+        if item.status == "implemented":
+            assert item.implementation_refs
+        for implementation_ref in item.implementation_refs:
+            assert (REPOSITORY_ROOT / implementation_ref).is_file(), (
+                item.recommendation_id,
+                implementation_ref,
+            )
+
+
 def test_recommendation_records_are_frozen() -> None:
     recommendation = recommendations.load_recommendation_registry()[0]
 
     with pytest.raises(FrozenInstanceError):
-        recommendation.status = "accepted"
+        recommendation.status = "accepted"  # type: ignore[misc]
 
 
 def test_registry_loads_as_a_package_resource_outside_current_directory(
@@ -164,6 +180,16 @@ def test_loader_rejects_invalid_document_roots(payload: dict[str, Any], message:
         (
             lambda payload: payload["recommendations"][0].update(acceptance_tests=[]),
             "acceptance_tests",
+        ),
+        (
+            lambda payload: payload["recommendations"][0].update(implementation_refs=[]),
+            "implemented.*implementation_refs",
+        ),
+        (
+            lambda payload: payload["recommendations"][0].update(
+                implementation_refs=["../outside.py"]
+            ),
+            "normalized repository-relative path",
         ),
     ],
 )
@@ -224,7 +250,9 @@ def _valid_registry_payload() -> dict[str, Any]:
                 "research_refs": [],
                 "repo_refs": ["tests/test_recommendation_registry.py"],
                 "acceptance_tests": ["python -m pytest tests/test_recommendation_registry.py -q"],
-                "implementation_refs": [],
+                "implementation_refs": (
+                    ["tests/test_recommendation_registry.py"] if status == "implemented" else []
+                ),
             }
         )
     return {"registry_version": "17case-v5", "recommendations": records}

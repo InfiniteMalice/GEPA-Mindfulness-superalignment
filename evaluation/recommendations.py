@@ -282,11 +282,23 @@ def _parse_recommendation(value: Any, position: int) -> Recommendation:
     context = f"{recommendation_id}"
     _validate_exact_fields(record, _RECOMMENDATION_FIELDS, f"{context} fields")
     parsed_id = _require_nonempty_string(record["id"], f"{context} id")
+    status = _require_choice(record["status"], ALLOWED_STATUSES, f"{context} status")
+    implementation_refs = _require_string_tuple(
+        record["implementation_refs"],
+        f"{context} implementation_refs",
+    )
+    for implementation_ref in implementation_refs:
+        _validate_repo_relative_path(
+            implementation_ref,
+            f"{context} implementation_refs item",
+        )
+    if status == "implemented" and not implementation_refs:
+        raise ValueError(f"{context} implemented status requires non-empty implementation_refs")
     return Recommendation(
         recommendation_id=parsed_id,
         title=_require_nonempty_string(record["title"], f"{context} title"),
         priority=_require_choice(record["priority"], ALLOWED_PRIORITIES, f"{context} priority"),
-        status=_require_choice(record["status"], ALLOWED_STATUSES, f"{context} status"),
+        status=status,
         rationale=_require_nonempty_string(record["rationale"], f"{context} rationale"),
         targets=_require_string_tuple(record["targets"], f"{context} targets", required=True),
         supersedes=_require_string_tuple(record["supersedes"], f"{context} supersedes"),
@@ -298,10 +310,7 @@ def _parse_recommendation(value: Any, position: int) -> Recommendation:
             f"{context} acceptance_tests",
             required=True,
         ),
-        implementation_refs=_require_string_tuple(
-            record["implementation_refs"],
-            f"{context} implementation_refs",
-        ),
+        implementation_refs=implementation_refs,
     )
 
 

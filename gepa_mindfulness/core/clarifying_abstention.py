@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from enum import Enum
 from types import MappingProxyType
-from typing import Mapping
 
 from evaluation.cases import load_case_manifest
 
@@ -39,6 +39,45 @@ class StakesDimension(str, Enum):
     TIME_PRESSURE = "time_pressure"
 
 
+class _ImmutableCompatibility(Mapping[str, tuple[str, ...]]):
+    """Hashable immutable mapping for authored compatibility facts."""
+
+    __slots__ = ("_items",)
+    _items: tuple[tuple[str, tuple[str, ...]], ...]
+
+    def __init__(self, values: Mapping[str, tuple[str, ...]] | None = None) -> None:
+        items = () if values is None else values.items()
+        normalized = tuple(sorted((key, tuple(value)) for key, value in items))
+        object.__setattr__(self, "_items", normalized)
+
+    def __getitem__(self, key: str) -> tuple[str, ...]:
+        for item_key, value in self._items:
+            if item_key == key:
+                return value
+        raise KeyError(key)
+
+    def __iter__(self) -> Iterator[str]:
+        return (key for key, _ in self._items)
+
+    def __len__(self) -> int:
+        return len(self._items)
+
+    def __hash__(self) -> int:
+        return hash(self._items)
+
+    def __deepcopy__(self, memo: dict[int, object]) -> _ImmutableCompatibility:
+        del memo
+        return self
+
+    def __setattr__(self, name: str, value: object) -> None:
+        del name, value
+        raise TypeError("compatibility mapping is immutable")
+
+    def __setitem__(self, key: str, value: tuple[str, ...]) -> None:
+        del key, value
+        raise TypeError("compatibility mapping is immutable")
+
+
 @dataclass(frozen=True)
 class FrameworkCaseDefinition:
     """Stable case metadata for the 17-case framework."""
@@ -48,9 +87,17 @@ class FrameworkCaseDefinition:
     description: str
     abstention_type: AbstentionType = AbstentionType.NONE
     ambiguity_mode: AmbiguityHandlingMode = AmbiguityHandlingMode.ANSWER
-    compatibility: Mapping[str, tuple[str, ...]] = field(
-        default_factory=lambda: MappingProxyType({})
-    )
+    compatibility: Mapping[str, tuple[str, ...]] = field(default_factory=_ImmutableCompatibility)
+
+    def __post_init__(self) -> None:
+        """Snapshot compatibility values so callers cannot mutate authored facts."""
+
+        if not isinstance(self.compatibility, _ImmutableCompatibility):
+            object.__setattr__(
+                self,
+                "compatibility",
+                _ImmutableCompatibility(self.compatibility),
+            )
 
 
 _CASE_MANIFEST = load_case_manifest()

@@ -1,5 +1,10 @@
 import json
+from copy import deepcopy
+from dataclasses import asdict
+from operator import setitem
 from pathlib import Path
+
+import pytest
 
 from evaluation.cases import load_case_manifest
 from gepa_mindfulness.core import (
@@ -14,7 +19,10 @@ from gepa_mindfulness.core import (
 )
 from gepa_mindfulness.factuality_observability.logging import build_sample_log_bundle
 from gepa_mindfulness.factuality_observability.schemas import CaseOverlayV2
-from gepa_mindfulness.schema_v3 import CASE_NAMES
+from gepa_mindfulness.schema_v3 import CANONICAL_CASE_NAMES, CASE_NAMES
+from rg_tracer.schema_v3 import (
+    CANONICAL_CASE_NAMES as RG_TRACER_CANONICAL_CASE_NAMES,
+)
 from rg_tracer.schema_v3 import CASE_NAMES as RG_TRACER_CASE_NAMES
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,13 +32,19 @@ EXAMPLES_PATH = ROOT / "data" / "synthetic" / "ambiguity_handling" / "examples.j
 
 
 def test_case_name_compatibility_maps_match_the_canonical_manifest() -> None:
-    """Compatibility maps contain exactly the canonical manifest IDs and keys."""
+    """Canonical views stay 1-17 while legacy lookup maps retain fallback Case 0."""
 
     manifest = load_case_manifest()
-    expected_names = {case.id: case.key for case in manifest.cases}
+    expected_canonical_names = {case.id: case.key for case in manifest.cases}
+    expected_legacy_names = {
+        0: "fallback_or_internal_error",
+        **expected_canonical_names,
+    }
 
-    assert CASE_NAMES == expected_names
-    assert RG_TRACER_CASE_NAMES == expected_names
+    assert CANONICAL_CASE_NAMES == expected_canonical_names
+    assert RG_TRACER_CANONICAL_CASE_NAMES == expected_canonical_names
+    assert CASE_NAMES == expected_legacy_names
+    assert RG_TRACER_CASE_NAMES == expected_legacy_names
 
 
 def test_original_13_cases_are_preserved() -> None:
@@ -107,6 +121,18 @@ def test_framework_case_definition_preserves_legacy_constructor_contract() -> No
     assert definition.abstention_type is AbstentionType.EPISTEMIC_IDK
     assert definition.ambiguity_mode is AmbiguityHandlingMode.EPISTEMIC_ABSTAIN
     assert definition.compatibility == {}
+
+
+def test_framework_case_definition_compatibility_supports_frozen_dataclass_contracts() -> None:
+    """Compatibility facts remain immutable while hash, deepcopy, and asdict stay usable."""
+
+    definition = APPENDED_AMBIGUITY_CASES[14]
+
+    assert isinstance(hash(definition), int)
+    assert deepcopy(definition) == definition
+    assert asdict(definition)["compatibility"] == {"legacy_versions": ("v4",)}
+    with pytest.raises(TypeError, match="immutable"):
+        setitem(definition.compatibility, "legacy_versions", ())
 
 
 def test_stakes_calibration_uses_category_of_impact() -> None:
