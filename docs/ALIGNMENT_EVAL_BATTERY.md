@@ -70,6 +70,34 @@ python -m evaluation.run_v5_framework --dry-run --model-version mindful-model-20
 The V5 planner JSONL schema is separate from the legacy alignment battery result schema described
 below. Do not use V5 planned-cell records as legacy benchmark results.
 
+V5 plans are capped at 10,000 total cells, calculated as selected cases times selected stripes
+times repeats. The planner rejects a larger request before deriving seeds or opening an output file.
+The CLI emits one newline-terminated JSON object at a time and, for file output, atomically replaces
+the destination only after every row has been written successfully. Plans within the cap retain the
+same deterministic bytes and seeds as earlier V5 plans.
+
+## V5 verified evaluation boundary
+
+A `V5EvaluationRecord` always has exactly these eight root sections: `case`, `robustness`, `system`,
+`epistemics`, `behavior`, `outcome`, `scores`, and `diagnostics`. Constructing the root takes a
+detached snapshot of every section. Loading those fields from JSON validates their shape, but JSON
+alone is not trusted evidence for optimization or aggregate metrics.
+
+Call `validate_v5_record_provenance(record, events)` with the record and the complete PR-2
+action-bound event sequence for the same planned cell. The validator checks the PR-2 sequence,
+cell and run identity, exact event-reference types, ancestry, evidence occurrence, and verified
+routes. Positive epistemic-process credit requires a prediction/evidence/verification/epistemic
+route. A passing outcome requires linked actions, observations, and a successful verifier. Only the
+returned immutable `VerifiedV5Evaluation` can expose optimizer scores without validating the event
+sequence again; `V5EvaluationRecord.optimizer_scores(events)` is the validating convenience API.
+
+`summarize_v5_record_groups` also requires the immutable planned-cell inventory and one event
+sequence for each observed cell. Strict mode requires every planned cell exactly once. Partial mode
+accepts only an in-plan prefix of each repeat group and reports both `expected_count` and
+`observed_count`; a completely unobserved planned group has `metrics=None`. Both modes reject
+unplanned records, missing or extra event sequences, duplicate cells or seeds, and seed or version
+drift. These V5 records and summaries remain separate from the legacy battery result schema.
+
 Response scoring mode reads precomputed model answers:
 
 ```bash

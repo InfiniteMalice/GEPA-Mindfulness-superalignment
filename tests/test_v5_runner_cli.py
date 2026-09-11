@@ -159,6 +159,37 @@ class _PartialWriteFailure:
         return self._handle.fileno()
 
 
+class _BoundedStdout:
+    """Text stream that rejects writes larger than one serialized plan row."""
+
+    def __init__(self, maximum_write: int) -> None:
+        self.maximum_write = maximum_write
+        self.writes: list[str] = []
+
+    def write(self, value: str) -> int:
+        """Accept one bounded write and retain it for exact output assertions."""
+
+        if len(value) > self.maximum_write:
+            raise OSError(f"write of {len(value)} characters exceeds streaming bound")
+        self.writes.append(value)
+        return len(value)
+
+    def flush(self) -> None:
+        """Match the text-stream interface used by the CLI."""
+
+
+class _FailingStdout:
+    """Text stream that injects an operating-system error on every write."""
+
+    def write(self, value: str) -> int:
+        """Raise the failure that the CLI must normalize through argparse."""
+
+        raise OSError(f"injected stdout failure for {len(value)} characters")
+
+    def flush(self) -> None:
+        """Match the text-stream interface used by the CLI."""
+
+
 def test_mid_write_failure_preserves_destination_and_removes_only_its_temp_file(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
@@ -204,6 +235,88 @@ def test_replace_failure_preserves_destination_and_removes_only_its_temp_file(
     assert list(tmp_path.iterdir()) == [output]
 
 
+def test_cleanup_failure_does_not_mask_the_original_atomic_replace_error(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Best-effort temp cleanup must preserve the actionable write failure diagnosis."""
+
+    output = tmp_path / "planned.jsonl"
+    output.write_text("old planned bytes\n", encoding="utf-8")
+
+    def fail_replace(source, destination) -> None:
+        raise OSError("injected replace failure")
+
+    def fail_cleanup(path) -> None:
+        raise PermissionError("injected cleanup failure")
+
+    monkeypatch.setattr(run_v5_framework.os, "replace", fail_replace)
+    monkeypatch.setattr(run_v5_framework.Path, "unlink", fail_cleanup)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--dry-run", "--output", str(output), *_required_arguments()])
+
+    assert exc_info.value.code == 2
+    assert "injected replace failure" in capsys.readouterr().err
+    assert output.read_text(encoding="utf-8") == "old planned bytes\n"
+
+
+def test_stdout_is_written_one_complete_jsonl_row_at_a_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Stdout planning must not construct or write one grid-sized JSONL string."""
+
+    stdout = _BoundedStdout(maximum_write=300)
+    monkeypatch.setattr(run_v5_framework.sys, "stdout", stdout)
+
+    assert (
+        main(
+            [
+                "--dry-run",
+                "--case",
+                "14",
+                "--stripe",
+                "TOOL_ERROR",
+                "--repeats",
+                "2",
+                *_required_arguments(),
+            ]
+        )
+        == 0
+    )
+
+    assert len(stdout.writes) == 2
+    assert all(value.endswith("\n") for value in stdout.writes)
+    assert len("".join(stdout.writes).splitlines()) == 2
+
+
+def test_stdout_io_failure_is_normalized_as_a_cli_usage_error(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A broken stdout pipe must use the same clear exit-code-two error contract as files."""
+
+    monkeypatch.setattr(run_v5_framework.sys, "stdout", _FailingStdout())
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(
+            [
+                "--dry-run",
+                "--case",
+                "14",
+                "--stripe",
+                "TOOL_ERROR",
+                "--repeats",
+                "1",
+                *_required_arguments(),
+            ]
+        )
+
+    assert exc_info.value.code == 2
+    assert "could not write V5 JSONL output to stdout" in capsys.readouterr().err
+
+
 def test_output_with_missing_parent_reports_a_clear_error(
     tmp_path,
     capsys: pytest.CaptureFixture[str],
@@ -220,7 +333,7 @@ def test_output_with_missing_parent_reports_a_clear_error(
     assert "output parent directory does not exist" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("value", ["+1", "01", "1_0", "1.0"])
+@pytest.mark.parametrize("value", ["+1", "-0", "01", "1_0", "1.0"])
 def test_cli_rejects_noncanonical_integer_spellings(value: str) -> None:
     """CLI integer spellings must remain unambiguous before planner validation."""
 

@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from functools import cache
 from math import isfinite
-from typing import Any, cast
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Any, cast
 
 from mindful_trace_gepa._json_values import require_serialization_safe_integer
 
 from .cases.registry import FRAMEWORK_VERSION, load_case_manifest, load_stripe_registry
+
+if TYPE_CHECKING:
+    from mindful_trace_gepa.logging_schema import EventEnvelope
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,9 +32,9 @@ class CaseIdentity:
         _require_literal(self.case_version, FRAMEWORK_VERSION, "case_version")
         if type(self.case_id) is not int:
             raise ValueError("case_id must be a built-in integer")
-        case = _canonical_case(self.case_id)
-        _require_literal(self.case_key, case.key, "case_key")
-        _require_literal(self.case_title, case.title, "case_title")
+        case_key, case_title = _canonical_case(self.case_id)
+        _require_literal(self.case_key, case_key, "case_key")
+        _require_literal(self.case_title, case_title, "case_title")
 
     def to_dict(self) -> dict[str, object]:
         """Return a fresh JSON-compatible representation."""
@@ -52,10 +57,10 @@ class RobustnessIdentity:
     def __post_init__(self) -> None:
         """Validate the stripe and its optional subtype against the stripe registry."""
 
-        stripe = _canonical_stripe(self.stripe_id)
+        allowed_subtypes = _canonical_stripe(self.stripe_id)
         if self.subtype is not None:
             subtype = _require_nonblank_string(self.subtype, "subtype")
-            if subtype not in stripe.allowed_subtypes:
+            if subtype not in allowed_subtypes:
                 raise ValueError(
                     f"subtype {subtype!r} is not allowed for stripe {self.stripe_id!r}"
                 )
@@ -267,7 +272,7 @@ class V5EvaluationRecord:
     diagnostics: DiagnosticRecord
 
     def __post_init__(self) -> None:
-        """Reject objects that do not use the dedicated immutable sections."""
+        """Reject foreign sections and detach the root from caller-owned section objects."""
 
         _require_exact_instance(self.case, CaseIdentity, "case")
         _require_exact_instance(self.robustness, RobustnessIdentity, "robustness")
@@ -277,6 +282,82 @@ class V5EvaluationRecord:
         _require_exact_instance(self.outcome, OutcomeRecord, "outcome")
         _require_exact_instance(self.scores, ScoreRecord, "scores")
         _require_exact_instance(self.diagnostics, DiagnosticRecord, "diagnostics")
+        object.__setattr__(
+            self,
+            "case",
+            CaseIdentity(
+                case_id=self.case.case_id,
+                case_version=self.case.case_version,
+                case_key=self.case.case_key,
+                case_title=self.case.case_title,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "robustness",
+            RobustnessIdentity(
+                stripe_id=self.robustness.stripe_id,
+                subtype=self.robustness.subtype,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "system",
+            SystemIdentity(
+                repeat_id=self.system.repeat_id,
+                seed=self.system.seed,
+                model_version=self.system.model_version,
+                harness_version=self.system.harness_version,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "epistemics",
+            EpistemicRecord(
+                prediction_ref=self.epistemics.prediction_ref,
+                evidence_refs=self.epistemics.evidence_refs,
+                verifier_refs=self.epistemics.verifier_refs,
+                confidence=self.epistemics.confidence,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "behavior",
+            BehaviorRecord(
+                action_refs=self.behavior.action_refs,
+                abstained=self.behavior.abstained,
+                requested_clarification=self.behavior.requested_clarification,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "outcome",
+            OutcomeRecord(
+                observation_refs=self.outcome.observation_refs,
+                verifier_refs=self.outcome.verifier_refs,
+                passed=self.outcome.passed,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "scores",
+            ScoreRecord(
+                correctness=self.scores.correctness,
+                calibration=self.scores.calibration,
+                abstention=self.scores.abstention,
+                epistemic_process=self.scores.epistemic_process,
+                total=self.scores.total,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "diagnostics",
+            DiagnosticRecord(
+                trace_summary=self.diagnostics.trace_summary,
+                deception_signal=self.diagnostics.deception_signal,
+                mechanistic_signal=self.diagnostics.mechanistic_signal,
+            ),
+        )
 
     def to_dict(self) -> dict[str, object]:
         """Return fresh, deterministic JSON-compatible containers for this record."""
@@ -400,33 +481,47 @@ class V5EvaluationRecord:
             ),
         )
 
-    def optimizer_scores(self) -> dict[str, object]:
-        """Return only optimizer-facing score components, never diagnostic signals."""
+    def optimizer_scores(self, events: Sequence[EventEnvelope]) -> dict[str, object]:
+        """Return optimizer scores only after validating same-cell PR-2 provenance."""
 
-        return {
-            "correctness": self.scores.correctness,
-            "calibration": self.scores.calibration,
-            "abstention": self.scores.abstention,
-            "epistemic_process": self.scores.epistemic_process,
-            "total": self.scores.total,
-        }
+        from .v5_provenance import validate_v5_record_provenance
+
+        return validate_v5_record_provenance(self, events).optimizer_scores()
 
 
-def _canonical_case(case_id: int) -> Any:
-    for case in load_case_manifest().cases:
-        if case.id == case_id:
-            return case
+def _canonical_case(case_id: int) -> tuple[str, str]:
+    case = _canonical_case_map().get(case_id)
+    if case is not None:
+        return case
     raise ValueError(f"case_id must identify a canonical 17case-v5 case; received {case_id!r}")
 
 
-def _canonical_stripe(stripe_id: object) -> Any:
+def _canonical_stripe(stripe_id: object) -> tuple[str, ...]:
     parsed_id = _require_nonblank_string(stripe_id, "stripe_id")
-    for stripe in load_stripe_registry().stripes:
-        if stripe.id == parsed_id:
-            return stripe
+    stripe = _canonical_stripe_map().get(parsed_id)
+    if stripe is not None:
+        return stripe
     raise ValueError(
         f"stripe_id must identify a registered 17case-v5 stripe; received {parsed_id!r}"
     )
+
+
+@cache
+def _canonical_case_map() -> Mapping[int, tuple[str, str]]:
+    """Return one immutable case identity map loaded from the packaged registry once."""
+
+    identities = {case.id: (case.key, case.title) for case in load_case_manifest().cases}
+    return MappingProxyType(identities)
+
+
+@cache
+def _canonical_stripe_map() -> Mapping[str, tuple[str, ...]]:
+    """Return one immutable stripe/subtype map loaded from the packaged registry once."""
+
+    identities = {
+        stripe.id: tuple(stripe.allowed_subtypes) for stripe in load_stripe_registry().stripes
+    }
+    return MappingProxyType(identities)
 
 
 def _reference_tuple(value: object, field_name: str) -> tuple[str, ...]:
@@ -465,7 +560,7 @@ def _require_bool(value: object, field_name: str) -> None:
 
 
 def _require_nonblank_string(value: object, field_name: str) -> str:
-    if not isinstance(value, str) or not value.strip() or value != value.strip():
+    if type(value) is not str or not value.strip() or value != value.strip():
         raise ValueError(f"{field_name} must be a nonblank string without surrounding whitespace")
     return value
 

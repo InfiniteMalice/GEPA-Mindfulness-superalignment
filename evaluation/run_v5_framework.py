@@ -8,11 +8,13 @@ import os
 import re
 import sys
 import tempfile
+from collections.abc import Sequence
 from pathlib import Path
+from typing import TextIO
 
 from .v5_runner import V5EvaluationCell, plan_v5_cells
 
-_INTEGER_SPELLING = re.compile(r"-?(?:0|[1-9][0-9]*)\Z")
+_INTEGER_SPELLING = re.compile(r"(?:0|-?[1-9][0-9]*)\Z")
 
 
 def _parse_integer(value: str) -> int:
@@ -43,7 +45,17 @@ def _serialize_cell(cell: V5EvaluationCell) -> str:
     )
 
 
-def _write_jsonl_atomically(output_path: Path, jsonl: str) -> None:
+def _write_jsonl(stream: TextIO, cells: Sequence[V5EvaluationCell]) -> None:
+    """Stream one complete newline-terminated JSON object per write."""
+
+    for cell in cells:
+        stream.write(f"{_serialize_cell(cell)}\n")
+
+
+def _write_jsonl_atomically(
+    output_path: Path,
+    cells: Sequence[V5EvaluationCell],
+) -> None:
     """Replace one output file only after a same-directory temporary file is closed."""
 
     parent = output_path.parent
@@ -64,7 +76,7 @@ def _write_jsonl_atomically(output_path: Path, jsonl: str) -> None:
         temp_file = os.fdopen(descriptor, "w", encoding="utf-8", newline="\n")
         descriptor = None
         with temp_file:
-            temp_file.write(jsonl)
+            _write_jsonl(temp_file, cells)
             temp_file.flush()
         os.replace(temp_path, output_path)
         temp_path = None
@@ -79,7 +91,7 @@ def _write_jsonl_atomically(output_path: Path, jsonl: str) -> None:
         if temp_path is not None:
             try:
                 temp_path.unlink()
-            except FileNotFoundError:
+            except OSError:
                 pass
 
 
@@ -115,14 +127,15 @@ def main(argv: list[str] | None = None) -> int:
             model_version=args.model_version,
             harness_version=args.harness_version,
         )
-        jsonl = "\n".join(_serialize_cell(cell) for cell in cells) + "\n"
         if args.output is not None:
-            _write_jsonl_atomically(args.output, jsonl)
+            _write_jsonl_atomically(args.output, cells)
+        else:
+            try:
+                _write_jsonl(sys.stdout, cells)
+            except (OSError, UnicodeError) as error:
+                raise ValueError(f"could not write V5 JSONL output to stdout: {error}") from error
     except ValueError as error:
         parser.error(str(error))
-
-    if args.output is None:
-        sys.stdout.write(jsonl)
     return 0
 
 

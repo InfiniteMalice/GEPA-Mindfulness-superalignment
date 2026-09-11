@@ -20,7 +20,9 @@ from evaluation import (
     ScoreRecord,
     SystemIdentity,
     V5EvaluationRecord,
+    v5_records,
 )
+from evaluation.cases.registry import RobustnessStripeRegistry
 
 
 class _SubclassCaseIdentity(CaseIdentity):
@@ -70,6 +72,10 @@ class _MaliciousScoreRecord(ScoreRecord):
 
 class _SubclassDiagnosticRecord(DiagnosticRecord):
     """Deliberately non-canonical diagnostic section used at the root trust boundary."""
+
+
+class _StringSubclass(str):
+    """A string subclass that must not cross exact V5 scalar boundaries."""
 
 
 def _record() -> V5EvaluationRecord:
@@ -206,6 +212,145 @@ def test_record_rejects_subclasses_for_every_nested_section(
         cast(Any, replace)(_record(), **{field_name: section})
 
 
+def test_root_record_snapshots_every_caller_owned_nested_section() -> None:
+    """Mutating a source section after root construction must not rewrite the root record."""
+
+    source = _record()
+    sections = {
+        "case": source.case,
+        "robustness": source.robustness,
+        "system": source.system,
+        "epistemics": source.epistemics,
+        "behavior": source.behavior,
+        "outcome": source.outcome,
+        "scores": source.scores,
+        "diagnostics": source.diagnostics,
+    }
+    record = V5EvaluationRecord(**cast(Any, sections))
+    before = record.to_dict()
+
+    assert all(getattr(record, name) is not section for name, section in sections.items())
+    object.__setattr__(sections["case"], "case_title", "caller rewrite")
+    object.__setattr__(sections["robustness"], "stripe_id", "NONE")
+    object.__setattr__(sections["system"], "seed", 99)
+    object.__setattr__(sections["epistemics"], "confidence", 0.0)
+    object.__setattr__(sections["behavior"], "abstained", False)
+    object.__setattr__(sections["outcome"], "passed", False)
+    object.__setattr__(sections["scores"], "total", 0.0)
+    object.__setattr__(sections["diagnostics"], "deception_signal", 99.0)
+
+    assert record.to_dict() == before
+
+
+@pytest.mark.parametrize(
+    ("section", "field", "value"),
+    [
+        ("case", "case_version", _StringSubclass("17case-v5")),
+        (
+            "case",
+            "case_key",
+            _StringSubclass("correct_high_stakes_clarifying_abstention"),
+        ),
+        (
+            "case",
+            "case_title",
+            _StringSubclass("Correct high-stakes clarifying abstention"),
+        ),
+        ("robustness", "stripe_id", _StringSubclass("TOOL_ERROR")),
+        ("system", "model_version", _StringSubclass("mindful-model-2026-09-10")),
+        ("system", "harness_version", _StringSubclass("v5-harness-1.0.0")),
+        ("epistemics", "prediction_ref", _StringSubclass("event:prediction-14-2")),
+        ("epistemics", "evidence_refs", [_StringSubclass("evidence:request-14")]),
+        (
+            "epistemics",
+            "verifier_refs",
+            [_StringSubclass("event:verification-result-14-2")],
+        ),
+        ("behavior", "action_refs", [_StringSubclass("event:action-proposed-14-2")]),
+        ("outcome", "observation_refs", [_StringSubclass("event:outcome-observed-14-2")]),
+        (
+            "outcome",
+            "verifier_refs",
+            [_StringSubclass("event:verification-result-14-2")],
+        ),
+        (
+            "diagnostics",
+            "trace_summary",
+            _StringSubclass("The requested tool failed, so the model asked a targeted question."),
+        ),
+    ],
+)
+def test_from_dict_rejects_string_subclasses_for_every_record_identifier(
+    section: str,
+    field: str,
+    value: object,
+) -> None:
+    """A value-equal string subclass must not bypass V5 identity validation."""
+
+    payload = cast(dict[str, Any], _record().to_dict())
+    payload[section][field] = value
+
+    with pytest.raises(ValueError, match=field):
+        V5EvaluationRecord.from_dict(payload)
+
+
+def test_record_subtype_rejects_a_string_subclass_even_when_value_is_registered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Subtype membership must not allow a value-equal custom string implementation."""
+
+    registry = v5_records.load_stripe_registry()
+    stripes = tuple(
+        replace(stripe, allowed_subtypes=("retry",)) if stripe.id == "TOOL_ERROR" else stripe
+        for stripe in registry.stripes
+    )
+    monkeypatch.setattr(
+        v5_records,
+        "load_stripe_registry",
+        lambda: RobustnessStripeRegistry(registry.registry_version, stripes),
+    )
+    v5_records._canonical_stripe_map.cache_clear()
+    try:
+        with pytest.raises(ValueError, match="subtype"):
+            RobustnessIdentity("TOOL_ERROR", _StringSubclass("retry"))
+    finally:
+        v5_records._canonical_stripe_map.cache_clear()
+
+
+def test_record_registry_identity_loaders_are_called_once_per_cached_map(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Constructing many record sections must not repeatedly parse the packaged YAML files."""
+
+    case_loader = v5_records.load_case_manifest
+    stripe_loader = v5_records.load_stripe_registry
+    calls = {"case": 0, "stripe": 0}
+
+    def counted_case_loader():
+        calls["case"] += 1
+        return case_loader()
+
+    def counted_stripe_loader():
+        calls["stripe"] += 1
+        return stripe_loader()
+
+    monkeypatch.setattr(v5_records, "load_case_manifest", counted_case_loader)
+    monkeypatch.setattr(v5_records, "load_stripe_registry", counted_stripe_loader)
+    v5_records._canonical_case_map.cache_clear()
+    v5_records._canonical_stripe_map.cache_clear()
+    try:
+        for _ in range(5):
+            _record()
+        assert calls == {"case": 1, "stripe": 1}
+        with pytest.raises(TypeError):
+            cast(Any, v5_records._canonical_case_map())[14] = ("rewrite", "rewrite")
+        with pytest.raises(TypeError):
+            cast(Any, v5_records._canonical_stripe_map())["TOOL_ERROR"] = ()
+    finally:
+        v5_records._canonical_case_map.cache_clear()
+        v5_records._canonical_stripe_map.cache_clear()
+
+
 def test_malicious_score_subclass_cannot_inject_mutable_diagnostics() -> None:
     malicious = _MaliciousScoreRecord()
 
@@ -327,30 +472,17 @@ def test_from_dict_rejects_non_json_values_cycles_and_non_string_mapping_keys() 
         V5EvaluationRecord.from_dict(non_string_key)
 
 
-def test_optimizer_scores_contains_only_documented_score_components() -> None:
+def test_optimizer_scores_requires_action_bound_provenance() -> None:
     record = _record()
 
-    assert record.optimizer_scores() == {
-        "correctness": 1.0,
-        "calibration": 0.82,
-        "abstention": 1.0,
-        "epistemic_process": 0.75,
-        "total": 0.8925,
-    }
+    with pytest.raises(TypeError):
+        record.optimizer_scores()  # type: ignore[call-arg]
 
 
-def test_optimizer_scores_does_not_dispatch_to_score_serializer(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_score_section_serialization_has_only_documented_fields() -> None:
     record = _record()
 
-    monkeypatch.setattr(
-        ScoreRecord,
-        "to_dict",
-        lambda self: {"diagnostics": ["counterfeit-score-serializer"]},
-    )
-
-    assert record.optimizer_scores() == {
+    assert record.scores.to_dict() == {
         "correctness": 1.0,
         "calibration": 0.82,
         "abstention": 1.0,
@@ -370,7 +502,7 @@ def test_diagnostic_mutation_cannot_affect_optimizer_scores() -> None:
 
     mutated = V5EvaluationRecord.from_dict(payload)
 
-    assert mutated.optimizer_scores() == {
+    assert mutated.scores.to_dict() == {
         "correctness": 1.0,
         "calibration": 0.82,
         "abstention": 1.0,
