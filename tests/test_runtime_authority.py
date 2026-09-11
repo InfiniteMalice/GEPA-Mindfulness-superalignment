@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import gc
 import json
+import weakref
 from dataclasses import FrozenInstanceError, dataclass
 from datetime import datetime
 from typing import Any, cast
@@ -972,11 +974,31 @@ def test_authorization_accepts_only_an_enrolled_exact_registry() -> None:
         )
 
 
-def test_mutating_authoritative_registry_storage_fails_closed() -> None:
+def test_coherent_registry_entry_and_seal_corruption_cannot_retarget_authority() -> None:
     grant = _grant()
     registry = AuthorityGrantRegistry.enroll((grant,))
     forged = _grant(principal_id="attacker")
-    object.__setattr__(registry, "_entries", (forged,))
 
-    with pytest.raises(ValueError, match="registry integrity"):
-        registry.resolve((grant.grant_id,))
+    with pytest.raises(AttributeError):
+        object.__setattr__(registry, "_entries", (forged,))
+    with pytest.raises(AttributeError):
+        object.__setattr__(registry, "_seal", "0" * 64)
+
+    resolved = registry.resolve((grant.grant_id,))
+    assert resolved == (grant,)
+
+
+def test_registry_object_has_no_mutable_authority_fields_and_uses_weak_lifecycle() -> None:
+    registry = AuthorityGrantRegistry.enroll((_grant(),))
+    registry_ref = weakref.ref(registry)
+
+    assert not hasattr(registry, "__dict__")
+    for field_name in ("entries", "grants", "state", "seal", "_state"):
+        with pytest.raises((AttributeError, TypeError)):
+            setattr(registry, field_name, object())
+        with pytest.raises(AttributeError):
+            object.__setattr__(registry, field_name, object())
+
+    del registry
+    gc.collect()
+    assert registry_ref() is None

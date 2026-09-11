@@ -8,13 +8,14 @@ clock.
 from __future__ import annotations
 
 import hashlib
-import hmac
 import json
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
+from threading import RLock
 from typing import Protocol, cast
+from weakref import WeakKeyDictionary
 
 from gepa_mindfulness.core.evidence import EvidenceReference
 from mindful_trace_gepa.action_bound_events import ActionRecord
@@ -210,14 +211,13 @@ class AuthorityGrantRegistry:
     """An authoritative local store of defensively enrolled grant snapshots.
 
     ``enroll`` is the trust boundary: the runtime owner must authenticate issuers before
-    enrollment. This local registry detects later mutation but does not authenticate issuers or
-    provide cryptographic signatures. Authorization accepts only an exact enrolled registry and
-    never accepts raw grants.
+    enrollment. Module-private runtime storage holds snapshots by weak object identity; the public
+    handle has no authority-bearing fields. This registry does not authenticate issuers or provide
+    cryptographic signatures. Authorization accepts only an exact enrolled registry and never
+    accepts raw grants.
     """
 
-    __slots__ = ("_entries", "_seal")
-    _entries: tuple[AuthorityGrant, ...]
-    _seal: str
+    __slots__ = ("__weakref__",)
 
     def __init__(self) -> None:
         """Prevent construction that bypasses explicit enrollment."""
@@ -234,13 +234,15 @@ class AuthorityGrantRegistry:
     def enroll(cls, grants: Sequence[AuthorityGrant]) -> AuthorityGrantRegistry:
         """Create an authoritative registry after the runtime owner authenticates issuers."""
 
+        if cls is not AuthorityGrantRegistry:
+            raise ValueError("enrollment requires the exact AuthorityGrantRegistry type")
         snapshots = _snapshot_grants(grants)
         grant_ids = tuple(grant.grant_id for grant in snapshots)
         if len(set(grant_ids)) != len(grant_ids):
             raise ValueError("enrolled AuthorityGrant IDs must be unique")
-        registry = object.__new__(cls)
-        object.__setattr__(registry, "_entries", snapshots)
-        object.__setattr__(registry, "_seal", _registry_digest(snapshots))
+        registry = object.__new__(AuthorityGrantRegistry)
+        with _AUTHORITY_REGISTRY_LOCK:
+            _AUTHORITY_REGISTRY_STATE[registry] = snapshots
         return registry
 
     def resolve(self, grant_ids: Sequence[str]) -> tuple[AuthorityGrant, ...]:
@@ -253,6 +255,13 @@ class AuthorityGrantRegistry:
         if missing:
             raise KeyError(f"unknown authority grant IDs {missing!r}")
         return tuple(_snapshot_grant(grants_by_id[grant_id]) for grant_id in requested_ids)
+
+
+_AUTHORITY_REGISTRY_LOCK = RLock()
+_AUTHORITY_REGISTRY_STATE: WeakKeyDictionary[
+    AuthorityGrantRegistry,
+    tuple[AuthorityGrant, ...],
+] = WeakKeyDictionary()
 
 
 @dataclass(frozen=True, slots=True)
@@ -733,29 +742,14 @@ def _snapshot_grant_ids(value: object) -> tuple[str, ...]:
     return tuple(grant_ids)
 
 
-def _registry_digest(entries: tuple[AuthorityGrant, ...]) -> str:
-    payload = json.dumps(
-        [grant.to_dict() for grant in entries],
-        ensure_ascii=False,
-        separators=(",", ":"),
-        sort_keys=True,
-    ).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
-
-
 def _validated_registry_entries(registry: object) -> tuple[AuthorityGrant, ...]:
     if type(registry) is not AuthorityGrantRegistry:
         raise ValueError("grant_registry must be an exact AuthorityGrantRegistry")
-    entries = registry._entries
-    seal = registry._seal
-    if type(entries) is not tuple or type(seal) is not str:
-        raise ValueError("authority registry integrity check failed")
-    snapshots = _snapshot_grants(entries)
-    if len({grant.grant_id for grant in snapshots}) != len(snapshots):
-        raise ValueError("authority registry integrity check failed")
-    if not hmac.compare_digest(seal, _registry_digest(snapshots)):
-        raise ValueError("authority registry integrity check failed")
-    return snapshots
+    with _AUTHORITY_REGISTRY_LOCK:
+        entries = _AUTHORITY_REGISTRY_STATE.get(registry)
+        if entries is None:
+            raise ValueError("grant_registry is not enrolled in authoritative runtime storage")
+        return _snapshot_grants(entries)
 
 
 def _resolve_registry_grants(
