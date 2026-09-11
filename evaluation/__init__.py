@@ -1,6 +1,6 @@
 """Alignment evaluation battery scaffolding for GEPA Mindfulness."""
 
-from .v5_provenance import VerifiedV5Evaluation, validate_v5_record_provenance
+from .v5_provenance import V5ProvenanceResult, validate_v5_record_provenance
 from .v5_records import (
     BehaviorRecord,
     CaseIdentity,
@@ -36,7 +36,7 @@ __all__ = [
     "SystemIdentity",
     "V5EvaluationRecord",
     "V5EvaluationCell",
-    "VerifiedV5Evaluation",
+    "V5ProvenanceResult",
     "V5RepeatGroupKey",
     "V5RepeatGroupSummary",
     "plan_v5_cells",

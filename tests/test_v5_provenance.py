@@ -7,6 +7,7 @@ from typing import Any, cast
 
 import pytest
 
+import evaluation
 from evaluation import (
     BehaviorRecord,
     CaseIdentity,
@@ -17,7 +18,6 @@ from evaluation import (
     ScoreRecord,
     SystemIdentity,
     V5EvaluationRecord,
-    VerifiedV5Evaluation,
     validate_v5_record_provenance,
 )
 from mindful_trace_gepa.logging_schema import EventEnvelope
@@ -110,7 +110,13 @@ def _event(
     )
 
 
-def _verified_sequence(*, verified: bool = True) -> tuple[EventEnvelope, ...]:
+def _verified_sequence(
+    *,
+    verified: bool = True,
+    outcome_passed: bool = True,
+    epistemic_assessment: str = "verified",
+    case_assessment: str | None = None,
+) -> tuple[EventEnvelope, ...]:
     """Return a complete same-cell prediction-to-assessment event sequence."""
 
     prediction = _event(
@@ -157,7 +163,7 @@ def _verified_sequence(*, verified: bool = True) -> tuple[EventEnvelope, ...]:
         payload={
             "observation_id": "observation-14-2",
             "action_id": "action-14-2",
-            "actual_outcome": {"behavior": "clarify"},
+            "actual_outcome": {"passed": outcome_passed},
             "evidence_refs": ["evidence:observed-clarification-14"],
         },
     )
@@ -182,15 +188,18 @@ def _verified_sequence(*, verified: bool = True) -> tuple[EventEnvelope, ...]:
         timestamp="2026-09-10T12:00:05Z",
         parent_event_ids=(verification.event_id,),
         action_id="action-14-2",
-        payload={"assessment": "evidence-grounded"},
+        payload={"assessment": epistemic_assessment},
     )
+    resolved_case_assessment = case_assessment
+    if resolved_case_assessment is None:
+        resolved_case_assessment = "pass" if outcome_passed else "fail"
     case = _event(
         event_id="event:case-assessment-14-2",
         event_type="case_assessment",
         timestamp="2026-09-10T12:00:06Z",
         parent_event_ids=(epistemic.event_id,),
         action_id="action-14-2",
-        payload={"assessment": "pass" if verified else "fail"},
+        payload={"assessment": resolved_case_assessment},
     )
     return prediction, proposed, executed, observation, verification, epistemic, case
 
@@ -203,7 +212,6 @@ def test_validated_same_cell_sequence_authorizes_optimizer_scores() -> None:
 
     verified = validate_v5_record_provenance(record, events)
 
-    assert isinstance(verified, VerifiedV5Evaluation)
     assert verified.run_id == "run:case-14-tool-error-repeat-2"
     assert verified.optimizer_scores() == {
         "correctness": 1.0,
@@ -222,6 +230,34 @@ def test_external_record_alone_cannot_mint_optimizer_scores() -> None:
 
     with pytest.raises(TypeError):
         untrusted.optimizer_scores()  # type: ignore[call-arg]
+
+
+def test_public_api_exposes_only_a_nonconstructible_verified_result_contract() -> None:
+    """An exported implementation type must not offer an unchecked authorization mint."""
+
+    verified = validate_v5_record_provenance(_record(), _verified_sequence())
+    result_contract = evaluation.V5ProvenanceResult
+
+    assert not hasattr(evaluation, "VerifiedV5Evaluation")
+    assert "VerifiedV5Evaluation" not in evaluation.__all__
+    assert isinstance(verified, result_contract)
+    with pytest.raises(TypeError, match="Protocols cannot be instantiated"):
+        result_contract()  # type: ignore[misc]
+
+
+def test_runtime_verified_result_constructor_always_revalidates_provenance() -> None:
+    """Obtaining the private runtime type must not reveal an unchecked constructor or factory."""
+
+    events = _verified_sequence()
+    verified = validate_v5_record_provenance(_record(), events)
+    runtime_type = cast(Any, type(verified))
+    record_payload = cast(dict[str, Any], _record().to_dict())
+    record_payload["outcome"]["passed"] = False
+    counterfeit = V5EvaluationRecord.from_dict(record_payload)
+
+    assert not hasattr(runtime_type, "_from_validated")
+    with pytest.raises(ValueError, match="observed outcome.*passed"):
+        runtime_type(counterfeit, events)
 
 
 def test_empty_positive_provenance_and_passing_refs_fail_closed() -> None:
@@ -295,6 +331,109 @@ def test_passing_outcome_and_positive_process_reject_unverified_results() -> Non
         _record().optimizer_scores(_verified_sequence(verified=False))
 
 
+@pytest.mark.parametrize(
+    ("event_passed", "record_passed"),
+    [(False, True), (True, False)],
+)
+def test_record_outcome_claim_must_match_independent_observed_truth(
+    event_passed: bool,
+    record_passed: bool,
+) -> None:
+    """Changing only an untrusted record claim must not contradict observed outcome truth."""
+
+    event_truth = _verified_sequence(outcome_passed=event_passed)
+    record_payload = cast(dict[str, Any], _record(passed=event_passed).to_dict())
+    record_payload["outcome"]["passed"] = record_passed
+    untrusted_record = V5EvaluationRecord.from_dict(record_payload)
+
+    with pytest.raises(ValueError, match="observed outcome.*passed"):
+        untrusted_record.optimizer_scores(event_truth)
+
+
+@pytest.mark.parametrize(
+    "actual_outcome",
+    [
+        {"passed": 1},
+        {"passed": True, "detail": "clarified"},
+        {"result": True},
+    ],
+)
+def test_observed_outcome_requires_exact_typed_v5_pass_mapping(
+    actual_outcome: dict[str, object],
+) -> None:
+    """Truthy aliases, missing fields, and extra fields must not become outcome truth."""
+
+    events = list(_verified_sequence())
+    observation_payload = dict(events[3].payload)
+    observation_payload["actual_outcome"] = actual_outcome
+    events[3] = replace(events[3], payload=observation_payload)
+
+    with pytest.raises(ValueError, match="observed outcome.*passed"):
+        _record().optimizer_scores(events)
+
+
+@pytest.mark.parametrize(
+    ("event_passed", "case_assessment"),
+    [(True, "fail"), (False, "pass")],
+)
+def test_record_outcome_claim_must_match_independent_active_case_assessment(
+    event_passed: bool,
+    case_assessment: str,
+) -> None:
+    """A verified observation cannot substitute for the matching case-assessment result."""
+
+    event_truth = _verified_sequence(
+        outcome_passed=event_passed,
+        case_assessment=case_assessment,
+    )
+    record_payload = cast(dict[str, Any], _record(passed=not event_passed).to_dict())
+    record_payload["outcome"]["passed"] = event_passed
+    untrusted_record = V5EvaluationRecord.from_dict(record_payload)
+
+    with pytest.raises(ValueError, match="case_assessment.*passed"):
+        untrusted_record.optimizer_scores(event_truth)
+
+
+def test_superseded_passing_case_assessment_cannot_authorize_outcome() -> None:
+    """A stale pass result must not override its active failing successor."""
+
+    events = list(_verified_sequence())
+    successor_id = "event:case-assessment-successor-14-2"
+    events[6] = replace(events[6], superseded_by=successor_id)
+    events.append(
+        replace(
+            events[6],
+            event_id=successor_id,
+            timestamp="2026-09-10T12:00:07Z",
+            payload={"assessment": "fail"},
+            superseded_by=None,
+        )
+    )
+
+    with pytest.raises(ValueError, match="active case_assessment.*passed"):
+        _record().optimizer_scores(events)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"assessment": True},
+        {"assessment": "passed"},
+        {"assessment": "pass", "score": 1.0},
+    ],
+)
+def test_active_case_assessment_requires_exact_typed_v5_payload(
+    payload: dict[str, object],
+) -> None:
+    """Untyped, ambiguous, or expanded case payloads cannot authorize outcome truth."""
+
+    events = list(_verified_sequence())
+    events[6] = replace(events[6], payload=payload)
+
+    with pytest.raises(ValueError, match="case_assessment.*assessment"):
+        _record().optimizer_scores(events)
+
+
 def test_positive_process_requires_an_epistemic_assessment_route() -> None:
     """A verified observation alone must not mint positive epistemic-process credit."""
 
@@ -304,11 +443,81 @@ def test_positive_process_requires_an_epistemic_assessment_route() -> None:
         _record().optimizer_scores(events)
 
 
+def _superseded_epistemic_sequence(
+    *,
+    stale_assessment: str,
+    successor_assessment: str,
+) -> tuple[EventEnvelope, ...]:
+    """Return one independently authored epistemic replacement followed by its case result."""
+
+    events = list(_verified_sequence(epistemic_assessment=stale_assessment))
+    successor_id = "event:epistemic-assessment-successor-14-2"
+    stale = replace(events[5], superseded_by=successor_id)
+    successor = replace(
+        events[5],
+        event_id=successor_id,
+        timestamp="2026-09-10T12:00:06Z",
+        payload={"assessment": successor_assessment},
+    )
+    case = replace(
+        events[6],
+        timestamp="2026-09-10T12:00:07Z",
+        parent_event_ids=(successor.event_id,),
+    )
+    return *events[:5], stale, successor, case
+
+
+def test_superseded_qualifying_epistemic_assessment_cannot_authorize_process_credit() -> None:
+    """A stale verified assessment must not override its active unverified successor."""
+
+    events = _superseded_epistemic_sequence(
+        stale_assessment="verified",
+        successor_assessment="unverified",
+    )
+
+    with pytest.raises(ValueError, match="active epistemic_assessment.*verified"):
+        _record().optimizer_scores(events)
+
+
+def test_active_qualifying_epistemic_successor_authorizes_process_credit() -> None:
+    """A valid active verified successor must replace an earlier unverified assessment."""
+
+    events = _superseded_epistemic_sequence(
+        stale_assessment="unverified",
+        successor_assessment="verified",
+    )
+
+    assert _record().optimizer_scores(events)["epistemic_process"] == 0.75
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"assessment": "verified", "score": 1.0},
+        {"assessment": True},
+        {"assessment": "plausible"},
+    ],
+)
+def test_active_epistemic_assessment_requires_exact_typed_v5_payload(
+    payload: dict[str, object],
+) -> None:
+    """Untyped, ambiguous, or expanded assessment payloads cannot authorize process credit."""
+
+    events = list(_verified_sequence())
+    events[5] = replace(events[5], payload=payload)
+
+    with pytest.raises(ValueError, match="epistemic_assessment.*assessment"):
+        _record().optimizer_scores(events)
+
+
 def test_failed_zero_process_record_accepts_resolved_negative_verification() -> None:
     """A failing record may retain an audited negative verification without positive credit."""
 
     record = _record(passed=False, epistemic_process=0.0)
-    events = _verified_sequence(verified=False)[:5]
+    events = _verified_sequence(
+        outcome_passed=False,
+        epistemic_assessment="unverified",
+    )
 
     assert record.optimizer_scores(events) == {
         "correctness": 0.0,

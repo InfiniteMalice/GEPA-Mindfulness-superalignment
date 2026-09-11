@@ -86,10 +86,32 @@ alone is not trusted evidence for optimization or aggregate metrics.
 Call `validate_v5_record_provenance(record, events)` with the record and the complete PR-2
 action-bound event sequence for the same planned cell. The validator checks the PR-2 sequence,
 cell and run identity, exact event-reference types, ancestry, evidence occurrence, and verified
-routes. Positive epistemic-process credit requires a prediction/evidence/verification/epistemic
-route. A passing outcome requires linked actions, observations, and a successful verifier. Only the
-returned immutable `VerifiedV5Evaluation` can expose optimizer scores without validating the event
-sequence again; `V5EvaluationRecord.optimizer_scores(events)` is the validating convenience API.
+routes.
+
+The V5 provenance boundary assigns exact meanings to three PR-2 mapping payloads:
+
+- Each referenced `outcome_observed` event uses an `OutcomeObservation` whose `actual_outcome`
+  mapping contains exactly one field, `passed`. The `passed` value is a built-in `bool`.
+- Each epistemic assessment considered for positive process credit has exactly the payload
+  `{"assessment": "verified"}` or `{"assessment": "unverified"}`. The validator uses the sole
+  unsuperseded assessment whose direct parents exactly equal the record's epistemic verifier
+  references. Only `"verified"` qualifies.
+- Each case assessment considered for outcome truth has exactly the payload
+  `{"assessment": "pass"}` or `{"assessment": "fail"}`. The validator uses the sole
+  unsuperseded case assessment whose active epistemic parents resolve exactly to the record's
+  outcome verifier references.
+
+PR-2 sequence validation binds those assessment routes to the same cell and action ancestry. The
+record's `outcome.passed` value must equal every referenced observed `passed` value and the active
+case-assessment result. `VerificationResult.verified=True` confirms the referenced observation; it
+does not mean that the case passed. Superseded assessment values never authorize outcome or process
+credit.
+
+The validator returns an immutable object described by the nonconstructible
+`V5ProvenanceResult` protocol. The concrete result implementation is private, and every ordinary
+construction path performs full validation. The protocol is a return type only; no V5 API accepts
+an implementation of the protocol as proof of validation. `V5EvaluationRecord.optimizer_scores`
+with `events` is the validating convenience API.
 
 `summarize_v5_record_groups` also requires the immutable planned-cell inventory and one event
 sequence for each observed cell. Strict mode requires every planned cell exactly once. Partial mode

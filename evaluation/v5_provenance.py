@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, fields
-from typing import Any, cast
+from typing import Any, Protocol, cast, runtime_checkable
 
 from mindful_trace_gepa.action_bound_events import (
     ActionRecord,
@@ -29,45 +29,62 @@ _ACTION_TYPES = frozenset({_PROPOSED, _EXECUTED})
 _ACTION_BOUND_TYPES = frozenset(
     {_PREDICTION, _PROPOSED, _EXECUTED, _OBSERVATION, _VERIFICATION, _EPISTEMIC, _CASE}
 )
+_CASE_ASSESSMENT_VALUES = frozenset({"pass", "fail"})
+_EPISTEMIC_ASSESSMENT_VALUES = frozenset({"verified", "unverified"})
+
+
+@runtime_checkable
+class V5ProvenanceResult(Protocol):
+    """Read-only shape returned by the V5 provenance validator."""
+
+    @property
+    def run_id(self) -> str:
+        """Return the one validated run identity."""
+
+    @property
+    def event_ids(self) -> tuple[str, ...]:
+        """Return the validated event identities in supplied order."""
+
+    def record_snapshot(self) -> V5EvaluationRecord:
+        """Return a fresh validated record snapshot."""
+
+    def optimizer_scores(self) -> dict[str, object]:
+        """Return the five validated optimizer-facing score values."""
 
 
 @dataclass(frozen=True, slots=True, init=False)
-class VerifiedV5Evaluation:
-    """An immutable record snapshot minted only after provenance validation."""
+class _VerifiedV5Evaluation:
+    """Private immutable result whose only constructor performs full validation."""
 
     run_id: str
     event_ids: tuple[str, ...]
     _record_json: str
 
-    def __init__(self, *_args: object, **_kwargs: object) -> None:
-        """Prevent callers from constructing an unvalidated verification wrapper."""
-
-        raise TypeError("VerifiedV5Evaluation is produced by validate_v5_record_provenance")
-
-    @classmethod
-    def _from_validated(
-        cls,
+    def __init__(
+        self,
         record: V5EvaluationRecord,
-        run_id: str,
-        events: tuple[EventEnvelope, ...],
-    ) -> "VerifiedV5Evaluation":
-        """Create a wrapper from already snapshotted and validated inputs."""
+        events: Sequence[EventEnvelope],
+    ) -> None:
+        """Validate caller inputs before creating any optimizer-capable result."""
 
-        instance = object.__new__(cls)
-        object.__setattr__(instance, "run_id", run_id)
-        object.__setattr__(instance, "event_ids", tuple(event.event_id for event in events))
+        record_snapshot, event_snapshot, run_id = _validated_inputs(record, events)
+        object.__setattr__(self, "run_id", run_id)
         object.__setattr__(
-            instance,
+            self,
+            "event_ids",
+            tuple(event.event_id for event in event_snapshot),
+        )
+        object.__setattr__(
+            self,
             "_record_json",
             json.dumps(
-                record.to_dict(),
+                record_snapshot.to_dict(),
                 allow_nan=False,
                 ensure_ascii=True,
                 separators=(",", ":"),
                 sort_keys=True,
             ),
         )
-        return instance
 
     def record_snapshot(self) -> V5EvaluationRecord:
         """Return a fresh validated record detached from the verified internal snapshot."""
@@ -100,8 +117,17 @@ class VerifiedV5Evaluation:
 def validate_v5_record_provenance(
     record: V5EvaluationRecord,
     events: Sequence[EventEnvelope],
-) -> VerifiedV5Evaluation:
+) -> V5ProvenanceResult:
     """Validate and snapshot one record plus its same-cell PR-2 event sequence."""
+
+    return _VerifiedV5Evaluation(record, events)
+
+
+def _validated_inputs(
+    record: V5EvaluationRecord,
+    events: Sequence[EventEnvelope],
+) -> tuple[V5EvaluationRecord, tuple[EventEnvelope, ...], str]:
+    """Return detached inputs only after every V5 provenance check succeeds."""
 
     if type(record) is not V5EvaluationRecord:
         raise ValueError("record must be an exact V5EvaluationRecord")
@@ -110,7 +136,7 @@ def validate_v5_record_provenance(
     validate_action_bound_sequence(event_snapshot)
     run_id = _validate_cell_identity(record_snapshot, event_snapshot)
     _validate_record_links(record_snapshot, event_snapshot)
-    return VerifiedV5Evaluation._from_validated(record_snapshot, run_id, event_snapshot)
+    return record_snapshot, event_snapshot, run_id
 
 
 def _snapshot_events(events: object) -> tuple[EventEnvelope, ...]:
@@ -219,6 +245,9 @@ def _validate_record_links(
     if any(observation.action_id not in action_ids for observation in observations):
         raise ValueError("observation_refs must resolve through record action_refs")
     observation_ids = {observation.observation_id for observation in observations}
+    observed_passes = tuple(_observed_passed(observation) for observation in observations)
+    if any(passed is not record.outcome.passed for passed in observed_passes):
+        raise ValueError("observed outcome passed value must match record.outcome.passed")
 
     outcome_results = tuple(_payload(event, VerificationResult) for event in outcome_verifications)
     process_results = tuple(_payload(event, VerificationResult) for event in process_verifications)
@@ -226,7 +255,6 @@ def _validate_record_links(
         raise ValueError("outcome verifier_refs must resolve through observation_refs")
     if any(result.observation_id not in observation_ids for result in process_results):
         raise ValueError("epistemic verifier_refs must resolve through observation_refs")
-
     evidence_boundary = set(prediction.evidence_refs)
     for observation in observations:
         evidence_boundary.update(observation.evidence_refs)
@@ -243,23 +271,122 @@ def _validate_record_links(
             raise ValueError("positive epistemic_process requires verifier_refs")
         if any(not result.verified for result in process_results):
             raise ValueError("positive epistemic_process requires verified=True results")
-        required_verifiers = set(record.epistemics.verifier_refs)
-        assessment_found = any(
-            event.event_type == _EPISTEMIC and required_verifiers.issubset(event.parent_event_ids)
-            for event in events
+        process_verified = _active_epistemic_assessment_verified(
+            events,
+            frozenset(record.epistemics.verifier_refs),
         )
-        if not assessment_found:
-            raise ValueError("positive epistemic_process requires a linked epistemic_assessment")
+        if not process_verified:
+            raise ValueError("active epistemic_assessment must be verified for positive process")
 
     if record.outcome.passed:
         if not action_events:
             raise ValueError("outcome.passed=True requires nonempty action_refs")
         if not observation_events:
             raise ValueError("outcome.passed=True requires nonempty observation_refs")
-        if not outcome_results:
-            raise ValueError("outcome.passed=True requires verifier_refs")
-        if any(not result.verified for result in outcome_results):
-            raise ValueError("outcome.passed=True requires verified=True results")
+    if not outcome_results:
+        raise ValueError("outcome provenance requires verifier_refs")
+    if any(not result.verified for result in outcome_results):
+        raise ValueError("outcome provenance requires verified=True results")
+
+    case_passed = _active_case_assessment_passed(
+        events,
+        frozenset(record.outcome.verifier_refs),
+    )
+    if case_passed is not record.outcome.passed:
+        raise ValueError("active case_assessment passed value must match record.outcome.passed")
+
+
+def _observed_passed(observation: OutcomeObservation) -> bool:
+    """Read the exact V5 pass field from one typed observed outcome."""
+
+    outcome = observation.actual_outcome
+    if not isinstance(outcome, Mapping) or set(outcome) != {"passed"}:
+        raise ValueError("observed outcome must contain exactly the passed field")
+    passed = outcome["passed"]
+    if type(passed) is not bool:
+        raise ValueError("observed outcome passed value must be a built-in bool")
+    return passed
+
+
+def _active_case_assessment_passed(
+    events: tuple[EventEnvelope, ...],
+    required_verifiers: frozenset[str],
+) -> bool:
+    """Return the sole active case result for the record's exact verifier ancestry."""
+
+    active_epistemics = {
+        event.event_id: event
+        for event in events
+        if event.event_type == _EPISTEMIC and event.superseded_by is None
+    }
+    matching: list[EventEnvelope] = []
+    for event in events:
+        if event.event_type != _CASE or event.superseded_by is not None:
+            continue
+        try:
+            epistemic_parents = tuple(
+                active_epistemics[parent] for parent in event.parent_event_ids
+            )
+        except KeyError:
+            continue
+        parent_verifiers = frozenset(
+            parent_id for parent in epistemic_parents for parent_id in parent.parent_event_ids
+        )
+        if parent_verifiers == required_verifiers:
+            matching.append(event)
+
+    if len(matching) != 1:
+        raise ValueError(
+            "outcome provenance requires one active case_assessment for its verifier ancestry"
+        )
+    assessment = _assessment_value(
+        matching[0],
+        _CASE_ASSESSMENT_VALUES,
+        "case_assessment",
+    )
+    return assessment == "pass"
+
+
+def _active_epistemic_assessment_verified(
+    events: tuple[EventEnvelope, ...],
+    required_verifiers: frozenset[str],
+) -> bool:
+    """Return the sole active process result for the record's exact verifier ancestry."""
+
+    matching = tuple(
+        event
+        for event in events
+        if event.event_type == _EPISTEMIC
+        and event.superseded_by is None
+        and frozenset(event.parent_event_ids) == required_verifiers
+    )
+    if len(matching) != 1:
+        raise ValueError(
+            "positive epistemic_process requires one active epistemic_assessment "
+            "for its verifier ancestry"
+        )
+    assessment = _assessment_value(
+        matching[0],
+        _EPISTEMIC_ASSESSMENT_VALUES,
+        "epistemic_assessment",
+    )
+    return assessment == "verified"
+
+
+def _assessment_value(
+    event: EventEnvelope,
+    allowed_values: frozenset[str],
+    event_name: str,
+) -> str:
+    """Read one exact V5 assessment mapping and reject untyped or ambiguous payloads."""
+
+    if not isinstance(event.payload, Mapping) or set(event.payload) != {"assessment"}:
+        raise ValueError(f"{event_name} payload must contain exactly the assessment field")
+    assessment = event.payload["assessment"]
+    if type(assessment) is not str or assessment not in allowed_values:
+        expected = " or ".join(repr(value) for value in sorted(allowed_values))
+        raise ValueError(f"{event_name} assessment must be the exact built-in string {expected}")
+    return assessment
 
 
 def _resolve_one(
@@ -308,4 +435,4 @@ def _require_exact_string(value: object, field_name: str) -> str:
     return value
 
 
-__all__ = ["VerifiedV5Evaluation", "validate_v5_record_provenance"]
+__all__ = ["V5ProvenanceResult", "validate_v5_record_provenance"]
