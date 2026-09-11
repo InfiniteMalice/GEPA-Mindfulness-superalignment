@@ -165,6 +165,8 @@ class EvidenceClaim:
                 raise ValueError("a claim cannot supersede itself")
         if (self.status == "superseded") != (self.superseded_by is not None):
             raise ValueError("superseded status requires exactly one superseded_by link")
+        if self.status in {"supported", "contradicted"} and not self.evidence_refs:
+            raise ValueError(f"{self.status} status requires evidence_refs")
 
     def to_dict(self) -> dict[str, object]:
         snapshot = _snapshot_claim(self)

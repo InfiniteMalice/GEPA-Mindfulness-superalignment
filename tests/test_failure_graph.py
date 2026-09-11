@@ -122,6 +122,21 @@ def test_localization_preserves_recovery_boundary() -> None:
     assert _supported_graph().localization.recoverable_until == "anomaly"
 
 
+def test_recovery_boundary_requires_path_when_decisive_failure_is_unknown() -> None:
+    """Catch a verifier-backed but disconnected recovery boundary without a decisive node."""
+
+    localization = _localization(
+        first_anomaly="anomaly",
+        root_cause=None,
+        decisive_failure=None,
+        symptoms=(),
+        recoverable_until="unrelated",
+    )
+
+    with pytest.raises(ValueError, match="recoverable_until"):
+        FailureGraph((_node("anomaly"), _node("unrelated")), (), localization)
+
+
 def test_causal_edges_require_nonempty_verifier_provenance() -> None:
     """Catch an asserted causal link with no independently auditable verifier."""
 

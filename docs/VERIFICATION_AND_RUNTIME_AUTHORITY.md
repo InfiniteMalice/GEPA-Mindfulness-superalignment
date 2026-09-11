@@ -18,6 +18,8 @@ and observable evidence. `WorldStateChange` is an observed artifact transition t
 action to an exact after observation and, when available, an exact before observation.
 
 `EvidenceClaim` records a proposition, its canonical evidence references, and one explicit status.
+Claims marked `supported` or `contradicted` must retain at least one evidence reference; an
+evidence-free claim can remain `unverified` but cannot be promoted by mutating its status.
 `EvidenceState` preserves superseded claims and resolves only validated, acyclic
 `superseded_by` links. `EvidenceClaim` does not create or prove a `WorldStateChange`. For example,
 the statement “I fixed the bug” can be an unverified claim without establishing an observed

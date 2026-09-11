@@ -552,9 +552,10 @@ def _validate_localization_paths(
         ):
             raise ValueError("FailureGraph symptom is not downstream of decisive_failure")
     recoverable = localization.recoverable_until
-    if recoverable is not None and decisive is not None:
+    if recoverable is not None:
         if not _has_semantic_path(anomaly, recoverable, edges, allow_zero=True):
             raise ValueError("FailureGraph recoverable_until precedes first_anomaly")
+    if recoverable is not None and decisive is not None:
         if not _has_semantic_path(recoverable, decisive, edges, allow_zero=True):
             raise ValueError("FailureGraph recoverable_until is outside the decisive path")
 

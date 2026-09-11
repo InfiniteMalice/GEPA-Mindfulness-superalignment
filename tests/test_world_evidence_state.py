@@ -415,6 +415,27 @@ def test_evidence_claim_requires_status_and_supersession_link_to_agree(
         _claim("claim-1", status=status, superseded_by=superseded_by)
 
 
+@pytest.mark.parametrize("status", ["supported", "contradicted"])
+def test_evidentiary_claim_status_requires_at_least_one_reference(status: str) -> None:
+    """Catch affirmative evidence states that do not identify supporting evidence."""
+
+    with pytest.raises(ValueError, match="requires evidence_refs"):
+        _claim("claim-1", status=status)
+
+
+@pytest.mark.parametrize("status", ["supported", "contradicted"])
+def test_evidence_state_rejects_coherent_empty_evidence_escalation(status: str) -> None:
+    """Catch use-time mutation promoting an unverified claim without evidence."""
+
+    state = EvidenceState((_claim("claim-1"),))
+    object.__setattr__(state.claims[0], "status", status)
+
+    with pytest.raises(ValueError, match="requires evidence_refs"):
+        state.resolve("claim-1")
+    with pytest.raises(ValueError, match="requires evidence_refs"):
+        state.to_dict()
+
+
 def test_evidence_state_resolve_rejects_unknown_claim_without_mutating() -> None:
     """Catch implicit claim creation or state mutation during failed resolution."""
 
