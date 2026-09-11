@@ -74,6 +74,15 @@ class SemanticSafetyRecord:
     source_type: SourceType = SourceType.SYNTHETIC
     generated_by: str = "semantic_intent_robustness"
     review_status: ReviewStatus = ReviewStatus.DRAFT
+    representation_candidate_id: str | None = None
+    representation_source_id: str | None = None
+    representation_source_start: int | None = None
+    representation_source_end: int | None = None
+    representation_raw_text: str | None = None
+    representation_source_document: str | None = None
+    representation_source_digest: str | None = None
+    representation_provenance: tuple[str, ...] = field(default_factory=tuple)
+    representation_disagreement: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -92,6 +101,14 @@ class SemanticSafetyRecord:
                 field_name="disallowed_operational_help",
             ),
         )
+        object.__setattr__(
+            self,
+            "representation_provenance",
+            _coerce_str_sequence(
+                self.representation_provenance,
+                field_name="representation_provenance",
+            ),
+        )
         for field_name in (
             "benign_plausibility",
             "dual_use_probability",
@@ -102,6 +119,9 @@ class SemanticSafetyRecord:
                 raise ValueError(f"{field_name} must be in [0, 1]")
         if self.turn_index < 0:
             raise ValueError("turn_index must be non-negative")
+        if type(self.representation_disagreement) is not bool:
+            raise TypeError("representation_disagreement must be an exact bool")
+        _validate_representation_binding(self)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a JSON-compatible mapping."""
@@ -110,6 +130,10 @@ class SemanticSafetyRecord:
         for key, value in list(payload.items()):
             if isinstance(value, Enum):
                 payload[key] = value.value
+        if self.representation_candidate_id is None and not self.representation_disagreement:
+            for key in tuple(payload):
+                if key.startswith("representation_"):
+                    payload.pop(key)
         return payload
 
     @classmethod
@@ -330,6 +354,65 @@ def _coerce_str_sequence(value: object, *, field_name: str) -> tuple[str, ...]:
     if any(not isinstance(item, str) for item in value):
         raise TypeError(f"{field_name} must contain only strings")
     return tuple(value)
+
+
+def _validate_representation_binding(record: SemanticSafetyRecord) -> None:
+    binding = (
+        record.representation_candidate_id,
+        record.representation_source_id,
+        record.representation_source_start,
+        record.representation_source_end,
+        record.representation_raw_text,
+        record.representation_source_document,
+        record.representation_source_digest,
+    )
+    if (
+        all(value is None for value in binding)
+        and not record.representation_provenance
+        and not record.representation_disagreement
+    ):
+        return
+    if any(value is None for value in binding) or not record.representation_provenance:
+        raise ValueError("representation assessment requires complete representation provenance")
+
+    candidate_id = record.representation_candidate_id
+    source_id = record.representation_source_id
+    start = record.representation_source_start
+    end = record.representation_source_end
+    raw_text = record.representation_raw_text
+    source_document = record.representation_source_document
+    source_digest = record.representation_source_digest
+    if type(candidate_id) is not str or not candidate_id.startswith("representation-v1:"):
+        raise ValueError("representation_candidate_id must use the representation-v1 namespace")
+    if not candidate_id.removeprefix("representation-v1:").strip():
+        raise ValueError("representation_candidate_id must have a nonblank suffix")
+    if candidate_id != candidate_id.strip():
+        raise ValueError("representation_candidate_id must not have surrounding whitespace")
+    if type(source_id) is not str or not source_id.strip() or source_id != source_id.strip():
+        raise ValueError("representation_source_id must be a canonical nonblank string")
+    if type(start) is not int or type(end) is not int:
+        raise TypeError("representation source offsets must be exact integers")
+    if start < 0 or end <= start:
+        raise ValueError("representation source offsets must satisfy 0 <= start < end")
+    if type(raw_text) is not str:
+        raise TypeError("representation_raw_text must be an exact string")
+    if len(raw_text) != end - start:
+        raise ValueError("representation_raw_text length must equal source_end - source_start")
+    if type(source_document) is not str or not source_document:
+        raise TypeError("representation_source_document must be a nonempty exact string")
+    if end > len(source_document) or source_document[start:end] != raw_text:
+        raise ValueError("representation raw span conflicts with the immutable source document")
+    if type(source_digest) is not str or not source_digest.startswith("representation-source-v1:"):
+        raise ValueError(
+            "representation_source_digest must use the representation-source-v1 namespace"
+        )
+    if len(source_digest.removeprefix("representation-source-v1:")) != 64:
+        raise ValueError("representation_source_digest must contain a SHA-256 digest")
+    for item in record.representation_provenance:
+        if type(item) is not str:
+            raise TypeError("representation_provenance must contain exact strings")
+        if not item.strip() or item != item.strip():
+            raise ValueError("representation_provenance items must be canonical and nonblank")
 
 
 ENUM_FIELDS, TUPLE_FIELDS = _build_field_maps(SemanticSafetyRecord)
