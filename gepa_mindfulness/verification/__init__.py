@@ -18,9 +18,18 @@ from .interfaces import (
     make_local_verification_event,
     make_relational_verification_event,
 )
+from .runtime_governance import (
+    AuthorityGrant,
+    AuthorizationDecision,
+    RuntimeCapability,
+    RuntimeRole,
+    authorize_action,
+)
 from .state import EvidenceClaim, EvidenceState, WorldStateChange
 
 __all__ = [
+    "AuthorityGrant",
+    "AuthorizationDecision",
     "EvidenceClaim",
     "EvidenceState",
     "FailureEdge",
@@ -33,9 +42,12 @@ __all__ = [
     "RelationalEvidenceVerifier",
     "RelationalVerificationResult",
     "RootCauseStatus",
+    "RuntimeCapability",
+    "RuntimeRole",
     "VerificationEvidenceBinding",
     "VerificationLevel",
     "WorldStateChange",
+    "authorize_action",
     "make_local_verification_event",
     "make_relational_verification_event",
 ]
