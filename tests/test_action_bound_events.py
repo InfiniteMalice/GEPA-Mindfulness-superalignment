@@ -51,7 +51,7 @@ def test_prediction_commit_is_frozen_and_snapshots_nested_json_outcomes() -> Non
         commit.confidence = 0.25  # type: ignore[misc]
 
 
-@pytest.mark.parametrize("confidence", [-0.01, 1.01, nan, inf, True, "0.5"])
+@pytest.mark.parametrize("confidence", [-0.01, 1.01, nan, inf, True, "0.5", 10**1000])
 def test_prediction_commit_rejects_invalid_confidence(confidence: object) -> None:
     """Catch unbounded, nonfinite, or nonnumeric confidence scores."""
 

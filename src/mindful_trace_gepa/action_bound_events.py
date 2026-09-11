@@ -266,7 +266,11 @@ def _require_confidence(value: object) -> None:
     if type(value) not in (int, float):
         raise ValueError("confidence must be a finite built-in number from 0 through 1")
     confidence = cast(int | float, value)
-    if not isfinite(float(confidence)) or not 0 <= confidence <= 1:
+    try:
+        finite = isfinite(float(confidence))
+    except OverflowError as exc:
+        raise ValueError("confidence must be a finite built-in number from 0 through 1") from exc
+    if not finite or not 0 <= confidence <= 1:
         raise ValueError("confidence must be a finite built-in number from 0 through 1")
 
 

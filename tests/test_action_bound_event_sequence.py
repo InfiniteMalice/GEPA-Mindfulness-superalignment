@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import Any
 
 import pytest
 
@@ -18,7 +19,7 @@ from mindful_trace_gepa.logging_schema import (
 )
 
 
-def _metadata(event_id: str, timestamp: str, **extra: object) -> dict[str, object]:
+def _metadata(event_id: str, timestamp: str, **extra: object) -> dict[str, Any]:
     """Create literal metadata for one event in the same evaluation unit."""
 
     return {
@@ -35,7 +36,7 @@ def _metadata(event_id: str, timestamp: str, **extra: object) -> dict[str, objec
 def _valid_sequence(*, repeat_id: int | None = 0) -> list[EventEnvelope]:
     """Build literal envelopes that exercise validator decoding without event helpers."""
 
-    base = {
+    base: dict[str, Any] = {
         "run_id": "run-1",
         "repeat_id": repeat_id,
         "model_version": "model-v1",
@@ -272,7 +273,8 @@ def test_sequence_rejects_causal_parents_from_another_run_or_repeat(
     """Catch an execution that claims a direct proposal from a distinct evaluation unit."""
 
     events = _valid_sequence()
-    events[2] = replace(events[2], **{field_name: value})
+    update: dict[str, Any] = {field_name: value}
+    events[2] = replace(events[2], **update)
 
     with pytest.raises(ValueError, match="same evaluation unit"):
         validate_action_bound_sequence(events)
