@@ -3,8 +3,10 @@
 # Standard library
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from enum import Enum
+from hashlib import sha256
 from math import copysign, isfinite
 
 
@@ -121,6 +123,49 @@ class RepresentationLattice:
         object.__setattr__(self, "candidates", ordered)
 
 
+def candidate_id_for(candidate: RepresentationCandidate) -> str:
+    """Return a stable content identifier for a complete immutable candidate."""
+
+    if type(candidate) is not RepresentationCandidate:
+        raise TypeError("candidate must be an exact RepresentationCandidate")
+    span = candidate.source_span
+    payload = {
+        "candidate_text": candidate.candidate_text,
+        "confidence": candidate.confidence,
+        "contextual_score": candidate.contextual_score,
+        "generation_reason": candidate.generation_reason,
+        "orthographic_score": candidate.orthographic_score,
+        "outcome": candidate.outcome.value,
+        "phonetic_score": candidate.phonetic_score,
+        "provenance": list(candidate.provenance),
+        "semantic_similarity": candidate.semantic_similarity,
+        "source_end": span.end,
+        "source_id": span.source_id,
+        "source_raw_text": span.raw_text,
+        "source_start": span.start,
+        "transform_channel": candidate.transform_channel.value,
+    }
+    encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    return f"representation-v1:{sha256(encoded.encode('utf-8')).hexdigest()}"
+
+
+def source_digest_for(source_id: str, raw_text: str) -> str:
+    """Bind a source identifier to the complete immutable lattice source text."""
+
+    _validate_identifier(source_id, field_name="source_id")
+    if type(raw_text) is not str:
+        raise TypeError("raw_text must be an exact string")
+    if not raw_text:
+        raise ValueError("raw_text must not be empty")
+    payload = json.dumps(
+        {"raw_text": raw_text, "source_id": source_id},
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return f"representation-source-v1:{sha256(payload.encode('utf-8')).hexdigest()}"
+
+
 def _candidate_sort_key(candidate: RepresentationCandidate) -> tuple[object, ...]:
     span = candidate.source_span
     return (
@@ -181,4 +226,6 @@ __all__ = [
     "RepresentationChannel",
     "RepresentationLattice",
     "SourceSpan",
+    "candidate_id_for",
+    "source_digest_for",
 ]

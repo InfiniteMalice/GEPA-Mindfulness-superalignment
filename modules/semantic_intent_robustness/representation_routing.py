@@ -3,14 +3,18 @@
 # Standard library
 from __future__ import annotations
 
-import json
 import re
+import unicodedata
 from collections.abc import Sequence
 from dataclasses import dataclass
-from hashlib import sha256
 
 # Local
-from .representation import RepresentationCandidate, SourceSpan
+from .representation import (
+    RepresentationCandidate,
+    SourceSpan,
+    candidate_id_for,
+    source_digest_for,
+)
 from .schemas import SemanticSafetyRecord
 from .taxonomy import PolicyAction
 
@@ -100,8 +104,17 @@ _TERM_PATTERN = re.compile(
     + r")(?!\w)",
     re.IGNORECASE,
 )
-_NUMBER_PATTERN = re.compile(r"(?<!\w)[+-]?(?:\d+(?:\.\d+)?|\.\d+)(?!\w)")
-_NAME_PATTERN = re.compile(r"(?<!\w)[A-Z][a-z]+(?:[-'][A-Z]?[a-z]+)*(?!\w)")
+_NUMBER_PATTERN = re.compile(
+    r"(?<!\w)[+-]?(?:\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?|\.\d+)" r"(?:[eE][+-]?\d+)?(?!\w)"
+)
+_APOSTROPHES = frozenset({"'", "’"})
+_POLICY_SEVERITY = {
+    PolicyAction.ALLOW: 0,
+    PolicyAction.ALLOW_WITH_BOUNDARIES: 1,
+    PolicyAction.REDIRECT: 2,
+    PolicyAction.ABSTAIN: 3,
+    PolicyAction.REFUSE: 4,
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,8 +133,8 @@ class RepresentationDecision:
             raise TypeError("selected_candidate_ids must contain nonblank exact strings")
         if any(
             item != item.strip()
-            or not item.removeprefix("representation-v1:").strip()
             or not item.startswith("representation-v1:")
+            or not _is_lower_hex_digest(item.removeprefix("representation-v1:"))
             for item in self.selected_candidate_ids
         ):
             raise ValueError(
@@ -137,48 +150,6 @@ class RepresentationDecision:
             raise TypeError("explanation must be a nonblank exact string")
 
 
-def candidate_id_for(candidate: RepresentationCandidate) -> str:
-    """Return a stable content identifier for a Task 1-3 candidate and its provenance."""
-
-    if type(candidate) is not RepresentationCandidate:
-        raise TypeError("candidate must be an exact RepresentationCandidate")
-    span = candidate.source_span
-    payload = {
-        "candidate_text": candidate.candidate_text,
-        "confidence": candidate.confidence,
-        "contextual_score": candidate.contextual_score,
-        "generation_reason": candidate.generation_reason,
-        "orthographic_score": candidate.orthographic_score,
-        "outcome": candidate.outcome.value,
-        "phonetic_score": candidate.phonetic_score,
-        "provenance": list(candidate.provenance),
-        "semantic_similarity": candidate.semantic_similarity,
-        "source_end": span.end,
-        "source_id": span.source_id,
-        "source_raw_text": span.raw_text,
-        "source_start": span.start,
-        "transform_channel": candidate.transform_channel.value,
-    }
-    encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
-    return f"representation-v1:{sha256(encoded.encode('utf-8')).hexdigest()}"
-
-
-def source_digest_for(source_id: str, raw_text: str) -> str:
-    """Bind a source identifier to the complete immutable lattice source text."""
-
-    if type(source_id) is not str or not source_id.strip() or source_id != source_id.strip():
-        raise ValueError("source_id must be a canonical nonblank exact string")
-    if type(raw_text) is not str or not raw_text:
-        raise ValueError("raw_text must be a nonempty exact string")
-    payload = json.dumps(
-        {"raw_text": raw_text, "source_id": source_id},
-        ensure_ascii=False,
-        separators=(",", ":"),
-        sort_keys=True,
-    )
-    return f"representation-source-v1:{sha256(payload.encode('utf-8')).hexdigest()}"
-
-
 def locate_semantic_hinges(text: str) -> tuple[SourceSpan, ...]:
     """Locate descriptive decision-sensitive spans without assigning harm labels."""
 
@@ -187,22 +158,23 @@ def locate_semantic_hinges(text: str) -> tuple[SourceSpan, ...]:
     if len(text) > _MAX_HINGE_TEXT_LENGTH:
         raise ValueError("text is too long for semantic-hinge routing")
     matches = [*_TERM_PATTERN.finditer(text), *_NUMBER_PATTERN.finditer(text)]
-    matches.extend(_NAME_PATTERN.finditer(text))
-    ordered = sorted(matches, key=lambda match: (match.start(), -(match.end() - match.start())))
+    raw_matches = [(match.start(), match.end()) for match in matches]
+    raw_matches.extend(_unicode_name_spans(text))
+    ordered = sorted(raw_matches, key=lambda item: (item[0], -(item[1] - item[0])))
     spans: list[SourceSpan] = []
     last_end = -1
-    for match in ordered:
-        if match.start() < last_end:
+    for start, end in ordered:
+        if start < last_end:
             continue
         spans.append(
             SourceSpan(
                 source_id=_SOURCE_ID,
-                start=match.start(),
-                end=match.end(),
-                raw_text=match.group(0),
+                start=start,
+                end=end,
+                raw_text=text[start:end],
             )
         )
-        last_end = match.end()
+        last_end = end
     return tuple(spans)
 
 
@@ -214,7 +186,9 @@ def validate_representation_assessment(record: SemanticSafetyRecord) -> Semantic
     values = _binding_values(record)
     if values is None:
         return record
-    candidate_id, source_id, start, end, raw_text, source_document, source_digest = values
+    candidate, candidate_id, source_id, start, end, raw_text, source_document, source_digest = (
+        values
+    )
     if raw_text != record.representation_raw_text or end - start != len(raw_text):
         raise ValueError("representation assessment has inconsistent raw source span")
     if not candidate_id.startswith("representation-v1:") or not source_id:
@@ -225,6 +199,21 @@ def validate_representation_assessment(record: SemanticSafetyRecord) -> Semantic
         raise ValueError(
             "representation source digest conflicts with the immutable source document"
         )
+    if candidate_id_for(candidate) != candidate_id:
+        raise ValueError("representation candidate identifier is not bound to its snapshot")
+    span = candidate.source_span
+    if (span.source_id, span.start, span.end, span.raw_text) != (
+        source_id,
+        start,
+        end,
+        raw_text,
+    ):
+        raise ValueError("representation candidate SourceSpan is not bound to the source record")
+    if candidate.provenance != record.representation_provenance:
+        raise ValueError("representation candidate provenance is not bound to the source record")
+    assessed_text = source_document[:start] + candidate.candidate_text + source_document[end:]
+    if record.prompt_text != assessed_text:
+        raise ValueError("prompt_text must equal the actual assessed representation")
     return record
 
 
@@ -243,7 +232,7 @@ def route_representation_disagreement(
     if not records:
         raise ValueError("assessments must not be empty")
 
-    bindings: list[tuple[str, str, int, int, str, str, str]] = []
+    bindings: list[tuple[RepresentationCandidate, str, str, int, int, str, str, str]] = []
     policies: set[PolicyAction] = set()
     for record in records:
         validate_representation_assessment(record)
@@ -255,7 +244,7 @@ def route_representation_disagreement(
         bindings.append(binding)
         policies.add(record.policy_action)
 
-    candidate_ids = [binding[0] for binding in bindings]
+    candidate_ids = [binding[1] for binding in bindings]
     if len(set(candidate_ids)) != len(candidate_ids):
         raise ValueError("duplicate representation candidate ID")
     contexts = {
@@ -291,20 +280,31 @@ def route_representation_disagreement(
                 "their policy assessments materially disagree in a high-stakes setting."
             ),
         )
+    permissive = {PolicyAction.ALLOW, PolicyAction.ALLOW_WITH_BOUNDARIES}
+    if policies.isdisjoint(permissive):
+        action = max(policies, key=_POLICY_SEVERITY.__getitem__)
+        explanation = (
+            "Candidate readings remain hypotheses; preserve the most restrictive assessed "
+            "action because every reading is nonpermissive."
+        )
+    else:
+        action = PolicyAction.ALLOW_WITH_BOUNDARIES
+        explanation = (
+            "Candidate readings remain hypotheses; use bounded caution and invite clarification "
+            "because their policy assessments materially disagree."
+        )
     return RepresentationDecision(
         selected_candidate_ids=selected_ids,
         disagreement=True,
-        policy_action=PolicyAction.ALLOW_WITH_BOUNDARIES,
-        explanation=(
-            "Candidate readings remain hypotheses; use bounded caution and invite clarification "
-            "because their policy assessments materially disagree."
-        ),
+        policy_action=action,
+        explanation=explanation,
     )
 
 
 def _binding_values(
     record: SemanticSafetyRecord,
-) -> tuple[str, str, int, int, str, str, str] | None:
+) -> tuple[RepresentationCandidate, str, str, int, int, str, str, str] | None:
+    candidate = record.representation_candidate
     candidate_id = record.representation_candidate_id
     source_id = record.representation_source_id
     start = record.representation_source_start
@@ -312,11 +312,21 @@ def _binding_values(
     raw_text = record.representation_raw_text
     source_document = record.representation_source_document
     source_digest = record.representation_source_digest
-    values = (candidate_id, source_id, start, end, raw_text, source_document, source_digest)
+    values = (
+        candidate,
+        candidate_id,
+        source_id,
+        start,
+        end,
+        raw_text,
+        source_document,
+        source_digest,
+    )
     if all(value is None for value in values) and not record.representation_provenance:
         return None
     if (
-        type(candidate_id) is not str
+        type(candidate) is not RepresentationCandidate
+        or type(candidate_id) is not str
         or type(source_id) is not str
         or type(start) is not int
         or type(end) is not int
@@ -326,19 +336,19 @@ def _binding_values(
         or not record.representation_provenance
     ):
         raise ValueError("assessment requires complete representation provenance")
-    return candidate_id, source_id, start, end, raw_text, source_document, source_digest
+    return candidate, candidate_id, source_id, start, end, raw_text, source_document, source_digest
 
 
 def _validate_compatible_source_spans(
-    bindings: list[tuple[str, str, int, int, str, str, str]],
+    bindings: list[tuple[RepresentationCandidate, str, str, int, int, str, str, str]],
 ) -> None:
-    source_documents = {(binding[1], binding[5], binding[6]) for binding in bindings}
+    source_documents = {(binding[2], binding[6], binding[7]) for binding in bindings}
     if len(source_documents) != 1:
         raise ValueError("assessments must reference the same immutable source document")
     for index, left in enumerate(bindings):
-        _, _, left_start, left_end, left_text, _, _ = left
+        _, _, _, left_start, left_end, left_text, _, _ = left
         for right in bindings[index + 1 :]:
-            _, _, right_start, right_end, right_text, _, _ = right
+            _, _, _, right_start, right_end, right_text, _, _ = right
             overlap_start = max(left_start, right_start)
             overlap_end = min(left_end, right_end)
             if overlap_start >= overlap_end:
@@ -347,6 +357,42 @@ def _validate_compatible_source_spans(
             right_overlap = right_text[overlap_start - right_start : overlap_end - right_start]
             if left_overlap != right_overlap:
                 raise ValueError("assessments must reference the same immutable source span")
+
+
+def _unicode_name_spans(text: str) -> list[tuple[int, int]]:
+    spans: list[tuple[int, int]] = []
+    index = 0
+    while index < len(text):
+        if not _is_letter(text[index]):
+            index += 1
+            continue
+        start = index
+        index += 1
+        while index < len(text):
+            character = text[index]
+            if _is_letter(character) or unicodedata.category(character).startswith("M"):
+                index += 1
+                continue
+            if (
+                (character in _APOSTROPHES or character == "-")
+                and index + 1 < len(text)
+                and _is_letter(text[index + 1])
+            ):
+                index += 1
+                continue
+            break
+        token = text[start:index]
+        if token[0].isupper() and any(character.islower() for character in token):
+            spans.append((start, index))
+    return spans
+
+
+def _is_letter(character: str) -> bool:
+    return unicodedata.category(character).startswith("L")
+
+
+def _is_lower_hex_digest(value: str) -> bool:
+    return len(value) == 64 and all(character in "0123456789abcdef" for character in value)
 
 
 __all__ = [

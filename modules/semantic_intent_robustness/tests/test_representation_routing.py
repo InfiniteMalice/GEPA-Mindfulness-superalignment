@@ -26,10 +26,11 @@ from semantic_intent_robustness.representation_routing import (
 )
 from semantic_intent_robustness.schemas import SemanticSafetyRecord
 from semantic_intent_robustness.taxonomy import PolicyAction, VariantType
+from semantic_intent_robustness.transforms import build_variant
 
 
 def _record(
-    candidate_id: str,
+    candidate_label: str,
     policy_action: PolicyAction,
     *,
     source_id: str = "source-1",
@@ -39,16 +40,37 @@ def _record(
     source_document: str = "send it now!",
     provenance: tuple[str, ...] = ("literal-source",),
     semantic_cluster_id: str = "representation-cluster",
+    candidate_id_override: str | None = None,
 ) -> SemanticSafetyRecord:
+    channel = (
+        RepresentationChannel.PHONOLOGICAL
+        if "phonetic" in candidate_label
+        else RepresentationChannel.LITERAL
+    )
+    candidate = RepresentationCandidate(
+        source_span=SourceSpan(source_id, source_start, source_end, raw_text),
+        candidate_text=raw_text,
+        transform_channel=channel,
+        orthographic_score=1.0,
+        phonetic_score=1.0,
+        contextual_score=1.0,
+        semantic_similarity=1.0,
+        confidence=1.0,
+        provenance=provenance,
+        generation_reason=f"Assess candidate {candidate_label}.",
+    )
     return SemanticSafetyRecord(
-        prompt_id=f"assessment-{candidate_id}",
-        prompt_text=raw_text,
+        prompt_id=f"assessment-{candidate_label}",
+        prompt_text=(
+            source_document[:source_start] + candidate.candidate_text + source_document[source_end:]
+        ),
         semantic_cluster_id=semantic_cluster_id,
         parent_example_id=None,
         variant_type=VariantType.ORIGINAL,
         language="en",
         policy_action=policy_action,
-        representation_candidate_id=candidate_id,
+        representation_candidate=candidate,
+        representation_candidate_id=candidate_id_override or candidate_id_for(candidate),
         representation_source_id=source_id,
         representation_source_start=source_start,
         representation_source_end=source_end,
@@ -143,22 +165,25 @@ def test_source_digest_is_stable_and_sensitive_to_document_identity() -> None:
 
 
 def test_policy_agreement_preserves_the_common_policy() -> None:
+    literal = _record("literal", PolicyAction.ALLOW)
+    phonetic = _record(
+        "phonetic",
+        PolicyAction.ALLOW,
+        provenance=("phonetic-lexicon:send",),
+    )
     decision = route_representation_disagreement(
-        (
-            _record("representation-v1:literal", PolicyAction.ALLOW),
-            _record(
-                "representation-v1:phonetic",
-                PolicyAction.ALLOW,
-                provenance=("phonetic-lexicon:send",),
-            ),
-        ),
+        (literal, phonetic),
         high_stakes=False,
     )
 
     assert decision == RepresentationDecision(
-        selected_candidate_ids=(
-            "representation-v1:literal",
-            "representation-v1:phonetic",
+        selected_candidate_ids=tuple(
+            sorted(
+                (
+                    literal.representation_candidate_id,
+                    phonetic.representation_candidate_id,
+                )
+            )
         ),
         disagreement=False,
         policy_action=PolicyAction.ALLOW,
@@ -352,6 +377,18 @@ def test_routing_rejects_nonexact_stakes_flag() -> None:
 
 def test_representation_fields_snapshot_and_round_trip_exactly() -> None:
     provenance = ["literal-source", "unicode-normalization:NFC"]
+    candidate = RepresentationCandidate(
+        source_span=SourceSpan("source-1", 0, 12, "send it now!"),
+        candidate_text="send it now!",
+        transform_channel=RepresentationChannel.LITERAL,
+        orthographic_score=1.0,
+        phonetic_score=1.0,
+        contextual_score=1.0,
+        semantic_similarity=1.0,
+        confidence=1.0,
+        provenance=tuple(provenance),
+        generation_reason="Preserve the literal source.",
+    )
     record = SemanticSafetyRecord(
         prompt_id="round-trip",
         prompt_text="send it now!",
@@ -359,7 +396,8 @@ def test_representation_fields_snapshot_and_round_trip_exactly() -> None:
         parent_example_id=None,
         variant_type=VariantType.ORIGINAL,
         language="en",
-        representation_candidate_id="representation-v1:literal",
+        representation_candidate=candidate,
+        representation_candidate_id=candidate_id_for(candidate),
         representation_source_id="source-1",
         representation_source_start=0,
         representation_source_end=12,
@@ -383,6 +421,9 @@ def test_representation_fields_snapshot_and_round_trip_exactly() -> None:
         "unicode-normalization:NFC",
     )
     assert payload["representation_disagreement"] is True
+    candidate_payload = payload["representation_candidate"]
+    assert type(candidate_payload["transform_channel"]) is str
+    assert type(candidate_payload["outcome"]) is str
     assert restored == record
 
 
@@ -472,3 +513,153 @@ def test_schema_rejects_partial_representation_provenance() -> None:
             language="en",
             representation_candidate_id="representation-v1:literal",
         )
+
+
+def test_genuine_candidate_id_cannot_authorize_an_unrelated_assessed_prompt() -> None:
+    span = SourceSpan("source-1", 0, 12, "send it now!")
+    candidate = RepresentationCandidate(
+        source_span=span,
+        candidate_text="send it now!",
+        transform_channel=RepresentationChannel.LITERAL,
+        orthographic_score=1.0,
+        phonetic_score=1.0,
+        contextual_score=1.0,
+        semantic_similarity=1.0,
+        confidence=1.0,
+        provenance=("literal-source",),
+        generation_reason="Preserve the literal source.",
+    )
+
+    with pytest.raises(ValueError, match="actual assessed representation"):
+        SemanticSafetyRecord(
+            prompt_id="unrelated-prompt",
+            prompt_text="an unrelated prompt",
+            semantic_cluster_id="representation-cluster",
+            parent_example_id=None,
+            variant_type=VariantType.ORIGINAL,
+            language="en",
+            representation_candidate=candidate,
+            representation_candidate_id=candidate_id_for(candidate),
+            representation_source_id="source-1",
+            representation_source_start=0,
+            representation_source_end=12,
+            representation_raw_text="send it now!",
+            representation_source_document="send it now!",
+            representation_source_digest=source_digest_for("source-1", "send it now!"),
+            representation_provenance=("literal-source",),
+        )
+
+
+@pytest.mark.parametrize("candidate_id", ("representation-v1:fake-a", "representation-v1:fake-b"))
+def test_schema_rejects_fabricated_candidate_ids(candidate_id: str) -> None:
+    with pytest.raises(ValueError, match="64 lowercase hexadecimal"):
+        _record("fabricated", PolicyAction.ALLOW, candidate_id_override=candidate_id)
+
+
+@pytest.mark.parametrize(
+    "actions",
+    (
+        (PolicyAction.REFUSE, PolicyAction.ABSTAIN),
+        (PolicyAction.REFUSE, PolicyAction.REDIRECT),
+    ),
+)
+def test_low_stakes_all_nonpermissive_disagreement_stays_nonpermissive(
+    actions: tuple[PolicyAction, PolicyAction],
+) -> None:
+    decision = route_representation_disagreement(
+        (
+            _record("representation-v1:first", actions[0]),
+            _record("representation-v1:second", actions[1]),
+        ),
+        high_stakes=False,
+    )
+
+    assert decision.policy_action is PolicyAction.REFUSE
+
+
+def test_semantic_safety_record_has_no_live_instance_dictionary() -> None:
+    record = SemanticSafetyRecord(
+        prompt_id="immutable-record",
+        prompt_text="Summarize this.",
+        semantic_cluster_id="legacy-cluster",
+        parent_example_id=None,
+        variant_type=VariantType.ORIGINAL,
+        language="en",
+    )
+
+    with pytest.raises(AttributeError):
+        record.__dict__["prompt_text"] = "mutated"
+
+
+def test_routing_revalidates_the_assessed_prompt_at_the_trust_boundary() -> None:
+    record = _record("literal", PolicyAction.ALLOW)
+    object.__setattr__(record, "prompt_text", "mutated after construction")
+
+    with pytest.raises(ValueError, match="actual assessed representation"):
+        route_representation_disagreement((record,), high_stakes=False)
+
+
+def test_unicode_hinges_preserve_names_grouped_numbers_and_emoji_offsets() -> None:
+    text = "🔒 Email Élodie 1,000 reports to O’Connor at 1e3."
+
+    spans = locate_semantic_hinges(text)
+    observed = {span.raw_text for span in spans}
+
+    assert {"Email", "Élodie", "1,000", "O’Connor", "1e3"} <= observed
+    assert all(text[span.start : span.end] == span.raw_text for span in spans)
+    assert next(span for span in spans if span.raw_text == "Email").start == 2
+
+
+@pytest.mark.parametrize(
+    "digest",
+    (
+        "representation-source-v1:" + ("A" * 64),
+        "representation-source-v1:" + ("g" * 64),
+    ),
+)
+def test_schema_rejects_non_lowercase_hex_source_digest(digest: str) -> None:
+    candidate = RepresentationCandidate(
+        source_span=SourceSpan("source-1", 0, 12, "send it now!"),
+        candidate_text="send it now!",
+        transform_channel=RepresentationChannel.LITERAL,
+        orthographic_score=1.0,
+        phonetic_score=1.0,
+        contextual_score=1.0,
+        semantic_similarity=1.0,
+        confidence=1.0,
+        provenance=("literal-source",),
+        generation_reason="Preserve the literal source.",
+    )
+    with pytest.raises(ValueError, match="64 lowercase hexadecimal"):
+        SemanticSafetyRecord(
+            prompt_id="bad-digest",
+            prompt_text="send it now!",
+            semantic_cluster_id="representation-cluster",
+            parent_example_id=None,
+            variant_type=VariantType.ORIGINAL,
+            language="en",
+            representation_candidate=candidate,
+            representation_candidate_id=candidate_id_for(candidate),
+            representation_source_id="source-1",
+            representation_source_start=0,
+            representation_source_end=12,
+            representation_raw_text="send it now!",
+            representation_source_document="send it now!",
+            representation_source_digest=digest,
+            representation_provenance=("literal-source",),
+        )
+
+
+def test_transform_does_not_copy_stale_representation_binding_to_new_text() -> None:
+    seed = _record("literal", PolicyAction.ALLOW)
+
+    variant = build_variant(
+        seed,
+        prompt_id="new-variant",
+        prompt_text="A genuinely different prompt.",
+        variant_type=VariantType.PARAPHRASE,
+    )
+
+    assert variant.representation_candidate is None
+    assert variant.representation_candidate_id is None
+    assert variant.representation_provenance == ()

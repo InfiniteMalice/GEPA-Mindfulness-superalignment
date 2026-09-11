@@ -124,6 +124,9 @@ def build_variant(
         if protected:
             raise ValueError(f"overrides cannot include protected fields: {protected}")
     data = seed.to_dict()
+    for key in tuple(data):
+        if key.startswith("representation_"):
+            data.pop(key)
     data.update(
         {
             "prompt_id": prompt_id,
