@@ -42,11 +42,30 @@ def test_recommendation_reader_relative_links_resolve() -> None:
         assert (READER_PATH.parent / target).resolve().is_file(), target
 
 
+def test_recommendation_reader_groups_records_by_priority_and_status() -> None:
+    reader = READER_PATH.read_text(encoding="utf-8")
+
+    for recommendation in load_recommendation_registry():
+        group = _priority_status_section(reader, recommendation.priority, recommendation.status)
+        assert f"#### {recommendation.recommendation_id} —" in group
+
+
 def _recommendation_section(reader: str, recommendation_id: str) -> str:
     match = re.search(
-        rf"^### {re.escape(recommendation_id)}\b.*?(?=^### |\Z)",
+        rf"^#### {re.escape(recommendation_id)}\b.*?(?=^#### |\Z)",
         reader,
         flags=re.MULTILINE | re.DOTALL,
     )
     assert match is not None, f"missing reader section for {recommendation_id}"
+    return match.group(0)
+
+
+def _priority_status_section(reader: str, priority: str, status: str) -> str:
+    heading = f"{priority} — {status.title()}"
+    match = re.search(
+        rf"^### {re.escape(heading)}\b.*?(?=^### |\Z)",
+        reader,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    assert match is not None, f"missing priority/status group {heading}"
     return match.group(0)
