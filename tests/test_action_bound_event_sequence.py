@@ -143,6 +143,89 @@ def _valid_sequence(*, repeat_id: int | None = 0) -> list[EventEnvelope]:
     return [prediction, proposed, executed, observation, verification, epistemic, case]
 
 
+def _second_action_chain() -> list[EventEnvelope]:
+    """Build a second independent action ancestry in the default evaluation unit."""
+
+    base: dict[str, Any] = {
+        "run_id": "run-1",
+        "repeat_id": 0,
+        "model_version": "model-v1",
+        "harness_version": "harness-v1",
+    }
+    prediction = EventEnvelope(
+        "1.0",
+        "prediction-event-2",
+        "prediction_commit",
+        "2026-09-10T12:00:07Z",
+        evidence_refs=("evidence-3",),
+        payload={
+            "prediction_commit_id": "prediction-2",
+            "predicted_outcome": {"answer": "also-safe"},
+            "confidence": 0.8,
+            "evidence_refs": ["evidence-3"],
+        },
+        **base,
+    )
+    proposed = EventEnvelope(
+        "1.0",
+        "proposed-event-2",
+        "action_proposed",
+        "2026-09-10T12:00:08Z",
+        parent_event_ids=(prediction.event_id,),
+        action_id="action-2",
+        authorization_scope="sandbox",
+        payload={
+            "action_id": "action-2",
+            "action_class": "read",
+            "reversible": True,
+            "authorization_scope": "sandbox",
+            "prediction_commit_id": "prediction-2",
+        },
+        **base,
+    )
+    executed = replace(
+        proposed,
+        event_id="executed-event-2",
+        event_type="action_executed",
+        timestamp="2026-09-10T12:00:09Z",
+        parent_event_ids=(proposed.event_id,),
+    )
+    observation = EventEnvelope(
+        "1.0",
+        "observation-event-2",
+        "outcome_observed",
+        "2026-09-10T12:00:10Z",
+        parent_event_ids=(executed.event_id,),
+        action_id="action-2",
+        evidence_refs=("evidence-4",),
+        payload={
+            "observation_id": "observation-2",
+            "action_id": "action-2",
+            "actual_outcome": {"answer": "also-safe"},
+            "evidence_refs": ["evidence-4"],
+        },
+        **base,
+    )
+    verification = EventEnvelope(
+        "1.0",
+        "verification-event-2",
+        "verification_result",
+        "2026-09-10T12:00:11Z",
+        parent_event_ids=(observation.event_id,),
+        action_id="action-2",
+        verifier_refs=("verifier-ref-2",),
+        payload={
+            "verifier_id": "verifier-2",
+            "verifier_version": "v1",
+            "observation_id": "observation-2",
+            "verified": True,
+            "verifier_refs": ["verifier-ref-2"],
+        },
+        **base,
+    )
+    return [prediction, proposed, executed, observation, verification]
+
+
 def test_valid_full_action_bound_sequence_has_a_frozen_system_version() -> None:
     """Catch validator changes that reject the documented causal happy path."""
 
@@ -389,6 +472,114 @@ def test_sequence_rejects_payload_type_and_envelope_link_mismatches() -> None:
     events[3] = replace(events[3], action_id="action-2")
     with pytest.raises(ValueError, match="action_id"):
         validate_action_bound_sequence(events)
+
+
+def test_sequence_accepts_matching_action_ids_on_verification_and_assessments() -> None:
+    """Catch ancestry propagation that rejects an explicitly correct optional action ID."""
+
+    events = _valid_sequence()
+    for index in (4, 5, 6):
+        events[index] = replace(events[index], action_id="action-1")
+
+    validate_action_bound_sequence(events)
+
+
+@pytest.mark.parametrize("index", [4, 5, 6])
+def test_sequence_rejects_action_id_that_conflicts_with_resolved_ancestry(index: int) -> None:
+    """Catch a verification or assessment claiming an action outside its causal ancestry."""
+
+    events = _valid_sequence()
+    events[index] = replace(events[index], action_id="action-2")
+
+    with pytest.raises(ValueError, match="action_id.*ancestry"):
+        validate_action_bound_sequence(events)
+
+
+def test_sequence_accepts_same_action_multi_parent_derived_events() -> None:
+    """Catch same-action evidence aggregation being mistaken for causal ambiguity."""
+
+    events = _valid_sequence()
+    second_verification = EventEnvelope(
+        "1.0",
+        "verification-event-1b",
+        "verification_result",
+        "2026-09-10T12:00:04.500000Z",
+        run_id="run-1",
+        repeat_id=0,
+        model_version="model-v1",
+        harness_version="harness-v1",
+        parent_event_ids=("observation-event-1",),
+        action_id="action-1",
+        verifier_refs=("verifier-ref-1b",),
+        payload={
+            "verifier_id": "verifier-1b",
+            "verifier_version": "v1",
+            "observation_id": "observation-1",
+            "verified": True,
+            "verifier_refs": ["verifier-ref-1b"],
+        },
+    )
+    epistemic = replace(
+        events[5],
+        parent_event_ids=("verification-event-1", "verification-event-1b"),
+        action_id="action-1",
+    )
+    second_epistemic = replace(
+        events[5],
+        event_id="epistemic-event-1b",
+        timestamp="2026-09-10T12:00:05.500000Z",
+        action_id="action-1",
+    )
+    case = replace(
+        events[6],
+        parent_event_ids=("epistemic-event-1", "epistemic-event-1b"),
+        action_id="action-1",
+    )
+
+    validate_action_bound_sequence(
+        [*events[:5], second_verification, epistemic, second_epistemic, case]
+    )
+
+
+def test_sequence_rejects_cross_action_multi_parent_assessment() -> None:
+    """Catch a derived assessment with parents that resolve to different actions."""
+
+    events = _valid_sequence()
+    second_chain = _second_action_chain()
+    epistemic = replace(
+        events[5],
+        timestamp="2026-09-10T12:00:12Z",
+        parent_event_ids=("verification-event-1", "verification-event-2"),
+    )
+    case = replace(events[6], timestamp="2026-09-10T12:00:13Z")
+
+    with pytest.raises(ValueError, match="parents.*one action"):
+        validate_action_bound_sequence([*events[:5], *second_chain, epistemic, case])
+
+
+def test_sequence_rejects_cross_action_derived_supersession() -> None:
+    """Catch an assessment claiming to replace one from a different action ancestry."""
+
+    events = _valid_sequence()
+    second_chain = _second_action_chain()
+    first_epistemic = replace(
+        events[5],
+        timestamp="2026-09-10T12:00:12Z",
+        action_id="action-1",
+        superseded_by="epistemic-event-2",
+    )
+    second_epistemic = replace(
+        events[5],
+        event_id="epistemic-event-2",
+        timestamp="2026-09-10T12:00:13Z",
+        parent_event_ids=("verification-event-2",),
+        action_id="action-2",
+    )
+
+    with pytest.raises(ValueError, match="superseded_by.*action ancestry"):
+        validate_action_bound_sequence(
+            [*events[:5], *second_chain, first_epistemic, second_epistemic]
+        )
 
 
 @pytest.mark.parametrize("field", ["model_version", "harness_version"])

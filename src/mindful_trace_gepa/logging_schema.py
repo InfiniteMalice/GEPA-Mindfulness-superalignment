@@ -4,14 +4,21 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Mapping
+from typing import Any, Mapping, cast
 from uuid import uuid4
 
+from ._json_values import (
+    freeze_json_mapping,
+    require_serialization_safe_integer,
+    thaw_json_mapping,
+)
+
 _RFC3339_OFFSET_DATETIME = re.compile(
-    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$"
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?"
+    r"(?:Z|[+-](?P<offset_hour>\d{2}):(?P<offset_minute>\d{2}))$"
 )
 
 
@@ -66,6 +73,19 @@ class StructuredEventType(str, Enum):
     VERIFICATION_RESULT = "verification_result"
     EPISTEMIC_ASSESSMENT = "epistemic_assessment"
     CASE_ASSESSMENT = "case_assessment"
+
+
+_ACTION_BOUND_EVENT_TYPES = frozenset(
+    {
+        StructuredEventType.PREDICTION_COMMIT.value,
+        StructuredEventType.ACTION_PROPOSED.value,
+        StructuredEventType.ACTION_EXECUTED.value,
+        StructuredEventType.OUTCOME_OBSERVED.value,
+        StructuredEventType.VERIFICATION_RESULT.value,
+        StructuredEventType.EPISTEMIC_ASSESSMENT.value,
+        StructuredEventType.CASE_ASSESSMENT.value,
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -131,9 +151,18 @@ class EventEnvelope:
         valid_until = _parse_validity_bound("valid_until", self.valid_until)
         if valid_from is not None and valid_until is not None and valid_until < valid_from:
             raise ValueError("valid_until must not be earlier than valid_from")
+        if self.event_type in _ACTION_BOUND_EVENT_TYPES:
+            frozen_payload = freeze_json_mapping(self.payload, field_name="payload")
+            object.__setattr__(self, "payload", frozen_payload)
 
     def to_dict(self) -> dict[str, Any]:
-        return {key: value for key, value in asdict(self).items() if value is not None}
+        if self.event_type not in _ACTION_BOUND_EVENT_TYPES:
+            values = asdict(self)
+        else:
+            values = {item.name: getattr(self, item.name) for item in fields(self)}
+            payload = cast(Mapping[str, object], self.payload)
+            values["payload"] = thaw_json_mapping(payload)
+        return {key: value for key, value in values.items() if value is not None}
 
 
 def make_event_envelope(
@@ -144,6 +173,10 @@ def make_event_envelope(
     event_value = (
         event_type.value if isinstance(event_type, StructuredEventType) else str(event_type)
     )
+    if event_value in _ACTION_BOUND_EVENT_TYPES:
+        event_payload = cast(dict[str, Any], payload)
+    else:
+        event_payload = dict(payload)
     return EventEnvelope(
         schema_version=str(ids.pop("schema_version", "1.0")),
         event_id=str(ids.pop("event_id", uuid4())),
@@ -151,7 +184,7 @@ def make_event_envelope(
         timestamp=str(
             ids.pop("timestamp", datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
         ),
-        payload=dict(payload),
+        payload=event_payload,
         **ids,
     )
 
@@ -251,11 +284,13 @@ def _validate_optional_case_id(case_id: object) -> None:
 def _validate_optional_nonnegative_int(field_name: str, value: object) -> None:
     if value is not None and (type(value) is not int or value < 0):
         raise ValueError(f"{field_name} must be a nonnegative built-in integer when supplied")
+    if value is not None:
+        require_serialization_safe_integer(field_name, value)
 
 
 def _validate_optional_int(field_name: str, value: object) -> None:
-    if value is not None and type(value) is not int:
-        raise ValueError(f"{field_name} must be a built-in integer when supplied")
+    if value is not None:
+        require_serialization_safe_integer(field_name, value)
 
 
 def _parse_validity_bound(field_name: str, value: object) -> datetime | None:
@@ -263,7 +298,12 @@ def _parse_validity_bound(field_name: str, value: object) -> datetime | None:
         return None
     _validate_optional_nonblank_string(field_name, value)
     timestamp = str(value)
-    if _RFC3339_OFFSET_DATETIME.fullmatch(timestamp) is None:
+    match = _RFC3339_OFFSET_DATETIME.fullmatch(timestamp)
+    if match is None:
+        raise ValueError(f"{field_name} must be an RFC3339 offset datetime")
+    offset_hour = match.group("offset_hour")
+    offset_minute = match.group("offset_minute")
+    if offset_hour is not None and (int(offset_hour) > 23 or int(offset_minute) > 59):
         raise ValueError(f"{field_name} must be an RFC3339 offset datetime")
     if timestamp.endswith("Z"):
         timestamp = f"{timestamp[:-1]}+00:00"

@@ -5,9 +5,9 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from math import isfinite
-from types import MappingProxyType
 from typing import Any, cast
 
+from ._json_values import freeze_json_value, thaw_json_value
 from .logging_schema import EventEnvelope, StructuredEventType, make_event_envelope
 
 
@@ -25,7 +25,11 @@ class PredictionCommit:
 
         _require_nonblank_string("prediction_commit_id", self.prediction_commit_id)
         _require_confidence(self.confidence)
-        object.__setattr__(self, "predicted_outcome", _freeze_json(self.predicted_outcome))
+        object.__setattr__(
+            self,
+            "predicted_outcome",
+            freeze_json_value(self.predicted_outcome, field_name="outcomes"),
+        )
         object.__setattr__(
             self, "evidence_refs", _normalize_refs("evidence_refs", self.evidence_refs)
         )
@@ -35,7 +39,7 @@ class PredictionCommit:
 
         return {
             "prediction_commit_id": self.prediction_commit_id,
-            "predicted_outcome": _thaw_json(self.predicted_outcome),
+            "predicted_outcome": thaw_json_value(self.predicted_outcome),
             "confidence": self.confidence,
             "evidence_refs": list(self.evidence_refs),
         }
@@ -86,7 +90,11 @@ class OutcomeObservation:
 
         _require_nonblank_string("observation_id", self.observation_id)
         _require_nonblank_string("action_id", self.action_id)
-        object.__setattr__(self, "actual_outcome", _freeze_json(self.actual_outcome))
+        object.__setattr__(
+            self,
+            "actual_outcome",
+            freeze_json_value(self.actual_outcome, field_name="outcomes"),
+        )
         object.__setattr__(
             self,
             "evidence_refs",
@@ -99,7 +107,7 @@ class OutcomeObservation:
         return {
             "observation_id": self.observation_id,
             "action_id": self.action_id,
-            "actual_outcome": _thaw_json(self.actual_outcome),
+            "actual_outcome": thaw_json_value(self.actual_outcome),
             "evidence_refs": list(self.evidence_refs),
         }
 
@@ -291,75 +299,6 @@ def _normalize_ref(field_name: str, value: object) -> str:
     if type(value) is not str or not value.strip():
         raise ValueError(f"{field_name} must contain only nonblank strings")
     return value.strip()
-
-
-def _freeze_json(value: object, active_containers: set[int] | None = None) -> object:
-    """Convert a JSON-compatible value into deterministic immutable containers."""
-
-    if value is None or type(value) in (bool, str, int):
-        return value
-    if type(value) is float:
-        if not isfinite(value):
-            raise ValueError("outcomes must be JSON-compatible finite values")
-        return value
-    if isinstance(value, Mapping):
-        return _freeze_json_mapping(value, active_containers)
-    if isinstance(value, (list, tuple)):
-        return _freeze_json_sequence(value, active_containers)
-    raise ValueError("outcomes must be JSON-compatible values")
-
-
-def _freeze_json_mapping(
-    value: Mapping[object, object], active_containers: set[int] | None
-) -> object:
-    """Freeze one JSON object with sorted keys and nested immutable values."""
-
-    active = _enter_container(value, active_containers)
-    try:
-        items: dict[str, object] = {}
-        keys: list[str] = []
-        for key in value:
-            if type(key) is not str:
-                raise ValueError("outcomes must use only string mapping keys")
-            keys.append(key)
-        for key in sorted(keys):
-            items[key] = _freeze_json(value[key], active)
-        return MappingProxyType(items)
-    finally:
-        active.remove(id(value))
-
-
-def _freeze_json_sequence(
-    value: list[object] | tuple[object, ...], active_containers: set[int] | None
-) -> tuple[object, ...]:
-    """Freeze one JSON array into a tuple after detecting recursive references."""
-
-    active = _enter_container(value, active_containers)
-    try:
-        return tuple(_freeze_json(item, active) for item in value)
-    finally:
-        active.remove(id(value))
-
-
-def _enter_container(value: object, active_containers: set[int] | None) -> set[int]:
-    """Track the current recursion stack and reject JSON containers with cycles."""
-
-    active = active_containers if active_containers is not None else set()
-    value_id = id(value)
-    if value_id in active:
-        raise ValueError("outcomes must not contain a cycle")
-    active.add(value_id)
-    return active
-
-
-def _thaw_json(value: object) -> object:
-    """Return a fresh ordinary JSON-compatible value from frozen internal data."""
-
-    if isinstance(value, Mapping):
-        return {key: _thaw_json(item) for key, item in value.items()}
-    if isinstance(value, tuple):
-        return [_thaw_json(item) for item in value]
-    return value
 
 
 __all__ = [

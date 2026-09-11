@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from math import nan
 from typing import Any, cast
 
 import pytest
@@ -131,6 +132,43 @@ def test_event_envelope_requires_builtin_integer_seed(seed: object) -> None:
         )
 
 
+@pytest.mark.parametrize(
+    ("field_name", "valid_value", "invalid_value"),
+    [
+        ("seed", 9_007_199_254_740_991, 9_007_199_254_740_992),
+        ("seed", -9_007_199_254_740_991, -9_007_199_254_740_992),
+        ("repeat_id", 9_007_199_254_740_991, 9_007_199_254_740_992),
+        ("seed", 0, 10**5000),
+        ("repeat_id", 0, 10**5000),
+    ],
+    ids=["seed-max", "seed-min", "repeat-max", "seed-digit-overflow", "repeat-digit-overflow"],
+)
+def test_envelope_integer_metadata_uses_serialization_safe_json_range(
+    field_name: str,
+    valid_value: int,
+    invalid_value: int,
+) -> None:
+    """Catch metadata integers that fail or lose precision in supported JSON consumers."""
+
+    valid_kwargs: dict[str, Any] = {field_name: valid_value}
+    EventEnvelope(
+        "1.0",
+        "event-1",
+        StructuredEventType.PREDICTION_COMMIT.value,
+        "2026-09-10T12:00:00Z",
+        **valid_kwargs,
+    )
+    invalid_kwargs: dict[str, Any] = {field_name: invalid_value}
+    with pytest.raises(ValueError, match=f"{field_name}.*serialization-safe"):
+        EventEnvelope(
+            "1.0",
+            "event-1",
+            StructuredEventType.PREDICTION_COMMIT.value,
+            "2026-09-10T12:00:00Z",
+            **invalid_kwargs,
+        )
+
+
 def test_event_envelope_requires_aware_ordered_validity_bounds() -> None:
     """Catch ambiguous or reversed validity windows."""
 
@@ -177,6 +215,48 @@ def test_event_envelope_accepts_rfc3339_offset_validity_bounds(valid_from: str) 
     )
 
     assert event.valid_from == valid_from
+
+
+def test_event_envelope_range_checks_rfc3339_numeric_offsets() -> None:
+    """Catch offset components that parsers normalize beyond RFC3339 lexical bounds."""
+
+    EventEnvelope(
+        "1.0",
+        "event-1",
+        "action_executed",
+        "2026-09-10T12:00:00Z",
+        valid_from="2026-09-10T12:00:00+23:59",
+    )
+    for invalid_offset in ("+24:00", "+00:60", "-00:60"):
+        with pytest.raises(ValueError, match="valid_from"):
+            EventEnvelope(
+                "1.0",
+                "event-1",
+                "action_executed",
+                "2026-09-10T12:00:00Z",
+                valid_from=f"2026-09-10T12:00:00{invalid_offset}",
+            )
+
+
+def test_event_envelope_caps_fractional_seconds_before_ordering() -> None:
+    """Catch sub-microsecond truncation that can hide a reversed validity interval."""
+
+    EventEnvelope(
+        "1.0",
+        "event-1",
+        "action_executed",
+        "2026-09-10T12:00:00Z",
+        valid_from="2026-09-10T12:00:00.123456Z",
+    )
+    with pytest.raises(ValueError, match="valid_from"):
+        EventEnvelope(
+            "1.0",
+            "event-1",
+            "action_executed",
+            "2026-09-10T12:00:00Z",
+            valid_from="2026-09-10T12:00:00.0000009Z",
+            valid_until="2026-09-10T12:00:00.0000001Z",
+        )
 
 
 @pytest.mark.parametrize(
@@ -290,6 +370,143 @@ def test_event_envelope_snapshots_empty_and_mutable_reference_collections() -> N
 
     assert event.parent_event_ids == ("prediction-event-1",)
     assert event.to_dict()["evidence_refs"] == ()
+
+
+def test_action_bound_envelope_deep_snapshots_and_thaws_payload() -> None:
+    """Catch caller or returned-container mutation rewriting an action-bound event."""
+
+    scores = [1]
+    assessment: dict[str, object] = {"scores": scores}
+    payload: dict[str, object] = {"assessment": assessment}
+    event = EventEnvelope(
+        "1.0",
+        "event-1",
+        StructuredEventType.EPISTEMIC_ASSESSMENT.value,
+        "2026-09-10T12:00:00Z",
+        payload=payload,
+    )
+    scores.append(2)
+    assessment["status"] = "rewritten"
+    payload["extra"] = True
+
+    with pytest.raises(TypeError):
+        cast(Any, event.payload)["assessment"] = "rewritten"
+    with pytest.raises(TypeError):
+        cast(Any, event.payload["assessment"])["scores"] = ()
+
+    expected = {"assessment": {"scores": [1]}}
+    first = event.to_dict()
+    assert event.payload == expected
+    assert not event.payload != expected
+    frozen_scores = cast(Any, event.payload["assessment"])["scores"]
+    assert frozen_scores == [1]
+    assert not frozen_scores != [1]
+    assert first["payload"] == expected
+    assert type(first["payload"]) is dict
+    assert type(cast(dict[str, object], first["payload"])["assessment"]) is dict
+    cast(dict[str, Any], first["payload"])["assessment"]["scores"].append(3)
+
+    assert event.to_dict()["payload"] == expected
+    assert json.loads(json.dumps(event.to_dict()))["payload"] == expected
+
+
+@pytest.mark.parametrize(
+    "event_type",
+    [StructuredEventType.EPISTEMIC_ASSESSMENT, StructuredEventType.CASE_ASSESSMENT],
+)
+def test_derived_assessment_envelopes_require_mapping_payloads(
+    event_type: StructuredEventType,
+) -> None:
+    """Catch derived assessments that do not expose named, auditable fields."""
+
+    with pytest.raises(ValueError, match="payload"):
+        EventEnvelope(
+            "1.0",
+            "event-1",
+            event_type.value,
+            "2026-09-10T12:00:00Z",
+            payload=cast(Any, ["not", "a", "mapping"]),
+        )
+
+
+def test_action_bound_helper_normalizes_nonmapping_payload_failure() -> None:
+    """Catch a public helper leaking an incidental ``dict`` conversion TypeError."""
+
+    with pytest.raises(ValueError, match="payload"):
+        make_event_envelope(
+            StructuredEventType.EPISTEMIC_ASSESSMENT,
+            cast(Any, object()),
+        )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {1: "non-string key"},
+        {"nonfinite": nan},
+        {"unsupported": object()},
+    ],
+)
+def test_derived_assessment_envelopes_reject_non_json_values(payload: object) -> None:
+    """Catch assessment data that cannot cross the structured JSON logging boundary."""
+
+    with pytest.raises(ValueError, match="payload"):
+        EventEnvelope(
+            "1.0",
+            "event-1",
+            StructuredEventType.EPISTEMIC_ASSESSMENT.value,
+            "2026-09-10T12:00:00Z",
+            payload=cast(Any, payload),
+        )
+
+
+def test_derived_assessment_envelopes_reject_cyclic_payloads() -> None:
+    """Catch recursive assessment data before serialization recurses indefinitely."""
+
+    payload: dict[str, object] = {}
+    payload["cycle"] = payload
+
+    with pytest.raises(ValueError, match="payload.*cycle"):
+        EventEnvelope(
+            "1.0",
+            "event-1",
+            StructuredEventType.CASE_ASSESSMENT.value,
+            "2026-09-10T12:00:00Z",
+            payload=payload,
+        )
+
+
+def test_derived_assessment_envelopes_reject_nested_noninteroperable_integers() -> None:
+    """Catch huge assessment integers before an eventual serializer raises incidentally."""
+
+    with pytest.raises(ValueError, match="payload.*serialization-safe"):
+        EventEnvelope(
+            "1.0",
+            "event-1",
+            StructuredEventType.EPISTEMIC_ASSESSMENT.value,
+            "2026-09-10T12:00:00Z",
+            payload={"assessment": {"sample_count": 10**5000}},
+        )
+
+
+def test_generic_envelope_retains_legacy_opaque_mutable_payload_behavior() -> None:
+    """Catch action-bound hardening leaking into the legacy generic event contract."""
+
+    opaque = object()
+    payload: dict[str, object] = {"opaque": opaque, "values": []}
+    event = EventEnvelope(
+        "1.0",
+        "event-1",
+        "legacy_event",
+        "2026-09-10T12:00:00Z",
+        payload=payload,
+    )
+    cast(list[str], payload["values"]).append("still-shared")
+
+    assert event.payload is payload
+    assert event.payload["opaque"] is opaque
+    assert event.payload["values"] == ["still-shared"]
+    assert normalize_trace_event(event.to_dict())["event_type"] == "legacy_event"
 
 
 def test_event_envelope_retains_legacy_positional_payload_argument() -> None:

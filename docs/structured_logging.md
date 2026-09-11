@@ -22,18 +22,56 @@ robust-objective decisions, proxy-breakdown reports, and objective-validation in
 event types are prediction commits, proposed and executed actions, observed outcomes, verification results,
 epistemic assessments, and case assessments.
 
-Action-bound metadata is optional for backward compatibility. Supplied linkage IDs, versions, scopes, and
-reference strings must be nonblank. Reference collections are snapshotted as immutable tuples; they serialize
-as JSON lists. Supplied `case_id` values are built-in integers from 0 through 17, `repeat_id` values are
-nonnegative built-in integers, and `seed` values are built-in integers. Validity bounds use the
-RFC3339-compatible `YYYY-MM-DDTHH:MM:SS[.fraction](Z|+HH:MM|-HH:MM)` form. The parser accepts uppercase
-`Z`, colon-delimited numeric offsets such as `+00:00`, and fractional seconds. This policy rejects naive
-datetimes and parser-specific separators, which avoids ambiguous comparisons between naive and aware datetimes.
+## Action-bound envelope construction
 
-Raw evidence and raw action or outcome events are append-only. A derived assessment may identify a later
-replacement through `superseded_by`, but that relationship does not rewrite or delete its source event or
-evidence. This schema records linkage metadata only; event ordering and which event types may be superseded
-are enforced by the separate sequence validator introduced in a later change.
+`EventEnvelope` keeps every linkage field optional at construction time so non-action-bound event
+types and historical rows retain their existing construction and normalization behavior. When
+`event_type` is action-bound, `payload` must be a JSON-compatible mapping. Construction deep-copies
+the mapping into immutable internal containers. `EventEnvelope.to_dict()` returns a fresh ordinary
+JSON mapping and fresh nested JSON arrays; changing that returned data does not change the event.
+
+Supplied linkage IDs, versions, scopes, and reference strings must be nonblank. Reference
+collections are snapshotted as immutable tuples and serialize as JSON arrays. A supplied `case_id`
+must be a built-in integer from 0 through 17. A supplied `repeat_id` must be nonnegative. Every
+integer in an action-bound payload, and every supplied `repeat_id` or `seed`, must be a built-in
+integer in the inclusive range `-9007199254740991` through `9007199254740991`. Construction raises
+`ValueError` outside that serialization-safe JSON range instead of deferring failure or precision
+loss to a JSON serializer.
+
+Validity bounds use the lexical subset
+`YYYY-MM-DDTHH:MM:SS[.fraction](Z|+HH:MM|-HH:MM)`. The optional fraction contains one through six
+digits. Numeric offset hours range from `00` through `23`; numeric offset minutes range from `00`
+through `59`. Uppercase `Z` represents UTC. Calendar dates and times must also be valid, and leap
+seconds are not supported. Both bounds include an explicit offset, so ordering compares aware
+datetimes without truncating accepted fractional seconds.
+
+## Action-bound sequence validation
+
+Call the public `validate_action_bound_sequence()` function to enforce sequence-level requirements.
+The validator ignores non-action-bound event types. For every action-bound event, the validator
+requires nonblank `run_id`, `model_version`, and `harness_version` values. The pair
+`(run_id, repeat_id)` identifies one evaluation unit, and one unit must retain the same model and
+harness versions.
+
+The validator enforces these causal links:
+
+- An `action_proposed` event cites exactly one earlier `prediction_commit` event.
+- An `action_executed` event cites exactly one earlier matching `action_proposed` event.
+- An `outcome_observed` event cites exactly one earlier matching `action_executed` event.
+- A `verification_result` event cites exactly one earlier matching `outcome_observed` event.
+- An `epistemic_assessment` event cites one or more earlier `verification_result` events.
+- A `case_assessment` event cites one or more earlier `epistemic_assessment` events.
+
+All parents of one derived assessment must belong to the same evaluation unit and resolve to one
+`action_id`. A verification or assessment may omit its envelope `action_id`; when supplied, the
+`action_id` must match the action resolved from its causal ancestry. Parent references must be
+distinct and point backward to existing events. Envelope IDs and typed semantic IDs must not be
+reused.
+
+Raw evidence and raw action or outcome events are append-only. Only an epistemic or case assessment
+may identify a later same-type replacement in the same evaluation unit and action ancestry through
+`superseded_by`. The replacement relationship does not rewrite or delete its source event or
+evidence.
 
 Telemetry honesty:
 

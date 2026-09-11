@@ -73,6 +73,7 @@ def validate_action_bound_sequence(events: Sequence[EventEnvelope]) -> None:
     observations: dict[str, EventEnvelope] = {}
     verifications: set[str] = set()
     seen_events: dict[str, EventEnvelope] = {}
+    resolved_action_ids: dict[str, str] = {}
 
     for event in event_list:
         if event.event_type not in _ACTION_BOUND_TYPES:
@@ -102,6 +103,7 @@ def validate_action_bound_sequence(events: Sequence[EventEnvelope]) -> None:
             if action.action_id in proposed_actions:
                 raise ValueError("duplicate proposed action_id")
             proposed_actions[action.action_id] = (action, event)
+            resolved_action_ids[event.event_id] = action.action_id
         elif event.event_type == _EXECUTED:
             action = _parse_payload(event, ActionRecord)
             _require_action_metadata(event, action)
@@ -116,6 +118,7 @@ def validate_action_bound_sequence(events: Sequence[EventEnvelope]) -> None:
             if action.action_id in executed_actions:
                 raise ValueError("duplicate executed action_id")
             executed_actions[action.action_id] = event
+            resolved_action_ids[event.event_id] = action.action_id
         elif event.event_type == _OBSERVATION:
             observation = _parse_payload(event, OutcomeObservation)
             _require_matching_value(event, "action_id", observation.action_id)
@@ -128,6 +131,7 @@ def validate_action_bound_sequence(events: Sequence[EventEnvelope]) -> None:
             if observation.observation_id in observations:
                 raise ValueError("duplicate observation_id")
             observations[observation.observation_id] = event
+            resolved_action_ids[event.event_id] = observation.action_id
         elif event.event_type == _VERIFICATION:
             result = _parse_payload(event, VerificationResult)
             _require_matching_refs(event, result.verifier_refs, "verifier_refs")
@@ -136,17 +140,37 @@ def validate_action_bound_sequence(events: Sequence[EventEnvelope]) -> None:
                 raise ValueError("verification_result requires an earlier outcome_observed")
             _require_direct_parent(event, observation_event, _OBSERVATION)
             _require_same_unit(event, observation_event, unit)
+            action_id = _resolve_parent_action_id(
+                event,
+                (observation_event,),
+                resolved_action_ids,
+            )
             if result.verifier_id in verifications:
                 raise ValueError("duplicate verifier_id")
             verifications.add(result.verifier_id)
+            resolved_action_ids[event.event_id] = action_id
         elif event.event_type == _EPISTEMIC:
-            parent = _require_derived_parent(event, seen_events, _VERIFICATION)
-            _require_same_unit(event, parent, unit)
+            parents = _require_derived_parents(event, seen_events, _VERIFICATION)
+            for parent in parents:
+                _require_same_unit(event, parent, unit)
+            resolved_action_ids[event.event_id] = _resolve_parent_action_id(
+                event,
+                parents,
+                resolved_action_ids,
+            )
         else:
-            parent = _require_derived_parent(event, seen_events, _EPISTEMIC)
-            _require_same_unit(event, parent, unit)
+            parents = _require_derived_parents(event, seen_events, _EPISTEMIC)
+            for parent in parents:
+                _require_same_unit(event, parent, unit)
+            resolved_action_ids[event.event_id] = _resolve_parent_action_id(
+                event,
+                parents,
+                resolved_action_ids,
+            )
 
         seen_events[event.event_id] = event
+
+    _validate_supersession_action_identity(event_list, resolved_action_ids)
 
 
 def _index_event_ids(events: tuple[EventEnvelope, ...]) -> dict[str, int]:
@@ -260,20 +284,41 @@ def _require_direct_parent(
         raise ValueError(f"{event.event_type} parent_event_ids must be the earlier {expected_type}")
 
 
-def _require_derived_parent(
+def _require_derived_parents(
     event: EventEnvelope,
     seen_events: Mapping[str, EventEnvelope],
     expected_type: str,
-) -> EventEnvelope:
-    """Require a derived assessment to directly cite its preceding derived/evidence result."""
+) -> tuple[EventEnvelope, ...]:
+    """Resolve one or more direct parents of the required derived/evidence event type."""
 
-    if len(event.parent_event_ids) != 1:
-        raise ValueError(f"{event.event_type} requires exactly one parent_event_ids reference")
-    parent_id = event.parent_event_ids[0]
-    parent = seen_events.get(parent_id)
-    if parent is None or parent.event_type != expected_type:
-        raise ValueError(f"{event.event_type} requires an earlier {expected_type}")
-    return parent
+    if not event.parent_event_ids:
+        raise ValueError(f"{event.event_type} requires at least one parent_event_ids reference")
+    parents: list[EventEnvelope] = []
+    for parent_id in event.parent_event_ids:
+        parent = seen_events.get(parent_id)
+        if parent is None or parent.event_type != expected_type:
+            raise ValueError(f"{event.event_type} requires earlier {expected_type} parents")
+        parents.append(parent)
+    return tuple(parents)
+
+
+def _resolve_parent_action_id(
+    event: EventEnvelope,
+    parents: tuple[EventEnvelope, ...],
+    resolved_action_ids: Mapping[str, str],
+) -> str:
+    """Resolve one unambiguous action from causal parents and check optional metadata."""
+
+    try:
+        action_ids = {resolved_action_ids[parent.event_id] for parent in parents}
+    except KeyError as error:
+        raise ValueError(f"{event.event_type} parent lacks resolved action ancestry") from error
+    if len(action_ids) != 1:
+        raise ValueError(f"{event.event_type} parents must resolve to one action")
+    action_id = next(iter(action_ids))
+    if event.action_id is not None and event.action_id != action_id:
+        raise ValueError("action_id must match resolved causal ancestry")
+    return action_id
 
 
 def _require_same_unit(
@@ -314,6 +359,19 @@ def _validate_supersession_targets(
         if event.superseded_by in sources_by_target:
             raise ValueError("multiple superseders for one target are not allowed")
         sources_by_target[event.superseded_by] = event.event_id
+
+
+def _validate_supersession_action_identity(
+    events: tuple[EventEnvelope, ...],
+    resolved_action_ids: Mapping[str, str],
+) -> None:
+    """Keep each derived replacement within its source event's resolved action ancestry."""
+
+    for event in events:
+        if event.event_type not in _DERIVED_TYPES or event.superseded_by is None:
+            continue
+        if resolved_action_ids[event.event_id] != resolved_action_ids[event.superseded_by]:
+            raise ValueError("superseded_by target must resolve to the same action ancestry")
 
 
 def _required_string(field_name: str, value: object) -> str:

@@ -48,7 +48,7 @@ def test_prediction_commit_is_frozen_and_snapshots_nested_json_outcomes() -> Non
     assert commit.to_dict() == expected
     assert json.loads(json.dumps(commit.to_dict())) == expected
     with pytest.raises(FrozenInstanceError):
-        commit.confidence = 0.25  # type: ignore[misc]
+        commit.confidence = 0.25
 
 
 @pytest.mark.parametrize("confidence", [-0.01, 1.01, nan, inf, True, "0.5", 10**1000])
@@ -149,6 +149,56 @@ def test_outcome_payloads_reject_cycles() -> None:
 
     with pytest.raises(ValueError, match="cycle"):
         OutcomeObservation("observation-1", "action-1", outcome, ("evidence-1",))
+
+
+@pytest.mark.parametrize(
+    "value",
+    [9_007_199_254_740_992, -9_007_199_254_740_992, 10**5000],
+    ids=["above-positive-bound", "below-negative-bound", "serializer-digit-overflow"],
+)
+def test_prediction_outcomes_reject_nested_noninteroperable_json_integers(value: int) -> None:
+    """Catch nested prediction integers that are not deterministic across JSON consumers."""
+
+    with pytest.raises(ValueError, match="outcomes.*serialization-safe"):
+        PredictionCommit(
+            "prediction-1",
+            {"details": [{"count": value}]},
+            0.5,
+            (),
+        )
+
+
+@pytest.mark.parametrize(
+    "value",
+    [9_007_199_254_740_992, -9_007_199_254_740_992, 10**5000],
+    ids=["above-positive-bound", "below-negative-bound", "serializer-digit-overflow"],
+)
+def test_observed_outcomes_reject_nested_noninteroperable_json_integers(value: int) -> None:
+    """Catch nested observation integers that are not deterministic across JSON consumers."""
+
+    with pytest.raises(ValueError, match="outcomes.*serialization-safe"):
+        OutcomeObservation(
+            "observation-1",
+            "action-1",
+            {"details": [{"count": value}]},
+            ("evidence-1",),
+        )
+
+
+def test_typed_outcomes_accept_and_serialize_json_integer_endpoints() -> None:
+    """Catch an off-by-one that rejects either inclusive interoperable JSON endpoint."""
+
+    outcome = {"minimum": -9_007_199_254_740_991, "maximum": 9_007_199_254_740_991}
+    prediction = PredictionCommit("prediction-1", outcome, 0.5, ())
+    observation = OutcomeObservation(
+        "observation-1",
+        "action-1",
+        outcome,
+        ("evidence-1",),
+    )
+
+    assert json.loads(json.dumps(prediction.to_dict()))["predicted_outcome"] == outcome
+    assert json.loads(json.dumps(observation.to_dict()))["actual_outcome"] == outcome
 
 
 def test_helpers_preserve_payloads_semantic_links_and_envelope_metadata() -> None:
