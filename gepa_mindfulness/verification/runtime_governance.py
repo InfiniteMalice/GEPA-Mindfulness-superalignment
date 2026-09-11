@@ -1,10 +1,16 @@
-"""Least-authority grants for runtime actions."""
+"""Least-authority grants for runtime actions.
+
+Before a runtime consumer uses a stored ``AuthorizationDecision``, the consumer must call
+``consume_authorization`` with the current action, authoritative grants, and trusted clock.
+"""
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Protocol, cast
 
@@ -15,6 +21,7 @@ from .state import (
     _require_exact_mapping,
     _require_nonblank_string,
     _require_rfc3339,
+    _require_sha256,
     _snapshot_evidence_refs,
 )
 
@@ -39,6 +46,21 @@ class RuntimeCapability(str, Enum):
     VERIFY = "verify"
     AUDIT = "audit"
     AUTHORIZE_IRREVERSIBLE = "authorize_irreversible"
+
+
+class AuthorizationReason(str, Enum):
+    """The exact reason for one authorization decision."""
+
+    AUTHORIZED = "authorized"
+    NO_MATCHING_GRANT = "no_matching_grant"
+    DUPLICATE_GRANT_IDS = "duplicate_grant_ids"
+    AMBIGUOUS_MATCHING_GRANTS = "ambiguous_matching_grants"
+    GRANT_EXPIRED = "grant_expired"
+    MISSING_VERIFIER_INDEPENDENCE_CONTEXT = "missing_verifier_independence_context"
+    VERIFIER_AUTHORED_ACTION = "verifier_authored_action"
+    VERIFIER_EXECUTED_ACTION = "verifier_executed_action"
+    MISSING_IRREVERSIBLE_APPROVAL = "missing_human_irreversible_authorization"
+    IRREVERSIBLE_APPROVAL_EXPIRED = "irreversible_approval_expired"
 
 
 _ROLE_CAPABILITIES = {
@@ -85,6 +107,14 @@ class _ActionRecordFields(Protocol):
     prediction_commit_id: str
 
 
+class TrustedClock(Protocol):
+    """A runtime-owned source of an aware current datetime."""
+
+    def now(self) -> datetime:
+        """Return the trusted current time as an exact aware datetime."""
+        ...
+
+
 @dataclass(frozen=True, slots=True)
 class AuthorityGrant:
     """An immutable capability grant bound to one principal, action, and scope."""
@@ -94,6 +124,7 @@ class AuthorityGrant:
     role: RuntimeRole
     capabilities: tuple[RuntimeCapability, ...]
     action_id: str
+    action_digest: str
     authorization_scope: str
     expires_at: str | None = None
     evidence_refs: tuple[EvidenceReference, ...] = ()
@@ -114,6 +145,7 @@ class AuthorityGrant:
             )
         object.__setattr__(self, "capabilities", capabilities)
         _require_scoped_string(self.action_id, "action_id")
+        _require_sha256(self.action_digest, "action_digest")
         _require_scoped_string(self.authorization_scope, "authorization_scope")
         if self.expires_at is not None:
             _require_rfc3339(self.expires_at, "expires_at")
@@ -134,6 +166,7 @@ class AuthorityGrant:
             "role": snapshot.role.value,
             "capabilities": [capability.value for capability in snapshot.capabilities],
             "action_id": snapshot.action_id,
+            "action_digest": snapshot.action_digest,
             "authorization_scope": snapshot.authorization_scope,
             "expires_at": snapshot.expires_at,
             "evidence_refs": [reference.to_dict() for reference in snapshot.evidence_refs],
@@ -151,6 +184,7 @@ class AuthorityGrant:
                 "role",
                 "capabilities",
                 "action_id",
+                "action_digest",
                 "authorization_scope",
                 "expires_at",
                 "evidence_refs",
@@ -163,6 +197,7 @@ class AuthorityGrant:
             role=_restore_role(values["role"], "AuthorityGrant"),
             capabilities=_restore_capabilities(values["capabilities"]),
             action_id=cast(str, values["action_id"]),
+            action_digest=cast(str, values["action_digest"]),
             authorization_scope=cast(str, values["authorization_scope"]),
             expires_at=cast(str | None, values["expires_at"]),
             evidence_refs=_restore_evidence_refs(values["evidence_refs"]),
@@ -170,10 +205,74 @@ class AuthorityGrant:
 
 
 @dataclass(frozen=True, slots=True)
+class IrreversibleApprovalBinding:
+    """Observable human approval bound to one complete irreversible action identity."""
+
+    human_principal_id: str
+    action_id: str
+    action_digest: str
+    authorization_scope: str
+    authorization_grant_id: str
+    evidence_refs: tuple[EvidenceReference, ...]
+
+    def __post_init__(self) -> None:
+        """Require exact action, human-grant, scope, and observable evidence bindings."""
+
+        _require_nonblank_string(self.human_principal_id, "human_principal_id")
+        _require_scoped_string(self.action_id, "action_id")
+        _require_sha256(self.action_digest, "action_digest")
+        _require_scoped_string(self.authorization_scope, "authorization_scope")
+        _require_nonblank_string(self.authorization_grant_id, "authorization_grant_id")
+        references = _snapshot_evidence_refs(self.evidence_refs)
+        if not references or not any(reference.is_observable for reference in references):
+            raise ValueError("irreversible approval requires observable evidence")
+        object.__setattr__(self, "evidence_refs", references)
+
+    def to_dict(self) -> dict[str, object]:
+        """Return the exact JSON-compatible approval binding."""
+
+        snapshot = _snapshot_approval(self)
+        return {
+            "human_principal_id": snapshot.human_principal_id,
+            "action_id": snapshot.action_id,
+            "action_digest": snapshot.action_digest,
+            "authorization_scope": snapshot.authorization_scope,
+            "authorization_grant_id": snapshot.authorization_grant_id,
+            "evidence_refs": [reference.to_dict() for reference in snapshot.evidence_refs],
+        }
+
+    @classmethod
+    def from_dict(cls, data: object) -> IrreversibleApprovalBinding:
+        """Restore an approval binding from its exact JSON-compatible record."""
+
+        values = _require_exact_mapping(
+            data,
+            {
+                "human_principal_id",
+                "action_id",
+                "action_digest",
+                "authorization_scope",
+                "authorization_grant_id",
+                "evidence_refs",
+            },
+            "IrreversibleApprovalBinding",
+        )
+        return cls(
+            human_principal_id=cast(str, values["human_principal_id"]),
+            action_id=cast(str, values["action_id"]),
+            action_digest=cast(str, values["action_digest"]),
+            authorization_scope=cast(str, values["authorization_scope"]),
+            authorization_grant_id=cast(str, values["authorization_grant_id"]),
+            evidence_refs=_restore_evidence_refs(values["evidence_refs"]),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class AuthorizationDecision:
-    """An auditable authorization finding that does not claim execution or verification."""
+    """Authorization evidence that consumers must revalidate before use."""
 
     action_id: str
+    action_digest: str
     authorization_scope: str
     principal_id: str
     role: RuntimeRole
@@ -181,12 +280,16 @@ class AuthorizationDecision:
     authorized: bool
     grant_id: str | None
     authorization_refs: tuple[EvidenceReference, ...]
-    reason: str
+    irreversible_approval: IrreversibleApprovalBinding | None
+    reason: AuthorizationReason
+    observed_at: str
+    effective_expires_at: str | None
 
     def __post_init__(self) -> None:
         """Validate the finding and detach its authorization evidence."""
 
         _require_nonblank_string(self.action_id, "action_id")
+        _require_sha256(self.action_digest, "action_digest")
         _require_scoped_string(self.authorization_scope, "authorization_scope")
         _require_nonblank_string(self.principal_id, "principal_id")
         if type(self.role) is not RuntimeRole:
@@ -197,11 +300,17 @@ class AuthorizationDecision:
             raise ValueError("authorized must be a built-in bool")
         if self.grant_id is not None:
             _require_nonblank_string(self.grant_id, "grant_id")
-        _require_nonblank_string(self.reason, "reason")
+        if type(self.reason) is not AuthorizationReason:
+            raise ValueError("reason must be an exact AuthorizationReason")
+        _require_rfc3339(self.observed_at, "observed_at")
+        if self.effective_expires_at is not None:
+            _require_rfc3339(self.effective_expires_at, "effective_expires_at")
         references = _snapshot_evidence_refs(self.authorization_refs)
         object.__setattr__(self, "authorization_refs", references)
+        approval = _snapshot_optional_approval(self.irreversible_approval)
+        object.__setattr__(self, "irreversible_approval", approval)
         if self.authorized:
-            if self.grant_id is None or self.reason != "authorized":
+            if self.grant_id is None or self.reason is not AuthorizationReason.AUTHORIZED:
                 raise ValueError("authorized decisions require a grant_id and authorized reason")
             if self.capability not in _ROLE_CAPABILITIES[self.role]:
                 raise ValueError(
@@ -212,8 +321,26 @@ class AuthorizationDecision:
                 reference.is_observable for reference in references
             ):
                 raise ValueError("irreversible authorization requires observable evidence")
-        elif self.grant_id is not None:
-            raise ValueError("denied decisions cannot claim a grant_id")
+            if approval is not None:
+                if self.capability is not RuntimeCapability.EXECUTE:
+                    raise ValueError("only execution decisions can contain irreversible approval")
+                if references != approval.evidence_refs:
+                    raise ValueError("authorization_refs must match irreversible approval evidence")
+            elif references and self.capability is not RuntimeCapability.AUTHORIZE_IRREVERSIBLE:
+                raise ValueError("authorized decisions cannot carry unrelated authorization refs")
+            if self.effective_expires_at is not None and not (
+                _parse_rfc3339(self.observed_at) < _parse_rfc3339(self.effective_expires_at)
+            ):
+                raise ValueError("authorized decision must precede its effective expiry")
+        else:
+            if self.reason is AuthorizationReason.AUTHORIZED:
+                raise ValueError("denied decisions cannot use the authorized reason")
+            if self.grant_id is not None:
+                raise ValueError("denied decisions cannot claim a grant_id")
+            if references:
+                raise ValueError("denied decisions cannot carry authorization references")
+            if approval is not None:
+                raise ValueError("denied decisions cannot carry an irreversible approval")
 
     def to_dict(self) -> dict[str, object]:
         """Return the exact JSON-compatible authorization finding."""
@@ -221,6 +348,7 @@ class AuthorizationDecision:
         snapshot = _snapshot_decision(self)
         return {
             "action_id": snapshot.action_id,
+            "action_digest": snapshot.action_digest,
             "authorization_scope": snapshot.authorization_scope,
             "principal_id": snapshot.principal_id,
             "role": snapshot.role.value,
@@ -230,7 +358,14 @@ class AuthorizationDecision:
             "authorization_refs": [
                 reference.to_dict() for reference in snapshot.authorization_refs
             ],
-            "reason": snapshot.reason,
+            "irreversible_approval": (
+                None
+                if snapshot.irreversible_approval is None
+                else snapshot.irreversible_approval.to_dict()
+            ),
+            "reason": snapshot.reason.value,
+            "observed_at": snapshot.observed_at,
+            "effective_expires_at": snapshot.effective_expires_at,
         }
 
     @classmethod
@@ -241,6 +376,7 @@ class AuthorizationDecision:
             data,
             {
                 "action_id",
+                "action_digest",
                 "authorization_scope",
                 "principal_id",
                 "role",
@@ -248,12 +384,16 @@ class AuthorizationDecision:
                 "authorized",
                 "grant_id",
                 "authorization_refs",
+                "irreversible_approval",
                 "reason",
+                "observed_at",
+                "effective_expires_at",
             },
             "AuthorizationDecision",
         )
         return cls(
             action_id=cast(str, values["action_id"]),
+            action_digest=cast(str, values["action_digest"]),
             authorization_scope=cast(str, values["authorization_scope"]),
             principal_id=cast(str, values["principal_id"]),
             role=_restore_role(values["role"], "AuthorizationDecision"),
@@ -261,7 +401,10 @@ class AuthorizationDecision:
             authorized=cast(bool, values["authorized"]),
             grant_id=cast(str | None, values["grant_id"]),
             authorization_refs=_restore_evidence_refs(values["authorization_refs"]),
-            reason=cast(str, values["reason"]),
+            irreversible_approval=_restore_optional_approval(values["irreversible_approval"]),
+            reason=_restore_reason(values["reason"]),
+            observed_at=cast(str, values["observed_at"]),
+            effective_expires_at=cast(str | None, values["effective_expires_at"]),
         )
 
 
@@ -272,13 +415,18 @@ def authorize_action(
     role: RuntimeRole,
     capability: RuntimeCapability,
     grants: Sequence[AuthorityGrant],
+    clock: TrustedClock,
     action_author_id: str | None = None,
     action_executor_id: str | None = None,
-    observed_at: str | None = None,
+    irreversible_approval: IrreversibleApprovalBinding | None = None,
 ) -> AuthorizationDecision:
-    """Authorize one exact action capability without inferring authority from a role label."""
+    """Evaluate current authority using the injected trusted clock.
+
+    Consumers must call :func:`consume_authorization` before using a stored decision as authority.
+    """
 
     action = _snapshot_action(action)
+    action_digest = action_record_digest(action)
     _require_nonblank_string(principal_id, "principal_id")
     if type(role) is not RuntimeRole:
         raise ValueError("role must be an exact RuntimeRole")
@@ -286,27 +434,62 @@ def authorize_action(
         raise ValueError("capability must be an exact RuntimeCapability")
     _require_optional_identifier(action_author_id, "action_author_id")
     _require_optional_identifier(action_executor_id, "action_executor_id")
-    if observed_at is not None:
-        _require_rfc3339(observed_at, "observed_at")
+    observed = _read_trusted_time(clock)
+    observed_at = _format_datetime(observed)
+    approval = _snapshot_optional_approval(irreversible_approval)
     snapshots = _snapshot_grants(grants)
     if len({grant.grant_id for grant in snapshots}) != len(snapshots):
-        return _deny(action, principal_id, role, capability, "duplicate_grant_ids")
+        return _deny(
+            action,
+            action_digest,
+            principal_id,
+            role,
+            capability,
+            AuthorizationReason.DUPLICATE_GRANT_IDS,
+            observed_at,
+        )
 
     candidates = _matching_grants(
         action,
+        action_digest,
         principal_id,
         role,
         capability,
         snapshots,
     )
-    candidates, time_failure = _filter_current_grants(candidates, observed_at)
-    if time_failure is not None:
-        return _deny(action, principal_id, role, capability, time_failure)
     if not candidates:
-        return _deny(action, principal_id, role, capability, "no_matching_grant")
-    if len(candidates) != 1:
-        return _deny(action, principal_id, role, capability, "ambiguous_matching_grants")
-    grant = candidates[0]
+        return _deny(
+            action,
+            action_digest,
+            principal_id,
+            role,
+            capability,
+            AuthorizationReason.NO_MATCHING_GRANT,
+            observed_at,
+        )
+    current_candidates = _current_grants(candidates, observed)
+    if not current_candidates:
+        return _deny(
+            action,
+            action_digest,
+            principal_id,
+            role,
+            capability,
+            AuthorizationReason.GRANT_EXPIRED,
+            observed_at,
+            _effective_expiry(candidates),
+        )
+    if len(current_candidates) != 1:
+        return _deny(
+            action,
+            action_digest,
+            principal_id,
+            role,
+            capability,
+            AuthorizationReason.AMBIGUOUS_MATCHING_GRANTS,
+            observed_at,
+        )
+    grant = current_candidates[0]
 
     independence_failure = _verify_independence(
         principal_id,
@@ -315,36 +498,58 @@ def authorize_action(
         action_executor_id,
     )
     if independence_failure is not None:
-        return _deny(action, principal_id, role, capability, independence_failure)
+        return _deny(
+            action,
+            action_digest,
+            principal_id,
+            role,
+            capability,
+            independence_failure,
+            observed_at,
+        )
 
     authorization_refs: tuple[EvidenceReference, ...] = ()
+    approval_for_decision: IrreversibleApprovalBinding | None = None
+    effective_expiry = grant.expires_at
     if capability is RuntimeCapability.AUTHORIZE_IRREVERSIBLE:
         authorization_refs = grant.evidence_refs
     if capability is RuntimeCapability.EXECUTE and not action.reversible:
-        human_grants = _matching_irreversible_grants(action, snapshots)
-        human_grants, time_failure = _filter_current_grants(human_grants, observed_at)
-        if time_failure is not None:
-            return _deny(action, principal_id, role, capability, time_failure)
+        human_grants = _matching_irreversible_grants(
+            action,
+            action_digest,
+            approval,
+            snapshots,
+        )
         if not human_grants:
             return _deny(
                 action,
+                action_digest,
                 principal_id,
                 role,
                 capability,
-                "missing_human_irreversible_authorization",
+                AuthorizationReason.MISSING_IRREVERSIBLE_APPROVAL,
+                observed_at,
             )
-        if len(human_grants) != 1:
+        current_human_grants = _current_grants(human_grants, observed)
+        if not current_human_grants:
             return _deny(
                 action,
+                action_digest,
                 principal_id,
                 role,
                 capability,
-                "ambiguous_human_irreversible_authorization",
+                AuthorizationReason.IRREVERSIBLE_APPROVAL_EXPIRED,
+                observed_at,
+                _minimum_expiry(effective_expiry, _effective_expiry(human_grants)),
             )
-        authorization_refs = human_grants[0].evidence_refs
+        human_grant = current_human_grants[0]
+        authorization_refs = cast(IrreversibleApprovalBinding, approval).evidence_refs
+        approval_for_decision = approval
+        effective_expiry = _minimum_expiry(effective_expiry, human_grant.expires_at)
 
     return AuthorizationDecision(
         action_id=action.action_id,
+        action_digest=action_digest,
         authorization_scope=action.authorization_scope,
         principal_id=principal_id,
         role=role,
@@ -352,8 +557,56 @@ def authorize_action(
         authorized=True,
         grant_id=grant.grant_id,
         authorization_refs=authorization_refs,
-        reason="authorized",
+        irreversible_approval=approval_for_decision,
+        reason=AuthorizationReason.AUTHORIZED,
+        observed_at=observed_at,
+        effective_expires_at=_normalize_optional_timestamp(effective_expiry),
     )
+
+
+def consume_authorization(
+    decision: AuthorizationDecision,
+    action: ActionRecord,
+    *,
+    grants: Sequence[AuthorityGrant],
+    clock: TrustedClock,
+    action_author_id: str | None = None,
+    action_executor_id: str | None = None,
+) -> AuthorizationDecision:
+    """Return a fresh current decision or reject a stored decision that no longer authorizes."""
+
+    snapshot = _snapshot_decision(decision)
+    if not snapshot.authorized:
+        raise PermissionError("decision has no authority to consume")
+    current = authorize_action(
+        action,
+        principal_id=snapshot.principal_id,
+        role=snapshot.role,
+        capability=snapshot.capability,
+        grants=grants,
+        clock=clock,
+        action_author_id=action_author_id,
+        action_executor_id=action_executor_id,
+        irreversible_approval=snapshot.irreversible_approval,
+    )
+    if not current.authorized or not _same_authority(snapshot, current):
+        raise PermissionError("decision does not match current authoritative authorization")
+    if _parse_rfc3339(snapshot.observed_at) > _parse_rfc3339(current.observed_at):
+        raise PermissionError("decision does not match current authoritative authorization")
+    return current
+
+
+def action_record_digest(action: ActionRecord) -> str:
+    """Digest every canonical serialized field of one validated action record."""
+
+    snapshot = _snapshot_action(action)
+    payload = json.dumps(
+        snapshot.to_dict(),
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 def _snapshot_action(action: object) -> ActionRecord:
@@ -394,6 +647,8 @@ def _snapshot_capabilities(value: object) -> tuple[RuntimeCapability, ...]:
 def _snapshot_grant(grant: object) -> AuthorityGrant:
     if type(grant) is not AuthorityGrant:
         raise ValueError("grants must contain exact AuthorityGrant values")
+    if type(grant.capabilities) is not tuple or type(grant.evidence_refs) is not tuple:
+        raise ValueError("AuthorityGrant tuple fields must remain exact tuples")
     try:
         return AuthorityGrant(
             grant.grant_id,
@@ -401,6 +656,7 @@ def _snapshot_grant(grant: object) -> AuthorityGrant:
             grant.role,
             grant.capabilities,
             grant.action_id,
+            grant.action_digest,
             grant.authorization_scope,
             grant.expires_at,
             grant.evidence_refs,
@@ -418,8 +674,11 @@ def _snapshot_grants(value: object) -> tuple[AuthorityGrant, ...]:
 def _snapshot_decision(decision: object) -> AuthorizationDecision:
     if type(decision) is not AuthorizationDecision:
         raise ValueError("decision must be an exact AuthorizationDecision")
+    if type(decision.authorization_refs) is not tuple:
+        raise ValueError("AuthorizationDecision authorization_refs must remain an exact tuple")
     return AuthorizationDecision(
         decision.action_id,
+        decision.action_digest,
         decision.authorization_scope,
         decision.principal_id,
         decision.role,
@@ -427,12 +686,16 @@ def _snapshot_decision(decision: object) -> AuthorizationDecision:
         decision.authorized,
         decision.grant_id,
         decision.authorization_refs,
+        decision.irreversible_approval,
         decision.reason,
+        decision.observed_at,
+        decision.effective_expires_at,
     )
 
 
 def _matching_grants(
     action: ActionRecord,
+    action_digest: str,
     principal_id: str,
     role: RuntimeRole,
     capability: RuntimeCapability,
@@ -444,6 +707,7 @@ def _matching_grants(
         if grant.principal_id == principal_id
         and grant.role is role
         and grant.action_id == action.action_id
+        and grant.action_digest == action_digest
         and grant.authorization_scope == action.authorization_scope
         and capability in grant.capabilities
     )
@@ -451,34 +715,41 @@ def _matching_grants(
 
 def _matching_irreversible_grants(
     action: ActionRecord,
+    action_digest: str,
+    approval: IrreversibleApprovalBinding | None,
     grants: tuple[AuthorityGrant, ...],
 ) -> tuple[AuthorityGrant, ...]:
+    if approval is None:
+        return ()
+    if (
+        approval.action_id != action.action_id
+        or approval.action_digest != action_digest
+        or approval.authorization_scope != action.authorization_scope
+    ):
+        return ()
     return tuple(
         grant
         for grant in grants
         if grant.role is RuntimeRole.HUMAN
+        and grant.principal_id == approval.human_principal_id
+        and grant.grant_id == approval.authorization_grant_id
         and grant.action_id == action.action_id
+        and grant.action_digest == action_digest
         and grant.authorization_scope == action.authorization_scope
         and RuntimeCapability.AUTHORIZE_IRREVERSIBLE in grant.capabilities
-        and any(reference.is_observable for reference in grant.evidence_refs)
+        and grant.evidence_refs == approval.evidence_refs
     )
 
 
-def _filter_current_grants(
+def _current_grants(
     grants: tuple[AuthorityGrant, ...],
-    observed_at: str | None,
-) -> tuple[tuple[AuthorityGrant, ...], str | None]:
-    if any(grant.expires_at is not None for grant in grants) and observed_at is None:
-        return (), "missing_observation_time"
-    if observed_at is None:
-        return grants, None
-    observed = _parse_rfc3339(observed_at)
-    current = tuple(
+    observed: datetime,
+) -> tuple[AuthorityGrant, ...]:
+    return tuple(
         grant
         for grant in grants
-        if grant.expires_at is None or observed <= _parse_rfc3339(grant.expires_at)
+        if grant.expires_at is None or observed < _parse_rfc3339(grant.expires_at)
     )
-    return current, None
 
 
 def _verify_independence(
@@ -486,27 +757,31 @@ def _verify_independence(
     capability: RuntimeCapability,
     action_author_id: str | None,
     action_executor_id: str | None,
-) -> str | None:
+) -> AuthorizationReason | None:
     if capability is not RuntimeCapability.VERIFY:
         return None
     if action_author_id is None or action_executor_id is None:
-        return "missing_verifier_independence_context"
+        return AuthorizationReason.MISSING_VERIFIER_INDEPENDENCE_CONTEXT
     if principal_id == action_author_id:
-        return "verifier_authored_action"
+        return AuthorizationReason.VERIFIER_AUTHORED_ACTION
     if principal_id == action_executor_id:
-        return "verifier_executed_action"
+        return AuthorizationReason.VERIFIER_EXECUTED_ACTION
     return None
 
 
 def _deny(
     action: ActionRecord,
+    action_digest: str,
     principal_id: str,
     role: RuntimeRole,
     capability: RuntimeCapability,
-    reason: str,
+    reason: AuthorizationReason,
+    observed_at: str,
+    effective_expires_at: str | None = None,
 ) -> AuthorizationDecision:
     return AuthorizationDecision(
         action_id=action.action_id,
+        action_digest=action_digest,
         authorization_scope=action.authorization_scope,
         principal_id=principal_id,
         role=role,
@@ -514,7 +789,10 @@ def _deny(
         authorized=False,
         grant_id=None,
         authorization_refs=(),
+        irreversible_approval=None,
         reason=reason,
+        observed_at=observed_at,
+        effective_expires_at=_normalize_optional_timestamp(effective_expires_at),
     )
 
 
@@ -533,6 +811,104 @@ def _require_optional_identifier(value: object, field_name: str) -> None:
 def _parse_rfc3339(value: str) -> datetime:
     parsed_value = f"{value[:-1]}+00:00" if value.endswith("Z") else value
     return datetime.fromisoformat(parsed_value)
+
+
+def _read_trusted_time(clock: object) -> datetime:
+    now_method = getattr(clock, "now", None)
+    if not callable(now_method):
+        raise ValueError("clock must provide a callable now method")
+    observed = now_method()
+    if type(observed) is not datetime:
+        raise ValueError("clock must return an exact datetime")
+    if observed.tzinfo is None or observed.utcoffset() is None:
+        raise ValueError("clock must return an aware datetime")
+    return observed
+
+
+def _format_datetime(value: datetime) -> str:
+    utc_value = value.astimezone(timezone.utc)
+    timespec = "microseconds" if utc_value.microsecond else "seconds"
+    return utc_value.isoformat(timespec=timespec).replace("+00:00", "Z")
+
+
+def _normalize_optional_timestamp(value: str | None) -> str | None:
+    if value is None:
+        return None
+    return _format_datetime(_parse_rfc3339(value))
+
+
+def _effective_expiry(grants: tuple[AuthorityGrant, ...]) -> str | None:
+    expiry_values = [grant.expires_at for grant in grants if grant.expires_at is not None]
+    if not expiry_values:
+        return None
+    return min(expiry_values, key=_parse_rfc3339)
+
+
+def _minimum_expiry(first: str | None, second: str | None) -> str | None:
+    if first is None:
+        return second
+    if second is None:
+        return first
+    return min((first, second), key=_parse_rfc3339)
+
+
+def _snapshot_approval(value: object) -> IrreversibleApprovalBinding:
+    if type(value) is not IrreversibleApprovalBinding:
+        raise ValueError("irreversible approval must be an exact IrreversibleApprovalBinding")
+    if type(value.evidence_refs) is not tuple:
+        raise ValueError("IrreversibleApprovalBinding evidence_refs must remain an exact tuple")
+    try:
+        return IrreversibleApprovalBinding(
+            value.human_principal_id,
+            value.action_id,
+            value.action_digest,
+            value.authorization_scope,
+            value.authorization_grant_id,
+            value.evidence_refs,
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"irreversible approval contains invalid fields: {exc}") from exc
+
+
+def _snapshot_optional_approval(
+    value: object,
+) -> IrreversibleApprovalBinding | None:
+    if value is None:
+        return None
+    return _snapshot_approval(value)
+
+
+def _restore_optional_approval(value: object) -> IrreversibleApprovalBinding | None:
+    if value is None:
+        return None
+    return IrreversibleApprovalBinding.from_dict(value)
+
+
+def _restore_reason(value: object) -> AuthorizationReason:
+    if type(value) is not str:
+        raise ValueError("AuthorizationDecision reason must be a built-in string")
+    try:
+        return AuthorizationReason(value)
+    except ValueError as exc:
+        raise ValueError(f"unknown AuthorizationDecision reason {value!r}") from exc
+
+
+def _same_authority(
+    stored: AuthorizationDecision,
+    current: AuthorizationDecision,
+) -> bool:
+    return (
+        stored.action_id == current.action_id
+        and stored.action_digest == current.action_digest
+        and stored.authorization_scope == current.authorization_scope
+        and stored.principal_id == current.principal_id
+        and stored.role is current.role
+        and stored.capability is current.capability
+        and stored.grant_id == current.grant_id
+        and stored.authorization_refs == current.authorization_refs
+        and stored.irreversible_approval == current.irreversible_approval
+        and stored.effective_expires_at == current.effective_expires_at
+    )
 
 
 def _restore_role(value: object, record_name: str) -> RuntimeRole:
@@ -568,7 +944,12 @@ def _restore_evidence_refs(value: object) -> tuple[EvidenceReference, ...]:
 __all__ = [
     "AuthorityGrant",
     "AuthorizationDecision",
+    "AuthorizationReason",
+    "IrreversibleApprovalBinding",
     "RuntimeCapability",
     "RuntimeRole",
+    "TrustedClock",
+    "action_record_digest",
     "authorize_action",
+    "consume_authorization",
 ]

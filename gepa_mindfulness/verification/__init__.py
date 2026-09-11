@@ -21,15 +21,21 @@ from .interfaces import (
 from .runtime_governance import (
     AuthorityGrant,
     AuthorizationDecision,
+    AuthorizationReason,
+    IrreversibleApprovalBinding,
     RuntimeCapability,
     RuntimeRole,
+    TrustedClock,
+    action_record_digest,
     authorize_action,
+    consume_authorization,
 )
 from .state import EvidenceClaim, EvidenceState, WorldStateChange
 
 __all__ = [
     "AuthorityGrant",
     "AuthorizationDecision",
+    "AuthorizationReason",
     "EvidenceClaim",
     "EvidenceState",
     "FailureEdge",
@@ -42,12 +48,16 @@ __all__ = [
     "RelationalEvidenceVerifier",
     "RelationalVerificationResult",
     "RootCauseStatus",
+    "IrreversibleApprovalBinding",
     "RuntimeCapability",
     "RuntimeRole",
+    "TrustedClock",
     "VerificationEvidenceBinding",
     "VerificationLevel",
     "WorldStateChange",
+    "action_record_digest",
     "authorize_action",
+    "consume_authorization",
     "make_local_verification_event",
     "make_relational_verification_event",
 ]
