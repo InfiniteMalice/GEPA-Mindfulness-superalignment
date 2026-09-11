@@ -1,7 +1,9 @@
 """Tests for semantic-hinge detection and representation disagreement routing."""
 
 # Standard library
+import json
 from dataclasses import FrozenInstanceError
+from hashlib import sha256
 
 # Third-party
 import pytest
@@ -79,6 +81,28 @@ def _record(
         representation_source_digest=source_digest_for(source_id, source_document),
         representation_provenance=provenance,
     )
+
+
+def _unchecked_candidate_id(candidate: RepresentationCandidate) -> str:
+    span = candidate.source_span
+    payload = {
+        "candidate_text": candidate.candidate_text,
+        "confidence": candidate.confidence,
+        "contextual_score": candidate.contextual_score,
+        "generation_reason": candidate.generation_reason,
+        "orthographic_score": candidate.orthographic_score,
+        "outcome": candidate.outcome.value,
+        "phonetic_score": candidate.phonetic_score,
+        "provenance": list(candidate.provenance),
+        "semantic_similarity": candidate.semantic_similarity,
+        "source_end": span.end,
+        "source_id": span.source_id,
+        "source_raw_text": span.raw_text,
+        "source_start": span.start,
+        "transform_channel": candidate.transform_channel.value,
+    }
+    encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    return f"representation-v1:{sha256(encoded.encode('utf-8')).hexdigest()}"
 
 
 @pytest.mark.parametrize(
@@ -663,3 +687,27 @@ def test_transform_does_not_copy_stale_representation_binding_to_new_text() -> N
     assert variant.representation_candidate is None
     assert variant.representation_candidate_id is None
     assert variant.representation_provenance == ()
+
+
+@pytest.mark.parametrize("corrupted_score", (1, float("nan")))
+def test_routing_rejects_correlated_hash_for_corrupted_candidate_score(
+    corrupted_score: object,
+) -> None:
+    record = _record("literal", PolicyAction.ALLOW)
+    candidate = record.representation_candidate
+    assert candidate is not None
+    object.__setattr__(candidate, "orthographic_score", corrupted_score)
+    object.__setattr__(record, "representation_candidate_id", _unchecked_candidate_id(candidate))
+
+    with pytest.raises((TypeError, ValueError)):
+        route_representation_disagreement((record,), high_stakes=False)
+
+
+def test_candidate_id_rejects_a_corrupted_source_span() -> None:
+    record = _record("literal", PolicyAction.ALLOW)
+    candidate = record.representation_candidate
+    assert candidate is not None
+    object.__setattr__(candidate.source_span, "end", candidate.source_span.end + 1)
+
+    with pytest.raises(ValueError, match="raw_text length"):
+        candidate_id_for(candidate)

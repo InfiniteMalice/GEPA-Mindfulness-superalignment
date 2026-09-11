@@ -126,27 +126,55 @@ class RepresentationLattice:
 def candidate_id_for(candidate: RepresentationCandidate) -> str:
     """Return a stable content identifier for a complete immutable candidate."""
 
-    if type(candidate) is not RepresentationCandidate:
-        raise TypeError("candidate must be an exact RepresentationCandidate")
-    span = candidate.source_span
+    snapshot = validated_candidate_snapshot(candidate)
+    span = snapshot.source_span
     payload = {
-        "candidate_text": candidate.candidate_text,
-        "confidence": candidate.confidence,
-        "contextual_score": candidate.contextual_score,
-        "generation_reason": candidate.generation_reason,
-        "orthographic_score": candidate.orthographic_score,
-        "outcome": candidate.outcome.value,
-        "phonetic_score": candidate.phonetic_score,
-        "provenance": list(candidate.provenance),
-        "semantic_similarity": candidate.semantic_similarity,
+        "candidate_text": snapshot.candidate_text,
+        "confidence": snapshot.confidence,
+        "contextual_score": snapshot.contextual_score,
+        "generation_reason": snapshot.generation_reason,
+        "orthographic_score": snapshot.orthographic_score,
+        "outcome": snapshot.outcome.value,
+        "phonetic_score": snapshot.phonetic_score,
+        "provenance": list(snapshot.provenance),
+        "semantic_similarity": snapshot.semantic_similarity,
         "source_end": span.end,
         "source_id": span.source_id,
         "source_raw_text": span.raw_text,
         "source_start": span.start,
-        "transform_channel": candidate.transform_channel.value,
+        "transform_channel": snapshot.transform_channel.value,
     }
     encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
     return f"representation-v1:{sha256(encoded.encode('utf-8')).hexdigest()}"
+
+
+def validated_candidate_snapshot(candidate: RepresentationCandidate) -> RepresentationCandidate:
+    """Reconstruct and validate every field before a candidate crosses a trust boundary."""
+
+    if type(candidate) is not RepresentationCandidate:
+        raise TypeError("candidate must be an exact RepresentationCandidate")
+    span = candidate.source_span
+    if type(span) is not SourceSpan:
+        raise TypeError("candidate source_span must be an exact SourceSpan")
+    span_snapshot = SourceSpan(
+        source_id=span.source_id,
+        start=span.start,
+        end=span.end,
+        raw_text=span.raw_text,
+    )
+    return RepresentationCandidate(
+        source_span=span_snapshot,
+        candidate_text=candidate.candidate_text,
+        transform_channel=candidate.transform_channel,
+        orthographic_score=candidate.orthographic_score,
+        phonetic_score=candidate.phonetic_score,
+        contextual_score=candidate.contextual_score,
+        semantic_similarity=candidate.semantic_similarity,
+        confidence=candidate.confidence,
+        provenance=candidate.provenance,
+        generation_reason=candidate.generation_reason,
+        outcome=candidate.outcome,
+    )
 
 
 def source_digest_for(source_id: str, raw_text: str) -> str:
@@ -228,4 +256,5 @@ __all__ = [
     "SourceSpan",
     "candidate_id_for",
     "source_digest_for",
+    "validated_candidate_snapshot",
 ]

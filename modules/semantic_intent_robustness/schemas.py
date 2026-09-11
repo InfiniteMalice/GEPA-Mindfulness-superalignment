@@ -16,6 +16,7 @@ from .representation import (
     SourceSpan,
     candidate_id_for,
     source_digest_for,
+    validated_candidate_snapshot,
 )
 from .taxonomy import (
     CapabilityTransferRisk,
@@ -141,6 +142,7 @@ class SemanticSafetyRecord:
                 payload[key] = value.value
         candidate = self.representation_candidate
         if candidate is not None:
+            candidate = validated_candidate_snapshot(candidate)
             span = candidate.source_span
             payload["representation_candidate"] = {
                 "source_span": {
@@ -420,6 +422,7 @@ def _validate_representation_binding(record: SemanticSafetyRecord) -> None:
     source_digest = record.representation_source_digest
     if type(candidate) is not RepresentationCandidate:
         raise TypeError("representation_candidate must be an exact RepresentationCandidate")
+    candidate = validated_candidate_snapshot(candidate)
     _validate_digest(
         candidate_id,
         prefix="representation-v1:",

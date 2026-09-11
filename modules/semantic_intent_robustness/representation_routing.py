@@ -14,6 +14,7 @@ from .representation import (
     SourceSpan,
     candidate_id_for,
     source_digest_for,
+    validated_candidate_snapshot,
 )
 from .schemas import SemanticSafetyRecord
 from .taxonomy import PolicyAction
@@ -189,6 +190,7 @@ def validate_representation_assessment(record: SemanticSafetyRecord) -> Semantic
     candidate, candidate_id, source_id, start, end, raw_text, source_document, source_digest = (
         values
     )
+    candidate = validated_candidate_snapshot(candidate)
     if raw_text != record.representation_raw_text or end - start != len(raw_text):
         raise ValueError("representation assessment has inconsistent raw source span")
     if not candidate_id.startswith("representation-v1:") or not source_id:
