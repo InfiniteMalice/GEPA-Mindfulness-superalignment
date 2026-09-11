@@ -11,7 +11,15 @@ from .v5_records import (
     SystemIdentity,
     V5EvaluationRecord,
 )
-from .v5_runner import V5EvaluationCell, plan_v5_cells
+from .v5_runner import (
+    RepeatMetrics,
+    V5EvaluationCell,
+    V5RepeatGroupKey,
+    V5RepeatGroupSummary,
+    plan_v5_cells,
+    summarize_repeats,
+    summarize_v5_record_groups,
+)
 
 __all__ = [
     "BehaviorRecord",
@@ -19,10 +27,15 @@ __all__ = [
     "DiagnosticRecord",
     "EpistemicRecord",
     "OutcomeRecord",
+    "RepeatMetrics",
     "RobustnessIdentity",
     "ScoreRecord",
     "SystemIdentity",
     "V5EvaluationRecord",
     "V5EvaluationCell",
+    "V5RepeatGroupKey",
+    "V5RepeatGroupSummary",
     "plan_v5_cells",
+    "summarize_repeats",
+    "summarize_v5_record_groups",
 ]
