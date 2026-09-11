@@ -69,6 +69,7 @@ Use this exact top-level order:
 - Modify: `docs/thought_alignment.md`
 - Modify: `docs/epistemic_process_rewards.md`
 - Modify: `gepa_mindfulness/core/README.md`
+- Modify: `gepa_mindfulness/factuality_observability/README.md`
 - Modify: `gepa_mindfulness/schema_v3/README.md`
 - Modify: `modules/semantic_intent_robustness/README.md`
 - Modify: `modules/objective_validator_robustness/README.md`
@@ -78,11 +79,15 @@ Use this exact top-level order:
    14 through Case 17 meanings, and reward-from-style language.
 2. Replace only semantically obsolete statements. Preserve historical context when explicitly
    labeled historical and non-normative.
-3. Define one canonical term per concept: canonical case, robustness stripe, repeat, verified
+3. Reconcile the Case 14 through Case 17 prose in
+   `gepa_mindfulness/factuality_observability/README.md` with
+   `evaluation/cases/17_case_manifest.yaml`; do not retain conflicting current behavior as
+   normative guidance.
+4. Define one canonical term per concept: canonical case, robustness stripe, repeat, verified
    epistemic process, diagnostic signal, world state, evidence state, local verifier, relational
    verifier, and representation candidate.
-4. Link code or subsystem docs to REC-IDs and REF-IDs through a short traceable chain.
-5. Preserve the Constitution's values and maturity caveats; do not turn it into an implementation
+5. Link code or subsystem docs to REC-IDs and REF-IDs through a short traceable chain.
+6. Preserve the Constitution's values and maturity caveats; do not turn it into an implementation
    manual.
 
 ## Task 3: Add documentation and link checks
@@ -97,7 +102,8 @@ Use this exact top-level order:
    the V5 documentation set, ignores external URLs and anchors, and asserts each target exists.
 2. Add fragment checks for local Markdown headings using GitHub-style normalized anchors.
 3. Add failing canonical-fact tests for framework name/version, exactly 17 cases, frozen Case 14
-   through Case 17 rows, and the exact stripe IDs.
+   through Case 17 rows, and the exact stripe IDs. Include the factuality-observability README in
+   the V5 documentation set so its Case 14 through Case 17 prose cannot conflict with the manifest.
 4. Add a failing traceability test that resolves every REC-ID to the registry and every referenced
    REF-ID to `references.yaml`.
 5. Run tests before the final prose changes and verify they fail on stale links or facts.
