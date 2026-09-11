@@ -162,6 +162,132 @@ Important metrics include decomposition consistency score, policy consistency sc
 negative rate under rewording, harmful false positive rate under topic-only overlap, abstention
 calibration score, and multi-turn risk accumulation accuracy.
 
+## Provenance-bound representation robustness
+
+The representation layer runs before semantic decomposition. It keeps the submitted source
+document as immutable `raw_text` and describes every other reading as a derived candidate. A
+candidate carries the exact `SourceSpan` it came from, the proposed text, its channel, five bounded
+evidence scores, a generation reason, and a nonempty provenance tuple. Neither normalization nor a
+high confidence score changes the source document or proves intended meaning.
+
+The public channels are:
+
+- `LITERAL`: the source slice exactly as received;
+- `CONSERVATIVE_NORMALIZATION`: a deterministic derived view;
+- `ORTHOGRAPHIC`: bounded spelling or character-edit evidence;
+- `PHONOLOGICAL`: an explicitly injected one-token or phrase hypothesis; and
+- `CONTEXTUAL`: a contract value for contextual hypotheses. The current generator uses bounded
+  context overlap as evidence on orthographic or phonological candidates; it does not independently
+  generate this channel.
+
+The outcomes are also exact. `CANDIDATE` means an active hypothesis, not a verified repair.
+`NO_REPAIR` marks the literal candidate only when bounded search was exhaustive and found no
+alternate above the `0.70` evidence floor. `UNKNOWN` marks the literal candidate when a comparison
+or phonetic-search limit truncated search. `ABSTAIN` is represented by the shared record contract
+but is not currently emitted by the generator. If an output budget suppresses known evidence, the
+literal stays neutral `CANDIDATE`; it does not falsely claim `NO_REPAIR`.
+
+### Lattice and budget semantics
+
+`build_candidate_lattice()` returns the literal view plus retained derived hypotheses in a
+deterministic order. The default `CandidateBudget` permits at most eight spans, four candidates per
+span, and 24 candidates total. Work is additionally bounded by source and lexicon limits, 64
+orthographic comparisons per output slot, and bounded phonetic discovery and materialization.
+Candidates with the same `(span start, span end, candidate text)` are merged rather than allowed to
+consume several top-k positions.
+
+Top-k therefore means the first k eligible repair hypotheses in the validated lattice. Metric
+recall filters before slicing: a candidate is eligible only when it is nonliteral, changes its exact
+source span, and has `CANDIDATE` outcome. Top-k is candidate evidence against independently authored
+expected text; it is not an automatic replacement rule or a probability of user intent. The
+literal candidate remains available even when a derived hypothesis ranks highly.
+
+### Unicode, graphemes, and meaningful separators
+
+Conservative views remove only U+200B ZERO WIDTH SPACE and U+FEFF ZERO WIDTH NO-BREAK SPACE,
+normalize to NFC after removal, and normalize CRLF or CR newlines to LF. Each applied transform and
+count is recorded in provenance. Ordinary spaces, delimiter tabs, punctuation, numbers, negation,
+U+200C ZERO WIDTH NON-JOINER, U+200D ZERO WIDTH JOINER, and emoji joiners remain intact.
+
+Source offsets are Python string indices, not byte offsets or Unicode grapheme-cluster indices.
+Token scanning includes following combining marks so a decomposed grapheme is not split in the
+tested word spans, but the package does not implement full Unicode grapheme segmentation. See the
+[foundational representation research note](../../docs/FOUNDATIONAL_REPRESENTATION_ARCHITECTURE.md)
+for the distinction.
+
+### Semantic hinges and disagreement routing
+
+`locate_semantic_hinges()` finds bounded, ordered, nonoverlapping spans for action verbs, targets,
+negation, numbers, names, authorization, capability, and constraints. A hinge is a routing hint; it
+does not label a span harmful or establish an interpretation.
+
+Before a candidate assessment can influence routing, its complete candidate ID and source-document
+digest are recomputed from validated snapshots. The candidate span must match the source slice,
+record and candidate provenance must match, and `prompt_text` must equal the source document with
+only that bound span replaced by `candidate_text`. These checks make the assessed text
+reconstructible; labels alone cannot authorize a different prompt.
+
+Agreement preserves the common assessed policy action. Material disagreement never verifies one
+candidate as truth. At high stakes it routes to `ABSTAIN`. At low stakes, any mix containing a
+permissive reading routes to `ALLOW_WITH_BOUNDARIES`; if every reading is nonpermissive, routing
+preserves the most restrictive action under the explicit policy-severity order. Thus low-stakes
+disagreement cannot relax an all-nonpermissive assessment. Representation disagreement remains
+diagnostic and does not directly change optimizer fitness.
+
+### Memory provenance
+
+Representation provenance does not replace the separate memory trust boundary. If a derived view
+is written to or retrieved from memory, systems integrating this package must retain the immutable
+source document, source span, candidate ID, source digest, transform provenance, and trust label.
+`memory_safety.py` independently quarantines missing provenance, untrusted durable promotion,
+protected overrides, and other authority changes. A recalled candidate remains bounded context,
+not retroactive proof that the candidate was the source or the intended meaning.
+
+### Representation metrics
+
+`evaluate_representation_cases()` snapshots and revalidates cases and results, pairs them by unique
+case ID, and reports explicit denominator counts. Its formulas are:
+
+- candidate recall@k = cases with an expected text among the first k eligible repair hypotheses /
+  cases with at least one independently expected candidate; empty denominator = `1.0`;
+- false-repair rate = clean cases with a selected, active, content-changing derived candidate
+  applied / clean cases; empty denominator = `0.0`;
+- abstention precision = expected abstentions among observed abstentions / observed abstentions;
+  empty denominator = `1.0`;
+- abstention coverage = observed abstentions among expected-abstention cases /
+  expected-abstention cases; empty denominator = `1.0`;
+- disagreement rate = disagreeing results / all results; direct empty input = `0.0`;
+- clean-regression rate = clean cases whose observed policy differs from the independent expected
+  policy / clean cases; empty denominator = `0.0`;
+- laundering-detection rate = laundering cases whose typed assessment tracks underlying intent /
+  laundering cases; empty denominator = `1.0`; and
+- mean candidates = total retained lattice candidates / all results; direct empty input = `0.0`.
+
+`elapsed_milliseconds` covers case/result snapshot validation and summary aggregation inside that
+API call. It excludes upstream candidate generation, semantic inference, routing, I/O, and model
+latency. It must not be presented as end-to-end latency.
+
+The public `semantic_laundering_risk()` and `intent_tracking_score()` functions retain their
+keyword-only signatures and integer ranges from zero through four. They are compatibility
+projections of `SemanticLaunderingAssessment`, not a second evaluator. Unlike the old permissive
+boundary, they reject non-boolean truthy inputs.
+
+### Research traceability and limits
+
+[REF-LEXICAL-PERTURB](../../docs/recommendations/RESEARCH_TRACEABILITY.md#ref-lexical-perturb)
+reports degradation under tested lexical perturbations, and
+[REF-TOKENIZER-BETRAYAL](../../docs/recommendations/RESEARCH_TRACEABILITY.md#ref-tokenizer-betrayal)
+reports failures associated with token encodings. Those results motivate representation-robustness
+evaluation under [REC-005](../../docs/recommendations/UNIFIED_RECOMMENDATIONS.md#rec-005--case--robustness-stripe--repeat-evaluation);
+they do not establish this candidate generator or select a universal repair method.
+
+The layer is deterministic, dependency-light scaffolding over bounded, supplied lexicons. It is
+not a tokenizer, speech recognizer, phoneme model, learned contextual interpreter, general spelling
+corrector, or proof of semantic equivalence. It does not implement alternate segmentation as a
+separate generated channel, and it does not solve multilingual or adversarial Unicode ambiguity.
+High-confidence hypotheses still require semantic assessment and, where material, clarification or
+abstention.
+
 ## Example semantic cluster
 
 The bundled examples are abstract and safe. They include:
