@@ -2,26 +2,29 @@
 
 ``select_recovery`` reserves one pending proposal against runtime-owned state. It does not spend a
 retry or replan count. ``consume_recovery`` revalidates that proposal against the current store
-revision and atomically records the counter transition. The runtime owner must authenticate
-verifier references before it constructs classification or repeated-route bindings; this module
-does not authenticate verifier identities or dereference evidence.
+revision and atomically records the counter transition. Caller-created classification and
+repeated-route records are untrusted until the runtime owner authenticates their complete verifier
+results and enrolls exact snapshots. This module preserves that enrollment boundary but does not
+authenticate verifier identities or dereference evidence itself.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import secrets
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
 from threading import RLock
-from typing import Protocol, cast
+from typing import Any, Protocol, cast
 from weakref import WeakKeyDictionary
 
 from gepa_mindfulness.core.evidence import EvidenceReference
 from mindful_trace_gepa.action_bound_events import ActionRecord
 
 from .failure_graph import FailureNode
+from .interfaces import RelationalVerificationResult
 from .runtime_governance import _snapshot_action, action_record_digest
 from .state import _require_exact_mapping, _require_nonblank_string, _require_sha256
 from .state import _snapshot_evidence_refs as _snapshot_canonical_evidence
@@ -128,8 +131,10 @@ class RecoveryBudget:
 
 @dataclass(frozen=True, slots=True)
 class FailureClassificationBinding:
-    """One verifier-backed failure category bound to an action and failure event."""
+    """An enrollment candidate binding a verifier result to one store failure."""
 
+    store_id: str
+    plan_id: str
     failure: FailureNode
     action_id: str
     action_digest: str
@@ -137,10 +142,13 @@ class FailureClassificationBinding:
     verification_event_id: str
     evidence_refs: tuple[EvidenceReference, ...]
     verifier_refs: tuple[str, ...]
+    verification_result: RelationalVerificationResult
 
     def __post_init__(self) -> None:
         """Validate exact identities and evidence drawn from the bound failure."""
 
+        _require_sha256(self.store_id, "store_id")
+        _require_nonblank_string(self.plan_id, "plan_id")
         failure = _snapshot_failure(self.failure)
         _require_nonblank_string(self.action_id, "action_id")
         _require_sha256(self.action_digest, "action_digest")
@@ -150,9 +158,21 @@ class FailureClassificationBinding:
         evidence = _snapshot_evidence(self.evidence_refs, "evidence_refs")
         _require_observable_subset(evidence, failure.evidence_refs, "classification evidence")
         verifier_refs = _snapshot_identifiers(self.verifier_refs, "verifier_refs", required=True)
+        result = _snapshot_relational_verification(self.verification_result)
+        if result.action_id != self.action_id:
+            raise ValueError(
+                "verification_result action_id does not match classification action_id"
+            )
+        _require_evidence_subset(
+            evidence,
+            result.evidence_refs,
+            "classification evidence",
+            "verification_result evidence",
+        )
         object.__setattr__(self, "failure", failure)
         object.__setattr__(self, "evidence_refs", evidence)
         object.__setattr__(self, "verifier_refs", verifier_refs)
+        object.__setattr__(self, "verification_result", result)
 
     @property
     def classification_id(self) -> str:
@@ -167,6 +187,8 @@ class FailureClassificationBinding:
         snapshot = _snapshot_classification(self)
         return {
             "classification_id": _classification_digest(snapshot),
+            "store_id": snapshot.store_id,
+            "plan_id": snapshot.plan_id,
             "failure": snapshot.failure.to_dict(),
             "action_id": snapshot.action_id,
             "action_digest": snapshot.action_digest,
@@ -174,6 +196,7 @@ class FailureClassificationBinding:
             "verification_event_id": snapshot.verification_event_id,
             "evidence_refs": [reference.to_dict() for reference in snapshot.evidence_refs],
             "verifier_refs": list(snapshot.verifier_refs),
+            "verification_result": snapshot.verification_result.to_dict(),
         }
 
     @classmethod
@@ -184,6 +207,8 @@ class FailureClassificationBinding:
             data,
             {
                 "classification_id",
+                "store_id",
+                "plan_id",
                 "failure",
                 "action_id",
                 "action_digest",
@@ -191,11 +216,14 @@ class FailureClassificationBinding:
                 "verification_event_id",
                 "evidence_refs",
                 "verifier_refs",
+                "verification_result",
             },
             "FailureClassificationBinding",
         )
         serialized_id = _require_sha256(values["classification_id"], "classification_id")
         binding = cls(
+            store_id=cast(str, values["store_id"]),
+            plan_id=cast(str, values["plan_id"]),
             failure=FailureNode.from_dict(values["failure"]),
             action_id=cast(str, values["action_id"]),
             action_digest=cast(str, values["action_digest"]),
@@ -207,6 +235,9 @@ class FailureClassificationBinding:
                 "verifier_refs",
                 required=True,
             ),
+            verification_result=RelationalVerificationResult.from_dict(
+                values["verification_result"]
+            ),
         )
         if serialized_id != binding.classification_id:
             raise ValueError("classification_id does not match the classification fields")
@@ -215,8 +246,11 @@ class FailureClassificationBinding:
 
 @dataclass(frozen=True, slots=True)
 class RepeatedRouteFinding:
-    """A verifier-backed finding that one exact consumed route is being repeated."""
+    """An enrollment candidate that identifies one exact repeated consumed route."""
 
+    store_id: str
+    plan_id: str
+    current_revision: int
     route_id: str
     prior_action_id: str
     prior_action_digest: str
@@ -228,10 +262,14 @@ class RepeatedRouteFinding:
     classification_verification_event_id: str
     evidence_refs: tuple[EvidenceReference, ...]
     verifier_refs: tuple[str, ...]
+    verification_result: RelationalVerificationResult
 
     def __post_init__(self) -> None:
         """Validate complete prior and current identities plus verifier provenance."""
 
+        _require_sha256(self.store_id, "store_id")
+        _require_nonblank_string(self.plan_id, "plan_id")
+        _require_json_safe_integer(self.current_revision, "current_revision")
         for field_name, value in (
             ("route_id", self.route_id),
             ("prior_action_id", self.prior_action_id),
@@ -248,8 +286,22 @@ class RepeatedRouteFinding:
         if not evidence or not any(reference.is_observable for reference in evidence):
             raise ValueError("repeated route finding requires observable evidence_refs")
         verifier_refs = _snapshot_identifiers(self.verifier_refs, "verifier_refs", required=True)
+        result = _snapshot_relational_verification(self.verification_result)
+        if result.action_id != self.prior_action_id:
+            raise ValueError(
+                "verification_result action_id does not match repeated route action_id"
+            )
+        if result.repeated_failed_route is not True:
+            raise ValueError("verification_result must affirm repeated_failed_route")
+        _require_evidence_subset(
+            evidence,
+            result.evidence_refs,
+            "repeated route evidence",
+            "verification_result evidence",
+        )
         object.__setattr__(self, "evidence_refs", evidence)
         object.__setattr__(self, "verifier_refs", verifier_refs)
+        object.__setattr__(self, "verification_result", result)
 
     @property
     def finding_id(self) -> str:
@@ -264,6 +316,9 @@ class RepeatedRouteFinding:
         snapshot = _snapshot_route_finding(self)
         return {
             "finding_id": _route_finding_digest(snapshot),
+            "store_id": snapshot.store_id,
+            "plan_id": snapshot.plan_id,
+            "current_revision": snapshot.current_revision,
             "route_id": snapshot.route_id,
             "prior_action_id": snapshot.prior_action_id,
             "prior_action_digest": snapshot.prior_action_digest,
@@ -275,6 +330,7 @@ class RepeatedRouteFinding:
             "classification_verification_event_id": (snapshot.classification_verification_event_id),
             "evidence_refs": [reference.to_dict() for reference in snapshot.evidence_refs],
             "verifier_refs": list(snapshot.verifier_refs),
+            "verification_result": snapshot.verification_result.to_dict(),
         }
 
     @classmethod
@@ -285,6 +341,9 @@ class RepeatedRouteFinding:
             data,
             {
                 "finding_id",
+                "store_id",
+                "plan_id",
+                "current_revision",
                 "route_id",
                 "prior_action_id",
                 "prior_action_digest",
@@ -296,11 +355,15 @@ class RepeatedRouteFinding:
                 "classification_verification_event_id",
                 "evidence_refs",
                 "verifier_refs",
+                "verification_result",
             },
             "RepeatedRouteFinding",
         )
         serialized_id = _require_sha256(values["finding_id"], "finding_id")
         finding = cls(
+            store_id=cast(str, values["store_id"]),
+            plan_id=cast(str, values["plan_id"]),
+            current_revision=cast(int, values["current_revision"]),
             route_id=cast(str, values["route_id"]),
             prior_action_id=cast(str, values["prior_action_id"]),
             prior_action_digest=cast(str, values["prior_action_digest"]),
@@ -318,6 +381,9 @@ class RepeatedRouteFinding:
                 values["verifier_refs"],
                 "verifier_refs",
                 required=True,
+            ),
+            verification_result=RelationalVerificationResult.from_dict(
+                values["verification_result"]
             ),
         )
         if serialized_id != finding.finding_id:
@@ -349,6 +415,8 @@ class RecoveryDecision:
         _require_sha256(self.action_digest, "action_digest")
         _require_nonblank_string(self.route_id, "route_id")
         classification = _snapshot_classification(self.classification)
+        if classification.plan_id != self.plan_id:
+            raise ValueError("classification plan_id does not match decision plan_id")
         if classification.action_id != self.action_id:
             raise ValueError("classification action_id does not match decision action_id")
         if classification.action_digest != self.action_digest:
@@ -448,6 +516,7 @@ class RecoveryDecision:
 class RecoveryStateSnapshot:
     """A read-only view of one authoritative recovery store revision."""
 
+    store_id: str
     plan_id: str
     revision: int
     action_id: str
@@ -460,6 +529,7 @@ class RecoveryStateSnapshot:
     def __post_init__(self) -> None:
         """Validate the store identities, revision, budget, and optional pending ID."""
 
+        _require_sha256(self.store_id, "store_id")
         _require_nonblank_string(self.plan_id, "plan_id")
         _require_json_safe_integer(self.revision, "revision")
         _require_nonblank_string(self.action_id, "action_id")
@@ -476,6 +546,7 @@ class RecoveryStateSnapshot:
 
         snapshot = _snapshot_state_snapshot(self)
         return {
+            "store_id": snapshot.store_id,
             "plan_id": snapshot.plan_id,
             "revision": snapshot.revision,
             "action_id": snapshot.action_id,
@@ -493,6 +564,7 @@ class RecoveryStateSnapshot:
         values = _require_exact_mapping(
             data,
             {
+                "store_id",
                 "plan_id",
                 "revision",
                 "action_id",
@@ -505,6 +577,7 @@ class RecoveryStateSnapshot:
             "RecoveryStateSnapshot",
         )
         return cls(
+            store_id=cast(str, values["store_id"]),
             plan_id=cast(str, values["plan_id"]),
             revision=cast(int, values["revision"]),
             action_id=cast(str, values["action_id"]),
@@ -583,6 +656,7 @@ class RecoveryConsumption:
 
 @dataclass(frozen=True, slots=True)
 class _RecoveryStoreEntry:
+    store_id: str
     plan_id: str
     revision: int
     action: ActionRecord
@@ -590,14 +664,17 @@ class _RecoveryStoreEntry:
     budget: RecoveryBudget
     pending: RecoveryDecision | None
     consumed: tuple[RecoveryDecision, ...]
+    classifications: tuple[FailureClassificationBinding, ...]
+    route_findings: tuple[RepeatedRouteFinding, ...]
 
 
 class RecoveryStateStore:
     """A runtime-owned recovery ledger whose public handle contains no authoritative fields.
 
-    ``enroll`` is the trust boundary. The runtime owner must authenticate the initial action,
-    failure observation, and budget before enrollment. Module-private storage uses weak object
-    identity; snapshots returned to callers cannot modify the authoritative state.
+    ``enroll`` establishes the plan ledger. ``enroll_classification`` and
+    ``enroll_route_finding`` are later trust boundaries: the runtime owner must authenticate each
+    complete verifier result before calling them. Module-private storage uses weak object identity;
+    snapshots and caller records cannot modify or replace authoritative attestations.
     """
 
     __slots__ = ("__weakref__",)
@@ -626,21 +703,99 @@ class RecoveryStateStore:
 
         if cls is not RecoveryStateStore:
             raise ValueError("enrollment requires the exact RecoveryStateStore type")
-        entry = _snapshot_store_entry(
-            _RecoveryStoreEntry(
-                plan_id=_require_nonblank_string(plan_id, "plan_id"),
-                revision=0,
-                action=_snapshot_action(action),
-                failure=_snapshot_failure(failure),
-                budget=_snapshot_budget(budget, "budget"),
-                pending=None,
-                consumed=(),
-            )
-        )
-        store = object.__new__(RecoveryStateStore)
         with _RECOVERY_STORE_LOCK:
+            entry = _snapshot_store_entry(
+                _RecoveryStoreEntry(
+                    store_id=_new_store_id(),
+                    plan_id=_require_nonblank_string(plan_id, "plan_id"),
+                    revision=0,
+                    action=_snapshot_action(action),
+                    failure=_snapshot_failure(failure),
+                    budget=_snapshot_budget(budget, "budget"),
+                    pending=None,
+                    consumed=(),
+                    classifications=(),
+                    route_findings=(),
+                )
+            )
+            store = object.__new__(RecoveryStateStore)
             _RECOVERY_STORE_STATE[store] = entry
         return store
+
+    def enroll_classification(self, binding: FailureClassificationBinding) -> str:
+        """Authenticate externally, then enroll one exact classification snapshot once."""
+
+        _require_exact_store(self)
+        snapshot = _snapshot_classification(binding)
+        with _RECOVERY_STORE_LOCK:
+            entry = _validated_store_entry(self)
+            if entry.pending is not None:
+                raise RuntimeError("cannot enroll a classification while a decision is pending")
+            _validate_classification_binding(entry, entry.action, snapshot)
+            if snapshot.store_id != entry.store_id or snapshot.plan_id != entry.plan_id:
+                raise ValueError("classification store_id or plan_id does not match this store")
+            if any(
+                item.classification_id == snapshot.classification_id
+                for item in entry.classifications
+            ):
+                raise ValueError("classification is already enrolled")
+            updated = _RecoveryStoreEntry(
+                entry.store_id,
+                entry.plan_id,
+                entry.revision,
+                entry.action,
+                entry.failure,
+                entry.budget,
+                entry.pending,
+                entry.consumed,
+                (*entry.classifications, snapshot),
+                entry.route_findings,
+            )
+            _RECOVERY_STORE_STATE[self] = _snapshot_store_entry(updated)
+            return snapshot.classification_id
+
+    def enroll_route_finding(self, finding: RepeatedRouteFinding) -> str:
+        """Authenticate externally, then enroll one exact repeated-route snapshot once."""
+
+        _require_exact_store(self)
+        snapshot = _snapshot_route_finding(finding)
+        with _RECOVERY_STORE_LOCK:
+            entry = _validated_store_entry(self)
+            if entry.pending is not None:
+                raise RuntimeError("cannot enroll a route finding while a decision is pending")
+            if snapshot.store_id != entry.store_id or snapshot.plan_id != entry.plan_id:
+                raise ValueError("route finding store_id or plan_id does not match this store")
+            if snapshot.current_revision != entry.revision:
+                raise ValueError("route finding does not match the current recovery revision")
+            try:
+                classification = _resolve_classification(entry, snapshot.classification_id)
+            except KeyError as exc:
+                raise ValueError(
+                    "repeated route finding does not identify an enrolled classification"
+                ) from exc
+            _validate_route_finding(
+                entry,
+                entry.action,
+                classification,
+                snapshot.route_id,
+                snapshot,
+            )
+            if any(item.finding_id == snapshot.finding_id for item in entry.route_findings):
+                raise ValueError("route finding is already enrolled")
+            updated = _RecoveryStoreEntry(
+                entry.store_id,
+                entry.plan_id,
+                entry.revision,
+                entry.action,
+                entry.failure,
+                entry.budget,
+                entry.pending,
+                entry.consumed,
+                entry.classifications,
+                (*entry.route_findings, snapshot),
+            )
+            _RECOVERY_STORE_STATE[self] = _snapshot_store_entry(updated)
+            return snapshot.finding_id
 
     def snapshot(self) -> RecoveryStateSnapshot:
         """Return a detached view of the current authoritative revision."""
@@ -656,14 +811,22 @@ _RECOVERY_STORE_STATE: WeakKeyDictionary[RecoveryStateStore, _RecoveryStoreEntry
 )
 
 
+def _new_store_id() -> str:
+    for _ in range(128):
+        candidate = secrets.token_hex(32)
+        if all(entry.store_id != candidate for entry in _RECOVERY_STORE_STATE.values()):
+            return candidate
+    raise RuntimeError("could not allocate a unique recovery store ID")
+
+
 def select_recovery(
     store: RecoveryStateStore,
     *,
     expected_revision: int,
     action: ActionRecord,
-    classification: FailureClassificationBinding,
+    classification_id: str,
     route_id: str,
-    repeated_route_finding: RepeatedRouteFinding | None = None,
+    repeated_route_finding_id: str | None = None,
 ) -> RecoveryDecision:
     """Reserve one pending proposal against the current authoritative store revision.
 
@@ -674,15 +837,23 @@ def select_recovery(
     _require_exact_store(store)
     revision = _require_json_safe_integer(expected_revision, "expected_revision")
     action_snapshot = _snapshot_action(action)
-    classification_snapshot = _snapshot_classification(classification)
+    classification_identity = _require_sha256(classification_id, "classification_id")
     route_snapshot = _require_nonblank_string(route_id, "route_id")
-    finding_snapshot = _snapshot_optional_route_finding(repeated_route_finding)
+    finding_identity = (
+        None
+        if repeated_route_finding_id is None
+        else _require_sha256(repeated_route_finding_id, "repeated_route_finding_id")
+    )
     with _RECOVERY_STORE_LOCK:
         entry = _validated_store_entry(store)
         _require_current_revision(entry, revision)
         if entry.pending is not None:
             raise RuntimeError("recovery store already has a pending decision")
         _validate_action_binding(entry, action_snapshot)
+        classification_snapshot = _resolve_classification(entry, classification_identity)
+        finding_snapshot = (
+            None if finding_identity is None else _resolve_route_finding(entry, finding_identity)
+        )
         _validate_classification_binding(entry, action_snapshot, classification_snapshot)
         _validate_route_finding(
             entry,
@@ -709,6 +880,7 @@ def select_recovery(
             repeated_route_finding=finding_snapshot,
         )
         updated = _RecoveryStoreEntry(
+            entry.store_id,
             entry.plan_id,
             entry.revision,
             entry.action,
@@ -716,6 +888,8 @@ def select_recovery(
             entry.budget,
             decision,
             entry.consumed,
+            entry.classifications,
+            entry.route_findings,
         )
         _RECOVERY_STORE_STATE[store] = _snapshot_store_entry(updated)
         return _snapshot_decision(decision)
@@ -747,6 +921,7 @@ def consume_recovery(
             raise RuntimeError("recovery store revision is exhausted")
         new_revision = entry.revision + 1
         updated = _RecoveryStoreEntry(
+            entry.store_id,
             entry.plan_id,
             new_revision,
             entry.action,
@@ -754,6 +929,8 @@ def consume_recovery(
             pending.budget_after,
             None,
             (*entry.consumed, pending),
+            entry.classifications,
+            entry.route_findings,
         )
         _RECOVERY_STORE_STATE[store] = _snapshot_store_entry(updated)
         return RecoveryConsumption(
@@ -817,6 +994,8 @@ def _validate_classification_binding(
     classification: FailureClassificationBinding,
 ) -> None:
     action_id = cast(_ActionFields, action).action_id
+    if classification.store_id != entry.store_id or classification.plan_id != entry.plan_id:
+        raise ValueError("classification store_id or plan_id does not match the recovery store")
     if classification.action_id != action_id:
         raise ValueError("classification action_id does not match the current action")
     if classification.action_digest != action_record_digest(action):
@@ -838,7 +1017,10 @@ def _validate_route_finding(
         return
     action_id = cast(_ActionFields, action).action_id
     expected = (
-        finding.route_id == route_id
+        finding.store_id == entry.store_id
+        and finding.plan_id == entry.plan_id
+        and finding.current_revision == entry.revision
+        and finding.route_id == route_id
         and finding.prior_action_id == action_id
         and finding.prior_action_digest == action_record_digest(action)
         and finding.prior_revision < entry.revision
@@ -873,7 +1055,10 @@ def _validate_decision_route_finding(
     if finding is None:
         return
     matches = (
-        finding.route_id == route_id
+        finding.plan_id == classification.plan_id
+        and finding.store_id == classification.store_id
+        and finding.current_revision == revision
+        and finding.route_id == route_id
         and finding.prior_action_id == action_id
         and finding.prior_action_digest == action_digest
         and finding.prior_revision < revision
@@ -884,6 +1069,28 @@ def _validate_decision_route_finding(
     )
     if not matches:
         raise ValueError("decision does not match its repeated route finding")
+
+
+def _resolve_classification(
+    entry: _RecoveryStoreEntry,
+    classification_id: str,
+) -> FailureClassificationBinding:
+    matches = [
+        item for item in entry.classifications if item.classification_id == classification_id
+    ]
+    if len(matches) != 1:
+        raise KeyError("unknown enrolled classification_id")
+    return _snapshot_classification(matches[0])
+
+
+def _resolve_route_finding(
+    entry: _RecoveryStoreEntry,
+    finding_id: str,
+) -> RepeatedRouteFinding:
+    matches = [item for item in entry.route_findings if item.finding_id == finding_id]
+    if len(matches) != 1:
+        raise KeyError("unknown enrolled repeated route finding ID")
+    return _snapshot_route_finding(matches[0])
 
 
 def _require_current_revision(entry: _RecoveryStoreEntry, expected_revision: int) -> None:
@@ -908,6 +1115,7 @@ def _validated_store_entry(store: RecoveryStateStore) -> _RecoveryStoreEntry:
 def _snapshot_store_entry(entry: object) -> _RecoveryStoreEntry:
     if type(entry) is not _RecoveryStoreEntry:
         raise ValueError("authoritative recovery storage contains an invalid entry")
+    store_id = _require_sha256(entry.store_id, "store_id")
     _require_nonblank_string(entry.plan_id, "plan_id")
     revision = _require_json_safe_integer(entry.revision, "revision")
     action = _snapshot_action(entry.action)
@@ -917,18 +1125,25 @@ def _snapshot_store_entry(entry: object) -> _RecoveryStoreEntry:
     if type(entry.consumed) is not tuple:
         raise ValueError("authoritative consumed decisions must be an exact tuple")
     consumed = tuple(_snapshot_decision(item) for item in entry.consumed)
+    if type(entry.classifications) is not tuple:
+        raise ValueError("authoritative classifications must be an exact tuple")
+    classifications = tuple(_snapshot_classification(item) for item in entry.classifications)
+    if type(entry.route_findings) is not tuple:
+        raise ValueError("authoritative route findings must be an exact tuple")
+    route_findings = tuple(_snapshot_route_finding(item) for item in entry.route_findings)
     if revision != len(consumed):
         raise ValueError("authoritative revision must equal consumed decision count")
     decision_ids = tuple(item.decision_id for item in consumed)
     if len(set(decision_ids)) != len(decision_ids):
         raise ValueError("authoritative consumed decision IDs must be unique")
-    for index, decision in enumerate(consumed):
-        _validate_stored_decision(entry.plan_id, action, failure, decision, index)
-    if pending is not None:
-        _validate_stored_decision(entry.plan_id, action, failure, pending, revision)
-        if pending.budget_before != budget:
-            raise ValueError("pending decision budget does not match authoritative budget")
-    return _RecoveryStoreEntry(
+    classification_ids = tuple(item.classification_id for item in classifications)
+    if len(set(classification_ids)) != len(classification_ids):
+        raise ValueError("authoritative classification IDs must be unique")
+    finding_ids = tuple(item.finding_id for item in route_findings)
+    if len(set(finding_ids)) != len(finding_ids):
+        raise ValueError("authoritative route-finding IDs must be unique")
+    validation_entry = _RecoveryStoreEntry(
+        store_id,
         entry.plan_id,
         revision,
         action,
@@ -936,6 +1151,81 @@ def _snapshot_store_entry(entry: object) -> _RecoveryStoreEntry:
         budget,
         pending,
         consumed,
+        classifications,
+        route_findings,
+    )
+    for classification in classifications:
+        _validate_classification_binding(validation_entry, action, classification)
+    for finding in route_findings:
+        if finding.current_revision > revision:
+            raise ValueError("enrolled route finding is from a future revision")
+        classification = _resolve_classification(validation_entry, finding.classification_id)
+        historical_entry = _RecoveryStoreEntry(
+            store_id,
+            entry.plan_id,
+            finding.current_revision,
+            action,
+            failure,
+            budget,
+            None,
+            consumed,
+            classifications,
+            route_findings,
+        )
+        _validate_route_finding(
+            historical_entry,
+            action,
+            classification,
+            finding.route_id,
+            finding,
+        )
+    for index, decision in enumerate(consumed):
+        _validate_stored_decision(entry.plan_id, action, failure, decision, index)
+        enrolled = _resolve_classification(
+            validation_entry, decision.classification.classification_id
+        )
+        if _canonical_json(enrolled.to_dict()) != _canonical_json(
+            decision.classification.to_dict()
+        ):
+            raise ValueError("stored decision classification is not its enrolled snapshot")
+        if decision.repeated_route_finding is not None:
+            enrolled_finding = _resolve_route_finding(
+                validation_entry,
+                decision.repeated_route_finding.finding_id,
+            )
+            if _canonical_json(enrolled_finding.to_dict()) != _canonical_json(
+                decision.repeated_route_finding.to_dict()
+            ):
+                raise ValueError("stored decision route finding is not its enrolled snapshot")
+    if pending is not None:
+        _validate_stored_decision(entry.plan_id, action, failure, pending, revision)
+        enrolled = _resolve_classification(
+            validation_entry, pending.classification.classification_id
+        )
+        if _canonical_json(enrolled.to_dict()) != _canonical_json(pending.classification.to_dict()):
+            raise ValueError("pending decision classification is not its enrolled snapshot")
+        if pending.repeated_route_finding is not None:
+            enrolled_finding = _resolve_route_finding(
+                validation_entry,
+                pending.repeated_route_finding.finding_id,
+            )
+            if _canonical_json(enrolled_finding.to_dict()) != _canonical_json(
+                pending.repeated_route_finding.to_dict()
+            ):
+                raise ValueError("pending decision route finding is not its enrolled snapshot")
+        if pending.budget_before != budget:
+            raise ValueError("pending decision budget does not match authoritative budget")
+    return _RecoveryStoreEntry(
+        store_id,
+        entry.plan_id,
+        revision,
+        action,
+        failure,
+        budget,
+        pending,
+        consumed,
+        classifications,
+        route_findings,
     )
 
 
@@ -962,6 +1252,7 @@ def _entry_snapshot(entry: _RecoveryStoreEntry) -> RecoveryStateSnapshot:
     action = _snapshot_action(entry.action)
     failure = _snapshot_failure(entry.failure)
     return RecoveryStateSnapshot(
+        store_id=entry.store_id,
         plan_id=entry.plan_id,
         revision=entry.revision,
         action_id=cast(_ActionFields, action).action_id,
@@ -1009,6 +1300,8 @@ def _snapshot_classification(value: object) -> FailureClassificationBinding:
         raise ValueError("classification reference fields must remain exact tuples")
     try:
         return FailureClassificationBinding(
+            value.store_id,
+            value.plan_id,
             value.failure,
             value.action_id,
             value.action_digest,
@@ -1016,6 +1309,7 @@ def _snapshot_classification(value: object) -> FailureClassificationBinding:
             value.verification_event_id,
             value.evidence_refs,
             value.verifier_refs,
+            value.verification_result,
         )
     except (TypeError, ValueError) as exc:
         raise ValueError(f"classification contains invalid binding state: {exc}") from exc
@@ -1028,6 +1322,9 @@ def _snapshot_route_finding(value: object) -> RepeatedRouteFinding:
         raise ValueError("repeated route finding references must remain exact tuples")
     try:
         return RepeatedRouteFinding(
+            value.store_id,
+            value.plan_id,
+            value.current_revision,
             value.route_id,
             value.prior_action_id,
             value.prior_action_digest,
@@ -1039,6 +1336,7 @@ def _snapshot_route_finding(value: object) -> RepeatedRouteFinding:
             value.classification_verification_event_id,
             value.evidence_refs,
             value.verifier_refs,
+            value.verification_result,
         )
     except (TypeError, ValueError) as exc:
         raise ValueError(f"repeated route finding contains invalid state: {exc}") from exc
@@ -1080,6 +1378,7 @@ def _snapshot_state_snapshot(value: object) -> RecoveryStateSnapshot:
     if type(value) is not RecoveryStateSnapshot:
         raise ValueError("state snapshot must be an exact RecoveryStateSnapshot")
     return RecoveryStateSnapshot(
+        value.store_id,
         value.plan_id,
         value.revision,
         value.action_id,
@@ -1114,6 +1413,18 @@ def _snapshot_evidence(values: object, field_name: str) -> tuple[EvidenceReferen
     return references
 
 
+def _snapshot_relational_verification(value: object) -> RelationalVerificationResult:
+    if type(value) is not RelationalVerificationResult:
+        raise ValueError("verification_result must be an exact RelationalVerificationResult")
+    try:
+        return cast(
+            RelationalVerificationResult,
+            cast(Any, RelationalVerificationResult).from_dict(cast(Any, value).to_dict()),
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"verification_result contains invalid state: {exc}") from exc
+
+
 def _restore_evidence(values: object, field_name: str) -> tuple[EvidenceReference, ...]:
     if isinstance(values, (str, bytes, Mapping)) or not isinstance(values, Sequence):
         raise ValueError(f"{field_name} must be an array")
@@ -1133,6 +1444,20 @@ def _require_observable_subset(
         for reference in selected
     ):
         raise ValueError(f"{field_name} must be a subset of the bound failure evidence")
+
+
+def _require_evidence_subset(
+    selected: tuple[EvidenceReference, ...],
+    available: tuple[EvidenceReference, ...],
+    field_name: str,
+    available_name: str,
+) -> None:
+    available_ids = {(reference.reference_id, reference.source_kind) for reference in available}
+    if any(
+        (reference.reference_id, reference.source_kind) not in available_ids
+        for reference in selected
+    ):
+        raise ValueError(f"{field_name} must be a subset of {available_name}")
 
 
 def _snapshot_identifiers(
@@ -1186,6 +1511,8 @@ def _restore_optional_route_finding(value: object) -> RepeatedRouteFinding | Non
 def _classification_digest(binding: FailureClassificationBinding) -> str:
     return _digest(
         {
+            "store_id": binding.store_id,
+            "plan_id": binding.plan_id,
             "failure": binding.failure.to_dict(),
             "action_id": binding.action_id,
             "action_digest": binding.action_digest,
@@ -1193,6 +1520,7 @@ def _classification_digest(binding: FailureClassificationBinding) -> str:
             "verification_event_id": binding.verification_event_id,
             "evidence_refs": [reference.to_dict() for reference in binding.evidence_refs],
             "verifier_refs": list(binding.verifier_refs),
+            "verification_result": binding.verification_result.to_dict(),
         }
     )
 
@@ -1200,6 +1528,9 @@ def _classification_digest(binding: FailureClassificationBinding) -> str:
 def _route_finding_digest(finding: RepeatedRouteFinding) -> str:
     return _digest(
         {
+            "store_id": finding.store_id,
+            "plan_id": finding.plan_id,
+            "current_revision": finding.current_revision,
             "route_id": finding.route_id,
             "prior_action_id": finding.prior_action_id,
             "prior_action_digest": finding.prior_action_digest,
@@ -1211,6 +1542,7 @@ def _route_finding_digest(finding: RepeatedRouteFinding) -> str:
             "classification_verification_event_id": (finding.classification_verification_event_id),
             "evidence_refs": [reference.to_dict() for reference in finding.evidence_refs],
             "verifier_refs": list(finding.verifier_refs),
+            "verification_result": finding.verification_result.to_dict(),
         }
     )
 

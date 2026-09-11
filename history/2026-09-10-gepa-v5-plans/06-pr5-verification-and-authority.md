@@ -236,13 +236,18 @@ class RuntimeCapability(str, Enum):
 3. Implement `RecoveryBudget`, `FailureCategory`, `RecoveryAction`,
    `FailureClassificationBinding`, and `RepeatedRouteFinding` as immutable exact records. Bind each
    classification to the canonical failure event, complete `ActionRecord` digest, observable
-   failure evidence, verification event, and nonempty verifier references.
-4. Implement `RecoveryStateStore.enroll()` as the runtime-owned trust boundary. Keep authoritative
-   revisions, counters, pending proposals, and consumed decisions outside the public store handle.
-5. Make `select_recovery()` reserve one proposal at the current store revision without consuming a
-   retry or replan count. Make `consume_recovery()` atomically revalidate and consume only the exact
-   pending proposal. Reject stale revisions, concurrent proposals, replayed decisions, and repeated
-   routes without an exact verifier-backed link to a prior consumed decision.
+   failure evidence, verification event, nonempty verifier references, and a complete verifier
+   result. These caller-created records remain untrusted enrollment candidates.
+4. Implement `RecoveryStateStore.enroll()` as the runtime-owned ledger boundary, then require the
+   runtime owner to authenticate and explicitly enroll exact classification and repeated-route
+   snapshots. Keep the store identity, authenticated records, revisions, counters, pending
+   proposals, and consumed decisions outside the public store handle.
+5. Make `select_recovery()` resolve only store-enrolled classification and optional route-finding
+   IDs and reserve one proposal at the current store revision without consuming a retry or replan
+   count. Make `consume_recovery()` atomically revalidate and consume only the exact pending
+   proposal. Reject stale revisions, concurrent proposals, replayed decisions, cross-store or
+   caller-recomputed records, and repeated routes without an authenticated link to a prior consumed
+   decision.
 6. Limit every count, maximum, and revision to the inclusive JSON-safe integer range
    `0..9_007_199_254_740_991`. Forbid unlimited sentinels, negative counts, booleans, floats, and
    larger integers.

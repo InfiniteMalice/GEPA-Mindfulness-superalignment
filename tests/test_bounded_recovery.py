@@ -11,6 +11,10 @@ import pytest
 
 from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
 from gepa_mindfulness.verification.failure_graph import FailureNode
+from gepa_mindfulness.verification.interfaces import (
+    RelationalVerificationResult,
+    VerificationEvidenceBinding,
+)
 from gepa_mindfulness.verification.recovery import (
     MAX_JSON_SAFE_INTEGER,
     FailureCategory,
@@ -58,11 +62,21 @@ def _classification(
     failure: FailureNode | None = None,
     evidence_refs: tuple[EvidenceReference, ...] | None = None,
     verifier_refs: tuple[str, ...] = ("verifier:failure-classifier",),
+    store_id: str = "a" * 64,
+    plan_id: str = "plan-1",
+    verification_result: RelationalVerificationResult | None = None,
 ) -> FailureClassificationBinding:
     action = _action() if action is None else action
     failure = _failure() if failure is None else failure
     references = failure.evidence_refs if evidence_refs is None else evidence_refs
+    verification_result = (
+        _relational(action.action_id, references)
+        if verification_result is None
+        else verification_result
+    )
     return FailureClassificationBinding(
+        store_id=store_id,
+        plan_id=plan_id,
         failure=failure,
         action_id=action.action_id,
         action_digest=action_record_digest(action),
@@ -70,6 +84,32 @@ def _classification(
         verification_event_id="verification-event:classification-1",
         evidence_refs=references,
         verifier_refs=verifier_refs,
+        verification_result=verification_result,
+    )
+
+
+def _relational(
+    action_id: str,
+    evidence_refs: tuple[EvidenceReference, ...],
+    *,
+    repeated_failed_route: bool = False,
+) -> RelationalVerificationResult:
+    bindings = (
+        (VerificationEvidenceBinding("repeated_failed_route", evidence_refs),)
+        if repeated_failed_route
+        else ()
+    )
+    return RelationalVerificationResult(
+        action_id=action_id,
+        task_fit=False,
+        dependencies_satisfied=False,
+        contradiction_status="unknown",
+        provenance_intact=False,
+        authorization_scope_valid=False,
+        claimed_outcome_supported=False,
+        repeated_failed_route=repeated_failed_route,
+        evidence_refs=evidence_refs,
+        evidence_bindings=bindings,
     )
 
 
@@ -102,18 +142,31 @@ def _select(
     action = _action() if action is None else action
     failure = _failure() if failure is None else failure
     store = _store(action=action, failure=failure, budget=budget) if store is None else store
+    store_snapshot = store.snapshot()
     classification = (
-        _classification(category, action=action, failure=failure)
+        _classification(
+            category,
+            action=action,
+            failure=failure,
+            store_id=store_snapshot.store_id,
+            plan_id=store_snapshot.plan_id,
+        )
         if classification is None
         else classification
+    )
+    classification_id = store.enroll_classification(classification)
+    finding_id = (
+        None
+        if repeated_route_finding is None
+        else store.enroll_route_finding(repeated_route_finding)
     )
     decision = select_recovery(
         store,
         expected_revision=expected_revision,
         action=action,
-        classification=classification,
+        classification_id=classification_id,
         route_id=route_id,
-        repeated_route_finding=repeated_route_finding,
+        repeated_route_finding_id=finding_id,
     )
     return store, action, decision
 
@@ -208,17 +261,20 @@ def test_stale_selection_concurrent_pending_and_replayed_consumption_fail_closed
 
     action = _action()
     failure = _failure()
+    store = _store(action=action, failure=failure)
+    snapshot = store.snapshot()
     classification = _classification(
         FailureCategory.TRANSIENT_RUNTIME_ERROR,
         action=action,
         failure=failure,
+        store_id=snapshot.store_id,
     )
-    store = _store(action=action, failure=failure)
+    classification_id = store.enroll_classification(classification)
     first = select_recovery(
         store,
         expected_revision=0,
         action=action,
-        classification=classification,
+        classification_id=classification_id,
         route_id="route-1",
     )
 
@@ -227,7 +283,7 @@ def test_stale_selection_concurrent_pending_and_replayed_consumption_fail_closed
             store,
             expected_revision=0,
             action=action,
-            classification=classification,
+            classification_id=classification_id,
             route_id="route-2",
         )
 
@@ -238,7 +294,7 @@ def test_stale_selection_concurrent_pending_and_replayed_consumption_fail_closed
             store,
             expected_revision=0,
             action=action,
-            classification=classification,
+            classification_id=classification_id,
             route_id="route-2",
         )
     with pytest.raises(RuntimeError, match="stale.*revision"):
@@ -320,6 +376,74 @@ def test_classification_binds_failure_action_digest_evidence_and_verifier() -> N
     assert binding.action_digest == action_record_digest(action)
     assert binding.evidence_refs == failure.evidence_refs
     assert binding.verifier_refs == ("verifier:failure-classifier",)
+    assert binding.verification_result.action_id == action.action_id
+
+
+def test_enrolled_classification_resists_coherent_category_and_id_mutation() -> None:
+    """Catch a caller-recomputed digest being mistaken for authenticated classification."""
+
+    action = _action()
+    failure = _failure()
+    store = _store(action=action, failure=failure)
+    binding = _classification(
+        FailureCategory.ARGUMENT_ERROR,
+        action=action,
+        failure=failure,
+        store_id=store.snapshot().store_id,
+    )
+    enrolled_id = store.enroll_classification(binding)
+    object.__setattr__(binding, "category", FailureCategory.STRATEGY_FAILURE)
+    attacker_id = binding.classification_id
+
+    with pytest.raises(KeyError, match="classification"):
+        select_recovery(
+            store,
+            expected_revision=0,
+            action=action,
+            classification_id=attacker_id,
+            route_id="route-1",
+        )
+
+    decision = select_recovery(
+        store,
+        expected_revision=0,
+        action=action,
+        classification_id=enrolled_id,
+        route_id="route-1",
+    )
+    assert decision.action is RecoveryAction.REPAIR_ARGUMENTS
+    assert decision.classification.category is FailureCategory.ARGUMENT_ERROR
+
+
+def test_classification_enrollment_rejects_cross_store_duplicate_and_alias_mutation() -> None:
+    """Catch a binding being replaced, re-enrolled, or moved to another store."""
+
+    action = _action()
+    failure = _failure()
+    first_store = _store(action=action, failure=failure)
+    second_store = _store(action=action, failure=failure)
+    binding = _classification(
+        FailureCategory.ARGUMENT_ERROR,
+        action=action,
+        failure=failure,
+        store_id=first_store.snapshot().store_id,
+    )
+    binding_id = first_store.enroll_classification(binding)
+
+    with pytest.raises(ValueError, match="already enrolled"):
+        first_store.enroll_classification(binding)
+    with pytest.raises(ValueError, match="store_id"):
+        second_store.enroll_classification(binding)
+
+    object.__setattr__(binding, "action_id", "attacker-action")
+    selected = select_recovery(
+        first_store,
+        expected_revision=0,
+        action=action,
+        classification_id=binding_id,
+        route_id="route-1",
+    )
+    assert selected.action_id == "action-1"
 
 
 @pytest.mark.parametrize(
@@ -346,7 +470,10 @@ def test_classification_digest_rejects_conflicting_serialized_identity(
     values.update(changes)
     if type(values["failure"]) is FailureNode:
         values["failure"] = cast(FailureNode, values["failure"]).to_dict()
-    with pytest.raises(ValueError, match="classification_id|classification evidence"):
+    with pytest.raises(
+        ValueError,
+        match="classification_id|classification evidence|verification_result",
+    ):
         FailureClassificationBinding.from_dict(values)
 
 
@@ -377,9 +504,14 @@ def test_select_requires_exact_action_and_typed_classification_not_scalar_labels
 
     action = _action()
     store = _store(action=action)
-    binding = _classification(FailureCategory.ARGUMENT_ERROR, action=action)
+    binding = _classification(
+        FailureCategory.ARGUMENT_ERROR,
+        action=action,
+        store_id=store.snapshot().store_id,
+    )
+    classification_id = store.enroll_classification(binding)
 
-    with pytest.raises(TypeError, match="unexpected keyword argument 'category'"):
+    with pytest.raises(TypeError, match="unexpected keyword argument 'classification'"):
         cast(Any, select_recovery)(
             store,
             expected_revision=0,
@@ -393,7 +525,7 @@ def test_select_requires_exact_action_and_typed_classification_not_scalar_labels
             store,
             expected_revision=0,
             action=cast(Any, action.action_id),
-            classification=binding,
+            classification_id=classification_id,
             route_id="route-1",
         )
 
@@ -405,6 +537,9 @@ def _repeat_finding(
     route_id: str | None = None,
 ) -> RepeatedRouteFinding:
     return RepeatedRouteFinding(
+        store_id=classification.store_id,
+        plan_id=prior.plan_id,
+        current_revision=prior.revision + 1,
         route_id=prior.route_id if route_id is None else route_id,
         prior_action_id=prior.action_id,
         prior_action_digest=prior.action_digest,
@@ -416,6 +551,11 @@ def _repeat_finding(
         classification_verification_event_id=classification.verification_event_id,
         evidence_refs=(_observable("verification:route-repeat"),),
         verifier_refs=("verifier:route-repeat",),
+        verification_result=_relational(
+            prior.action_id,
+            (_observable("verification:route-repeat"),),
+            repeated_failed_route=True,
+        ),
     )
 
 
@@ -424,33 +564,117 @@ def test_typed_repeated_route_finding_rejects_only_the_exact_consumed_route() ->
 
     action = _action()
     failure = _failure()
+    store = _store(action=action, failure=failure)
+    snapshot = store.snapshot()
     classification = _classification(
         FailureCategory.ARGUMENT_ERROR,
         action=action,
         failure=failure,
+        store_id=snapshot.store_id,
     )
-    store = _store(action=action, failure=failure)
+    classification_id = store.enroll_classification(classification)
     first = select_recovery(
         store,
         expected_revision=0,
         action=action,
-        classification=classification,
+        classification_id=classification_id,
         route_id="route-1",
     )
     consume_recovery(store, first, expected_revision=0, action=action)
     finding = _repeat_finding(first, classification)
+    finding_id = store.enroll_route_finding(finding)
 
     rejected = select_recovery(
         store,
         expected_revision=1,
         action=action,
-        classification=classification,
+        classification_id=classification_id,
         route_id="route-1",
-        repeated_route_finding=finding,
+        repeated_route_finding_id=finding_id,
     )
 
     assert rejected.action is RecoveryAction.REJECT_ROUTE
     assert rejected.repeated_route_finding == finding
+
+
+def test_enrolled_route_finding_resists_coherent_identity_and_id_mutation() -> None:
+    """Catch recomputed finding digests replacing runtime-enrolled route attestations."""
+
+    action = _action()
+    failure = _failure()
+    store = _store(action=action, failure=failure)
+    classification = _classification(
+        FailureCategory.ARGUMENT_ERROR,
+        action=action,
+        failure=failure,
+        store_id=store.snapshot().store_id,
+    )
+    classification_id = store.enroll_classification(classification)
+    prior = select_recovery(
+        store,
+        expected_revision=0,
+        action=action,
+        classification_id=classification_id,
+        route_id="route-1",
+    )
+    consume_recovery(store, prior, expected_revision=0, action=action)
+    finding = _repeat_finding(prior, classification)
+    enrolled_id = store.enroll_route_finding(finding)
+    object.__setattr__(finding, "route_id", "route-attacker")
+    object.__setattr__(finding, "prior_decision_id", "0" * 64)
+    object.__setattr__(finding, "prior_revision", 1)
+    attacker_id = finding.finding_id
+
+    with pytest.raises(KeyError, match="route finding"):
+        select_recovery(
+            store,
+            expected_revision=1,
+            action=action,
+            classification_id=classification_id,
+            route_id="route-attacker",
+            repeated_route_finding_id=attacker_id,
+        )
+
+    rejected = select_recovery(
+        store,
+        expected_revision=1,
+        action=action,
+        classification_id=classification_id,
+        route_id="route-1",
+        repeated_route_finding_id=enrolled_id,
+    )
+    assert rejected.action is RecoveryAction.REJECT_ROUTE
+
+
+def test_route_finding_enrollment_rejects_cross_store_and_reenrollment() -> None:
+    """Catch a repeated-route attestation crossing its store or replacing its ID."""
+
+    action = _action()
+    failure = _failure()
+    first_store = _store(action=action, failure=failure)
+    classification = _classification(
+        FailureCategory.ARGUMENT_ERROR,
+        action=action,
+        failure=failure,
+        store_id=first_store.snapshot().store_id,
+    )
+    classification_id = first_store.enroll_classification(classification)
+    prior = select_recovery(
+        first_store,
+        expected_revision=0,
+        action=action,
+        classification_id=classification_id,
+        route_id="route-1",
+    )
+    consume_recovery(first_store, prior, expected_revision=0, action=action)
+    finding = _repeat_finding(prior, classification)
+    first_store.enroll_route_finding(finding)
+
+    with pytest.raises(ValueError, match="already enrolled"):
+        first_store.enroll_route_finding(finding)
+    second_store = _store(action=action, failure=failure)
+    with pytest.raises(ValueError, match="store_id"):
+        second_store.enroll_route_finding(finding)
 
 
 @pytest.mark.parametrize(
@@ -475,22 +699,28 @@ def test_repeated_route_finding_rejects_each_identity_mismatch(
 
     action = _action()
     failure = _failure()
+    store = _store(action=action, failure=failure)
+    snapshot = store.snapshot()
     classification = _classification(
         FailureCategory.ARGUMENT_ERROR,
         action=action,
         failure=failure,
+        store_id=snapshot.store_id,
     )
-    store = _store(action=action, failure=failure)
+    classification_id = store.enroll_classification(classification)
     first = select_recovery(
         store,
         expected_revision=0,
         action=action,
-        classification=classification,
+        classification_id=classification_id,
         route_id="route-1",
     )
     consume_recovery(store, first, expected_revision=0, action=action)
     original = _repeat_finding(first, classification)
     values: dict[str, object] = {
+        "store_id": original.store_id,
+        "plan_id": original.plan_id,
+        "current_revision": original.current_revision,
         "route_id": original.route_id,
         "prior_action_id": original.prior_action_id,
         "prior_action_digest": original.prior_action_digest,
@@ -502,19 +732,12 @@ def test_repeated_route_finding_rejects_each_identity_mismatch(
         "classification_verification_event_id": (original.classification_verification_event_id),
         "evidence_refs": original.evidence_refs,
         "verifier_refs": original.verifier_refs,
+        "verification_result": original.verification_result,
     }
     values[field_name] = value
-    finding = RepeatedRouteFinding(**cast(Any, values))
-
-    with pytest.raises(ValueError, match="repeated route finding"):
-        select_recovery(
-            store,
-            expected_revision=1,
-            action=action,
-            classification=classification,
-            route_id="route-1",
-            repeated_route_finding=finding,
-        )
+    with pytest.raises(ValueError, match="repeated route finding|verification_result"):
+        finding = RepeatedRouteFinding(**cast(Any, values))
+        store.enroll_route_finding(finding)
 
 
 def test_repeated_route_finding_requires_observable_evidence_and_verifier_refs() -> None:
@@ -599,6 +822,7 @@ def test_json_safe_integer_boundary_passes_for_counts_and_revisions() -> None:
     assert RecoveryBudget.from_dict(boundary.to_dict()) == boundary
 
     snapshot_payload = {
+        "store_id": "a" * 64,
         "plan_id": "plan-1",
         "revision": MAX_JSON_SAFE_INTEGER,
         "action_id": "action-1",
@@ -615,6 +839,9 @@ def test_json_safe_integer_boundary_passes_for_counts_and_revisions() -> None:
 
     _, _, decision = _select(FailureCategory.ARGUMENT_ERROR)
     finding_values = {
+        "store_id": decision.classification.store_id,
+        "plan_id": decision.plan_id,
+        "current_revision": MAX_JSON_SAFE_INTEGER,
         "route_id": decision.route_id,
         "prior_action_id": decision.action_id,
         "prior_action_digest": decision.action_digest,
@@ -626,11 +853,20 @@ def test_json_safe_integer_boundary_passes_for_counts_and_revisions() -> None:
         "classification_verification_event_id": (decision.classification.verification_event_id),
         "evidence_refs": (_observable("verification:repeat"),),
         "verifier_refs": ("verifier:repeat",),
+        "verification_result": _relational(
+            decision.action_id,
+            (_observable("verification:repeat"),),
+            repeated_failed_route=True,
+        ),
     }
     finding = RepeatedRouteFinding(**finding_values)
     assert RepeatedRouteFinding.from_dict(finding.to_dict()) == finding
     finding_values["prior_revision"] = MAX_JSON_SAFE_INTEGER + 1
     with pytest.raises(ValueError, match="prior_revision"):
+        RepeatedRouteFinding(**finding_values)
+    finding_values["prior_revision"] = MAX_JSON_SAFE_INTEGER
+    finding_values["current_revision"] = MAX_JSON_SAFE_INTEGER + 1
+    with pytest.raises(ValueError, match="current_revision"):
         RepeatedRouteFinding(**finding_values)
 
 
@@ -648,13 +884,17 @@ def test_use_time_rejects_corrupted_large_budget_and_revision_values() -> None:
         consume_recovery(store, decision, expected_revision=0, action=action)
 
     fresh_store = _store()
-    fresh_classification = _classification(FailureCategory.ARGUMENT_ERROR)
+    fresh_classification = _classification(
+        FailureCategory.ARGUMENT_ERROR,
+        store_id=fresh_store.snapshot().store_id,
+    )
+    fresh_classification_id = fresh_store.enroll_classification(fresh_classification)
     with pytest.raises(ValueError, match="expected_revision"):
         select_recovery(
             fresh_store,
             expected_revision=10**5000,
             action=_action(),
-            classification=fresh_classification,
+            classification_id=fresh_classification_id,
             route_id="route-1",
         )
 
@@ -718,13 +958,16 @@ def test_hostile_string_enum_and_integer_subclasses_fail_closed() -> None:
         RecoveryBudget(cast(Any, HostileInt(1)), 0, 1, 0)
     with pytest.raises(ValueError, match="category"):
         FailureClassificationBinding(
-            _failure(),
-            "action-1",
-            "a" * 64,
-            cast(Any, ForeignCategory.ARGUMENT_ERROR),
-            "verification-event-1",
-            (_observable("observation:failure-1"),),
-            ("verifier-1",),
+            store_id="a" * 64,
+            plan_id="plan-1",
+            failure=_failure(),
+            action_id="action-1",
+            action_digest="a" * 64,
+            category=cast(Any, ForeignCategory.ARGUMENT_ERROR),
+            verification_event_id="verification-event-1",
+            evidence_refs=(_observable("observation:failure-1"),),
+            verifier_refs=("verifier-1",),
+            verification_result=_relational("action-1", (_observable("observation:failure-1"),)),
         )
     payload = _classification(FailureCategory.ARGUMENT_ERROR).to_dict()
     payload["category"] = HostileString("argument_error")
