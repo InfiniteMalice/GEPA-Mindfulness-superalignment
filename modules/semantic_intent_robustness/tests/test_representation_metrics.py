@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 import time
 from dataclasses import FrozenInstanceError
 
@@ -250,17 +251,19 @@ def test_evaluator_snapshots_one_shot_inputs_and_measures_elapsed_time(
     assert summary.elapsed_milliseconds >= 5.0
 
 
-def test_elapsed_time_ends_after_late_metric_aggregation(
+def test_elapsed_time_ends_after_metric_values_and_counts_are_aggregated(
     metric_fixture: tuple[
         tuple[RepresentationEvaluationCase, ...],
         tuple[RepresentationEvaluationResult, ...],
     ],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Catch an end timestamp taken before false-repair and later metrics are aggregated."""
+    """Catch metric values or denominator counts evaluated after the end timestamp."""
 
     cases, results = metric_fixture
     repair_observed = False
+    end_timestamp_observed = False
+    length_after_end_timestamp = False
     clock_calls = 0
     original = RepresentationEvaluationResult.repair_applied
 
@@ -270,11 +273,18 @@ def test_elapsed_time_ends_after_late_metric_aggregation(
         return original.__get__(result, RepresentationEvaluationResult)
 
     def deterministic_clock() -> int:
-        nonlocal clock_calls
+        nonlocal clock_calls, end_timestamp_observed
         clock_calls += 1
         if clock_calls == 1:
             return 100
+        end_timestamp_observed = True
         return 900 if repair_observed else 200
+
+    def observed_length(value: object) -> int:
+        nonlocal length_after_end_timestamp
+        if end_timestamp_observed:
+            length_after_end_timestamp = True
+        return builtins.len(value)  # type: ignore[arg-type]
 
     monkeypatch.setattr(
         RepresentationEvaluationResult,
@@ -286,11 +296,18 @@ def test_elapsed_time_ends_after_late_metric_aggregation(
         "perf_counter_ns",
         deterministic_clock,
     )
+    monkeypatch.setattr(
+        representation_metrics_module,
+        "len",
+        observed_length,
+        raising=False,
+    )
 
     summary = representation_metrics_module.evaluate_representation_cases(cases, results, k=2)
 
     assert summary.elapsed_milliseconds == 0.0008
     assert clock_calls == 2
+    assert not length_after_end_timestamp
 
 
 def test_metrics_define_neutral_zero_denominator_behavior() -> None:

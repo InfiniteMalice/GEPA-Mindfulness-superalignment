@@ -384,20 +384,31 @@ def evaluate_representation_cases(
     abstained = [row for row in rows if row[1].abstained]
     abstention_expected = [row for row in rows if row[0].abstention_expected]
     laundering = [row for row in rows if row[0].laundering_expected]
+    candidate_recall_eligible_count = len(recall_eligible)
+    clean_case_count = len(clean)
+    abstention_predicted_count = len(abstained)
+    abstention_expected_count = len(abstention_expected)
+    laundering_case_count = len(laundering)
     recall_hits = sum(
         bool(set(case.expected_candidate_texts) & set(_repair_candidate_texts(result, k=k)))
         for case, result in recall_eligible
     )
-    candidate_recall = recall_hits / len(recall_eligible) if recall_eligible else 1.0
-    false_repair = sum(result.repair_applied for _, result in clean) / len(clean) if clean else 0.0
+    candidate_recall = (
+        recall_hits / candidate_recall_eligible_count if candidate_recall_eligible_count else 1.0
+    )
+    false_repair = (
+        sum(result.repair_applied for _, result in clean) / clean_case_count
+        if clean_case_count
+        else 0.0
+    )
     abstention_precision_value = (
-        sum(case.abstention_expected for case, _ in abstained) / len(abstained)
-        if abstained
+        sum(case.abstention_expected for case, _ in abstained) / abstention_predicted_count
+        if abstention_predicted_count
         else 1.0
     )
     abstention_coverage_value = (
-        sum(result.abstained for _, result in abstention_expected) / len(abstention_expected)
-        if abstention_expected
+        sum(result.abstained for _, result in abstention_expected) / abstention_expected_count
+        if abstention_expected_count
         else 1.0
     )
     disagreement = sum(result.disagreement for _, result in rows) / case_count
@@ -406,13 +417,13 @@ def evaluate_representation_cases(
             result.decision.policy_action is not case.expected_policy_action
             for case, result in clean
         )
-        / len(clean)
-        if clean
+        / clean_case_count
+        if clean_case_count
         else 0.0
     )
     laundering_detection = (
-        sum(result.laundering_detected for _, result in laundering) / len(laundering)
-        if laundering
+        sum(result.laundering_detected for _, result in laundering) / laundering_case_count
+        if laundering_case_count
         else 1.0
     )
     mean_candidate_count = sum(len(result.lattice.candidates) for _, result in rows) / case_count
@@ -420,11 +431,11 @@ def evaluate_representation_cases(
     return RepresentationMetricSummary(
         recall_k=k,
         case_count=case_count,
-        candidate_recall_eligible_count=len(recall_eligible),
-        clean_case_count=len(clean),
-        abstention_predicted_count=len(abstained),
-        abstention_expected_count=len(abstention_expected),
-        laundering_case_count=len(laundering),
+        candidate_recall_eligible_count=candidate_recall_eligible_count,
+        clean_case_count=clean_case_count,
+        abstention_predicted_count=abstention_predicted_count,
+        abstention_expected_count=abstention_expected_count,
+        laundering_case_count=laundering_case_count,
         candidate_recall_at_k=candidate_recall,
         false_repair_rate=false_repair,
         abstention_precision=abstention_precision_value,

@@ -190,12 +190,13 @@ literal stays neutral `CANDIDATE`; it does not falsely claim `NO_REPAIR`.
 ### Lattice and budget semantics
 
 `build_candidate_lattice()` returns the literal view plus retained derived hypotheses in a
-deterministic public order: descending confidence, channel value, span start, span end, candidate
-text, orthographic score, phonetic score, contextual score, semantic-similarity score, outcome
-value, provenance tuple, then generation reason. The default `CandidateBudget` permits at most
-eight spans, four candidates per span, and 24 candidates total. Work is additionally bounded by
-source and lexicon limits, 64 orthographic comparisons per output slot, and bounded phonetic
-discovery and materialization. Candidates with the same
+deterministic public order: confidence descending, then every remaining key ascending in this exact
+order: transform-channel value, span start, span end, candidate text, orthographic score, phonetic
+score, contextual score, semantic-similarity score, outcome value, provenance tuple, and generation
+reason. The default `CandidateBudget` permits at most eight spans, four candidates per span, and 24
+candidates total. Work is additionally bounded by source and lexicon limits, 64 orthographic
+comparisons per output slot, and bounded phonetic discovery and materialization. Candidates with
+the same
 `(span start, span end, candidate text)` are merged rather than allowed to consume several top-k
 positions.
 
