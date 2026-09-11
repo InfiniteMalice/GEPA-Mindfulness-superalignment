@@ -7,6 +7,14 @@ from typing import Any
 
 import pytest
 
+from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
+from gepa_mindfulness.verification.interfaces import (
+    LocalVerificationResult,
+    RelationalVerificationResult,
+    VerificationEvidenceBinding,
+    make_local_verification_event,
+    make_relational_verification_event,
+)
 from mindful_trace_gepa.action_bound_events import PredictionCommit, make_prediction_commit_event
 from mindful_trace_gepa.event_sequence import (
     EvaluatedSystemVersion,
@@ -226,6 +234,66 @@ def _second_action_chain() -> list[EventEnvelope]:
     return [prediction, proposed, executed, observation, verification]
 
 
+def _sequence_with_both_leveled_verifications() -> list[EventEnvelope]:
+    """Replace the legacy result with local and relational verification of one observation."""
+
+    events = _valid_sequence()
+    observation = events[3]
+    evidence = EvidenceReference("evidence-2", EvidenceSourceKind.OBSERVABLE_OUTPUT)
+    local = LocalVerificationResult(
+        "action-1",
+        True,
+        False,
+        False,
+        False,
+        False,
+        None,
+        (evidence,),
+        (VerificationEvidenceBinding("executed", (evidence,)),),
+    )
+    relational = RelationalVerificationResult(
+        "action-1",
+        False,
+        False,
+        "none",
+        False,
+        False,
+        True,
+        False,
+        (evidence,),
+        (
+            VerificationEvidenceBinding("contradiction_status", (evidence,)),
+            VerificationEvidenceBinding("claimed_outcome_supported", (evidence,)),
+        ),
+    )
+    common = {
+        "run_id": "run-1",
+        "repeat_id": 0,
+        "model_version": "model-v1",
+        "harness_version": "harness-v1",
+        "parent_event_ids": (observation.event_id,),
+    }
+    local_event = make_local_verification_event(
+        local,
+        verifier_refs=("verifier:local-1",),
+        event_id="verification-local-1",
+        timestamp="2026-09-10T12:00:04Z",
+        **common,
+    )
+    relational_event = make_relational_verification_event(
+        relational,
+        verifier_refs=("verifier:relational-1",),
+        event_id="verification-relational-1",
+        timestamp="2026-09-10T12:00:05Z",
+        **common,
+    )
+    epistemic = replace(
+        events[5],
+        parent_event_ids=(local_event.event_id, relational_event.event_id),
+    )
+    return [*events[:4], local_event, relational_event, epistemic, events[6]]
+
+
 def test_valid_full_action_bound_sequence_has_a_frozen_system_version() -> None:
     """Catch validator changes that reject the documented causal happy path."""
 
@@ -233,6 +301,83 @@ def test_valid_full_action_bound_sequence_has_a_frozen_system_version() -> None:
 
     assert EvaluatedSystemVersion("model-v1", "harness-v1").model_version == "model-v1"
     validate_action_bound_sequence(events)
+
+
+def test_valid_sequence_accepts_both_structured_verification_levels() -> None:
+    """Catch canonical validation rejecting either new typed verification level."""
+
+    validate_action_bound_sequence(_sequence_with_both_leveled_verifications())
+
+
+@pytest.mark.parametrize(
+    ("mutator", "match"),
+    [
+        (
+            lambda event: replace(
+                event,
+                payload={**event.to_dict()["payload"], "verification_level": "unknown"},
+            ),
+            "verification_level",
+        ),
+        (
+            lambda event: replace(
+                event,
+                payload={**event.to_dict()["payload"], "verified": True},
+            ),
+            "payload fields",
+        ),
+        (lambda event: replace(event, action_id="other-action"), "action_id"),
+        (lambda event: replace(event, evidence_refs=("other-evidence",)), "evidence_refs"),
+        (lambda event: replace(event, verifier_refs=("verifier:other",)), "verifier_refs"),
+        (
+            lambda event: replace(
+                event,
+                payload={**event.to_dict()["payload"], "verifier_refs": []},
+            ),
+            "verifier_refs",
+        ),
+    ],
+)
+def test_sequence_rejects_malformed_or_mismatched_leveled_verification(
+    mutator: Any,
+    match: str,
+) -> None:
+    """Catch new verification envelopes bypassing typed payload and linkage validation."""
+
+    events = _sequence_with_both_leveled_verifications()
+    events[4] = mutator(events[4])
+
+    with pytest.raises(ValueError, match=match):
+        validate_action_bound_sequence(events)
+
+
+def test_sequence_rejects_result_type_that_disagrees_with_verification_level() -> None:
+    """Catch a relational result relabeled as local execution evidence."""
+
+    events = _sequence_with_both_leveled_verifications()
+    local_event = events[4]
+    relational_payload = events[5].to_dict()["payload"]
+    events[4] = replace(
+        local_event,
+        payload={
+            "verification_level": "local_execution",
+            "result": relational_payload["result"],
+            "verifier_refs": ["verifier:local-1"],
+        },
+    )
+
+    with pytest.raises(ValueError, match="LocalVerificationResult"):
+        validate_action_bound_sequence(events)
+
+
+def test_sequence_rejects_leveled_verification_without_observation_parent() -> None:
+    """Catch a structured verification result attached to another verifier instead of evidence."""
+
+    events = _sequence_with_both_leveled_verifications()
+    events[5] = replace(events[5], parent_event_ids=(events[4].event_id,))
+
+    with pytest.raises(ValueError, match="outcome_observed"):
+        validate_action_bound_sequence(events)
 
 
 @pytest.mark.parametrize(

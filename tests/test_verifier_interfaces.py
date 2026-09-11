@@ -15,6 +15,7 @@ from gepa_mindfulness.verification.interfaces import (
     LocalVerificationResult,
     RelationalEvidenceVerifier,
     RelationalVerificationResult,
+    VerificationEvidenceBinding,
     VerificationLevel,
     make_local_verification_event,
     make_relational_verification_event,
@@ -31,6 +32,13 @@ def _private(reference_id: str = "private:action-1") -> EvidenceReference:
     return EvidenceReference(reference_id, EvidenceSourceKind.PRIVATE_REASONING)
 
 
+def _binding(
+    field_name: str,
+    evidence_refs: tuple[EvidenceReference, ...],
+) -> VerificationEvidenceBinding:
+    return VerificationEvidenceBinding(field_name, evidence_refs)
+
+
 def _local(
     *,
     action_id: str = "action-1",
@@ -41,7 +49,22 @@ def _local(
     intended_operation_observed: bool = True,
     irreversible_action_permitted: bool | None = None,
     evidence_refs: tuple[EvidenceReference, ...] = (_observable(),),
+    evidence_bindings: tuple[VerificationEvidenceBinding, ...] | None = None,
 ) -> LocalVerificationResult:
+    if evidence_bindings is None:
+        fields = {
+            "executed": executed,
+            "arguments_valid": arguments_valid,
+            "schema_valid": schema_valid,
+            "authorization_valid": authorization_valid,
+            "intended_operation_observed": intended_operation_observed,
+            "irreversible_action_permitted": irreversible_action_permitted is True,
+        }
+        evidence_bindings = tuple(
+            _binding(field_name, evidence_refs)
+            for field_name, affirmative in fields.items()
+            if affirmative is True
+        )
     return LocalVerificationResult(
         action_id,
         executed,
@@ -51,6 +74,7 @@ def _local(
         intended_operation_observed,
         irreversible_action_permitted,
         evidence_refs,
+        evidence_bindings,
     )
 
 
@@ -59,13 +83,29 @@ def _relational(
     action_id: str = "action-1",
     task_fit: bool = False,
     dependencies_satisfied: bool = False,
-    contradiction_status: str = "contradicted",
+    contradiction_status: str = "unknown",
     provenance_intact: bool = False,
     authorization_scope_valid: bool = False,
     claimed_outcome_supported: bool = False,
     repeated_failed_route: bool = False,
     evidence_refs: tuple[EvidenceReference, ...] = (),
+    evidence_bindings: tuple[VerificationEvidenceBinding, ...] | None = None,
 ) -> RelationalVerificationResult:
+    if evidence_bindings is None:
+        fields = {
+            "task_fit": task_fit,
+            "dependencies_satisfied": dependencies_satisfied,
+            "provenance_intact": provenance_intact,
+            "authorization_scope_valid": authorization_scope_valid,
+            "claimed_outcome_supported": claimed_outcome_supported,
+            "repeated_failed_route": repeated_failed_route,
+            "contradiction_status": contradiction_status in {"none", "contradicted"},
+        }
+        evidence_bindings = tuple(
+            _binding(field_name, evidence_refs)
+            for field_name, affirmative in fields.items()
+            if affirmative is True
+        )
     return RelationalVerificationResult(
         action_id,
         task_fit,
@@ -76,6 +116,7 @@ def _relational(
         claimed_outcome_supported,
         repeated_failed_route,
         evidence_refs,
+        evidence_bindings,
     )
 
 
@@ -247,7 +288,7 @@ def test_results_reject_hostile_action_id_string_subclass() -> None:
         _local(action_id=HostileEmptyString(""))
 
 
-@pytest.mark.parametrize("contradiction_status", ["", " ", 0, True, None])
+@pytest.mark.parametrize("contradiction_status", ["", " ", "clear", 0, True, None])
 def test_relational_result_requires_exact_nonblank_contradiction_status(
     contradiction_status: object,
 ) -> None:
@@ -255,6 +296,200 @@ def test_relational_result_requires_exact_nonblank_contradiction_status(
 
     with pytest.raises(ValueError, match="contradiction_status"):
         _relational(contradiction_status=cast(Any, contradiction_status))
+
+
+@pytest.mark.parametrize("contradiction_status", ["none", "contradicted"])
+def test_affirmative_contradiction_status_requires_field_bound_observable_evidence(
+    contradiction_status: str,
+) -> None:
+    """Catch a categorical contradiction finding without its own observable provenance."""
+
+    with pytest.raises(ValueError, match="contradiction_status.*observable evidence"):
+        _relational(
+            contradiction_status=contradiction_status,
+            evidence_refs=(_observable(), _private()),
+            evidence_bindings=(_binding("contradiction_status", (_private(),)),),
+        )
+
+
+def test_unknown_contradiction_status_is_not_an_affirmative_finding() -> None:
+    """Catch unknown contradiction state being presented as an evidence-backed outcome."""
+
+    result = _relational(contradiction_status="unknown")
+
+    assert result.evidence_bindings == ()
+
+
+def test_each_affirmative_field_requires_its_own_evidence_binding() -> None:
+    """Catch one aggregate reference laundering support across distinct affirmative fields."""
+
+    reference = _observable()
+
+    with pytest.raises(ValueError, match="arguments_valid.*evidence binding"):
+        _local(
+            executed=True,
+            arguments_valid=True,
+            schema_valid=False,
+            authorization_valid=False,
+            intended_operation_observed=False,
+            evidence_refs=(reference,),
+            evidence_bindings=(_binding("executed", (reference,)),),
+        )
+
+
+def test_each_affirmative_binding_requires_observable_evidence() -> None:
+    """Catch unrelated aggregate evidence masking a field binding to private reasoning."""
+
+    observable = _observable()
+    private = _private()
+
+    with pytest.raises(ValueError, match="executed.*observable evidence"):
+        _local(
+            executed=True,
+            arguments_valid=False,
+            schema_valid=False,
+            authorization_valid=False,
+            intended_operation_observed=False,
+            evidence_refs=(observable, private),
+            evidence_bindings=(_binding("executed", (private,)),),
+        )
+
+
+def test_evidence_bindings_must_be_unique_allowed_and_subset_of_result_evidence() -> None:
+    """Catch ambiguous keys and evidence smuggled outside the aggregate result boundary."""
+
+    reference = _observable()
+    other = _observable("output:other")
+    base = {
+        "executed": False,
+        "arguments_valid": False,
+        "schema_valid": False,
+        "authorization_valid": False,
+        "intended_operation_observed": False,
+        "evidence_refs": (reference,),
+    }
+
+    with pytest.raises(ValueError, match="allowed field"):
+        _local(**base, evidence_bindings=(_binding("claimed_outcome_supported", (reference,)),))
+    with pytest.raises(ValueError, match="unique"):
+        _local(
+            **base,
+            evidence_bindings=(
+                _binding("executed", (reference,)),
+                _binding("executed", (reference,)),
+            ),
+        )
+    with pytest.raises(ValueError, match="subset"):
+        _local(**base, evidence_bindings=(_binding("executed", (other,)),))
+
+
+def test_evidence_binding_rejects_fields_without_a_verification_finding() -> None:
+    """Catch evidence attached to an optional local or relational finding that was not made."""
+
+    reference = _observable()
+
+    with pytest.raises(ValueError, match="irreversible_action_permitted.*no finding"):
+        _local(
+            executed=False,
+            arguments_valid=False,
+            schema_valid=False,
+            authorization_valid=False,
+            intended_operation_observed=False,
+            irreversible_action_permitted=None,
+            evidence_refs=(reference,),
+            evidence_bindings=(_binding("irreversible_action_permitted", (reference,)),),
+        )
+    with pytest.raises(ValueError, match="contradiction_status.*no finding"):
+        _relational(
+            contradiction_status="unknown",
+            evidence_refs=(reference,),
+            evidence_bindings=(_binding("contradiction_status", (reference,)),),
+        )
+
+
+def test_evidence_binding_snapshots_and_json_round_trips() -> None:
+    """Catch caller mutation or lossy serialization changing field-keyed provenance."""
+
+    reference = _observable()
+    references = [reference]
+    binding = VerificationEvidenceBinding("executed", cast(Any, references))
+    references.clear()
+    object.__setattr__(reference, "reference_id", "rewritten")
+    restored = VerificationEvidenceBinding.from_dict(json.loads(json.dumps(binding.to_dict())))
+
+    assert restored == _binding("executed", (_observable(),))
+    assert not hasattr(restored, "__dict__")
+
+
+@pytest.mark.parametrize(
+    ("field_name", "evidence_refs"),
+    [
+        ("", (_observable(),)),
+        (" ", (_observable(),)),
+        (7, (_observable(),)),
+        ("executed", ()),
+        ("executed", ("output:action-1",)),
+        ("executed", {_observable()}),
+        ("nonexistent", (_observable(),)),
+    ],
+)
+def test_evidence_binding_rejects_malformed_keys_and_references(
+    field_name: object,
+    evidence_refs: object,
+) -> None:
+    """Catch malformed field-keyed provenance before it reaches a result."""
+
+    with pytest.raises(ValueError):
+        VerificationEvidenceBinding(cast(Any, field_name), cast(Any, evidence_refs))
+
+
+def test_result_snapshots_binding_collection_and_objects() -> None:
+    """Catch later caller mutation changing the result's field-to-evidence relation."""
+
+    reference = _observable()
+    binding = _binding("executed", (reference,))
+    bindings = [binding]
+    result = _local(
+        executed=True,
+        arguments_valid=False,
+        schema_valid=False,
+        authorization_valid=False,
+        intended_operation_observed=False,
+        evidence_refs=(reference,),
+        evidence_bindings=cast(Any, bindings),
+    )
+    bindings.clear()
+    object.__setattr__(binding, "field_name", "rewritten")
+
+    assert result.evidence_bindings == (_binding("executed", (_observable(),)),)
+    assert result.evidence_bindings[0] is not binding
+
+
+def test_result_rejects_unordered_evidence_binding_collection() -> None:
+    """Catch nondeterministic binding order entering serialized verifier output."""
+
+    reference = _observable()
+
+    with pytest.raises(ValueError, match="evidence_bindings"):
+        _local(
+            executed=False,
+            arguments_valid=False,
+            schema_valid=False,
+            authorization_valid=False,
+            intended_operation_observed=False,
+            evidence_refs=(reference,),
+            evidence_bindings=cast(Any, {_binding("executed", (reference,))}),
+        )
+
+
+def test_results_revalidate_evidence_bindings_at_serialization_time() -> None:
+    """Catch object-level mutation of a binding entering a serialized verifier result."""
+
+    result = _local()
+    object.__setattr__(result.evidence_bindings[0], "field_name", "nonexistent")
+
+    with pytest.raises(ValueError, match="verification finding"):
+        result.to_dict()
 
 
 def test_results_snapshot_evidence_references_and_caller_collections() -> None:
@@ -405,10 +640,12 @@ def test_event_adapters_preserve_level_structured_result_and_links() -> None:
     assert local_event.payload == {
         "verification_level": "local_execution",
         "result": local.to_dict(),
+        "verifier_refs": ["verifier:independent-1"],
     }
     assert relational_event.payload == {
         "verification_level": "relational_evidence",
         "result": relational.to_dict(),
+        "verifier_refs": ["verifier:independent-1"],
     }
     assert "verified" not in local_event.payload
     assert "verified" not in relational_event.payload
@@ -422,13 +659,25 @@ def test_event_adapters_reject_wrong_result_level_and_conflicting_links() -> Non
     relational = _relational()
 
     with pytest.raises(TypeError, match="LocalVerificationResult"):
-        make_local_verification_event(cast(Any, relational))
+        make_local_verification_event(
+            cast(Any, relational), verifier_refs=("verifier:independent-1",)
+        )
     with pytest.raises(TypeError, match="RelationalVerificationResult"):
-        make_relational_verification_event(cast(Any, local))
+        make_relational_verification_event(
+            cast(Any, local), verifier_refs=("verifier:independent-1",)
+        )
     with pytest.raises(ValueError, match="action_id"):
-        make_local_verification_event(local, action_id="other-action")
+        make_local_verification_event(
+            local,
+            action_id="other-action",
+            verifier_refs=("verifier:independent-1",),
+        )
     with pytest.raises(ValueError, match="evidence_refs"):
-        make_local_verification_event(local, evidence_refs=("other-evidence",))
+        make_local_verification_event(
+            local,
+            evidence_refs=("other-evidence",),
+            verifier_refs=("verifier:independent-1",),
+        )
 
 
 def test_event_adapters_revalidate_result_after_use_time_mutation() -> None:
@@ -438,7 +687,41 @@ def test_event_adapters_revalidate_result_after_use_time_mutation() -> None:
     object.__setattr__(local.evidence_refs[0], "reference_id", " ")
 
     with pytest.raises(ValueError, match="evidence_refs"):
-        make_local_verification_event(local)
+        make_local_verification_event(local, verifier_refs=("verifier:independent-1",))
+
+
+@pytest.mark.parametrize(
+    "verifier_refs",
+    [None, (), ("",), (" ",), (7,), "verifier:independent-1", {"verifier:set"}],
+)
+def test_event_adapters_require_nonempty_exact_verifier_provenance(
+    verifier_refs: object,
+) -> None:
+    """Catch absent or malformed verifier identity on a verification event."""
+
+    with pytest.raises(ValueError, match="verifier_refs"):
+        make_local_verification_event(_local(), verifier_refs=cast(Any, verifier_refs))
+
+
+def test_event_adapter_rejects_missing_verifier_provenance() -> None:
+    """Catch a verification event created without an independently auditable verifier."""
+
+    with pytest.raises(TypeError, match="verifier_refs"):
+        make_local_verification_event(_local())
+
+
+def test_event_adapters_snapshot_correlated_verifier_provenance() -> None:
+    """Catch later caller-list mutation changing envelope or payload verifier provenance."""
+
+    verifier_refs = ["verifier:independent-1"]
+    event = make_relational_verification_event(
+        _relational(),
+        verifier_refs=cast(Any, verifier_refs),
+    )
+    verifier_refs[0] = "verifier:rewritten"
+
+    assert event.verifier_refs == ("verifier:independent-1",)
+    assert event.payload["verifier_refs"] == ("verifier:independent-1",)
 
 
 def test_claimed_success_text_does_not_create_execution_or_relational_support() -> None:
@@ -449,6 +732,8 @@ def test_claimed_success_text_does_not_create_execution_or_relational_support() 
 
     assert evidence_state.resolve("claim-1").status == "unverified"
     with pytest.raises(TypeError):
-        make_local_verification_event(cast(Any, claim))
+        make_local_verification_event(cast(Any, claim), verifier_refs=("verifier:independent-1",))
     with pytest.raises(TypeError):
-        make_relational_verification_event(cast(Any, claim))
+        make_relational_verification_event(
+            cast(Any, claim), verifier_refs=("verifier:independent-1",)
+        )

@@ -133,21 +133,29 @@ def validate_action_bound_sequence(events: Sequence[EventEnvelope]) -> None:
             observations[observation.observation_id] = event
             resolved_action_ids[event.event_id] = observation.action_id
         elif event.event_type == _VERIFICATION:
-            result = _parse_payload(event, VerificationResult)
-            _require_matching_refs(event, result.verifier_refs, "verifier_refs")
-            observation_event = observations.get(result.observation_id)
-            if observation_event is None:
-                raise ValueError("verification_result requires an earlier outcome_observed")
-            _require_direct_parent(event, observation_event, _OBSERVATION)
-            _require_same_unit(event, observation_event, unit)
-            action_id = _resolve_parent_action_id(
-                event,
-                (observation_event,),
-                resolved_action_ids,
-            )
-            if result.verifier_id in verifications:
-                raise ValueError("duplicate verifier_id")
-            verifications.add(result.verifier_id)
+            if _is_legacy_verification_payload(event):
+                result = _parse_payload(event, VerificationResult)
+                _require_matching_refs(event, result.verifier_refs, "verifier_refs")
+                observation_event = observations.get(result.observation_id)
+                if observation_event is None:
+                    raise ValueError("verification_result requires an earlier outcome_observed")
+                _require_direct_parent(event, observation_event, _OBSERVATION)
+                _require_same_unit(event, observation_event, unit)
+                action_id = _resolve_parent_action_id(
+                    event,
+                    (observation_event,),
+                    resolved_action_ids,
+                )
+                if result.verifier_id in verifications:
+                    raise ValueError("duplicate verifier_id")
+                verifications.add(result.verifier_id)
+            else:
+                action_id = _validate_leveled_verification(
+                    event,
+                    seen_events,
+                    resolved_action_ids,
+                    unit,
+                )
             resolved_action_ids[event.event_id] = action_id
         elif event.event_type == _EPISTEMIC:
             parents = _require_derived_parents(event, seen_events, _VERIFICATION)
@@ -244,6 +252,90 @@ def _parse_payload(event: EventEnvelope, payload_type: type[_Payload]) -> _Paylo
         return payload_type(**dict(event.payload))
     except (TypeError, ValueError) as error:
         raise ValueError(f"invalid {payload_type.__name__} payload: {error}") from error
+
+
+def _is_legacy_verification_payload(event: EventEnvelope) -> bool:
+    """Dispatch only the exact legacy schema; reject mixed or partial payloads later."""
+
+    return set(event.payload) == set(VerificationResult.__dataclass_fields__)
+
+
+def _validate_leveled_verification(
+    event: EventEnvelope,
+    seen_events: Mapping[str, EventEnvelope],
+    resolved_action_ids: Mapping[str, str],
+    unit: tuple[str, int | None],
+) -> str:
+    """Validate a level-tagged result and its causal, evidence, and verifier bindings."""
+
+    # Delay this cross-package import because verification adapters depend on the envelope module.
+    from gepa_mindfulness.verification.interfaces import (
+        LocalVerificationResult,
+        RelationalVerificationResult,
+        VerificationLevel,
+    )
+
+    expected_fields = {"verification_level", "result", "verifier_refs"}
+    if set(event.payload) != expected_fields:
+        raise ValueError("leveled verification payload fields do not match its typed contract")
+    level_value = event.payload["verification_level"]
+    if type(level_value) is not str:
+        raise ValueError("verification_level must be an exact string")
+    try:
+        level = VerificationLevel(level_value)
+    except ValueError as exc:
+        raise ValueError(f"unknown verification_level {level_value!r}") from exc
+
+    result_payload = event.payload["result"]
+    try:
+        result: LocalVerificationResult | RelationalVerificationResult
+        if level is VerificationLevel.LOCAL_EXECUTION:
+            result = LocalVerificationResult.from_dict(result_payload)
+        else:
+            result = RelationalVerificationResult.from_dict(result_payload)
+    except (TypeError, ValueError) as exc:
+        result_name = (
+            "LocalVerificationResult"
+            if level is VerificationLevel.LOCAL_EXECUTION
+            else "RelationalVerificationResult"
+        )
+        raise ValueError(f"invalid {result_name} payload: {exc}") from exc
+
+    verifier_refs = _parse_verifier_refs(event.payload["verifier_refs"])
+    _require_matching_refs(event, verifier_refs, "verifier_refs")
+    evidence_refs = tuple(reference.reference_id for reference in result.evidence_refs)
+    _require_matching_refs(event, evidence_refs, "evidence_refs")
+    _require_matching_value(event, "action_id", result.action_id)
+
+    if len(event.parent_event_ids) != 1:
+        raise ValueError("verification_result requires one earlier outcome_observed parent")
+    observation_event = seen_events.get(event.parent_event_ids[0])
+    if observation_event is None or observation_event.event_type != _OBSERVATION:
+        raise ValueError("verification_result requires an earlier outcome_observed")
+    _require_direct_parent(event, observation_event, _OBSERVATION)
+    _require_same_unit(event, observation_event, unit)
+    action_id = _resolve_parent_action_id(
+        event,
+        (observation_event,),
+        resolved_action_ids,
+    )
+    if result.action_id != action_id:
+        raise ValueError("action_id must match the observed action ancestry")
+    return action_id
+
+
+def _parse_verifier_refs(value: object) -> tuple[str, ...]:
+    """Parse nonempty exact verifier provenance from a structured payload."""
+
+    if isinstance(value, (str, bytes, Mapping)) or not isinstance(value, Sequence):
+        raise ValueError("verifier_refs must be a nonempty array of exact strings")
+    references = tuple(value)
+    if not references:
+        raise ValueError("verifier_refs must contain at least one reference")
+    for reference in references:
+        if type(reference) is not str or not reference.strip():
+            raise ValueError("verifier_refs must contain exact nonblank strings")
+    return references
 
 
 def _require_action_metadata(event: EventEnvelope, action: ActionRecord) -> None:

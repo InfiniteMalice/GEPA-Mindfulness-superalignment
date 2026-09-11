@@ -74,6 +74,12 @@ class VerificationLevel(str, Enum):
 
 
 @dataclass(frozen=True)
+class VerificationEvidenceBinding:
+    field_name: str
+    evidence_refs: tuple[EvidenceReference, ...]
+
+
+@dataclass(frozen=True)
 class LocalVerificationResult:
     action_id: str
     executed: bool
@@ -83,6 +89,7 @@ class LocalVerificationResult:
     intended_operation_observed: bool
     irreversible_action_permitted: bool | None
     evidence_refs: tuple[EvidenceReference, ...]
+    evidence_bindings: tuple[VerificationEvidenceBinding, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -96,6 +103,7 @@ class RelationalVerificationResult:
     claimed_outcome_supported: bool
     repeated_failed_route: bool
     evidence_refs: tuple[EvidenceReference, ...]
+    evidence_bindings: tuple[VerificationEvidenceBinding, ...] = ()
 
 
 class LocalExecutionVerifier(Protocol):
@@ -112,11 +120,17 @@ class RelationalEvidenceVerifier(Protocol):
 
 1. Write failing tests proving local success does not imply relational success and that a
    relational verifier cannot fabricate local execution.
-2. Require observable evidence for every affirmative operation/outcome field.
+2. Require a field-keyed binding to observable evidence for every affirmative boolean field. Treat
+   contradiction status `unknown` as no finding; require its own observable binding for `none` or
+   `contradicted`. Permit optional diagnostic bindings for negative boolean findings.
 3. Run tests and implement distinct result types and protocols.
 4. Add adapters that convert both result types into `VERIFICATION_RESULT` envelopes without
-   collapsing them into one scalar.
+   collapsing them into one scalar. Require an explicit keyword-only, nonempty verifier-reference
+   sequence in each adapter and bind the references in both the payload and envelope.
 5. Run verifier and action-bound event tests.
+6. Extend canonical action-bound sequence validation to dispatch the exact legacy schema or the
+   exact level-tagged schema and validate the new result, causal parent, action, evidence, and
+   verifier links.
 
 ## Task 3: Build epistemically qualified failure graphs
 
