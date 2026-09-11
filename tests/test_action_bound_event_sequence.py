@@ -6,16 +6,7 @@ from dataclasses import replace
 
 import pytest
 
-from mindful_trace_gepa.action_bound_events import (
-    ActionRecord,
-    OutcomeObservation,
-    PredictionCommit,
-    VerificationResult,
-    make_action_event,
-    make_outcome_observation_event,
-    make_prediction_commit_event,
-    make_verification_result_event,
-)
+from mindful_trace_gepa.action_bound_events import PredictionCommit, make_prediction_commit_event
 from mindful_trace_gepa.event_sequence import (
     EvaluatedSystemVersion,
     validate_action_bound_sequence,
@@ -42,7 +33,7 @@ def _metadata(event_id: str, timestamp: str, **extra: object) -> dict[str, objec
 
 
 def _valid_sequence(*, repeat_id: int | None = 0) -> list[EventEnvelope]:
-    """Build a literal causal sequence with all seven action-bound event kinds."""
+    """Build literal envelopes that exercise validator decoding without event helpers."""
 
     base = {
         "run_id": "run-1",
@@ -50,61 +41,103 @@ def _valid_sequence(*, repeat_id: int | None = 0) -> list[EventEnvelope]:
         "model_version": "model-v1",
         "harness_version": "harness-v1",
     }
-    prediction = make_prediction_commit_event(
-        PredictionCommit("prediction-1", {"answer": "safe"}, 0.9, ("evidence-1",)),
+    prediction = EventEnvelope(
+        schema_version="1.0",
         event_id="prediction-event-1",
+        event_type="prediction_commit",
         timestamp="2026-09-10T12:00:00Z",
+        payload={
+            "prediction_commit_id": "prediction-1",
+            "predicted_outcome": {"answer": "safe"},
+            "confidence": 0.9,
+            "evidence_refs": ["evidence-1"],
+        },
+        evidence_refs=("evidence-1",),
         **base,
     )
-    proposed = make_action_event(
-        ActionRecord("action-1", "read", True, "sandbox", "prediction-1"),
-        StructuredEventType.ACTION_PROPOSED,
+    proposed = EventEnvelope(
+        schema_version="1.0",
         event_id="proposed-event-1",
+        event_type="action_proposed",
         timestamp="2026-09-10T12:00:01Z",
         parent_event_ids=(prediction.event_id,),
+        action_id="action-1",
+        authorization_scope="sandbox",
+        payload={
+            "action_id": "action-1",
+            "action_class": "read",
+            "reversible": True,
+            "authorization_scope": "sandbox",
+            "prediction_commit_id": "prediction-1",
+        },
         **base,
     )
-    executed = make_action_event(
-        ActionRecord("action-1", "read", True, "sandbox", "prediction-1"),
-        StructuredEventType.ACTION_EXECUTED,
+    executed = EventEnvelope(
+        schema_version="1.0",
         event_id="executed-event-1",
+        event_type="action_executed",
         timestamp="2026-09-10T12:00:02Z",
         parent_event_ids=(proposed.event_id,),
+        action_id="action-1",
+        authorization_scope="sandbox",
+        payload={
+            "action_id": "action-1",
+            "action_class": "read",
+            "reversible": True,
+            "authorization_scope": "sandbox",
+            "prediction_commit_id": "prediction-1",
+        },
         **base,
     )
-    observation = make_outcome_observation_event(
-        OutcomeObservation("observation-1", "action-1", {"answer": "safe"}, ("evidence-2",)),
+    observation = EventEnvelope(
+        schema_version="1.0",
         event_id="observation-event-1",
+        event_type="outcome_observed",
         timestamp="2026-09-10T12:00:03Z",
         parent_event_ids=(executed.event_id,),
+        action_id="action-1",
+        evidence_refs=("evidence-2",),
+        payload={
+            "observation_id": "observation-1",
+            "action_id": "action-1",
+            "actual_outcome": {"answer": "safe"},
+            "evidence_refs": ["evidence-2"],
+        },
         **base,
     )
-    verification = make_verification_result_event(
-        VerificationResult("verifier-1", "v1", "observation-1", True, ("verifier-ref-1",)),
+    verification = EventEnvelope(
+        schema_version="1.0",
         event_id="verification-event-1",
+        event_type="verification_result",
         timestamp="2026-09-10T12:00:04Z",
         parent_event_ids=(observation.event_id,),
+        verifier_refs=("verifier-ref-1",),
+        payload={
+            "verifier_id": "verifier-1",
+            "verifier_version": "v1",
+            "observation_id": "observation-1",
+            "verified": True,
+            "verifier_refs": ["verifier-ref-1"],
+        },
         **base,
     )
-    epistemic = make_event_envelope(
-        StructuredEventType.EPISTEMIC_ASSESSMENT,
-        {"assessment": "well-supported"},
-        **_metadata(
-            "epistemic-event-1",
-            "2026-09-10T12:00:05Z",
-            parent_event_ids=(verification.event_id,),
-            **base,
-        ),
+    epistemic = EventEnvelope(
+        schema_version="1.0",
+        event_id="epistemic-event-1",
+        event_type="epistemic_assessment",
+        timestamp="2026-09-10T12:00:05Z",
+        parent_event_ids=(verification.event_id,),
+        payload={"assessment": "well-supported"},
+        **base,
     )
-    case = make_event_envelope(
-        StructuredEventType.CASE_ASSESSMENT,
-        {"assessment": "pass"},
-        **_metadata(
-            "case-event-1",
-            "2026-09-10T12:00:06Z",
-            parent_event_ids=(epistemic.event_id,),
-            **base,
-        ),
+    case = EventEnvelope(
+        schema_version="1.0",
+        event_id="case-event-1",
+        event_type="case_assessment",
+        timestamp="2026-09-10T12:00:06Z",
+        parent_event_ids=(epistemic.event_id,),
+        payload={"assessment": "pass"},
+        **base,
     )
     return [prediction, proposed, executed, observation, verification, epistemic, case]
 
@@ -203,6 +236,133 @@ def test_sequence_rejects_duplicate_event_and_semantic_identifiers() -> None:
     events.append(replace(events[3], event_id="observation-event-2"))
     with pytest.raises(ValueError, match="observation_id"):
         validate_action_bound_sequence(events)
+
+
+@pytest.mark.parametrize(
+    ("index", "namespace"),
+    [
+        (0, "prediction_commit_id"),
+        (1, "proposed action_id"),
+        (2, "executed action_id"),
+        (3, "observation_id"),
+        (4, "verifier_id"),
+    ],
+)
+def test_sequence_rejects_each_duplicate_semantic_identifier_namespace(
+    index: int,
+    namespace: str,
+) -> None:
+    """Catch duplicate semantic IDs independently for every action-bound payload namespace."""
+
+    events = _valid_sequence()
+    events.append(replace(events[index], event_id=f"duplicate-event-{index}"))
+
+    with pytest.raises(ValueError, match=namespace):
+        validate_action_bound_sequence(events)
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [("run_id", "run-2"), ("repeat_id", 1)],
+)
+def test_sequence_rejects_causal_parents_from_another_run_or_repeat(
+    field_name: str,
+    value: str | int,
+) -> None:
+    """Catch an execution that claims a direct proposal from a distinct evaluation unit."""
+
+    events = _valid_sequence()
+    events[2] = replace(events[2], **{field_name: value})
+
+    with pytest.raises(ValueError, match="same evaluation unit"):
+        validate_action_bound_sequence(events)
+
+
+def test_sequence_treats_none_repeat_as_isolated_from_numbered_repetitions() -> None:
+    """Catch a numbered action proposal that cites a prediction from the None-repeat unit."""
+
+    events = _valid_sequence(repeat_id=None)
+    events[1] = replace(events[1], repeat_id=0)
+
+    with pytest.raises(ValueError, match="same evaluation unit"):
+        validate_action_bound_sequence(events)
+
+
+@pytest.mark.parametrize(
+    ("run_id", "repeat_id"),
+    [("run-2", 0), ("run-1", 1), ("run-1", None)],
+)
+def test_sequence_rejects_prediction_semantic_id_reuse_across_evaluation_units(
+    run_id: str,
+    repeat_id: int | None,
+) -> None:
+    """Catch semantic prediction identity reuse even when envelope IDs and units differ."""
+
+    events = _valid_sequence()
+    events.append(
+        replace(
+            events[0],
+            event_id=f"prediction-event-{run_id}-{repeat_id}",
+            run_id=run_id,
+            repeat_id=repeat_id,
+        )
+    )
+
+    with pytest.raises(ValueError, match="prediction_commit_id"):
+        validate_action_bound_sequence(events)
+
+
+@pytest.mark.parametrize(
+    ("run_id", "repeat_id"),
+    [("run-2", 0), ("run-1", 1), ("run-1", None)],
+)
+def test_sequence_rejects_cross_unit_action_semantic_links(
+    run_id: str,
+    repeat_id: int | None,
+) -> None:
+    """Catch a new unit reusing an existing action semantic ID after a distinct prediction."""
+
+    events = _valid_sequence()
+    prediction = EventEnvelope(
+        schema_version="1.0",
+        event_id=f"cross-unit-prediction-{run_id}-{repeat_id}",
+        event_type="prediction_commit",
+        timestamp="2026-09-10T12:00:07Z",
+        run_id=run_id,
+        repeat_id=repeat_id,
+        model_version="model-v2",
+        harness_version="harness-v2",
+        evidence_refs=("evidence-cross-unit",),
+        payload={
+            "prediction_commit_id": "prediction-cross-unit",
+            "predicted_outcome": {"answer": "safe"},
+            "confidence": 0.9,
+            "evidence_refs": ["evidence-cross-unit"],
+        },
+    )
+    proposal = EventEnvelope(
+        schema_version="1.0",
+        event_id=f"cross-unit-proposal-{run_id}-{repeat_id}",
+        event_type="action_proposed",
+        timestamp="2026-09-10T12:00:08Z",
+        run_id=run_id,
+        repeat_id=repeat_id,
+        model_version="model-v2",
+        harness_version="harness-v2",
+        parent_event_ids=(prediction.event_id,),
+        action_id="action-1",
+        authorization_scope="sandbox",
+        payload={
+            "action_id": "action-1",
+            "action_class": "read",
+            "reversible": True,
+            "authorization_scope": "sandbox",
+            "prediction_commit_id": "prediction-cross-unit",
+        },
+    )
+
+    with pytest.raises(ValueError, match="duplicate proposed action_id"):
+        validate_action_bound_sequence([*events, prediction, proposal])
 
 
 def test_sequence_rejects_payload_type_and_envelope_link_mismatches() -> None:
