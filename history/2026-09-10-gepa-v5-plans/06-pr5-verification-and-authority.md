@@ -233,9 +233,20 @@ class RuntimeCapability(str, Enum):
    unresolved consequential ambiguity to escalation or abstention.
 2. Add tests for explicit `max_retries` and `max_replans`, exhaustion, and repeated known-failed
    route rejection.
-3. Implement `RecoveryBudget`, `FailureCategory`, `RecoveryAction`, and `select_recovery()`.
-4. Forbid unlimited sentinel values and negative counts.
-5. Run bounded recovery and failure graph tests.
+3. Implement `RecoveryBudget`, `FailureCategory`, `RecoveryAction`,
+   `FailureClassificationBinding`, and `RepeatedRouteFinding` as immutable exact records. Bind each
+   classification to the canonical failure event, complete `ActionRecord` digest, observable
+   failure evidence, verification event, and nonempty verifier references.
+4. Implement `RecoveryStateStore.enroll()` as the runtime-owned trust boundary. Keep authoritative
+   revisions, counters, pending proposals, and consumed decisions outside the public store handle.
+5. Make `select_recovery()` reserve one proposal at the current store revision without consuming a
+   retry or replan count. Make `consume_recovery()` atomically revalidate and consume only the exact
+   pending proposal. Reject stale revisions, concurrent proposals, replayed decisions, and repeated
+   routes without an exact verifier-backed link to a prior consumed decision.
+6. Limit every count, maximum, and revision to the inclusive JSON-safe integer range
+   `0..9_007_199_254_740_991`. Forbid unlimited sentinels, negative counts, booleans, floats, and
+   larger integers.
+7. Run bounded recovery and failure graph tests.
 
 ## Task 6: Verify and commit PR-5
 

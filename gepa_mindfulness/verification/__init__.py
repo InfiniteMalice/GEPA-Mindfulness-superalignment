@@ -1,4 +1,4 @@
-"""Immutable state and distinct verification-level contracts."""
+"""Immutable verification, authority, and recovery contracts."""
 
 from .failure_graph import (
     FailureEdge,
@@ -19,10 +19,17 @@ from .interfaces import (
     make_relational_verification_event,
 )
 from .recovery import (
+    MAX_JSON_SAFE_INTEGER,
     FailureCategory,
+    FailureClassificationBinding,
     RecoveryAction,
     RecoveryBudget,
+    RecoveryConsumption,
     RecoveryDecision,
+    RecoveryStateSnapshot,
+    RecoveryStateStore,
+    RepeatedRouteFinding,
+    consume_recovery,
     select_recovery,
 )
 from .runtime_governance import (
@@ -53,13 +60,18 @@ __all__ = [
     "FailureNode",
     "FailureRelation",
     "FailureCategory",
+    "FailureClassificationBinding",
     "LocalExecutionVerifier",
     "LocalVerificationResult",
     "RelationalEvidenceVerifier",
     "RelationalVerificationResult",
     "RecoveryAction",
     "RecoveryBudget",
+    "RecoveryConsumption",
     "RecoveryDecision",
+    "RecoveryStateSnapshot",
+    "RecoveryStateStore",
+    "RepeatedRouteFinding",
     "RootCauseStatus",
     "IrreversibleApprovalBinding",
     "RuntimeCapability",
@@ -68,9 +80,11 @@ __all__ = [
     "VerificationEvidenceBinding",
     "VerificationLevel",
     "WorldStateChange",
+    "MAX_JSON_SAFE_INTEGER",
     "action_record_digest",
     "authorize_action",
     "consume_authorization",
+    "consume_recovery",
     "make_local_verification_event",
     "make_relational_verification_event",
     "select_recovery",
