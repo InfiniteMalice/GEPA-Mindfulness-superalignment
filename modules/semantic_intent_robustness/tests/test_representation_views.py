@@ -74,9 +74,31 @@ def test_composed_conservative_view_records_each_applied_transform_in_order() ->
     assert len(views) == 2
     assert views[1].candidate_text == "Caf\u00e9\nnot now\n"
     assert views[1].provenance == (
-        "unicode-normalization:NFC",
         "zero-width-removal:U+200B=1,U+FEFF=1",
+        "unicode-normalization:NFC",
         "newline-normalization:CRLF->LF=1,CR->LF=1",
+    )
+
+
+@pytest.mark.parametrize(
+    ("text", "expected", "artifact_provenance"),
+    [
+        ("Cafe\u200b\u0301", "Caf\u00e9", "zero-width-removal:U+200B=1"),
+        ("A\ufeff\u030a", "\u00c5", "zero-width-removal:U+FEFF=1"),
+    ],
+)
+def test_artifact_removal_cannot_expose_a_non_nfc_final_view(
+    text: str,
+    expected: str,
+    artifact_provenance: str,
+) -> None:
+    literal, normalized = conservative_views("source-1", text)
+
+    assert literal.candidate_text == text
+    assert normalized.candidate_text == expected
+    assert normalized.provenance == (
+        artifact_provenance,
+        "unicode-normalization:NFC",
     )
 
 

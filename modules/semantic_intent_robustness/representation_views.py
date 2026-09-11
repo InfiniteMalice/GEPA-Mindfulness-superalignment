@@ -43,14 +43,14 @@ def conservative_views(
     normalized = text
     provenance: list[str] = []
 
+    normalized, zero_width_provenance = _remove_zero_width_artifacts(normalized)
+    if zero_width_provenance is not None:
+        provenance.append(zero_width_provenance)
+
     nfc_text = unicodedata.normalize("NFC", normalized)
     if nfc_text != normalized:
         normalized = nfc_text
         provenance.append("unicode-normalization:NFC")
-
-    normalized, zero_width_provenance = _remove_zero_width_artifacts(normalized)
-    if zero_width_provenance is not None:
-        provenance.append(zero_width_provenance)
 
     normalized, newline_provenance = _normalize_newlines(normalized)
     if newline_provenance is not None:
