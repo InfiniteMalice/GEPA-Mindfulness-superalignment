@@ -9,6 +9,8 @@ from .case_v3 import _CASE_NAMES_BY_ID, CaseV3Result, build_compact_label
 
 def validate_case_v3(result: CaseV3Result) -> None:
     """Validate exact canonical or fallback identity plus numeric invariants."""
+    if type(result.case_id) is not int:
+        raise ValueError("case_id must be an exact built-in int from 0 through 17")
     try:
         expected_name = _CASE_NAMES_BY_ID[result.case_id]
     except KeyError as exc:

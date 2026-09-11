@@ -7,6 +7,8 @@ from collections.abc import Iterable, Iterator
 from os.path import relpath
 from pathlib import Path
 
+import pytest
+
 from evaluation.recommendations import Recommendation, load_recommendation_registry
 
 REPOSITORY_ROOT = Path(__file__).parents[1]
@@ -62,6 +64,27 @@ def test_recommendation_reader_has_exact_registry_derived_evidence_order() -> No
         )
 
         assert _repository_evidence_targets(section) == expected_targets
+
+
+@pytest.mark.parametrize("mutation", ["duplicate", "extra"])
+def test_recommendation_reader_rejects_additional_repository_evidence_lines(
+    mutation: str,
+) -> None:
+    reader = READER_PATH.read_text(encoding="utf-8")
+    recommendation = load_recommendation_registry()[0]
+    section = _recommendation_section(reader, recommendation.recommendation_id)
+    evidence_line = next(
+        line for line in section.splitlines() if line.startswith("- Repository evidence:")
+    )
+    added_line = (
+        evidence_line
+        if mutation == "duplicate"
+        else "- Repository evidence: [`extra.py`](../../tests/test_schema_v3.py)."
+    )
+    mutated_section = section.replace(evidence_line, f"{evidence_line}\n{added_line}", 1)
+
+    with pytest.raises(AssertionError, match="exactly one repository evidence line"):
+        _repository_evidence_targets(mutated_section)
 
 
 def test_recommendation_reader_relative_links_resolve() -> None:
@@ -126,6 +149,19 @@ def _reader_identity_inventory(reader: str) -> tuple[tuple[str, str], ...]:
 
 
 def _repository_evidence_targets(section: str) -> tuple[str, ...]:
-    match = re.search(r"^- Repository evidence: (.+)$", section, flags=re.MULTILINE)
-    assert match is not None, "missing repository evidence line"
-    return tuple(re.findall(r"\[[^]]+\]\(([^)]+)\)", match.group(1)))
+    evidence_lines = re.findall(
+        r"^- Repository evidence: (.*)$",
+        section,
+        flags=re.MULTILINE,
+    )
+    targets = tuple(
+        target
+        for evidence_line in evidence_lines
+        for target in re.findall(r"\[[^]]+\]\(([^)]+)\)", evidence_line)
+    )
+    assert (
+        len(evidence_lines) == 1
+    ), f"expected exactly one repository evidence line; found {len(evidence_lines)}"
+    assert targets, "repository evidence line must contain at least one link"
+    assert len(targets) == len(set(targets)), "repository evidence links must be unique"
+    return targets

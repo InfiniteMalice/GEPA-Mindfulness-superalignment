@@ -6,7 +6,7 @@ import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from importlib import resources
-from pathlib import PurePosixPath
+from pathlib import PurePosixPath, PureWindowsPath
 from typing import Any
 
 import yaml
@@ -631,8 +631,15 @@ def _require_optional_doi(value: Any, context: str) -> str | None:
 
 def _validate_repo_relative_path(value: str, context: str) -> None:
     path = PurePosixPath(value)
-    if "\\" in value or path.is_absolute() or ".." in path.parts or value.startswith("./"):
-        raise ValueError(f"{context} must be a normalized repository-relative path")
+    if (
+        "\\" in value
+        or path.is_absolute()
+        or PureWindowsPath(value).drive
+        or not path.parts
+        or ".." in path.parts
+        or path.as_posix() != value
+    ):
+        raise ValueError(f"{context} must be a normalized repository-relative POSIX path")
 
 
 def _require_choice(value: Any, choices: frozenset[str], context: str) -> str:

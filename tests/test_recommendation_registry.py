@@ -117,13 +117,19 @@ def test_bundled_registry_has_the_approved_ordered_recommendations() -> None:
 
 def test_bundled_implementation_evidence_paths_exist() -> None:
     loaded = recommendations.load_recommendation_registry()
+    repository_root = REPOSITORY_ROOT.resolve(strict=True)
 
     assert any(item.status == "implemented" for item in loaded)
     for item in loaded:
         if item.status == "implemented":
             assert item.implementation_refs
         for implementation_ref in item.implementation_refs:
-            assert (REPOSITORY_ROOT / implementation_ref).is_file(), (
+            resolved_ref = (repository_root / implementation_ref).resolve(strict=True)
+            assert resolved_ref.is_relative_to(repository_root), (
+                item.recommendation_id,
+                implementation_ref,
+            )
+            assert resolved_ref.is_file(), (
                 item.recommendation_id,
                 implementation_ref,
             )
@@ -185,12 +191,6 @@ def test_loader_rejects_invalid_document_roots(payload: dict[str, Any], message:
             lambda payload: payload["recommendations"][0].update(implementation_refs=[]),
             "implemented.*implementation_refs",
         ),
-        (
-            lambda payload: payload["recommendations"][0].update(
-                implementation_refs=["../outside.py"]
-            ),
-            "normalized repository-relative path",
-        ),
     ],
 )
 def test_loader_rejects_invalid_recommendation_fields(
@@ -201,6 +201,41 @@ def test_loader_rejects_invalid_recommendation_fields(
 
     with pytest.raises(ValueError, match=message):
         recommendations._parse_recommendation_registry(payload)
+
+
+@pytest.mark.parametrize(
+    "implementation_ref",
+    [
+        "C:/Windows/win.ini",
+        r"\\server\share\evidence.py",
+        r"tests\evidence.py",
+        "/etc/passwd",
+        ".",
+        "./tests/evidence.py",
+        "tests//evidence.py",
+        "tests/./evidence.py",
+        "tests/../evidence.py",
+        "tests/evidence.py/",
+        "../outside.py",
+    ],
+)
+def test_loader_rejects_noncanonical_implementation_reference_paths(
+    implementation_ref: str,
+) -> None:
+    payload = _valid_registry_payload()
+    payload["recommendations"][0]["implementation_refs"] = [implementation_ref]
+
+    with pytest.raises(ValueError, match="normalized repository-relative"):
+        recommendations._parse_recommendation_registry(payload)
+
+
+def test_loader_allows_normalized_suffixless_implementation_reference_path() -> None:
+    payload = _valid_registry_payload()
+    payload["recommendations"][0]["implementation_refs"] = ["LICENSE"]
+
+    parsed = recommendations._parse_recommendation_registry(payload)
+
+    assert parsed[0].implementation_refs == ("LICENSE",)
 
 
 @pytest.mark.parametrize(

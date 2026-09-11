@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, replace
-from typing import get_args, get_type_hints
+from typing import Any, get_args, get_type_hints
 
 import pytest
 
@@ -56,9 +56,9 @@ def _classify(**kwargs):
     return classify_case_v3(**defaults)
 
 
-@pytest.mark.parametrize("case_id", [0, 14, 15, 16, 17])
-def test_schema_v3_validators_accept_fallback_and_appended_canonical_cases(case_id: int) -> None:
-    """Both packages accept coherent fallback 0 and canonical Cases 14-17."""
+@pytest.mark.parametrize("case_id", range(18))
+def test_schema_v3_validators_accept_all_builtin_integer_case_ids(case_id: int) -> None:
+    """Both packages accept coherent built-in integer IDs from 0 through 17."""
 
     from rg_tracer.schema_v3.validators import validate_case_v3 as validate_rg_case_v3
 
@@ -71,6 +71,58 @@ def test_schema_v3_validators_accept_fallback_and_appended_canonical_cases(case_
 
     validate_case_v3(result)
     validate_rg_case_v3(result)
+
+
+class _CaseIdIntSubclass(int):
+    """Adversarial integer subtype for the exact built-in ID contract."""
+
+
+@pytest.mark.parametrize(
+    ("case_id", "compact_label"),
+    [
+        (True, "CaseTrue-O0"),
+        (False, "CaseFalse-O0"),
+        (1.0, "Case1.0-O0"),
+        (0.0, "Case0.0-O0"),
+        (_CaseIdIntSubclass(1), "Case1-O0"),
+    ],
+)
+def test_schema_v3_validators_reject_non_builtin_integer_case_ids(
+    case_id: Any,
+    compact_label: str,
+) -> None:
+    """Aliases cannot exploit dictionary equality or stringified compact labels."""
+
+    from rg_tracer.schema_v3 import CASE_NAMES as rg_case_names
+    from rg_tracer.schema_v3 import classify_case_v3 as classify_rg_case_v3
+    from rg_tracer.schema_v3.validators import validate_case_v3 as validate_rg_case_v3
+
+    aliased_id = int(case_id)
+    main_result = replace(
+        _classify(),
+        case_id=case_id,
+        base_case_name=CASE_NAMES[aliased_id],
+        compact_label=compact_label,
+    )
+    rg_result = replace(
+        classify_rg_case_v3(
+            output_text="Paris",
+            expected_answer="Paris",
+            is_idk=False,
+            confidence=0.9,
+            thought_aligned=True,
+        ),
+        case_id=case_id,
+        base_case_name=rg_case_names[aliased_id],
+        compact_label=compact_label,
+    )
+
+    for validator, result in (
+        (validate_case_v3, main_result),
+        (validate_rg_case_v3, rg_result),
+    ):
+        with pytest.raises(ValueError, match="exact built-in int"):
+            validator(result)
 
 
 def test_schema_v3_validators_reject_case_18() -> None:
