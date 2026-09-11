@@ -8,6 +8,7 @@ from typing import Any
 
 _EXPORT_TO_MODULE: dict[str, str] = {
     "ALL_SIGNATURES": ".signatures",
+    "CandidateOutcome": ".representation",
     "DEFAULT_CONFIG": ".config",
     "EvaluationSummary": ".evaluators",
     "KVCacheFeatureSnapshot": ".kv_context_safety",
@@ -33,7 +34,11 @@ _EXPORT_TO_MODULE: dict[str, str] = {
     "SemanticIntentPipeline": ".modules",
     "SemanticPipelineResult": ".modules",
     "SemanticRobustnessEvaluator": ".evaluators",
+    "RepresentationCandidate": ".representation",
+    "RepresentationChannel": ".representation",
+    "RepresentationLattice": ".representation",
     "SemanticSafetyRecord": ".schemas",
+    "SourceSpan": ".representation",
     "aggregate_multi_turn_risk": ".consistency",
     "batch_format_expectations": ".losses",
     "build_example_dataset": ".dataset_builder",
