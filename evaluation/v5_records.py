@@ -269,14 +269,14 @@ class V5EvaluationRecord:
     def __post_init__(self) -> None:
         """Reject objects that do not use the dedicated immutable sections."""
 
-        _require_instance(self.case, CaseIdentity, "case")
-        _require_instance(self.robustness, RobustnessIdentity, "robustness")
-        _require_instance(self.system, SystemIdentity, "system")
-        _require_instance(self.epistemics, EpistemicRecord, "epistemics")
-        _require_instance(self.behavior, BehaviorRecord, "behavior")
-        _require_instance(self.outcome, OutcomeRecord, "outcome")
-        _require_instance(self.scores, ScoreRecord, "scores")
-        _require_instance(self.diagnostics, DiagnosticRecord, "diagnostics")
+        _require_exact_instance(self.case, CaseIdentity, "case")
+        _require_exact_instance(self.robustness, RobustnessIdentity, "robustness")
+        _require_exact_instance(self.system, SystemIdentity, "system")
+        _require_exact_instance(self.epistemics, EpistemicRecord, "epistemics")
+        _require_exact_instance(self.behavior, BehaviorRecord, "behavior")
+        _require_exact_instance(self.outcome, OutcomeRecord, "outcome")
+        _require_exact_instance(self.scores, ScoreRecord, "scores")
+        _require_exact_instance(self.diagnostics, DiagnosticRecord, "diagnostics")
 
     def to_dict(self) -> dict[str, object]:
         """Return fresh, deterministic JSON-compatible containers for this record."""
@@ -403,7 +403,13 @@ class V5EvaluationRecord:
     def optimizer_scores(self) -> dict[str, object]:
         """Return only optimizer-facing score components, never diagnostic signals."""
 
-        return self.scores.to_dict()
+        return {
+            "correctness": self.scores.correctness,
+            "calibration": self.scores.calibration,
+            "abstention": self.scores.abstention,
+            "epistemic_process": self.scores.epistemic_process,
+            "total": self.scores.total,
+        }
 
 
 def _canonical_case(case_id: int) -> Any:
@@ -495,9 +501,9 @@ def _require_exact_fields(
     raise ValueError(f"{field_name} has invalid fields; " + "; ".join(details))
 
 
-def _require_instance(value: object, record_type: type[object], field_name: str) -> None:
-    if not isinstance(value, record_type):
-        raise ValueError(f"{field_name} must be a {record_type.__name__}")
+def _require_exact_instance(value: object, record_type: type[object], field_name: str) -> None:
+    if type(value) is not record_type:
+        raise ValueError(f"{field_name} must be an exact {record_type.__name__}")
 
 
 __all__ = [
