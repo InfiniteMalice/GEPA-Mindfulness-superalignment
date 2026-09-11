@@ -55,6 +55,36 @@ def test_conservative_views_remove_only_known_zero_width_artifacts() -> None:
     assert normalized.provenance == ("zero-width-removal:U+200B=1,U+FEFF=1",)
 
 
+@pytest.mark.parametrize(
+    ("text", "repaired"),
+    [
+        ("thera\u200bpist", "therapist"),
+        ("do\u200bnot", "donot"),
+        ("张\u200b伟", "张伟"),
+    ],
+)
+def test_zero_width_space_removal_remains_a_bounded_hypothesis(
+    text: str,
+    repaired: str,
+) -> None:
+    literal, hypothesis = conservative_views("source-1", text)
+
+    assert literal.candidate_text == text
+    assert literal.confidence == 1.0
+    assert hypothesis.candidate_text == repaired
+    assert hypothesis.confidence < 0.70
+    assert hypothesis.semantic_similarity < 1.0
+    assert "hypothesis" in hypothesis.generation_reason.lower()
+
+
+def test_bom_removal_can_remain_a_deterministic_transport_view() -> None:
+    literal, normalized = conservative_views("source-1", "\ufeffpayload")
+
+    assert literal.confidence == 1.0
+    assert normalized.candidate_text == "payload"
+    assert normalized.confidence == 1.0
+
+
 def test_conservative_views_normalize_crlf_and_bare_cr_with_exact_counts() -> None:
     text = "first\r\nsecond\rthird\nfourth"
 

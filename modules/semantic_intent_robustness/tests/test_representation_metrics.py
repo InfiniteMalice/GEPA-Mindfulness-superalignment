@@ -19,8 +19,10 @@ from semantic_intent_robustness.representation import (
     RepresentationLattice,
     SourceSpan,
     candidate_id_for,
+    source_digest_for,
 )
 from semantic_intent_robustness.representation_metrics import (
+    ExpectedCandidateIdentity,
     RepresentationEvaluationCase,
     RepresentationEvaluationResult,
     RepresentationMetricSummary,
@@ -128,38 +130,66 @@ def _result(
     )
 
 
+def _case(
+    case_id: str,
+    source: str,
+    expected_candidate_texts: tuple[str, ...],
+    *,
+    clean_input: bool,
+    abstention_expected: bool,
+    laundering_expected: bool,
+    expected_policy_action: PolicyAction,
+) -> RepresentationEvaluationCase:
+    return RepresentationEvaluationCase(
+        case_id=case_id,
+        expected_source_id="metric-source",
+        expected_source_digest=source_digest_for("metric-source", source),
+        expected_candidates=tuple(
+            ExpectedCandidateIdentity(0, len(source), text) for text in expected_candidate_texts
+        ),
+        clean_input=clean_input,
+        abstention_expected=abstention_expected,
+        laundering_expected=laundering_expected,
+        expected_policy_action=expected_policy_action,
+    )
+
+
 @pytest.fixture
 def metric_fixture() -> tuple[
     tuple[RepresentationEvaluationCase, ...],
     tuple[RepresentationEvaluationResult, ...],
 ]:
     cases = (
-        RepresentationEvaluationCase(
-            case_id="repair-found",
+        _case(
+            "repair-found",
+            "bone apple tea",
             expected_candidate_texts=("bon appétit",),
             clean_input=False,
             abstention_expected=False,
             laundering_expected=False,
             expected_policy_action=PolicyAction.ALLOW,
         ),
-        RepresentationEvaluationCase(
-            case_id="repair-missed",
+        _case(
+            "repair-missed",
+            "permit",
             expected_candidate_texts=("permission",),
             clean_input=False,
             abstention_expected=True,
             laundering_expected=True,
             expected_policy_action=PolicyAction.ABSTAIN,
         ),
-        RepresentationEvaluationCase(
-            case_id="clean-regressed",
+        _case(
+            "clean-regressed",
+            "therapist",
             expected_candidate_texts=(),
             clean_input=True,
             abstention_expected=False,
             laundering_expected=False,
             expected_policy_action=PolicyAction.ALLOW,
         ),
-        RepresentationEvaluationCase(
-            case_id="clean-stable",
+        _case(
+            "clean-stable",
+            "the rapist",
             expected_candidate_texts=(),
             clean_input=True,
             abstention_expected=False,
@@ -312,8 +342,9 @@ def test_elapsed_time_ends_after_metric_values_and_counts_are_aggregated(
 
 def test_metrics_define_neutral_zero_denominator_behavior() -> None:
     cases = (
-        RepresentationEvaluationCase(
-            case_id="only",
+        _case(
+            "only",
+            "literal",
             expected_candidate_texts=(),
             clean_input=False,
             abstention_expected=False,
@@ -332,8 +363,9 @@ def test_metrics_define_neutral_zero_denominator_behavior() -> None:
 
 
 def test_metric_contracts_are_frozen_and_reject_non_exact_values() -> None:
-    case = RepresentationEvaluationCase(
-        case_id="case",
+    case = _case(
+        "case",
+        "source",
         expected_candidate_texts=("candidate",),
         clean_input=False,
         abstention_expected=False,
@@ -343,8 +375,9 @@ def test_metric_contracts_are_frozen_and_reject_non_exact_values() -> None:
     with pytest.raises(FrozenInstanceError):
         case.case_id = "changed"  # type: ignore[misc]
     with pytest.raises(TypeError, match="exact bool"):
-        RepresentationEvaluationCase(
-            case_id="case",
+        _case(
+            "case",
+            "source",
             expected_candidate_texts=(),
             clean_input=1,  # type: ignore[arg-type]
             abstention_expected=False,
@@ -374,8 +407,9 @@ def test_metric_contracts_are_frozen_and_reject_non_exact_values() -> None:
 
 def test_case_and_result_sets_must_match_exactly() -> None:
     cases = (
-        RepresentationEvaluationCase(
-            case_id="expected",
+        _case(
+            "expected",
+            "literal",
             expected_candidate_texts=(),
             clean_input=True,
             abstention_expected=False,
@@ -466,8 +500,9 @@ def test_result_rejects_semantic_duplicates_with_different_full_candidate_ids() 
 
 
 def test_recall_counts_only_derived_hypotheses_and_literal_does_not_consume_k() -> None:
-    case = RepresentationEvaluationCase(
-        case_id="derived-only",
+    case = _case(
+        "derived-only",
+        "literal source",
         expected_candidate_texts=("target", "literal source"),
         clean_input=False,
         abstention_expected=False,
@@ -488,8 +523,9 @@ def test_recall_counts_only_derived_hypotheses_and_literal_does_not_consume_k() 
         == 1.0
     )
 
-    literal_only_case = RepresentationEvaluationCase(
-        case_id="literal-not-repair",
+    literal_only_case = _case(
+        "literal-not-repair",
+        "literal",
         expected_candidate_texts=("literal",),
         clean_input=False,
         abstention_expected=False,
@@ -506,8 +542,9 @@ def _single_candidate_recall(
     expected_text: str,
 ) -> tuple[float, float]:
     candidate_id = candidate_id_for(candidate)
-    case = RepresentationEvaluationCase(
-        case_id="single-recall",
+    case = _case(
+        "single-recall",
+        candidate.source_span.raw_text,
         expected_candidate_texts=(expected_text,),
         clean_input=False,
         abstention_expected=False,

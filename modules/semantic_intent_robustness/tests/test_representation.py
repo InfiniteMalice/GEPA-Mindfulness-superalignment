@@ -321,3 +321,26 @@ def test_lattice_order_is_independent_of_candidate_input_order() -> None:
     )
 
     assert forward.candidates == reversed_order.candidates == (lexical_first, lexical_last)
+
+
+@pytest.mark.parametrize(
+    ("field_name", "corrupted"),
+    [
+        ("orthographic_score", math.nan),
+        ("provenance", ["caller-owned"]),
+    ],
+)
+def test_lattice_revalidates_corrupted_candidate_fields(
+    field_name: str,
+    corrupted: object,
+) -> None:
+    candidate = _candidate()
+    object.__setattr__(candidate, field_name, corrupted)
+
+    with pytest.raises((TypeError, ValueError)):
+        RepresentationLattice(
+            source_id="source-1",
+            raw_text="Hello wrold!",
+            candidates=(candidate,),
+            max_candidates=1,
+        )

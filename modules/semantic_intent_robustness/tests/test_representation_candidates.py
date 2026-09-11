@@ -1,6 +1,7 @@
 """Tests for bounded, provenance-preserving representation candidates."""
 
 # Standard library
+from collections.abc import Iterator, Mapping
 from dataclasses import FrozenInstanceError
 from itertools import islice, product
 from math import inf, nan
@@ -581,3 +582,119 @@ def test_budget_fields_cannot_be_noncanonical_numeric_values(value: float) -> No
 def test_pathologically_long_input_is_rejected_before_candidate_work() -> None:
     with pytest.raises(ValueError, match="too long"):
         build_candidate_lattice("source-1", "a" * 100_001)
+
+
+def test_content_changing_conservative_view_prevents_no_repair_claim() -> None:
+    lattice = build_candidate_lattice(
+        "source-1",
+        "Cafe\u0301",
+        budget=CandidateBudget(1, 1, 1),
+    )
+
+    assert lattice.candidates[0].transform_channel is RepresentationChannel.LITERAL
+    assert lattice.candidates[0].outcome is CandidateOutcome.CANDIDATE
+
+
+def test_zero_width_hypothesis_below_evidence_floor_does_not_block_no_repair() -> None:
+    lattice = build_candidate_lattice("source-1", "thera\u200bpist")
+
+    assert lattice.candidates[0].candidate_text == "thera\u200bpist"
+    assert lattice.candidates[0].outcome is CandidateOutcome.NO_REPAIR
+    hypothesis = next(item for item in lattice.candidates if item.candidate_text == "therapist")
+    assert hypothesis.confidence < 0.70
+
+
+class _BoundedHostileMapping(Mapping[str, tuple[str, ...]]):
+    def __init__(self) -> None:
+        self.yield_count = 0
+
+    def __getitem__(self, key: str) -> tuple[str, ...]:
+        raise KeyError(key)
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(())
+
+    def __len__(self) -> int:
+        return 0
+
+    def items(self) -> Iterator[tuple[str, tuple[str, ...]]]:
+        for index in range(10_002):
+            self.yield_count += 1
+            if self.yield_count > 10_001:
+                raise AssertionError("mapping snapshot consumed beyond cap + 1")
+            yield f"key-{index}", ("repair",)
+
+
+def test_phonetic_mapping_snapshot_never_consumes_beyond_cap_plus_one() -> None:
+    mapping = _BoundedHostileMapping()
+
+    with pytest.raises(ValueError, match="global phonetic alternative cap"):
+        build_candidate_lattice("source-1", "word", phonetic_lexicon=mapping)
+
+    assert mapping.yield_count == 4_097
+
+
+def test_orthographic_budget_considers_a_tail_span_fairly() -> None:
+    raw_text = " ".join((*(["alpha"] * 180), "teh"))
+
+    lattice = build_candidate_lattice(
+        "source-1",
+        raw_text,
+        orthographic_lexicon=("the",),
+        budget=CandidateBudget(8, 4, 2),
+    )
+
+    repaired = next(item for item in lattice.candidates if item.candidate_text == "the")
+    assert repaired.source_span.start == raw_text.rindex("teh")
+
+
+def test_builder_revalidates_a_corrupted_budget_before_candidate_work() -> None:
+    budget = CandidateBudget()
+    object.__setattr__(budget, "max_candidates_total", 0)
+
+    with pytest.raises(ValueError, match="max_candidates_total must be positive"):
+        build_candidate_lattice("source-1", "teh", budget=budget)
+
+
+def test_semantic_hinge_neighborhood_receives_orthographic_compute() -> None:
+    tokens = ["alpha"] * 1_000
+    tokens[500:502] = ["send", "teh"]
+    raw_text = " ".join(tokens)
+
+    lattice = build_candidate_lattice(
+        "source-1",
+        raw_text,
+        orthographic_lexicon=("the",),
+        budget=CandidateBudget(8, 4, 2),
+    )
+
+    repaired = next(item for item in lattice.candidates if item.candidate_text == "the")
+    assert repaired.source_span.start == raw_text.index("teh")
+
+
+@pytest.mark.parametrize(
+    ("raw_text", "orthographic", "phonetic"),
+    [
+        ("Syzygy", ("sizing", "fizzy"), {"sissy gee": ("syzygy",)}),
+        ("The therapist arrived.", ("the rapist", "therapists"), {}),
+        ("The rapist was arrested.", ("therapist", "rapid"), {}),
+        ("Ask Alice today.", ("Alicia", "Alise"), {}),
+        ("thera\u200bpist", ("therapist", "the rapist"), {}),
+    ],
+)
+def test_clean_controls_keep_literal_authoritative_with_competing_lexicons(
+    raw_text: str,
+    orthographic: tuple[str, ...],
+    phonetic: Mapping[str, tuple[str, ...]],
+) -> None:
+    lattice = build_candidate_lattice(
+        "source-1",
+        raw_text,
+        orthographic_lexicon=orthographic,
+        phonetic_lexicon=phonetic,
+    )
+
+    assert lattice.raw_text == raw_text
+    assert lattice.candidates[0].transform_channel is RepresentationChannel.LITERAL
+    assert lattice.candidates[0].candidate_text == raw_text
+    assert all(item.confidence <= 1.0 for item in lattice.candidates[1:])

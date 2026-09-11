@@ -110,7 +110,9 @@ class RepresentationLattice:
         if len(self.candidates) > self.max_candidates:
             raise ValueError("candidate count exceeds max_candidates")
 
-        for candidate in self.candidates:
+        candidates = tuple(validated_candidate_snapshot(candidate) for candidate in self.candidates)
+        object.__setattr__(self, "candidates", candidates)
+        for candidate in candidates:
             span = candidate.source_span
             if span.source_id != self.source_id:
                 raise ValueError("candidate source_id must match lattice source_id")
@@ -119,7 +121,7 @@ class RepresentationLattice:
             if self.raw_text[span.start : span.end] != span.raw_text:
                 raise ValueError("candidate source span must equal the exact raw_text slice")
 
-        ordered = tuple(sorted(self.candidates, key=_candidate_sort_key))
+        ordered = tuple(sorted(candidates, key=_candidate_sort_key))
         object.__setattr__(self, "candidates", ordered)
 
 

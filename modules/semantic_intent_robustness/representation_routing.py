@@ -36,6 +36,10 @@ _TERM_GROUPS: tuple[tuple[str, ...], ...] = (
         "send",
         "transfer",
         "write",
+        "ask",
+        "call",
+        "review",
+        "tell",
     ),
     (
         "account",
@@ -91,6 +95,18 @@ _TERM_GROUPS: tuple[tuple[str, ...], ...] = (
         "unless",
         "until",
         "within",
+        "step",
+    ),
+    (
+        "he",
+        "her",
+        "him",
+        "it",
+        "she",
+        "that",
+        "them",
+        "they",
+        "this",
     ),
 )
 _TERM_PATTERN = re.compile(
@@ -384,7 +400,15 @@ def _unicode_name_spans(text: str) -> list[tuple[int, int]]:
                 continue
             break
         token = text[start:index]
-        if token[0].isupper() and any(character.islower() for character in token):
+        cased_letters = tuple(character for character in token if character.isalpha())
+        is_cased_name = token[0].isupper() and (
+            any(character.islower() for character in token)
+            or (len(cased_letters) >= 2 and all(character.isupper() for character in cased_letters))
+        )
+        is_caseless_name = len(cased_letters) >= 2 and all(
+            not character.islower() and not character.isupper() for character in cased_letters
+        )
+        if is_cased_name or is_caseless_name:
             spans.append((start, index))
     return spans
 

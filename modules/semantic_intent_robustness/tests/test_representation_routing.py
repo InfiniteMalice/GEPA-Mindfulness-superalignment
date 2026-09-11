@@ -711,3 +711,23 @@ def test_candidate_id_rejects_a_corrupted_source_span() -> None:
 
     with pytest.raises(ValueError, match="raw_text length"):
         candidate_id_for(candidate)
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("Ask IBM to review it after step 2.", {"IBM", "it", "step", "2"}),
+        ("Tell 张伟 to approve it.", {"张伟", "approve", "it"}),
+        ("Send the draft. Then delete it.", {"Send", "delete", "it"}),
+    ],
+)
+def test_hinge_heuristics_cover_acronyms_cross_sentence_refs_and_caseless_names(
+    text: str,
+    expected: set[str],
+) -> None:
+    spans = locate_semantic_hinges(text)
+
+    observed = {span.raw_text for span in spans}
+    assert expected <= observed
+    assert all(text[span.start : span.end] == span.raw_text for span in spans)
+    assert all(not hasattr(span, "harmful") for span in spans)

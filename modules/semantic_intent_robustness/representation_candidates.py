@@ -7,6 +7,7 @@ import re
 import unicodedata
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, replace
+from math import isqrt
 
 # Local
 from .representation import (
@@ -103,6 +104,13 @@ def build_candidate_lattice(
 
     _validate_source_id(source_id)
     _validate_raw_text(raw_text)
+    if type(budget) is not CandidateBudget:
+        raise TypeError("budget must be an exact CandidateBudget")
+    budget = CandidateBudget(
+        max_spans=budget.max_spans,
+        max_candidates_per_span=budget.max_candidates_per_span,
+        max_candidates_total=budget.max_candidates_total,
+    )
     context_snapshot = _snapshot_string_tuple(context, field_name="context")
     orthographic_snapshot = _snapshot_string_tuple(
         orthographic_lexicon,
@@ -110,9 +118,6 @@ def build_candidate_lattice(
         sort_and_deduplicate=True,
     )
     phonetic_snapshot = _snapshot_phonetic_lexicon(phonetic_lexicon)
-    if type(budget) is not CandidateBudget:
-        raise TypeError("budget must be an exact CandidateBudget")
-
     views = conservative_views(source_id, raw_text)
     generated, search_truncated = _generate_candidates(
         source_id,
@@ -125,7 +130,7 @@ def build_candidate_lattice(
     selected = _apply_budget(views, generated, budget)
     if search_truncated:
         selected = _mark_explicit_unknown(selected)
-    elif not generated:
+    elif not generated and not _has_qualifying_derived_view(views):
         selected = _mark_explicit_no_repair(selected)
 
     return RepresentationLattice(
@@ -159,9 +164,16 @@ def _generate_candidates(
         comparisons_remaining=(budget.max_candidates_total * _COMPARISONS_PER_OUTPUT_SLOT),
     )
     ranked_orthographic = _rank_orthographic_lexicon(raw_text, orthographic_lexicon)
-    for lexicon_text in ranked_orthographic:
-        if limiter.search_truncated:
-            break
+    comparison_limit = limiter.comparisons_remaining
+    active_count = min(len(ranked_orthographic), max(1, isqrt(comparison_limit)))
+    active_indices = _evenly_spaced_indices(len(ranked_orthographic), active_count)
+    active_lexicon = tuple(ranked_orthographic[index] for index in active_indices)
+    if len(active_lexicon) < len(ranked_orthographic):
+        limiter.search_truncated = True
+    hinge_spans = _semantic_hinge_coordinates(raw_text)
+    for lexicon_index, lexicon_text in enumerate(active_lexicon):
+        remaining_rows = len(active_lexicon) - lexicon_index
+        comparison_share = max(1, limiter.comparisons_remaining // remaining_rows)
         proposals.extend(
             _orthographic_candidates(
                 source_id,
@@ -170,6 +182,8 @@ def _generate_candidates(
                 lexicon_text,
                 context_words,
                 limiter,
+                hinge_spans,
+                comparison_share,
             )
         )
     deduplicated = _deduplicate_candidates(proposals)
@@ -184,6 +198,8 @@ def _orthographic_candidates(
     lexicon_text: str,
     context_words: frozenset[str],
     limiter: _GenerationLimiter,
+    hinge_spans: tuple[tuple[int, int], ...],
+    comparison_share: int,
 ) -> list[RepresentationCandidate]:
     lexicon_words = _tokenize(lexicon_text)
     if not lexicon_words or "".join(token.text for token in lexicon_words) != re.sub(
@@ -194,7 +210,16 @@ def _orthographic_candidates(
     word_count = len(lexicon_words)
     candidate_text = lexicon_text
     candidates: list[RepresentationCandidate] = []
-    for index in range(max(0, len(tokens) - word_count + 1)):
+    window_count = max(0, len(tokens) - word_count + 1)
+    window_indices = _prioritized_window_indices(
+        tokens,
+        word_count,
+        hinge_spans,
+        min(window_count, comparison_share),
+    )
+    if len(window_indices) < window_count:
+        limiter.search_truncated = True
+    for index in window_indices:
         if not limiter.claim_comparison():
             break
         window = tokens[index : index + word_count]
@@ -237,6 +262,58 @@ def _orthographic_candidates(
             )
         )
     return candidates
+
+
+def _semantic_hinge_coordinates(raw_text: str) -> tuple[tuple[int, int], ...]:
+    # Local import keeps the immutable record layer independent of routing policy.
+    from .representation_routing import locate_semantic_hinges
+
+    return tuple((span.start, span.end) for span in locate_semantic_hinges(raw_text))
+
+
+def _prioritized_window_indices(
+    tokens: tuple[_Token, ...],
+    word_count: int,
+    hinge_spans: tuple[tuple[int, int], ...],
+    limit: int,
+) -> tuple[int, ...]:
+    window_count = max(0, len(tokens) - word_count + 1)
+    if not window_count or not limit:
+        return ()
+    hinge_ranked: list[tuple[int, int]] = []
+    for index in range(window_count):
+        start = tokens[index].start
+        end = tokens[index + word_count - 1].end
+        distances = (
+            (
+                0
+                if start < hinge_end and hinge_start < end
+                else min(abs(start - hinge_end), abs(end - hinge_start))
+            )
+            for hinge_start, hinge_end in hinge_spans
+        )
+        distance = min(distances, default=len(tokens) + 1)
+        hinge_ranked.append((distance, index))
+    hinge_allowance = min(len(hinge_ranked), limit // 2) if hinge_spans else 0
+    chosen = [index for _, index in sorted(hinge_ranked)[:hinge_allowance]]
+    coverage = _evenly_spaced_indices(window_count, limit)
+    for index in coverage:
+        if index not in chosen:
+            chosen.append(index)
+        if len(chosen) >= limit:
+            break
+    return tuple(chosen)
+
+
+def _has_qualifying_derived_view(
+    views: tuple[RepresentationCandidate, ...],
+) -> bool:
+    return any(
+        view.transform_channel is not RepresentationChannel.LITERAL
+        and view.candidate_text != view.source_span.raw_text
+        and view.confidence >= _EVIDENCE_FLOOR
+        for view in views
+    )
 
 
 def _orthographic_span_is_eligible(observed: str, candidate: str, word_count: int) -> bool:
@@ -686,15 +763,15 @@ def _snapshot_phonetic_lexicon(
         return ()
     if not isinstance(value, Mapping):
         raise TypeError("phonetic_lexicon must be a mapping or None")
-    if len(value) > _MAX_LEXICON_ENTRIES:
-        raise ValueError("phonetic_lexicon has too many entries")
-    items = tuple(value.items())
-    if len(items) > _MAX_LEXICON_ENTRIES:
-        raise ValueError("phonetic_lexicon has too many entries")
     snapshot: list[tuple[str, tuple[str, ...]]] = []
     alternative_count = 0
     text_characters = 0
-    for observed, alternatives in items:
+    for index, item in enumerate(value.items()):
+        if index >= _MAX_LEXICON_ENTRIES:
+            raise ValueError("phonetic_lexicon has too many entries")
+        if type(item) is not tuple or len(item) != 2:
+            raise TypeError("phonetic_lexicon items must be exact key-value tuples")
+        observed, alternatives = item
         if type(alternatives) is not tuple:
             raise TypeError("phonetic alternatives must be an exact tuple")
         if alternative_count + len(alternatives) > _MAX_PHONETIC_ALTERNATIVES:

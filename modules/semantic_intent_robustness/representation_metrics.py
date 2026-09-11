@@ -15,6 +15,7 @@ from .representation import (
     RepresentationChannel,
     RepresentationLattice,
     candidate_id_for,
+    source_digest_for,
     validated_candidate_snapshot,
 )
 from .representation_routing import RepresentationDecision
@@ -24,15 +25,36 @@ _MAX_EVALUATION_CASES = 100_000
 
 
 @dataclass(frozen=True, slots=True)
+class ExpectedCandidateIdentity:
+    """Independent expected repair text at one exact source span."""
+
+    start: int
+    end: int
+    candidate_text: str
+
+    def __post_init__(self) -> None:
+        if type(self.start) is not int or type(self.end) is not int:
+            raise TypeError("expected candidate offsets must be exact integers")
+        if self.start < 0 or self.end <= self.start:
+            raise ValueError("expected candidate span must satisfy 0 <= start < end")
+        if type(self.candidate_text) is not str:
+            raise TypeError("expected candidate text must be an exact string")
+        if not self.candidate_text:
+            raise ValueError("expected candidate text must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
 class RepresentationEvaluationCase:
     """Independent labels for one representation-robustness case.
 
-    ``expected_candidate_texts`` is evaluator-supplied ground truth. Generated
+    ``expected_candidates`` is evaluator-supplied ground truth. Generated
     candidates are observations and never create or modify these labels.
     """
 
     case_id: str
-    expected_candidate_texts: tuple[str, ...]
+    expected_source_id: str
+    expected_source_digest: str
+    expected_candidates: tuple[ExpectedCandidateIdentity, ...]
     clean_input: bool
     abstention_expected: bool
     laundering_expected: bool
@@ -40,15 +62,21 @@ class RepresentationEvaluationCase:
 
     def __post_init__(self) -> None:
         _validate_identifier(self.case_id, field_name="case_id")
-        if type(self.expected_candidate_texts) is not tuple:
-            raise TypeError("expected_candidate_texts must be an exact tuple")
-        if len(set(self.expected_candidate_texts)) != len(self.expected_candidate_texts):
-            raise ValueError("expected_candidate_texts must be unique")
-        for item in self.expected_candidate_texts:
-            if type(item) is not str:
-                raise TypeError("expected_candidate_texts must contain exact strings")
-            if not item:
-                raise ValueError("expected_candidate_texts must not contain empty strings")
+        _validate_identifier(self.expected_source_id, field_name="expected_source_id")
+        _validate_source_digest(self.expected_source_digest)
+        if type(self.expected_candidates) is not tuple:
+            raise TypeError("expected_candidates must be an exact tuple")
+        if any(type(item) is not ExpectedCandidateIdentity for item in self.expected_candidates):
+            raise TypeError(
+                "expected_candidates must contain exact ExpectedCandidateIdentity values"
+            )
+        expected = tuple(
+            ExpectedCandidateIdentity(item.start, item.end, item.candidate_text)
+            for item in self.expected_candidates
+        )
+        if len(set(expected)) != len(expected):
+            raise ValueError("expected_candidates must be unique")
+        object.__setattr__(self, "expected_candidates", expected)
         for field_name in (
             "clean_input",
             "abstention_expected",
@@ -57,7 +85,7 @@ class RepresentationEvaluationCase:
             _validate_bool(getattr(self, field_name), field_name=field_name)
         if type(self.expected_policy_action) is not PolicyAction:
             raise TypeError("expected_policy_action must be a PolicyAction")
-        if self.clean_input and self.expected_candidate_texts:
+        if self.clean_input and self.expected_candidates:
             raise ValueError("clean inputs must not declare expected repair candidates")
 
 
@@ -274,11 +302,11 @@ def candidate_recall_at_k(
 
     _validate_k(k)
     rows = _paired_snapshots(cases, results)
-    eligible = [row for row in rows if row[0].expected_candidate_texts]
+    eligible = [row for row in rows if row[0].expected_candidates]
     if not eligible:
         return 1.0
     hits = sum(
-        bool(set(case.expected_candidate_texts) & set(_repair_candidate_texts(result, k=k)))
+        bool(set(case.expected_candidates) & set(_repair_candidate_identities(result, k=k)))
         for case, result in eligible
     )
     return hits / len(eligible)
@@ -379,7 +407,7 @@ def evaluate_representation_cases(
         raise ValueError("representation evaluation requires at least one case")
 
     case_count = len(rows)
-    recall_eligible = [row for row in rows if row[0].expected_candidate_texts]
+    recall_eligible = [row for row in rows if row[0].expected_candidates]
     clean = [row for row in rows if row[0].clean_input]
     abstained = [row for row in rows if row[1].abstained]
     abstention_expected = [row for row in rows if row[0].abstention_expected]
@@ -390,7 +418,7 @@ def evaluate_representation_cases(
     abstention_expected_count = len(abstention_expected)
     laundering_case_count = len(laundering)
     recall_hits = sum(
-        bool(set(case.expected_candidate_texts) & set(_repair_candidate_texts(result, k=k)))
+        bool(set(case.expected_candidates) & set(_repair_candidate_identities(result, k=k)))
         for case, result in recall_eligible
     )
     candidate_recall = (
@@ -462,16 +490,23 @@ def _paired_snapshots(
     case_ids = {item.case_id for item in case_snapshot}
     if case_ids != set(result_by_id):
         raise ValueError("representation evaluation case IDs must match result case IDs exactly")
-    return tuple((case, result_by_id[case.case_id]) for case in case_snapshot)
+    rows = tuple((case, result_by_id[case.case_id]) for case in case_snapshot)
+    for case, result in rows:
+        _validate_case_source_binding(case, result)
+    return rows
 
 
-def _repair_candidate_texts(
+def _repair_candidate_identities(
     result: RepresentationEvaluationResult,
     *,
     k: int,
-) -> tuple[str, ...]:
+) -> tuple[ExpectedCandidateIdentity, ...]:
     return tuple(
-        candidate.candidate_text
+        ExpectedCandidateIdentity(
+            candidate.source_span.start,
+            candidate.source_span.end,
+            candidate.candidate_text,
+        )
         for candidate in result.lattice.candidates
         if _repair_candidate_ineligibility(candidate) is None
     )[:k]
@@ -501,7 +536,9 @@ def _snapshot_cases(
         snapshot.append(
             RepresentationEvaluationCase(
                 case_id=case.case_id,
-                expected_candidate_texts=case.expected_candidate_texts,
+                expected_source_id=case.expected_source_id,
+                expected_source_digest=case.expected_source_digest,
+                expected_candidates=case.expected_candidates,
                 clean_input=case.clean_input,
                 abstention_expected=case.abstention_expected,
                 laundering_expected=case.laundering_expected,
@@ -543,6 +580,20 @@ def _snapshot_lattice(lattice: RepresentationLattice) -> RepresentationLattice:
     )
 
 
+def _validate_case_source_binding(
+    case: RepresentationEvaluationCase,
+    result: RepresentationEvaluationResult,
+) -> None:
+    lattice = result.lattice
+    if lattice.source_id != case.expected_source_id:
+        raise ValueError("result lattice does not match the expected source identity")
+    if source_digest_for(lattice.source_id, lattice.raw_text) != case.expected_source_digest:
+        raise ValueError("result lattice does not match the expected source digest")
+    for expected in case.expected_candidates:
+        if expected.end > len(lattice.raw_text):
+            raise ValueError("expected candidate span exceeds the bound source document")
+
+
 def _snapshot_laundering_assessment(
     assessment: SemanticLaunderingAssessment,
 ) -> SemanticLaunderingAssessment:
@@ -577,6 +628,19 @@ def _validate_bool(value: object, *, field_name: str) -> None:
         raise TypeError(f"{field_name} must be an exact bool")
 
 
+def _validate_source_digest(value: object) -> None:
+    prefix = "representation-source-v1:"
+    if type(value) is not str:
+        raise TypeError("expected_source_digest must be an exact string")
+    suffix = value.removeprefix(prefix)
+    if (
+        not value.startswith(prefix)
+        or len(suffix) != 64
+        or any(character not in "0123456789abcdef" for character in suffix)
+    ):
+        raise ValueError("expected_source_digest must be a canonical representation source digest")
+
+
 def _validate_float(value: object, *, field_name: str, upper_bound: float | None) -> None:
     if type(value) is not float:
         raise TypeError(f"{field_name} must be an exact float")
@@ -590,6 +654,7 @@ def _validate_float(value: object, *, field_name: str, upper_bound: float | None
 
 
 __all__ = [
+    "ExpectedCandidateIdentity",
     "RepresentationEvaluationCase",
     "RepresentationEvaluationResult",
     "RepresentationMetricSummary",

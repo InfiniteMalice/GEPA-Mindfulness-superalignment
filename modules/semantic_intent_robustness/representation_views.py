@@ -59,17 +59,25 @@ def conservative_views(
     if not provenance or not normalized:
         return (literal,)
 
+    zero_width_space_removed = any("U+200B=" in item for item in provenance)
+    evidence_score = 0.5 if zero_width_space_removed else 1.0
+    confidence = 0.69 if zero_width_space_removed else 1.0
+    reason = (
+        "Retain zero-width-space removal as a segmentation hypothesis."
+        if zero_width_space_removed
+        else "Apply deterministic conservative transport normalization."
+    )
     normalized_view = RepresentationCandidate(
         source_span=literal.source_span,
         candidate_text=normalized,
         transform_channel=RepresentationChannel.CONSERVATIVE_NORMALIZATION,
-        orthographic_score=1.0,
-        phonetic_score=1.0,
-        contextual_score=1.0,
-        semantic_similarity=1.0,
-        confidence=1.0,
+        orthographic_score=evidence_score,
+        phonetic_score=evidence_score,
+        contextual_score=evidence_score,
+        semantic_similarity=evidence_score,
+        confidence=confidence,
         provenance=tuple(provenance),
-        generation_reason="Apply deterministic conservative normalization.",
+        generation_reason=reason,
     )
     return (literal, normalized_view)
 

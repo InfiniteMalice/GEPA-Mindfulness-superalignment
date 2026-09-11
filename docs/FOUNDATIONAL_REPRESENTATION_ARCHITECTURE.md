@@ -51,16 +51,26 @@ source digests cover both source ID and complete source text. Downstream assessm
 enough information to reconstruct the exact assessed prompt from the source document and one bound
 span substitution.
 
-Conservative normalization removes only the two known artifacts U+200B and U+FEFF, then applies
-NFC and CRLF/CR-to-LF normalization where necessary. U+200C, U+200D, ordinary spaces, tabs,
+Conservative normalization can remove U+200B and U+FEFF before applying NFC and CRLF/CR-to-LF
+normalization. U+200B removal can change word or grapheme segmentation, so the implementation
+retains that view only as a below-floor hypothesis and never gives it maximal similarity or
+confidence. The literal stays highest. U+FEFF removal, NFC, and newline normalization remain
+deterministic transport views in the present contract. U+200C, U+200D, ordinary spaces, tabs,
 punctuation, numbers, and negation are preserved. Orthographic candidates use bounded character
 distance. Phonological candidates require an explicit injected lexicon. Context is only bounded
 token-overlap evidence; it is not an intent oracle.
 
-Search and output caps are epistemic boundaries. Exhaustive bounded search with no candidate above
-the evidence floor produces `NO_REPAIR`; truncated search produces `UNKNOWN`. Neither outcome says
-that no possible alternate representation exists. Candidate top-k is a ranked hypothesis set, not
-automatic text correction.
+Search and output caps are epistemic boundaries. Exhaustive bounded search with no generated
+candidate or content-changing conservative view above the evidence floor produces `NO_REPAIR`;
+truncated search produces `UNKNOWN`. A qualifying view suppressed by the output budget leaves the
+literal at neutral `CANDIDATE`. Neither outcome says that no possible alternate representation
+exists. Candidate top-k is a ranked hypothesis set, not automatic text correction.
+
+Semantic-hinge discovery is a bounded allocation heuristic, not universal entity or coreference
+recognition. It covers a fixed decision vocabulary, tested numeric forms, cased names and acronyms,
+pronoun and step references, and possible names in caseless scripts. The generator uses hinge
+neighborhoods to prioritize expensive orthographic comparisons while reserving deterministic
+evenly sampled span coverage.
 
 ## Possible foundational-model research
 
@@ -113,12 +123,16 @@ a user's intended meaning.
 
 For memory, [REF-EDGEMEM](recommendations/RESEARCH_TRACEABILITY.md#ref-edgemem) and
 [REF-GRAPHMEM](recommendations/RESEARCH_TRACEABILITY.md#ref-graphmem) motivate evidence-preserving
-and typed memory boundaries. The repository inference is limited: a stored derived representation
-must keep source and trust provenance and must not become authority merely through retrieval.
+and typed memory boundaries. The local helper validates declared representation provenance across
+candidate, source, transform, assessed-content, write, and retrieval fields. It cannot infer origin
+when a caller omits or deliberately mislabels the representation declaration. A stored derived
+representation must not become authority merely through retrieval.
 
 ## Evaluation boundary and limitations
 
-Candidate recall is measured only against independently authored expected candidate text. A
+Candidate recall is measured only against independently authored expected source identity,
+complete-source digest, and `(start, end, candidate_text)` identities. Equal candidate text at a
+different source span is not a recall hit. A
 meaning-changing candidate can have strong surface evidence and still be wrong. Clean controls,
 false-repair rate, abstention precision and coverage, disagreement rate, clean-policy regression,
 and laundering detection therefore accompany recall. The elapsed metric in the current evaluator
