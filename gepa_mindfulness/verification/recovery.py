@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import secrets
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -703,6 +704,7 @@ class RecoveryStateStore:
 
         if cls is not RecoveryStateStore:
             raise ValueError("enrollment requires the exact RecoveryStateStore type")
+        _require_recovery_process()
         with _RECOVERY_STORE_LOCK:
             entry = _snapshot_store_entry(
                 _RecoveryStoreEntry(
@@ -800,15 +802,28 @@ class RecoveryStateStore:
     def snapshot(self) -> RecoveryStateSnapshot:
         """Return a detached view of the current authoritative revision."""
 
+        _require_recovery_process()
         with _RECOVERY_STORE_LOCK:
             entry = _validated_store_entry(self)
             return _entry_snapshot(entry)
 
 
+_RECOVERY_PROCESS_ID = os.getpid()
 _RECOVERY_STORE_LOCK = RLock()
 _RECOVERY_STORE_STATE: WeakKeyDictionary[RecoveryStateStore, _RecoveryStoreEntry] = (
     WeakKeyDictionary()
 )
+
+
+def _reset_recovery_after_fork() -> None:
+    global _RECOVERY_PROCESS_ID, _RECOVERY_STORE_LOCK, _RECOVERY_STORE_STATE
+    _RECOVERY_PROCESS_ID = os.getpid()
+    _RECOVERY_STORE_LOCK = RLock()
+    _RECOVERY_STORE_STATE = WeakKeyDictionary()
+
+
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(after_in_child=_reset_recovery_after_fork)
 
 
 def _new_store_id() -> str:
@@ -1101,8 +1116,14 @@ def _require_current_revision(entry: _RecoveryStoreEntry, expected_revision: int
 
 
 def _require_exact_store(store: object) -> None:
+    _require_recovery_process()
     if type(store) is not RecoveryStateStore:
         raise ValueError("store must be an exact RecoveryStateStore")
+
+
+def _require_recovery_process() -> None:
+    if os.getpid() != _RECOVERY_PROCESS_ID:
+        raise ValueError("recovery store cannot be used after a process fork")
 
 
 def _validated_store_entry(store: RecoveryStateStore) -> _RecoveryStoreEntry:

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import secrets
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -56,7 +58,6 @@ class AuthorizationReason(str, Enum):
 
     AUTHORIZED = "authorized"
     NO_MATCHING_GRANT = "no_matching_grant"
-    DUPLICATE_GRANT_IDS = "duplicate_grant_ids"
     AMBIGUOUS_MATCHING_GRANTS = "ambiguous_matching_grants"
     GRANT_EXPIRED = "grant_expired"
     MISSING_VERIFIER_INDEPENDENCE_CONTEXT = "missing_verifier_independence_context"
@@ -64,6 +65,7 @@ class AuthorizationReason(str, Enum):
     VERIFIER_EXECUTED_ACTION = "verifier_executed_action"
     MISSING_IRREVERSIBLE_APPROVAL = "missing_human_irreversible_authorization"
     IRREVERSIBLE_APPROVAL_EXPIRED = "irreversible_approval_expired"
+    POLICY_CAPABILITY_MISMATCH = "policy_capability_mismatch"
 
 
 _ROLE_CAPABILITIES = {
@@ -207,6 +209,74 @@ class AuthorityGrant:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class ActionAuthorityPolicy:
+    """A runtime-owner-enrolled operation policy for one exact action record."""
+
+    policy_id: str
+    action_id: str
+    action_digest: str
+    authorization_scope: str
+    required_capability: RuntimeCapability
+
+    def __post_init__(self) -> None:
+        _require_nonblank_string(self.policy_id, "policy_id")
+        _require_scoped_string(self.action_id, "action_id")
+        _require_sha256(self.action_digest, "action_digest")
+        _require_scoped_string(self.authorization_scope, "authorization_scope")
+        if type(self.required_capability) is not RuntimeCapability:
+            raise ValueError("required_capability must be an exact RuntimeCapability")
+
+    def to_dict(self) -> dict[str, object]:
+        snapshot = _snapshot_policy(self)
+        return {
+            "policy_id": snapshot.policy_id,
+            "action_id": snapshot.action_id,
+            "action_digest": snapshot.action_digest,
+            "authorization_scope": snapshot.authorization_scope,
+            "required_capability": snapshot.required_capability.value,
+        }
+
+    @classmethod
+    def from_dict(cls, data: object) -> ActionAuthorityPolicy:
+        values = _require_exact_mapping(
+            data,
+            {
+                "policy_id",
+                "action_id",
+                "action_digest",
+                "authorization_scope",
+                "required_capability",
+            },
+            "ActionAuthorityPolicy",
+        )
+        return cls(
+            cast(str, values["policy_id"]),
+            cast(str, values["action_id"]),
+            cast(str, values["action_digest"]),
+            cast(str, values["authorization_scope"]),
+            _restore_capability(values["required_capability"], "ActionAuthorityPolicy"),
+        )
+
+
+@dataclass(slots=True)
+class _AuthorizationIssuance:
+    decision: AuthorizationDecision
+    decision_digest: str
+    grant_ids: tuple[str, ...]
+    consumed: bool = False
+
+
+@dataclass(slots=True)
+class _AuthorityRegistryEntry:
+    creator_pid: int
+    registry_id: str
+    revision: int
+    grants: tuple[AuthorityGrant, ...]
+    policies: tuple[ActionAuthorityPolicy, ...]
+    issuances: dict[str, _AuthorizationIssuance]
+
+
 class AuthorityGrantRegistry:
     """An authoritative local store of defensively enrolled grant snapshots.
 
@@ -231,18 +301,29 @@ class AuthorityGrantRegistry:
         raise AttributeError("AuthorityGrantRegistry is read-only")
 
     @classmethod
-    def enroll(cls, grants: Sequence[AuthorityGrant]) -> AuthorityGrantRegistry:
+    def enroll(
+        cls,
+        grants: Sequence[AuthorityGrant],
+        policies: Sequence[ActionAuthorityPolicy] = (),
+    ) -> AuthorityGrantRegistry:
         """Create an authoritative registry after the runtime owner authenticates issuers."""
 
         if cls is not AuthorityGrantRegistry:
             raise ValueError("enrollment requires the exact AuthorityGrantRegistry type")
         snapshots = _snapshot_grants(grants)
+        policy_snapshots = _snapshot_policies(policies)
         grant_ids = tuple(grant.grant_id for grant in snapshots)
         if len(set(grant_ids)) != len(grant_ids):
             raise ValueError("enrolled AuthorityGrant IDs must be unique")
+        policy_ids = tuple(policy.policy_id for policy in policy_snapshots)
+        if len(set(policy_ids)) != len(policy_ids):
+            raise ValueError("enrolled ActionAuthorityPolicy IDs must be unique")
         registry = object.__new__(AuthorityGrantRegistry)
+        _require_authority_process()
         with _AUTHORITY_REGISTRY_LOCK:
-            _AUTHORITY_REGISTRY_STATE[registry] = snapshots
+            _AUTHORITY_REGISTRY_STATE[registry] = _AuthorityRegistryEntry(
+                os.getpid(), secrets.token_hex(32), 0, snapshots, policy_snapshots, {}
+            )
         return registry
 
     def resolve(self, grant_ids: Sequence[str]) -> tuple[AuthorityGrant, ...]:
@@ -257,11 +338,23 @@ class AuthorityGrantRegistry:
         return tuple(_snapshot_grant(grants_by_id[grant_id]) for grant_id in requested_ids)
 
 
+_AUTHORITY_PROCESS_ID = os.getpid()
 _AUTHORITY_REGISTRY_LOCK = RLock()
 _AUTHORITY_REGISTRY_STATE: WeakKeyDictionary[
     AuthorityGrantRegistry,
-    tuple[AuthorityGrant, ...],
+    _AuthorityRegistryEntry,
 ] = WeakKeyDictionary()
+
+
+def _reset_authority_after_fork() -> None:
+    global _AUTHORITY_PROCESS_ID, _AUTHORITY_REGISTRY_LOCK, _AUTHORITY_REGISTRY_STATE
+    _AUTHORITY_PROCESS_ID = os.getpid()
+    _AUTHORITY_REGISTRY_LOCK = RLock()
+    _AUTHORITY_REGISTRY_STATE = WeakKeyDictionary()
+
+
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(after_in_child=_reset_authority_after_fork)
 
 
 @dataclass(frozen=True, slots=True)
@@ -273,6 +366,8 @@ class IrreversibleApprovalBinding:
     action_digest: str
     authorization_scope: str
     authorization_grant_id: str
+    policy_id: str
+    required_capability: RuntimeCapability
     evidence_refs: tuple[EvidenceReference, ...]
 
     def __post_init__(self) -> None:
@@ -283,6 +378,9 @@ class IrreversibleApprovalBinding:
         _require_sha256(self.action_digest, "action_digest")
         _require_scoped_string(self.authorization_scope, "authorization_scope")
         _require_nonblank_string(self.authorization_grant_id, "authorization_grant_id")
+        _require_nonblank_string(self.policy_id, "policy_id")
+        if type(self.required_capability) is not RuntimeCapability:
+            raise ValueError("required_capability must be an exact RuntimeCapability")
         references = _snapshot_evidence_refs(self.evidence_refs)
         if not references or not any(reference.is_observable for reference in references):
             raise ValueError("irreversible approval requires observable evidence")
@@ -298,6 +396,8 @@ class IrreversibleApprovalBinding:
             "action_digest": snapshot.action_digest,
             "authorization_scope": snapshot.authorization_scope,
             "authorization_grant_id": snapshot.authorization_grant_id,
+            "policy_id": snapshot.policy_id,
+            "required_capability": snapshot.required_capability.value,
             "evidence_refs": [reference.to_dict() for reference in snapshot.evidence_refs],
         }
 
@@ -313,6 +413,8 @@ class IrreversibleApprovalBinding:
                 "action_digest",
                 "authorization_scope",
                 "authorization_grant_id",
+                "policy_id",
+                "required_capability",
                 "evidence_refs",
             },
             "IrreversibleApprovalBinding",
@@ -323,6 +425,10 @@ class IrreversibleApprovalBinding:
             action_digest=cast(str, values["action_digest"]),
             authorization_scope=cast(str, values["authorization_scope"]),
             authorization_grant_id=cast(str, values["authorization_grant_id"]),
+            policy_id=cast(str, values["policy_id"]),
+            required_capability=_restore_capability(
+                values["required_capability"], "IrreversibleApprovalBinding"
+            ),
             evidence_refs=_restore_evidence_refs(values["evidence_refs"]),
         )
 
@@ -344,6 +450,10 @@ class AuthorizationDecision:
     reason: AuthorizationReason
     observed_at: str
     effective_expires_at: str | None
+    decision_id: str
+    registry_id: str
+    registry_revision: int
+    policy_id: str
 
     def __post_init__(self) -> None:
         """Validate the finding and detach its authorization evidence."""
@@ -365,6 +475,11 @@ class AuthorizationDecision:
         _require_rfc3339(self.observed_at, "observed_at")
         if self.effective_expires_at is not None:
             _require_rfc3339(self.effective_expires_at, "effective_expires_at")
+        _require_sha256(self.decision_id, "decision_id")
+        _require_sha256(self.registry_id, "registry_id")
+        if type(self.registry_revision) is not int or self.registry_revision < 0:
+            raise ValueError("registry_revision must be a nonnegative exact integer")
+        _require_nonblank_string(self.policy_id, "policy_id")
         references = _snapshot_evidence_refs(self.authorization_refs)
         object.__setattr__(self, "authorization_refs", references)
         approval = _snapshot_optional_approval(self.irreversible_approval)
@@ -382,10 +497,21 @@ class AuthorizationDecision:
             ):
                 raise ValueError("irreversible authorization requires observable evidence")
             if approval is not None:
-                if self.capability is not RuntimeCapability.EXECUTE:
-                    raise ValueError("only execution decisions can contain irreversible approval")
+                if self.capability not in {
+                    RuntimeCapability.WRITE,
+                    RuntimeCapability.EXECUTE,
+                }:
+                    raise ValueError("only write or execute decisions can contain approval")
                 if references != approval.evidence_refs:
                     raise ValueError("authorization_refs must match irreversible approval evidence")
+                if approval.policy_id != self.policy_id:
+                    raise ValueError(
+                        "irreversible approval policy_id must match decision policy_id"
+                    )
+                if approval.required_capability is not self.capability:
+                    raise ValueError(
+                        "irreversible approval capability must match decision capability"
+                    )
             elif references and self.capability is not RuntimeCapability.AUTHORIZE_IRREVERSIBLE:
                 raise ValueError("authorized decisions cannot carry unrelated authorization refs")
             if self.effective_expires_at is not None and not (
@@ -426,6 +552,10 @@ class AuthorizationDecision:
             "reason": snapshot.reason.value,
             "observed_at": snapshot.observed_at,
             "effective_expires_at": snapshot.effective_expires_at,
+            "decision_id": snapshot.decision_id,
+            "registry_id": snapshot.registry_id,
+            "registry_revision": snapshot.registry_revision,
+            "policy_id": snapshot.policy_id,
         }
 
     @classmethod
@@ -448,6 +578,10 @@ class AuthorizationDecision:
                 "reason",
                 "observed_at",
                 "effective_expires_at",
+                "decision_id",
+                "registry_id",
+                "registry_revision",
+                "policy_id",
             },
             "AuthorizationDecision",
         )
@@ -465,6 +599,10 @@ class AuthorizationDecision:
             reason=_restore_reason(values["reason"]),
             observed_at=cast(str, values["observed_at"]),
             effective_expires_at=cast(str | None, values["effective_expires_at"]),
+            decision_id=cast(str, values["decision_id"]),
+            registry_id=cast(str, values["registry_id"]),
+            registry_revision=cast(int, values["registry_revision"]),
+            policy_id=cast(str, values["policy_id"]),
         )
 
 
@@ -474,6 +612,7 @@ def authorize_action(
     principal_id: str,
     role: RuntimeRole,
     capability: RuntimeCapability,
+    policy_id: str,
     grant_registry: AuthorityGrantRegistry,
     grant_ids: Sequence[str],
     clock: TrustedClock,
@@ -493,12 +632,30 @@ def authorize_action(
         raise ValueError("role must be an exact RuntimeRole")
     if type(capability) is not RuntimeCapability:
         raise ValueError("capability must be an exact RuntimeCapability")
+    _require_nonblank_string(policy_id, "policy_id")
     _require_optional_identifier(action_author_id, "action_author_id")
     _require_optional_identifier(action_executor_id, "action_executor_id")
     observed = _read_trusted_time(clock)
     observed_at = _format_datetime(observed)
     approval = _snapshot_optional_approval(irreversible_approval)
-    snapshots = _resolve_registry_grants(grant_registry, grant_ids)
+    grant_ids_snapshot = _snapshot_grant_ids(grant_ids)
+    entry = _validated_registry_entry(grant_registry)
+    policy = _resolve_policy(entry, policy_id, action, action_digest)
+    if capability is not policy.required_capability:
+        denied = _deny(
+            action,
+            action_digest,
+            principal_id,
+            role,
+            capability,
+            AuthorizationReason.POLICY_CAPABILITY_MISMATCH,
+            observed_at,
+            registry_id=entry.registry_id,
+            registry_revision=entry.revision,
+            policy_id=policy.policy_id,
+        )
+        return _issue_authorization(grant_registry, grant_ids_snapshot, denied)
+    snapshots = _resolve_registry_grants(grant_registry, grant_ids_snapshot)
 
     candidates = _matching_grants(
         action,
@@ -509,36 +666,57 @@ def authorize_action(
         snapshots,
     )
     if not candidates:
-        return _deny(
-            action,
-            action_digest,
-            principal_id,
-            role,
-            capability,
-            AuthorizationReason.NO_MATCHING_GRANT,
-            observed_at,
+        return _issue_authorization(
+            grant_registry,
+            grant_ids_snapshot,
+            _deny(
+                action,
+                action_digest,
+                principal_id,
+                role,
+                capability,
+                AuthorizationReason.NO_MATCHING_GRANT,
+                observed_at,
+                registry_id=entry.registry_id,
+                registry_revision=entry.revision,
+                policy_id=policy.policy_id,
+            ),
         )
     current_candidates = _current_grants(candidates, observed)
     if not current_candidates:
-        return _deny(
-            action,
-            action_digest,
-            principal_id,
-            role,
-            capability,
-            AuthorizationReason.GRANT_EXPIRED,
-            observed_at,
-            _effective_expiry(candidates),
+        return _issue_authorization(
+            grant_registry,
+            grant_ids_snapshot,
+            _deny(
+                action,
+                action_digest,
+                principal_id,
+                role,
+                capability,
+                AuthorizationReason.GRANT_EXPIRED,
+                observed_at,
+                _effective_expiry(candidates),
+                registry_id=entry.registry_id,
+                registry_revision=entry.revision,
+                policy_id=policy.policy_id,
+            ),
         )
     if len(current_candidates) != 1:
-        return _deny(
-            action,
-            action_digest,
-            principal_id,
-            role,
-            capability,
-            AuthorizationReason.AMBIGUOUS_MATCHING_GRANTS,
-            observed_at,
+        return _issue_authorization(
+            grant_registry,
+            grant_ids_snapshot,
+            _deny(
+                action,
+                action_digest,
+                principal_id,
+                role,
+                capability,
+                AuthorizationReason.AMBIGUOUS_MATCHING_GRANTS,
+                observed_at,
+                registry_id=entry.registry_id,
+                registry_revision=entry.revision,
+                policy_id=policy.policy_id,
+            ),
         )
     grant = current_candidates[0]
 
@@ -549,14 +727,21 @@ def authorize_action(
         action_executor_id,
     )
     if independence_failure is not None:
-        return _deny(
-            action,
-            action_digest,
-            principal_id,
-            role,
-            capability,
-            independence_failure,
-            observed_at,
+        return _issue_authorization(
+            grant_registry,
+            grant_ids_snapshot,
+            _deny(
+                action,
+                action_digest,
+                principal_id,
+                role,
+                capability,
+                independence_failure,
+                observed_at,
+                registry_id=entry.registry_id,
+                registry_revision=entry.revision,
+                policy_id=policy.policy_id,
+            ),
         )
 
     authorization_refs: tuple[EvidenceReference, ...] = ()
@@ -564,41 +749,56 @@ def authorize_action(
     effective_expiry = grant.expires_at
     if capability is RuntimeCapability.AUTHORIZE_IRREVERSIBLE:
         authorization_refs = grant.evidence_refs
-    if capability is RuntimeCapability.EXECUTE and not action.reversible:
+    if capability in {RuntimeCapability.WRITE, RuntimeCapability.EXECUTE} and not action.reversible:
         human_grants = _matching_irreversible_grants(
             action,
             action_digest,
             approval,
+            policy,
             snapshots,
         )
         if not human_grants:
-            return _deny(
-                action,
-                action_digest,
-                principal_id,
-                role,
-                capability,
-                AuthorizationReason.MISSING_IRREVERSIBLE_APPROVAL,
-                observed_at,
+            return _issue_authorization(
+                grant_registry,
+                grant_ids_snapshot,
+                _deny(
+                    action,
+                    action_digest,
+                    principal_id,
+                    role,
+                    capability,
+                    AuthorizationReason.MISSING_IRREVERSIBLE_APPROVAL,
+                    observed_at,
+                    registry_id=entry.registry_id,
+                    registry_revision=entry.revision,
+                    policy_id=policy.policy_id,
+                ),
             )
         current_human_grants = _current_grants(human_grants, observed)
         if not current_human_grants:
-            return _deny(
-                action,
-                action_digest,
-                principal_id,
-                role,
-                capability,
-                AuthorizationReason.IRREVERSIBLE_APPROVAL_EXPIRED,
-                observed_at,
-                _minimum_expiry(effective_expiry, _effective_expiry(human_grants)),
+            return _issue_authorization(
+                grant_registry,
+                grant_ids_snapshot,
+                _deny(
+                    action,
+                    action_digest,
+                    principal_id,
+                    role,
+                    capability,
+                    AuthorizationReason.IRREVERSIBLE_APPROVAL_EXPIRED,
+                    observed_at,
+                    _minimum_expiry(effective_expiry, _effective_expiry(human_grants)),
+                    registry_id=entry.registry_id,
+                    registry_revision=entry.revision,
+                    policy_id=policy.policy_id,
+                ),
             )
         human_grant = current_human_grants[0]
         authorization_refs = cast(IrreversibleApprovalBinding, approval).evidence_refs
         approval_for_decision = approval
         effective_expiry = _minimum_expiry(effective_expiry, human_grant.expires_at)
 
-    return AuthorizationDecision(
+    decision = AuthorizationDecision(
         action_id=action.action_id,
         action_digest=action_digest,
         authorization_scope=action.authorization_scope,
@@ -612,7 +812,12 @@ def authorize_action(
         reason=AuthorizationReason.AUTHORIZED,
         observed_at=observed_at,
         effective_expires_at=_normalize_optional_timestamp(effective_expiry),
+        decision_id=secrets.token_hex(32),
+        registry_id=entry.registry_id,
+        registry_revision=entry.revision,
+        policy_id=policy.policy_id,
     )
+    return _issue_authorization(grant_registry, grant_ids_snapshot, decision)
 
 
 def consume_authorization(
@@ -624,36 +829,77 @@ def consume_authorization(
     action_author_id: str | None = None,
     action_executor_id: str | None = None,
 ) -> AuthorizationDecision:
-    """Return a fresh current decision or reject a stored decision that no longer authorizes."""
+    """Atomically consume one exact, issued authorization decision once."""
 
-    snapshot = _snapshot_decision(decision)
-    if not snapshot.authorized:
-        raise PermissionError("decision has no authority to consume")
-    grant_ids = [cast(str, snapshot.grant_id)]
-    if snapshot.irreversible_approval is not None:
-        grant_ids.append(snapshot.irreversible_approval.authorization_grant_id)
-    try:
-        current = authorize_action(
-            action,
-            principal_id=snapshot.principal_id,
-            role=snapshot.role,
-            capability=snapshot.capability,
-            grant_registry=grant_registry,
-            grant_ids=tuple(grant_ids),
-            clock=clock,
-            action_author_id=action_author_id,
-            action_executor_id=action_executor_id,
-            irreversible_approval=snapshot.irreversible_approval,
+    if type(decision) is not AuthorizationDecision:
+        raise PermissionError("authorization decision was not issued by this registry")
+    action_snapshot = _snapshot_action(action)
+    _require_optional_identifier(action_author_id, "action_author_id")
+    _require_optional_identifier(action_executor_id, "action_executor_id")
+    observed = _read_trusted_time(clock)
+    with _AUTHORITY_REGISTRY_LOCK:
+        entry = _validated_registry_entry(grant_registry)
+        if decision.registry_id != entry.registry_id:
+            raise PermissionError("authorization decision belongs to another registry")
+        issuance = entry.issuances.get(decision.decision_id)
+        if issuance is None or issuance.decision is not decision:
+            raise PermissionError("authorization decision was not issued by this registry")
+        if issuance.consumed:
+            raise PermissionError("authorization decision has already been consumed")
+        snapshot = _snapshot_decision(decision)
+        if _authorization_decision_digest(snapshot) != issuance.decision_digest:
+            raise PermissionError("issued authorization decision was mutated")
+        if not snapshot.authorized:
+            raise PermissionError("decision has no authority to consume")
+        action_digest = action_record_digest(action_snapshot)
+        if (
+            snapshot.action_id != action_snapshot.action_id
+            or snapshot.action_digest != action_digest
+            or snapshot.authorization_scope != action_snapshot.authorization_scope
+            or snapshot.registry_revision != entry.revision
+        ):
+            raise PermissionError("decision does not match current authoritative action")
+        policy = _resolve_policy(entry, snapshot.policy_id, action_snapshot, action_digest)
+        if policy.required_capability is not snapshot.capability:
+            raise PermissionError("decision does not match enrolled action policy")
+        grants = tuple(grant for grant in entry.grants if grant.grant_id in issuance.grant_ids)
+        matches = _matching_grants(
+            action_snapshot,
+            action_digest,
+            snapshot.principal_id,
+            snapshot.role,
+            snapshot.capability,
+            grants,
         )
-    except KeyError as exc:
-        raise PermissionError(
-            "decision does not match current authoritative authorization"
-        ) from exc
-    if not current.authorized or not _same_authority(snapshot, current):
-        raise PermissionError("decision does not match current authoritative authorization")
-    if _parse_rfc3339(snapshot.observed_at) > _parse_rfc3339(current.observed_at):
-        raise PermissionError("decision does not match current authoritative authorization")
-    return current
+        if len(_current_grants(matches, observed)) != 1:
+            raise PermissionError("decision does not match current authoritative authorization")
+        independence = _verify_independence(
+            snapshot.principal_id,
+            snapshot.capability,
+            action_author_id,
+            action_executor_id,
+        )
+        if independence is not None:
+            raise PermissionError("decision fails current verifier independence checks")
+        if (
+            snapshot.capability
+            in {
+                RuntimeCapability.WRITE,
+                RuntimeCapability.EXECUTE,
+            }
+            and not action_snapshot.reversible
+        ):
+            human = _matching_irreversible_grants(
+                action_snapshot,
+                action_digest,
+                snapshot.irreversible_approval,
+                policy,
+                grants,
+            )
+            if len(_current_grants(human, observed)) != 1:
+                raise PermissionError("decision lacks current human irreversible approval")
+        issuance.consumed = True
+        return _snapshot_decision(snapshot)
 
 
 def action_record_digest(action: ActionRecord) -> str:
@@ -731,6 +977,27 @@ def _snapshot_grants(value: object) -> tuple[AuthorityGrant, ...]:
     return tuple(_snapshot_grant(grant) for grant in value)
 
 
+def _snapshot_policy(value: object) -> ActionAuthorityPolicy:
+    if type(value) is not ActionAuthorityPolicy:
+        raise ValueError("policies must contain exact ActionAuthorityPolicy values")
+    try:
+        return ActionAuthorityPolicy(
+            value.policy_id,
+            value.action_id,
+            value.action_digest,
+            value.authorization_scope,
+            value.required_capability,
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"policies contains an invalid ActionAuthorityPolicy: {exc}") from exc
+
+
+def _snapshot_policies(value: object) -> tuple[ActionAuthorityPolicy, ...]:
+    if isinstance(value, (str, bytes, Mapping)) or not isinstance(value, Sequence):
+        raise ValueError("policies must be an ordered array")
+    return tuple(_snapshot_policy(policy) for policy in value)
+
+
 def _snapshot_grant_ids(value: object) -> tuple[str, ...]:
     if isinstance(value, (str, bytes, Mapping)) or not isinstance(value, Sequence):
         raise ValueError("grant_ids must be an ordered array of exact strings")
@@ -743,13 +1010,66 @@ def _snapshot_grant_ids(value: object) -> tuple[str, ...]:
 
 
 def _validated_registry_entries(registry: object) -> tuple[AuthorityGrant, ...]:
+    return _validated_registry_entry(registry).grants
+
+
+def _require_authority_process() -> None:
+    if os.getpid() != _AUTHORITY_PROCESS_ID:
+        raise ValueError("authority registry cannot be used after a process fork")
+
+
+def _validated_registry_entry(registry: object) -> _AuthorityRegistryEntry:
     if type(registry) is not AuthorityGrantRegistry:
         raise ValueError("grant_registry must be an exact AuthorityGrantRegistry")
+    _require_authority_process()
     with _AUTHORITY_REGISTRY_LOCK:
-        entries = _AUTHORITY_REGISTRY_STATE.get(registry)
-        if entries is None:
+        entry = _AUTHORITY_REGISTRY_STATE.get(registry)
+        if entry is None:
             raise ValueError("grant_registry is not enrolled in authoritative runtime storage")
-        return _snapshot_grants(entries)
+        if entry.creator_pid != os.getpid():
+            raise ValueError("authority registry belongs to a different process")
+        return entry
+
+
+def _resolve_policy(
+    entry: _AuthorityRegistryEntry,
+    policy_id: str,
+    action: ActionRecord,
+    action_digest: str,
+) -> ActionAuthorityPolicy:
+    matches = tuple(policy for policy in entry.policies if policy.policy_id == policy_id)
+    if len(matches) != 1:
+        raise KeyError(f"unknown enrolled action policy {policy_id!r}")
+    policy = _snapshot_policy(matches[0])
+    if (
+        policy.action_id != action.action_id
+        or policy.action_digest != action_digest
+        or policy.authorization_scope != action.authorization_scope
+    ):
+        raise ValueError("action policy does not match the complete action record")
+    return policy
+
+
+def _issue_authorization(
+    registry: AuthorityGrantRegistry,
+    grant_ids: tuple[str, ...],
+    decision: AuthorizationDecision,
+) -> AuthorizationDecision:
+    with _AUTHORITY_REGISTRY_LOCK:
+        entry = _validated_registry_entry(registry)
+        if (
+            decision.registry_id != entry.registry_id
+            or decision.registry_revision != entry.revision
+        ):
+            raise ValueError("decision registry identity changed during issuance")
+        if decision.decision_id in entry.issuances:
+            raise RuntimeError("authorization decision ID collision")
+        entry.issuances[decision.decision_id] = _AuthorizationIssuance(
+            decision,
+            _authorization_decision_digest(decision),
+            grant_ids,
+        )
+        return decision
 
 
 def _resolve_registry_grants(
@@ -780,6 +1100,10 @@ def _snapshot_decision(decision: object) -> AuthorizationDecision:
         decision.reason,
         decision.observed_at,
         decision.effective_expires_at,
+        decision.decision_id,
+        decision.registry_id,
+        decision.registry_revision,
+        decision.policy_id,
     )
 
 
@@ -807,6 +1131,7 @@ def _matching_irreversible_grants(
     action: ActionRecord,
     action_digest: str,
     approval: IrreversibleApprovalBinding | None,
+    policy: ActionAuthorityPolicy,
     grants: tuple[AuthorityGrant, ...],
 ) -> tuple[AuthorityGrant, ...]:
     if approval is None:
@@ -815,6 +1140,8 @@ def _matching_irreversible_grants(
         approval.action_id != action.action_id
         or approval.action_digest != action_digest
         or approval.authorization_scope != action.authorization_scope
+        or approval.policy_id != policy.policy_id
+        or approval.required_capability is not policy.required_capability
     ):
         return ()
     return tuple(
@@ -868,6 +1195,10 @@ def _deny(
     reason: AuthorizationReason,
     observed_at: str,
     effective_expires_at: str | None = None,
+    *,
+    registry_id: str,
+    registry_revision: int,
+    policy_id: str,
 ) -> AuthorizationDecision:
     return AuthorizationDecision(
         action_id=action.action_id,
@@ -883,6 +1214,10 @@ def _deny(
         reason=reason,
         observed_at=observed_at,
         effective_expires_at=_normalize_optional_timestamp(effective_expires_at),
+        decision_id=secrets.token_hex(32),
+        registry_id=registry_id,
+        registry_revision=registry_revision,
+        policy_id=policy_id,
     )
 
 
@@ -954,6 +1289,8 @@ def _snapshot_approval(value: object) -> IrreversibleApprovalBinding:
             value.action_digest,
             value.authorization_scope,
             value.authorization_grant_id,
+            value.policy_id,
+            value.required_capability,
             value.evidence_refs,
         )
     except (TypeError, ValueError) as exc:
@@ -998,7 +1335,17 @@ def _same_authority(
         and stored.authorization_refs == current.authorization_refs
         and stored.irreversible_approval == current.irreversible_approval
         and stored.effective_expires_at == current.effective_expires_at
+        and stored.registry_id == current.registry_id
+        and stored.registry_revision == current.registry_revision
+        and stored.policy_id == current.policy_id
     )
+
+
+def _authorization_decision_digest(decision: AuthorizationDecision) -> str:
+    payload = json.dumps(
+        decision.to_dict(), ensure_ascii=False, separators=(",", ":"), sort_keys=True
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 def _restore_role(value: object, record_name: str) -> RuntimeRole:
@@ -1032,6 +1379,7 @@ def _restore_evidence_refs(value: object) -> tuple[EvidenceReference, ...]:
 
 
 __all__ = [
+    "ActionAuthorityPolicy",
     "AuthorityGrant",
     "AuthorityGrantRegistry",
     "AuthorizationDecision",

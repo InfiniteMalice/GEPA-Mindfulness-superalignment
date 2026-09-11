@@ -1,6 +1,7 @@
 """Compatibility exports for runtime-governance authority contracts."""
 
 from .verification.runtime_governance import (
+    ActionAuthorityPolicy,
     AuthorityGrant,
     AuthorityGrantRegistry,
     AuthorizationDecision,
@@ -15,6 +16,7 @@ from .verification.runtime_governance import (
 )
 
 __all__ = [
+    "ActionAuthorityPolicy",
     "AuthorityGrant",
     "AuthorityGrantRegistry",
     "AuthorizationDecision",

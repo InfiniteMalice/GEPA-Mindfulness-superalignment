@@ -30,6 +30,16 @@ class FailureRelation(str, Enum):
     HYPOTHESIZED = "hypothesized"
 
 
+class FailureRole(str, Enum):
+    """One verifier-backed semantic role in a failure localization."""
+
+    FIRST_ANOMALY = "first_anomaly"
+    ROOT_CAUSE = "root_cause"
+    DECISIVE_FAILURE = "decisive_failure"
+    SYMPTOM = "symptom"
+    RECOVERABLE_UNTIL = "recoverable_until"
+
+
 @dataclass(frozen=True, slots=True)
 class FailureNode:
     """One observed failure-stage event with canonical observable evidence."""
@@ -149,6 +159,50 @@ class FailureEdge:
 
 
 @dataclass(frozen=True, slots=True)
+class FailureRoleEvidence:
+    """Verifier evidence supporting one asserted localization role."""
+
+    role: FailureRole
+    failure_id: str
+    verifier_refs: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if type(self.role) is not FailureRole:
+            raise ValueError("role must be an exact FailureRole")
+        _require_nonblank_string(self.failure_id, "failure_id")
+        references = _snapshot_verifier_refs(self.verifier_refs)
+        if not references:
+            raise ValueError("FailureRoleEvidence requires verifier_refs")
+        object.__setattr__(self, "verifier_refs", references)
+
+    def to_dict(self) -> dict[str, object]:
+        snapshot = _snapshot_role_evidence(self)
+        return {
+            "role": snapshot.role.value,
+            "failure_id": snapshot.failure_id,
+            "verifier_refs": list(snapshot.verifier_refs),
+        }
+
+    @classmethod
+    def from_dict(cls, data: object) -> FailureRoleEvidence:
+        values = _require_exact_mapping(
+            data, {"role", "failure_id", "verifier_refs"}, "FailureRoleEvidence"
+        )
+        raw_role = values["role"]
+        if type(raw_role) is not str:
+            raise ValueError("FailureRoleEvidence role must be a built-in string")
+        try:
+            role = FailureRole(raw_role)
+        except ValueError as exc:
+            raise ValueError(f"unknown FailureRoleEvidence role {raw_role!r}") from exc
+        return cls(
+            role,
+            cast(str, values["failure_id"]),
+            _restore_verifier_refs(values["verifier_refs"]),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class FailureLocalization:
     """Distinct roles assigned to nodes in one validated failure graph."""
 
@@ -157,6 +211,7 @@ class FailureLocalization:
     decisive_failure: str | None
     symptoms: tuple[str, ...]
     recoverable_until: str | None
+    role_evidence: tuple[FailureRoleEvidence, ...]
 
     def __post_init__(self) -> None:
         """Validate exact, deterministic localization references."""
@@ -169,6 +224,9 @@ class FailureLocalization:
             raise ValueError("symptoms must be unique")
         object.__setattr__(self, "symptoms", symptoms)
         _require_optional_nonblank_string(self.recoverable_until, "recoverable_until")
+        evidence = _snapshot_role_evidence_items(self.role_evidence)
+        _validate_role_evidence(self, evidence)
+        object.__setattr__(self, "role_evidence", evidence)
 
     def to_dict(self) -> dict[str, object]:
         """Return the exact JSON-compatible localization snapshot."""
@@ -180,6 +238,7 @@ class FailureLocalization:
             "decisive_failure": snapshot.decisive_failure,
             "symptoms": list(snapshot.symptoms),
             "recoverable_until": snapshot.recoverable_until,
+            "role_evidence": [item.to_dict() for item in snapshot.role_evidence],
         }
 
     @classmethod
@@ -194,6 +253,7 @@ class FailureLocalization:
                 "decisive_failure",
                 "symptoms",
                 "recoverable_until",
+                "role_evidence",
             },
             "FailureLocalization",
         )
@@ -203,6 +263,7 @@ class FailureLocalization:
             decisive_failure=cast(str | None, values["decisive_failure"]),
             symptoms=_restore_identifiers(values["symptoms"], "symptoms"),
             recoverable_until=cast(str | None, values["recoverable_until"]),
+            role_evidence=_restore_role_evidence(values["role_evidence"]),
         )
 
 
@@ -299,6 +360,45 @@ def _restore_verifier_refs(values: object) -> tuple[str, ...]:
     return _snapshot_identifiers(values, "verifier_refs")
 
 
+def _snapshot_role_evidence(value: object) -> FailureRoleEvidence:
+    if type(value) is not FailureRoleEvidence:
+        raise ValueError("role_evidence must contain exact FailureRoleEvidence values")
+    try:
+        return FailureRoleEvidence(value.role, value.failure_id, value.verifier_refs)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"role_evidence contains an invalid record: {exc}") from exc
+
+
+def _snapshot_role_evidence_items(value: object) -> tuple[FailureRoleEvidence, ...]:
+    if isinstance(value, (str, bytes, Mapping)) or not isinstance(value, Sequence):
+        raise ValueError("role_evidence must be an ordered array")
+    return tuple(_snapshot_role_evidence(item) for item in value)
+
+
+def _restore_role_evidence(value: object) -> tuple[FailureRoleEvidence, ...]:
+    if isinstance(value, (str, bytes, Mapping)) or not isinstance(value, Sequence):
+        raise ValueError("FailureLocalization role_evidence must be an array")
+    return tuple(FailureRoleEvidence.from_dict(item) for item in value)
+
+
+def _validate_role_evidence(
+    localization: FailureLocalization,
+    evidence: tuple[FailureRoleEvidence, ...],
+) -> None:
+    expected = {(FailureRole.FIRST_ANOMALY, localization.first_anomaly)}
+    for role, failure_id in (
+        (FailureRole.ROOT_CAUSE, localization.root_cause),
+        (FailureRole.DECISIVE_FAILURE, localization.decisive_failure),
+        (FailureRole.RECOVERABLE_UNTIL, localization.recoverable_until),
+    ):
+        if failure_id is not None:
+            expected.add((role, failure_id))
+    expected.update((FailureRole.SYMPTOM, symptom) for symptom in localization.symptoms)
+    actual = {(item.role, item.failure_id) for item in evidence}
+    if len(actual) != len(evidence) or actual != expected:
+        raise ValueError("localization role evidence must exactly bind every asserted role")
+
+
 def _snapshot_identifiers(values: object, field_name: str) -> tuple[str, ...]:
     if isinstance(values, (str, bytes, Mapping)) or not isinstance(values, Sequence):
         raise ValueError(f"{field_name} must be an ordered array")
@@ -356,6 +456,7 @@ def _snapshot_localization(localization: object) -> FailureLocalization:
             decisive_failure=localization.decisive_failure,
             symptoms=localization.symptoms,
             recoverable_until=localization.recoverable_until,
+            role_evidence=localization.role_evidence,
         )
     except (TypeError, ValueError) as exc:
         raise ValueError(f"localization is invalid: {exc}") from exc
@@ -425,6 +526,68 @@ def _validate_graph(
         raise ValueError("FailureGraph has a dangling localization reference")
     _causal_topological_order(nodes, edges)
     _derive_root_cause_status(edges, localization)
+    _validate_localization_paths(edges, localization)
+
+
+def _validate_localization_paths(
+    edges: tuple[FailureEdge, ...],
+    localization: FailureLocalization,
+) -> None:
+    root = localization.root_cause
+    anomaly = localization.first_anomaly
+    decisive = localization.decisive_failure
+    if root is not None and not _has_semantic_path(root, anomaly, edges):
+        raise ValueError("FailureGraph first_anomaly is not downstream of root_cause")
+    if decisive is not None and anomaly != decisive:
+        if not _has_semantic_path(anomaly, decisive, edges):
+            raise ValueError("FailureGraph decisive_failure is not downstream of first_anomaly")
+    if decisive is None and localization.symptoms:
+        raise ValueError("FailureGraph symptoms require a decisive_failure")
+    contradictory = {value for value in (root, anomaly, decisive) if value is not None}
+    if any(symptom in contradictory for symptom in localization.symptoms):
+        raise ValueError("FailureGraph cannot assign one node to contradictory roles")
+    for symptom in localization.symptoms:
+        if decisive is None or not _has_semantic_path(
+            decisive, symptom, edges, include_contributing=True
+        ):
+            raise ValueError("FailureGraph symptom is not downstream of decisive_failure")
+    recoverable = localization.recoverable_until
+    if recoverable is not None and decisive is not None:
+        if not _has_semantic_path(anomaly, recoverable, edges, allow_zero=True):
+            raise ValueError("FailureGraph recoverable_until precedes first_anomaly")
+        if not _has_semantic_path(recoverable, decisive, edges, allow_zero=True):
+            raise ValueError("FailureGraph recoverable_until is outside the decisive path")
+
+
+def _has_semantic_path(
+    source_id: str,
+    target_id: str,
+    edges: tuple[FailureEdge, ...],
+    *,
+    allow_zero: bool = False,
+    include_contributing: bool = False,
+) -> bool:
+    if source_id == target_id:
+        return allow_zero
+    allowed = {FailureRelation.CAUSAL, FailureRelation.HYPOTHESIZED}
+    if include_contributing:
+        allowed.add(FailureRelation.CONTRIBUTING)
+    adjacency: dict[str, list[str]] = {}
+    for edge in edges:
+        if edge.relation in allowed:
+            adjacency.setdefault(edge.source_id, []).append(edge.target_id)
+    pending = [source_id]
+    visited: set[str] = set()
+    while pending:
+        current = pending.pop()
+        if current in visited:
+            continue
+        visited.add(current)
+        for target in adjacency.get(current, []):
+            if target == target_id:
+                return True
+            pending.append(target)
+    return False
 
 
 def _causal_topological_order(
@@ -507,5 +670,7 @@ __all__ = [
     "FailureLocalization",
     "FailureNode",
     "FailureRelation",
+    "FailureRole",
+    "FailureRoleEvidence",
     "RootCauseStatus",
 ]

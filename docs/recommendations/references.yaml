@@ -25,10 +25,12 @@ references:
       The source motivates explicit verifier and runtime-role boundaries; optimizer eligibility
       and authority enforcement remain independent repository design decisions.
     maturity: >-
-      Resolved arXiv preprint; REC-001 is implemented, while REC-008 is accepted but incomplete.
+      Resolved arXiv preprint; REC-001 and the repository contract for REC-008 are implemented.
+      Principal authentication and evidence dereferencing remain runtime-owner responsibilities.
     local_repo_notes:
       - history/2026-09-10-gepa-v5-unified-architecture-design.md
       - gepa_mindfulness/core/epistemic_process.py
+      - gepa_mindfulness/verification/runtime_governance.py
 
   - reference_id: REF-PEARL
     metadata_status: resolved
@@ -217,10 +219,12 @@ references:
     repository_inference: >-
       Evidence-preserving retrieval supports the repository boundary between append-only raw
       evidence and derived belief or memory representations.
-    maturity: "Resolved arXiv preprint; REC-006 is accepted but incomplete."
+    maturity: >-
+      Resolved arXiv preprint; the repository contract for REC-006 is implemented. Evidence
+      dereferencing and issuer authentication remain external responsibilities.
     local_repo_notes:
       - history/2026-09-10-gepa-v5-unified-architecture-design.md
-      - src/mindful_trace_gepa/logging_schema.py
+      - gepa_mindfulness/verification/state.py
 
   - reference_id: REF-GRAPHMEM
     metadata_status: resolved
@@ -248,10 +252,12 @@ references:
     repository_inference: >-
       The survey motivates explicit types for observed state, evidence, and derived memory rather
       than allowing one representation to stand for all three.
-    maturity: "Resolved survey accepted by ICKG 2026; REC-006 is accepted but incomplete."
+    maturity: >-
+      Resolved survey accepted by ICKG 2026; the repository contract for REC-006 is implemented.
+      Evidence dereferencing and issuer authentication remain external responsibilities.
     local_repo_notes:
       - history/2026-09-10-gepa-v5-unified-architecture-design.md
-      - src/mindful_trace_gepa/logging_schema.py
+      - gepa_mindfulness/verification/state.py
 
   - reference_id: REF-SHEAVES
     metadata_status: resolved
@@ -362,7 +368,9 @@ references:
     repository_inference: >-
       The access-control result inspires explicit authorization evidence at runtime; it does not
       recommend biometric collection for this repository.
-    maturity: "Resolved arXiv preprint; REC-008 is accepted but incomplete."
+    maturity: >-
+      Resolved arXiv preprint; the process-local authority contract for REC-008 is implemented.
+      It does not authenticate human identities, grant issuers, or evidence issuers.
     local_repo_notes:
       - history/2026-09-10-gepa-v5-unified-architecture-design.md
       - src/mindful_trace_gepa/logging_schema.py
@@ -430,10 +438,11 @@ references:
       The approach motivates inspectable failure records and orchestration scopes; causal labels
       still require repository verifier evidence.
     maturity: >-
-      Resolved arXiv preprint; REC-007 is accepted but incomplete, and REC-013 remains experimental.
+      Resolved arXiv preprint; the repository contract for REC-007 is implemented, while REC-013
+      remains experimental. Verifier identity authentication remains external to the graph.
     local_repo_notes:
       - history/2026-09-10-gepa-v5-unified-architecture-design.md
-      - src/mindful_trace_gepa/logging_schema.py
+      - gepa_mindfulness/verification/failure_graph.py
 
   - reference_id: REF-REPOTOSKILL
     metadata_status: resolved

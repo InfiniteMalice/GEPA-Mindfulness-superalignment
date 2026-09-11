@@ -43,26 +43,32 @@ a design choice, but do not establish this architecture as an empirical result.
 
 ## P1
 
-### P1 — Accepted
+### P1 — Implemented
 
 #### REC-006 — World/artifact state != evidence/belief state.
 
-- Repository evidence: [`logging_schema.py`](../../src/mindful_trace_gepa/logging_schema.py).
+- Repository evidence: [`state.py`](../../gepa_mindfulness/verification/state.py).
+- Limit: evidence identifiers are not dereferenced or issuer-authenticated by this record layer.
 - Acceptance checks: [`test_world_evidence_state.py`](../../tests/test_world_evidence_state.py).
 - Research: [`REF-EDGEMEM`](RESEARCH_TRACEABILITY.md#ref-edgemem), [`REF-GRAPHMEM`](RESEARCH_TRACEABILITY.md#ref-graphmem).
 
 #### REC-007 — Structured failure graph.
 
-- Repository evidence: [`logging_schema.py`](../../src/mindful_trace_gepa/logging_schema.py).
+- Repository evidence: [`failure_graph.py`](../../gepa_mindfulness/verification/failure_graph.py).
+- Limit: verifier identifiers are preserved but are not authenticated by the graph layer.
 - Acceptance checks: [`test_failure_graph.py`](../../tests/test_failure_graph.py).
 - Research: [`REF-AGENTSCOPE`](RESEARCH_TRACEABILITY.md#ref-agentscope).
 
 #### REC-008 — Runtime Planner/Executor/Verifier authority separation.
 
-- Repository evidence: [`logging_schema.py`](../../src/mindful_trace_gepa/logging_schema.py).
+- Repository evidence: [`interfaces.py`](../../gepa_mindfulness/verification/interfaces.py), [`runtime_governance.py`](../../gepa_mindfulness/verification/runtime_governance.py).
+- Limit: authority is process-local and enrollment authenticates neither principals nor evidence
+  issuers.
 - Acceptance checks: [`test_runtime_authority.py`](../../tests/test_runtime_authority.py),
   [`test_verifier_interfaces.py`](../../tests/test_verifier_interfaces.py).
 - Research: [`REF-HEART`](RESEARCH_TRACEABILITY.md#ref-heart), [`REF-BIOMETRIC-MEM`](RESEARCH_TRACEABILITY.md#ref-biometric-mem).
+
+### P1 — Accepted
 
 #### REC-009 — Verified skill lifecycle.
 

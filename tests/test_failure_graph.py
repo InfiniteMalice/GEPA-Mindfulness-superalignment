@@ -13,6 +13,8 @@ from gepa_mindfulness.verification.failure_graph import (
     FailureLocalization,
     FailureNode,
     FailureRelation,
+    FailureRole,
+    FailureRoleEvidence,
 )
 
 
@@ -61,6 +63,29 @@ def _localization(**changes: object) -> FailureLocalization:
         "recoverable_until": "anomaly",
     }
     values.update(changes)
+    if "role_evidence" not in values:
+        bindings: list[FailureRoleEvidence] = [
+            FailureRoleEvidence(
+                FailureRole.FIRST_ANOMALY,
+                cast(str, values["first_anomaly"]),
+                ("verifier:first-anomaly",),
+            )
+        ]
+        for role, field_name in (
+            (FailureRole.ROOT_CAUSE, "root_cause"),
+            (FailureRole.DECISIVE_FAILURE, "decisive_failure"),
+            (FailureRole.RECOVERABLE_UNTIL, "recoverable_until"),
+        ):
+            value = values[field_name]
+            if value is not None:
+                bindings.append(
+                    FailureRoleEvidence(role, cast(str, value), (f"verifier:{field_name}",))
+                )
+        for symptom in cast(tuple[str, ...], values["symptoms"]):
+            bindings.append(
+                FailureRoleEvidence(FailureRole.SYMPTOM, symptom, ("verifier:symptom",))
+            )
+        values["role_evidence"] = tuple(bindings)
     return FailureLocalization(**cast(Any, values))
 
 
@@ -206,7 +231,7 @@ def test_only_supported_causal_edges_participate_in_cycle_rejection() -> None:
         (
             _edge("one", "two"),
             _edge("two", "one", FailureRelation.CORRELATED, ()),
-            _edge("two", "three", FailureRelation.PRECEDING, ()),
+            _edge("two", "three", FailureRelation.CONTRIBUTING, ()),
             _edge("three", "two", FailureRelation.HYPOTHESIZED, ()),
         ),
         localization,
@@ -409,7 +434,7 @@ def test_localization_rejects_unknown_duplicate_or_noncanonical_references() -> 
 
     with pytest.raises(ValueError, match="symptoms.*unique"):
         _localization(symptoms=("symptom", "symptom"))
-    with pytest.raises(ValueError, match="first_anomaly"):
+    with pytest.raises(ValueError, match="first_anomaly|failure_id"):
         _localization(first_anomaly=7)
     with pytest.raises(ValueError, match="symptoms"):
         _localization(symptoms={"symptom"})

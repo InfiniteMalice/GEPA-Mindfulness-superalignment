@@ -9,7 +9,12 @@ from typing import Any, cast
 import pytest
 
 from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
-from gepa_mindfulness.verification import EvidenceClaim, EvidenceState, WorldStateChange
+from gepa_mindfulness.verification import (
+    ArtifactObservation,
+    EvidenceClaim,
+    EvidenceState,
+    WorldStateChange,
+)
 
 AFTER_DIGEST = "a" * 64
 BEFORE_DIGEST = "b" * 64
@@ -18,6 +23,16 @@ OBSERVED_AT = "2026-09-10T12:00:00Z"
 
 def _reference(reference_id: str = "output:bug-fix") -> EvidenceReference:
     return EvidenceReference(reference_id, EvidenceSourceKind.OBSERVABLE_OUTPUT)
+
+
+def _observation(
+    observation_id: str = "observation-after",
+    *,
+    artifact_ref: str = "artifact:fix.patch",
+    digest: str = AFTER_DIGEST,
+    observed_at: str = OBSERVED_AT,
+) -> ArtifactObservation:
+    return ArtifactObservation(observation_id, artifact_ref, digest, observed_at, (_reference(),))
 
 
 def _claim(
@@ -52,12 +67,10 @@ def test_world_change_requires_action_artifact_digest_and_observation_time() -> 
     """Catch purported world changes without complete observed artifact linkage."""
 
     change = WorldStateChange(
-        change_id="change-1",
-        action_id="action-1",
-        artifact_ref="artifact:fix.patch",
-        before_digest=BEFORE_DIGEST,
-        after_digest=AFTER_DIGEST,
-        observed_at=OBSERVED_AT,
+        "change-1",
+        "action-1",
+        _observation("observation-before", digest=BEFORE_DIGEST),
+        _observation(),
     )
 
     assert change.action_id == "action-1"
@@ -69,10 +82,9 @@ def test_world_change_requires_action_artifact_digest_and_observation_time() -> 
 @pytest.mark.parametrize(
     ("field_name", "value"),
     [
-        ("change_id", " "),
-        ("action_id", " "),
+        ("observation_id", " "),
         ("artifact_ref", " "),
-        ("after_digest", " "),
+        ("digest", " "),
         ("observed_at", " "),
     ],
 )
@@ -83,22 +95,21 @@ def test_world_change_rejects_missing_required_observation_fields(
     """Catch incomplete world-state records that cannot establish an observation."""
 
     values: dict[str, object] = {
-        "change_id": "change-1",
-        "action_id": "action-1",
+        "observation_id": "observation-after",
         "artifact_ref": "artifact:fix.patch",
-        "before_digest": None,
-        "after_digest": AFTER_DIGEST,
+        "digest": AFTER_DIGEST,
         "observed_at": OBSERVED_AT,
+        "evidence_refs": (_reference(),),
     }
     values[field_name] = value
 
     with pytest.raises(ValueError, match=field_name):
-        WorldStateChange(**cast(Any, values))
+        ArtifactObservation(**cast(Any, values))
 
 
 @pytest.mark.parametrize(
     "field_name",
-    ["change_id", "action_id", "artifact_ref", "after_digest", "observed_at"],
+    ["observation_id", "artifact_ref", "digest", "observed_at"],
 )
 def test_world_change_rejects_string_subclasses(field_name: str) -> None:
     """Catch subclasses bypassing exact typed validation at the state boundary."""
@@ -107,26 +118,25 @@ def test_world_change_rejects_string_subclasses(field_name: str) -> None:
         pass
 
     values: dict[str, object] = {
-        "change_id": "change-1",
-        "action_id": "action-1",
+        "observation_id": "observation-after",
         "artifact_ref": "artifact:fix.patch",
-        "before_digest": None,
-        "after_digest": AFTER_DIGEST,
+        "digest": AFTER_DIGEST,
         "observed_at": OBSERVED_AT,
+        "evidence_refs": (_reference(),),
     }
     values[field_name] = StringSubclass(cast(str, values[field_name]))
 
     with pytest.raises(ValueError, match=field_name):
-        WorldStateChange(**cast(Any, values))
+        ArtifactObservation(**cast(Any, values))
 
 
 @pytest.mark.parametrize(
     ("field_name", "value"),
     [
-        ("before_digest", "A" * 64),
-        ("before_digest", "a" * 63),
-        ("after_digest", "g" * 64),
-        ("after_digest", "a" * 65),
+        ("digest", "A" * 64),
+        ("digest", "a" * 63),
+        ("digest", "g" * 64),
+        ("digest", "a" * 65),
     ],
 )
 def test_world_change_requires_canonical_sha256_digests(
@@ -136,17 +146,16 @@ def test_world_change_requires_canonical_sha256_digests(
     """Catch artifact digests that are ambiguous across storage consumers."""
 
     values: dict[str, object] = {
-        "change_id": "change-1",
-        "action_id": "action-1",
+        "observation_id": "observation-after",
         "artifact_ref": "artifact:fix.patch",
-        "before_digest": BEFORE_DIGEST,
-        "after_digest": AFTER_DIGEST,
+        "digest": AFTER_DIGEST,
         "observed_at": OBSERVED_AT,
+        "evidence_refs": (_reference(),),
     }
     values[field_name] = value
 
     with pytest.raises(ValueError, match=field_name):
-        WorldStateChange(**cast(Any, values))
+        ArtifactObservation(**cast(Any, values))
 
 
 @pytest.mark.parametrize(
@@ -164,34 +173,36 @@ def test_world_change_rejects_non_rfc3339_observation_time(observed_at: str) -> 
     """Catch parser-permitted or impossible times outside the event timestamp contract."""
 
     with pytest.raises(ValueError, match="observed_at"):
-        WorldStateChange(
-            "change-1",
-            "action-1",
+        ArtifactObservation(
+            "observation-after",
             "artifact:fix.patch",
-            None,
             AFTER_DIGEST,
             observed_at,
+            (_reference(),),
         )
 
 
 def test_world_change_is_frozen_slotted_and_json_round_trips() -> None:
     """Catch mutable or lossy observed-world records at the serialization boundary."""
 
+    after = ArtifactObservation(
+        "observation-after",
+        "artifact:fix.patch",
+        AFTER_DIGEST,
+        "2026-09-10T12:00:00.123456+23:59",
+        (_reference(),),
+    )
     change = WorldStateChange(
         "change-1",
         "action-1",
-        "artifact:fix.patch",
         None,
-        AFTER_DIGEST,
-        "2026-09-10T12:00:00.123456+23:59",
+        after,
     )
     expected = {
         "change_id": "change-1",
         "action_id": "action-1",
-        "artifact_ref": "artifact:fix.patch",
-        "before_digest": None,
-        "after_digest": AFTER_DIGEST,
-        "observed_at": "2026-09-10T12:00:00.123456+23:59",
+        "before_observation": None,
+        "after_observation": after.to_dict(),
     }
 
     assert not hasattr(change, "__dict__")
@@ -449,6 +460,8 @@ def test_evidence_state_is_frozen_slotted_and_json_round_trips() -> None:
 @pytest.mark.parametrize(
     ("constructor", "payload"),
     [
+        (ArtifactObservation.from_dict, []),
+        (ArtifactObservation.from_dict, {"observation_id": "observation-1"}),
         (WorldStateChange.from_dict, []),
         (WorldStateChange.from_dict, {"change_id": "change-1"}),
         (EvidenceClaim.from_dict, []),

@@ -17,7 +17,7 @@ an empirical result.
 - DOI: `10.48550/arXiv.2609.01736`
 - Venue/status: Not supplied by official arXiv metadata.
 - Recommendations influenced: `REC-001`, `REC-008`
-- Local repository notes: [V5 architecture design](../../history/2026-09-10-gepa-v5-unified-architecture-design.md), [epistemic process](../../gepa_mindfulness/core/epistemic_process.py)
+- Local repository notes: [V5 architecture design](../../history/2026-09-10-gepa-v5-unified-architecture-design.md), [epistemic process](../../gepa_mindfulness/core/epistemic_process.py), [runtime governance](../../gepa_mindfulness/verification/runtime_governance.py)
 
 **Source demonstrates:** The source reports a Planner, Router, and Verifier harness built around
 reusable tool primitives, together with task-completion and cost results on the evaluated
@@ -26,8 +26,9 @@ benchmarks.
 **Repository inference:** The source motivates explicit verifier and runtime-role boundaries;
 optimizer eligibility and authority enforcement remain independent repository design decisions.
 
-**Maturity:** Resolved arXiv preprint; REC-001 is implemented, while REC-008 is accepted but
-incomplete.
+**Maturity:** Resolved arXiv preprint; REC-001 and the repository contract for REC-008 are
+implemented. Principal authentication and evidence dereferencing remain runtime-owner
+responsibilities.
 
 <a id="ref-pearl"></a>
 
@@ -154,7 +155,7 @@ current repository does not implement the paper's Determinantal Point Process re
 - DOI: `10.48550/arXiv.2609.05553`
 - Venue/status: Not supplied by official arXiv metadata.
 - Recommendations influenced: `REC-006`
-- Local repository notes: [V5 architecture design](../../history/2026-09-10-gepa-v5-unified-architecture-design.md), [logging schema](../../src/mindful_trace_gepa/logging_schema.py)
+- Local repository notes: [V5 architecture design](../../history/2026-09-10-gepa-v5-unified-architecture-design.md), [verification state](../../gepa_mindfulness/verification/state.py)
 
 **Source demonstrates:** The source reports a memory system that preserves original interaction
 turns and retrieves source evidence through content, temporal, and episodic anchors.
@@ -162,7 +163,8 @@ turns and retrieves source evidence through content, temporal, and episodic anch
 **Repository inference:** Evidence-preserving retrieval supports the repository boundary between
 append-only raw evidence and derived belief or memory representations.
 
-**Maturity:** Resolved arXiv preprint; REC-006 is accepted but incomplete.
+**Maturity:** Resolved arXiv preprint; the repository contract for REC-006 is implemented.
+Evidence dereferencing and issuer authentication remain external responsibilities.
 
 <a id="ref-graphmem"></a>
 
@@ -176,7 +178,7 @@ append-only raw evidence and derived belief or memory representations.
 - DOI: `10.48550/arXiv.2609.08599`
 - Venue/status: Accepted by ICKG 2026
 - Recommendations influenced: `REC-006`
-- Local repository notes: [V5 architecture design](../../history/2026-09-10-gepa-v5-unified-architecture-design.md), [logging schema](../../src/mindful_trace_gepa/logging_schema.py)
+- Local repository notes: [V5 architecture design](../../history/2026-09-10-gepa-v5-unified-architecture-design.md), [verification state](../../gepa_mindfulness/verification/state.py)
 
 **Source demonstrates:** The survey reports a lifecycle view of graph-based personalized memory
 spanning representation, evolution, retrieval, and evaluation with temporal and evidence links.
@@ -184,7 +186,8 @@ spanning representation, evolution, retrieval, and evaluation with temporal and 
 **Repository inference:** The survey motivates explicit types for observed state, evidence, and
 derived memory rather than allowing one representation to stand for all three.
 
-**Maturity:** Resolved survey accepted by ICKG 2026; REC-006 is accepted but incomplete.
+**Maturity:** Resolved survey accepted by ICKG 2026; the repository contract for REC-006 is
+implemented. Evidence dereferencing and issuer authentication remain external responsibilities.
 
 <a id="ref-sheaves"></a>
 
@@ -273,7 +276,8 @@ retrieval candidate pool by biometric matching before semantic ranking.
 **Repository inference:** The access-control result inspires explicit authorization evidence at
 runtime; it does not recommend biometric collection for this repository.
 
-**Maturity:** Resolved arXiv preprint; REC-008 is accepted but incomplete.
+**Maturity:** Resolved arXiv preprint; the process-local authority contract for REC-008 is
+implemented. It does not authenticate human identities, grant issuers, or evidence issuers.
 
 <a id="ref-hoh"></a>
 
@@ -310,7 +314,7 @@ held-out validation rather than changing a scored episode in place.
 - DOI: `10.48550/arXiv.2609.02371`
 - Venue/status: Not supplied by official arXiv metadata.
 - Recommendations influenced: `REC-007`, `REC-013`
-- Local repository notes: [V5 architecture design](../../history/2026-09-10-gepa-v5-unified-architecture-design.md), [logging schema](../../src/mindful_trace_gepa/logging_schema.py)
+- Local repository notes: [V5 architecture design](../../history/2026-09-10-gepa-v5-unified-architecture-design.md), [failure graph](../../gepa_mindfulness/verification/failure_graph.py)
 
 **Source demonstrates:** The source reports structured behavioral abstractions and neural
 invariants for locating and classifying failures in long agent trajectories.
@@ -318,8 +322,8 @@ invariants for locating and classifying failures in long agent trajectories.
 **Repository inference:** The approach motivates inspectable failure records and orchestration
 scopes; causal labels still require repository verifier evidence.
 
-**Maturity:** Resolved arXiv preprint; REC-007 is accepted but incomplete, and REC-013 remains
-experimental.
+**Maturity:** Resolved arXiv preprint; the repository contract for REC-007 is implemented, while
+REC-013 remains experimental. Verifier identity authentication remains external to the graph.
 
 <a id="ref-repotoskill"></a>
 

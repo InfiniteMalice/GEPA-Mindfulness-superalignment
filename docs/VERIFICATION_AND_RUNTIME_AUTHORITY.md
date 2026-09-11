@@ -13,9 +13,9 @@ true.
 
 ## World state and evidence state
 
-`WorldStateChange` is an observed artifact transition. A valid record identifies the action and
-artifact, supplies the after-state SHA-256 digest, and supplies an RFC 3339 observation time. The
-optional before-state digest does not change those requirements.
+`ArtifactObservation` binds an observation ID, artifact identity, SHA-256 digest, RFC 3339 time,
+and observable evidence. `WorldStateChange` is an observed artifact transition that binds one
+action to an exact after observation and, when available, an exact before observation.
 
 `EvidenceClaim` records a proposition, its canonical evidence references, and one explicit status.
 `EvidenceState` preserves superseded claims and resolves only validated, acyclic
@@ -52,24 +52,33 @@ a causal edge. Only explicit causal edges participate in the supported topologic
 causal-cycle check.
 
 `FailureLocalization` keeps the first anomaly, decisive failure, root cause, symptoms, and recovery
-boundary as separate references. A serialized root cause is accepted only when an explicit path
-supports it or an explicit hypothesized path labels it as `hypothesized`.
+boundary as separate references. These roles must satisfy explicit supported or hypothesized
+directed paths; `preceding` and `correlated` edges cannot support localization. A serialized root
+cause is accepted only when an explicit path supports it or labels it as `hypothesized`.
 
 Verification: `tests/test_failure_graph.py` checks graph structure, causal support, hypothesized
 status, deterministic ordering, and exact JSON round trips.
 
 ## Authority and time boundaries
 
-`AuthorityGrantRegistry.enroll()` stores defensive snapshots outside the public registry handle.
+`AuthorityGrantRegistry.enroll()` stores defensive grant and `ActionAuthorityPolicy` snapshots
+outside the public registry handle.
 `AuthorityGrantRegistry.enroll()` does not authenticate grant issuers. The runtime owner must
 authenticate each issuer before enrollment. The registry is process-local and does not provide
 signatures, durable storage, revocation distribution, or an identity provider.
 
-`authorize_action()` resolves only explicitly named, enrolled grants and matches the exact runtime
-role, capability, principal, and authorization scope. Irreversible execution also requires a
-matching human authorization grant and observable approval evidence. The returned decision does
-not execute the action. `consume_authorization()` rechecks a previously authorized decision against
-the current registry and time.
+`authorize_action()` derives the required operation from an enrolled action policy, then resolves
+only explicitly named grants and matches the exact runtime role, capability, principal, action,
+and authorization scope. Every irreversible write or execution also requires a policy-bound human
+authorization grant and observable approval evidence. The returned decision does not execute the
+action. `consume_authorization()` accepts only the exact unpredictable decision object issued by
+that registry and consumes it once atomically; reconstructed, replayed, mutated, cross-registry,
+or expired decisions fail closed.
+
+`action_author_id` and `action_executor_id` are runtime-owner-authenticated inputs used to enforce
+verifier independence. This package validates their relationships but does not authenticate those
+identities. Authority and recovery ledgers are process-local. POSIX child processes receive fresh
+locks and empty ledgers, so inherited handles and decisions cannot be used after `fork()`.
 
 `TrustedClock` is an injected trust boundary. The runtime owner must supply a clock whose `now()`
 returns an aware `datetime`. The module validates the returned value's type and timezone awareness;
@@ -94,7 +103,8 @@ shape and identity; it does not dereference evidence or authenticate verifier id
 `select_recovery()` reserves a proposal but does not consume its budget transition.
 `consume_recovery()` performs the authoritative budget transition after it revalidates the exact
 pending proposal. Stale revisions, concurrent proposals, replayed decisions, cross-store records,
-and unauthenticated repeated-route claims fail closed. Retry, replan, and revision integers are
+and unauthenticated repeated-route claims fail closed. A forked child receives a fresh empty
+ledger and cannot use an inherited store handle. Retry, replan, and revision integers are
 limited to `0..9_007_199_254_740_991`.
 
 Verification: `tests/test_bounded_recovery.py` checks policy mapping, finite budgets, enrollment,

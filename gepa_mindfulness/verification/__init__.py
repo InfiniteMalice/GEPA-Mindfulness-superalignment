@@ -6,6 +6,8 @@ from .failure_graph import (
     FailureLocalization,
     FailureNode,
     FailureRelation,
+    FailureRole,
+    FailureRoleEvidence,
     RootCauseStatus,
 )
 from .interfaces import (
@@ -33,6 +35,7 @@ from .recovery import (
     select_recovery,
 )
 from .runtime_governance import (
+    ActionAuthorityPolicy,
     AuthorityGrant,
     AuthorityGrantRegistry,
     AuthorizationDecision,
@@ -45,11 +48,13 @@ from .runtime_governance import (
     authorize_action,
     consume_authorization,
 )
-from .state import EvidenceClaim, EvidenceState, WorldStateChange
+from .state import ArtifactObservation, EvidenceClaim, EvidenceState, WorldStateChange
 
 __all__ = [
     "AuthorityGrant",
+    "ActionAuthorityPolicy",
     "AuthorityGrantRegistry",
+    "ArtifactObservation",
     "AuthorizationDecision",
     "AuthorizationReason",
     "EvidenceClaim",
@@ -59,6 +64,8 @@ __all__ = [
     "FailureLocalization",
     "FailureNode",
     "FailureRelation",
+    "FailureRole",
+    "FailureRoleEvidence",
     "FailureCategory",
     "FailureClassificationBinding",
     "LocalExecutionVerifier",

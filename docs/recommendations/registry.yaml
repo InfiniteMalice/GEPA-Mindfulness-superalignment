@@ -125,7 +125,7 @@ recommendations:
   - id: REC-006
     title: "World/artifact state != evidence/belief state."
     priority: P1
-    status: accepted
+    status: implemented
     rationale: >-
       A claim that an action succeeded is not an observed world-state change; distinct types make
       the verification boundary explicit.
@@ -138,15 +138,16 @@ recommendations:
       - REF-EDGEMEM
       - REF-GRAPHMEM
     repo_refs:
-      - src/mindful_trace_gepa/logging_schema.py
+      - gepa_mindfulness/verification/state.py
     acceptance_tests:
       - tests/test_world_evidence_state.py
-    implementation_refs: []
+    implementation_refs:
+      - gepa_mindfulness/verification/state.py
 
   - id: REC-007
     title: "Structured failure graph."
     priority: P1
-    status: accepted
+    status: implemented
     rationale: >-
       Failure reports must distinguish anomalies, causes, decisive failures, and symptoms without
       claiming causality that the available evidence does not support.
@@ -158,15 +159,16 @@ recommendations:
     research_refs:
       - REF-AGENTSCOPE
     repo_refs:
-      - src/mindful_trace_gepa/logging_schema.py
+      - gepa_mindfulness/verification/failure_graph.py
     acceptance_tests:
       - tests/test_failure_graph.py
-    implementation_refs: []
+    implementation_refs:
+      - gepa_mindfulness/verification/failure_graph.py
 
   - id: REC-008
     title: "Runtime Planner/Executor/Verifier authority separation."
     priority: P1
-    status: accepted
+    status: implemented
     rationale: >-
       Typed authority boundaries prevent a planning or auditing role from silently performing an
       external action reserved for an authorized executor.
@@ -180,11 +182,14 @@ recommendations:
       - REF-HEART
       - REF-BIOMETRIC-MEM
     repo_refs:
-      - src/mindful_trace_gepa/logging_schema.py
+      - gepa_mindfulness/verification/interfaces.py
+      - gepa_mindfulness/verification/runtime_governance.py
     acceptance_tests:
       - tests/test_runtime_authority.py
       - tests/test_verifier_interfaces.py
-    implementation_refs: []
+    implementation_refs:
+      - gepa_mindfulness/verification/interfaces.py
+      - gepa_mindfulness/verification/runtime_governance.py
 
   - id: REC-009
     title: "Verified skill lifecycle."

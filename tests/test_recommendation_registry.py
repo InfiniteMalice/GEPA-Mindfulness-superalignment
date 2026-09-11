@@ -48,19 +48,19 @@ EXPECTED_RECOMMENDATIONS = (
         "REC-006",
         "World/artifact state != evidence/belief state.",
         "P1",
-        "accepted",
+        "implemented",
     ),
     (
         "REC-007",
         "Structured failure graph.",
         "P1",
-        "accepted",
+        "implemented",
     ),
     (
         "REC-008",
         "Runtime Planner/Executor/Verifier authority separation.",
         "P1",
-        "accepted",
+        "implemented",
     ),
     (
         "REC-009",

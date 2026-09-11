@@ -13,6 +13,7 @@ import pytest
 
 from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
 from gepa_mindfulness.verification import (
+    ActionAuthorityPolicy,
     AuthorityGrant,
     AuthorityGrantRegistry,
     AuthorizationDecision,
@@ -81,6 +82,20 @@ def _grant(
     )
 
 
+def _policy(
+    action: ActionRecord,
+    capability: RuntimeCapability,
+    policy_id: str = "policy-1",
+) -> ActionAuthorityPolicy:
+    return ActionAuthorityPolicy(
+        policy_id,
+        action.action_id,
+        action_record_digest(action),
+        action.authorization_scope,
+        capability,
+    )
+
+
 def _authorize(
     capability: RuntimeCapability,
     grants: tuple[AuthorityGrant, ...] = (),
@@ -93,12 +108,15 @@ def _authorize(
     clock: TrustedClock | None = None,
     irreversible_approval: IrreversibleApprovalBinding | None = None,
 ) -> AuthorizationDecision:
-    registry = AuthorityGrantRegistry.enroll(grants)
+    bound_action = _action() if action is None else action
+    policy = _policy(bound_action, capability)
+    registry = AuthorityGrantRegistry.enroll(grants, (policy,))
     return authorize_action(
-        _action() if action is None else action,
+        bound_action,
         principal_id=principal_id,
         role=role,
         capability=capability,
+        policy_id=policy.policy_id,
         grant_registry=registry,
         grant_ids=tuple(grant.grant_id for grant in grants),
         clock=_clock() if clock is None else clock,
@@ -106,6 +124,30 @@ def _authorize(
         action_executor_id=action_executor_id,
         irreversible_approval=irreversible_approval,
     )
+
+
+def _issue(
+    capability: RuntimeCapability,
+    grants: tuple[AuthorityGrant, ...],
+    *,
+    action: ActionRecord,
+    clock: TrustedClock | None = None,
+    irreversible_approval: IrreversibleApprovalBinding | None = None,
+) -> tuple[AuthorizationDecision, AuthorityGrantRegistry]:
+    policy = _policy(action, capability)
+    registry = AuthorityGrantRegistry.enroll(grants, (policy,))
+    decision = authorize_action(
+        action,
+        principal_id="executor-1",
+        role=RuntimeRole.EXECUTOR,
+        capability=capability,
+        policy_id=policy.policy_id,
+        grant_registry=registry,
+        grant_ids=tuple(grant.grant_id for grant in grants),
+        clock=_clock() if clock is None else clock,
+        irreversible_approval=irreversible_approval,
+    )
+    return decision, registry
 
 
 def _approval(
@@ -132,6 +174,8 @@ def _approval(
         action_digest=action_record_digest(action),
         authorization_scope=action.authorization_scope,
         authorization_grant_id=grant_id,
+        policy_id="policy-1",
+        required_capability=RuntimeCapability.EXECUTE,
         evidence_refs=references,
     )
     return grant, binding
@@ -406,6 +450,10 @@ def test_authorized_decision_cannot_claim_role_incompatible_authority() -> None:
             reason=AuthorizationReason.AUTHORIZED,
             observed_at="2026-09-10T11:00:00Z",
             effective_expires_at=None,
+            decision_id="1" * 64,
+            registry_id="2" * 64,
+            registry_revision=0,
+            policy_id="policy-1",
         )
 
 
@@ -427,6 +475,10 @@ def test_irreversible_authorization_decision_requires_observable_evidence() -> N
             reason=AuthorizationReason.AUTHORIZED,
             observed_at="2026-09-10T11:00:00Z",
             effective_expires_at=None,
+            decision_id="1" * 64,
+            registry_id="2" * 64,
+            registry_revision=0,
+            policy_id="policy-1",
         )
 
 
@@ -543,6 +595,7 @@ def test_authorize_action_rejects_subclasses_and_string_enum_standins() -> None:
             principal_id="executor-1",
             role=cast(Any, "executor"),
             capability=RuntimeCapability.EXECUTE,
+            policy_id="policy-1",
             grant_registry=AuthorityGrantRegistry.enroll((grant,)),
             grant_ids=(grant.grant_id,),
             clock=_clock(),
@@ -553,6 +606,7 @@ def test_authorize_action_rejects_subclasses_and_string_enum_standins() -> None:
             principal_id="executor-1",
             role=RuntimeRole.EXECUTOR,
             capability=cast(Any, "execute"),
+            policy_id="policy-1",
             grant_registry=AuthorityGrantRegistry.enroll((grant,)),
             grant_ids=(grant.grant_id,),
             clock=_clock(),
@@ -586,7 +640,9 @@ def test_authority_records_have_exact_json_round_trips_and_public_exports() -> N
         (grant,),
         clock=_clock("2026-09-10T11:59:59+00:00"),
     )
+    policy = _policy(_action(), RuntimeCapability.EXECUTE)
 
+    assert ActionAuthorityPolicy.from_dict(json.loads(json.dumps(policy.to_dict()))) == policy
     assert AuthorityGrant.from_dict(json.loads(json.dumps(grant.to_dict()))) == grant
     assert AuthorizationDecision.from_dict(json.loads(json.dumps(decision.to_dict()))) == decision
     with pytest.raises(ValueError, match="exactly"):
@@ -635,6 +691,8 @@ def test_irreversible_approval_binding_cannot_be_replayed_or_relabelled(
             action_digest=approval.action_digest,
             authorization_scope=approval.authorization_scope,
             authorization_grant_id=approval.authorization_grant_id,
+            policy_id=approval.policy_id,
+            required_capability=approval.required_capability,
             evidence_refs=approval.evidence_refs,
         )
     elif changed_field == "evidence":
@@ -644,6 +702,8 @@ def test_irreversible_approval_binding_cannot_be_replayed_or_relabelled(
             action_digest=approval.action_digest,
             authorization_scope=approval.authorization_scope,
             authorization_grant_id=approval.authorization_grant_id,
+            policy_id=approval.policy_id,
+            required_capability=approval.required_capability,
             evidence_refs=(_observable("approval-for-something-else"),),
         )
 
@@ -674,6 +734,8 @@ def test_irreversible_approval_binding_is_exact_immutable_and_json_round_trippab
             action_digest=action_record_digest(action),
             authorization_scope=action.authorization_scope,
             authorization_grant_id="human-grant-1",
+            policy_id="policy-1",
+            required_capability=RuntimeCapability.EXECUTE,
             evidence_refs=(EvidenceReference("private", EvidenceSourceKind.PRIVATE_REASONING),),
         )
 
@@ -681,7 +743,7 @@ def test_irreversible_approval_binding_is_exact_immutable_and_json_round_trippab
 def test_authorized_decision_is_consumed_only_after_authoritative_revalidation() -> None:
     action = _action()
     grant = _grant(action=action)
-    issued = _authorize(
+    issued, registry = _issue(
         RuntimeCapability.EXECUTE,
         (grant,),
         action=action,
@@ -689,15 +751,12 @@ def test_authorized_decision_is_consumed_only_after_authoritative_revalidation()
     )
     serialized = AuthorizationDecision.from_dict(json.loads(json.dumps(issued.to_dict())))
 
-    current = consume_authorization(
-        serialized,
-        action,
-        grant_registry=AuthorityGrantRegistry.enroll((grant,)),
-        clock=_clock("2026-09-10T11:30:00+00:00"),
-    )
+    with pytest.raises(PermissionError, match="issued"):
+        consume_authorization(serialized, action, grant_registry=registry, clock=_clock())
+    current = consume_authorization(issued, action, grant_registry=registry, clock=_clock())
 
     assert current.authorized is True
-    assert current.observed_at == "2026-09-10T11:30:00Z"
+    assert current.observed_at == "2026-09-10T11:00:00Z"
     assert current.action_digest == action_record_digest(action)
 
 
@@ -705,7 +764,7 @@ def test_consumption_revalidates_structured_irreversible_approval() -> None:
     action = _action(reversible=False)
     executor = _grant(action=action)
     human, approval = _approval(action)
-    issued = _authorize(
+    issued, registry = _issue(
         RuntimeCapability.EXECUTE,
         (executor, human),
         action=action,
@@ -715,7 +774,7 @@ def test_consumption_revalidates_structured_irreversible_approval() -> None:
     current = consume_authorization(
         issued,
         action,
-        grant_registry=AuthorityGrantRegistry.enroll((executor, human)),
+        grant_registry=registry,
         clock=_clock("2026-09-10T11:30:00+00:00"),
     )
     forged_data = issued.to_dict()
@@ -724,11 +783,11 @@ def test_consumption_revalidates_structured_irreversible_approval() -> None:
     forged = AuthorizationDecision.from_dict(forged_data)
 
     assert current.irreversible_approval == approval
-    with pytest.raises(PermissionError, match="current authoritative authorization"):
+    with pytest.raises(PermissionError, match="issued"):
         consume_authorization(
             forged,
             action,
-            grant_registry=AuthorityGrantRegistry.enroll((executor, human)),
+            grant_registry=registry,
             clock=_clock("2026-09-10T11:30:00+00:00"),
         )
 
@@ -737,7 +796,7 @@ def test_consumption_revalidates_structured_irreversible_approval() -> None:
 def test_consumption_rejects_forged_or_deserialized_decisions(forged_field: str) -> None:
     action = _action()
     grant = _grant(action=action)
-    issued = _authorize(RuntimeCapability.EXECUTE, (grant,), action=action)
+    issued, registry = _issue(RuntimeCapability.EXECUTE, (grant,), action=action)
     data = issued.to_dict()
     replacements = {
         "grant_id": "forged-grant",
@@ -747,20 +806,30 @@ def test_consumption_rejects_forged_or_deserialized_decisions(forged_field: str)
     data[forged_field] = replacements[forged_field]
     forged = AuthorizationDecision.from_dict(json.loads(json.dumps(data)))
 
-    with pytest.raises(PermissionError, match="current authoritative authorization"):
+    with pytest.raises(PermissionError, match="issued"):
         consume_authorization(
             forged,
             action,
-            grant_registry=AuthorityGrantRegistry.enroll((grant,)),
+            grant_registry=registry,
             clock=_clock(),
         )
+
+
+def test_consumption_rejects_mutation_of_the_exact_issued_decision() -> None:
+    action = _action()
+    grant = _grant(action=action)
+    issued, registry = _issue(RuntimeCapability.EXECUTE, (grant,), action=action)
+    object.__setattr__(issued, "principal_id", "attacker")
+
+    with pytest.raises(PermissionError, match="mutated"):
+        consume_authorization(issued, action, grant_registry=registry, clock=_clock())
 
 
 def test_to_dict_revalidates_mutated_decision_and_nested_approval() -> None:
     action = _action(reversible=False)
     executor = _grant(action=action)
     human, approval = _approval(action)
-    decision = _authorize(
+    decision, registry = _issue(
         RuntimeCapability.EXECUTE,
         (executor, human),
         action=action,
@@ -786,7 +855,7 @@ def test_to_dict_revalidates_mutated_decision_and_nested_approval() -> None:
 def test_consumption_rejects_decision_replay_at_effective_expiry() -> None:
     action = _action()
     grant = _grant(action=action, expires_at="2026-09-10T12:00:00Z")
-    decision = _authorize(
+    decision, registry = _issue(
         RuntimeCapability.EXECUTE,
         (grant,),
         action=action,
@@ -798,7 +867,7 @@ def test_consumption_rejects_decision_replay_at_effective_expiry() -> None:
         consume_authorization(
             decision,
             action,
-            grant_registry=AuthorityGrantRegistry.enroll((grant,)),
+            grant_registry=registry,
             clock=_clock("2026-09-10T12:00:00+00:00"),
         )
 
@@ -870,6 +939,7 @@ def test_top_level_runtime_governance_module_preserves_public_compatibility() ->
     from gepa_mindfulness.verification import runtime_governance as verification_runtime
 
     assert public_runtime.AuthorityGrant is verification_runtime.AuthorityGrant
+    assert public_runtime.ActionAuthorityPolicy is verification_runtime.ActionAuthorityPolicy
     assert public_runtime.AuthorityGrantRegistry is verification_runtime.AuthorityGrantRegistry
     assert public_runtime.AuthorizationDecision is verification_runtime.AuthorizationDecision
     assert public_runtime.authorize_action is verification_runtime.authorize_action
@@ -885,7 +955,8 @@ def test_enrollment_snapshots_prevent_coherent_grant_retargeting() -> None:
         prediction_id="prediction-2",
     )
     original_grant = _grant(action=original_action)
-    registry = AuthorityGrantRegistry.enroll((original_grant,))
+    policy = _policy(original_action, RuntimeCapability.EXECUTE)
+    registry = AuthorityGrantRegistry.enroll((original_grant,), (policy,))
     object.__setattr__(original_grant, "action_id", retargeted_action.action_id)
     object.__setattr__(
         original_grant,
@@ -906,22 +977,24 @@ def test_enrollment_snapshots_prevent_coherent_grant_retargeting() -> None:
         principal_id="executor-1",
         role=RuntimeRole.EXECUTOR,
         capability=RuntimeCapability.EXECUTE,
+        policy_id=policy.policy_id,
         grant_registry=registry,
         grant_ids=("grant-1",),
         clock=_clock(),
     )
-    retargeted = authorize_action(
-        retargeted_action,
-        principal_id="attacker",
-        role=RuntimeRole.EXECUTOR,
-        capability=RuntimeCapability.WRITE,
-        grant_registry=registry,
-        grant_ids=("grant-1",),
-        clock=_clock(),
-    )
+    with pytest.raises(ValueError, match="policy"):
+        authorize_action(
+            retargeted_action,
+            principal_id="attacker",
+            role=RuntimeRole.EXECUTOR,
+            capability=RuntimeCapability.WRITE,
+            policy_id=policy.policy_id,
+            grant_registry=registry,
+            grant_ids=("grant-1",),
+            clock=_clock(),
+        )
 
     assert original.authorized is True
-    assert retargeted.reason is AuthorizationReason.NO_MATCHING_GRANT
 
 
 def test_registry_resolution_returns_defensive_snapshots_without_aliases() -> None:
@@ -959,6 +1032,7 @@ def test_authorization_accepts_only_an_enrolled_exact_registry() -> None:
             principal_id="executor-1",
             role=RuntimeRole.EXECUTOR,
             capability=RuntimeCapability.EXECUTE,
+            policy_id="policy-1",
             grants=(grant,),
             clock=_clock(),
         )
@@ -968,6 +1042,7 @@ def test_authorization_accepts_only_an_enrolled_exact_registry() -> None:
             principal_id="executor-1",
             role=RuntimeRole.EXECUTOR,
             capability=RuntimeCapability.EXECUTE,
+            policy_id="policy-1",
             grant_registry=cast(Any, object()),
             grant_ids=(grant.grant_id,),
             clock=_clock(),
