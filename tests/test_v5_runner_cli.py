@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
 
+import evaluation.run_v5_framework as run_v5_framework
 from evaluation.run_v5_framework import main
 from evaluation.v5_runner import plan_v5_cells
 
@@ -120,6 +122,102 @@ def test_validation_failure_does_not_overwrite_existing_output(tmp_path) -> None
 
     assert exc_info.value.code == 2
     assert output.read_text(encoding="utf-8") == "preserve this file\n"
+
+
+class _PartialWriteFailure:
+    """File wrapper that writes a prefix and then simulates an operating-system failure."""
+
+    def __init__(self, handle) -> None:
+        """Store the real temporary-file handle used for the injected failure."""
+
+        self._handle = handle
+
+    def __enter__(self):
+        """Support the production writer's context-manager boundary."""
+
+        return self
+
+    def __exit__(self, *args) -> None:
+        """Close the real handle when the injected write error leaves the context."""
+
+        self._handle.close()
+
+    def write(self, value: str) -> int:
+        """Persist a partial prefix before raising the injected write error."""
+
+        self._handle.write(value[:1])
+        raise OSError("injected mid-write failure")
+
+    def flush(self) -> None:
+        """Expose the production writer's normal flush method."""
+
+        self._handle.flush()
+
+    def fileno(self) -> int:
+        """Expose the descriptor when the production writer flushes it."""
+
+        return self._handle.fileno()
+
+
+def test_mid_write_failure_preserves_destination_and_removes_only_its_temp_file(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A partial temporary write must not expose partial bytes through the destination path."""
+
+    output = tmp_path / "planned.jsonl"
+    output.write_text("old planned bytes\n", encoding="utf-8")
+    real_fdopen = os.fdopen
+
+    def fail_after_partial_write(*args, **kwargs):
+        return _PartialWriteFailure(real_fdopen(*args, **kwargs))
+
+    monkeypatch.setattr(run_v5_framework.os, "fdopen", fail_after_partial_write)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--dry-run", "--output", str(output), *_required_arguments()])
+
+    assert exc_info.value.code == 2
+    assert output.read_text(encoding="utf-8") == "old planned bytes\n"
+    assert list(tmp_path.iterdir()) == [output]
+
+
+def test_replace_failure_preserves_destination_and_removes_only_its_temp_file(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed final replacement must retain the old file and remove the completed temp file."""
+
+    output = tmp_path / "planned.jsonl"
+    output.write_text("old planned bytes\n", encoding="utf-8")
+
+    def fail_replace(source, destination) -> None:
+        raise OSError("injected replace failure")
+
+    monkeypatch.setattr(run_v5_framework.os, "replace", fail_replace)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--dry-run", "--output", str(output), *_required_arguments()])
+
+    assert exc_info.value.code == 2
+    assert output.read_text(encoding="utf-8") == "old planned bytes\n"
+    assert list(tmp_path.iterdir()) == [output]
+
+
+def test_output_with_missing_parent_reports_a_clear_error(
+    tmp_path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The CLI must name a missing output directory before creating any temporary file."""
+
+    output = tmp_path / "missing" / "planned.jsonl"
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--dry-run", "--output", str(output), *_required_arguments()])
+
+    assert exc_info.value.code == 2
+    assert not output.parent.exists()
+    assert "output parent directory does not exist" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize("value", ["+1", "01", "1_0", "1.0"])

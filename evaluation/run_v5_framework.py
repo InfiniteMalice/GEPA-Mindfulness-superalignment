@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 from .v5_runner import V5EvaluationCell, plan_v5_cells
@@ -41,6 +43,46 @@ def _serialize_cell(cell: V5EvaluationCell) -> str:
     )
 
 
+def _write_jsonl_atomically(output_path: Path, jsonl: str) -> None:
+    """Replace one output file only after a same-directory temporary file is closed."""
+
+    parent = output_path.parent
+    if not parent.exists():
+        raise ValueError(f"output parent directory does not exist: {parent}")
+    if not parent.is_dir():
+        raise ValueError(f"output parent path is not a directory: {parent}")
+
+    descriptor: int | None = None
+    temp_path: Path | None = None
+    try:
+        descriptor, raw_temp_path = tempfile.mkstemp(
+            dir=parent,
+            prefix=f".{output_path.name}.",
+            suffix=".tmp",
+        )
+        temp_path = Path(raw_temp_path)
+        temp_file = os.fdopen(descriptor, "w", encoding="utf-8", newline="\n")
+        descriptor = None
+        with temp_file:
+            temp_file.write(jsonl)
+            temp_file.flush()
+        os.replace(temp_path, output_path)
+        temp_path = None
+    except (OSError, UnicodeError) as error:
+        raise ValueError(f"could not write V5 JSONL output {output_path}: {error}") from error
+    finally:
+        if descriptor is not None:
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+        if temp_path is not None:
+            try:
+                temp_path.unlink()
+            except FileNotFoundError:
+                pass
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the isolated V5 planner command parser."""
 
@@ -73,14 +115,14 @@ def main(argv: list[str] | None = None) -> int:
             model_version=args.model_version,
             harness_version=args.harness_version,
         )
+        jsonl = "\n".join(_serialize_cell(cell) for cell in cells) + "\n"
+        if args.output is not None:
+            _write_jsonl_atomically(args.output, jsonl)
     except ValueError as error:
         parser.error(str(error))
 
-    jsonl = "\n".join(_serialize_cell(cell) for cell in cells) + "\n"
     if args.output is None:
         sys.stdout.write(jsonl)
-    else:
-        args.output.write_text(jsonl, encoding="utf-8", newline="\n")
     return 0
 
 
