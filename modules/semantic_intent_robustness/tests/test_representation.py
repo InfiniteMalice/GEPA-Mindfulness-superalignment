@@ -81,7 +81,12 @@ def test_source_span_rejects_invalid_coordinates(
     error_type: type[Exception],
 ) -> None:
     with pytest.raises(error_type):
-        SourceSpan(source_id="source-1", start=start, end=end, raw_text=raw_text)  # type: ignore[arg-type]
+        SourceSpan(  # type: ignore[arg-type]
+            source_id="source-1",
+            start=start,
+            end=end,
+            raw_text=raw_text,
+        )
 
 
 @pytest.mark.parametrize("source_id", ["", " source-1", "source-1 ", 1])
@@ -149,6 +154,21 @@ def test_candidate_rejects_unbounded_or_non_float_scores(
         replace(_candidate(), **{field_name: value})
 
 
+@pytest.mark.parametrize(
+    "field_name",
+    [
+        "orthographic_score",
+        "phonetic_score",
+        "contextual_score",
+        "semantic_similarity",
+        "confidence",
+    ],
+)
+def test_candidate_rejects_negative_zero_scores(field_name: str) -> None:
+    with pytest.raises(ValueError, match="negative zero"):
+        replace(_candidate(), **{field_name: -0.0})
+
+
 def test_lattice_binds_each_span_to_the_immutable_source_text() -> None:
     lattice = RepresentationLattice(
         source_id="source-1",
@@ -162,6 +182,20 @@ def test_lattice_binds_each_span_to_the_immutable_source_text() -> None:
     assert lattice.candidates[0].source_span.raw_text == lattice.raw_text[6:11]
     with pytest.raises(FrozenInstanceError):
         lattice.raw_text = "Hello world!"  # type: ignore[misc]
+
+
+def test_frozen_records_expose_no_mutable_instance_dictionary() -> None:
+    candidate = _candidate()
+    lattice = RepresentationLattice(
+        source_id="source-1",
+        raw_text="Hello wrold!",
+        candidates=(candidate,),
+        max_candidates=1,
+    )
+
+    for record in (candidate.source_span, candidate, lattice):
+        with pytest.raises(AttributeError):
+            getattr(record, "__dict__")
 
 
 def test_derived_candidate_round_trip_never_replaces_raw_text() -> None:
@@ -267,3 +301,23 @@ def test_lattice_orders_candidates_deterministically() -> None:
         lexical_last,
         later_span,
     )
+
+
+def test_lattice_order_is_independent_of_candidate_input_order() -> None:
+    lexical_last = _candidate(candidate_text="worlds", confidence=0.8)
+    lexical_first = _candidate(candidate_text="world", confidence=0.8)
+
+    forward = RepresentationLattice(
+        source_id="source-1",
+        raw_text="Hello wrold!",
+        candidates=(lexical_last, lexical_first),
+        max_candidates=2,
+    )
+    reversed_order = RepresentationLattice(
+        source_id="source-1",
+        raw_text="Hello wrold!",
+        candidates=(lexical_first, lexical_last),
+        max_candidates=2,
+    )
+
+    assert forward.candidates == reversed_order.candidates == (lexical_first, lexical_last)

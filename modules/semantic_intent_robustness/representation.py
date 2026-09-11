@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from math import isfinite
+from math import copysign, isfinite
 
 
 class RepresentationChannel(str, Enum):
@@ -27,7 +27,7 @@ class CandidateOutcome(str, Enum):
     ABSTAIN = "abstain"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class SourceSpan:
     """Exact nonempty slice of an immutable source document."""
 
@@ -48,7 +48,7 @@ class SourceSpan:
             raise ValueError("raw_text length must equal end - start")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class RepresentationCandidate:
     """One bounded alternate reading with retained source provenance."""
 
@@ -84,7 +84,7 @@ class RepresentationCandidate:
         _validate_canonical_text(self.generation_reason, field_name="generation_reason")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class RepresentationLattice:
     """Deterministically ordered candidates bound to one immutable source."""
 
@@ -142,6 +142,8 @@ def _candidate_sort_key(candidate: RepresentationCandidate) -> tuple[object, ...
 def _validate_score(value: object, *, field_name: str) -> None:
     if not isinstance(value, float) or type(value) is not float:
         raise TypeError(f"{field_name} must be an exact float")
+    if value == 0.0 and copysign(1.0, value) < 0.0:
+        raise ValueError(f"{field_name} must not be negative zero")
     if not isfinite(value) or not 0.0 <= value <= 1.0:
         raise ValueError(f"{field_name} must be finite and in [0, 1]")
 
