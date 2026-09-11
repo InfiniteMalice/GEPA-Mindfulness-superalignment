@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Mapping
 from uuid import uuid4
+
+_RFC3339_OFFSET_DATETIME = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$"
+)
 
 
 class StructuredEventType(str, Enum):
@@ -252,6 +257,8 @@ def _parse_validity_bound(field_name: str, value: object) -> datetime | None:
         return None
     _validate_optional_nonblank_string(field_name, value)
     timestamp = str(value)
+    if _RFC3339_OFFSET_DATETIME.fullmatch(timestamp) is None:
+        raise ValueError(f"{field_name} must be an RFC3339 offset datetime")
     if timestamp.endswith("Z"):
         timestamp = f"{timestamp[:-1]}+00:00"
     try:

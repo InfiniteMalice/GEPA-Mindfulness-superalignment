@@ -43,9 +43,24 @@ def test_normalize_legacy_event_does_not_invent_action_bound_fields() -> None:
     normalized = normalize_trace_event(legacy)
 
     assert normalized["event_type"] == "framing"
-    assert "action_id" not in normalized
-    assert "parent_event_ids" not in normalized
-    assert "case_version" not in normalized
+    for field_name in (
+        "action_id",
+        "parent_event_ids",
+        "evidence_refs",
+        "model_version",
+        "harness_version",
+        "case_version",
+        "case_id",
+        "stripe_id",
+        "repeat_id",
+        "seed",
+        "authorization_scope",
+        "verifier_refs",
+        "valid_from",
+        "valid_until",
+        "superseded_by",
+    ):
+        assert field_name not in normalized
 
 
 def test_synthetic_token_telemetry_is_labeled_and_abstention_propagates() -> None:

@@ -25,8 +25,10 @@ epistemic assessments, and case assessments.
 Action-bound metadata is optional for backward compatibility. Supplied linkage IDs, versions, scopes, and
 reference strings must be nonblank. Reference collections are snapshotted as immutable tuples; they serialize
 as JSON lists. Supplied `case_id` values are built-in integers from 0 through 17, `repeat_id` values are
-nonnegative built-in integers, and `seed` values are built-in integers. Validity bounds are ISO-8601 datetimes
-with an explicit UTC offset; this avoids ambiguous comparisons between naive and aware datetimes.
+nonnegative built-in integers, and `seed` values are built-in integers. Validity bounds use the
+RFC3339-compatible `YYYY-MM-DDTHH:MM:SS[.fraction](Z|+HH:MM|-HH:MM)` form. The parser accepts uppercase
+`Z`, colon-delimited numeric offsets such as `+00:00`, and fractional seconds. This policy rejects naive
+datetimes and parser-specific separators, which avoids ambiguous comparisons between naive and aware datetimes.
 
 Raw evidence and raw action or outcome events are append-only. A derived assessment may identify a later
 replacement through `superseded_by`, but that relationship does not rewrite or delete its source event or
