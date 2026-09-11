@@ -12,9 +12,11 @@ from .action_bound_events import (
     make_prediction_commit_event,
     make_verification_result_event,
 )
+from .event_sequence import EvaluatedSystemVersion, validate_action_bound_sequence
 
 __all__ = [
     "ActionRecord",
+    "EvaluatedSystemVersion",
     "OutcomeObservation",
     "PredictionCommit",
     "VerificationResult",
@@ -24,6 +26,7 @@ __all__ = [
     "make_outcome_observation_event",
     "make_prediction_commit_event",
     "make_verification_result_event",
+    "validate_action_bound_sequence",
 ]
 
 
