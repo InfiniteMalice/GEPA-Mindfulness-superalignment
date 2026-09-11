@@ -8,6 +8,7 @@ from typing import Any, cast
 
 import pytest
 
+import gepa_mindfulness.learning_surfaces as learning_surfaces
 from gepa_mindfulness import (
     LearningSurface,
     LessonCharacteristics,
@@ -27,6 +28,7 @@ def _proposal(**overrides: object) -> LessonProposal:
     values: dict[str, object] = {
         "lesson_id": "lesson-1",
         "summary": "The stable action convention reduced execution errors.",
+        "characteristics": LessonCharacteristics(kind=LessonKind.STABLE_PROCEDURAL_CONVENTION),
         "primary_destination": LearningSurface.HARNESS,
         "evidence_refs": (_observable_ref(),),
         "rationale": "Repeated executions provide observable support for the convention.",
@@ -89,6 +91,89 @@ def test_classifier_does_not_read_prose_keywords() -> None:
     assert first is second is LearningSurface.TRACE_ONLY
 
 
+def test_classifier_cannot_be_retargeted_by_an_injected_mutable_table(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    characteristics = LessonCharacteristics(kind=LessonKind.ONE_OFF_OBSERVATION)
+    monkeypatch.setattr(
+        learning_surfaces,
+        "_DESTINATION_BY_KIND",
+        {LessonKind.ONE_OFF_OBSERVATION: LearningSurface.MODEL},
+        raising=False,
+    )
+
+    assert classify_learning_surface(characteristics) is LearningSurface.TRACE_ONLY
+
+
+@pytest.mark.parametrize(
+    "flags",
+    [
+        (True, False, False),
+        (False, True, False),
+        (False, False, True),
+        (True, True, False),
+        (True, False, True),
+        (False, True, True),
+        (True, True, True),
+    ],
+)
+@pytest.mark.parametrize("kind", list(LessonKind))
+def test_every_human_review_flag_combination_requires_human_destination(
+    kind: LessonKind,
+    flags: tuple[bool, bool, bool],
+) -> None:
+    characteristics = LessonCharacteristics(
+        kind=kind,
+        normative=flags[0],
+        ambiguous=flags[1],
+        difficult_to_reverse=flags[2],
+    )
+
+    assert classify_learning_surface(characteristics) is LearningSurface.HUMAN
+    assert (
+        _proposal(
+            characteristics=characteristics,
+            primary_destination=LearningSurface.HUMAN,
+        ).primary_destination
+        is LearningSurface.HUMAN
+    )
+
+
+@pytest.mark.parametrize(
+    ("kind", "flags", "destination"),
+    [
+        (LessonKind.ONE_OFF_OBSERVATION, (False, False, False), LearningSurface.MODEL),
+        (
+            LessonKind.PERSISTENT_INTRINSIC_BEHAVIOR,
+            (True, False, False),
+            LearningSurface.MODEL,
+        ),
+        (
+            LessonKind.REUSABLE_DEPENDENCY,
+            (False, False, True),
+            LearningSurface.SKILL_GRAPH,
+        ),
+    ],
+)
+def test_proposal_rejects_a_destination_inconsistent_with_characteristics(
+    kind: LessonKind,
+    flags: tuple[bool, bool, bool],
+    destination: LearningSurface,
+) -> None:
+    characteristics = LessonCharacteristics(
+        kind=kind,
+        normative=flags[0],
+        ambiguous=flags[1],
+        difficult_to_reverse=flags[2],
+    )
+
+    with pytest.raises(ValueError, match="primary_destination.*characteristics"):
+        _proposal(
+            characteristics=characteristics,
+            primary_destination=destination,
+        )
+
+
 @pytest.mark.parametrize(
     ("field_name", "value"),
     [
@@ -147,6 +232,32 @@ def test_proposal_detaches_caller_collections_and_reference_aliases() -> None:
     assert proposal.evidence_refs[0] is not original
 
 
+def test_proposal_detaches_caller_owned_characteristics() -> None:
+    characteristics = LessonCharacteristics(kind=LessonKind.EPISODE_FACT)
+    proposal = _proposal(
+        characteristics=characteristics,
+        primary_destination=LearningSurface.MEMORY,
+    )
+    object.__setattr__(characteristics, "kind", LessonKind.PERSISTENT_INTRINSIC_BEHAVIOR)
+
+    assert proposal.characteristics == LessonCharacteristics(kind=LessonKind.EPISODE_FACT)
+    assert proposal.characteristics is not characteristics
+    assert proposal.primary_destination is LearningSurface.MEMORY
+
+
+def test_proposal_rejects_characteristics_subclasses() -> None:
+    class CharacteristicsSubclass(LessonCharacteristics):
+        pass
+
+    characteristics = CharacteristicsSubclass(kind=LessonKind.EPISODE_FACT)
+
+    with pytest.raises(ValueError, match="characteristics"):
+        _proposal(
+            characteristics=characteristics,
+            primary_destination=LearningSurface.MEMORY,
+        )
+
+
 def test_proposal_rejects_hostile_container_and_reference_subclasses() -> None:
     class ListSubclass(list[EvidenceReference]):
         pass
@@ -183,6 +294,22 @@ def test_proposal_revalidates_use_time_mutation_before_serializing() -> None:
         proposal.to_dict()
 
 
+def test_proposal_rejects_coherent_routing_mutation_before_serializing() -> None:
+    proposal = _proposal(
+        characteristics=LessonCharacteristics(kind=LessonKind.EPISODE_FACT),
+        primary_destination=LearningSurface.MEMORY,
+    )
+    object.__setattr__(
+        proposal.characteristics,
+        "kind",
+        LessonKind.PERSISTENT_INTRINSIC_BEHAVIOR,
+    )
+    object.__setattr__(proposal, "primary_destination", LearningSurface.MODEL)
+
+    with pytest.raises(ValueError, match="routing binding"):
+        proposal.to_dict()
+
+
 def test_lesson_characteristics_reject_ambiguous_or_hostile_values() -> None:
     with pytest.raises(ValueError, match="kind"):
         LessonCharacteristics(kind=cast(Any, "episode_fact"))
@@ -212,6 +339,8 @@ def test_proposal_is_frozen_slotted_and_json_round_trips() -> None:
     restored = LessonProposal.from_dict(payload)
 
     assert restored == proposal
+    assert restored.characteristics == proposal.characteristics
+    assert restored.characteristics is not proposal.characteristics
     assert restored.review_status is LessonReviewStatus.APPROVED
     assert restored.primary_destination is LearningSurface.HARNESS
     assert not hasattr(restored, "__dict__")
@@ -247,6 +376,18 @@ def test_learning_deserializers_reject_wrong_shapes_and_fields(
 ) -> None:
     with pytest.raises(ValueError):
         constructor(payload)
+
+
+def test_proposal_from_dict_rejects_a_dishonest_serialized_destination() -> None:
+    proposal = _proposal(
+        characteristics=LessonCharacteristics(kind=LessonKind.ONE_OFF_OBSERVATION),
+        primary_destination=LearningSurface.TRACE_ONLY,
+    )
+    payload = proposal.to_dict()
+    payload["primary_destination"] = "model"
+
+    with pytest.raises(ValueError, match="primary_destination.*characteristics"):
+        LessonProposal.from_dict(payload)
 
 
 def test_lesson_characteristics_json_round_trip_is_deterministic() -> None:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import TypeVar, cast
 
@@ -88,22 +88,23 @@ class LessonCharacteristics:
         )
 
 
-_DESTINATION_BY_KIND = {
-    LessonKind.ONE_OFF_OBSERVATION: LearningSurface.TRACE_ONLY,
-    LessonKind.EPISODE_FACT: LearningSurface.MEMORY,
-    LessonKind.STABLE_PROCEDURAL_CONVENTION: LearningSurface.HARNESS,
-    LessonKind.REUSABLE_DEPENDENCY: LearningSurface.SKILL_GRAPH,
-    LessonKind.PERSISTENT_INTRINSIC_BEHAVIOR: LearningSurface.MODEL,
-}
-
-
 def classify_learning_surface(characteristics: LessonCharacteristics) -> LearningSurface:
     """Select one destination from explicit typed characteristics."""
 
     snapshot = _snapshot_characteristics(characteristics)
     if snapshot.normative or snapshot.ambiguous or snapshot.difficult_to_reverse:
         return LearningSurface.HUMAN
-    return _DESTINATION_BY_KIND[snapshot.kind]
+    if snapshot.kind is LessonKind.ONE_OFF_OBSERVATION:
+        return LearningSurface.TRACE_ONLY
+    if snapshot.kind is LessonKind.EPISODE_FACT:
+        return LearningSurface.MEMORY
+    if snapshot.kind is LessonKind.STABLE_PROCEDURAL_CONVENTION:
+        return LearningSurface.HARNESS
+    if snapshot.kind is LessonKind.REUSABLE_DEPENDENCY:
+        return LearningSurface.SKILL_GRAPH
+    if snapshot.kind is LessonKind.PERSISTENT_INTRINSIC_BEHAVIOR:
+        return LearningSurface.MODEL
+    raise ValueError("kind has no learning-surface decision")
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,17 +113,27 @@ class LessonProposal:
 
     lesson_id: str
     summary: str
+    characteristics: LessonCharacteristics
     primary_destination: LearningSurface
     evidence_refs: tuple[EvidenceReference, ...]
     rationale: str
     reversible: bool
     review_status: LessonReviewStatus
+    _routing_binding: tuple[LessonKind, bool, bool, bool, LearningSurface] = field(
+        init=False,
+        repr=False,
+        compare=False,
+    )
 
     def __post_init__(self) -> None:
         _require_nonblank_string(self.lesson_id, "lesson_id")
         _require_nonblank_string(self.summary, "summary")
+        characteristics = _snapshot_characteristics(self.characteristics)
         if type(self.primary_destination) is not LearningSurface:
             raise ValueError("primary_destination must be exactly one LearningSurface")
+        expected_destination = classify_learning_surface(characteristics)
+        if self.primary_destination is not expected_destination:
+            raise ValueError("primary_destination must match classified characteristics")
         references = _snapshot_evidence_refs(self.evidence_refs)
         if not any(reference.is_observable for reference in references):
             raise ValueError("LessonProposal requires observable evidence_refs")
@@ -133,7 +144,13 @@ class LessonProposal:
         _require_exact_bool(self.reversible, "reversible")
         if type(self.review_status) is not LessonReviewStatus:
             raise ValueError("review_status must be an exact LessonReviewStatus")
+        object.__setattr__(self, "characteristics", characteristics)
         object.__setattr__(self, "evidence_refs", references)
+        object.__setattr__(
+            self,
+            "_routing_binding",
+            _make_routing_binding(characteristics, expected_destination),
+        )
 
     def to_dict(self) -> dict[str, object]:
         """Return a revalidated JSON-compatible proposal snapshot."""
@@ -142,6 +159,7 @@ class LessonProposal:
         return {
             "lesson_id": snapshot.lesson_id,
             "summary": snapshot.summary,
+            "characteristics": snapshot.characteristics.to_dict(),
             "primary_destination": snapshot.primary_destination.value,
             "evidence_refs": [reference.to_dict() for reference in snapshot.evidence_refs],
             "rationale": snapshot.rationale,
@@ -158,6 +176,7 @@ class LessonProposal:
             {
                 "lesson_id",
                 "summary",
+                "characteristics",
                 "primary_destination",
                 "evidence_refs",
                 "rationale",
@@ -173,6 +192,7 @@ class LessonProposal:
         return cls(
             lesson_id=cast(str, values["lesson_id"]),
             summary=cast(str, values["summary"]),
+            characteristics=LessonCharacteristics.from_dict(values["characteristics"]),
             primary_destination=_parse_exact_enum(
                 values["primary_destination"],
                 LearningSurface,
@@ -214,15 +234,51 @@ def _snapshot_proposal(value: object) -> LessonProposal:
         raise ValueError("proposal must be an exact LessonProposal")
     if type(value.evidence_refs) is not tuple:
         raise ValueError("LessonProposal evidence_refs must remain an exact tuple")
+    characteristics = _snapshot_characteristics(value.characteristics)
+    _validate_routing_binding(value, characteristics)
     return LessonProposal(
         lesson_id=value.lesson_id,
         summary=value.summary,
+        characteristics=characteristics,
         primary_destination=value.primary_destination,
         evidence_refs=value.evidence_refs,
         rationale=value.rationale,
         reversible=value.reversible,
         review_status=value.review_status,
     )
+
+
+def _make_routing_binding(
+    characteristics: LessonCharacteristics,
+    destination: LearningSurface,
+) -> tuple[LessonKind, bool, bool, bool, LearningSurface]:
+    return (
+        characteristics.kind,
+        characteristics.normative,
+        characteristics.ambiguous,
+        characteristics.difficult_to_reverse,
+        destination,
+    )
+
+
+def _validate_routing_binding(
+    proposal: LessonProposal,
+    characteristics: LessonCharacteristics,
+) -> None:
+    binding = proposal._routing_binding
+    if type(binding) is not tuple or len(binding) != 5:
+        raise ValueError("LessonProposal routing binding is invalid")
+    if (
+        type(binding[0]) is not LessonKind
+        or type(binding[1]) is not bool
+        or type(binding[2]) is not bool
+        or type(binding[3]) is not bool
+        or type(binding[4]) is not LearningSurface
+    ):
+        raise ValueError("LessonProposal routing binding is invalid")
+    expected = _make_routing_binding(characteristics, proposal.primary_destination)
+    if binding != expected:
+        raise ValueError("LessonProposal routing binding changed after construction")
 
 
 def _snapshot_evidence_refs(values: object) -> tuple[EvidenceReference, ...]:
