@@ -16,7 +16,9 @@ from evaluation import (
     ScoreRecord,
     SystemIdentity,
     V5EvaluationRecord,
+    v5_records,
 )
+from evaluation.cases.registry import RobustnessStripeRegistry
 from evaluation.v5_runner import (
     RepeatMetrics,
     V5RepeatGroupKey,
@@ -208,6 +210,78 @@ def test_summarize_record_groups_keeps_model_and_harness_versions_separate() -> 
     assert tuple(summary.metrics.pass_at_k for summary in summaries) == (1.0, 0.0)
 
 
+@pytest.mark.parametrize(
+    ("section_name", "field_name", "invalid_value", "message"),
+    [
+        ("case", "case_id", 99, "case_id"),
+        ("case", "case_version", "wrong-version", "case_version"),
+        ("case", "case_key", "wrong-key", "case_key"),
+        ("case", "case_title", "wrong title", "case_title"),
+        ("robustness", "stripe_id", "UNKNOWN", "stripe_id"),
+        ("robustness", "subtype", "unknown-subtype", "subtype"),
+        ("system", "model_version", "", "model_version"),
+        ("system", "harness_version", " ", "harness_version"),
+        ("system", "seed", 9_007_199_254_740_992, "seed"),
+    ],
+)
+def test_summarize_record_groups_revalidates_corrupted_group_identities(
+    section_name: str,
+    field_name: str,
+    invalid_value: object,
+    message: str,
+) -> None:
+    """A frozen-record corruption must fail canonical record validation before grouping."""
+
+    record = _record(repeat_id=0, seed=101, passed=True)
+    section = getattr(record, section_name)
+    object.__setattr__(section, field_name, invalid_value)
+
+    with pytest.raises(ValueError, match=message):
+        summarize_v5_record_groups((record,))
+
+
+def test_summarize_record_groups_keeps_a_second_canonical_case_separate() -> None:
+    """Case identity must prevent distinct canonical cases from being conflated."""
+
+    summaries = summarize_v5_record_groups(
+        (
+            _record(repeat_id=0, seed=101, passed=True, case_id=14),
+            _record(repeat_id=0, seed=201, passed=False, case_id=15),
+        )
+    )
+
+    assert tuple(summary.key.case_id for summary in summaries) == (14, 15)
+    assert tuple(summary.metrics.pass_at_k for summary in summaries) == (1.0, 0.0)
+
+
+def test_summarize_record_groups_keeps_valid_stripe_subtypes_separate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A subtype-key omission must conflate the two valid subtype groups in this test."""
+
+    _allow_tool_subtypes(monkeypatch)
+    summaries = summarize_v5_record_groups(
+        (
+            _record(repeat_id=0, seed=101, passed=True, subtype="retry"),
+            _record(repeat_id=0, seed=201, passed=False, subtype="fallback"),
+        )
+    )
+
+    assert tuple(summary.key.subtype for summary in summaries) == ("retry", "fallback")
+    assert tuple(summary.metrics.pass_at_k for summary in summaries) == (1.0, 0.0)
+
+
+def test_summarize_record_groups_does_not_mutate_valid_input() -> None:
+    """Canonical revalidation must use a new record rather than alter the caller's record."""
+
+    record = _record(repeat_id=0, seed=101, passed=True)
+    before = record.to_dict()
+
+    summarize_v5_record_groups((record,))
+
+    assert record.to_dict() == before
+
+
 def test_summarize_record_groups_accepts_a_valid_record_seed_outside_planner_range() -> None:
     """Aggregation accepts the V5 record contract without imposing planner-only seed bounds."""
 
@@ -304,20 +378,24 @@ def _record(
     repeat_id: int,
     seed: int,
     passed: bool,
+    case_id: int = 14,
     stripe_id: str = "TOOL_ERROR",
+    subtype: str | None = None,
     model_version: str = "mindful-model-2026-09-10",
     harness_version: str = "v5-harness-1.0.0",
 ) -> V5EvaluationRecord:
     """Return a literal valid V5 record with one independently controlled outcome."""
 
+    case_key, case_title = _CANONICAL_CASES[case_id]
+
     return V5EvaluationRecord(
         case=CaseIdentity(
-            case_id=14,
+            case_id=case_id,
             case_version="17case-v5",
-            case_key="correct_high_stakes_clarifying_abstention",
-            case_title="Correct high-stakes clarifying abstention",
+            case_key=case_key,
+            case_title=case_title,
         ),
-        robustness=RobustnessIdentity(stripe_id=stripe_id, subtype=None),
+        robustness=RobustnessIdentity(stripe_id=stripe_id, subtype=subtype),
         system=SystemIdentity(
             repeat_id=repeat_id,
             seed=seed,
@@ -353,3 +431,34 @@ def _record(
             mechanistic_signal=0.44,
         ),
     )
+
+
+_CANONICAL_CASES = {
+    14: (
+        "correct_high_stakes_clarifying_abstention",
+        "Correct high-stakes clarifying abstention",
+    ),
+    15: (
+        "over_eager_ambiguous_compliance",
+        "Over-eager ambiguous/high-stakes compliance",
+    ),
+}
+
+
+def _allow_tool_subtypes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Allow two test-only TOOL_ERROR subtypes through the real record validator."""
+
+    registry = v5_records.load_stripe_registry()
+    stripes = tuple(
+        (
+            replace(stripe, allowed_subtypes=("retry", "fallback"))
+            if stripe.id == "TOOL_ERROR"
+            else stripe
+        )
+        for stripe in registry.stripes
+    )
+    subtype_registry = RobustnessStripeRegistry(
+        registry_version=registry.registry_version,
+        stripes=stripes,
+    )
+    monkeypatch.setattr(v5_records, "load_stripe_registry", lambda: subtype_registry)

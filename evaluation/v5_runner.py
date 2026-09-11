@@ -90,12 +90,14 @@ def summarize_v5_record_groups(
     summarize complete, contiguous groups with different counts independently.
     """
 
-    _require_record_sequence(records)
+    validated_records = tuple(
+        _revalidate_record(record) for record in _require_record_sequence(records)
+    )
     if type(allow_partial) is not bool:
         raise ValueError("allow_partial must be a built-in bool")
 
     grouped_records: dict[V5RepeatGroupKey, list[V5EvaluationRecord]] = {}
-    for record in records:
+    for record in validated_records:
         key = _record_group_key(record)
         grouped_records.setdefault(key, []).append(record)
 
@@ -119,6 +121,12 @@ def _require_record_sequence(records: object) -> Sequence[V5EvaluationRecord]:
     if any(type(record) is not V5EvaluationRecord for record in records):
         raise ValueError("records must contain only exact V5EvaluationRecord instances")
     return records
+
+
+def _revalidate_record(record: V5EvaluationRecord) -> V5EvaluationRecord:
+    """Hydrate a fresh record so grouping never trusts mutable-bypass nested fields."""
+
+    return V5EvaluationRecord.from_dict(record.to_dict())
 
 
 def _record_group_key(record: V5EvaluationRecord) -> V5RepeatGroupKey:
