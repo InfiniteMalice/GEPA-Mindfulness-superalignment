@@ -181,6 +181,18 @@ def _events() -> tuple[EventEnvelope, ...]:
     return events
 
 
+def _event_evidence(
+    localized_kind: EvidenceSourceKind = EvidenceSourceKind.OBSERVABLE_OUTPUT,
+) -> tuple[tuple[str, EvidenceReference], ...]:
+    return (
+        ("event:prediction", _ref("evidence:prediction")),
+        (
+            "event:outcome",
+            EvidenceReference("evidence:localized", localized_kind),
+        ),
+    )
+
+
 def _record(
     model: str,
     harness: str,
@@ -266,6 +278,7 @@ def _base(
         trajectory_id="trajectory:1",
         source_epoch_id="epoch:source",
         events=_events(),
+        event_evidence_refs=_event_evidence(),
         source_evidence_refs=(
             _ref("evidence:prediction"),
             _ref(),
@@ -420,6 +433,7 @@ def test_trajectory_binding_rejects_rebinding_and_inexact_evidence(tmp_path: Pat
             trajectory_id="trajectory:1",
             source_epoch_id="epoch:source",
             events=_events(),
+            event_evidence_refs=_event_evidence(),
             source_evidence_refs=(_ref("evidence:prediction"), _ref()),
         )
     with pytest.raises(ValueError, match="source_evidence_refs"):
@@ -427,7 +441,34 @@ def test_trajectory_binding_rejects_rebinding_and_inexact_evidence(tmp_path: Pat
             trajectory_id="trajectory:2",
             source_epoch_id="epoch:source",
             events=_events(),
+            event_evidence_refs=_event_evidence(),
             source_evidence_refs=(_ref(),),
+        )
+
+
+def test_trajectory_evidence_rejects_private_reasoning_laundering(tmp_path: Path) -> None:
+    evaluation = EvaluationEpochStore(tmp_path / "evaluation.sqlite", "evaluation-prod")
+    history = evaluation.create_root(
+        lineage_id="main",
+        epoch_id="epoch:source",
+        model_version="model:v1",
+        harness_version="harness:v1",
+    )
+    close_evaluation_epoch(history)
+    authority = CoevolutionStore(
+        tmp_path / "coevolution.sqlite",
+        "coevolution-prod",
+        evaluation,
+        lineage_id="main",
+    )
+    private = EvidenceReference("evidence:localized", EvidenceSourceKind.PRIVATE_REASONING)
+    with pytest.raises(ValueError, match="observable|source_kind"):
+        authority.register_trajectory(
+            trajectory_id="trajectory:laundered",
+            source_epoch_id="epoch:source",
+            events=_events(),
+            event_evidence_refs=_event_evidence(EvidenceSourceKind.PRIVATE_REASONING),
+            source_evidence_refs=(_ref("evidence:prediction"), private),
         )
 
 
@@ -450,12 +491,94 @@ def test_candidate_target_registration_is_atomic_under_alias_race(tmp_path: Path
     assert sum(type(item) is ValueError for item in outcomes) == 1
 
 
+def test_evaluation_catalog_claim_is_idempotent_and_rejects_epoch_alias(tmp_path: Path) -> None:
+    _authority, _history, _proposal, _held, _protected = _base(tmp_path)
+    evaluation = EvaluationEpochStore(tmp_path / "evaluation.sqlite", "evaluation-prod")
+    claim = evaluation.claim_candidate_target(
+        lineage_id="main",
+        epoch_id="epoch:candidate",
+        candidate_id="candidate:1",
+        artifact_digest="sha256:" + "a" * 64,
+    )
+
+    assert (
+        evaluation.claim_candidate_target(
+            lineage_id="main",
+            epoch_id="epoch:candidate",
+            candidate_id="candidate:1",
+            artifact_digest="sha256:" + "a" * 64,
+        )
+        == claim
+    )
+    with pytest.raises(ValueError, match="claim|alias|registered"):
+        evaluation.claim_candidate_target(
+            lineage_id="main",
+            epoch_id="epoch:candidate",
+            candidate_id="candidate:alias",
+            artifact_digest="sha256:" + "b" * 64,
+        )
+
+
+def test_candidate_handoff_recovers_after_evaluation_claim_only(tmp_path: Path) -> None:
+    authority, history, proposal, _held, _protected = _base(tmp_path)
+    evaluation = EvaluationEpochStore(tmp_path / "evaluation.sqlite", "evaluation-prod")
+    claim = evaluation.claim_candidate_target(
+        lineage_id="main",
+        epoch_id="epoch:candidate",
+        candidate_id="candidate:1",
+        artifact_digest="sha256:" + "a" * 64,
+    )
+    append_epoch_record(history, _record("model:v2", "harness:v1", 0))
+    close_evaluation_epoch(history)
+    begin_candidate_epoch(
+        history,
+        epoch_id="epoch:later",
+        model_version="model:v3",
+        harness_version="harness:v1",
+    )
+
+    candidate = authority.register_candidate(
+        candidate_id="candidate:1",
+        correction=proposal,
+        artifact_digest="sha256:" + "a" * 64,
+    )
+    assert candidate.epoch_revision == claim.epoch_revision
+    assert (
+        authority.register_candidate(
+            candidate_id="candidate:1",
+            correction=proposal,
+            artifact_digest="sha256:" + "a" * 64,
+        )
+        == candidate
+    )
+
+
 def test_candidate_target_must_precede_records_in_new_open_epoch(tmp_path: Path) -> None:
     authority, history, proposal, _held, _protected = _base(tmp_path)
     append_epoch_record(history, _record("model:v2", "harness:v1", 0))
-    with pytest.raises(ValueError, match="new empty open epoch"):
+    with pytest.raises(ValueError, match="empty open"):
         authority.register_candidate(
             candidate_id="candidate:late",
+            correction=proposal,
+            artifact_digest="sha256:" + "a" * 64,
+        )
+
+
+def test_candidate_claim_closes_old_check_to_insert_interleaving(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    authority, history, proposal, _held, _protected = _base(tmp_path)
+    original = EvaluationEpochStore.claim_candidate_target
+
+    def interleaved_claim(store: EvaluationEpochStore, **kwargs: object) -> object:
+        append_epoch_record(history, _record("model:v2", "harness:v1", 0))
+        close_evaluation_epoch(history)
+        return original(store, **kwargs)
+
+    monkeypatch.setattr(EvaluationEpochStore, "claim_candidate_target", interleaved_claim)
+    with pytest.raises(ValueError, match="empty open tip epoch"):
+        authority.register_candidate(
+            candidate_id="candidate:interleaved",
             correction=proposal,
             artifact_digest="sha256:" + "a" * 64,
         )
@@ -468,7 +591,10 @@ def test_record_derived_metrics_are_complete_directional_and_mutation_bound(
     receipt = bundle.metric_receipt
     assert tuple(metric.name for metric in receipt.component_metrics) == _NAMES
     assert receipt.primary_metric_name == "calibration"
-    assert decide_candidate_acceptance(bundle, authority_store=authority).accepted is True
+    assert bundle.primary_metric_name == "calibration"
+    decision = decide_candidate_acceptance(bundle, authority_store=authority)
+    assert decision.primary_metric_name == "calibration"
+    assert decision.accepted is True
     assert receipt.component_metrics[-1].baseline_value == 0.875
     assert receipt.component_metrics[-1].candidate_value == 0.9
 
@@ -607,6 +733,41 @@ def test_decision_requires_store_validation_and_is_single_consume(tmp_path: Path
     with pytest.raises(ValueError, match="consumed"):
         authority.consume_decision(validated)
     assert authority.evaluation_epochs() == before
+
+
+def test_identical_acceptance_input_has_one_decision_even_after_consume(tmp_path: Path) -> None:
+    authority, bundle = _flow(tmp_path)
+    first = decide_candidate_acceptance(bundle, authority_store=authority)
+    duplicate = decide_candidate_acceptance(bundle, authority_store=authority)
+
+    assert duplicate.to_dict() == first.to_dict()
+    authority.consume_decision(first)
+    replay = decide_candidate_acceptance(bundle, authority_store=authority)
+    assert replay.to_dict() == first.to_dict()
+    with pytest.raises(ValueError, match="consumed"):
+        authority.consume_decision(replay)
+
+
+def test_concurrent_and_restarted_duplicate_decisions_resolve_one_token(tmp_path: Path) -> None:
+    authority, bundle = _flow(tmp_path)
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        decisions = tuple(
+            executor.map(
+                lambda _index: decide_candidate_acceptance(bundle, authority_store=authority),
+                range(4),
+            )
+        )
+    assert len({decision.decision_id for decision in decisions}) == 1
+    assert len({decision.input_digest for decision in decisions}) == 1
+
+    restarted = CoevolutionStore(
+        tmp_path / "coevolution.sqlite",
+        "coevolution-prod",
+        EvaluationEpochStore(tmp_path / "evaluation.sqlite", "evaluation-prod"),
+        lineage_id="main",
+    )
+    duplicate = decide_candidate_acceptance(bundle, authority_store=restarted)
+    assert duplicate.to_dict() == decisions[0].to_dict()
 
 
 def test_json_tamper_and_cross_store_replay_are_rejected(tmp_path: Path) -> None:

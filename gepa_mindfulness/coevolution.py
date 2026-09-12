@@ -121,6 +121,7 @@ class TrajectoryBinding:
     source_epoch_id: str
     event_ids: tuple[str, ...]
     action_ids: tuple[str, ...]
+    event_evidence_refs: tuple[tuple[str, EvidenceReference], ...]
     source_evidence_refs: tuple[EvidenceReference, ...]
 
     def __post_init__(self) -> None:
@@ -129,6 +130,11 @@ class TrajectoryBinding:
         _require_sha256(self.trajectory_digest, "trajectory_digest")
         object.__setattr__(self, "event_ids", _tokens(self.event_ids, "event_ids"))
         object.__setattr__(self, "action_ids", _tokens(self.action_ids, "action_ids"))
+        object.__setattr__(
+            self,
+            "event_evidence_refs",
+            _typed_event_evidence(self.event_evidence_refs),
+        )
         object.__setattr__(
             self,
             "source_evidence_refs",
@@ -144,6 +150,10 @@ class TrajectoryBinding:
             "source_epoch_id": self.source_epoch_id,
             "event_ids": list(self.event_ids),
             "action_ids": list(self.action_ids),
+            "event_evidence_refs": [
+                {"event_id": event_id, "evidence_ref": reference.to_dict()}
+                for event_id, reference in self.event_evidence_refs
+            ],
             "source_evidence_refs": [item.to_dict() for item in self.source_evidence_refs],
         }
 
@@ -157,6 +167,7 @@ class TrajectoryBinding:
                 "source_epoch_id",
                 "event_ids",
                 "action_ids",
+                "event_evidence_refs",
                 "source_evidence_refs",
             },
             "TrajectoryBinding",
@@ -167,6 +178,7 @@ class TrajectoryBinding:
             cast(str, fields["source_epoch_id"]),
             _restore_tokens(fields["event_ids"], "event_ids"),
             _restore_tokens(fields["action_ids"], "action_ids"),
+            _restore_typed_event_evidence(fields["event_evidence_refs"]),
             _restore_evidence(fields["source_evidence_refs"], "source_evidence_refs"),
         )
 
@@ -709,11 +721,10 @@ class ValidationBundle:
 
     @property
     def primary_metric_name(self) -> str:
-        """Return the policy primary metric after authority validation at decision time."""
+        """Return the exact revalidated policy primary metric."""
 
-        return next(
-            item.name for item in self.metric_receipt.component_metrics if item.name == "total"
-        )
+        receipt = MetricComparisonReceipt.from_dict(self.metric_receipt.to_dict())
+        return receipt.primary_metric_name
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -754,6 +765,7 @@ class AcceptanceDecision:
     catalog_id: str
     authority_domain: str
     revision: int
+    input_digest: str
     accepted: bool
     candidate: CandidateSystem
     proposal_id: str
@@ -790,6 +802,7 @@ class AcceptanceDecision:
             _require_token(getattr(self, name), name)
         if type(self.revision) is not int or self.revision < 1:
             raise ValueError("revision must be a positive exact integer")
+        _require_sha256(self.input_digest, "input_digest")
         if type(self.accepted) is not bool or self.execute_candidate is not False:
             raise ValueError("decision booleans must be exact and execute_candidate must be false")
         object.__setattr__(self, "candidate", CandidateSystem.from_dict(self.candidate.to_dict()))
@@ -850,6 +863,7 @@ class AcceptanceDecision:
             catalog_id=cast(str, fields["catalog_id"]),
             authority_domain=cast(str, fields["authority_domain"]),
             revision=cast(int, fields["revision"]),
+            input_digest=cast(str, fields["input_digest"]),
             accepted=cast(bool, fields["accepted"]),
             candidate=CandidateSystem.from_dict(fields["candidate"]),
             proposal_id=cast(str, fields["proposal_id"]),
@@ -884,6 +898,7 @@ _DECISION_FIELDS = {
     "catalog_id",
     "authority_domain",
     "revision",
+    "input_digest",
     "accepted",
     "candidate",
     "proposal_id",
@@ -969,6 +984,7 @@ class CoevolutionStore:
         trajectory_id: str,
         source_epoch_id: str,
         events: tuple[EventEnvelope, ...],
+        event_evidence_refs: tuple[tuple[str, EvidenceReference], ...],
         source_evidence_refs: tuple[EvidenceReference, ...],
     ) -> TrajectoryBinding:
         """Atomically register one canonical action-bound trajectory snapshot."""
@@ -977,12 +993,22 @@ class CoevolutionStore:
         epoch_id = _require_token(source_epoch_id, "source_epoch_id")
         canonical_events = _events(events)
         validate_action_bound_sequence(canonical_events)
+        typed_event_evidence = _typed_event_evidence(event_evidence_refs)
         references = _evidence(source_evidence_refs, "source_evidence_refs")
-        event_evidence = tuple(
-            reference for event in canonical_events for reference in event.evidence_refs
+        event_evidence_ids = tuple(
+            (event.event_id, reference)
+            for event in canonical_events
+            for reference in event.evidence_refs
         )
-        if tuple(item.reference_id for item in references) != event_evidence:
-            raise ValueError("source_evidence_refs must exactly match trajectory event evidence")
+        typed_ids = tuple(
+            (event_id, reference.reference_id) for event_id, reference in typed_event_evidence
+        )
+        if typed_ids != event_evidence_ids:
+            raise ValueError("typed event evidence must exactly match trajectory event evidence")
+        if any(not reference.is_observable for _, reference in typed_event_evidence):
+            raise ValueError("trajectory event evidence source_kind must remain observable")
+        if tuple(reference for _, reference in typed_event_evidence) != references:
+            raise ValueError("source_evidence_refs must exactly match typed trajectory evidence")
         _revision, epoch, _records = self._evaluation_store.resolve_epoch(
             self._lineage_id, epoch_id
         )
@@ -999,6 +1025,7 @@ class CoevolutionStore:
                 "trajectory_id": identifier,
                 "source_epoch_id": epoch_id,
                 "events": event_payloads,
+                "event_evidence_refs": _typed_event_evidence_payload(typed_event_evidence),
                 "source_evidence_refs": [item.to_dict() for item in references],
             }
         )
@@ -1008,6 +1035,7 @@ class CoevolutionStore:
             epoch_id,
             tuple(event.event_id for event in canonical_events),
             action_ids,
+            typed_event_evidence,
             references,
         )
         payload = json.dumps(
@@ -1044,24 +1072,38 @@ class CoevolutionStore:
         epochs = self.evaluation_epochs()
         if len(epochs) < 2:
             raise ValueError("candidate requires a closed source and new candidate epoch")
-        source, candidate_epoch = epochs[-2:]
+        try:
+            existing_claim = self._evaluation_store.resolve_candidate_target_claim(identifier)
+        except KeyError:
+            source, candidate_epoch = epochs[-2:]
+        else:
+            indexes = tuple(
+                index
+                for index, epoch in enumerate(epochs)
+                if epoch.epoch_id == existing_claim.epoch_id
+            )
+            if len(indexes) != 1 or indexes[0] == 0:
+                raise ValueError("candidate target claim has no exact source epoch")
+            candidate_index = indexes[0]
+            source, candidate_epoch = epochs[candidate_index - 1 : candidate_index + 1]
         _validate_transition(source, candidate_epoch, proposal)
-        if candidate_epoch.closed or candidate_epoch.record_ids:
-            raise ValueError("candidate target must be registered in a new empty open epoch")
         trajectory, events = self._read_trajectory(proposal.source_trajectory_id)
         _validate_proposal_trajectory(proposal, trajectory, events)
-        revision, canonical_epoch, _records = self._evaluation_store.resolve_epoch(
-            self._lineage_id, candidate_epoch.epoch_id
+        claim = self._evaluation_store.claim_candidate_target(
+            lineage_id=self._lineage_id,
+            epoch_id=candidate_epoch.epoch_id,
+            candidate_id=identifier,
+            artifact_digest=artifact_digest,
         )
         candidate = CandidateSystem(
             identifier,
             proposal,
             self.authority(),
             source.epoch_id,
-            canonical_epoch.epoch_id,
-            revision,
-            canonical_epoch.model_version,
-            canonical_epoch.harness_version,
+            claim.epoch_id,
+            claim.epoch_revision,
+            claim.model_version,
+            claim.harness_version,
             proposal.changed_components,
             artifact_digest,
             source.epoch_id,
@@ -1070,12 +1112,23 @@ class CoevolutionStore:
             connection.execute("BEGIN IMMEDIATE")
             self._check_connection(connection)
             try:
+                rows = connection.execute(
+                    "SELECT payload FROM candidates WHERE authority_domain = ? AND "
+                    "(candidate_id = ? OR candidate_epoch_id = ? OR artifact_digest = ?)",
+                    (self._domain, identifier, claim.epoch_id, artifact_digest),
+                ).fetchall()
+                if rows:
+                    existing = tuple(CandidateSystem.from_dict(json.loads(row[0])) for row in rows)
+                    if len(existing) == 1 and existing[0] == candidate:
+                        connection.commit()
+                        return CandidateSystem.from_dict(candidate.to_dict())
+                    raise ValueError("candidate epoch or target alias is already registered")
                 connection.execute(
                     "INSERT INTO candidates VALUES (?, ?, ?, ?, ?)",
                     (
                         self._domain,
                         identifier,
-                        canonical_epoch.epoch_id,
+                        claim.epoch_id,
                         artifact_digest,
                         json.dumps(candidate.to_dict(), separators=(",", ":"), sort_keys=True),
                     ),
@@ -1315,6 +1368,11 @@ class CoevolutionStore:
         self._validate_candidate_receipt(protected, candidate, ValidationSplit.PROTECTED)
         metric_receipt = self._validate_metric_receipt(snapshot.metric_receipt, candidate, held)
         manifest = self._read_manifest(snapshot.protected_suite_id)
+        trajectory, events = self._read_trajectory(candidate.correction.source_trajectory_id)
+        _validate_proposal_trajectory(candidate.correction, trajectory, events)
+        policy = self._read_policy(metric_receipt.policy_id)
+        source_receipt = self._receipt_by_id(metric_receipt.source_receipt_id)
+        self._validate_source_receipt(source_receipt)
         held_cells = tuple(
             sorted(_logical_cell(record) for record in self._records_for_receipt(held))
         )
@@ -1335,15 +1393,36 @@ class CoevolutionStore:
             if accepted
             else "candidate primary metric is worse than the declared tolerance"
         )
+        authority = self.authority()
+        input_digest = _acceptance_input_digest(
+            authority,
+            candidate,
+            trajectory,
+            policy,
+            manifest,
+            source_receipt,
+            held,
+            protected,
+            metric_receipt,
+        )
         with _connect(self._database_path) as connection:
             connection.execute("BEGIN IMMEDIATE")
             self._check_connection(connection)
+            existing = connection.execute(
+                "SELECT payload FROM decisions " "WHERE authority_domain = ? AND input_digest = ?",
+                (self._domain, input_digest),
+            ).fetchone()
+            if existing is not None:
+                decision = AcceptanceDecision.from_dict(json.loads(existing[0]))
+                connection.commit()
+                return _mark_authoritative(decision)
             revision = _next_revision(connection, self._domain)
             values: dict[str, Any] = {
                 "decision_id": str(uuid4()),
-                "catalog_id": self.authority().catalog_id,
+                "catalog_id": authority.catalog_id,
                 "authority_domain": self._domain,
                 "revision": revision,
+                "input_digest": input_digest,
                 "accepted": accepted,
                 "candidate": candidate,
                 "proposal_id": candidate.correction.proposal_id,
@@ -1365,12 +1444,13 @@ class CoevolutionStore:
             digest = _digest(_decision_values_payload(values))
             decision = AcceptanceDecision(**values, decision_digest=digest)
             connection.execute(
-                "INSERT INTO decisions VALUES (?, ?, ?, ?, ?, 0)",
+                "INSERT INTO decisions VALUES (?, ?, ?, ?, ?, ?, 0)",
                 (
                     self._domain,
                     decision.decision_id,
                     revision,
                     candidate.candidate_id,
+                    input_digest,
                     _json(decision.to_dict()),
                 ),
             )
@@ -1496,16 +1576,23 @@ class CoevolutionStore:
     def _validate_candidate_live(self, candidate: CandidateSystem) -> None:
         if candidate.authority != self.authority():
             raise ValueError("candidate belongs to a different coevolution catalog")
-        revision, epoch, _records = self._evaluation_store.resolve_epoch(
-            self._lineage_id, candidate.candidate_epoch_id
-        )
-        if revision < candidate.epoch_revision:
-            raise ValueError("candidate epoch revision is invalid")
-        if (epoch.model_version, epoch.harness_version) != (
+        claim = self._evaluation_store.resolve_candidate_target_claim(candidate.candidate_id)
+        if (
+            claim.lineage_id,
+            claim.epoch_id,
+            claim.epoch_revision,
+            claim.artifact_digest,
+            claim.model_version,
+            claim.harness_version,
+        ) != (
+            candidate.lineage_id,
+            candidate.candidate_epoch_id,
+            candidate.epoch_revision,
+            candidate.artifact_digest,
             candidate.model_version,
             candidate.harness_version,
         ):
-            raise ValueError("candidate versions differ from authoritative epoch")
+            raise ValueError("candidate differs from authoritative evaluation-catalog claim")
 
     def _validate_candidate_receipt(
         self,
@@ -1564,6 +1651,23 @@ class CoevolutionStore:
             raise ValueError("metric receipt candidate is invalid")
         if snapshot.candidate_receipt_id != held.receipt_id:
             raise ValueError("metric receipt does not bind the supplied held-out receipt")
+        source = self._receipt_by_id(snapshot.source_receipt_id)
+        self._validate_source_receipt(source)
+        if (
+            source.split is not ValidationSplit.HELD_OUT
+            or source.epoch_id != candidate.source_epoch_id
+            or source.record_ids != snapshot.source_record_ids
+            or held.record_ids != snapshot.candidate_record_ids
+        ):
+            raise ValueError("metric receipt record provenance is invalid")
+        source_cells = tuple(
+            sorted(_logical_cell(record) for record in self._records_for_receipt(source))
+        )
+        candidate_cells = tuple(
+            sorted(_logical_cell(record) for record in self._records_for_receipt(held))
+        )
+        if source_cells != candidate_cells or source_cells != snapshot.logical_cell_digests:
+            raise ValueError("metric receipt logical-cell provenance is invalid")
         policy = self._read_policy(snapshot.policy_id)
         declared = tuple((item.name, item.direction, item.tolerance) for item in policy.specs)
         compared = tuple(
@@ -1623,6 +1727,9 @@ class CoevolutionStore:
             raise ValueError("decision protected record provenance is invalid")
         metric = self._validate_metric_receipt(decision.metric_receipt, candidate, held)
         manifest = self._read_manifest(decision.protected_suite_id)
+        policy = self._read_policy(metric.policy_id)
+        source = self._receipt_by_id(metric.source_receipt_id)
+        self._validate_source_receipt(source)
         protected_cells = tuple(
             sorted(_logical_cell(record) for record in self._records_for_receipt(protected))
         )
@@ -1635,8 +1742,20 @@ class CoevolutionStore:
             if expected_accepted
             else "candidate primary metric is worse than the declared tolerance"
         )
+        input_digest = _acceptance_input_digest(
+            self.authority(),
+            candidate,
+            binding,
+            policy,
+            manifest,
+            source,
+            held,
+            protected,
+            metric,
+        )
         if (
-            metric != decision.metric_receipt
+            input_digest != decision.input_digest
+            or metric != decision.metric_receipt
             or manifest.suite_digest != decision.protected_suite_digest
             or manifest.source_epoch_id != candidate.source_epoch_id
             or protected_cells != manifest.logical_cell_digests
@@ -1749,10 +1868,12 @@ def _initialize_store(connection: sqlite3.Connection) -> None:
             decision_id TEXT NOT NULL,
             revision INTEGER NOT NULL,
             candidate_id TEXT NOT NULL,
+            input_digest TEXT NOT NULL,
             payload TEXT NOT NULL,
             consumed INTEGER NOT NULL,
             PRIMARY KEY (authority_domain, decision_id),
-            UNIQUE (authority_domain, revision)
+            UNIQUE (authority_domain, revision),
+            UNIQUE (authority_domain, input_digest)
         );
         """)
 
@@ -1876,7 +1997,12 @@ def _validate_proposal_trajectory(
     matches = tuple(event for event in events if event.event_id == node.event_id)
     if len(matches) != 1 or matches[0].action_id != proposal.source_action_id:
         raise ValueError("localized failure event/action linkage differs from trajectory")
-    if tuple(item.reference_id for item in node.evidence_refs) != matches[0].evidence_refs:
+    event_refs = tuple(
+        reference
+        for event_id, reference in trajectory.event_evidence_refs
+        if event_id == node.event_id
+    )
+    if node.evidence_refs != event_refs:
         raise ValueError("localized failure evidence differs from trajectory event evidence")
     verifier_refs = tuple(
         reference
@@ -1914,8 +2040,12 @@ def _validate_localization(
     }
     if set(verifier_refs) != expected:
         raise ValueError("localization_verifier_refs must equal complete role evidence")
-    source_ids = {item.reference_id for item in source_refs}
-    if not {item.reference_id for item in nodes[0].evidence_refs}.issubset(source_ids):
+    failure_refs = nodes[0].evidence_refs
+    if any(not reference.is_observable for reference in failure_refs):
+        raise ValueError("localized failure evidence source_kind must remain observable")
+    source_identities = {(item.reference_id, item.source_kind) for item in source_refs}
+    failure_identities = {(item.reference_id, item.source_kind) for item in failure_refs}
+    if not failure_identities.issubset(source_identities):
         raise ValueError("source_evidence_refs must include localized failure evidence")
 
 
@@ -1949,6 +2079,7 @@ def _trajectory_digest(
             "trajectory_id": binding.trajectory_id,
             "source_epoch_id": binding.source_epoch_id,
             "events": [item.to_dict() for item in events],
+            "event_evidence_refs": _typed_event_evidence_payload(binding.event_evidence_refs),
             "source_evidence_refs": [item.to_dict() for item in binding.source_evidence_refs],
         }
     )
@@ -1991,6 +2122,33 @@ def _primary_metric_name(receipt: MetricComparisonReceipt) -> str:
     return receipt.primary_metric_name
 
 
+def _acceptance_input_digest(
+    authority: CoevolutionAuthority,
+    candidate: CandidateSystem,
+    trajectory: TrajectoryBinding,
+    policy: MetricPolicy,
+    manifest: ProtectedSuiteManifest,
+    source_receipt: ValidationReceipt,
+    held_receipt: ValidationReceipt,
+    protected_receipt: ValidationReceipt,
+    metric_receipt: MetricComparisonReceipt,
+) -> str:
+    return _digest(
+        {
+            "authority": authority.to_dict(),
+            "candidate": candidate.to_dict(),
+            "trajectory": trajectory.to_dict(),
+            "metric_policy": policy.to_dict(),
+            "protected_manifest": manifest.to_dict(),
+            "source_receipt": source_receipt.to_dict(),
+            "held_out_receipt": held_receipt.to_dict(),
+            "protected_receipt": protected_receipt.to_dict(),
+            "metric_receipt": metric_receipt.to_dict(),
+            "rollback_target_epoch_id": candidate.source_epoch_id,
+        }
+    )
+
+
 def _mark_authoritative(decision: AcceptanceDecision) -> AcceptanceDecision:
     result = AcceptanceDecision.from_dict(decision.to_dict())
     object.__setattr__(result, "_authoritative", True)
@@ -2018,6 +2176,7 @@ def _decision_payload(
         "catalog_id": decision.catalog_id,
         "authority_domain": decision.authority_domain,
         "revision": decision.revision,
+        "input_digest": decision.input_digest,
         "accepted": decision.accepted,
         "candidate": decision.candidate.to_dict(),
         "proposal_id": decision.proposal_id,
@@ -2115,7 +2274,11 @@ def _validation_receipt(value: object, name: str) -> ValidationReceipt:
 def _failure_graph(value: object) -> FailureGraph:
     if type(value) is not FailureGraph:
         raise ValueError("failure_graph must be an exact FailureGraph")
-    return FailureGraph.from_dict(cast(FailureGraph, value).to_dict())
+    failure_graph_type: Any = FailureGraph
+    return cast(
+        FailureGraph,
+        failure_graph_type.from_dict(cast(FailureGraph, value).to_dict()),
+    )
 
 
 def _metric_spec(value: object) -> MetricSpec:
@@ -2172,7 +2335,13 @@ def _evidence(value: object, name: str) -> tuple[EvidenceReference, ...]:
             raise ValueError(f"{name} reference_id must be a nonblank built-in string")
         if type(reference.source_kind) is not EvidenceSourceKind:
             raise ValueError(f"{name} source_kind must be exact")
-        result.append(EvidenceReference(reference.reference_id, reference.source_kind))
+        evidence_type: Any = EvidenceReference
+        result.append(
+            cast(
+                EvidenceReference,
+                evidence_type(reference.reference_id, reference.source_kind),
+            )
+        )
     keys = tuple((item.reference_id, item.source_kind) for item in result)
     if len(set(keys)) != len(keys):
         raise ValueError(f"{name} must contain unique references")
@@ -2181,6 +2350,49 @@ def _evidence(value: object, name: str) -> tuple[EvidenceReference, ...]:
 
 def _restore_evidence(value: object, name: str) -> tuple[EvidenceReference, ...]:
     return tuple(EvidenceReference.from_dict(item) for item in _list(value, name))
+
+
+def _typed_event_evidence(
+    value: object,
+) -> tuple[tuple[str, EvidenceReference], ...]:
+    if type(value) is not tuple or not value:
+        raise ValueError("event_evidence_refs must be a nonempty exact tuple")
+    result: list[tuple[str, EvidenceReference]] = []
+    for item in cast(tuple[object, ...], value):
+        if type(item) is not tuple or len(cast(tuple[object, ...], item)) != 2:
+            raise ValueError("event evidence entries must be exact (event_id, reference) tuples")
+        event_id, raw_reference = cast(tuple[object, object], item)
+        reference = _evidence((raw_reference,), "event evidence")[0]
+        result.append((_require_token(event_id, "event evidence event_id"), reference))
+    identities = tuple(
+        (event_id, reference.reference_id, reference.source_kind) for event_id, reference in result
+    )
+    if len(set(identities)) != len(identities):
+        raise ValueError("event_evidence_refs must contain unique typed identities")
+    return tuple(result)
+
+
+def _typed_event_evidence_payload(
+    value: tuple[tuple[str, EvidenceReference], ...],
+) -> list[dict[str, object]]:
+    return [
+        {"event_id": event_id, "evidence_ref": reference.to_dict()} for event_id, reference in value
+    ]
+
+
+def _restore_typed_event_evidence(
+    value: object,
+) -> tuple[tuple[str, EvidenceReference], ...]:
+    result: list[tuple[str, EvidenceReference]] = []
+    for item in _list(value, "event_evidence_refs"):
+        fields = _mapping(item, {"event_id", "evidence_ref"}, "event evidence")
+        result.append(
+            (
+                _require_token(fields["event_id"], "event evidence event_id"),
+                EvidenceReference.from_dict(fields["evidence_ref"]),
+            )
+        )
+    return _typed_event_evidence(tuple(result))
 
 
 def _tokens(value: object, name: str) -> tuple[str, ...]:

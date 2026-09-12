@@ -21,6 +21,7 @@ from .coevolution import (
     decide_candidate_acceptance,
 )
 from .learning_surfaces import (
+    CandidateTargetClaim,
     EvaluationAuthority,
     EvaluationEpoch,
     EvaluationEpochHistory,
@@ -63,6 +64,7 @@ __all__ = [
     "AggregateResult",
     "CandidateComponent",
     "CandidateSystem",
+    "CandidateTargetClaim",
     "CoevolutionAuthority",
     "CoevolutionStore",
     "ComponentMetric",

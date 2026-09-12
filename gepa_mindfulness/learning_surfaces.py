@@ -78,6 +78,75 @@ class EvaluationAuthority:
 
 
 @dataclass(frozen=True, slots=True)
+class CandidateTargetClaim:
+    """Evaluation-catalog claim for one candidate before its first record is appended."""
+
+    catalog_id: str
+    authority_domain: str
+    lineage_id: str
+    epoch_id: str
+    epoch_revision: int
+    candidate_id: str
+    artifact_digest: str
+    model_version: str
+    harness_version: str
+    claim_digest: str
+
+    def __post_init__(self) -> None:
+        for name in (
+            "catalog_id",
+            "authority_domain",
+            "lineage_id",
+            "epoch_id",
+            "candidate_id",
+            "model_version",
+            "harness_version",
+        ):
+            _require_epoch_token(getattr(self, name), name)
+        _require_nonnegative_integer(self.epoch_revision, "epoch_revision")
+        _require_sha256(self.artifact_digest, "artifact_digest")
+        _require_sha256(self.claim_digest, "claim_digest")
+        if self.claim_digest != _sha256_json(_candidate_claim_payload(self, False)):
+            raise ValueError("candidate target claim digest does not match its exact provenance")
+
+    def to_dict(self) -> dict[str, object]:
+        """Return the complete JSON-compatible claim."""
+
+        return _candidate_claim_payload(self, True)
+
+    @classmethod
+    def from_dict(cls, data: object) -> CandidateTargetClaim:
+        values = _require_exact_mapping(
+            data,
+            {
+                "catalog_id",
+                "authority_domain",
+                "lineage_id",
+                "epoch_id",
+                "epoch_revision",
+                "candidate_id",
+                "artifact_digest",
+                "model_version",
+                "harness_version",
+                "claim_digest",
+            },
+            "CandidateTargetClaim",
+        )
+        return cls(
+            cast(str, values["catalog_id"]),
+            cast(str, values["authority_domain"]),
+            cast(str, values["lineage_id"]),
+            cast(str, values["epoch_id"]),
+            cast(int, values["epoch_revision"]),
+            cast(str, values["candidate_id"]),
+            cast(str, values["artifact_digest"]),
+            cast(str, values["model_version"]),
+            cast(str, values["harness_version"]),
+            cast(str, values["claim_digest"]),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class ValidationTarget:
     """Exact candidate or artifact target evaluated by a validation receipt."""
 
@@ -400,6 +469,147 @@ class EvaluationEpochStore:
         records = dict(entry.records)
         resolved = tuple(_snapshot_evaluation_record(records[item]) for item in epoch.record_ids)
         return revision, _snapshot_epoch(epoch), resolved
+
+    def claim_candidate_target(
+        self,
+        *,
+        lineage_id: str,
+        epoch_id: str,
+        candidate_id: str,
+        artifact_digest: str,
+    ) -> CandidateTargetClaim:
+        """Atomically claim one empty open epoch for one exact candidate target."""
+
+        path, domain = _validated_epoch_store(self)
+        lineage = _require_epoch_token(lineage_id, "lineage_id")
+        epoch_identifier = _require_epoch_token(epoch_id, "epoch_id")
+        candidate_identifier = _require_epoch_token(candidate_id, "candidate_id")
+        digest = _require_sha256(artifact_digest, "artifact_digest")
+        with _open_epoch_database(path) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            try:
+                row = connection.execute(
+                    "SELECT revision, tip_epoch_id, payload FROM epoch_lineages "
+                    "WHERE authority_domain = ? AND lineage_id = ?",
+                    (domain, lineage),
+                ).fetchone()
+                if row is None:
+                    raise KeyError(lineage)
+                revision = _require_nonnegative_integer(row[0], "revision")
+                entry = _deserialize_history_entry(row[2])
+                _validate_catalog(connection, domain, lineage, row[1], entry)
+                existing_rows = connection.execute(
+                    "SELECT payload FROM candidate_target_claims "
+                    "WHERE authority_domain = ? AND "
+                    "(candidate_id = ? OR epoch_id = ? OR artifact_digest = ?)",
+                    (domain, candidate_identifier, epoch_identifier, digest),
+                ).fetchall()
+                if existing_rows:
+                    claims = tuple(
+                        CandidateTargetClaim.from_dict(json.loads(item[0]))
+                        for item in existing_rows
+                    )
+                    if len(claims) == 1:
+                        claim = claims[0]
+                        expected = (
+                            lineage,
+                            epoch_identifier,
+                            candidate_identifier,
+                            digest,
+                        )
+                        actual = (
+                            claim.lineage_id,
+                            claim.epoch_id,
+                            claim.candidate_id,
+                            claim.artifact_digest,
+                        )
+                        if actual == expected:
+                            connection.commit()
+                            return claim
+                    raise ValueError("candidate target claim alias or rebind is already registered")
+                epoch = entry.lineage[-1]
+                if (
+                    epoch.epoch_id != epoch_identifier
+                    or epoch.closed
+                    or epoch.record_ids
+                    or epoch.record_cell_ids
+                ):
+                    raise ValueError("candidate claim requires the exact empty open tip epoch")
+                content = {
+                    "catalog_id": _catalog_id(connection),
+                    "authority_domain": domain,
+                    "lineage_id": lineage,
+                    "epoch_id": epoch.epoch_id,
+                    "epoch_revision": revision,
+                    "candidate_id": candidate_identifier,
+                    "artifact_digest": digest,
+                    "model_version": epoch.model_version,
+                    "harness_version": epoch.harness_version,
+                }
+                claim = CandidateTargetClaim(
+                    catalog_id=cast(str, content["catalog_id"]),
+                    authority_domain=domain,
+                    lineage_id=lineage,
+                    epoch_id=epoch.epoch_id,
+                    epoch_revision=revision,
+                    candidate_id=candidate_identifier,
+                    artifact_digest=digest,
+                    model_version=epoch.model_version,
+                    harness_version=epoch.harness_version,
+                    claim_digest=_sha256_json(content),
+                )
+                connection.execute(
+                    "INSERT INTO candidate_target_claims VALUES (?, ?, ?, ?, ?, ?)",
+                    (
+                        domain,
+                        candidate_identifier,
+                        epoch_identifier,
+                        digest,
+                        lineage,
+                        json.dumps(claim.to_dict(), separators=(",", ":"), sort_keys=True),
+                    ),
+                )
+                connection.commit()
+                return CandidateTargetClaim.from_dict(claim.to_dict())
+            except Exception:
+                connection.rollback()
+                raise
+
+    def resolve_candidate_target_claim(self, candidate_id: str) -> CandidateTargetClaim:
+        """Reload an exact target claim and validate it against the authoritative lineage."""
+
+        path, domain = _validated_epoch_store(self)
+        identifier = _require_epoch_token(candidate_id, "candidate_id")
+        with _open_epoch_database(path) as connection:
+            row = connection.execute(
+                "SELECT payload FROM candidate_target_claims "
+                "WHERE authority_domain = ? AND candidate_id = ?",
+                (domain, identifier),
+            ).fetchone()
+            if row is None:
+                raise KeyError(identifier)
+            claim = CandidateTargetClaim.from_dict(json.loads(row[0]))
+            if claim.catalog_id != _catalog_id(connection) or claim.authority_domain != domain:
+                raise ValueError("candidate target claim belongs to a different authority")
+            lineage_row = connection.execute(
+                "SELECT revision, tip_epoch_id, payload FROM epoch_lineages "
+                "WHERE authority_domain = ? AND lineage_id = ?",
+                (domain, claim.lineage_id),
+            ).fetchone()
+            if lineage_row is None:
+                raise ValueError("candidate target claim lineage is absent")
+            revision = _require_nonnegative_integer(lineage_row[0], "revision")
+            entry = _deserialize_history_entry(lineage_row[2])
+            _validate_catalog(connection, domain, claim.lineage_id, lineage_row[1], entry)
+        matches = tuple(epoch for epoch in entry.lineage if epoch.epoch_id == claim.epoch_id)
+        if len(matches) != 1 or (
+            matches[0].model_version,
+            matches[0].harness_version,
+        ) != (claim.model_version, claim.harness_version):
+            raise ValueError("candidate target claim epoch or versions are no longer canonical")
+        if revision < claim.epoch_revision:
+            raise ValueError("candidate target claim revision is invalid")
+        return CandidateTargetClaim.from_dict(claim.to_dict())
 
     def issue_validation_receipt(
         self,
@@ -1006,6 +1216,17 @@ def _initialize_epoch_database(connection: sqlite3.Connection) -> None:
             lineage_id TEXT NOT NULL,
             PRIMARY KEY (authority_domain, identity)
         );
+        CREATE TABLE IF NOT EXISTS candidate_target_claims (
+            authority_domain TEXT NOT NULL,
+            candidate_id TEXT NOT NULL,
+            epoch_id TEXT NOT NULL,
+            artifact_digest TEXT NOT NULL,
+            lineage_id TEXT NOT NULL,
+            payload TEXT NOT NULL,
+            PRIMARY KEY (authority_domain, candidate_id),
+            UNIQUE (authority_domain, epoch_id),
+            UNIQUE (authority_domain, artifact_digest)
+        );
         CREATE TABLE IF NOT EXISTS validation_receipts (
             authority_domain TEXT NOT NULL,
             receipt_id TEXT NOT NULL,
@@ -1409,6 +1630,26 @@ def _sha256_json(value: object) -> str:
         sort_keys=True,
     ).encode("utf-8")
     return f"sha256:{hashlib.sha256(payload).hexdigest()}"
+
+
+def _candidate_claim_payload(
+    value: CandidateTargetClaim,
+    include_digest: bool,
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "catalog_id": value.catalog_id,
+        "authority_domain": value.authority_domain,
+        "lineage_id": value.lineage_id,
+        "epoch_id": value.epoch_id,
+        "epoch_revision": value.epoch_revision,
+        "candidate_id": value.candidate_id,
+        "artifact_digest": value.artifact_digest,
+        "model_version": value.model_version,
+        "harness_version": value.harness_version,
+    }
+    if include_digest:
+        payload["claim_digest"] = value.claim_digest
+    return payload
 
 
 def _require_sha256(value: object, field_name: str) -> str:
