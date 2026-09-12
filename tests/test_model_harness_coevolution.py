@@ -25,6 +25,7 @@ from gepa_mindfulness import (
     AcceptanceDecision,
     CandidateComponent,
     CandidateSystem,
+    CandidateTargetClaim,
     CoevolutionStore,
     ComponentMetric,
     CorrectionProposal,
@@ -492,13 +493,18 @@ def test_candidate_target_registration_is_atomic_under_alias_race(tmp_path: Path
 
 
 def test_evaluation_catalog_claim_is_idempotent_and_rejects_epoch_alias(tmp_path: Path) -> None:
-    _authority, _history, _proposal, _held, _protected = _base(tmp_path)
+    authority, _history, _proposal, _held, _protected = _base(tmp_path)
     evaluation = EvaluationEpochStore(tmp_path / "evaluation.sqlite", "evaluation-prod")
+    owner = authority.authority()
+    correction_digest = "sha256:" + "c" * 64
     claim = evaluation.claim_candidate_target(
         lineage_id="main",
         epoch_id="epoch:candidate",
         candidate_id="candidate:1",
         artifact_digest="sha256:" + "a" * 64,
+        coevolution_catalog_id=owner.catalog_id,
+        coevolution_authority_domain=owner.authority_domain,
+        correction_proposal_digest=correction_digest,
     )
 
     assert (
@@ -507,27 +513,57 @@ def test_evaluation_catalog_claim_is_idempotent_and_rejects_epoch_alias(tmp_path
             epoch_id="epoch:candidate",
             candidate_id="candidate:1",
             artifact_digest="sha256:" + "a" * 64,
+            coevolution_catalog_id=owner.catalog_id,
+            coevolution_authority_domain=owner.authority_domain,
+            correction_proposal_digest=correction_digest,
         )
         == claim
     )
+    assert claim.coevolution_catalog_id == owner.catalog_id
+    assert claim.coevolution_authority_domain == owner.authority_domain
+    assert claim.correction_proposal_digest == correction_digest
+    assert (
+        EvaluationEpochStore(
+            tmp_path / "evaluation.sqlite", "evaluation-prod"
+        ).resolve_candidate_target_claim("candidate:1")
+        == claim
+    )
+    tampered = claim.to_dict()
+    tampered["correction_proposal_digest"] = "sha256:" + "d" * 64
+    with pytest.raises(ValueError, match="digest|provenance"):
+        CandidateTargetClaim.from_dict(tampered)
     with pytest.raises(ValueError, match="claim|alias|registered"):
         evaluation.claim_candidate_target(
             lineage_id="main",
             epoch_id="epoch:candidate",
             candidate_id="candidate:alias",
             artifact_digest="sha256:" + "b" * 64,
+            coevolution_catalog_id=owner.catalog_id,
+            coevolution_authority_domain=owner.authority_domain,
+            correction_proposal_digest=correction_digest,
         )
 
 
-def test_candidate_handoff_recovers_after_evaluation_claim_only(tmp_path: Path) -> None:
+def test_candidate_handoff_recovers_after_evaluation_claim_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     authority, history, proposal, _held, _protected = _base(tmp_path)
-    evaluation = EvaluationEpochStore(tmp_path / "evaluation.sqlite", "evaluation-prod")
-    claim = evaluation.claim_candidate_target(
-        lineage_id="main",
-        epoch_id="epoch:candidate",
-        candidate_id="candidate:1",
-        artifact_digest="sha256:" + "a" * 64,
-    )
+    original = EvaluationEpochStore.claim_candidate_target
+    claims = []
+
+    def claim_then_crash(store: EvaluationEpochStore, **kwargs: object) -> object:
+        claim = original(store, **kwargs)
+        claims.append(claim)
+        raise RuntimeError("simulated crash after evaluation claim")
+
+    monkeypatch.setattr(EvaluationEpochStore, "claim_candidate_target", claim_then_crash)
+    with pytest.raises(RuntimeError, match="simulated crash"):
+        authority.register_candidate(
+            candidate_id="candidate:1",
+            correction=proposal,
+            artifact_digest="sha256:" + "a" * 64,
+        )
+    monkeypatch.setattr(EvaluationEpochStore, "claim_candidate_target", original)
     append_epoch_record(history, _record("model:v2", "harness:v1", 0))
     close_evaluation_epoch(history)
     begin_candidate_epoch(
@@ -542,7 +578,7 @@ def test_candidate_handoff_recovers_after_evaluation_claim_only(tmp_path: Path) 
         correction=proposal,
         artifact_digest="sha256:" + "a" * 64,
     )
-    assert candidate.epoch_revision == claim.epoch_revision
+    assert candidate.epoch_revision == claims[0].epoch_revision
     assert (
         authority.register_candidate(
             candidate_id="candidate:1",
@@ -551,6 +587,97 @@ def test_candidate_handoff_recovers_after_evaluation_claim_only(tmp_path: Path) 
         )
         == candidate
     )
+
+
+def test_claim_only_recovery_rejects_changed_correction_content(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    authority, history, proposal, _held, _protected = _base(tmp_path)
+    original = EvaluationEpochStore.claim_candidate_target
+
+    def claim_then_crash(store: EvaluationEpochStore, **kwargs: object) -> object:
+        original(store, **kwargs)
+        raise RuntimeError("simulated crash after evaluation claim")
+
+    monkeypatch.setattr(EvaluationEpochStore, "claim_candidate_target", claim_then_crash)
+    with pytest.raises(RuntimeError, match="simulated crash"):
+        authority.register_candidate(
+            candidate_id="candidate:1",
+            correction=proposal,
+            artifact_digest="sha256:" + "a" * 64,
+        )
+    monkeypatch.setattr(EvaluationEpochStore, "claim_candidate_target", original)
+    append_epoch_record(history, _record("model:v2", "harness:v1", 0))
+    close_evaluation_epoch(history)
+    begin_candidate_epoch(
+        history,
+        epoch_id="epoch:later",
+        model_version="model:v3",
+        harness_version="harness:v1",
+    )
+
+    for field_name, changed in (
+        ("proposal_id", "correction:changed"),
+        ("teacher_correction", "A different teacher correction."),
+    ):
+        payload = proposal.to_dict()
+        payload[field_name] = changed
+        with pytest.raises(ValueError, match="claim|correction|proposal"):
+            authority.register_candidate(
+                candidate_id="candidate:1",
+                correction=CorrectionProposal.from_dict(payload),
+                artifact_digest="sha256:" + "a" * 64,
+            )
+
+    payload = proposal.to_dict()
+    failure_graph = cast(dict[str, object], payload["failure_graph"])
+    nodes = cast(list[dict[str, object]], failure_graph["nodes"])
+    nodes[0]["summary"] = "A different localized failure description."
+    with pytest.raises(ValueError, match="claim|correction|proposal"):
+        authority.register_candidate(
+            candidate_id="candidate:1",
+            correction=CorrectionProposal.from_dict(payload),
+            artifact_digest="sha256:" + "a" * 64,
+        )
+
+
+def test_claim_only_recovery_rejects_another_coevolution_catalog(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    authority, _history, proposal, _held, _protected = _base(tmp_path)
+    original = EvaluationEpochStore.claim_candidate_target
+
+    def claim_then_crash(store: EvaluationEpochStore, **kwargs: object) -> object:
+        original(store, **kwargs)
+        raise RuntimeError("simulated crash after evaluation claim")
+
+    monkeypatch.setattr(EvaluationEpochStore, "claim_candidate_target", claim_then_crash)
+    with pytest.raises(RuntimeError, match="simulated crash"):
+        authority.register_candidate(
+            candidate_id="candidate:1",
+            correction=proposal,
+            artifact_digest="sha256:" + "a" * 64,
+        )
+    monkeypatch.setattr(EvaluationEpochStore, "claim_candidate_target", original)
+    other = CoevolutionStore(
+        tmp_path / "other-coevolution.sqlite",
+        "other-coevolution",
+        EvaluationEpochStore(tmp_path / "evaluation.sqlite", "evaluation-prod"),
+        lineage_id="main",
+    )
+    other.register_trajectory(
+        trajectory_id="trajectory:1",
+        source_epoch_id="epoch:source",
+        events=_events(),
+        event_evidence_refs=_event_evidence(),
+        source_evidence_refs=(_ref("evidence:prediction"), _ref()),
+    )
+    with pytest.raises(ValueError, match="catalog|authority|owner|claim"):
+        other.register_candidate(
+            candidate_id="candidate:1",
+            correction=proposal,
+            artifact_digest="sha256:" + "a" * 64,
+        )
 
 
 def test_candidate_target_must_precede_records_in_new_open_epoch(tmp_path: Path) -> None:

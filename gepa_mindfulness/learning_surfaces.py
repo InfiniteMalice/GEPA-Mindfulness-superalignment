@@ -79,7 +79,7 @@ class EvaluationAuthority:
 
 @dataclass(frozen=True, slots=True)
 class CandidateTargetClaim:
-    """Evaluation-catalog claim for one candidate before its first record is appended."""
+    """Evaluation claim binding one candidate, correction, and owning coevolution catalog."""
 
     catalog_id: str
     authority_domain: str
@@ -90,6 +90,9 @@ class CandidateTargetClaim:
     artifact_digest: str
     model_version: str
     harness_version: str
+    coevolution_catalog_id: str
+    coevolution_authority_domain: str
+    correction_proposal_digest: str
     claim_digest: str
 
     def __post_init__(self) -> None:
@@ -101,10 +104,13 @@ class CandidateTargetClaim:
             "candidate_id",
             "model_version",
             "harness_version",
+            "coevolution_catalog_id",
+            "coevolution_authority_domain",
         ):
             _require_epoch_token(getattr(self, name), name)
         _require_nonnegative_integer(self.epoch_revision, "epoch_revision")
         _require_sha256(self.artifact_digest, "artifact_digest")
+        _require_sha256(self.correction_proposal_digest, "correction_proposal_digest")
         _require_sha256(self.claim_digest, "claim_digest")
         if self.claim_digest != _sha256_json(_candidate_claim_payload(self, False)):
             raise ValueError("candidate target claim digest does not match its exact provenance")
@@ -128,6 +134,9 @@ class CandidateTargetClaim:
                 "artifact_digest",
                 "model_version",
                 "harness_version",
+                "coevolution_catalog_id",
+                "coevolution_authority_domain",
+                "correction_proposal_digest",
                 "claim_digest",
             },
             "CandidateTargetClaim",
@@ -142,6 +151,9 @@ class CandidateTargetClaim:
             cast(str, values["artifact_digest"]),
             cast(str, values["model_version"]),
             cast(str, values["harness_version"]),
+            cast(str, values["coevolution_catalog_id"]),
+            cast(str, values["coevolution_authority_domain"]),
+            cast(str, values["correction_proposal_digest"]),
             cast(str, values["claim_digest"]),
         )
 
@@ -477,14 +489,22 @@ class EvaluationEpochStore:
         epoch_id: str,
         candidate_id: str,
         artifact_digest: str,
+        coevolution_catalog_id: str,
+        coevolution_authority_domain: str,
+        correction_proposal_digest: str,
     ) -> CandidateTargetClaim:
-        """Atomically claim one empty open epoch for one exact candidate target."""
+        """Atomically claim an empty epoch for one owner, correction, and candidate target."""
 
         path, domain = _validated_epoch_store(self)
         lineage = _require_epoch_token(lineage_id, "lineage_id")
         epoch_identifier = _require_epoch_token(epoch_id, "epoch_id")
         candidate_identifier = _require_epoch_token(candidate_id, "candidate_id")
         digest = _require_sha256(artifact_digest, "artifact_digest")
+        coevolution_catalog = _require_epoch_token(coevolution_catalog_id, "coevolution_catalog_id")
+        coevolution_domain = _require_epoch_token(
+            coevolution_authority_domain, "coevolution_authority_domain"
+        )
+        proposal_digest = _require_sha256(correction_proposal_digest, "correction_proposal_digest")
         with _open_epoch_database(path) as connection:
             connection.execute("BEGIN IMMEDIATE")
             try:
@@ -516,12 +536,18 @@ class EvaluationEpochStore:
                             epoch_identifier,
                             candidate_identifier,
                             digest,
+                            coevolution_catalog,
+                            coevolution_domain,
+                            proposal_digest,
                         )
                         actual = (
                             claim.lineage_id,
                             claim.epoch_id,
                             claim.candidate_id,
                             claim.artifact_digest,
+                            claim.coevolution_catalog_id,
+                            claim.coevolution_authority_domain,
+                            claim.correction_proposal_digest,
                         )
                         if actual == expected:
                             connection.commit()
@@ -545,6 +571,9 @@ class EvaluationEpochStore:
                     "artifact_digest": digest,
                     "model_version": epoch.model_version,
                     "harness_version": epoch.harness_version,
+                    "coevolution_catalog_id": coevolution_catalog,
+                    "coevolution_authority_domain": coevolution_domain,
+                    "correction_proposal_digest": proposal_digest,
                 }
                 claim = CandidateTargetClaim(
                     catalog_id=cast(str, content["catalog_id"]),
@@ -556,16 +585,25 @@ class EvaluationEpochStore:
                     artifact_digest=digest,
                     model_version=epoch.model_version,
                     harness_version=epoch.harness_version,
+                    coevolution_catalog_id=coevolution_catalog,
+                    coevolution_authority_domain=coevolution_domain,
+                    correction_proposal_digest=proposal_digest,
                     claim_digest=_sha256_json(content),
                 )
                 connection.execute(
-                    "INSERT INTO candidate_target_claims VALUES (?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO candidate_target_claims "
+                    "(authority_domain, candidate_id, epoch_id, artifact_digest, lineage_id, "
+                    "coevolution_catalog_id, coevolution_authority_domain, "
+                    "correction_proposal_digest, payload) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         domain,
                         candidate_identifier,
                         epoch_identifier,
                         digest,
                         lineage,
+                        coevolution_catalog,
+                        coevolution_domain,
+                        proposal_digest,
                         json.dumps(claim.to_dict(), separators=(",", ":"), sort_keys=True),
                     ),
                 )
@@ -1222,6 +1260,9 @@ def _initialize_epoch_database(connection: sqlite3.Connection) -> None:
             epoch_id TEXT NOT NULL,
             artifact_digest TEXT NOT NULL,
             lineage_id TEXT NOT NULL,
+            coevolution_catalog_id TEXT NOT NULL,
+            coevolution_authority_domain TEXT NOT NULL,
+            correction_proposal_digest TEXT NOT NULL,
             payload TEXT NOT NULL,
             PRIMARY KEY (authority_domain, candidate_id),
             UNIQUE (authority_domain, epoch_id),
@@ -1646,6 +1687,9 @@ def _candidate_claim_payload(
         "artifact_digest": value.artifact_digest,
         "model_version": value.model_version,
         "harness_version": value.harness_version,
+        "coevolution_catalog_id": value.coevolution_catalog_id,
+        "coevolution_authority_domain": value.coevolution_authority_domain,
+        "correction_proposal_digest": value.correction_proposal_digest,
     }
     if include_digest:
         payload["claim_digest"] = value.claim_digest

@@ -1089,16 +1089,25 @@ class CoevolutionStore:
         _validate_transition(source, candidate_epoch, proposal)
         trajectory, events = self._read_trajectory(proposal.source_trajectory_id)
         _validate_proposal_trajectory(proposal, trajectory, events)
+        authority = self.authority()
+        proposal_digest = _correction_proposal_digest(
+            proposal,
+            trajectory,
+            self._lineage_id,
+        )
         claim = self._evaluation_store.claim_candidate_target(
             lineage_id=self._lineage_id,
             epoch_id=candidate_epoch.epoch_id,
             candidate_id=identifier,
             artifact_digest=artifact_digest,
+            coevolution_catalog_id=authority.catalog_id,
+            coevolution_authority_domain=authority.authority_domain,
+            correction_proposal_digest=proposal_digest,
         )
         candidate = CandidateSystem(
             identifier,
             proposal,
-            self.authority(),
+            authority,
             source.epoch_id,
             claim.epoch_id,
             claim.epoch_revision,
@@ -1577,6 +1586,13 @@ class CoevolutionStore:
         if candidate.authority != self.authority():
             raise ValueError("candidate belongs to a different coevolution catalog")
         claim = self._evaluation_store.resolve_candidate_target_claim(candidate.candidate_id)
+        trajectory, events = self._read_trajectory(candidate.correction.source_trajectory_id)
+        _validate_proposal_trajectory(candidate.correction, trajectory, events)
+        proposal_digest = _correction_proposal_digest(
+            candidate.correction,
+            trajectory,
+            candidate.lineage_id,
+        )
         if (
             claim.lineage_id,
             claim.epoch_id,
@@ -1584,6 +1600,9 @@ class CoevolutionStore:
             claim.artifact_digest,
             claim.model_version,
             claim.harness_version,
+            claim.coevolution_catalog_id,
+            claim.coevolution_authority_domain,
+            claim.correction_proposal_digest,
         ) != (
             candidate.lineage_id,
             candidate.candidate_epoch_id,
@@ -1591,6 +1610,9 @@ class CoevolutionStore:
             candidate.artifact_digest,
             candidate.model_version,
             candidate.harness_version,
+            candidate.authority.catalog_id,
+            candidate.authority.authority_domain,
+            proposal_digest,
         ):
             raise ValueError("candidate differs from authoritative evaluation-catalog claim")
 
@@ -2081,6 +2103,21 @@ def _trajectory_digest(
             "events": [item.to_dict() for item in events],
             "event_evidence_refs": _typed_event_evidence_payload(binding.event_evidence_refs),
             "source_evidence_refs": [item.to_dict() for item in binding.source_evidence_refs],
+        }
+    )
+
+
+def _correction_proposal_digest(
+    proposal: CorrectionProposal,
+    trajectory: TrajectoryBinding,
+    lineage_id: str,
+) -> str:
+    return _digest(
+        {
+            "lineage_id": _require_token(lineage_id, "lineage_id"),
+            "source_epoch_id": proposal.source_epoch_id,
+            "trajectory_binding": trajectory.to_dict(),
+            "correction_proposal": proposal.to_dict(),
         }
     )
 
