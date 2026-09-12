@@ -1,11 +1,12 @@
-"""Acceptance tests for controlled offline model and harness coevolution."""
+"""Acceptance tests for durable, offline model and harness coevolution."""
 
 from __future__ import annotations
 
+import hashlib
 import json
-from dataclasses import FrozenInstanceError
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, cast
+from typing import cast
 
 import pytest
 
@@ -21,18 +22,24 @@ from evaluation import (
     V5EvaluationRecord,
 )
 from gepa_mindfulness import (
+    AcceptanceDecision,
     CandidateComponent,
     CandidateSystem,
+    CoevolutionStore,
     ComponentMetric,
     CorrectionProposal,
     CorrectionScope,
     EvaluationEpochStore,
+    MetricAggregation,
     MetricDirection,
+    MetricPolicy,
+    MetricSpec,
+    ProtectedSuiteManifest,
+    TrajectoryBinding,
     ValidationBundle,
     ValidationSplit,
     append_epoch_record,
     begin_candidate_epoch,
-    bind_candidate_system,
     close_evaluation_epoch,
     decide_candidate_acceptance,
 )
@@ -44,6 +51,10 @@ from gepa_mindfulness.verification import (
     FailureRole,
     FailureRoleEvidence,
 )
+from mindful_trace_gepa import validate_action_bound_sequence
+from mindful_trace_gepa.logging_schema import EventEnvelope
+
+_NAMES = ("correctness", "calibration", "abstention", "epistemic_process", "total")
 
 
 def _ref(identifier: str = "evidence:localized") -> EvidenceReference:
@@ -51,183 +62,303 @@ def _ref(identifier: str = "evidence:localized") -> EvidenceReference:
 
 
 def _failure_graph() -> FailureGraph:
-    node = FailureNode(
-        "failure:localized",
-        "action:source",
-        "The source action produced the wrong observable artifact.",
-        "2026-09-10T12:00:00Z",
-        (_ref(),),
-    )
-    localization = FailureLocalization(
-        "failure:localized",
-        None,
-        None,
-        (),
-        "failure:localized",
+    return FailureGraph(
         (
-            FailureRoleEvidence(
-                FailureRole.FIRST_ANOMALY,
+            FailureNode(
                 "failure:localized",
-                ("verifier:localization",),
+                "event:outcome",
+                "The source action produced the wrong observable artifact.",
+                "2026-09-10T12:00:00Z",
+                (_ref(),),
             ),
-            FailureRoleEvidence(
-                FailureRole.RECOVERABLE_UNTIL,
-                "failure:localized",
-                ("verifier:recovery-boundary",),
+        ),
+        (),
+        FailureLocalization(
+            "failure:localized",
+            None,
+            None,
+            (),
+            "failure:localized",
+            (
+                FailureRoleEvidence(
+                    FailureRole.FIRST_ANOMALY,
+                    "failure:localized",
+                    ("verifier:localization",),
+                ),
+                FailureRoleEvidence(
+                    FailureRole.RECOVERABLE_UNTIL,
+                    "failure:localized",
+                    ("verifier:recovery-boundary",),
+                ),
             ),
         ),
     )
-    return FailureGraph((node,), (), localization)
 
 
-def _proposal(
-    *,
-    changed_components: tuple[CandidateComponent, ...] = (CandidateComponent.MODEL,),
-    scope: CorrectionScope = CorrectionScope.LOCALIZED_FAILURE,
-    localized_failure_id: str = "failure:localized",
-) -> CorrectionProposal:
-    return CorrectionProposal(
-        proposal_id="correction:1",
-        source_trajectory_id="trajectory:1",
-        source_action_id="action:source",
-        source_epoch_id="epoch:source",
-        failure_graph=_failure_graph(),
-        localized_failure_id=localized_failure_id,
-        localization_verifier_refs=(
-            "verifier:localization",
-            "verifier:recovery-boundary",
-        ),
-        source_evidence_refs=(_ref(),),
-        teacher_correction="Change only the component responsible for the localized failure.",
-        teacher_evidence_refs=(
-            EvidenceReference("teacher:proposal", EvidenceSourceKind.PRIVATE_REASONING),
-        ),
-        changed_components=changed_components,
-        scope=scope,
+def _events() -> tuple[EventEnvelope, ...]:
+    common = {
+        "run_id": "run:source",
+        "repeat_id": 0,
+        "model_version": "model:v1",
+        "harness_version": "harness:v1",
+    }
+    prediction = EventEnvelope(
+        "1.0",
+        "event:prediction",
+        "prediction_commit",
+        "2026-09-10T11:59:56Z",
+        payload={
+            "prediction_commit_id": "prediction:source",
+            "predicted_outcome": {"result": "expected"},
+            "confidence": 0.8,
+            "evidence_refs": ["evidence:prediction"],
+        },
+        evidence_refs=("evidence:prediction",),
+        **common,
     )
+    proposed = EventEnvelope(
+        "1.0",
+        "event:proposed",
+        "action_proposed",
+        "2026-09-10T11:59:57Z",
+        payload={
+            "action_id": "action:source",
+            "action_class": "read",
+            "reversible": True,
+            "authorization_scope": "sandbox",
+            "prediction_commit_id": "prediction:source",
+        },
+        action_id="action:source",
+        parent_event_ids=(prediction.event_id,),
+        authorization_scope="sandbox",
+        **common,
+    )
+    executed = EventEnvelope(
+        "1.0",
+        "event:executed",
+        "action_executed",
+        "2026-09-10T11:59:58Z",
+        payload=dict(proposed.payload),
+        action_id="action:source",
+        parent_event_ids=(proposed.event_id,),
+        authorization_scope="sandbox",
+        **common,
+    )
+    outcome = EventEnvelope(
+        "1.0",
+        "event:outcome",
+        "outcome_observed",
+        "2026-09-10T11:59:59Z",
+        payload={
+            "observation_id": "observation:source",
+            "action_id": "action:source",
+            "actual_outcome": {"result": "wrong"},
+            "evidence_refs": ["evidence:localized"],
+        },
+        action_id="action:source",
+        parent_event_ids=(executed.event_id,),
+        evidence_refs=("evidence:localized",),
+        **common,
+    )
+    verification = EventEnvelope(
+        "1.0",
+        "event:verification",
+        "verification_result",
+        "2026-09-10T12:00:00Z",
+        payload={
+            "verifier_id": "verifier:source",
+            "verifier_version": "v1",
+            "observation_id": "observation:source",
+            "verified": True,
+            "verifier_refs": ["verifier:localization", "verifier:recovery-boundary"],
+        },
+        parent_event_ids=(outcome.event_id,),
+        verifier_refs=("verifier:localization", "verifier:recovery-boundary"),
+        **common,
+    )
+    events = (prediction, proposed, executed, outcome, verification)
+    validate_action_bound_sequence(events)
+    return events
 
 
 def _record(
+    model: str,
+    harness: str,
+    repeat: int,
     *,
-    model_version: str,
-    harness_version: str,
-    repeat_id: int,
+    total: float = 0.875,
+    calibration: float = 0.8,
     passed: bool = True,
 ) -> V5EvaluationRecord:
     return V5EvaluationRecord(
-        case=CaseIdentity(
+        CaseIdentity(
             14,
             "17case-v5",
             "correct_high_stakes_clarifying_abstention",
             "Correct high-stakes clarifying abstention",
         ),
-        robustness=RobustnessIdentity("TOOL_ERROR", None),
-        system=SystemIdentity(
-            repeat_id,
-            4_200 + repeat_id,
-            model_version,
-            harness_version,
-        ),
-        epistemics=EpistemicRecord(
-            f"prediction:{repeat_id}",
-            (f"evidence:{repeat_id}",),
-            (f"verifier:{repeat_id}",),
+        RobustnessIdentity("TOOL_ERROR", None),
+        SystemIdentity(repeat, 4_200 + repeat, model, harness),
+        EpistemicRecord(
+            f"prediction:{repeat}",
+            (f"evidence:{repeat}",),
+            (f"verifier:{repeat}",),
             0.8,
         ),
-        behavior=BehaviorRecord((f"action:{repeat_id}",), True, True),
-        outcome=OutcomeRecord(
-            (f"observation:{repeat_id}",),
-            (f"outcome-verifier:{repeat_id}",),
+        BehaviorRecord((f"action:{repeat}",), True, True),
+        OutcomeRecord(
+            (f"observation:{repeat}",),
+            (f"outcome-verifier:{repeat}",),
             passed,
         ),
-        scores=ScoreRecord(1.0, 0.8, 1.0, 0.7, 0.875),
-        diagnostics=DiagnosticRecord("diagnostic only", 0.1, 0.2),
+        ScoreRecord(1.0, calibration, 1.0, 0.7, total),
+        DiagnosticRecord("diagnostic only", 0.1, 0.2),
     )
 
 
-def _candidate_versions(
-    components: tuple[CandidateComponent, ...],
-) -> tuple[str, str]:
+def _versions(components: tuple[CandidateComponent, ...]) -> tuple[str, str]:
     model = "model:v2" if CandidateComponent.MODEL in components else "model:v1"
     harness = "harness:v2" if CandidateComponent.HARNESS in components else "harness:v1"
     return model, harness
 
 
-def _prepared_candidate(
+def _base(
     tmp_path: Path,
-    *,
     components: tuple[CandidateComponent, ...] = (CandidateComponent.MODEL,),
-    candidate_id: str = "candidate:1",
-) -> tuple[EvaluationEpochStore, Any, CandidateSystem]:
-    store = EvaluationEpochStore(tmp_path / f"{candidate_id.replace(':', '-')}.sqlite", "prod")
-    history = store.create_root(
-        lineage_id=f"lineage:{candidate_id}",
+) -> tuple[
+    CoevolutionStore,
+    object,
+    CorrectionProposal,
+    V5EvaluationRecord,
+    tuple[V5EvaluationRecord, ...],
+]:
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    evaluation = EvaluationEpochStore(tmp_path / "evaluation.sqlite", "evaluation-prod")
+    history = evaluation.create_root(
+        lineage_id="main",
         epoch_id="epoch:source",
         model_version="model:v1",
         harness_version="harness:v1",
     )
+    source_held = _record("model:v1", "harness:v1", 0)
+    source_protected = (
+        _record("model:v1", "harness:v1", 1),
+        _record("model:v1", "harness:v1", 2),
+    )
+    append_epoch_record(history, source_held)
+    for record in source_protected:
+        append_epoch_record(history, record)
     close_evaluation_epoch(history)
-    model, harness = _candidate_versions(components)
+    model, harness = _versions(components)
     begin_candidate_epoch(
         history,
-        epoch_id=f"epoch:{candidate_id}",
+        epoch_id="epoch:candidate",
         model_version=model,
         harness_version=harness,
     )
-    candidate = bind_candidate_system(
-        store,
-        lineage_id=f"lineage:{candidate_id}",
-        candidate_id=candidate_id,
-        correction=_proposal(changed_components=components),
+    authority = CoevolutionStore(
+        tmp_path / "coevolution.sqlite",
+        "coevolution-prod",
+        evaluation,
+        lineage_id="main",
+    )
+    binding = authority.register_trajectory(
+        trajectory_id="trajectory:1",
+        source_epoch_id="epoch:source",
+        events=_events(),
+        source_evidence_refs=(
+            _ref("evidence:prediction"),
+            _ref(),
+        ),
+    )
+    proposal = CorrectionProposal(
+        "correction:1",
+        "trajectory:1",
+        "action:source",
+        "epoch:source",
+        _failure_graph(),
+        "failure:localized",
+        ("verifier:localization", "verifier:recovery-boundary"),
+        binding.source_evidence_refs,
+        "Change only the component responsible for the localized failure.",
+        (EvidenceReference("teacher:proposal", EvidenceSourceKind.PRIVATE_REASONING),),
+        components,
+        binding.trajectory_digest,
+    )
+    return authority, history, proposal, source_held, source_protected
+
+
+def _flow(
+    tmp_path: Path,
+    components: tuple[CandidateComponent, ...] = (CandidateComponent.MODEL,),
+    *,
+    candidate_total: float = 0.9,
+    primary: str = "total",
+) -> tuple[CoevolutionStore, ValidationBundle]:
+    authority, history, proposal, source_held, source_protected = _base(tmp_path, components)
+    candidate = authority.register_candidate(
+        candidate_id="candidate:1",
+        correction=proposal,
         artifact_digest="sha256:" + "a" * 64,
     )
-    return store, history, candidate
-
-
-def _validated_bundle(
-    tmp_path: Path,
-    *,
-    components: tuple[CandidateComponent, ...] = (CandidateComponent.MODEL,),
-    candidate_id: str = "candidate:1",
-    metrics: tuple[ComponentMetric, ...] | None = None,
-) -> tuple[EvaluationEpochStore, ValidationBundle]:
-    store, history, candidate = _prepared_candidate(
-        tmp_path,
-        components=components,
-        candidate_id=candidate_id,
+    model, harness = _versions(components)
+    candidate_held = _record(model, harness, 0, total=candidate_total, calibration=0.7)
+    candidate_protected = (
+        _record(model, harness, 1, total=candidate_total),
+        _record(model, harness, 2, total=candidate_total),
     )
-    model, harness = _candidate_versions(components)
-    held_out = _record(model_version=model, harness_version=harness, repeat_id=0)
-    protected = _record(model_version=model, harness_version=harness, repeat_id=1)
-    append_epoch_record(history, held_out)
-    append_epoch_record(history, protected)
+    append_epoch_record(history, candidate_held)
+    for record in candidate_protected:
+        append_epoch_record(history, record)
     close_evaluation_epoch(history)
-    target = candidate.validation_target()
-    held_receipt = store.issue_validation_receipt(
-        history,
-        epoch_id=candidate.candidate_epoch_id,
-        target=target,
+    source_held_receipt = authority.issue_source_validation_receipt(
+        epoch_id="epoch:source",
         split=ValidationSplit.HELD_OUT,
-        records=(held_out,),
+        records=(source_held,),
     )
-    protected_receipt = store.issue_validation_receipt(
-        history,
-        epoch_id=candidate.candidate_epoch_id,
-        target=target,
+    source_protected_receipt = authority.issue_source_validation_receipt(
+        epoch_id="epoch:source",
         split=ValidationSplit.PROTECTED,
-        records=(protected,),
+        records=source_protected,
     )
-    declared_metrics = metrics or (
-        ComponentMetric("accuracy", 0.8, 0.81, MetricDirection.HIGHER_IS_BETTER, 0.0),
-        ComponentMetric("latency_ms", 100.0, 99.0, MetricDirection.LOWER_IS_BETTER, 1.0),
+    manifest = authority.register_protected_suite(
+        suite_id="protected:v5", source_receipt=source_protected_receipt
     )
-    return store, ValidationBundle(
-        candidate,
-        held_receipt,
-        protected_receipt,
-        declared_metrics,
-        declared_metrics[0].name,
+    policy = MetricPolicy(
+        "metric-policy:v1",
+        tuple(
+            MetricSpec(
+                name,
+                (
+                    MetricDirection.LOWER_IS_BETTER
+                    if name == "calibration"
+                    else MetricDirection.HIGHER_IS_BETTER
+                ),
+                0.0,
+            )
+            for name in _NAMES
+        ),
+        primary,
+        MetricAggregation.ARITHMETIC_MEAN,
     )
+    authority.register_metric_policy(policy)
+    held = authority.issue_candidate_validation_receipt(
+        candidate_id=candidate.candidate_id,
+        split=ValidationSplit.HELD_OUT,
+        records=(candidate_held,),
+    )
+    protected = authority.issue_candidate_validation_receipt(
+        candidate_id=candidate.candidate_id,
+        split=ValidationSplit.PROTECTED,
+        records=candidate_protected,
+    )
+    comparison = authority.issue_metric_comparison(
+        candidate_id=candidate.candidate_id,
+        policy_id=policy.policy_id,
+        source_receipt=source_held_receipt,
+        candidate_receipt=held,
+    )
+    return authority, ValidationBundle(candidate, held, protected, comparison, manifest.suite_id)
 
 
 @pytest.mark.parametrize(
@@ -238,353 +369,287 @@ def _validated_bundle(
         (CandidateComponent.MODEL, CandidateComponent.HARNESS),
     ],
 )
-def test_complete_offline_flow_accepts_model_harness_or_joint_candidates(
-    tmp_path: Path,
-    components: tuple[CandidateComponent, ...],
+def test_model_harness_and_combined_candidates_use_new_offline_epoch(
+    tmp_path: Path, components: tuple[CandidateComponent, ...]
 ) -> None:
-    """Catch valid component-specific candidate epochs being rejected or conflated."""
-
-    store, bundle = _validated_bundle(tmp_path, components=components)
-
-    decision = decide_candidate_acceptance(
-        bundle,
-        trusted_store=store,
-        trusted_authority=store.authority(),
-        required_protected_record_ids=bundle.protected_receipt.record_ids,
-    )
+    authority, bundle = _flow(tmp_path, components)
+    decision = decide_candidate_acceptance(bundle, authority_store=authority)
 
     assert decision.accepted is True
+    assert decision.candidate.changed_components == components
     assert decision.rollback_target_epoch_id == "epoch:source"
-    assert decision.component_metrics == bundle.component_metrics
-    assert decision.primary_metric_name == "accuracy"
     assert decision.execute_candidate is False
-    assert decision.reason == "candidate passed held-out and protected acceptance gates"
+    assert authority.evaluation_epochs()[-1].closed is True
 
 
-def test_teacher_prose_is_only_a_scoped_proposal_not_acceptance_authority(tmp_path: Path) -> None:
-    """Catch persuasive teacher text granting acceptance without store-issued validation."""
+def test_teacher_proposal_requires_exact_registered_localized_failure(tmp_path: Path) -> None:
+    authority, _history, proposal, _held, _protected = _base(tmp_path)
+    wholesale = proposal.to_dict()
+    wholesale["scope"] = CorrectionScope.WHOLE_TRAJECTORY.value
+    with pytest.raises(ValueError, match="localized"):
+        CorrectionProposal.from_dict(wholesale)
 
-    _, _, candidate = _prepared_candidate(tmp_path)
-    assert candidate.correction.teacher_correction
-    assert not hasattr(candidate.correction, "accepted")
-    assert not hasattr(candidate.correction, "authorized")
-
-    with pytest.raises(ValueError, match="held_out_receipt"):
-        ValidationBundle(candidate, cast(Any, None), cast(Any, None), (), "accuracy")
-
-
-def test_wholesale_or_unlocalized_correction_is_rejected() -> None:
-    """Catch trajectory imitation or a failure label not bound to graph localization."""
-
-    with pytest.raises(ValueError, match="localized failure"):
-        _proposal(scope=CorrectionScope.WHOLE_TRAJECTORY)
-    with pytest.raises(ValueError, match="localized_failure_id"):
-        _proposal(localized_failure_id="failure:invented")
-    with pytest.raises(ValueError, match="localization_verifier_refs"):
-        values = _proposal().to_dict()
-        values["localization_verifier_refs"] = ["verifier:invented"]
-        CorrectionProposal.from_dict(values)
-
-
-def test_correction_is_bound_to_source_action_evidence_and_changed_components() -> None:
-    """Catch a correction detached from the exact observed source failure or edit scope."""
-
-    payload = _proposal().to_dict()
-    for field_name, value in (
-        ("source_action_id", "action:other"),
-        ("source_evidence_refs", [_ref("evidence:other").to_dict()]),
-        ("changed_components", []),
-        ("changed_components", ["model", "model"]),
-    ):
-        changed = dict(payload)
-        changed[field_name] = value
-        with pytest.raises(ValueError, match=field_name):
-            CorrectionProposal.from_dict(changed)
-
-
-def test_correction_requires_the_complete_exact_localization_verifier_set() -> None:
-    """Catch partial role evidence making a multi-role localization look fully supported."""
-
-    payload = _proposal().to_dict()
-    payload["localization_verifier_refs"] = ["verifier:localization"]
-
-    with pytest.raises(ValueError, match="localization_verifier_refs"):
-        CorrectionProposal.from_dict(payload)
-
-
-def test_candidate_requires_closed_source_and_store_issued_new_epoch(tmp_path: Path) -> None:
-    """Catch model or harness mutation inside an open source episode or a forged epoch."""
-
-    store = EvaluationEpochStore(tmp_path / "open.sqlite", "prod")
-    store.create_root(
-        lineage_id="lineage:open",
-        epoch_id="epoch:source",
-        model_version="model:v1",
-        harness_version="harness:v1",
-    )
-    with pytest.raises(ValueError, match="source.*closed|candidate epoch"):
-        bind_candidate_system(
-            store,
-            lineage_id="lineage:open",
-            candidate_id="candidate:open",
-            correction=_proposal(),
-            artifact_digest="a" * 64,
+    unrelated = proposal.to_dict()
+    unrelated["source_action_id"] = "action:unrelated"
+    with pytest.raises(ValueError, match="action"):
+        authority.register_candidate(
+            candidate_id="candidate:unrelated",
+            correction=CorrectionProposal.from_dict(unrelated),
+            artifact_digest="sha256:" + "a" * 64,
         )
 
-    history = store.open("lineage:open")
-    close_evaluation_epoch(history)
-    with pytest.raises(ValueError, match="candidate.*version"):
-        begin_candidate_epoch(
-            history,
-            epoch_id="epoch:reused",
-            model_version="model:v1",
-            harness_version="harness:v1",
+    forged = proposal.to_dict()
+    forged["localization_verifier_refs"] = ["verifier:fake-a", "verifier:fake-b"]
+    failure_graph = cast(dict[str, object], forged["failure_graph"])
+    localization = cast(dict[str, object], failure_graph["localization"])
+    roles = cast(list[dict[str, object]], localization["role_evidence"])
+    roles[0]["verifier_refs"] = ["verifier:fake-a"]
+    roles[1]["verifier_refs"] = ["verifier:fake-b"]
+    with pytest.raises(ValueError, match="verifier evidence"):
+        authority.register_candidate(
+            candidate_id="candidate:forged",
+            correction=CorrectionProposal.from_dict(forged),
+            artifact_digest="sha256:" + "b" * 64,
         )
 
 
-@pytest.mark.parametrize(
-    ("metric", "accepted"),
-    [
-        (ComponentMetric("quality", 0.8, 0.79, MetricDirection.HIGHER_IS_BETTER, 0.01), True),
-        (ComponentMetric("quality", 0.8, 0.78, MetricDirection.HIGHER_IS_BETTER, 0.01), False),
-        (ComponentMetric("error", 0.2, 0.21, MetricDirection.LOWER_IS_BETTER, 0.01), True),
-        (ComponentMetric("error", 0.2, 0.22, MetricDirection.LOWER_IS_BETTER, 0.01), False),
-    ],
-)
-def test_primary_metric_uses_explicit_direction_and_tolerance(
+def test_trajectory_binding_rejects_rebinding_and_inexact_evidence(tmp_path: Path) -> None:
+    authority, _history, _proposal, _held, _protected = _base(tmp_path)
+    with pytest.raises(ValueError, match="already|registered"):
+        authority.register_trajectory(
+            trajectory_id="trajectory:1",
+            source_epoch_id="epoch:source",
+            events=_events(),
+            source_evidence_refs=(_ref("evidence:prediction"), _ref()),
+        )
+    with pytest.raises(ValueError, match="source_evidence_refs"):
+        authority.register_trajectory(
+            trajectory_id="trajectory:2",
+            source_epoch_id="epoch:source",
+            events=_events(),
+            source_evidence_refs=(_ref(),),
+        )
+
+
+def test_candidate_target_registration_is_atomic_under_alias_race(tmp_path: Path) -> None:
+    authority, _history, proposal, _held, _protected = _base(tmp_path)
+
+    def register(identifier: str) -> object:
+        try:
+            return authority.register_candidate(
+                candidate_id=identifier,
+                correction=proposal,
+                artifact_digest="sha256:" + identifier[-1] * 64,
+            )
+        except ValueError as error:
+            return error
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        outcomes = tuple(executor.map(register, ("candidate:a", "candidate:b")))
+    assert sum(type(item) is CandidateSystem for item in outcomes) == 1
+    assert sum(type(item) is ValueError for item in outcomes) == 1
+
+
+def test_candidate_target_must_precede_records_in_new_open_epoch(tmp_path: Path) -> None:
+    authority, history, proposal, _held, _protected = _base(tmp_path)
+    append_epoch_record(history, _record("model:v2", "harness:v1", 0))
+    with pytest.raises(ValueError, match="new empty open epoch"):
+        authority.register_candidate(
+            candidate_id="candidate:late",
+            correction=proposal,
+            artifact_digest="sha256:" + "a" * 64,
+        )
+
+
+def test_record_derived_metrics_are_complete_directional_and_mutation_bound(
     tmp_path: Path,
-    metric: ComponentMetric,
-    accepted: bool,
 ) -> None:
-    """Catch a universal higher-is-better comparison or silently ignored tolerance."""
+    authority, bundle = _flow(tmp_path, primary="calibration")
+    receipt = bundle.metric_receipt
+    assert tuple(metric.name for metric in receipt.component_metrics) == _NAMES
+    assert receipt.primary_metric_name == "calibration"
+    assert decide_candidate_acceptance(bundle, authority_store=authority).accepted is True
+    assert receipt.component_metrics[-1].baseline_value == 0.875
+    assert receipt.component_metrics[-1].candidate_value == 0.9
 
-    store, bundle = _validated_bundle(tmp_path, metrics=(metric,))
-    decision = decide_candidate_acceptance(
-        bundle,
-        trusted_store=store,
-        trusted_authority=store.authority(),
-        required_protected_record_ids=bundle.protected_receipt.record_ids,
+    object.__setattr__(receipt.component_metrics[-1], "baseline_value", 0.95)
+    object.__setattr__(receipt.component_metrics[-1], "candidate_value", 1.0)
+    with pytest.raises(ValueError, match="ComponentMetric|changed"):
+        receipt.to_dict()
+    with pytest.raises(ValueError, match="ComponentMetric|changed"):
+        receipt.component_metrics[-1].is_non_worse()
+
+
+def test_declared_primary_metric_can_authoritatively_reject_candidate(tmp_path: Path) -> None:
+    authority, bundle = _flow(tmp_path, candidate_total=0.8)
+    decision = decide_candidate_acceptance(bundle, authority_store=authority)
+
+    assert decision.accepted is False
+    assert decision.primary_metric_name == "total"
+    assert "worse" in decision.reason
+
+
+@pytest.mark.parametrize("hostile", [True, float("nan"), 1, "1.0"])
+def test_component_metric_rejects_bool_nan_and_coercion(hostile: object) -> None:
+    with pytest.raises(ValueError, match="finite|float"):
+        ComponentMetric(
+            "total",
+            cast(float, hostile),
+            1.0,
+            MetricDirection.HIGHER_IS_BETTER,
+            0.0,
+        )
+
+
+def test_metric_policy_rejects_missing_duplicate_and_conflicting_schema() -> None:
+    complete = tuple(MetricSpec(name, MetricDirection.HIGHER_IS_BETTER, 0.0) for name in _NAMES)
+    for invalid in (complete[:-1], complete[:-1] + (complete[0],)):
+        with pytest.raises(ValueError, match="every V5 score key"):
+            MetricPolicy(
+                "policy:invalid",
+                invalid,
+                "total",
+                MetricAggregation.ARITHMETIC_MEAN,
+            )
+
+
+def test_failed_protected_result_cannot_receive_regression_receipt(tmp_path: Path) -> None:
+    authority, history, proposal, _source_held, _source_protected = _base(tmp_path)
+    candidate = authority.register_candidate(
+        candidate_id="candidate:1",
+        correction=proposal,
+        artifact_digest="sha256:" + "a" * 64,
     )
-    assert decision.accepted is accepted
-    assert decision.component_metrics == (metric,)
-
-
-@pytest.mark.parametrize(
-    ("field_name", "value"),
-    [
-        ("baseline_value", True),
-        ("baseline_value", 1),
-        ("candidate_value", float("nan")),
-        ("candidate_value", float("inf")),
-        ("tolerance", -0.01),
-        ("tolerance", False),
-        ("direction", "higher_is_better"),
-    ],
-)
-def test_metrics_reject_opaque_coercible_or_nonfinite_values(
-    field_name: str,
-    value: object,
-) -> None:
-    """Catch bool, integer, NaN, infinity, enum-string, or negative-tolerance metrics."""
-
-    values: dict[str, object] = {
-        "name": "quality",
-        "baseline_value": 0.8,
-        "candidate_value": 0.9,
-        "direction": MetricDirection.HIGHER_IS_BETTER,
-        "tolerance": 0.0,
-    }
-    values[field_name] = value
-    with pytest.raises(ValueError, match=field_name):
-        ComponentMetric(**cast(Any, values))
-
-
-def test_bundle_requires_complete_unique_metrics_and_primary_metric(tmp_path: Path) -> None:
-    """Catch scalar collapse, duplicate/conflicting components, or an undeclared primary metric."""
-
-    _, valid = _validated_bundle(tmp_path)
-    metric = ComponentMetric("quality", 0.8, 0.9, MetricDirection.HIGHER_IS_BETTER, 0.0)
-    duplicate = ComponentMetric("quality", 0.8, 0.7, MetricDirection.LOWER_IS_BETTER, 0.0)
-    with pytest.raises(ValueError, match="component_metrics"):
-        ValidationBundle(
-            valid.candidate,
-            valid.held_out_receipt,
-            valid.protected_receipt,
-            (),
-            "quality",
-        )
-    with pytest.raises(ValueError, match="unique|conflicting"):
-        ValidationBundle(
-            valid.candidate,
-            valid.held_out_receipt,
-            valid.protected_receipt,
-            (metric, duplicate),
-            "quality",
-        )
-    with pytest.raises(ValueError, match="primary_metric_name"):
-        ValidationBundle(
-            valid.candidate,
-            valid.held_out_receipt,
-            valid.protected_receipt,
-            (metric,),
-            "missing",
-        )
-
-
-def test_failed_and_incomplete_protected_regressions_cannot_accept(tmp_path: Path) -> None:
-    """Catch partial or failing protected coverage being described as regression-safe."""
-
-    store, history, candidate = _prepared_candidate(tmp_path)
-    failed = _record(
-        model_version=candidate.model_version,
-        harness_version=candidate.harness_version,
-        repeat_id=0,
-        passed=False,
-    )
+    failed = _record("model:v2", "harness:v1", 1, passed=False)
     append_epoch_record(history, failed)
     close_evaluation_epoch(history)
-    with pytest.raises(ValueError, match="every outcome.*pass"):
-        store.issue_validation_receipt(
-            history,
-            epoch_id=candidate.candidate_epoch_id,
-            target=candidate.validation_target(),
+    with pytest.raises(ValueError, match="pass"):
+        authority.issue_candidate_validation_receipt(
+            candidate_id=candidate.candidate_id,
             split=ValidationSplit.PROTECTED,
             records=(failed,),
         )
 
-    store, bundle = _validated_bundle(tmp_path, candidate_id="candidate:incomplete")
-    required = (*bundle.protected_receipt.record_ids, "sha256:" + "f" * 64)
-    with pytest.raises(ValueError, match="complete protected"):
+
+def test_protected_manifest_rejects_relabel_and_wrong_coverage(tmp_path: Path) -> None:
+    authority, bundle = _flow(tmp_path)
+    with pytest.raises(ValueError, match="protected"):
         decide_candidate_acceptance(
-            bundle,
-            trusted_store=store,
-            trusted_authority=store.authority(),
-            required_protected_record_ids=required,
+            ValidationBundle(
+                bundle.candidate,
+                bundle.held_out_receipt,
+                bundle.held_out_receipt,
+                bundle.metric_receipt,
+                bundle.protected_suite_id,
+            ),
+            authority_store=authority,
         )
-
-
-def test_receipts_must_match_candidate_epoch_identity_lineage_and_split(tmp_path: Path) -> None:
-    """Catch cross-candidate, cross-epoch, and split-relabel validation replay."""
-
-    store, bundle = _validated_bundle(tmp_path, candidate_id="candidate:one")
-    other_store, other = _validated_bundle(tmp_path, candidate_id="candidate:two")
     payload = bundle.to_dict()
-    payload["protected_receipt"] = other.protected_receipt.to_dict()
-    mixed = ValidationBundle.from_dict(payload)
-    with pytest.raises(ValueError, match="candidate|target|lineage|epoch|catalog"):
-        decide_candidate_acceptance(
-            mixed,
-            trusted_store=store,
-            trusted_authority=store.authority(),
-            required_protected_record_ids=mixed.protected_receipt.record_ids,
-        )
-
-    relabeled = bundle.protected_receipt.to_dict()
-    relabeled["split"] = "held_out"
-    payload = bundle.to_dict()
-    payload["protected_receipt"] = relabeled
+    protected = dict(cast(dict[str, object], payload["protected_receipt"]))
+    protected["split"] = ValidationSplit.HELD_OUT.value
+    payload["protected_receipt"] = protected
     with pytest.raises(ValueError, match="protected|catalog"):
+        decide_candidate_acceptance(ValidationBundle.from_dict(payload), authority_store=authority)
+
+    candidate = bundle.candidate
+    model, harness = candidate.model_version, candidate.harness_version
+    subset = authority.issue_candidate_validation_receipt(
+        candidate_id=candidate.candidate_id,
+        split=ValidationSplit.PROTECTED,
+        records=(_record(model, harness, 1, total=0.9),),
+    )
+    with pytest.raises(ValueError, match="exactly cover"):
         decide_candidate_acceptance(
-            ValidationBundle.from_dict(payload),
-            trusted_store=store,
-            trusted_authority=store.authority(),
-            required_protected_record_ids=bundle.protected_receipt.record_ids,
+            ValidationBundle(
+                candidate,
+                bundle.held_out_receipt,
+                subset,
+                bundle.metric_receipt,
+                bundle.protected_suite_id,
+            ),
+            authority_store=authority,
+        )
+    superset = authority.issue_candidate_validation_receipt(
+        candidate_id=candidate.candidate_id,
+        split=ValidationSplit.PROTECTED,
+        records=(
+            _record(model, harness, 1, total=0.9),
+            _record(model, harness, 2, total=0.9),
+            _record(model, harness, 0, total=0.9, calibration=0.7),
+        ),
+    )
+    with pytest.raises(ValueError, match="exactly cover"):
+        decide_candidate_acceptance(
+            ValidationBundle(
+                candidate,
+                bundle.held_out_receipt,
+                superset,
+                bundle.metric_receipt,
+                bundle.protected_suite_id,
+            ),
+            authority_store=authority,
         )
 
-    with pytest.raises(ValueError, match="authority|catalog"):
-        decide_candidate_acceptance(
-            bundle,
-            trusted_store=other_store,
-            trusted_authority=other_store.authority(),
-            required_protected_record_ids=bundle.protected_receipt.record_ids,
-        )
+
+def test_decision_requires_store_validation_and_is_single_consume(tmp_path: Path) -> None:
+    authority, bundle = _flow(tmp_path)
+    before = authority.evaluation_epochs()
+    decision = decide_candidate_acceptance(bundle, authority_store=authority)
+    restored = AcceptanceDecision.from_dict(json.loads(json.dumps(decision.to_dict())))
+
+    assert decision.is_authoritative is True
+    assert restored.is_authoritative is False
+    with pytest.raises(ValueError, match="authoritative|validated"):
+        authority.consume_decision(restored)
+    validated = authority.validate_decision(restored)
+    assert authority.read_decision(decision.decision_id) == validated
+    assert authority.consume_decision(validated) == validated
+    with pytest.raises(ValueError, match="consumed"):
+        authority.consume_decision(validated)
+    assert authority.evaluation_epochs() == before
 
 
-def test_records_snapshot_nested_inputs_and_revalidate_use_time_corruption(tmp_path: Path) -> None:
-    """Catch caller mutation or frozen-record bypass changing an accepted candidate."""
+def test_json_tamper_and_cross_store_replay_are_rejected(tmp_path: Path) -> None:
+    authority, bundle = _flow(tmp_path / "one")
+    other, _ = _flow(tmp_path / "two")
+    decision = decide_candidate_acceptance(bundle, authority_store=authority)
+    tampered = decision.to_dict()
+    tampered["accepted"] = False
+    with pytest.raises(ValueError, match="digest"):
+        AcceptanceDecision.from_dict(tampered)
 
-    store, bundle = _validated_bundle(tmp_path)
-    source = CandidateSystem.from_dict(bundle.candidate.to_dict())
-    detached = ValidationBundle(
-        source,
-        bundle.held_out_receipt,
-        bundle.protected_receipt,
-        bundle.component_metrics,
-        bundle.primary_metric_name,
+    coherent = decision.to_dict()
+    coherent["accepted"] = False
+    coherent["reason"] = "candidate primary metric is worse than the declared tolerance"
+    coherent.pop("decision_digest")
+    encoded = json.dumps(coherent, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    coherent["decision_digest"] = "sha256:" + hashlib.sha256(encoded).hexdigest()
+    forged = AcceptanceDecision.from_dict(coherent)
+    assert forged.is_authoritative is False
+    with pytest.raises(ValueError, match="canonical"):
+        authority.validate_decision(forged)
+
+    with pytest.raises(ValueError, match="catalog|absent|decision"):
+        other.validate_decision(AcceptanceDecision.from_dict(decision.to_dict()))
+
+
+def test_restart_preserves_target_manifest_metrics_and_decision(tmp_path: Path) -> None:
+    authority, bundle = _flow(tmp_path)
+    decision = decide_candidate_acceptance(bundle, authority_store=authority)
+    restarted = CoevolutionStore(
+        tmp_path / "coevolution.sqlite",
+        "coevolution-prod",
+        EvaluationEpochStore(tmp_path / "evaluation.sqlite", "evaluation-prod"),
+        lineage_id="main",
     )
-    object.__setattr__(source.correction.failure_graph.localization, "first_anomaly", "rewritten")
-    assert detached.candidate.correction.failure_graph.localization.first_anomaly == (
-        "failure:localized"
-    )
-
-    object.__setattr__(detached.protected_receipt, "target_digest", "sha256:" + "b" * 64)
-    with pytest.raises(ValueError, match="receipt|target|construction"):
-        decide_candidate_acceptance(
-            detached,
-            trusted_store=store,
-            trusted_authority=store.authority(),
-            required_protected_record_ids=detached.protected_receipt.record_ids,
-        )
+    assert restarted.read_candidate("candidate:1") == bundle.candidate
+    assert restarted.read_decision(decision.decision_id).to_dict() == decision.to_dict()
 
 
-def test_candidate_bundle_and_decision_json_round_trip_and_remain_frozen(tmp_path: Path) -> None:
-    """Catch lossy audit persistence or mutable accepted decisions."""
-
-    store, bundle = _validated_bundle(tmp_path)
-    restored_bundle = ValidationBundle.from_dict(json.loads(json.dumps(bundle.to_dict())))
-    decision = decide_candidate_acceptance(
-        restored_bundle,
-        trusted_store=store,
-        trusted_authority=store.authority(),
-        required_protected_record_ids=restored_bundle.protected_receipt.record_ids,
-    )
-    restored_decision = type(decision).from_dict(json.loads(json.dumps(decision.to_dict())))
-
-    assert restored_bundle == bundle
-    assert restored_decision == decision
-    assert restored_decision.inputs_digest.startswith("sha256:")
-    for record in (
-        restored_bundle.candidate.correction,
-        restored_bundle.candidate,
-        restored_bundle,
-        restored_decision,
-    ):
-        assert not hasattr(record, "__dict__")
-    with pytest.raises(FrozenInstanceError):
-        restored_decision.accepted = False
-
-
-def test_candidate_acceptance_is_a_nonexecuting_deterministic_audit_decision(
-    tmp_path: Path,
-) -> None:
-    """Catch acceptance mutating the epoch lineage or producing unauditable replay variance."""
-
-    store, bundle = _validated_bundle(tmp_path)
-    before = store.open(bundle.candidate.lineage_id).snapshot()
-    first = decide_candidate_acceptance(
-        bundle,
-        trusted_store=store,
-        trusted_authority=store.authority(),
-        required_protected_record_ids=bundle.protected_receipt.record_ids,
-    )
-    second = decide_candidate_acceptance(
-        bundle,
-        trusted_store=store,
-        trusted_authority=store.authority(),
-        required_protected_record_ids=bundle.protected_receipt.record_ids,
-    )
-
-    assert first == second
-    assert first.inputs_digest == second.inputs_digest
-    assert store.open(bundle.candidate.lineage_id).snapshot() == before
-
-
-def test_public_exports_expose_controlled_coevolution_contract() -> None:
-    """Catch the public API omitting the records needed by offline evolution callers."""
-
+def test_public_exports_include_authority_records() -> None:
     import gepa_mindfulness
 
-    assert gepa_mindfulness.CorrectionProposal is CorrectionProposal
-    assert gepa_mindfulness.CandidateSystem is CandidateSystem
-    assert gepa_mindfulness.ValidationBundle is ValidationBundle
-    assert gepa_mindfulness.decide_candidate_acceptance is decide_candidate_acceptance
+    assert gepa_mindfulness.CoevolutionStore is CoevolutionStore
+    assert gepa_mindfulness.TrajectoryBinding is TrajectoryBinding
+    assert gepa_mindfulness.ProtectedSuiteManifest is ProtectedSuiteManifest
+    assert gepa_mindfulness.AcceptanceDecision is AcceptanceDecision

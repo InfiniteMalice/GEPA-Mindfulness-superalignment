@@ -79,7 +79,7 @@ class EvaluationAuthority:
 
 @dataclass(frozen=True, slots=True)
 class ValidationTarget:
-    """Exact skill artifact target evaluated by a validation receipt."""
+    """Exact candidate or artifact target evaluated by a validation receipt."""
 
     artifact_id: str
     skill_id: str
@@ -95,7 +95,7 @@ class ValidationTarget:
 
 @dataclass(frozen=True, slots=True)
 class ValidationReceipt:
-    """A durable evaluation-store attestation over passing canonical V5 records."""
+    """A durable attestation over passing canonical V5 records for one evaluated target."""
 
     receipt_id: str
     catalog_id: str
@@ -371,6 +371,35 @@ class EvaluationEpochStore:
             entry = _deserialize_history_entry(row[2])
             _validate_catalog(connection, domain, lineage, row[1], entry)
         return _new_history_handle(path, domain, lineage, revision)
+
+    def resolve_epoch(
+        self,
+        lineage_id: str,
+        epoch_id: str,
+    ) -> tuple[int, EvaluationEpoch, tuple[V5EvaluationRecord, ...]]:
+        """Return one detached canonical epoch and its records from this authority."""
+
+        path, domain = _validated_epoch_store(self)
+        lineage = _require_epoch_token(lineage_id, "lineage_id")
+        identifier = _require_epoch_token(epoch_id, "epoch_id")
+        with _open_epoch_database(path) as connection:
+            row = connection.execute(
+                "SELECT revision, tip_epoch_id, payload FROM epoch_lineages "
+                "WHERE authority_domain = ? AND lineage_id = ?",
+                (domain, lineage),
+            ).fetchone()
+            if row is None:
+                raise KeyError(lineage)
+            revision = _require_nonnegative_integer(row[0], "revision")
+            entry = _deserialize_history_entry(row[2])
+            _validate_catalog(connection, domain, lineage, row[1], entry)
+        matches = tuple(epoch for epoch in entry.lineage if epoch.epoch_id == identifier)
+        if len(matches) != 1:
+            raise KeyError(identifier)
+        epoch = matches[0]
+        records = dict(entry.records)
+        resolved = tuple(_snapshot_evaluation_record(records[item]) for item in epoch.record_ids)
+        return revision, _snapshot_epoch(epoch), resolved
 
     def issue_validation_receipt(
         self,
