@@ -49,7 +49,8 @@ def _load_prompts(path: Path) -> List[str]:
     return prompts
 
 
-def _load_reference_answers(path: Path) -> list[tuple[str, ...]]:
+def _load_grpo_inputs(path: Path) -> tuple[list[str], list[tuple[str, ...]]]:
+    prompts: list[str] = []
     references: list[tuple[str, ...]] = []
     with path.open("r", encoding="utf-8") as handle:
         for line_number, line in enumerate(handle, start=1):
@@ -64,6 +65,11 @@ def _load_reference_answers(path: Path) -> list[tuple[str, ...]]:
                 ) from exc
             if type(payload) is not dict:
                 raise ValueError(f"GRPO dataset line {line_number} must be a JSON object")
+            prompt = payload.get("prompt") or payload.get("query")
+            if type(prompt) is not str or not prompt.strip():
+                raise ValueError(
+                    f"GRPO dataset line {line_number} requires a nonblank prompt or query"
+                )
             raw_answers = payload.get("reference_answers", payload.get("answers"))
             answers: tuple[str, ...]
             if isinstance(raw_answers, str):
@@ -78,8 +84,11 @@ def _load_reference_answers(path: Path) -> list[tuple[str, ...]]:
                 raise ValueError(
                     f"GRPO dataset line {line_number} requires nonblank reference_answers"
                 )
+            prompts.append(prompt)
             references.append(answers)
-    return references
+    if not prompts:
+        raise ValueError(f"No GRPO training records found in {path}")
+    return prompts, references
 
 
 def _ensure_transformers():
@@ -103,8 +112,7 @@ def _instantiate_models(config: TrainingConfig):
 
 def _run_grpo(args: argparse.Namespace, config: TrainingConfig) -> None:
     _ensure_transformers()
-    prompts = _load_prompts(args.dataset)
-    reference_answers = _load_reference_answers(args.dataset)
+    prompts, reference_answers = _load_grpo_inputs(args.dataset)
     policy, reference, tokenizer = _instantiate_models(config)
 
     device = torch.device(config.device)

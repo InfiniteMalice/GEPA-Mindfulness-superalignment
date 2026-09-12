@@ -9,6 +9,7 @@ from torch import nn
 from gepa_mindfulness.core.rewards import RewardWeights
 from gepa_mindfulness.training.configs import GRPOConfig
 from gepa_mindfulness.training.grpo_trainer import GRPOTrainer
+from gepa_mindfulness.training.train import _load_grpo_inputs
 
 
 class DummyTokenizer:
@@ -68,6 +69,17 @@ class DummyModel(nn.Module):
             )
             sequences.append(torch.cat([base, next_token], dim=1)[0])
         return torch.stack(sequences)
+
+
+def test_grpo_dataset_parser_keeps_prompts_and_references_aligned(tmp_path: Path) -> None:
+    dataset = tmp_path / "dataset.jsonl"
+    dataset.write_text(
+        '{"prompt": "first", "answers": ["answer"]}\n' '{"answers": ["orphaned"]}\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="line 2.*prompt or query"):
+        _load_grpo_inputs(dataset)
 
 
 def test_grpo_trainer_runs_on_stub_dataset(tmp_path: Path):
