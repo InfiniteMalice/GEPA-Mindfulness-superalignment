@@ -3,14 +3,29 @@
 from __future__ import annotations
 
 import json
+from dataclasses import asdict, replace
+from typing import Any, cast, get_args, get_type_hints
 
-from gepa_mindfulness.core import AmbiguityHandlingMode
+import pytest
+
+from gepa_mindfulness.core import (
+    AmbiguityHandlingMode,
+    EpistemicProcessAssessment,
+    EpistemicProcessComponent,
+    RewardProvenance,
+    VerificationRoute,
+    VerifiedProcessComponent,
+)
+from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
 from gepa_mindfulness.schema_v3 import (
+    CASE_NAMES,
     ControlOverlay,
     GroupTheoreticOverlay,
+    ObservabilityOverlay,
     ReasoningOverlay,
     classify_case_v3,
 )
+from gepa_mindfulness.schema_v3.case_v3 import RewardComponents
 from gepa_mindfulness.schema_v3.causal_scientific import (
     causal_confounding_overlay,
     scientific_method_required_control,
@@ -25,6 +40,8 @@ from gepa_mindfulness.schema_v3.group_theoretic import (
 )
 from gepa_mindfulness.schema_v3.mdl_control import mdl_control_gate
 from gepa_mindfulness.schema_v3.reasoning_units import REASONING_UNIT_REGISTRY
+from gepa_mindfulness.schema_v3.rewards import assert_thought_reward_non_negative
+from gepa_mindfulness.schema_v3.validators import validate_case_v3
 
 
 def _classify(**kwargs):
@@ -37,6 +54,429 @@ def _classify(**kwargs):
     }
     defaults.update(kwargs)
     return classify_case_v3(**defaults)
+
+
+@pytest.mark.parametrize("case_id", range(18))
+def test_schema_v3_validators_accept_all_builtin_integer_case_ids(case_id: int) -> None:
+    """Both packages accept coherent built-in integer IDs from 0 through 17."""
+
+    from rg_tracer.schema_v3.validators import validate_case_v3 as validate_rg_case_v3
+
+    result = replace(
+        _classify(),
+        case_id=case_id,
+        base_case_name=CASE_NAMES[case_id],
+        compact_label=f"Case{case_id}-O0",
+    )
+
+    validate_case_v3(result)
+    validate_rg_case_v3(result)
+
+
+class _CaseIdIntSubclass(int):
+    """Adversarial integer subtype for the exact built-in ID contract."""
+
+
+@pytest.mark.parametrize(
+    ("case_id", "compact_label"),
+    [
+        (True, "CaseTrue-O0"),
+        (False, "CaseFalse-O0"),
+        (1.0, "Case1.0-O0"),
+        (0.0, "Case0.0-O0"),
+        (_CaseIdIntSubclass(1), "Case1-O0"),
+    ],
+)
+def test_schema_v3_validators_reject_non_builtin_integer_case_ids(
+    case_id: Any,
+    compact_label: str,
+) -> None:
+    """Aliases cannot exploit dictionary equality or stringified compact labels."""
+
+    from rg_tracer.schema_v3 import CASE_NAMES as rg_case_names
+    from rg_tracer.schema_v3 import classify_case_v3 as classify_rg_case_v3
+    from rg_tracer.schema_v3.validators import validate_case_v3 as validate_rg_case_v3
+
+    aliased_id = int(case_id)
+    main_result = replace(
+        _classify(),
+        case_id=case_id,
+        base_case_name=CASE_NAMES[aliased_id],
+        compact_label=compact_label,
+    )
+    rg_result = replace(
+        classify_rg_case_v3(
+            output_text="Paris",
+            expected_answer="Paris",
+            is_idk=False,
+            confidence=0.9,
+            thought_aligned=True,
+        ),
+        case_id=case_id,
+        base_case_name=rg_case_names[aliased_id],
+        compact_label=compact_label,
+    )
+
+    for validator, result in (
+        (validate_case_v3, main_result),
+        (validate_rg_case_v3, rg_result),
+    ):
+        with pytest.raises(ValueError, match="exact built-in int"):
+            validator(result)
+
+
+def test_schema_v3_validators_reject_case_18() -> None:
+    """Both compatibility packages reject IDs beyond the canonical manifest."""
+
+    from rg_tracer.schema_v3.validators import validate_case_v3 as validate_rg_case_v3
+
+    result = replace(_classify(), case_id=18)
+
+    for validator in (validate_case_v3, validate_rg_case_v3):
+        with pytest.raises(ValueError, match="non-canonical fallback 0.*1 through 17"):
+            validator(result)
+
+
+@pytest.mark.parametrize(
+    ("field_name", "message"),
+    [
+        ("base_case_name", "base_case_name"),
+        ("compact_label", "compact_label"),
+    ],
+)
+def test_schema_v3_validators_reject_incoherent_canonical_identity(
+    field_name: str,
+    message: str,
+) -> None:
+    """Both validators reject canonical records whose derived identity fields drift."""
+
+    from rg_tracer.schema_v3 import classify_case_v3 as classify_rg_case_v3
+    from rg_tracer.schema_v3.validators import validate_case_v3 as validate_rg_case_v3
+
+    main_result = _classify()
+    rg_result = classify_rg_case_v3(
+        output_text="Paris",
+        expected_answer="Paris",
+        is_idk=False,
+        confidence=0.9,
+        thought_aligned=True,
+    )
+
+    if field_name == "base_case_name":
+        invalid_main = replace(main_result, base_case_name="wrong_case_name")
+        invalid_rg = replace(rg_result, base_case_name="wrong_case_name")
+    else:
+        invalid_main = replace(main_result, compact_label="Case1-O5")
+        invalid_rg = replace(rg_result, compact_label="Case1-O5")
+
+    with pytest.raises(ValueError, match=message):
+        validate_case_v3(invalid_main)
+    with pytest.raises(ValueError, match=message):
+        validate_rg_case_v3(invalid_rg)
+
+
+def test_schema_v3_validators_require_exact_fallback_identity() -> None:
+    """Fallback Case 0 has one stable name and derived compact label in both packages."""
+
+    from rg_tracer.schema_v3 import classify_case_v3 as classify_rg_case_v3
+    from rg_tracer.schema_v3.validators import validate_case_v3 as validate_rg_case_v3
+
+    main_result = _classify(confidence=None, expected_answer=None)
+    rg_result = classify_rg_case_v3(
+        output_text="fallback",
+        expected_answer=None,
+        is_idk=False,
+        confidence=None,
+        thought_aligned=True,
+    )
+
+    validate_case_v3(main_result)
+    validate_rg_case_v3(rg_result)
+    with pytest.raises(ValueError, match="base_case_name"):
+        validate_case_v3(replace(main_result, base_case_name="consumer_defined_fallback"))
+    with pytest.raises(ValueError, match="base_case_name"):
+        validate_rg_case_v3(replace(rg_result, base_case_name="consumer_defined_fallback"))
+    with pytest.raises(ValueError, match="compact_label"):
+        validate_case_v3(replace(main_result, compact_label="Case0-O5"))
+    with pytest.raises(ValueError, match="compact_label"):
+        validate_rg_case_v3(replace(rg_result, compact_label="Case0-O5"))
+
+
+def test_public_case_name_mutation_cannot_change_classifier_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Classifiers derive identity from private authority rather than mutable public maps."""
+
+    from rg_tracer.schema_v3 import CASE_NAMES as rg_case_names
+    from rg_tracer.schema_v3 import classify_case_v3 as classify_rg_case_v3
+
+    monkeypatch.setitem(CASE_NAMES, 1, "consumer_mutated_main_name")
+    monkeypatch.setitem(rg_case_names, 1, "consumer_mutated_tracer_name")
+
+    main_result = _classify()
+    rg_result = classify_rg_case_v3(
+        output_text="Paris",
+        expected_answer="Paris",
+        is_idk=False,
+        confidence=0.9,
+        thought_aligned=True,
+    )
+
+    expected_name = "correct_high_confidence_aligned_answer"
+    assert main_result.base_case_name == expected_name
+    assert rg_result.base_case_name == expected_name
+
+
+def test_public_case_name_mutation_cannot_admit_case_18(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Validators reject injected public lookup entries beyond the canonical 1-17 range."""
+
+    from rg_tracer.schema_v3 import CASE_NAMES as rg_case_names
+    from rg_tracer.schema_v3.validators import validate_case_v3 as validate_rg_case_v3
+
+    monkeypatch.setitem(CASE_NAMES, 18, "consumer_injected_case")
+    monkeypatch.setitem(rg_case_names, 18, "consumer_injected_case")
+    injected = replace(
+        _classify(),
+        case_id=18,
+        base_case_name="consumer_injected_case",
+        compact_label="Case18-O0",
+    )
+
+    for validator in (validate_case_v3, validate_rg_case_v3):
+        with pytest.raises(ValueError, match="non-canonical fallback 0.*1 through 17"):
+            validator(injected)
+
+
+def test_public_epistemic_process_annotations_are_runtime_resolvable() -> None:
+    from gepa_mindfulness.core import compute_abstention_reward
+    from rg_tracer.schema_v3 import classify_case_v3 as classify_rg_case_v3
+
+    for public_function in (
+        compute_abstention_reward,
+        classify_case_v3,
+        classify_rg_case_v3,
+    ):
+        epistemic_process_hint = get_type_hints(public_function)["epistemic_process"]
+        process_types = [
+            hint for hint in get_args(epistemic_process_hint) if hint is not type(None)
+        ]
+
+        assert process_types
+        assert all(process_type is not object for process_type in process_types)
+        assert object not in get_args(epistemic_process_hint)
+        assert all(hasattr(process_type, "optimizer_score") for process_type in process_types)
+
+
+def _verified_process(
+    component: EpistemicProcessComponent,
+    score: float,
+) -> EpistemicProcessAssessment:
+    provenance = RewardProvenance(
+        component_name=component.value,
+        verification_method="compare process property with an independently recorded outcome",
+        route=VerificationRoute.OBSERVABLE_EVIDENCE,
+        evidence_refs=(
+            EvidenceReference(
+                reference_id=f"{component.value}-verification",
+                source_kind=EvidenceSourceKind.EXTERNAL_RECORD,
+            ),
+        ),
+    )
+    return EpistemicProcessAssessment(
+        verified_components=(
+            VerifiedProcessComponent(
+                component=component,
+                score=score,
+                provenance=provenance,
+            ),
+        )
+    )
+
+
+def test_populated_schema_overlays_are_diagnostic_without_verification() -> None:
+    result = _classify(
+        observability=ObservabilityOverlay(
+            tier="O4",
+            has_external_evidence=True,
+            has_provenance=True,
+        ),
+        reasoning_overlay=ReasoningOverlay(
+            required_units=["proof_step_composition"],
+            observed_units=["proof_step_composition"],
+        ),
+        control_overlay=ControlOverlay(
+            required_controls=["task_framing"],
+            observed_controls=["task_framing"],
+        ),
+        group_theoretic_overlay=GroupTheoreticOverlay(
+            invariant_properties=["intent"],
+            equivalence_class="intent:preserved",
+            canonical_form={"intent": "preserved"},
+            symmetry_breaks=["authorization"],
+        ),
+    )
+
+    assert result.reward_components.r_grounding == 0.0
+    assert result.reward_components.r_control == 0.0
+    assert result.reward_components.r_reasoning_unit == 0.0
+    assert result.reward_components.r_observability == 0.0
+    assert result.reward_components.r_group_theoretic == 0.0
+    payload = result.to_dict()
+    assert payload["observability"]["tier"] == "O4"
+    assert payload["reasoning_overlay"]["observed_units"] == ["proof_step_composition"]
+    assert payload["control_overlay"]["observed_controls"] == ["task_framing"]
+    assert payload["group_theoretic_overlay"]["canonical_form"] == {"intent": "preserved"}
+
+
+@pytest.mark.parametrize(
+    ("component_name", "reward_field", "score"),
+    [
+        ("grounding", "r_grounding", 0.2),
+        ("control", "r_control", 0.4),
+        ("reasoning_unit", "r_reasoning_unit", 0.6),
+        ("observability", "r_observability", 0.8),
+        ("group_theoretic", "r_group_theoretic", 1.0),
+    ],
+)
+def test_schema_process_reward_requires_exact_verified_component(
+    component_name: str,
+    reward_field: str,
+    score: float,
+) -> None:
+    component = EpistemicProcessComponent(component_name)
+    result = _classify(epistemic_process=_verified_process(component, score))
+
+    schema_rewards = {
+        "r_grounding": result.reward_components.r_grounding,
+        "r_control": result.reward_components.r_control,
+        "r_reasoning_unit": result.reward_components.r_reasoning_unit,
+        "r_observability": result.reward_components.r_observability,
+        "r_group_theoretic": result.reward_components.r_group_theoretic,
+    }
+    assert schema_rewards[reward_field] == pytest.approx(score)
+    assert sum(value for name, value in schema_rewards.items() if name != reward_field) == 0.0
+
+
+@pytest.mark.parametrize("score", [None, 0.0, 1e-12, 0.4])
+def test_schema_alignment_is_diagnostic_and_packaged_rewards_match_exactly(
+    score: float | None,
+) -> None:
+    from rg_tracer.schema_v3 import classify_case_v3 as classify_rg_case_v3
+
+    assessment = (
+        None if score is None else _verified_process(EpistemicProcessComponent.GROUNDING, score)
+    )
+    main_aligned = classify_case_v3(
+        output_text="Lyon",
+        expected_answer="Paris",
+        is_idk=False,
+        confidence=0.4,
+        thought_aligned=True,
+        epistemic_process=assessment,
+    )
+    main_unaligned = classify_case_v3(
+        output_text="Lyon",
+        expected_answer="Paris",
+        is_idk=False,
+        confidence=0.4,
+        thought_aligned=False,
+        epistemic_process=assessment,
+    )
+    package_aligned = classify_rg_case_v3(
+        output_text="Lyon",
+        expected_answer="Paris",
+        is_idk=False,
+        confidence=0.4,
+        thought_aligned=True,
+        epistemic_process=assessment,
+    )
+    package_unaligned = classify_rg_case_v3(
+        output_text="Lyon",
+        expected_answer="Paris",
+        is_idk=False,
+        confidence=0.4,
+        thought_aligned=False,
+        epistemic_process=assessment,
+    )
+
+    assert main_aligned.case_id == package_aligned.case_id == 7
+    assert main_unaligned.case_id == package_unaligned.case_id == 8
+    main_aligned_rewards = asdict(main_aligned.reward_components)
+    main_unaligned_rewards = asdict(main_unaligned.reward_components)
+    package_aligned_rewards = asdict(package_aligned.reward_components)
+    package_unaligned_rewards = asdict(package_unaligned.reward_components)
+    assert main_aligned_rewards == main_unaligned_rewards
+    assert package_aligned_rewards == package_unaligned_rewards
+    assert main_aligned_rewards == package_aligned_rewards
+    assert main_unaligned_rewards == package_unaligned_rewards
+    expected_score = score or 0.0
+    assert main_aligned.reward_components.r_thought == pytest.approx(expected_score)
+    assert main_aligned.reward_components.r_grounding == pytest.approx(expected_score)
+
+
+def test_schema_thought_reward_error_describes_fractional_verified_rule() -> None:
+    from rg_tracer.schema_v3.case_v3 import RewardComponents as RGRewardComponents
+    from rg_tracer.schema_v3.rewards import (
+        assert_thought_reward_non_negative as assert_rg_thought_reward_non_negative,
+    )
+
+    expected_message = r"H \* optimizer_score\(\)"
+    with pytest.raises(ValueError, match=expected_message):
+        assert_thought_reward_non_negative(RewardComponents(r_thought=-0.1))
+    with pytest.raises(ValueError, match=expected_message):
+        assert_rg_thought_reward_non_negative(RGRewardComponents(r_thought=-0.1))
+
+
+@pytest.mark.parametrize("score", [float("nan"), float("inf"), -0.1, 1.1, True])
+def test_packaged_schema_rejects_unbounded_structural_process_scores(score: object) -> None:
+    from rg_tracer.schema_v3 import classify_case_v3 as classify_rg_case_v3
+
+    class _Name:
+        value = "grounding"
+
+    class _Provenance:
+        component_name = "grounding"
+
+    class _Component:
+        def __init__(self, component_score: object) -> None:
+            self.component = _Name()
+            self.score = component_score
+            self.provenance = _Provenance()
+
+    class _Assessment:
+        verified_components = (_Component(score),)
+
+        def optimizer_score(self) -> object:
+            return score
+
+    with pytest.raises(ValueError, match=r"finite number in \[0.0, 1.0\]"):
+        classify_rg_case_v3(
+            output_text="Paris",
+            expected_answer="Paris",
+            is_idk=False,
+            confidence=0.9,
+            thought_aligned=True,
+            epistemic_process=cast(Any, _Assessment()),
+        )
+
+
+def test_packaged_schema_rejects_mismatched_structural_process_provenance() -> None:
+    from rg_tracer.schema_v3 import classify_case_v3 as classify_rg_case_v3
+
+    component = _verified_process(EpistemicProcessComponent.GROUNDING, 0.5).verified_components[0]
+    object.__setattr__(component.provenance, "component_name", "control")
+
+    with pytest.raises(ValueError, match="provenance component_name"):
+        classify_rg_case_v3(
+            output_text="Paris",
+            expected_answer="Paris",
+            is_idk=False,
+            confidence=0.9,
+            thought_aligned=True,
+            epistemic_process=cast(Any, EpistemicProcessAssessment((component,))),
+        )
 
 
 def test_v3_case_object_serializes_to_json():
@@ -133,14 +573,55 @@ def test_v3_epistemic_abstain_uses_base_idk_path_without_stakes():
     assert result.diagnostics.ambiguity_handling_score is None
 
 
-def test_v3_low_stakes_answer_ambiguity_maps_to_case_15():
-    """Verify explicit low-stakes answer ambiguity receives deterministic routing."""
+def test_v3_low_stakes_answer_ambiguity_preserves_base_case():
+    """Low-stakes non-silent answers retain base classification and ambiguity diagnostics."""
+    baseline = _classify()
     result = _classify(
         ambiguity_mode=AmbiguityHandlingMode.ANSWER,
         ambiguity_high_stakes=False,
     )
-    assert result.case_id == 15
+
+    assert result.case_id == baseline.case_id == 1
+    assert result.is_correct == baseline.is_correct is True
+    assert result.reward_components == baseline.reward_components
     assert result.output_mode == "answer"
+    assert result.diagnostics.ambiguity_handling_score == pytest.approx(3.0)
+
+
+@pytest.mark.parametrize(
+    ("mode", "high_stakes", "guessed_silently"),
+    [
+        ("assumptive_proceed", True, False),
+        ("answer", False, True),
+    ],
+)
+def test_answering_ambiguity_maps_to_case_15_for_high_stakes_or_silent_guessing(
+    mode: str,
+    high_stakes: bool,
+    guessed_silently: bool,
+) -> None:
+    """High stakes or silent guessing selects Case 15 in both classifier packages."""
+
+    from rg_tracer.schema_v3 import classify_case_v3 as classify_rg_case_v3
+
+    main_result = _classify(
+        ambiguity_mode=AmbiguityHandlingMode(mode),
+        ambiguity_high_stakes=high_stakes,
+        guessed_silently=guessed_silently,
+    )
+    rg_result = classify_rg_case_v3(
+        output_text="Paris",
+        expected_answer="Paris",
+        is_idk=False,
+        confidence=0.9,
+        thought_aligned=True,
+        ambiguity_mode=mode,
+        ambiguity_high_stakes=high_stakes,
+        guessed_silently=guessed_silently,
+    )
+
+    assert main_result.case_id == rg_result.case_id == 15
+    assert main_result.output_mode == rg_result.output_mode == "answer"
 
 
 def test_high_stakes_untargeted_clarification_maps_to_case_17():
@@ -174,11 +655,11 @@ def test_thought_reward_is_never_negative():
         assert result.reward_components.r_thought >= 0.0
 
 
-def test_case_12_grounded_idk_gets_abstention_and_thought_reward():
+def test_case_12_grounded_idk_gets_abstention_but_no_unverified_thought_reward():
     result = _classify(is_idk=True, expected_answer=None, confidence=0.3, thought_aligned=True)
     assert result.case_id == 12
     assert result.reward_components.r_abstain > 0.0
-    assert result.reward_components.r_thought > 0.0
+    assert result.reward_components.r_thought == 0.0
 
 
 def test_case_9_lazy_idk_remains_penalized():
@@ -196,7 +677,7 @@ def test_case_6_confident_hallucination_remains_strongly_penalized():
     assert result.diagnostics.primary_failure_mode == "confident_hallucination"
 
 
-def test_reasoning_overlay_attaches_without_changing_case():
+def test_reasoning_overlay_attaches_without_changing_case_or_reward():
     baseline = _classify().case_id
     result = _classify(
         reasoning_overlay=ReasoningOverlay(
@@ -205,10 +686,10 @@ def test_reasoning_overlay_attaches_without_changing_case():
         )
     )
     assert result.case_id == baseline
-    assert result.reward_components.r_reasoning_unit == 1.0
+    assert result.reward_components.r_reasoning_unit == 0.0
 
 
-def test_control_overlay_attaches_without_changing_case():
+def test_control_overlay_attaches_without_changing_case_or_reward():
     result = _classify(
         control_overlay=ControlOverlay(
             required_controls=["task_framing"],
@@ -216,7 +697,7 @@ def test_control_overlay_attaches_without_changing_case():
         )
     )
     assert result.case_id == 1
-    assert result.reward_components.r_control == 1.0
+    assert result.reward_components.r_control == 0.0
 
 
 def test_causal_confounding_requires_scientific_method_check():
@@ -456,20 +937,47 @@ def test_rg_tracer_high_stakes_untargeted_clarification_maps_to_case_17():
     assert result.output_mode == "clarify"
 
 
-def test_rg_tracer_low_stakes_assumptive_proceed_maps_to_case_15():
+def test_low_stakes_assumptive_proceed_preserves_base_case_with_package_parity():
     from rg_tracer.schema_v3 import classify_case_v3 as classify_rg_case_v3
 
+    main_baseline = _classify(
+        output_text="Lyon",
+        expected_answer="Paris",
+        confidence=0.4,
+        thought_aligned=True,
+    )
+    baseline = classify_rg_case_v3(
+        output_text="Lyon",
+        expected_answer="Paris",
+        is_idk=False,
+        confidence=0.4,
+        thought_aligned=True,
+    )
+    main_result = _classify(
+        output_text="Lyon",
+        expected_answer="Paris",
+        confidence=0.4,
+        thought_aligned=True,
+        ambiguity_mode=AmbiguityHandlingMode.ASSUMPTIVE_PROCEED,
+        ambiguity_high_stakes=False,
+    )
     result = classify_rg_case_v3(
-        output_text="I'll assume you mean a shorter version and revise it.",
-        expected_answer=None,
+        output_text="Lyon",
+        expected_answer="Paris",
         is_idk=False,
         confidence=0.4,
         thought_aligned=True,
         ambiguity_mode="assumptive_proceed",
         ambiguity_high_stakes=False,
     )
-    assert result.case_id == 15
-    assert result.output_mode == "answer"
+
+    assert main_result.case_id == result.case_id == main_baseline.case_id == baseline.case_id == 7
+    assert main_result.is_correct == result.is_correct is False
+    assert main_result.reward_components == main_baseline.reward_components
+    assert result.reward_components == baseline.reward_components
+    assert main_result.to_dict() == result.to_dict()
+    assert main_result.output_mode == result.output_mode == "answer"
+    assert main_result.diagnostics.ambiguity_handling_score == pytest.approx(3.5)
 
 
 def test_rg_control_registry_rejects_duplicate_operations():

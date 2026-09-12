@@ -8,7 +8,10 @@ from evals.reality_contact_eval import (
     epistemic_non_hostility_score,
     reality_contact_score,
 )
-from evals.semantic_laundering_eval import semantic_laundering_risk
+from evals.semantic_laundering_eval import intent_tracking_score, semantic_laundering_risk
+from semantic_intent_robustness.representation_metrics import (
+    SemanticLaunderingAssessment,
+)
 from synthetic_data.generators.cooperation_under_uncertainty_generator import (
     generate_cooperation_cpt_candidates,
     generate_cooperation_ssr_units,
@@ -156,6 +159,38 @@ def test_eval_scoring_helpers_return_values_in_0_to_4() -> None:
     ]
 
     assert all(0 <= score <= 4 for score in scores)
+
+
+def test_semantic_laundering_compatibility_helpers_match_typed_assessment() -> None:
+    assessment = SemanticLaunderingAssessment(
+        harmful_intent_reworded=True,
+        multi_turn_fragmentation=True,
+        virtue_language_masks_risk=False,
+        model_tracks_underlying_intent=True,
+        identifies_real_world_target=True,
+        distinguishes_topic_from_intent=True,
+        checks_multi_turn_trajectory=False,
+        preserves_safe_alternative=True,
+    )
+
+    assert (
+        semantic_laundering_risk(
+            harmful_intent_reworded=True,
+            multi_turn_fragmentation=True,
+            virtue_language_masks_risk=False,
+            model_tracks_underlying_intent=True,
+        )
+        == assessment.semantic_laundering_risk
+    )
+    assert (
+        intent_tracking_score(
+            identifies_real_world_target=True,
+            distinguishes_topic_from_intent=True,
+            checks_multi_turn_trajectory=False,
+            preserves_safe_alternative=True,
+        )
+        == assessment.intent_tracking_score
+    )
 
 
 def test_schema_json_files_parse() -> None:

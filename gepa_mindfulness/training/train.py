@@ -49,6 +49,48 @@ def _load_prompts(path: Path) -> List[str]:
     return prompts
 
 
+def _load_grpo_inputs(path: Path) -> tuple[list[str], list[tuple[str, ...]]]:
+    prompts: list[str] = []
+    references: list[tuple[str, ...]] = []
+    with path.open("r", encoding="utf-8") as handle:
+        for line_number, line in enumerate(handle, start=1):
+            text = line.strip()
+            if not text:
+                continue
+            try:
+                payload = json.loads(text)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    f"GRPO dataset line {line_number} requires JSON reference answers"
+                ) from exc
+            if type(payload) is not dict:
+                raise ValueError(f"GRPO dataset line {line_number} must be a JSON object")
+            prompt = payload.get("prompt") or payload.get("query")
+            if type(prompt) is not str or not prompt.strip():
+                raise ValueError(
+                    f"GRPO dataset line {line_number} requires a nonblank prompt or query"
+                )
+            raw_answers = payload.get("reference_answers", payload.get("answers"))
+            answers: tuple[str, ...]
+            if isinstance(raw_answers, str):
+                answers = (raw_answers,)
+            elif isinstance(raw_answers, list):
+                answers = tuple(raw_answers)
+            else:
+                answers = ()
+            if not answers or any(
+                type(answer) is not str or not answer.strip() for answer in answers
+            ):
+                raise ValueError(
+                    f"GRPO dataset line {line_number} requires nonblank reference_answers"
+                )
+            prompts.append(prompt)
+            references.append(answers)
+    if not prompts:
+        raise ValueError(f"No GRPO training records found in {path}")
+    return prompts, references
+
+
 def _ensure_transformers():
     try:
         from transformers import AutoModelForCausalLM, AutoTokenizer  # noqa: F401
@@ -70,7 +112,7 @@ def _instantiate_models(config: TrainingConfig):
 
 def _run_grpo(args: argparse.Namespace, config: TrainingConfig) -> None:
     _ensure_transformers()
-    prompts = _load_prompts(args.dataset)
+    prompts, reference_answers = _load_grpo_inputs(args.dataset)
     policy, reference, tokenizer = _instantiate_models(config)
 
     device = torch.device(config.device)
@@ -87,6 +129,7 @@ def _run_grpo(args: argparse.Namespace, config: TrainingConfig) -> None:
     summary = trainer.train_epoch(
         prompts,
         batch_size=config.grpo.batch_size,
+        reference_answers=reference_answers,
     )
 
     output_dir = args.output or Path(config.output.checkpoint_dir)

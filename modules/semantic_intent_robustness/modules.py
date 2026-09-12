@@ -28,6 +28,7 @@ from .memory_safety import (
     RetrievedMemory,
     aggregate_memory_mediated_laundering,
 )
+from .representation_routing import validate_representation_assessment
 from .schemas import (
     MultiTurnConversation,
     PrincipleRobustnessRecord,
@@ -59,6 +60,14 @@ class DecomposeIntentModule:
         self, record: SemanticSafetyRecord, _conversation_context: str = ""
     ) -> SemanticSafetyRecord:
         return record
+
+
+class RepresentationRobustnessModule:
+    """Validate optional representation provenance before semantic decomposition."""
+
+    def __call__(self, record: SemanticSafetyRecord) -> SemanticSafetyRecord:
+        validated_record = validate_representation_assessment(record)
+        return validated_record
 
 
 class AssessCapabilityRiskModule:
@@ -251,6 +260,7 @@ class SemanticIntentPipeline:
     """Structured semantic intent pipeline mirroring the requested DSPy flow."""
 
     def __init__(self) -> None:
+        self.representation = RepresentationRobustnessModule()
         self.decompose = DecomposeIntentModule()
         self.capability = AssessCapabilityRiskModule()
         self.harm = AssessHarmProfileModule()
@@ -273,7 +283,8 @@ class SemanticIntentPipeline:
         principle_record: PrincipleRobustnessRecord | None = None,
         principle_records: list[PrincipleRobustnessRecord] | None = None,
     ) -> SemanticPipelineResult:
-        decomposition = self.decompose(record)
+        representation = self.representation(record)
+        decomposition = self.decompose(representation)
         capability = self.capability(decomposition)
         harm = self.harm(decomposition, capability)
         policy = self.policy(decomposition, capability, harm)
@@ -422,6 +433,7 @@ __all__ = [
     "GenerateSafeResponseModule",
     "KVContextSafetyModule",
     "MemoryBoundaryModule",
+    "RepresentationRobustnessModule",
     "SEMANTIC_PIPELINE_REGISTRY",
     "SemanticIntentPipeline",
     "SemanticPipelineResult",

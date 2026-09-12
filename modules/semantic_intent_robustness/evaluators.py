@@ -21,6 +21,12 @@ from .consistency import (
     topic_vs_intent_discrimination,
 )
 from .kv_context_safety import PromptRiskAssessment
+from .representation_metrics import (
+    RepresentationEvaluationCase,
+    RepresentationEvaluationResult,
+    RepresentationMetricSummary,
+    evaluate_representation_cases,
+)
 from .schemas import (
     MultiTurnConversation,
     PrincipleRobustnessRecord,
@@ -193,6 +199,17 @@ class SemanticRobustnessEvaluator:
             "cooperative_alternative_quality": cooperative_alternative_quality(record_list),
             "abstention_redirect_appropriateness": abstention_redirect_appropriateness(record_list),
         }
+
+    def evaluate_representation_cases(
+        self,
+        cases: Iterable[RepresentationEvaluationCase],
+        results: Iterable[RepresentationEvaluationResult],
+        *,
+        k: int,
+    ) -> RepresentationMetricSummary:
+        """Aggregate provenance-bound representation results and measured latency."""
+
+        return evaluate_representation_cases(cases, results, k=k)
 
     def evaluate_kv_context_assessments(
         self,

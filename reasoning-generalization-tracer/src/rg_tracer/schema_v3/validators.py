@@ -4,13 +4,26 @@ from __future__ import annotations
 
 import math
 
-from .case_v3 import CaseV3Result
+from .case_v3 import _CASE_NAMES_BY_ID, CaseV3Result, build_compact_label
 
 
 def validate_case_v3(result: CaseV3Result) -> None:
-    """Validate invariants that preserve the base 13+0 reward schema."""
-    if result.case_id < 0 or result.case_id > 13:
-        raise ValueError("case_id must remain in the 13+0 range")
+    """Validate exact canonical or fallback identity plus numeric invariants."""
+    if type(result.case_id) is not int:
+        raise ValueError("case_id must be an exact built-in int from 0 through 17")
+    try:
+        expected_name = _CASE_NAMES_BY_ID[result.case_id]
+    except KeyError as exc:
+        raise ValueError(
+            "case_id must be non-canonical fallback 0 or a canonical ID from 1 through 17"
+        ) from exc
+    if result.base_case_name != expected_name:
+        raise ValueError(f"base_case_name must be {expected_name!r} for case_id {result.case_id}")
+    expected_label = build_compact_label(result)
+    if result.compact_label != expected_label:
+        raise ValueError(
+            f"compact_label must be {expected_label!r} for the supplied structured fields"
+        )
     if result.reward_components.r_thought < 0.0:
         raise ValueError("r_thought must never be negative")
     if not math.isfinite(result.threshold_tau):

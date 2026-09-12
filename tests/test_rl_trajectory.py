@@ -6,6 +6,11 @@ from inspect import Parameter, signature
 
 import pytest
 
+from gepa_mindfulness.core.reward_provenance import (
+    RewardProvenance,
+    TrustedEvaluatorContract,
+    VerificationRoute,
+)
 from gepa_mindfulness.training.contracts import (
     RewardProvider,
     RewardRequest,
@@ -26,6 +31,33 @@ def evidence_reference(
 ) -> EvidenceReference:
     """Build one explicitly typed evidence reference."""
     return EvidenceReference(reference_id=reference_id, source_kind=source_kind)
+
+
+def evaluator_provenance(component_name: str) -> RewardProvenance:
+    """Build one versioned trusted-evaluator provenance record."""
+    return RewardProvenance(
+        component_name=component_name,
+        verification_method="apply the declared reward-integrity evaluator contract",
+        route=VerificationRoute.TRUSTED_EVALUATOR,
+        evaluator=TrustedEvaluatorContract(
+            evaluator_id="reward-integrity-evaluator",
+            evaluator_version="2026-09-10",
+            contract_id="reward-integrity-v1",
+        ),
+    )
+
+
+def observable_provenance(
+    component_name: str,
+    reference: EvidenceReference,
+) -> RewardProvenance:
+    """Build provenance that binds a component to one recorded observable reference."""
+    return RewardProvenance(
+        component_name=component_name,
+        verification_method="compare the component with the recorded audit outcome",
+        route=VerificationRoute.OBSERVABLE_EVIDENCE,
+        evidence_refs=(reference,),
+    )
 
 
 def test_trajectory_round_trip_preserves_null_log_probs() -> None:
@@ -92,6 +124,78 @@ def test_trajectory_restores_prior_json_without_evidence_references() -> None:
     assert restored.evidence_references == ()
 
 
+def test_trajectory_json_round_trip_preserves_trusted_evaluator_provenance() -> None:
+    """JSON retains the exact evaluator identity, version, contract, method, and route."""
+    provenance = evaluator_provenance("objective_fidelity")
+    trajectory = Trajectory(
+        trajectory_id="traj-evaluator-provenance",
+        case_id="case-1",
+        prompt="prompt",
+        response="response",
+        reward_components={"objective_fidelity": 0.5},
+        reward_component_provenance={"objective_fidelity": provenance},
+    )
+
+    payload = json.loads(json.dumps(trajectory.to_dict()))
+    restored = Trajectory.from_dict(payload)
+
+    assert payload["reward_component_provenance"] == {
+        "objective_fidelity": {
+            "component_name": "objective_fidelity",
+            "verification_method": "apply the declared reward-integrity evaluator contract",
+            "route": "trusted_evaluator",
+            "evaluator": {
+                "evaluator_id": "reward-integrity-evaluator",
+                "evaluator_version": "2026-09-10",
+                "contract_id": "reward-integrity-v1",
+            },
+        }
+    }
+    assert restored.reward_component_provenance == {"objective_fidelity": provenance}
+
+
+def test_trajectory_json_round_trip_preserves_observable_provenance() -> None:
+    """JSON retains the observable route and its typed evidence references."""
+    reference = evidence_reference("objective-fidelity-audit")
+    provenance = RewardProvenance(
+        component_name="objective_fidelity",
+        verification_method="compare the component with the recorded audit outcome",
+        route=VerificationRoute.OBSERVABLE_EVIDENCE,
+        evidence_refs=(reference,),
+    )
+    trajectory = Trajectory(
+        trajectory_id="traj-observable-provenance",
+        case_id="case-1",
+        prompt="prompt",
+        response="response",
+        reward_components={"objective_fidelity": 0.5},
+        evidence_references=(reference,),
+        reward_component_provenance={"objective_fidelity": provenance},
+    )
+
+    payload = json.loads(json.dumps(trajectory.to_dict()))
+    restored = Trajectory.from_dict(payload)
+
+    assert payload["reward_component_provenance"] == {
+        "objective_fidelity": {
+            "component_name": "objective_fidelity",
+            "verification_method": "compare the component with the recorded audit outcome",
+            "route": "observable_evidence",
+            "evidence_refs": [reference.to_dict()],
+        }
+    }
+    assert restored.reward_component_provenance == {"objective_fidelity": provenance}
+
+
+def test_trajectory_prior_json_with_nonzero_components_cannot_invent_provenance() -> None:
+    """Legacy nonzero JSON is rejected rather than fabricating component provenance."""
+    payload = Trajectory.minimal("traj-prior-provenance", "prompt", "response").to_dict()
+    payload["reward_components"] = {"objective_fidelity": 0.5}
+
+    with pytest.raises(ValueError, match="Nonzero reward-integrity component.*provenance"):
+        Trajectory.from_dict(payload)
+
+
 def test_trajectory_is_immutable() -> None:
     """A recorded rollout cannot be reassigned after reward or policy evaluation."""
     trajectory = Trajectory.minimal("traj-1", "prompt", "response")
@@ -134,6 +238,22 @@ def test_negative_reward_component_requires_recorded_component_evidence() -> Non
         )
 
 
+def test_negative_reward_component_requires_provenance_after_legacy_evidence_passes() -> None:
+    """Legacy evidence cannot replace the provenance required for a nonzero component."""
+    reference = evidence_reference("feedback-integrity-audit")
+
+    with pytest.raises(ValueError, match="Nonzero reward-integrity component.*provenance"):
+        Trajectory(
+            trajectory_id="traj-negative-missing-provenance",
+            case_id="case-1",
+            prompt="prompt",
+            response="response",
+            reward_components={"feedback_integrity": -0.5},
+            reward_component_evidence={"feedback_integrity": (reference,)},
+            evidence_references=(reference,),
+        )
+
+
 def test_matching_legacy_trace_id_cannot_authorize_negative_reward_component() -> None:
     """Identifier equality cannot promote a diagnostic trace ID into typed evidence."""
     reference = evidence_reference("shared-reference")
@@ -162,6 +282,9 @@ def test_negative_reward_component_uses_separate_typed_evidence_references() -> 
         reward_component_evidence={"feedback_integrity": (reference,)},
         trace_references=("legacy-trace-21",),
         evidence_references=(reference,),
+        reward_component_provenance={
+            "feedback_integrity": observable_provenance("feedback_integrity", reference)
+        },
     )
 
     payload = trajectory.to_dict()
@@ -236,6 +359,9 @@ def test_trajectory_copies_evidence_references_before_binding_negative_evidence(
         reward_component_evidence={"feedback_integrity": (evidence_reference(),)},
         trace_references=("legacy-trace-24",),
         evidence_references=references,
+        reward_component_provenance={
+            "feedback_integrity": observable_provenance("feedback_integrity", references[0])
+        },
     )
     references[0] = evidence_reference(
         "private-reasoning",
@@ -261,6 +387,9 @@ def test_trajectory_retains_existing_positional_argument_order() -> None:
         {"feedback_integrity": 0.5},
         (0.25,),
         (0.5,),
+        reward_component_provenance={
+            "feedback_integrity": evaluator_provenance("feedback_integrity")
+        },
     )
 
     assert trajectory.reward_component_evidence == {}

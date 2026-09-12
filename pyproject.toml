@@ -86,6 +86,7 @@ where = [".", "src", "modules", "reasoning-generalization-tracer/src"]
 include = [
     "app*",
     "cognitive_pairwise_training*",
+    "docs*",
     "evaluation*",
     "factuality_certification*",
     "gepa_mindfulness*",
@@ -106,6 +107,14 @@ exclude = [
 ]
 
 [tool.setuptools.package-data]
+docs = ["controlled_evolution.md", "experimental_v5_overlays.md"]
+"docs.recommendations" = [
+    "RESEARCH_TRACEABILITY.md",
+    "UNIFIED_RECOMMENDATIONS.md",
+    "references.yaml",
+    "registry.yaml",
+]
+evaluation = ["cases/*.yaml"]
 gepa_mindfulness = [
     "data/*.json",
 ]

@@ -1386,6 +1386,12 @@ def test_pair_reward_keeps_base_alignment_separate_from_integrity_overlay(tmp_pa
     )
     assert enabled.reward_components["reward_integrity_aggregate"] == pytest.approx(0.5)
     assert integrity_names.issubset(enabled.reward_components)
+    assert set(enabled.reward_component_provenance) == integrity_names
+    assert all(
+        provenance.component_name == name
+        and set(provenance.evidence_refs).issubset(enabled.evidence_references)
+        for name, provenance in enabled.reward_component_provenance.items()
+    )
     assert default.reward_total is not None and enabled.reward_total is not None
     assert enabled.reward_total == pytest.approx(default.reward_total + 0.25)
 

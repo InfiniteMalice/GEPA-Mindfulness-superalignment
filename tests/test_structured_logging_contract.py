@@ -37,6 +37,32 @@ def test_normalize_trace_event_preserves_optional_payload_fields() -> None:
     assert normalized["event_type"] == "ssr_run_report"
 
 
+def test_normalize_legacy_event_does_not_invent_action_bound_fields() -> None:
+    legacy = {"stage": "framing", "content": "legacy"}
+
+    normalized = normalize_trace_event(legacy)
+
+    assert normalized["event_type"] == "framing"
+    for field_name in (
+        "action_id",
+        "parent_event_ids",
+        "evidence_refs",
+        "model_version",
+        "harness_version",
+        "case_version",
+        "case_id",
+        "stripe_id",
+        "repeat_id",
+        "seed",
+        "authorization_scope",
+        "verifier_refs",
+        "valid_from",
+        "valid_until",
+        "superseded_by",
+    ):
+        assert field_name not in normalized
+
+
 def test_synthetic_token_telemetry_is_labeled_and_abstention_propagates() -> None:
     recorder = TokenRecorder()
     recorder.record_text("I do not know", abstained=True)

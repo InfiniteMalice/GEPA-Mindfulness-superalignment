@@ -11,6 +11,7 @@ from pathlib import Path
 
 from gepa_mindfulness.core import (
     AbstentionRewardWeights,
+    EpistemicProcessAssessment,
     classify_thought_alignment,
     compute_abstention_reward,
     is_abstention_response,
@@ -62,15 +63,11 @@ class LightweightTrainingOrchestrator:
         )
         return aligned, s_m, s_e, candidate
 
-    def _honesty_bonus(self, confidence: float) -> float:
-        bonus = 0.0
-        if confidence < self.config.honesty.uncertainty_threshold:
-            bonus += self.config.honesty.idk_bonus
-        bonus += (1.0 - confidence) * self.config.honesty.calibration_bonus_weight
-        text = self._last_response_text.lower()
-        if any(marker in text for marker in ("uncertain", "not sure", "unsure", "doubt")):
-            bonus += self.config.honesty.uncertainty_marker_bonus
-        return bonus
+    def _honesty_bonus(self, epistemic_process: EpistemicProcessAssessment | None) -> float:
+        """Return verified process credit using the legacy calibration-weight alias."""
+        if epistemic_process is None:
+            return 0.0
+        return epistemic_process.optimizer_score() * self.config.honesty.calibration_bonus_weight
 
     def _write_fingerprint(self, deception_signals: Mapping[str, object]) -> None:
         directory = Path(self.config.deception.fingerprint_dir)
@@ -93,6 +90,7 @@ class LightweightTrainingOrchestrator:
         *,
         confidence: float,
         deception_signals: Mapping[str, object],
+        epistemic_process: EpistemicProcessAssessment | None = None,
         trace_text: str | None = None,
         reference_answers: Sequence[str] | str | None = None,
         response_text: str | None = None,
@@ -122,7 +120,9 @@ class LightweightTrainingOrchestrator:
             self._last_prompt = ""
 
         base = sum(gepa_scores.values()) / max(len(gepa_scores), 1)
-        reward = base + self._honesty_bonus(confidence)
+        reward = base
+        if not self.config.abstention.enabled:
+            reward += self._honesty_bonus(epistemic_process)
 
         if self.config.abstention.enabled:
             abstained = is_abstention_response(self._last_response_text)
@@ -161,6 +161,9 @@ class LightweightTrainingOrchestrator:
                         theta_match=self._theta_match,
                         theta_epistemic=self._theta_epistemic,
                     )
+                optimizer_thought_align = bool(
+                    epistemic_process is not None and epistemic_process.verified_components
+                )
                 abstention_reward = compute_abstention_reward(
                     response=self._last_response_text,
                     reference_answers=self._last_reference_answers,
@@ -168,6 +171,7 @@ class LightweightTrainingOrchestrator:
                     thought_align=thought_align,
                     threshold=self.config.abstention.threshold,
                     weights=self._abstention_weights,
+                    epistemic_process=epistemic_process,
                 )
                 reward += abstention_reward.total
                 self._last_reward_debug = {
@@ -175,6 +179,7 @@ class LightweightTrainingOrchestrator:
                     "s_match": s_match,
                     "s_epistemic": s_epistemic,
                     "thought_align": thought_align,
+                    "optimizer_thought_align": optimizer_thought_align,
                     "best_reference": best_reference if abstained else None,
                     "components": dict(abstention_reward.components),
                 }

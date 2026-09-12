@@ -1475,6 +1475,10 @@ class _PairRewardProvider:
             RewardIntegrityCalculator,
             RewardObservation,
         )
+        from gepa_mindfulness.core.reward_provenance import (
+            RewardProvenance,
+            VerificationRoute,
+        )
 
         record_id = request.trajectory.case_id
         pair = self.snapshot.pairs.get(record_id or "")
@@ -1536,10 +1540,24 @@ class _PairRewardProvider:
             pair[f"{matched}_reward_components"],
         )
         evidence = {name: references for name, value in authored.items() if float(value) < 0.0}
+        provenance = {
+            name: RewardProvenance(
+                component_name=name,
+                verification_method=(
+                    "compare the authored component with the recorded chosen and rejected "
+                    "responses"
+                ),
+                route=VerificationRoute.OBSERVABLE_EVIDENCE,
+                evidence_refs=references,
+            )
+            for name, value in authored.items()
+            if float(value) != 0.0
+        }
         observation = RewardObservation(
             **dict(authored),
             observable_evidence=evidence,
             observable_references=references,
+            reward_component_provenance=provenance,
         )
         integrity = RewardIntegrityCalculator().compute(observation)
         total = base.total
@@ -1728,11 +1746,13 @@ def _bind_reward(
         _validate_negative_reward_assessment(result, total)
     references = tuple(result.references)
     evidence = {name: tuple(values) for name, values in result.evidence.items()}
+    provenance = getattr(result.breakdown, "reward_component_provenance", {})
     return replace(
         trajectory,
         reward_total=total,
         reward_components=dict(result.components),
         reward_component_evidence=evidence,
+        reward_component_provenance=provenance,
         evidence_references=references,
     )
 

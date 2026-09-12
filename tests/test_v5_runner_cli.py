@@ -1,0 +1,355 @@
+"""Contract tests for the deterministic V5 planner-only command-line interface."""
+
+from __future__ import annotations
+
+import json
+import os
+
+import pytest
+
+import evaluation.run_v5_framework as run_v5_framework
+from evaluation.run_v5_framework import main
+from evaluation.v5_runner import plan_v5_cells
+
+_MODEL_VERSION = "mindful-model-2026-09-10"
+_HARNESS_VERSION = "v5-harness-1.0.0"
+
+
+def _required_arguments() -> list[str]:
+    """Return the required version arguments for one V5 CLI invocation."""
+
+    return ["--model-version", _MODEL_VERSION, "--harness-version", _HARNESS_VERSION]
+
+
+def test_dry_run_writes_compact_jsonl_to_stdout_in_requested_order(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The CLI must preserve repeated selection order and serialize planned cells exactly."""
+
+    exit_code = main(
+        [
+            "--dry-run",
+            "--case",
+            "14",
+            "--case",
+            "2",
+            "--stripe",
+            "TOOL_ERROR",
+            "--stripe",
+            "NONE",
+            "--repeats",
+            "3",
+            "--base-seed",
+            "23",
+            *_required_arguments(),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    lines = captured.out.splitlines()
+    expected = plan_v5_cells(
+        case_ids=(14, 2),
+        stripe_ids=("TOOL_ERROR", "NONE"),
+        repeats=3,
+        base_seed=23,
+        model_version=_MODEL_VERSION,
+        harness_version=_HARNESS_VERSION,
+    )
+
+    assert exit_code == 0
+    assert captured.err == ""
+    assert len(lines) == 12
+    assert lines == [
+        json.dumps(
+            {
+                "case_id": cell.case_id,
+                "case_version": cell.case_version,
+                "stripe_id": cell.stripe_id,
+                "subtype": cell.subtype,
+                "repeat_id": cell.repeat_id,
+                "seed": cell.seed,
+                "model_version": cell.model_version,
+                "harness_version": cell.harness_version,
+            },
+            separators=(",", ":"),
+        )
+        for cell in expected
+    ]
+
+
+def test_dry_run_writes_utf8_newline_terminated_byte_stable_jsonl(tmp_path) -> None:
+    """Same arguments must produce the same file bytes without adding stdout status text."""
+
+    first = tmp_path / "first.jsonl"
+    second = tmp_path / "second.jsonl"
+    arguments = ["--dry-run", "--repeats", "1", "--base-seed", "7", *_required_arguments()]
+
+    assert main([*arguments, "--output", str(first)]) == 0
+    assert main([*arguments, "--output", str(second)]) == 0
+
+    assert first.read_bytes() == second.read_bytes()
+    assert first.read_bytes().endswith(b"\n")
+    assert len(first.read_text(encoding="utf-8").splitlines()) == 187
+
+
+def test_default_dry_run_emits_all_935_planned_cells(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The default V5 grid covers all canonical cases, stripes, and five repeats."""
+
+    assert main(["--dry-run", *_required_arguments()]) == 0
+
+    assert len(capsys.readouterr().out.splitlines()) == 935
+
+
+def test_validation_failure_does_not_overwrite_existing_output(tmp_path) -> None:
+    """Planning validation must finish before the requested output path is opened for writing."""
+
+    output = tmp_path / "planned.jsonl"
+    output.write_text("preserve this file\n", encoding="utf-8")
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(
+            [
+                "--dry-run",
+                "--case",
+                "999",
+                "--output",
+                str(output),
+                *_required_arguments(),
+            ]
+        )
+
+    assert exc_info.value.code == 2
+    assert output.read_text(encoding="utf-8") == "preserve this file\n"
+
+
+class _PartialWriteFailure:
+    """File wrapper that writes a prefix and then simulates an operating-system failure."""
+
+    def __init__(self, handle) -> None:
+        """Store the real temporary-file handle used for the injected failure."""
+
+        self._handle = handle
+
+    def __enter__(self):
+        """Support the production writer's context-manager boundary."""
+
+        return self
+
+    def __exit__(self, *args) -> None:
+        """Close the real handle when the injected write error leaves the context."""
+
+        self._handle.close()
+
+    def write(self, value: str) -> int:
+        """Persist a partial prefix before raising the injected write error."""
+
+        self._handle.write(value[:1])
+        raise OSError("injected mid-write failure")
+
+    def flush(self) -> None:
+        """Expose the production writer's normal flush method."""
+
+        self._handle.flush()
+
+    def fileno(self) -> int:
+        """Expose the descriptor when the production writer flushes it."""
+
+        return self._handle.fileno()
+
+
+class _BoundedStdout:
+    """Text stream that rejects writes larger than one serialized plan row."""
+
+    def __init__(self, maximum_write: int) -> None:
+        self.maximum_write = maximum_write
+        self.writes: list[str] = []
+
+    def write(self, value: str) -> int:
+        """Accept one bounded write and retain it for exact output assertions."""
+
+        if len(value) > self.maximum_write:
+            raise OSError(f"write of {len(value)} characters exceeds streaming bound")
+        self.writes.append(value)
+        return len(value)
+
+    def flush(self) -> None:
+        """Match the text-stream interface used by the CLI."""
+
+
+class _FailingStdout:
+    """Text stream that injects an operating-system error on every write."""
+
+    def write(self, value: str) -> int:
+        """Raise the failure that the CLI must normalize through argparse."""
+
+        raise OSError(f"injected stdout failure for {len(value)} characters")
+
+    def flush(self) -> None:
+        """Match the text-stream interface used by the CLI."""
+
+
+def test_mid_write_failure_preserves_destination_and_removes_only_its_temp_file(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A partial temporary write must not expose partial bytes through the destination path."""
+
+    output = tmp_path / "planned.jsonl"
+    output.write_text("old planned bytes\n", encoding="utf-8")
+    real_fdopen = os.fdopen
+
+    def fail_after_partial_write(*args, **kwargs):
+        return _PartialWriteFailure(real_fdopen(*args, **kwargs))
+
+    monkeypatch.setattr(run_v5_framework.os, "fdopen", fail_after_partial_write)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--dry-run", "--output", str(output), *_required_arguments()])
+
+    assert exc_info.value.code == 2
+    assert output.read_text(encoding="utf-8") == "old planned bytes\n"
+    assert list(tmp_path.iterdir()) == [output]
+
+
+def test_replace_failure_preserves_destination_and_removes_only_its_temp_file(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed final replacement must retain the old file and remove the completed temp file."""
+
+    output = tmp_path / "planned.jsonl"
+    output.write_text("old planned bytes\n", encoding="utf-8")
+
+    def fail_replace(source, destination) -> None:
+        raise OSError("injected replace failure")
+
+    monkeypatch.setattr(run_v5_framework.os, "replace", fail_replace)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--dry-run", "--output", str(output), *_required_arguments()])
+
+    assert exc_info.value.code == 2
+    assert output.read_text(encoding="utf-8") == "old planned bytes\n"
+    assert list(tmp_path.iterdir()) == [output]
+
+
+def test_cleanup_failure_does_not_mask_the_original_atomic_replace_error(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Best-effort temp cleanup must preserve the actionable write failure diagnosis."""
+
+    output = tmp_path / "planned.jsonl"
+    output.write_text("old planned bytes\n", encoding="utf-8")
+
+    def fail_replace(source, destination) -> None:
+        raise OSError("injected replace failure")
+
+    def fail_cleanup(path) -> None:
+        raise PermissionError("injected cleanup failure")
+
+    monkeypatch.setattr(run_v5_framework.os, "replace", fail_replace)
+    monkeypatch.setattr(run_v5_framework.Path, "unlink", fail_cleanup)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--dry-run", "--output", str(output), *_required_arguments()])
+
+    assert exc_info.value.code == 2
+    assert "injected replace failure" in capsys.readouterr().err
+    assert output.read_text(encoding="utf-8") == "old planned bytes\n"
+
+
+def test_stdout_is_written_one_complete_jsonl_row_at_a_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Stdout planning must not construct or write one grid-sized JSONL string."""
+
+    stdout = _BoundedStdout(maximum_write=300)
+    monkeypatch.setattr(run_v5_framework.sys, "stdout", stdout)
+
+    assert (
+        main(
+            [
+                "--dry-run",
+                "--case",
+                "14",
+                "--stripe",
+                "TOOL_ERROR",
+                "--repeats",
+                "2",
+                *_required_arguments(),
+            ]
+        )
+        == 0
+    )
+
+    assert len(stdout.writes) == 2
+    assert all(value.endswith("\n") for value in stdout.writes)
+    assert len("".join(stdout.writes).splitlines()) == 2
+
+
+def test_stdout_io_failure_is_normalized_as_a_cli_usage_error(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A broken stdout pipe must use the same clear exit-code-two error contract as files."""
+
+    monkeypatch.setattr(run_v5_framework.sys, "stdout", _FailingStdout())
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(
+            [
+                "--dry-run",
+                "--case",
+                "14",
+                "--stripe",
+                "TOOL_ERROR",
+                "--repeats",
+                "1",
+                *_required_arguments(),
+            ]
+        )
+
+    assert exc_info.value.code == 2
+    assert "could not write V5 JSONL output to stdout" in capsys.readouterr().err
+
+
+def test_output_with_missing_parent_reports_a_clear_error(
+    tmp_path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The CLI must name a missing output directory before creating any temporary file."""
+
+    output = tmp_path / "missing" / "planned.jsonl"
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--dry-run", "--output", str(output), *_required_arguments()])
+
+    assert exc_info.value.code == 2
+    assert not output.parent.exists()
+    assert "output parent directory does not exist" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("value", ["+1", "-0", "01", "1_0", "1.0"])
+def test_cli_rejects_noncanonical_integer_spellings(value: str) -> None:
+    """CLI integer spellings must remain unambiguous before planner validation."""
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--dry-run", "--repeats", value, *_required_arguments()])
+
+    assert exc_info.value.code == 2
+
+
+def test_cli_requires_versions_and_dry_run_mode() -> None:
+    """The command must not imply model execution when only planner behavior exists."""
+
+    with pytest.raises(SystemExit) as versions_error:
+        main(["--dry-run"])
+    with pytest.raises(SystemExit) as mode_error:
+        main(_required_arguments())
+
+    assert versions_error.value.code == 2
+    assert mode_error.value.code == 2

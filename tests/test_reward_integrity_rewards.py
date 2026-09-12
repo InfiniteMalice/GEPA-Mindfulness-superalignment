@@ -16,6 +16,11 @@ from gepa_mindfulness.core.reward_integrity import (
     RewardObservation,
     aggregate_components,
 )
+from gepa_mindfulness.core.reward_provenance import (
+    RewardProvenance,
+    TrustedEvaluatorContract,
+    VerificationRoute,
+)
 from gepa_mindfulness.training.contracts import RewardRequest
 from gepa_mindfulness.training.reward_pipeline import RewardPipeline
 from gepa_mindfulness.training.trajectory import (
@@ -65,10 +70,43 @@ def observation(**overrides: object) -> RewardObservation:
         for name, value in values.items()
         if isinstance(value, (int, float)) and value < 0.0
     }
+    provenance = {
+        name: observable_provenance(name)
+        for name, value in values.items()
+        if isinstance(value, (int, float)) and value != 0.0
+    }
     return RewardObservation(  # type: ignore[arg-type]
         observable_evidence=evidence,
         observable_references=(OBSERVABLE_REFERENCE,),
+        reward_component_provenance=provenance,
         **values,
+    )
+
+
+def observable_provenance(
+    component_name: str,
+    reference: EvidenceReference = OBSERVABLE_REFERENCE,
+) -> RewardProvenance:
+    """Build one observable provenance record for a reward-integrity component."""
+    return RewardProvenance(
+        component_name=component_name,
+        verification_method="compare the component with the recorded audit outcome",
+        route=VerificationRoute.OBSERVABLE_EVIDENCE,
+        evidence_refs=(reference,),
+    )
+
+
+def evaluator_provenance(component_name: str) -> RewardProvenance:
+    """Build one exactly identified trusted-evaluator provenance record."""
+    return RewardProvenance(
+        component_name=component_name,
+        verification_method="apply the declared reward-integrity evaluator contract",
+        route=VerificationRoute.TRUSTED_EVALUATOR,
+        evaluator=TrustedEvaluatorContract(
+            evaluator_id="reward-integrity-evaluator",
+            evaluator_version="2026-09-10",
+            contract_id="reward-integrity-v1",
+        ),
     )
 
 
@@ -77,7 +115,16 @@ def public_breakdown(**overrides: object) -> RewardIntegrityBreakdown:
     values: dict[str, object] = {name: 0.0 for name in COMPONENT_NAMES}
     values["aggregate"] = 0.0
     values.update(overrides)
-    return RewardIntegrityBreakdown(**values)  # type: ignore[arg-type]
+    provenance = {
+        name: observable_provenance(name)
+        for name in COMPONENT_NAMES
+        if isinstance(values[name], (int, float)) and values[name] != 0.0
+    }
+    return RewardIntegrityBreakdown(  # type: ignore[arg-type]
+        reward_component_provenance=provenance,
+        observable_references=(OBSERVABLE_REFERENCE,),
+        **values,
+    )
 
 
 def request_with_components(
@@ -86,6 +133,15 @@ def request_with_components(
     references: tuple[EvidenceReference, ...] = (OBSERVABLE_REFERENCE,),
 ) -> RewardRequest:
     """Build a typed request whose evidence is recorded by the immutable trajectory."""
+    provenance = {
+        name: (
+            observable_provenance(name, tuple(evidence.get(name, ()))[0])
+            if evidence and evidence.get(name)
+            else observable_provenance(name)
+        )
+        for name, value in components.items()
+        if value != 0.0
+    }
     trajectory = Trajectory(
         trajectory_id="trajectory-1",
         case_id="case-1",
@@ -93,6 +149,7 @@ def request_with_components(
         response="response",
         reward_components=components,
         reward_component_evidence=evidence or {},
+        reward_component_provenance=provenance,
         evidence_references=references,
     )
     return RewardRequest(trajectory=trajectory, observable_references=references)
@@ -134,6 +191,62 @@ def test_negative_component_requires_observable_evidence() -> None:
     """A penalty without a cited action or output outcome is not scoreable."""
     with pytest.raises(ValueError, match="objective_fidelity.*observable evidence"):
         RewardObservation(objective_fidelity=-0.5)
+
+
+def test_positive_component_requires_component_keyed_provenance() -> None:
+    """Unsupported positive credit cannot enter the optimizer as an authored observation."""
+    with pytest.raises(ValueError, match="Nonzero objective_fidelity.*provenance"):
+        RewardObservation(objective_fidelity=0.5)
+
+
+def test_positive_component_accepts_authorized_observable_provenance() -> None:
+    """Positive credit may cite observable evidence inside the authorized boundary."""
+    provenance = observable_provenance("objective_fidelity")
+
+    result = RewardObservation(
+        objective_fidelity=0.5,
+        observable_references=(OBSERVABLE_REFERENCE,),
+        reward_component_provenance={"objective_fidelity": provenance},
+    )
+
+    assert result.reward_component_provenance == {"objective_fidelity": provenance}
+
+
+def test_positive_component_accepts_exact_trusted_evaluator_provenance() -> None:
+    """Positive credit may retain a complete, versioned trusted-evaluator contract."""
+    provenance = evaluator_provenance("objective_fidelity")
+
+    result = RewardObservation(
+        objective_fidelity=0.5,
+        reward_component_provenance={"objective_fidelity": provenance},
+    )
+
+    assert result.reward_component_provenance["objective_fidelity"].evaluator == (
+        TrustedEvaluatorContract(
+            evaluator_id="reward-integrity-evaluator",
+            evaluator_version="2026-09-10",
+            contract_id="reward-integrity-v1",
+        )
+    )
+
+
+def test_positive_component_rejects_provenance_for_a_different_component() -> None:
+    """A component cannot borrow a valid provenance record keyed to another component."""
+    with pytest.raises(ValueError, match="component_name"):
+        RewardObservation(
+            objective_fidelity=0.5,
+            observable_references=(OBSERVABLE_REFERENCE,),
+            reward_component_provenance={
+                "objective_fidelity": observable_provenance("feedback_integrity")
+            },
+        )
+
+
+def test_zero_components_remain_valid_without_provenance() -> None:
+    """Explicit neutral values do not require invented verification records."""
+    result = RewardObservation()
+
+    assert result.reward_component_provenance == {}
 
 
 def test_breakdown_rejects_out_of_range_component() -> None:
@@ -295,6 +408,9 @@ def test_pipeline_adds_enabled_overlay_from_request_observables() -> None:
 
     assert result.integrity_breakdown is not None
     assert result.integrity_breakdown.objective_fidelity == 1.0
+    assert result.integrity_breakdown.reward_component_provenance == {
+        "objective_fidelity": observable_provenance("objective_fidelity")
+    }
     assert isclose(result.total, 0.5)
 
 
@@ -322,7 +438,12 @@ def test_enabled_pipeline_accepts_explicit_evaluator_observation() -> None:
 
     result = pipeline.score(
         request,
-        observation=observation(objective_fidelity=1.0),
+        observation=RewardObservation(
+            objective_fidelity=1.0,
+            reward_component_provenance={
+                "objective_fidelity": evaluator_provenance("objective_fidelity")
+            },
+        ),
     )
 
     assert result.integrity_breakdown is not None
@@ -346,6 +467,12 @@ def test_explicit_evaluator_observation_cannot_expand_request_evidence() -> None
         objective_fidelity=-0.5,
         observable_evidence={"objective_fidelity": (evaluator_reference,)},
         observable_references=(evaluator_reference,),
+        reward_component_provenance={
+            "objective_fidelity": observable_provenance(
+                "objective_fidelity",
+                evaluator_reference,
+            )
+        },
     )
 
     with pytest.raises(ValueError, match="outside request.observable_references"):

@@ -96,7 +96,8 @@ class BaseTrainer(ABC):
                     imperatives=imperative,
                     confidence=generated.confidence(),
                     trace_summary=summary,
-                    abstention=assessment,
+                    # Adapter assessments come from generated prose and remain diagnostic-only.
+                    abstention=None,
                 )
                 group_rewards.append(breakdown.total)
                 group_breakdowns.append(breakdown)

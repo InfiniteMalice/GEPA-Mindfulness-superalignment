@@ -191,3 +191,7 @@ report = evaluate_objective_robustness(specification)
 
 The layer remains modular, typed, inspectable, and opt-in through
 `configs/objective_validator_robustness.yaml`.
+
+Recommendation status and research inferences are recorded in the
+[unified recommendations](../../docs/recommendations/UNIFIED_RECOMMENDATIONS.md) and
+[research traceability guide](../../docs/recommendations/RESEARCH_TRACEABILITY.md).

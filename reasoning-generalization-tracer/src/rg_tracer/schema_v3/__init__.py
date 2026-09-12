@@ -1,6 +1,7 @@
-"""13-case Schema V3 control and compositional-reasoning overlay."""
+"""17-case V5 control and compositional-reasoning overlay."""
 
 from .case_v3 import (
+    CANONICAL_CASE_NAMES,
     CASE_NAMES,
     CaseV3Result,
     CausalScientificOverlay,
@@ -18,6 +19,7 @@ from .control_loop import CONTROL_LOOP_REGISTRY, ControlLoopEntry
 from .reasoning_units import REASONING_UNIT_REGISTRY, ReasoningUnitEntry
 
 __all__ = [
+    "CANONICAL_CASE_NAMES",
     "CASE_NAMES",
     "CONTROL_LOOP_REGISTRY",
     "REASONING_UNIT_REGISTRY",

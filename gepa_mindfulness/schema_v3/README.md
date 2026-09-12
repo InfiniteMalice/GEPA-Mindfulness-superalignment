@@ -1,16 +1,15 @@
-# 13-Case Schema V3: Control + Compositional Reasoning Overlay
+# Schema V3: Control + Compositional Reasoning Overlay
 
-V3 is an additive overlay on the existing 13+0 abstention, hallucination, and
-thought-trace reward schema. It does **not** replace the cases, change their
-identities, introduce negative hidden-thought penalties, add deception penalties
-to the main training path, or collapse reward into one monolithic scalar.
-The broader 17-case framework appends cases 14-17 for high-stakes ambiguity
-handling while preserving the original 13 cases and this V3 reward identity.
+V3 is an additive diagnostic overlay on the canonical 17-case framework. It does **not** replace
+the cases, change their identities, introduce negative hidden-thought penalties, add deception
+penalties to the main training path, or collapse reward into one monolithic scalar. Its legacy
+compatibility fields preserve the answer and IDK behavior represented by Cases 1 through 13; the
+canonical V5 manifest also defines ambiguity Cases 14 through 17.
 
 ## V1 / V2 / V3 relationship
 
-- **V1**: behavioral case identity: answer versus IDK, correctness, confidence,
-  and thought alignment.
+- **V1 compatibility**: answer versus IDK behavior, correctness, confidence, and diagnostic
+  thought alignment for Cases 1 through 13.
 - **V2**: factuality/observability overlay: O0-O5 verification tier,
   provenance, evidence, trace packages, routing, repair, and certification.
 - **V3**: public control and compositional-reasoning overlay: reasoning units,
@@ -19,7 +18,9 @@ handling while preserving the original 13 cases and this V3 reward identity.
 
 The default confidence threshold remains `tau = 0.75` unless callers override
 it. `R_token`, `R_confidence`, `R_thought`, and `R_abstain` remain decomposed.
-`R_thought` is positive-only: `H` or `0`, never negative.
+`R_thought` is positive-only: `H * optimizer_score()` for a positive verified assessment,
+otherwise `0`; it is never negative. `thought_aligned` selects diagnostic case identity and does
+not change any numeric reward component.
 
 ## Data model
 
@@ -42,10 +43,13 @@ an object with the unchanged `case_id`, decomposed rewards, diagnostics,
 ## Reward augmentation
 
 V3 adds optional additive components: `r_grounding`, `r_control`,
-`r_reasoning_unit`, `r_observability`, and `r_group_theoretic`. These are
-separate from the base observable answer/confidence/abstention/thought
-components. Missing public reasoning units or controls receive zero overlay
-credit. Hidden/internal thought traces are never penalized directly.
+`r_reasoning_unit`, `r_observability`, and `r_group_theoretic`. Each component is the exact
+`[0.0, 1.0]` score of a matching verified process component, or `0` when that component is
+absent. The overlays are retained in the serialized diagnostic record, but populated overlay
+fields alone do not produce reward. Hidden/internal thought traces are never penalized directly.
+
+The complete optimizer-facing contract, provenance routes, compatibility aliases, and component
+table are in [`docs/epistemic_process_rewards.md`](../../docs/epistemic_process_rewards.md).
 
 ## Group-Theoretic Reasoning: Symmetry, Invariance, and Equivalence
 
@@ -85,7 +89,7 @@ tracing, attribution graphs, semantic intent robustness, and factuality
 certification because it preserves the base case identity and adds only public,
 structured metadata.
 
-For the appended ambiguity cases, see
+For the canonical ambiguity cases, see
 [`docs/17_CASE_FRAMEWORK.md`](../../docs/17_CASE_FRAMEWORK.md). They distinguish
 IDK abstention from high-stakes ambiguity abstention, use assumptive proceed for
 low-stakes ambiguity, and score clarify-then-resume behavior across turns.

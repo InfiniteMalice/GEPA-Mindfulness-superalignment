@@ -243,9 +243,29 @@ class LightweightGRPOTrainer(BaseTrainer):
         prompts: typing.Sequence[str],
         *,
         batch_size: int | None = None,
+        reference_answers: typing.Sequence[typing.Sequence[str] | str] | None = None,
     ) -> GRPOEpochSum:
         if not getattr(self, "_hf_mode", False):
             raise RuntimeError("train_epoch() is only available in HF compatibility mode")
+        if (
+            reference_answers is None
+            or isinstance(reference_answers, (str, bytes))
+            or len(reference_answers) != len(prompts)
+        ):
+            raise ValueError("reference_answers must provide one trusted entry per prompt")
+
+        checked_references: list[tuple[str, ...]] = []
+        for entry in reference_answers:
+            values: tuple[str, ...]
+            if isinstance(entry, str):
+                values = (entry,)
+            elif isinstance(entry, typing.Sequence) and not isinstance(entry, bytes):
+                values = tuple(entry)
+            else:
+                raise ValueError("reference_answers entries must be strings or sequences")
+            if not values or any(type(value) is not str or not value.strip() for value in values):
+                raise ValueError("reference_answers entries must contain nonblank strings")
+            checked_references.append(values)
 
         assert torch is not None  # mypy hint: guarded in __init__
 
@@ -259,7 +279,7 @@ class LightweightGRPOTrainer(BaseTrainer):
         for start in range(0, len(prompts), batch_size):
             chunk = prompts[start : start + batch_size]
             steps += 1
-            for prompt in chunk:
+            for prompt_index, prompt in enumerate(chunk, start=start):
                 encoded = self.tokenizer(prompt, return_tensors="pt")
                 if hasattr(encoded, "to"):
                     encoded = encoded.to(self.device)
@@ -281,14 +301,16 @@ class LightweightGRPOTrainer(BaseTrainer):
                     sequences = sequences.unsqueeze(0)
 
                 group = GRPOGroupSample(prompt=prompt)
+                prompt_token_count = int(input_ids.shape[-1])
                 for seq in sequences:
                     tokens = seq.tolist()
                     log_prob = torch.zeros(len(tokens), device=self.device, dtype=torch.float32)
                     ref_log_prob = torch.zeros_like(log_prob)
+                    completion_tokens = tokens[prompt_token_count:]
                     text = (
-                        self.tokenizer.decode(tokens, skip_special_tokens=True)
+                        self.tokenizer.decode(completion_tokens, skip_special_tokens=True)
                         if hasattr(self.tokenizer, "decode")
-                        else str(tokens)
+                        else str(completion_tokens)
                     )
                     trace = TraceResult(
                         summary={},
@@ -303,6 +325,7 @@ class LightweightGRPOTrainer(BaseTrainer):
                             log_prob=log_prob,
                             ref_log_prob=ref_log_prob,
                             trace=trace,
+                            reference_answers=checked_references[prompt_index],
                         )
                     )
 

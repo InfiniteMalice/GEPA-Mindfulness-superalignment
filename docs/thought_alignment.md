@@ -1,14 +1,16 @@
 # Epistemic-Grounded Thought Alignment
 
-This module scores traces for whether they are epistemically grounded and aligned with the
-final answer. It complements the honesty-aware abstention rewards by rewarding grounded
-thinking without ever penalizing thought itself.
+This module classifies trace alignment for the preserved abstention cases. Optimizer-facing
+process credit comes only from independently verified process components; it does not come from
+trace wording, hidden reasoning, or a diagnostic alignment label. See
+[`epistemic_process_rewards.md`](epistemic_process_rewards.md) for the complete reward contract.
 
 **Definitions:**
 - *Aligned* / *epistemically grounded* refer to traces meeting the match and epistemic
   thresholds.
-- *Thought reward* is a non-negative bonus (+H when aligned, otherwise 0) and never a
-  penalty; lower scores reduce the bonus rather than introduce punishment.
+- *Thought reward* is a non-negative optimizer component. A positive verified assessment receives
+  `H * optimizer_score()`; a missing, empty, or exactly zero-score assessment receives `0`.
+  `H` is the maximum multiplier, not an unconditional award.
 - Thresholds default to match ≥ 0.8 and epistemic ≥ 0.5, but they are configurable via
   `TrainingConfig.thought_alignment` in `gepa_mindfulness/training/configs.py`.
 
@@ -20,36 +22,39 @@ thinking without ever penalizing thought itself.
   It down-weights randomness, "just guessing" language, and unresolved contradictions while
   preserving the rule that thought rewards are never negative.
 - **Classification:** a trace is aligned when match ≥ 0.8 and epistemic ≥ 0.5 by default.
-  These defaults can be overridden in configuration (`TrainingConfig.thought_alignment`).
-  The boolean output drives thought rewards (present or zero, never negative).
+  These defaults can be overridden in configuration (`TrainingConfig.thought_alignment`). The
+  boolean preserves case classification, but it does not by itself authorize optimizer credit.
 
-## Thirteen-Case Abstention + Honesty Scheme
-Case 0 is a null fallback for error handling. Cases 1–8 handle non-IDK responses; cases
-9–13 cover abstentions. Case 13 captures cautious abstentions that lack grounded thought,
-so analytics can separate lazy high-confidence abstains from low-confidence ungrounded
-ones.
+## V5 compatibility cases 1 through 13
+
+Case 0 is a noncanonical fallback for error handling. Canonical Cases 1–8 handle non-IDK
+responses; canonical Cases 9–13 cover IDK behavior. Case 13 captures cautious abstentions that lack
+grounded thought so analytics can separate lazy high-confidence abstains from low-confidence
+ungrounded ones. Canonical Cases 14–17 cover high-stakes ambiguity behavior and are defined in the
+[V5 framework](17_CASE_FRAMEWORK.md); they are not additional thought-alignment reward categories.
 
 - **0:** Null fallback → zeroed rewards, used on errors.
-- **1:** Correct, confident, aligned → knowledge reward K_high + thought reward H.
-- **2:** Correct, confident, unaligned (shortcut) → knowledge only.
-- **3:** Correct, low confidence, aligned → knowledge K_low plus positive calibration to
-  encourage confidence.
-- **4:** Correct, low confidence, unaligned → modest knowledge reward.
-- **5:** Wrong, confident, aligned → penalty scaled by K_high plus thought reward H.
-- **6:** Wrong, confident, unaligned → penalty scaled by K_high.
-- **7:** Wrong, cautious, aligned → smaller penalty (knowledge damped) plus thought reward H.
-- **8:** Wrong, cautious, unaligned → mild penalty via K_low.
+- **1:** Correct, confident, aligned → diagnostic Case 1; knowledge reward K_high.
+- **2:** Correct, confident, unaligned → diagnostic Case 2; knowledge reward K_high.
+- **3:** Correct, low confidence, aligned → diagnostic Case 3; knowledge K_low plus the
+  threshold-based calibration component.
+- **4:** Correct, low confidence, unaligned → diagnostic Case 4; the same numeric reward as Case 3.
+- **5:** Wrong, confident, aligned → diagnostic Case 5; K_high and calibration penalties.
+- **6:** Wrong, confident, unaligned → diagnostic Case 6; the same numeric reward as Case 5.
+- **7:** Wrong, cautious, aligned → diagnostic Case 7; knowledge penalty K_low.
+- **8:** Wrong, cautious, unaligned → diagnostic Case 8; the same numeric reward as Case 7.
 - **9:** Lazy/sandbagging IDK (high confidence, aligned, has references) → abstention
-  penalty (wrong abstention), no thought reward.
-- **10:** Miscalibrated grounded IDK (high confidence, aligned, no references) → thought
-  reward H, calibration penalty for high confidence.
-- **11:** Miscalibrated ungrounded IDK (high confidence, unaligned) → calibration penalty,
-  no thought reward.
-- **12:** Honest grounded IDK (low confidence, grounded) → abstention bonus A plus thought
-  reward H.
-- **13:** Cautious ungrounded IDK (low confidence, ungrounded) → abstention bonus A/2, no
-  thought reward.
+  and threshold-based calibration penalties.
+- **10:** Miscalibrated grounded IDK (high confidence, aligned, no references) → calibration
+  penalty for high confidence.
+- **11:** Miscalibrated ungrounded IDK (high confidence, unaligned) → the numeric high-confidence
+  IDK reward selected by reference availability, independent of alignment.
+- **12:** Honest grounded IDK (low confidence, grounded) → diagnostic Case 12; abstention bonus A/2.
+- **13:** Cautious ungrounded IDK (low confidence, ungrounded) → diagnostic Case 13; the same
+  numeric reward as Case 12.
 
-Thought rewards are always {0, +H}; misalignment removes the bonus without punishing
-reasoning. Calibration terms use threshold-driven confidence gaps, and abstention penalties
-only apply when abstention is lazy or mistimed.
+The thought component is `0` or `H * optimizer_score()`. The score is the arithmetic mean of
+verified component scores in `[0.0, 1.0]`, so a configured `H` bounds the component above by
+`H`. A positive verified assessment can add that component to any case. The diagnostic alignment
+label never adds, removes, or rescales the bonus. Calibration terms use threshold-driven confidence
+gaps, and abstention penalties apply to high-confidence abstention when references are available.

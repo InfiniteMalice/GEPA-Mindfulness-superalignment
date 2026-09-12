@@ -9,6 +9,7 @@ from torch import nn
 from gepa_mindfulness.core.rewards import RewardWeights
 from gepa_mindfulness.training.configs import GRPOConfig
 from gepa_mindfulness.training.grpo_trainer import GRPOTrainer
+from gepa_mindfulness.training.train import _load_grpo_inputs
 
 
 class DummyTokenizer:
@@ -33,7 +34,7 @@ class DummyTokenizer:
         return self._Batch({"input_ids": ids, "attention_mask": torch.ones_like(ids)})
 
     def decode(self, tokens, skip_special_tokens: bool = True) -> str:
-        return "decoded" + str(len(tokens))
+        return "decoded-" + "-".join(str(int(token)) for token in tokens)
 
     def to(self, device):  # pragma: no cover - compatibility shim
         return self
@@ -60,13 +61,25 @@ class DummyModel(nn.Module):
         **_: object,
     ):
         sequences = []
-        for _ in range(num_return_sequences):
+        for index in range(num_return_sequences):
             base = input_ids.clone()
-            next_token = torch.randint(
-                2, self.embed.num_embeddings, (1, 1), device=input_ids.device
+            next_token = torch.tensor(
+                [[2 + index]],
+                device=input_ids.device,
             )
             sequences.append(torch.cat([base, next_token], dim=1)[0])
         return torch.stack(sequences)
+
+
+def test_grpo_dataset_parser_keeps_prompts_and_references_aligned(tmp_path: Path) -> None:
+    dataset = tmp_path / "dataset.jsonl"
+    dataset.write_text(
+        '{"prompt": "first", "answers": ["answer"]}\n' '{"answers": ["orphaned"]}\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="line 2.*prompt or query"):
+        _load_grpo_inputs(dataset)
 
 
 def test_grpo_trainer_runs_on_stub_dataset(tmp_path: Path):
@@ -85,9 +98,35 @@ def test_grpo_trainer_runs_on_stub_dataset(tmp_path: Path):
         device=torch.device("cpu"),
         output_dir=tmp_path / "hf_runs",
     )
-    summary = trainer.train_epoch(["prompt 1", "prompt 2"], batch_size=2)
+    summary = trainer.train_epoch(
+        ["prompt 1", "prompt 2"],
+        batch_size=2,
+        reference_answers=(("decoded-2",), ("decoded-2",)),
+    )
     assert summary.steps == 1
     assert summary.mean_reward() == pytest.approx(summary.batches[0].mean_reward)
+    assert summary.batches[0].categories == ["correct", "wrong"]
+    assert any(value != 0.0 for value in summary.batches[0].advantages)
+
+
+def test_grpo_trainer_rejects_model_training_without_reference_answers(tmp_path: Path):
+    tokenizer = DummyTokenizer()
+    model = DummyModel()
+    ref_model = DummyModel()
+    config = GRPOConfig.from_mapping({"group_size": 2, "batch_size": 1, "max_new_tokens": 1})
+    reward_weights = RewardWeights.from_mapping(config.reward_weights.dict())
+    trainer = GRPOTrainer(
+        model,
+        ref_model,
+        tokenizer,
+        config,
+        reward_weights,
+        device=torch.device("cpu"),
+        output_dir=tmp_path / "hf_runs",
+    )
+
+    with pytest.raises(ValueError, match="reference_answers"):
+        trainer.train_epoch(["prompt"])
 
 
 def test_hf_mode_sets_base_trainer_attributes(tmp_path: Path):

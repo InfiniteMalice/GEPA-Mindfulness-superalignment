@@ -56,6 +56,75 @@ Dry-run mode loads cases and emits planned evaluations:
 python -m evaluation.run_alignment_battery --suite simpleqa --dry-run --output-path alignment_battery_results.jsonl
 ```
 
+## V5 framework planner
+
+The [`evaluation.run_v5_framework`](../evaluation/run_v5_framework.py) module emits deterministic
+case-by-stripe-by-repeat plans without model execution. Provide explicit model and harness versions
+so the generated JSONL records identify the planned system:
+
+```bash
+python -m evaluation.run_v5_framework --dry-run --model-version mindful-model-2026-09-10 \
+  --harness-version v5-harness-1.0.0 --output v5_planned_cells.jsonl
+```
+
+The V5 planner JSONL schema is separate from the legacy alignment battery result schema described
+below. Do not use V5 planned-cell records as legacy benchmark results.
+
+The planner implements the `CASE × STRIPE × REPEAT` structure in
+[`REC-005`](recommendations/UNIFIED_RECOMMENDATIONS.md#rec-005--case--robustness-stripe--repeat-evaluation).
+Research sources and the repository's limited inferences are recorded under the recommendation's
+REF links in the [research traceability guide](recommendations/RESEARCH_TRACEABILITY.md).
+
+V5 plans are capped at 10,000 total cells, calculated as selected cases times selected stripes
+times repeats. The planner rejects a larger request before deriving seeds or opening an output file.
+The CLI emits one newline-terminated JSON object at a time and, for file output, atomically replaces
+the destination only after every row has been written successfully. Plans within the cap retain the
+same deterministic bytes and seeds as earlier V5 plans.
+
+## V5 verified evaluation boundary
+
+A `V5EvaluationRecord` always has exactly these eight root sections: `case`, `robustness`, `system`,
+`epistemics`, `behavior`, `outcome`, `scores`, and `diagnostics`. Constructing the root takes a
+detached snapshot of every section. Loading those fields from JSON validates their shape, but JSON
+alone is not trusted evidence for optimization or aggregate metrics.
+
+Call `validate_v5_record_provenance(record, events)` with the record and the complete PR-2
+action-bound event sequence for the same planned cell. The validator checks the PR-2 sequence,
+cell and run identity, exact event-reference types, ancestry, evidence occurrence, and verified
+routes.
+
+The V5 provenance boundary assigns exact meanings to three PR-2 mapping payloads:
+
+- Each referenced `outcome_observed` event uses an `OutcomeObservation` whose `actual_outcome`
+  mapping contains exactly one field, `passed`. The `passed` value is a built-in `bool`.
+- Each epistemic assessment considered for positive process credit has exactly the payload
+  `{"assessment": "verified"}` or `{"assessment": "unverified"}`. The validator uses the sole
+  unsuperseded assessment whose direct parents exactly equal the record's epistemic verifier
+  references. Only `"verified"` qualifies.
+- Each case assessment considered for outcome truth has exactly the payload
+  `{"assessment": "pass"}` or `{"assessment": "fail"}`. The validator uses the sole
+  unsuperseded case assessment whose active epistemic parents resolve exactly to the record's
+  outcome verifier references.
+
+PR-2 sequence validation binds those assessment routes to the same cell and action ancestry. The
+record's `outcome.passed` value must equal every referenced observed `passed` value and the active
+case-assessment result. `VerificationResult.verified=True` confirms the referenced observation; it
+does not mean that the case passed. Superseded assessment values never authorize outcome or process
+credit.
+
+The validator returns an immutable object described by the nonconstructible
+`V5ProvenanceResult` protocol. The concrete result implementation is private, and every ordinary
+construction path performs full validation. The protocol is a return type only; no V5 API accepts
+an implementation of the protocol as proof of validation. `V5EvaluationRecord.optimizer_scores`
+with `events` is the validating convenience API.
+
+`summarize_v5_record_groups` also requires the immutable planned-cell inventory and one event
+sequence for each observed cell. Strict mode requires every planned cell exactly once. Partial mode
+accepts only an in-plan prefix of each repeat group and reports both `expected_count` and
+`observed_count`; a completely unobserved planned group has `metrics=None`. Both modes reject
+unplanned records, missing or extra event sequences, duplicate cells or seeds, and seed or version
+drift. These V5 records and summaries remain separate from the legacy battery result schema.
+
 Response scoring mode reads precomputed model answers:
 
 ```bash

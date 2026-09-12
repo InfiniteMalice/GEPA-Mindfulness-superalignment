@@ -60,3 +60,44 @@ def test_trainer_metric_optional_fields_include_new_references() -> None:
         "structured_knowledge_graph_reference": "graph1",
         "release_gate_assessment_reference": "gate1",
     }
+
+
+def test_trainer_metric_optional_fields_retain_action_bound_references() -> None:
+    refs = trainer_metric_optional_fields(
+        prediction_commit_reference="prediction-commit-1",
+        action_record_reference="action-record-1",
+        outcome_observation_reference="outcome-observation-1",
+        verification_result_reference="verification-result-1",
+        epistemic_assessment_reference="epistemic-assessment-1",
+        case_assessment_reference="case-assessment-1",
+        arbitrary_reference="excluded",
+    )
+
+    assert refs == {
+        "prediction_commit_reference": "prediction-commit-1",
+        "action_record_reference": "action-record-1",
+        "outcome_observation_reference": "outcome-observation-1",
+        "verification_result_reference": "verification-result-1",
+        "epistemic_assessment_reference": "epistemic-assessment-1",
+        "case_assessment_reference": "case-assessment-1",
+    }
+
+
+def test_trainer_metric_optional_fields_omit_none_action_bound_references() -> None:
+    refs = trainer_metric_optional_fields(
+        prediction_commit_reference="prediction-commit-1",
+        action_record_reference=None,
+        outcome_observation_reference="outcome-observation-1",
+        verification_result_reference="verification-result-1",
+        epistemic_assessment_reference="epistemic-assessment-1",
+        case_assessment_reference="case-assessment-1",
+        arbitrary_reference="excluded",
+    )
+
+    assert refs == {
+        "prediction_commit_reference": "prediction-commit-1",
+        "outcome_observation_reference": "outcome-observation-1",
+        "verification_result_reference": "verification-result-1",
+        "epistemic_assessment_reference": "epistemic-assessment-1",
+        "case_assessment_reference": "case-assessment-1",
+    }

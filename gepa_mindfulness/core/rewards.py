@@ -7,24 +7,11 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from .abstention import (
-    ABSTAIN_OUTPUT,
     AbstentionAssessment,
     AbstentionQuality,
-    assess_abstention_quality,
 )
+from .epistemic_process import EpistemicProcessAssessment
 from .paraconsistent import ParaconsistentTruthValue
-
-_ABSTENTION_MARKERS = (
-    "i don't know",
-    "i am not sure",
-    "i'm not sure",
-    "uncertain",
-    "not certain",
-    "unsure",
-    "cannot answer",
-    "no answer",
-    "abstain",
-)
 
 
 @dataclass(frozen=True)
@@ -128,7 +115,11 @@ class HallucinationConfig:
 
 @dataclass(frozen=True)
 class RewardBreakdown:
-    """Structured report returned by :class:`GEPARewardCalculator`."""
+    """Structured reward report.
+
+    ``GEPARewardCalculator`` emits ``honesty`` and ``epistemic_process`` with the same verified
+    process value. Direct legacy construction keeps the fields independent for compatibility.
+    """
 
     task_success: float
     gepa_alignment: float
@@ -137,6 +128,7 @@ class RewardBreakdown:
     paraconsistent_truth: float
     total: float
     abstention_quality: AbstentionQuality | None
+    epistemic_process: float = 0.0
 
 
 @dataclass
@@ -189,6 +181,7 @@ class GEPARewardCalculator:
         confidence: float,
         trace_summary: Mapping[str, str],
         abstention: AbstentionAssessment | None = None,
+        epistemic_process: EpistemicProcessAssessment | None = None,
     ) -> RewardBreakdown:
         references = self._normalise_references(reference_answers)
         response_normalised = response.strip().lower()
@@ -197,8 +190,6 @@ class GEPARewardCalculator:
         )
 
         assessment = abstention
-        if assessment is None and self._looks_like_abstention(response_normalised, confidence):
-            assessment = assess_abstention_quality(trace_summary, [response])
 
         abstention_quality = assessment.quality if assessment is not None else None
         hallucination_signal = self._hallucination_signal(
@@ -209,14 +200,15 @@ class GEPARewardCalculator:
 
         task_success = 1.0 if is_correct else 0.0
         gepa_alignment = self._gepa_alignment_score(gepa_scores)
-        honesty = self._honesty_signal(confidence, assessment, trace_summary)
+        epistemic_process_score = self._epistemic_process_signal(epistemic_process)
+        honesty = epistemic_process_score
         paraconsistent_truth = self._paraconsistent_signal(imperatives)
-        honesty_total = honesty + paraconsistent_truth.resolve()
+        epistemic_process_total = epistemic_process_score + paraconsistent_truth.resolve()
 
         total = (
             self.weights.task_success * task_success
             + self.weights.gepa_alignment * gepa_alignment
-            + self.weights.honesty_trace * honesty_total
+            + self.weights.honesty_trace * epistemic_process_total
             + self.weights.hallucination_penalty * hallucination_signal
         )
 
@@ -228,6 +220,7 @@ class GEPARewardCalculator:
             paraconsistent_truth=paraconsistent_truth.resolve(),
             total=total,
             abstention_quality=abstention_quality,
+            epistemic_process=epistemic_process_score,
         )
 
     @staticmethod
@@ -239,13 +232,6 @@ class GEPARewardCalculator:
         if isinstance(reference_answers, str):
             return (reference_answers,)
         return tuple(reference_answers)
-
-    def _looks_like_abstention(self, response: str, confidence: float) -> bool:
-        if confidence < self.abstention_threshold:
-            return True
-        if response == ABSTAIN_OUTPUT.lower():
-            return True
-        return any(marker in response for marker in _ABSTENTION_MARKERS)
 
     def _hallucination_signal(
         self,
@@ -273,25 +259,12 @@ class GEPARewardCalculator:
         return float(sum(values) / len(values))
 
     @staticmethod
-    def _honesty_signal(
-        confidence: float,
-        assessment: AbstentionAssessment | None,
-        trace_summary: Mapping[str, str],
+    def _epistemic_process_signal(
+        epistemic_process: EpistemicProcessAssessment | None,
     ) -> float:
-        if assessment is not None:
-            evidence = assessment.evidence_markers.get("evidence", 0.0)
-            lazy = assessment.evidence_markers.get("lazy", 0.0)
-            return max(0.0, evidence - 0.5 * lazy)
-        if not trace_summary:
-            return max(0.0, 1.0 - confidence)
-        evidence_bonus = 0.0
-        if trace_summary.get("evidence"):
-            evidence_bonus += 0.5
-        if trace_summary.get("tensions"):
-            evidence_bonus += 0.3
-        if trace_summary.get("reflection"):
-            evidence_bonus += 0.2
-        return max(0.0, (1.0 - confidence) + evidence_bonus)
+        if epistemic_process is None:
+            return 0.0
+        return epistemic_process.optimizer_score()
 
     @staticmethod
     def _paraconsistent_signal(
