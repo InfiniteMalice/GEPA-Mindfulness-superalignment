@@ -256,6 +256,7 @@ class LightweightGRPOTrainer(BaseTrainer):
 
         checked_references: list[tuple[str, ...]] = []
         for entry in reference_answers:
+            values: tuple[str, ...]
             if isinstance(entry, str):
                 values = (entry,)
             elif isinstance(entry, typing.Sequence) and not isinstance(entry, bytes):
