@@ -380,6 +380,19 @@ def test_execution_evidence_must_target_the_current_lifecycle_artifact(tmp_path:
             execution_evidence=_bundle(artifact_ref=unrelated.artifact_id),
         )
 
+    transition_skill(
+        history,
+        SkillLifecycleState.EXECUTED,
+        execution_evidence=_bundle(artifact_ref=history.current().artifact_id),
+    )
+    unrelated_history = store.open(unrelated.skill_id)
+    with pytest.raises(ValueError, match="execution evidence.*already claimed"):
+        transition_skill(
+            unrelated_history,
+            SkillLifecycleState.EXECUTED,
+            execution_evidence=_bundle(artifact_ref=unrelated.artifact_id),
+        )
+
 
 @pytest.mark.parametrize(
     ("event_name", "field_name", "value"),

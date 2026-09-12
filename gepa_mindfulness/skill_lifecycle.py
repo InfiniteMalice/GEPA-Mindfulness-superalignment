@@ -757,6 +757,12 @@ def transition_skill(
                         "execution evidence must target the exact current lifecycle artifact"
                     )
                 execution_receipt = _issue_execution_receipt(execution_evidence)
+                _claim_execution(
+                    connection,
+                    state.authority_domain,
+                    current,
+                    execution_receipt,
+                )
             elif execution_evidence is not None:
                 raise ValueError("execution_evidence is accepted only for EXECUTED")
             if target_state is SkillLifecycleState.CREDITED:
@@ -1408,6 +1414,16 @@ def _initialize_database(connection: sqlite3.Connection) -> None:
             payload TEXT NOT NULL,
             PRIMARY KEY (authority_domain, artifact_id)
         );
+        CREATE TABLE IF NOT EXISTS skill_execution_claims (
+            authority_domain TEXT NOT NULL,
+            action_id TEXT NOT NULL,
+            bundle_digest TEXT NOT NULL,
+            artifact_id TEXT NOT NULL,
+            skill_id TEXT NOT NULL,
+            version TEXT NOT NULL,
+            PRIMARY KEY (authority_domain, action_id),
+            UNIQUE (authority_domain, bundle_digest)
+        );
         """)
     connection.execute(
         "INSERT OR IGNORE INTO catalog_metadata VALUES (1, ?)",
@@ -1693,6 +1709,20 @@ def _validated_entry(
         if artifact.state is SkillLifecycleState.EXECUTED:
             if artifact.execution_receipt is None:
                 raise ValueError("executed transition lost its evidence receipt")
+            receipt = artifact.execution_receipt
+            execution_claim = connection.execute(
+                "SELECT bundle_digest, artifact_id, skill_id, version "
+                "FROM skill_execution_claims WHERE authority_domain = ? AND action_id = ?",
+                (domain, receipt.action_id),
+            ).fetchone()
+            expected_claim = (
+                receipt.bundle_digest,
+                previous.artifact_id,
+                previous.skill_id,
+                previous.version,
+            )
+            if execution_claim is None or tuple(execution_claim) != expected_claim:
+                raise ValueError("execution receipt differs from its catalog claim")
         elif artifact.execution_receipt != previous.execution_receipt:
             raise ValueError("execution receipt changed outside execution")
         if artifact.state is SkillLifecycleState.HELD_OUT_VALIDATED:
@@ -1729,6 +1759,28 @@ def _claim_artifact(
             json.dumps(artifact.to_dict(), separators=(",", ":"), sort_keys=True),
         ),
     )
+
+
+def _claim_execution(
+    connection: sqlite3.Connection,
+    authority_domain: str,
+    artifact: SkillArtifact,
+    receipt: ExecutionEvidenceReceipt,
+) -> None:
+    try:
+        connection.execute(
+            "INSERT INTO skill_execution_claims VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                authority_domain,
+                receipt.action_id,
+                receipt.bundle_digest,
+                artifact.artifact_id,
+                artifact.skill_id,
+                artifact.version,
+            ),
+        )
+    except sqlite3.IntegrityError as exc:
+        raise ValueError("execution evidence action or bundle is already claimed") from exc
 
 
 def _load_artifact(
