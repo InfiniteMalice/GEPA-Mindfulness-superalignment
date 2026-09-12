@@ -74,9 +74,10 @@ def _bundle(
     reversible: bool = False,
     finding_evidence: str = "evidence:observed",
     artifact_ref: str = "artifact:skill.py",
+    run_id: str = "run-1",
 ) -> ExecutionEvidenceBundle:
     common = {
-        "run_id": "run-1",
+        "run_id": run_id,
         "model_version": "model-v1",
         "harness_version": "harness-v1",
         "case_version": "17case-v5",
@@ -392,6 +393,33 @@ def test_execution_evidence_must_target_the_current_lifecycle_artifact(tmp_path:
             SkillLifecycleState.EXECUTED,
             execution_evidence=_bundle(artifact_ref=unrelated.artifact_id),
         )
+
+
+def test_action_ids_are_scoped_to_execution_run(tmp_path: Path) -> None:
+    store, history, _local = _main_history(tmp_path)
+    unrelated = _task_local(store, "unrelated")
+
+    first = transition_skill(
+        history,
+        SkillLifecycleState.EXECUTED,
+        execution_evidence=_bundle(
+            artifact_ref=history.current().artifact_id,
+            run_id="run-1",
+        ),
+    )
+    second = transition_skill(
+        store.open(unrelated.skill_id),
+        SkillLifecycleState.EXECUTED,
+        execution_evidence=_bundle(
+            artifact_ref=unrelated.artifact_id,
+            run_id="run-2",
+        ),
+    )
+
+    assert first.execution_receipt is not None
+    assert second.execution_receipt is not None
+    assert first.execution_receipt.run_id == "run-1"
+    assert second.execution_receipt.run_id == "run-2"
 
 
 @pytest.mark.parametrize(

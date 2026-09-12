@@ -261,6 +261,7 @@ class ExecutionEvidenceReceipt:
     receipt_id: str
     bundle_digest: str
     action_id: str
+    run_id: str
     observation_id: str
     change_id: str
     artifact_ref: str
@@ -280,6 +281,7 @@ class ExecutionEvidenceReceipt:
         for field_name in (
             "receipt_id",
             "action_id",
+            "run_id",
             "observation_id",
             "change_id",
             "artifact_ref",
@@ -329,6 +331,7 @@ class ExecutionEvidenceReceipt:
             "receipt_id": checked.receipt_id,
             "bundle_digest": checked.bundle_digest,
             "action_id": checked.action_id,
+            "run_id": checked.run_id,
             "observation_id": checked.observation_id,
             "change_id": checked.change_id,
             "artifact_ref": checked.artifact_ref,
@@ -352,6 +355,7 @@ class ExecutionEvidenceReceipt:
                 "receipt_id",
                 "bundle_digest",
                 "action_id",
+                "run_id",
                 "observation_id",
                 "change_id",
                 "artifact_ref",
@@ -368,6 +372,7 @@ class ExecutionEvidenceReceipt:
             cast(str, values["receipt_id"]),
             cast(str, values["bundle_digest"]),
             cast(str, values["action_id"]),
+            cast(str, values["run_id"]),
             cast(str, values["observation_id"]),
             cast(str, values["change_id"]),
             cast(str, values["artifact_ref"]),
@@ -1168,6 +1173,7 @@ def _issue_execution_receipt(bundle: ExecutionEvidenceBundle) -> ExecutionEviden
         str(uuid4()),
         _sha256_json(payload),
         action.action_id,
+        cast(str, snapshot.action_event.run_id),
         outcome.observation_id,
         snapshot.world_change.change_id,
         snapshot.world_change.artifact_ref,
@@ -1416,12 +1422,13 @@ def _initialize_database(connection: sqlite3.Connection) -> None:
         );
         CREATE TABLE IF NOT EXISTS skill_execution_claims (
             authority_domain TEXT NOT NULL,
+            run_id TEXT NOT NULL,
             action_id TEXT NOT NULL,
             bundle_digest TEXT NOT NULL,
             artifact_id TEXT NOT NULL,
             skill_id TEXT NOT NULL,
             version TEXT NOT NULL,
-            PRIMARY KEY (authority_domain, action_id),
+            PRIMARY KEY (authority_domain, run_id, action_id),
             UNIQUE (authority_domain, bundle_digest)
         );
         """)
@@ -1712,8 +1719,9 @@ def _validated_entry(
             receipt = artifact.execution_receipt
             execution_claim = connection.execute(
                 "SELECT bundle_digest, artifact_id, skill_id, version "
-                "FROM skill_execution_claims WHERE authority_domain = ? AND action_id = ?",
-                (domain, receipt.action_id),
+                "FROM skill_execution_claims "
+                "WHERE authority_domain = ? AND run_id = ? AND action_id = ?",
+                (domain, receipt.run_id, receipt.action_id),
             ).fetchone()
             expected_claim = (
                 receipt.bundle_digest,
@@ -1769,9 +1777,12 @@ def _claim_execution(
 ) -> None:
     try:
         connection.execute(
-            "INSERT INTO skill_execution_claims VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO skill_execution_claims "
+            "(authority_domain, run_id, action_id, bundle_digest, artifact_id, skill_id, version) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
             (
                 authority_domain,
+                receipt.run_id,
                 receipt.action_id,
                 receipt.bundle_digest,
                 artifact.artifact_id,
@@ -1828,6 +1839,7 @@ def _snapshot_execution_receipt(value: object) -> ExecutionEvidenceReceipt:
         checked.receipt_id,
         checked.bundle_digest,
         checked.action_id,
+        checked.run_id,
         checked.observation_id,
         checked.change_id,
         checked.artifact_ref,
@@ -1852,6 +1864,7 @@ def _execution_receipt_binding(value: ExecutionEvidenceReceipt) -> tuple[object,
         value.receipt_id,
         value.bundle_digest,
         value.action_id,
+        value.run_id,
         value.observation_id,
         value.change_id,
         value.artifact_ref,

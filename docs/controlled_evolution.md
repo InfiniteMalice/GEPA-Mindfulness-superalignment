@@ -85,8 +85,10 @@ SOURCE_EXPERIENCE
 4. The execution receipt binds evidence separately to local `executed`, local
    `intended_operation_observed`, relational `claimed_outcome_supported`, and relational
    `provenance_intact`. Every required finding must intersect the canonical outcome observation
-   evidence. A generated explanation or a legacy scalar verification result cannot satisfy this
-   gate.
+   evidence. The receipt preserves the bundle's `run_id`; the catalog scopes an action identity
+   by `(authority_domain, run_id, action_id)`. Reusing an `action_id` in a different run is valid,
+   but reusing a bundle digest in the same authority domain is rejected. A generated explanation
+   or a legacy scalar verification result cannot satisfy this gate.
 5. A `CREDITED` transition revalidates the complete execution receipt. Caller-supplied success
    text, event IDs, or scalar booleans do not create credit.
 6. A `REFINED` transition uses `RefinementProvenance`, creates a new version, and names the exact

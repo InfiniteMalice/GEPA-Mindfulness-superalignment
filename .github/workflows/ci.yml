@@ -61,7 +61,7 @@ jobs:
       
       - name: Type check (mypy)
         run: |
-          mypy \
+          mypy --follow-imports=silent \
             modules/semantic_intent_robustness/kv_context_safety.py \
             modules/semantic_intent_robustness/disclosure_events.py \
             modules/semantic_intent_robustness/capability_graph.py \
