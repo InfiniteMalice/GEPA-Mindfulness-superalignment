@@ -6,16 +6,16 @@ reward cases.
 
 ## Abstention and epistemic alignment foundation
 
-The base reward foundation is the 13+0 abstention / hallucination /
-thought-alignment schema documented in `docs/epistemic_alignment.md`. Case 0 is
-reserved for null or fallback behavior; cases 1-8 cover concrete answers; cases
-9-13 cover IDK/abstention behavior. The default confidence threshold remains
-`tau = 0.75` unless a caller overrides it.
+The compatibility reward foundation covers canonical Cases 1–13 and is documented in
+`docs/epistemic_alignment.md`. Case 0 is reserved for null or fallback behavior; Cases 1–8 cover
+concrete answers; Cases 9–13 cover IDK/abstention behavior. The repository-level V5 manifest also
+defines canonical ambiguity Cases 14–17. The default confidence threshold remains `tau = 0.75`
+unless a caller overrides it.
 
-## 13-case Schema V3 overlay
+## Schema V3 overlay
 
 RG-Tracer includes `rg_tracer.schema_v3`, a dependency-minimal dataclass overlay
-that preserves the base 13+0 case identity while attaching public reasoning-unit,
+that preserves the compatibility identity for Cases 1–13 while attaching public reasoning-unit,
 control-loop, causal/scientific, MDL-control, observability, and
 group-theoretic transformation diagnostics. V3 does not replace the 13 cases and
 does not introduce negative hidden-thought penalties.

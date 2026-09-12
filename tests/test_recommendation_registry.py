@@ -24,7 +24,7 @@ EXPECTED_RECOMMENDATIONS = (
         "REC-002",
         "Action-bound epistemic commitments.",
         "P0",
-        "accepted",
+        "implemented",
     ),
     (
         "REC-003",
@@ -42,7 +42,7 @@ EXPECTED_RECOMMENDATIONS = (
         "REC-005",
         "Case × robustness stripe × repeat evaluation.",
         "P0",
-        "accepted",
+        "implemented",
     ),
     (
         "REC-006",

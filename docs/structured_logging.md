@@ -11,6 +11,12 @@ Existing optional linkage fields are `run_id`, `rollout_id`, `trace_id`, `sample
 `stripe_id`, `repeat_id`, `seed`, `authorization_scope`, `verifier_refs`, `valid_from`, `valid_until`,
 and `superseded_by`.
 
+For this contract, a **world state** is an observed artifact or environment state, and an
+**evidence state** is a bounded claim with the references that support it. A **local verifier**
+checks one outcome or evidence boundary. A **relational verifier** checks consistency between
+records or states. These terms describe typed evidence relationships; none of them grants runtime
+authority.
+
 Legacy trace rows still load. Viewer code normalizes old rows by treating their `stage` as the event type and leaves missing optional fields empty.
 
 Supported event types include reasoning checkpoints, reward breakdowns, token telemetry, semantic
@@ -97,3 +103,8 @@ control signal for review priority; it is not an execution shortcut and does not
 irreversible action.
 
 Monitoring and peer review metadata may include `review_status`, `reviewer_id`, `reviewer_disagreement`, `drift_flag`, `repair_event`, `supersedes_event_id`, and `notes`. These fields are evidence for review, not automatic reward penalties or new 17-case categories.
+
+The action-bound sequence implements
+[`REC-002`](recommendations/UNIFIED_RECOMMENDATIONS.md#rec-002--action-bound-epistemic-commitments).
+World/evidence separation and verifier authority are specified in
+[`VERIFICATION_AND_RUNTIME_AUTHORITY.md`](VERIFICATION_AND_RUNTIME_AUTHORITY.md).

@@ -26,6 +26,11 @@ The reward system accepts exactly two provenance routes:
 The reward system does not infer provenance from process-language, a hidden trace, or an
 untyped diagnostic field.
 
+This is the **verified epistemic process** boundary: a named, bounded process score plus exactly
+one accepted provenance route. A **diagnostic signal** is any retained trace, label, overlay,
+deception, circuit, attribution, or mechanistic field that has not crossed that boundary. Diagnostic
+signals remain available for analysis but do not authorize optimizer credit.
+
 ## Optimizer eligibility and weights
 
 `compute_abstention_reward()` preserves case classification from `thought_align`, but that
@@ -126,3 +131,6 @@ python -m pytest `
 The test suite checks the component score bounds, both provenance routes, thought eligibility,
 Schema V3 verified-component lookup, compatibility aliases, legacy-evidence requirements, and
 the rule that every nonzero reward-integrity component has provenance.
+
+The contract implements
+[`REC-001`](recommendations/UNIFIED_RECOMMENDATIONS.md#rec-001--verified-epistemic-process-reward-rule).

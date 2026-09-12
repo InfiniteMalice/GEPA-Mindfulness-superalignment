@@ -160,7 +160,9 @@ references:
     repository_inference: >-
       The measured gap supports keeping repeat-sensitive consistency metrics distinct from average
       correctness in the V5 case-by-stripe-by-repeat evaluator.
-    maturity: "Resolved arXiv preprint; REC-005 is accepted but incomplete."
+    maturity: >-
+      Resolved arXiv preprint; the repository's deterministic case-by-stripe-by-repeat planner,
+      record, and summary contracts for REC-005 are implemented. No paper result is reproduced.
     local_repo_notes:
       - history/2026-09-10-gepa-v5-unified-architecture-design.md
       - evaluation/cases/robustness_stripes.yaml
@@ -293,7 +295,9 @@ references:
     repository_inference: >-
       The temporal-representation perspective inspires explicit event history and immutable
       linkages; the repository does not adopt a sheaf formalism.
-    maturity: "Resolved arXiv book chapter; REC-002 is accepted but incomplete."
+    maturity: >-
+      Resolved arXiv book chapter; the repository's action-bound event contract for REC-002 is
+      implemented. The repository does not adopt a sheaf formalism.
     local_repo_notes:
       - history/2026-09-10-gepa-v5-unified-architecture-design.md
       - src/mindful_trace_gepa/logging_schema.py
@@ -320,7 +324,9 @@ references:
     repository_inference: >-
       The result suggests retaining history for sequential decision records; the repository does
       not implement the paper's model-layer router.
-    maturity: "Resolved arXiv preprint; REC-002 is accepted but incomplete."
+    maturity: >-
+      Resolved arXiv preprint; the repository's action-bound event contract for REC-002 is
+      implemented. The repository does not implement the paper's model-layer router.
     local_repo_notes:
       - history/2026-09-10-gepa-v5-unified-architecture-design.md
       - src/mindful_trace_gepa/logging_schema.py
@@ -583,7 +589,9 @@ references:
     repository_inference: >-
       The sequence motivates committing a prediction before action so later outcomes can evaluate
       it; the repository applies that idea in a different domain.
-    maturity: "Resolved arXiv preprint; REC-002 is accepted but incomplete."
+    maturity: >-
+      Resolved arXiv preprint; the repository's action-bound event contract for REC-002 is
+      implemented. The repository does not reproduce the paper's optimization experiments.
     local_repo_notes:
       - history/2026-09-10-gepa-v5-unified-architecture-design.md
       - src/mindful_trace_gepa/logging_schema.py
@@ -615,7 +623,9 @@ references:
     repository_inference: >-
       The result motivates distinct prediction, action, observed-outcome, and verification records;
       the repository does not adopt the paper's learned world model.
-    maturity: "Resolved arXiv preprint; REC-002 is accepted but incomplete."
+    maturity: >-
+      Resolved arXiv preprint; the repository's action-bound event contract for REC-002 is
+      implemented. The repository does not adopt the paper's learned world model.
     local_repo_notes:
       - history/2026-09-10-gepa-v5-unified-architecture-design.md
       - src/mindful_trace_gepa/logging_schema.py
@@ -644,7 +654,10 @@ references:
     repository_inference: >-
       The result supports representation-perturbation stripes and separate correctness and
       consistency measurements; it does not select a universal repair method.
-    maturity: "Resolved EMNLP 2026 main-conference paper; REC-005 is accepted but incomplete."
+    maturity: >-
+      Resolved EMNLP 2026 main-conference paper; the repository's deterministic
+      case-by-stripe-by-repeat contracts for REC-005 are implemented. The paper's measurements are
+      not reproduced.
     local_repo_notes:
       - history/2026-09-10-gepa-v5-unified-architecture-design.md
       - evaluation/cases/robustness_stripes.yaml
@@ -670,7 +683,9 @@ references:
     repository_inference: >-
       The result motivates representation-robustness evaluation while leaving tokenizer-level
       remediation outside the repository's current application-layer scope.
-    maturity: "Resolved arXiv preprint; REC-005 is accepted but incomplete."
+    maturity: >-
+      Resolved arXiv preprint; the repository's deterministic case-by-stripe-by-repeat contracts
+      for REC-005 are implemented. The paper's measurements are not reproduced.
     local_repo_notes:
       - history/2026-09-10-gepa-v5-unified-architecture-design.md
       - evaluation/cases/robustness_stripes.yaml

@@ -317,6 +317,10 @@ separate generated channel, and it does not solve multilingual or adversarial Un
 High-confidence hypotheses still require semantic assessment and, where material, clarification or
 abstention.
 
+A **representation candidate** is therefore one provenance-bound alternate reading of an exact
+source span. It is evidence for later semantic assessment, not an automatic correction and not a
+claim about the user's intended meaning.
+
 ## Example semantic cluster
 
 The bundled examples are abstract and safe. They include:

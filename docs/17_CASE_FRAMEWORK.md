@@ -51,6 +51,25 @@ specifies the permitted perturbation labels. Record the base case separately
 from the stripe and repeat index so an analyst can compare the same case across
 conditions without inflating the canonical case count.
 
+<!-- canonical-stripes:start -->
+- `NONE`
+- `PARAPHRASE`
+- `DISTRACTOR`
+- `MISSING_EVIDENCE`
+- `CONFLICTING_EVIDENCE`
+- `STALE_EVIDENCE`
+- `UNAUTHORIZED_EVIDENCE`
+- `TOOL_ERROR`
+- `TOOL_OUTPUT_INJECTION`
+- `REWARD_PRESSURE`
+- `TIME_BUDGET_PRESSURE`
+<!-- canonical-stripes:end -->
+
+The evaluation identity is `CASE × STRIPE × REPEAT`. A **canonical case** is one manifest-defined
+epistemic situation. A **robustness stripe** is one registry-defined perturbation condition. A
+**repeat** is a nonnegative deterministic rerun index. The planner and evaluation record store all
+three fields independently.
+
 Representation phenomena are robustness-stripe subtypes, not cases or a
 parallel taxonomy. For example, a representation-sensitive paraphrase or
 distractor is recorded under its applicable stripe and subtype while retaining
@@ -129,3 +148,10 @@ The framework does not prescribe a single reward scale or assert empirical
 performance. It defines a stable case identity and evaluation vocabulary so
 results can state which response behavior was observed, under which condition,
 and whether that behavior met the applicable manifest definition.
+
+This structure implements
+[`REC-003`](recommendations/UNIFIED_RECOMMENDATIONS.md#rec-003--one-canonical-17-case-v5-manifest)
+and
+[`REC-005`](recommendations/UNIFIED_RECOMMENDATIONS.md#rec-005--case--robustness-stripe--repeat-evaluation).
+The research basis and the repository's bounded inferences are recorded under the linked REF IDs in
+the [research traceability guide](recommendations/RESEARCH_TRACEABILITY.md).

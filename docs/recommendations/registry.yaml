@@ -27,7 +27,7 @@ recommendations:
   - id: REC-002
     title: "Action-bound epistemic commitments."
     priority: P0
-    status: accepted
+    status: implemented
     rationale: >-
       Prediction commitments must precede actions and remain immutable so later outcomes can
       evaluate calibration without post-hoc revision.
@@ -45,9 +45,11 @@ recommendations:
     repo_refs:
       - src/mindful_trace_gepa/logging_schema.py
     acceptance_tests:
-      - tests/test_logging_schema.py
-      - tests/test_v5_records.py
-    implementation_refs: []
+      - tests/test_action_bound_logging.py
+      - tests/test_v5_provenance.py
+    implementation_refs:
+      - src/mindful_trace_gepa/logging_schema.py
+      - evaluation/v5_records.py
 
   - id: REC-003
     title: "One canonical 17-case V5 manifest."
@@ -99,7 +101,7 @@ recommendations:
   - id: REC-005
     title: "Case × robustness stripe × repeat evaluation."
     priority: P0
-    status: accepted
+    status: implemented
     rationale: >-
       V5 evaluation must keep canonical cases separate from perturbation stripes and repeated
       runs so correctness and consistency can be measured independently.
@@ -118,9 +120,12 @@ recommendations:
       - evaluation/cases/robustness_stripes.yaml
       - evaluation/cases/registry.py
     acceptance_tests:
-      - tests/test_v5_runner.py
-      - tests/test_v5_records.py
-    implementation_refs: []
+      - tests/test_v5_cell_planner.py
+      - tests/test_v5_evaluation_record.py
+      - tests/test_v5_repeat_metrics.py
+    implementation_refs:
+      - evaluation/v5_runner.py
+      - evaluation/v5_records.py
 
   - id: REC-006
     title: "World/artifact state != evidence/belief state."

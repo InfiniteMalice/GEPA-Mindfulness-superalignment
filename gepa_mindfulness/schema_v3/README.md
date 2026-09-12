@@ -1,16 +1,15 @@
-# 13-Case Schema V3: Control + Compositional Reasoning Overlay
+# Schema V3: Control + Compositional Reasoning Overlay
 
-V3 is an additive overlay on the existing 13+0 abstention, hallucination, and
-thought-trace reward schema. It does **not** replace the cases, change their
-identities, introduce negative hidden-thought penalties, add deception penalties
-to the main training path, or collapse reward into one monolithic scalar.
-The broader 17-case framework appends cases 14-17 for high-stakes ambiguity
-handling while preserving the original 13 cases and this V3 reward identity.
+V3 is an additive diagnostic overlay on the canonical 17-case framework. It does **not** replace
+the cases, change their identities, introduce negative hidden-thought penalties, add deception
+penalties to the main training path, or collapse reward into one monolithic scalar. Its legacy
+compatibility fields preserve the answer and IDK behavior represented by Cases 1 through 13; the
+canonical V5 manifest also defines ambiguity Cases 14 through 17.
 
 ## V1 / V2 / V3 relationship
 
-- **V1**: behavioral case identity: answer versus IDK, correctness, confidence,
-  and thought alignment.
+- **V1 compatibility**: answer versus IDK behavior, correctness, confidence, and diagnostic
+  thought alignment for Cases 1 through 13.
 - **V2**: factuality/observability overlay: O0-O5 verification tier,
   provenance, evidence, trace packages, routing, repair, and certification.
 - **V3**: public control and compositional-reasoning overlay: reasoning units,
@@ -90,7 +89,7 @@ tracing, attribution graphs, semantic intent robustness, and factuality
 certification because it preserves the base case identity and adds only public,
 structured metadata.
 
-For the appended ambiguity cases, see
+For the canonical ambiguity cases, see
 [`docs/17_CASE_FRAMEWORK.md`](../../docs/17_CASE_FRAMEWORK.md). They distinguish
 IDK abstention from high-stakes ambiguity abstention, use assumptive proceed for
 low-stakes ambiguity, and score clarify-then-resume behavior across turns.

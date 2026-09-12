@@ -49,6 +49,8 @@ change numeric knowledge, calibration, abstention, or verified-process reward.
 
 For reward formulas, eligibility, component limits, and verification commands, see
 [`docs/epistemic_process_rewards.md`](../../docs/epistemic_process_rewards.md).
+The repository recommendation and acceptance-evidence chain is
+[`REC-001`](../../docs/recommendations/UNIFIED_RECOMMENDATIONS.md#rec-001--verified-epistemic-process-reward-rule).
 
 ## Repository workflows
 

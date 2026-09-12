@@ -15,6 +15,12 @@ a design choice, but do not establish this architecture as an empirical result.
 - Acceptance tests: [`test_epistemic_process_rewards.py`](../../tests/test_epistemic_process_rewards.py), [`test_reward_integrity_rewards.py`](../../tests/test_reward_integrity_rewards.py).
 - Research: [`REF-HEART`](RESEARCH_TRACEABILITY.md#ref-heart).
 
+#### REC-002 — Action-bound epistemic commitments.
+
+- Repository evidence: [`logging_schema.py`](../../src/mindful_trace_gepa/logging_schema.py), [`v5_records.py`](../../evaluation/v5_records.py).
+- Acceptance tests: [`test_action_bound_logging.py`](../../tests/test_action_bound_logging.py), [`test_v5_provenance.py`](../../tests/test_v5_provenance.py).
+- Research: [`REF-WMLLM`](RESEARCH_TRACEABILITY.md#ref-wmllm), [`REF-DWM`](RESEARCH_TRACEABILITY.md#ref-dwm), [`REF-SHEAVES`](RESEARCH_TRACEABILITY.md#ref-sheaves), [`REF-HERO`](RESEARCH_TRACEABILITY.md#ref-hero).
+
 #### REC-003 — One canonical 17-case V5 manifest.
 
 - Repository evidence: [`17_case_manifest.yaml`](../../evaluation/cases/17_case_manifest.yaml), [`registry.py`](../../evaluation/cases/registry.py).
@@ -27,18 +33,11 @@ a design choice, but do not establish this architecture as an empirical result.
 - Acceptance tests: [`test_recommendation_registry.py`](../../tests/test_recommendation_registry.py), [`test_recommendation_documentation_consistency.py`](../../tests/test_recommendation_documentation_consistency.py).
 - Research: No Task 5 reference is assigned.
 
-### P0 — Accepted
-
-#### REC-002 — Action-bound epistemic commitments.
-
-- Repository evidence: [`logging_schema.py`](../../src/mindful_trace_gepa/logging_schema.py).
-- Planned acceptance checks: `tests/test_logging_schema.py`, `tests/test_v5_records.py`.
-- Research: [`REF-WMLLM`](RESEARCH_TRACEABILITY.md#ref-wmllm), [`REF-DWM`](RESEARCH_TRACEABILITY.md#ref-dwm), [`REF-SHEAVES`](RESEARCH_TRACEABILITY.md#ref-sheaves), [`REF-HERO`](RESEARCH_TRACEABILITY.md#ref-hero).
-
 #### REC-005 — Case × robustness stripe × repeat evaluation.
 
-- Repository evidence: [`robustness_stripes.yaml`](../../evaluation/cases/robustness_stripes.yaml), [`registry.py`](../../evaluation/cases/registry.py).
-- Planned acceptance checks: `tests/test_v5_runner.py`, `tests/test_v5_records.py`.
+- Repository evidence: [`v5_runner.py`](../../evaluation/v5_runner.py), [`v5_records.py`](../../evaluation/v5_records.py).
+- Canonical inputs: [`robustness_stripes.yaml`](../../evaluation/cases/robustness_stripes.yaml), [`registry.py`](../../evaluation/cases/registry.py).
+- Acceptance tests: [`test_v5_cell_planner.py`](../../tests/test_v5_cell_planner.py), [`test_v5_evaluation_record.py`](../../tests/test_v5_evaluation_record.py), [`test_v5_repeat_metrics.py`](../../tests/test_v5_repeat_metrics.py).
 - Research: [`REF-CONSISTENCY`](RESEARCH_TRACEABILITY.md#ref-consistency), [`REF-LEXICAL-PERTURB`](RESEARCH_TRACEABILITY.md#ref-lexical-perturb), [`REF-TOKENIZER-BETRAYAL`](RESEARCH_TRACEABILITY.md#ref-tokenizer-betrayal).
 
 ## P1

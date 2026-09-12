@@ -121,7 +121,9 @@ all five repeated runs, plus an episodic-memory intervention evaluated on AppWor
 **Repository inference:** The measured gap supports keeping repeat-sensitive consistency metrics
 distinct from average correctness in the V5 case-by-stripe-by-repeat evaluator.
 
-**Maturity:** Resolved arXiv preprint; REC-005 is accepted but incomplete.
+**Maturity:** Resolved arXiv preprint; the repository's deterministic
+case-by-stripe-by-repeat planner, record, and summary contracts for REC-005 are implemented. No
+paper result is reproduced.
 
 <a id="ref-dsr"></a>
 
@@ -212,7 +214,8 @@ discusses information loss across temporal representations and switching multi-a
 **Repository inference:** The temporal-representation perspective inspires explicit event history
 and immutable linkages; the repository does not adopt a sheaf formalism.
 
-**Maturity:** Resolved arXiv book chapter; REC-002 is accepted but incomplete.
+**Maturity:** Resolved arXiv book chapter; the repository's action-bound event contract for
+REC-002 is implemented. The repository does not adopt a sheaf formalism.
 
 <a id="ref-hero"></a>
 
@@ -234,7 +237,8 @@ choices on accumulated routing history and measures performance under reduced pa
 **Repository inference:** The result suggests retaining history for sequential decision records;
 the repository does not implement the paper's model-layer router.
 
-**Maturity:** Resolved arXiv preprint; REC-002 is accepted but incomplete.
+**Maturity:** Resolved arXiv preprint; the repository's action-bound event contract for REC-002 is
+implemented. The repository does not implement the paper's model-layer router.
 
 <a id="ref-sae"></a>
 
@@ -419,7 +423,8 @@ directions before costly evaluation in black-box optimization experiments.
 **Repository inference:** The sequence motivates committing a prediction before action so later
 outcomes can evaluate it; the repository applies that idea in a different domain.
 
-**Maturity:** Resolved arXiv preprint; REC-002 is accepted but incomplete.
+**Maturity:** Resolved arXiv preprint; the repository's action-bound event contract for REC-002 is
+implemented. The repository does not reproduce the paper's optimization experiments.
 
 <a id="ref-dwm"></a>
 
@@ -441,7 +446,8 @@ of alternative web actions and evaluates its effect on action ranking and end-to
 **Repository inference:** The result motivates distinct prediction, action, observed-outcome, and
 verification records; the repository does not adopt the paper's learned world model.
 
-**Maturity:** Resolved arXiv preprint; REC-002 is accepted but incomplete.
+**Maturity:** Resolved arXiv preprint; the repository's action-bound event contract for REC-002 is
+implemented. The repository does not adopt the paper's learned world model.
 
 <a id="ref-lexical-perturb"></a>
 
@@ -464,7 +470,9 @@ the tested models.
 **Repository inference:** The result supports representation-perturbation stripes and separate
 correctness and consistency measurements; it does not select a universal repair method.
 
-**Maturity:** Resolved EMNLP 2026 main-conference paper; REC-005 is accepted but incomplete.
+**Maturity:** Resolved EMNLP 2026 main-conference paper; the repository's deterministic
+case-by-stripe-by-repeat contracts for REC-005 are implemented. The paper's measurements are not
+reproduced.
 
 <a id="ref-tokenizer-betrayal"></a>
 
@@ -486,4 +494,6 @@ encodings of identical surface strings and categorizes tokenizer-induced phantom
 **Repository inference:** The result motivates representation-robustness evaluation while leaving
 tokenizer-level remediation outside the repository's current application-layer scope.
 
-**Maturity:** Resolved arXiv preprint; REC-005 is accepted but incomplete.
+**Maturity:** Resolved arXiv preprint; the repository's deterministic
+case-by-stripe-by-repeat contracts for REC-005 are implemented. The paper's measurements are not
+reproduced.

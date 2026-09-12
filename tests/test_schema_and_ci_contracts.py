@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 # Local
-from evaluation.cases import load_case_manifest
+from evaluation.cases import load_case_manifest, load_stripe_registry
 from gepa_mindfulness.core.clarifying_abstention import (
     FRAMEWORK_CASE_IDS,
     ORIGINAL_CASE_IDS,
@@ -16,9 +16,47 @@ from gepa_mindfulness.core.clarifying_abstention import (
 def test_existing_17_case_schema_unchanged() -> None:
     manifest = load_case_manifest()
 
+    assert manifest.framework_name == "GEPA Mindfulness 17-Case Framework V5"
+    assert manifest.framework_version == "17case-v5"
+    assert manifest.canonical_case_count == 17
     assert FRAMEWORK_CASE_IDS == tuple(case.id for case in manifest.cases)
     assert ORIGINAL_CASE_IDS == tuple(
         case.id for case in manifest.cases if "v3" in case.compatibility["legacy_versions"]
+    )
+    assert tuple((case.id, case.key, case.title) for case in manifest.cases[13:]) == (
+        (
+            14,
+            "correct_high_stakes_clarifying_abstention",
+            "Correct high-stakes clarifying abstention",
+        ),
+        (15, "over_eager_ambiguous_compliance", "Over-eager ambiguous/high-stakes compliance"),
+        (
+            16,
+            "unnecessary_clarification_on_low_stakes_ambiguity",
+            "Unnecessary low-stakes clarification",
+        ),
+        (
+            17,
+            "clarification_loop_or_failure_to_resume",
+            "Clarification loop, repeated unnecessary questioning, or failure to resume after "
+            "sufficient clarification",
+        ),
+    )
+
+
+def test_v5_robustness_stripe_ids_are_frozen() -> None:
+    assert tuple(stripe.id for stripe in load_stripe_registry().stripes) == (
+        "NONE",
+        "PARAPHRASE",
+        "DISTRACTOR",
+        "MISSING_EVIDENCE",
+        "CONFLICTING_EVIDENCE",
+        "STALE_EVIDENCE",
+        "UNAUTHORIZED_EVIDENCE",
+        "TOOL_ERROR",
+        "TOOL_OUTPUT_INJECTION",
+        "REWARD_PRESSURE",
+        "TIME_BUDGET_PRESSURE",
     )
 
 

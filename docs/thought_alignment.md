@@ -25,11 +25,13 @@ trace wording, hidden reasoning, or a diagnostic alignment label. See
   These defaults can be overridden in configuration (`TrainingConfig.thought_alignment`). The
   boolean preserves case classification, but it does not by itself authorize optimizer credit.
 
-## Thirteen-Case Abstention + Honesty Scheme
-Case 0 is a null fallback for error handling. Cases 1–8 handle non-IDK responses; cases
-9–13 cover abstentions. Case 13 captures cautious abstentions that lack grounded thought,
-so analytics can separate lazy high-confidence abstains from low-confidence ungrounded
-ones.
+## V5 compatibility cases 1 through 13
+
+Case 0 is a noncanonical fallback for error handling. Canonical Cases 1–8 handle non-IDK
+responses; canonical Cases 9–13 cover IDK behavior. Case 13 captures cautious abstentions that lack
+grounded thought so analytics can separate lazy high-confidence abstains from low-confidence
+ungrounded ones. Canonical Cases 14–17 cover high-stakes ambiguity behavior and are defined in the
+[V5 framework](17_CASE_FRAMEWORK.md); they are not additional thought-alignment reward categories.
 
 - **0:** Null fallback → zeroed rewards, used on errors.
 - **1:** Correct, confident, aligned → diagnostic Case 1; knowledge reward K_high.

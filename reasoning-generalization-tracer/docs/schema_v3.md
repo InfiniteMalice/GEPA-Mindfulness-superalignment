@@ -1,8 +1,8 @@
-# 13-Case Schema V3 for RG-Tracer
+# Schema V3 for RG-Tracer
 
-13-Case Schema V3 is a **Control + Compositional Reasoning Overlay** for the
-existing 13+0 abstention, hallucination, and thought-trace reward schema. It
-uses `docs/epistemic_alignment.md` as the V1/V2 reward foundation.
+Schema V3 is a **Control + Compositional Reasoning Overlay** for the compatibility answer and IDK
+behavior represented by canonical Cases 1–13. It uses `docs/epistemic_alignment.md` as the legacy
+V1/V2 reward foundation; the repository-level V5 manifest defines all 17 canonical cases.
 
 V3 does not replace the 13 cases. It does not change case identities, does not
 introduce negative hidden-thought penalties, and does not add deception penalties

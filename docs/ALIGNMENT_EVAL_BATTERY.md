@@ -70,6 +70,11 @@ python -m evaluation.run_v5_framework --dry-run --model-version mindful-model-20
 The V5 planner JSONL schema is separate from the legacy alignment battery result schema described
 below. Do not use V5 planned-cell records as legacy benchmark results.
 
+The planner implements the `CASE × STRIPE × REPEAT` structure in
+[`REC-005`](recommendations/UNIFIED_RECOMMENDATIONS.md#rec-005--case--robustness-stripe--repeat-evaluation).
+Research sources and the repository's limited inferences are recorded under the recommendation's
+REF links in the [research traceability guide](recommendations/RESEARCH_TRACEABILITY.md).
+
 V5 plans are capped at 10,000 total cells, calculated as selected cases times selected stripes
 times repeats. The planner rejects a larger request before deriving seeds or opening an output file.
 The CLI emits one newline-terminated JSON object at a time and, for file output, atomically replaces
