@@ -61,18 +61,55 @@ class ValidationSplit(str, Enum):
 
 
 @dataclass(frozen=True, slots=True)
+class EvaluationAuthority:
+    """Canonical locator and identity for one durable evaluation authority catalog."""
+
+    catalog_path: str
+    catalog_id: str
+    authority_domain: str
+
+    def __post_init__(self) -> None:
+        _require_epoch_token(self.catalog_path, "catalog_path")
+        canonical = _canonical_catalog_path(self.catalog_path)
+        if canonical != self.catalog_path:
+            raise ValueError("catalog_path must be canonical")
+        _require_epoch_token(self.catalog_id, "catalog_id")
+        _require_epoch_token(self.authority_domain, "authority_domain")
+
+
+@dataclass(frozen=True, slots=True)
+class ValidationTarget:
+    """Exact skill artifact target evaluated by a validation receipt."""
+
+    artifact_id: str
+    skill_id: str
+    version: str
+    artifact_digest: str
+
+    def __post_init__(self) -> None:
+        _require_epoch_token(self.artifact_id, "artifact_id")
+        _require_epoch_token(self.skill_id, "skill_id")
+        _require_epoch_token(self.version, "version")
+        _require_sha256(self.artifact_digest, "artifact_digest")
+
+
+@dataclass(frozen=True, slots=True)
 class ValidationReceipt:
     """A durable evaluation-store attestation over passing canonical V5 records."""
 
     receipt_id: str
     catalog_id: str
+    catalog_path: str
     authority_domain: str
     lineage_id: str
     epoch_id: str
     epoch_revision: int
-    candidate_version: str
     split: ValidationSplit
     record_ids: tuple[str, ...]
+    target_artifact_id: str
+    target_skill_id: str
+    target_version: str
+    target_digest: str
     _construction_binding: tuple[object, ...] = field(
         init=False,
         repr=False,
@@ -83,12 +120,18 @@ class ValidationReceipt:
         for field_name in (
             "receipt_id",
             "catalog_id",
-            "authority_domain",
             "lineage_id",
             "epoch_id",
-            "candidate_version",
+            "target_artifact_id",
+            "target_skill_id",
+            "target_version",
         ):
             _require_epoch_token(getattr(self, field_name), field_name)
+        _require_epoch_token(self.catalog_path, "catalog_path")
+        if _canonical_catalog_path(self.catalog_path) != self.catalog_path:
+            raise ValueError("catalog_path must be canonical")
+        _require_epoch_token(self.authority_domain, "authority_domain")
+        _require_sha256(self.target_digest, "target_digest")
         _require_nonnegative_integer(self.epoch_revision, "epoch_revision")
         if type(self.split) is not ValidationSplit:
             raise ValueError("split must be an exact non-training ValidationSplit")
@@ -107,13 +150,17 @@ class ValidationReceipt:
         return {
             "receipt_id": self.receipt_id,
             "catalog_id": self.catalog_id,
+            "catalog_path": self.catalog_path,
             "authority_domain": self.authority_domain,
             "lineage_id": self.lineage_id,
             "epoch_id": self.epoch_id,
             "epoch_revision": self.epoch_revision,
-            "candidate_version": self.candidate_version,
             "split": self.split.value,
             "record_ids": list(self.record_ids),
+            "target_artifact_id": self.target_artifact_id,
+            "target_skill_id": self.target_skill_id,
+            "target_version": self.target_version,
+            "target_digest": self.target_digest,
         }
 
     @classmethod
@@ -125,13 +172,17 @@ class ValidationReceipt:
             {
                 "receipt_id",
                 "catalog_id",
+                "catalog_path",
                 "authority_domain",
                 "lineage_id",
                 "epoch_id",
                 "epoch_revision",
-                "candidate_version",
                 "split",
                 "record_ids",
+                "target_artifact_id",
+                "target_skill_id",
+                "target_version",
+                "target_digest",
             },
             "ValidationReceipt",
         )
@@ -141,13 +192,17 @@ class ValidationReceipt:
         return cls(
             cast(str, values["receipt_id"]),
             cast(str, values["catalog_id"]),
+            cast(str, values["catalog_path"]),
             cast(str, values["authority_domain"]),
             cast(str, values["lineage_id"]),
             cast(str, values["epoch_id"]),
             cast(int, values["epoch_revision"]),
-            cast(str, values["candidate_version"]),
             _parse_exact_enum(values["split"], ValidationSplit, "split"),
             tuple(cast(str, item) for item in cast(list[object], raw_ids)),
+            cast(str, values["target_artifact_id"]),
+            cast(str, values["target_skill_id"]),
+            cast(str, values["target_version"]),
+            cast(str, values["target_digest"]),
         )
 
 
@@ -237,8 +292,8 @@ class EvaluationEpochStore:
     """Injected durable authority catalog for evaluation lineages.
 
     SQLite transactions serialize root creation and transitions across processes. The authority
-    domain scopes epoch and changed-version nonreuse. The operator remains responsible for file
-    permissions, backups, and protecting the database from direct tampering.
+    domain scopes epoch and changed-version nonreuse. Catalog authority assumes the runtime owner
+    controls the canonical database path and protects it from replacement or direct tampering.
     """
 
     __slots__ = ("_authority_domain", "_binding", "_database_path")
@@ -247,7 +302,7 @@ class EvaluationEpochStore:
     _database_path: str
 
     def __init__(self, database_path: str | os.PathLike[str], authority_domain: str) -> None:
-        path = os.path.abspath(os.fspath(database_path))
+        path = _canonical_catalog_path(database_path)
         domain = _require_epoch_token(authority_domain, "authority_domain")
         if not os.path.isdir(os.path.dirname(path)):
             raise ValueError("evaluation epoch store parent directory must already exist")
@@ -256,6 +311,13 @@ class EvaluationEpochStore:
         object.__setattr__(self, "_binding", (path, domain))
         with _open_epoch_database(path) as connection:
             _initialize_epoch_database(connection)
+
+    def authority(self) -> EvaluationAuthority:
+        """Return the exact durable catalog identity that callers may pin as trusted."""
+
+        path, domain = _validated_epoch_store(self)
+        with _open_epoch_database(path) as connection:
+            return EvaluationAuthority(path, _catalog_id(connection), domain)
 
     def create_root(
         self,
@@ -315,7 +377,7 @@ class EvaluationEpochStore:
         history: EvaluationEpochHistory,
         *,
         epoch_id: str,
-        candidate_version: str,
+        target: ValidationTarget,
         split: ValidationSplit,
         records: tuple[V5EvaluationRecord, ...],
     ) -> ValidationReceipt:
@@ -324,7 +386,7 @@ class EvaluationEpochStore:
         path, domain = _validated_epoch_store(self)
         if type(split) is not ValidationSplit:
             raise ValueError("split must be an exact non-training ValidationSplit")
-        candidate = _require_epoch_token(candidate_version, "candidate_version")
+        checked_target = _snapshot_validation_target(target)
         identifier = _require_epoch_token(epoch_id, "epoch_id")
         if type(records) is not tuple or not records:
             raise ValueError("records must be a nonempty exact tuple")
@@ -341,10 +403,14 @@ class EvaluationEpochStore:
                 epoch = epochs[0]
                 if not epoch.closed:
                     raise ValueError("validation receipt requires a closed evaluation epoch")
+                if epoch.harness_version != checked_target.version:
+                    raise ValueError("evaluation epoch harness must match the target version")
                 record_ids: list[str] = []
                 for record in records:
                     snapshot = _snapshot_evaluation_record(record)
                     validate_epoch_record(epoch, snapshot)
+                    if snapshot.system.harness_version != checked_target.version:
+                        raise ValueError("evaluation records must match the target version")
                     if snapshot.outcome.passed is not True:
                         raise ValueError("validation receipt requires every outcome to pass")
                     record_ids.append(_evaluation_record_id_from_snapshot(snapshot))
@@ -353,13 +419,17 @@ class EvaluationEpochStore:
                 receipt = ValidationReceipt(
                     str(uuid4()),
                     _catalog_id(connection),
+                    path,
                     domain,
                     handle_state.lineage_id,
                     epoch.epoch_id,
                     handle_state.revision,
-                    candidate,
                     split,
                     tuple(record_ids),
+                    checked_target.artifact_id,
+                    checked_target.skill_id,
+                    checked_target.version,
+                    checked_target.artifact_digest,
                 )
                 payload = json.dumps(receipt.to_dict(), separators=(",", ":"), sort_keys=True)
                 connection.execute(
@@ -382,6 +452,8 @@ class EvaluationEpochStore:
         with _open_epoch_database(path) as connection:
             if snapshot.catalog_id != _catalog_id(connection):
                 raise ValueError("validation receipt belongs to a different catalog")
+            if snapshot.catalog_path != path:
+                raise ValueError("validation receipt belongs to a different catalog path")
             if snapshot.authority_domain != domain:
                 raise ValueError("validation receipt belongs to a different authority domain")
             row = connection.execute(
@@ -410,6 +482,15 @@ class EvaluationEpochStore:
                 raise ValueError("validation receipt epoch is not closed and authoritative")
             if not set(snapshot.record_ids).issubset(epoch.record_ids):
                 raise ValueError("validation receipt records are absent from its epoch")
+            if epoch.harness_version != snapshot.target_version:
+                raise ValueError("validation receipt target version differs from its epoch")
+            records = dict(entry.records)
+            for record_id in snapshot.record_ids:
+                record = records.get(record_id)
+                if record is None or record.system.harness_version != snapshot.target_version:
+                    raise ValueError("validation receipt target differs from a canonical record")
+                if record.outcome.passed is not True:
+                    raise ValueError("validation receipt contains a non-passing canonical record")
         return ValidationReceipt.from_dict(snapshot.to_dict())
 
 
@@ -928,13 +1009,17 @@ def _validate_receipt_fields(value: ValidationReceipt) -> None:
     ValidationReceipt(
         value.receipt_id,
         value.catalog_id,
+        value.catalog_path,
         value.authority_domain,
         value.lineage_id,
         value.epoch_id,
         value.epoch_revision,
-        value.candidate_version,
         value.split,
         value.record_ids,
+        value.target_artifact_id,
+        value.target_skill_id,
+        value.target_version,
+        value.target_digest,
     )
 
 
@@ -942,13 +1027,17 @@ def _validation_receipt_binding(value: ValidationReceipt) -> tuple[object, ...]:
     return (
         value.receipt_id,
         value.catalog_id,
+        value.catalog_path,
         value.authority_domain,
         value.lineage_id,
         value.epoch_id,
         value.epoch_revision,
-        value.candidate_version,
         value.split.value if type(value.split) is ValidationSplit else value.split,
         value.record_ids,
+        value.target_artifact_id,
+        value.target_skill_id,
+        value.target_version,
+        value.target_digest,
     )
 
 
@@ -958,6 +1047,18 @@ def _snapshot_validation_receipt(value: object) -> ValidationReceipt:
     checked = cast(ValidationReceipt, value)
     _validate_receipt_fields(checked)
     return ValidationReceipt.from_dict(checked.to_dict())
+
+
+def _snapshot_validation_target(value: object) -> ValidationTarget:
+    if type(value) is not ValidationTarget:
+        raise ValueError("target must be an exact ValidationTarget")
+    checked = cast(ValidationTarget, value)
+    return ValidationTarget(
+        checked.artifact_id,
+        checked.skill_id,
+        checked.version,
+        checked.artifact_digest,
+    )
 
 
 def _validated_epoch_store(store: object) -> tuple[str, str]:
@@ -970,6 +1071,12 @@ def _validated_epoch_store(store: object) -> tuple[str, str]:
     ):
         raise ValueError("EvaluationEpochStore binding changed after construction")
     return checked_store._database_path, checked_store._authority_domain
+
+
+def _canonical_catalog_path(value: str | os.PathLike[str]) -> str:
+    if type(value) is not str and not isinstance(value, os.PathLike):
+        raise ValueError("catalog path must be an exact string or path-like value")
+    return os.path.normcase(os.path.realpath(os.path.abspath(os.fspath(value))))
 
 
 def _new_history_handle(
@@ -1046,7 +1153,7 @@ def _deserialize_history_entry(payload: object) -> _EpochHistoryEntry:
         records.append(
             (
                 cast(str, record_values["record_id"]),
-                V5EvaluationRecord.from_dict(record_values["record"]),
+                V5EvaluationRecord.from_dict(cast(Mapping[str, object], record_values["record"])),
             )
         )
     return _validated_history_entry(_EpochHistoryEntry(lineage, parents, tuple(records)))
@@ -1414,6 +1521,7 @@ def _require_exact_mapping(
 
 
 __all__ = [
+    "EvaluationAuthority",
     "EvaluationEpoch",
     "EvaluationEpochHistory",
     "EvaluationEpochStore",
@@ -1424,6 +1532,7 @@ __all__ = [
     "LessonReviewStatus",
     "ValidationReceipt",
     "ValidationSplit",
+    "ValidationTarget",
     "append_epoch_record",
     "begin_candidate_epoch",
     "classify_learning_surface",

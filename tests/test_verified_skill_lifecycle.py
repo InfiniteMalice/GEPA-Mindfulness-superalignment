@@ -23,6 +23,7 @@ from gepa_mindfulness import (
     ConsolidationProvenance,
     EvaluationEpochStore,
     ExecutionEvidenceBundle,
+    FamilySeedProvenance,
     InstantiationProvenance,
     PruningProvenance,
     RefinementProvenance,
@@ -30,8 +31,10 @@ from gepa_mindfulness import (
     SkillLifecycleState,
     SkillLifecycleStore,
     ValidationSplit,
+    ValidationTarget,
     append_epoch_record,
     close_evaluation_epoch,
+    skill_artifact_digest,
     transition_skill,
 )
 from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
@@ -59,11 +62,18 @@ def _ref(identifier: str = "evidence:observed") -> EvidenceReference:
     return EvidenceReference(identifier, EvidenceSourceKind.OBSERVABLE_OUTPUT)
 
 
-def _binding(name: str) -> VerificationEvidenceBinding:
-    return VerificationEvidenceBinding(name, (_ref(),))
+def _binding(
+    name: str,
+    identifier: str = "evidence:observed",
+) -> VerificationEvidenceBinding:
+    return VerificationEvidenceBinding(name, (_ref(identifier),))
 
 
-def _bundle(*, reversible: bool = False) -> ExecutionEvidenceBundle:
+def _bundle(
+    *,
+    reversible: bool = False,
+    finding_evidence: str = "evidence:observed",
+) -> ExecutionEvidenceBundle:
     common = {
         "run_id": "run-1",
         "model_version": "model-v1",
@@ -103,9 +113,9 @@ def _bundle(*, reversible: bool = False) -> ExecutionEvidenceBundle:
         True,
         True,
         True,
-        (_ref(),),
+        (_ref(finding_evidence),),
         tuple(
-            _binding(name)
+            _binding(name, finding_evidence)
             for name in (
                 "executed",
                 "arguments_valid",
@@ -125,9 +135,9 @@ def _bundle(*, reversible: bool = False) -> ExecutionEvidenceBundle:
         True,
         True,
         False,
-        (_ref(),),
+        (_ref(finding_evidence),),
         tuple(
-            _binding(name)
+            _binding(name, finding_evidence)
             for name in (
                 "task_fit",
                 "dependencies_satisfied",
@@ -173,7 +183,12 @@ def _bundle(*, reversible: bool = False) -> ExecutionEvidenceBundle:
     )
 
 
-def _record(*, passed: bool = True) -> V5EvaluationRecord:
+def _record(
+    *,
+    passed: bool = True,
+    model_version: str = "model-v1",
+    harness_version: str = "v2",
+) -> V5EvaluationRecord:
     return V5EvaluationRecord(
         CaseIdentity(
             14,
@@ -182,7 +197,7 @@ def _record(*, passed: bool = True) -> V5EvaluationRecord:
             "Correct high-stakes clarifying abstention",
         ),
         RobustnessIdentity("TOOL_ERROR", None),
-        SystemIdentity(0, 42, "model-v1", "harness-v1"),
+        SystemIdentity(0, 42, model_version, harness_version),
         EpistemicRecord("prediction-1", ("evidence:observed",), ("verifier:v1",), 0.8),
         BehaviorRecord(("action-event-1",), False, False),
         OutcomeRecord(("outcome-event-1",), ("verification-relational-1",), passed),
@@ -191,17 +206,46 @@ def _record(*, passed: bool = True) -> V5EvaluationRecord:
     )
 
 
-def _store(tmp_path: Path) -> SkillLifecycleStore:
-    return SkillLifecycleStore(tmp_path / "skills.sqlite", "skill-authority")
+def _evaluation_store(
+    tmp_path: Path,
+    *,
+    filename: str = "epochs.sqlite",
+    authority_domain: str = "evaluation-authority",
+) -> EvaluationEpochStore:
+    return EvaluationEpochStore(tmp_path / filename, authority_domain)
+
+
+def _store(
+    tmp_path: Path,
+    *,
+    evaluation_store: EvaluationEpochStore | None = None,
+    allowed_lineages: tuple[str, ...] = ("held-out",),
+) -> SkillLifecycleStore:
+    trusted = evaluation_store or _evaluation_store(tmp_path)
+    return SkillLifecycleStore(
+        tmp_path / "skills.sqlite",
+        "skill-authority",
+        evaluation_store=trusted,
+        allowed_evaluation_lineages=allowed_lineages,
+    )
 
 
 def _task_local(store: SkillLifecycleStore, skill_id: str) -> SkillArtifact:
     history = store.create_source(skill_id, "v1", (_ref(f"evidence:{skill_id}"),))
-    verified = transition_skill(history, SkillLifecycleState.VERIFIED_SKILL)
+    transition_skill(history, SkillLifecycleState.VERIFIED_SKILL)
+    family = transition_skill(
+        history,
+        SkillLifecycleState.PROCEDURAL_FAMILY,
+        provenance=FamilySeedProvenance(
+            history.current().artifact_id,
+            "seed from verified evidence",
+            (_ref(f"evidence:{skill_id}"),),
+        ),
+    )
     return transition_skill(
         history,
         SkillLifecycleState.TASK_LOCAL,
-        provenance=InstantiationProvenance(verified.artifact_id, f"task:{skill_id}"),
+        provenance=InstantiationProvenance(family.artifact_id, f"task:{skill_id}"),
     )
 
 
@@ -223,22 +267,36 @@ def _main_history(tmp_path: Path) -> tuple[SkillLifecycleStore, Any, SkillArtifa
     return store, history, local
 
 
-def _validation_receipt(tmp_path: Path, candidate_version: str) -> tuple[Any, Any]:
-    store = EvaluationEpochStore(tmp_path / "epochs.sqlite", "evaluation-authority")
+def _validation_receipt(
+    tmp_path: Path,
+    target: SkillArtifact,
+    *,
+    split: ValidationSplit = ValidationSplit.HELD_OUT,
+    lineage_id: str = "held-out",
+    target_version: str | None = None,
+) -> tuple[Any, Any]:
+    store = _evaluation_store(tmp_path)
+    evaluated_version = target.version if target_version is None else target_version
+    model_version = f"model:{lineage_id}"
     history = store.create_root(
-        lineage_id="held-out",
-        epoch_id="epoch-1",
-        model_version="model-v1",
-        harness_version="harness-v1",
+        lineage_id=lineage_id,
+        epoch_id=f"epoch:{lineage_id}",
+        model_version=model_version,
+        harness_version=evaluated_version,
     )
-    record = _record()
+    record = _record(model_version=model_version, harness_version=evaluated_version)
     append_epoch_record(history, record)
     close_evaluation_epoch(history)
     receipt = store.issue_validation_receipt(
         history,
-        epoch_id="epoch-1",
-        candidate_version=candidate_version,
-        split=ValidationSplit.HELD_OUT,
+        epoch_id=f"epoch:{lineage_id}",
+        target=ValidationTarget(
+            target.artifact_id,
+            target.skill_id,
+            evaluated_version,
+            skill_artifact_digest(target),
+        ),
+        split=split,
         records=(record,),
     )
     return store, receipt
@@ -259,11 +317,10 @@ def test_full_lifecycle_persists_structured_receipts_and_reopens(tmp_path: Path)
         supersedes="v1",
         provenance=RefinementProvenance("generalize verified behavior", (_ref(),)),
     )
-    validation_store, receipt = _validation_receipt(tmp_path, "v2")
+    _validation_store, receipt = _validation_receipt(tmp_path, refined)
     validated = transition_skill(
         history,
         SkillLifecycleState.HELD_OUT_VALIDATED,
-        validation_store=validation_store,
         validation_receipt=receipt,
     )
     committed = transition_skill(
@@ -274,10 +331,22 @@ def test_full_lifecycle_persists_structured_receipts_and_reopens(tmp_path: Path)
     reopened = SkillLifecycleStore(
         tmp_path / "skills.sqlite",
         "skill-authority",
+        evaluation_store=_evaluation_store(tmp_path),
+        allowed_evaluation_lineages=("held-out",),
     ).open("skill-1")
     assert reopened.current() == committed
     assert executed.execution_receipt is not None
+    assert tuple(
+        item.finding_key for item in executed.execution_receipt.required_finding_evidence
+    ) == (
+        "local_execution:executed",
+        "local_execution:intended_operation_observed",
+        "relational_evidence:claimed_outcome_supported",
+        "relational_evidence:provenance_intact",
+    )
     assert validated.validation_receipt == receipt
+    assert receipt.target_artifact_id == refined.artifact_id
+    assert receipt.target_digest == skill_artifact_digest(refined)
     assert refined.supersedes == "v1"
 
 
@@ -335,23 +404,23 @@ def test_bundle_rejects_reversed_time_and_artifact_mismatch() -> None:
         )
 
 
-def test_validation_receipts_reject_failed_open_cross_catalog_and_wrong_candidate(
+def test_validation_receipts_reject_failed_open_and_old_records_relabelled_as_candidate(
     tmp_path: Path,
 ) -> None:
-    failed = _record(passed=False)
+    failed = _record(passed=False, harness_version="v2")
     store = EvaluationEpochStore(tmp_path / "failed.sqlite", "eval")
     epoch = store.create_root(
         lineage_id="lineage",
         epoch_id="epoch",
         model_version="model-v1",
-        harness_version="harness-v1",
+        harness_version="v2",
     )
     append_epoch_record(epoch, failed)
     with pytest.raises(ValueError, match="closed"):
         store.issue_validation_receipt(
             epoch,
             epoch_id="epoch",
-            candidate_version="v2",
+            target=ValidationTarget("artifact-1", "skill-1", "v2", "sha256:" + "a" * 64),
             split=ValidationSplit.HELD_OUT,
             records=(failed,),
         )
@@ -360,38 +429,110 @@ def test_validation_receipts_reject_failed_open_cross_catalog_and_wrong_candidat
         store.issue_validation_receipt(
             epoch,
             epoch_id="epoch",
-            candidate_version="v2",
+            target=ValidationTarget("artifact-1", "skill-1", "v2", "sha256:" + "a" * 64),
             split=ValidationSplit.HELD_OUT,
             records=(failed,),
         )
-    validation_store, receipt = _validation_receipt(tmp_path, "wrong-version")
+    old_store = EvaluationEpochStore(tmp_path / "old.sqlite", "eval")
+    old_history = old_store.create_root(
+        lineage_id="old",
+        epoch_id="old-epoch",
+        model_version="model-v1",
+        harness_version="v1",
+    )
+    old_record = _record(harness_version="v1")
+    append_epoch_record(old_history, old_record)
+    close_evaluation_epoch(old_history)
+    with pytest.raises(ValueError, match="target version"):
+        old_store.issue_validation_receipt(
+            old_history,
+            epoch_id="old-epoch",
+            target=ValidationTarget("artifact-2", "skill-1", "v2", "sha256:" + "b" * 64),
+            split=ValidationSplit.HELD_OUT,
+            records=(old_record,),
+        )
+
+
+def test_lifecycle_pins_evaluation_catalog_domain_and_allowed_lineage(tmp_path: Path) -> None:
+    trusted = _evaluation_store(tmp_path)
+    _store(tmp_path, evaluation_store=trusted)
+    rogue_catalog = _evaluation_store(tmp_path, filename="rogue.sqlite")
+    with pytest.raises(ValueError, match="trusted evaluation authority"):
+        _store(tmp_path, evaluation_store=rogue_catalog)
+    rogue_domain = _evaluation_store(tmp_path, authority_domain="rogue-domain")
+    with pytest.raises(ValueError, match="trusted evaluation authority"):
+        _store(tmp_path, evaluation_store=rogue_domain)
+
+
+def test_held_out_transition_requires_exact_target_split_and_allowed_lineage(
+    tmp_path: Path,
+) -> None:
     _skill_store, history, _local = _main_history(tmp_path)
     transition_skill(history, SkillLifecycleState.EXECUTED, execution_evidence=_bundle())
     transition_skill(history, SkillLifecycleState.CREDITED)
-    transition_skill(
+    refined = transition_skill(
         history,
         SkillLifecycleState.REFINED,
         version="v2",
         supersedes="v1",
         provenance=RefinementProvenance("change", (_ref(),)),
     )
-    with pytest.raises(ValueError, match="candidate_version"):
+    validation_store, protected = _validation_receipt(
+        tmp_path,
+        refined,
+        split=ValidationSplit.PROTECTED,
+    )
+    with pytest.raises(ValueError, match="HELD_OUT"):
         transition_skill(
             history,
             SkillLifecycleState.HELD_OUT_VALIDATED,
-            validation_store=validation_store,
-            validation_receipt=receipt,
+            validation_receipt=protected,
+        )
+
+    evaluation_history = validation_store.open("held-out")
+    validation_model = "model:held-out"
+    validation_record = _record(model_version=validation_model, harness_version="v2")
+    wrong_target = validation_store.issue_validation_receipt(
+        evaluation_history,
+        epoch_id="epoch:held-out",
+        target=ValidationTarget(
+            "another-artifact",
+            refined.skill_id,
+            refined.version,
+            skill_artifact_digest(refined),
+        ),
+        split=ValidationSplit.HELD_OUT,
+        records=(validation_record,),
+    )
+    with pytest.raises(ValueError, match="exact current lifecycle artifact"):
+        transition_skill(
+            history,
+            SkillLifecycleState.HELD_OUT_VALIDATED,
+            validation_receipt=wrong_target,
+        )
+
+    _rogue_store, rogue_lineage = _validation_receipt(
+        tmp_path,
+        refined,
+        lineage_id="rogue-lineage",
+        target_version="v3",
+    )
+    with pytest.raises(ValueError, match="allowed lineage"):
+        transition_skill(
+            history,
+            SkillLifecycleState.HELD_OUT_VALIDATED,
+            validation_receipt=rogue_lineage,
         )
     other_store = EvaluationEpochStore(tmp_path / "other.sqlite", "evaluation-authority")
     with pytest.raises(ValueError, match="catalog"):
-        other_store.validate_validation_receipt(receipt)
+        other_store.validate_validation_receipt(protected)
     other_domain = EvaluationEpochStore(tmp_path / "epochs.sqlite", "other-authority")
     with pytest.raises(ValueError, match="authority domain"):
-        other_domain.validate_validation_receipt(receipt)
-    payload = receipt.to_dict()
+        other_domain.validate_validation_receipt(protected)
+    payload = protected.to_dict()
     payload["split"] = "training"
     with pytest.raises(ValueError, match="split"):
-        type(receipt).from_dict(payload)
+        type(protected).from_dict(payload)
 
 
 def test_durable_store_rejects_duplicate_roots_and_stale_handles(tmp_path: Path) -> None:
@@ -442,8 +583,8 @@ def test_use_time_mutation_of_artifact_and_validation_receipt_fails_closed(
     with pytest.raises(ValueError, match="construction binding"):
         artifact.to_dict()
 
-    validation_store, receipt = _validation_receipt(tmp_path, "v2")
-    object.__setattr__(receipt, "candidate_version", "forged")
+    validation_store, receipt = _validation_receipt(tmp_path, history.current())
+    object.__setattr__(receipt, "target_version", "forged")
     with pytest.raises(ValueError, match="construction binding"):
         validation_store.validate_validation_receipt(receipt)
 
@@ -469,6 +610,67 @@ def test_negative_local_or_relational_finding_blocks_execution() -> None:
                 bundle.local_verification_event,
                 bundle.relational_verification_event,
             )
+
+
+def test_required_findings_cannot_cite_unrelated_observable_evidence() -> None:
+    with pytest.raises(ValueError, match="canonical outcome observation evidence"):
+        _bundle(finding_evidence="evidence:unrelated")
+
+
+def test_direct_verified_to_task_local_and_wrong_family_parent_are_rejected(
+    tmp_path: Path,
+) -> None:
+    store = _store(tmp_path)
+    history = store.create_source("skill-direct", "v1", (_ref(),))
+    verified = transition_skill(history, SkillLifecycleState.VERIFIED_SKILL)
+    with pytest.raises(ValueError, match="transition"):
+        transition_skill(
+            history,
+            SkillLifecycleState.TASK_LOCAL,
+            provenance=InstantiationProvenance(verified.artifact_id, "task:forbidden"),
+        )
+    family = transition_skill(
+        history,
+        SkillLifecycleState.PROCEDURAL_FAMILY,
+        provenance=FamilySeedProvenance(
+            verified.artifact_id,
+            "seed from verified evidence",
+            (_ref(),),
+        ),
+    )
+    with pytest.raises(ValueError, match="current parent"):
+        transition_skill(
+            history,
+            SkillLifecycleState.TASK_LOCAL,
+            provenance=InstantiationProvenance(verified.artifact_id, "task:wrong-parent"),
+        )
+    local = transition_skill(
+        history,
+        SkillLifecycleState.TASK_LOCAL,
+        provenance=InstantiationProvenance(family.artifact_id, "task:valid"),
+    )
+    assert local.state is SkillLifecycleState.TASK_LOCAL
+
+
+def test_family_seed_requires_exact_current_verified_artifact_and_consolidation_is_nonempty(
+    tmp_path: Path,
+) -> None:
+    store = _store(tmp_path)
+    history = store.create_source("skill-seed", "v1", (_ref(),))
+    source = history.current()
+    transition_skill(history, SkillLifecycleState.VERIFIED_SKILL)
+    with pytest.raises(ValueError, match="must not be empty"):
+        ConsolidationProvenance(())
+    with pytest.raises(ValueError, match="exact current verified"):
+        transition_skill(
+            history,
+            SkillLifecycleState.PROCEDURAL_FAMILY,
+            provenance=FamilySeedProvenance(
+                source.artifact_id,
+                "wrong source",
+                (_ref(),),
+            ),
+        )
 
 
 @pytest.mark.parametrize(

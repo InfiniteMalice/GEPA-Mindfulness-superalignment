@@ -21,13 +21,24 @@ from mindful_trace_gepa.action_bound_events import ActionRecord, OutcomeObservat
 from mindful_trace_gepa.logging_schema import EventEnvelope, StructuredEventType
 
 from .core.evidence import EvidenceReference, EvidenceSourceKind
-from .learning_surfaces import EvaluationEpochStore, ValidationReceipt
+from .learning_surfaces import (
+    EvaluationAuthority,
+    EvaluationEpochStore,
+    ValidationReceipt,
+    ValidationSplit,
+)
 from .verification.interfaces import LocalVerificationResult, RelationalVerificationResult
 from .verification.state import WorldStateChange
 
 _RFC3339_OFFSET_DATETIME = re.compile(
     r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?"
     r"(?:Z|[+-](?P<offset_hour>\d{2}):(?P<offset_minute>\d{2}))$"
+)
+_REQUIRED_FINDING_KEYS = (
+    "local_execution:executed",
+    "local_execution:intended_operation_observed",
+    "relational_evidence:claimed_outcome_supported",
+    "relational_evidence:provenance_intact",
 )
 
 
@@ -51,7 +62,6 @@ _ALLOWED_TRANSITIONS: Mapping[SkillLifecycleState, frozenset[SkillLifecycleState
             SkillLifecycleState.VERIFIED_SKILL: frozenset(
                 {
                     SkillLifecycleState.PROCEDURAL_FAMILY,
-                    SkillLifecycleState.TASK_LOCAL,
                     SkillLifecycleState.ROLLED_BACK,
                 }
             ),
@@ -133,6 +143,29 @@ class ConsolidationProvenance:
 
 
 @dataclass(frozen=True, slots=True)
+class FamilySeedProvenance:
+    """Evidence-bound promotion of one verified artifact into its first family."""
+
+    verified_source_artifact_id: str
+    rationale: str
+    evidence_refs: tuple[EvidenceReference, ...]
+
+    def __post_init__(self) -> None:
+        _require_token(self.verified_source_artifact_id, "verified_source_artifact_id")
+        _require_token(self.rationale, "rationale")
+        object.__setattr__(self, "evidence_refs", _snapshot_refs(self.evidence_refs))
+
+    def to_dict(self) -> dict[str, object]:
+        checked = _snapshot_family_seed(self)
+        return {
+            "kind": "family_seed",
+            "verified_source_artifact_id": checked.verified_source_artifact_id,
+            "rationale": checked.rationale,
+            "evidence_refs": [item.to_dict() for item in checked.evidence_refs],
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class InstantiationProvenance:
     family_parent_artifact_id: str
     task_context: str
@@ -169,7 +202,11 @@ class RefinementProvenance:
 
 
 TransitionProvenance: TypeAlias = (
-    ConsolidationProvenance | InstantiationProvenance | RefinementProvenance | PruningProvenance
+    ConsolidationProvenance
+    | FamilySeedProvenance
+    | InstantiationProvenance
+    | RefinementProvenance
+    | PruningProvenance
 )
 
 
@@ -191,6 +228,40 @@ class ExecutionEvidenceBundle:
 
 
 @dataclass(frozen=True, slots=True)
+class VerificationFindingReceipt:
+    finding_key: str
+    evidence_refs: tuple[EvidenceReference, ...]
+
+    def __post_init__(self) -> None:
+        if self.finding_key not in _REQUIRED_FINDING_KEYS:
+            raise ValueError("finding_key must identify a required credit finding")
+        object.__setattr__(
+            self,
+            "evidence_refs",
+            _snapshot_refs(self.evidence_refs),
+        )
+
+    def to_dict(self) -> dict[str, object]:
+        checked = _snapshot_finding_receipt(self)
+        return {
+            "finding_key": checked.finding_key,
+            "evidence_refs": [item.to_dict() for item in checked.evidence_refs],
+        }
+
+    @classmethod
+    def from_dict(cls, data: object) -> VerificationFindingReceipt:
+        values = _exact_mapping(
+            data,
+            {"finding_key", "evidence_refs"},
+            "VerificationFindingReceipt",
+        )
+        return cls(
+            cast(str, values["finding_key"]),
+            _refs_from_json(values["evidence_refs"]),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class ExecutionEvidenceReceipt:
     receipt_id: str
     bundle_digest: str
@@ -202,6 +273,8 @@ class ExecutionEvidenceReceipt:
     event_ids: tuple[str, ...]
     evidence_ref_ids: tuple[str, ...]
     verifier_ref_ids: tuple[str, ...]
+    observation_evidence_refs: tuple[EvidenceReference, ...]
+    required_finding_evidence: tuple[VerificationFindingReceipt, ...]
     _construction_binding: tuple[object, ...] = field(
         init=False,
         repr=False,
@@ -232,6 +305,27 @@ class ExecutionEvidenceReceipt:
             "verifier_ref_ids",
             _snapshot_ids(self.verifier_ref_ids, "verifier_ref_ids", required=True),
         )
+        observation_refs = _snapshot_refs(self.observation_evidence_refs)
+        object.__setattr__(self, "observation_evidence_refs", observation_refs)
+        if type(self.required_finding_evidence) is not tuple:
+            raise ValueError("required_finding_evidence must be an exact tuple")
+        findings = tuple(_snapshot_finding_receipt(item) for item in self.required_finding_evidence)
+        if tuple(item.finding_key for item in findings) != _REQUIRED_FINDING_KEYS:
+            raise ValueError("required_finding_evidence must contain every required finding")
+        observation_ids = {item.reference_id for item in observation_refs}
+        if not observation_ids.issubset(self.evidence_ref_ids):
+            raise ValueError("observation evidence must be included in receipt evidence")
+        observation_identities = {
+            (item.reference_id, item.source_kind) for item in observation_refs
+        }
+        if any(
+            not {
+                (reference.reference_id, reference.source_kind) for reference in item.evidence_refs
+            }.intersection(observation_identities)
+            for item in findings
+        ):
+            raise ValueError("required findings must bind canonical outcome observation evidence")
+        object.__setattr__(self, "required_finding_evidence", findings)
         object.__setattr__(self, "_construction_binding", _execution_receipt_binding(self))
 
     def to_dict(self) -> dict[str, object]:
@@ -247,6 +341,12 @@ class ExecutionEvidenceReceipt:
             "event_ids": list(checked.event_ids),
             "evidence_ref_ids": list(checked.evidence_ref_ids),
             "verifier_ref_ids": list(checked.verifier_ref_ids),
+            "observation_evidence_refs": [
+                item.to_dict() for item in checked.observation_evidence_refs
+            ],
+            "required_finding_evidence": [
+                item.to_dict() for item in checked.required_finding_evidence
+            ],
         }
 
     @classmethod
@@ -264,6 +364,8 @@ class ExecutionEvidenceReceipt:
                 "event_ids",
                 "evidence_ref_ids",
                 "verifier_ref_ids",
+                "observation_evidence_refs",
+                "required_finding_evidence",
             },
             "ExecutionEvidenceReceipt",
         )
@@ -283,6 +385,14 @@ class ExecutionEvidenceReceipt:
             tuple(
                 cast(str, item)
                 for item in _exact_list(values["verifier_ref_ids"], "verifier_ref_ids")
+            ),
+            _refs_from_json(values["observation_evidence_refs"]),
+            tuple(
+                VerificationFindingReceipt.from_dict(item)
+                for item in _exact_list(
+                    values["required_finding_evidence"],
+                    "required_finding_evidence",
+                )
             ),
         )
 
@@ -420,6 +530,8 @@ class _HistoryState:
     database_path: str
     authority_domain: str
     catalog_id: str
+    evaluation_authority: EvaluationAuthority
+    allowed_evaluation_lineages: tuple[str, ...]
     skill_id: str
     revision: int
 
@@ -427,29 +539,69 @@ class _HistoryState:
 class SkillLifecycleStore:
     """SQLite-backed lifecycle authority scoped to one catalog and authority domain.
 
-    Transactions and revisions protect against duplicate or stale runtime-owner operations.
-    Database file permissions, backups, and operator authentication remain deployment concerns.
-    The same authority-domain text in another catalog is intentionally a different trust scope.
+    The catalog pins one trusted evaluation database identity, domain, and lineage allow-list per
+    lifecycle authority domain. Trust assumes the runtime owner protects both canonical database
+    paths from replacement or direct tampering; filesystem ACLs and operator authentication remain
+    deployment concerns.
     """
 
-    __slots__ = ("_authority_domain", "_binding", "_catalog_id", "_database_path")
+    __slots__ = (
+        "_allowed_evaluation_lineages",
+        "_authority_domain",
+        "_binding",
+        "_catalog_id",
+        "_database_path",
+        "_evaluation_authority",
+    )
     _authority_domain: str
-    _binding: tuple[str, str, str]
+    _binding: tuple[object, ...]
     _catalog_id: str
     _database_path: str
+    _evaluation_authority: EvaluationAuthority
+    _allowed_evaluation_lineages: tuple[str, ...]
 
-    def __init__(self, database_path: str | os.PathLike[str], authority_domain: str) -> None:
-        path = os.path.abspath(os.fspath(database_path))
+    def __init__(
+        self,
+        database_path: str | os.PathLike[str],
+        authority_domain: str,
+        *,
+        evaluation_store: EvaluationEpochStore,
+        allowed_evaluation_lineages: tuple[str, ...],
+    ) -> None:
+        path = _canonical_catalog_path(database_path)
         domain = _require_token(authority_domain, "authority_domain")
+        if type(evaluation_store) is not EvaluationEpochStore:
+            raise ValueError("evaluation_store must be an exact EvaluationEpochStore")
+        evaluation_authority = _snapshot_evaluation_authority(evaluation_store.authority())
+        lineages = _snapshot_ids(
+            allowed_evaluation_lineages,
+            "allowed_evaluation_lineages",
+            required=True,
+        )
         if not os.path.isdir(os.path.dirname(path)):
             raise ValueError("skill lifecycle store parent directory must already exist")
         with _open_database(path) as connection:
             _initialize_database(connection)
             catalog_id = _catalog_id(connection)
+            _pin_evaluation_authority(connection, domain, evaluation_authority, lineages)
         object.__setattr__(self, "_database_path", path)
         object.__setattr__(self, "_authority_domain", domain)
         object.__setattr__(self, "_catalog_id", catalog_id)
-        object.__setattr__(self, "_binding", (path, domain, catalog_id))
+        object.__setattr__(self, "_evaluation_authority", evaluation_authority)
+        object.__setattr__(self, "_allowed_evaluation_lineages", lineages)
+        object.__setattr__(
+            self,
+            "_binding",
+            (
+                path,
+                domain,
+                catalog_id,
+                evaluation_authority.catalog_path,
+                evaluation_authority.catalog_id,
+                evaluation_authority.authority_domain,
+                lineages,
+            ),
+        )
 
     def create_source(
         self,
@@ -457,7 +609,7 @@ class SkillLifecycleStore:
         version: str,
         source_refs: tuple[EvidenceReference, ...],
     ) -> SkillLifecycleHistory:
-        path, domain, catalog = _validated_store(self)
+        path, domain, catalog, evaluation_authority, lineages = _validated_store(self)
         source = SkillArtifact(
             skill_id,
             version,
@@ -483,10 +635,18 @@ class SkillLifecycleStore:
             except sqlite3.IntegrityError as exc:
                 connection.rollback()
                 raise ValueError("skill_id or version is already claimed in this catalog") from exc
-        return _new_history(path, domain, catalog, source.skill_id, 0)
+        return _new_history(
+            path,
+            domain,
+            catalog,
+            evaluation_authority,
+            lineages,
+            source.skill_id,
+            0,
+        )
 
     def open(self, skill_id: str) -> SkillLifecycleHistory:
-        path, domain, catalog = _validated_store(self)
+        path, domain, catalog, evaluation_authority, lineages = _validated_store(self)
         identifier = _require_token(skill_id, "skill_id")
         with _open_database(path) as connection:
             row = connection.execute(
@@ -497,8 +657,28 @@ class SkillLifecycleStore:
             if row is None:
                 raise KeyError(identifier)
             revision = _require_nonnegative_int(row[0], "revision")
-            _validated_entry(connection, domain, identifier, row[1])
-        return _new_history(path, domain, catalog, identifier, revision)
+            entry = _validated_entry(connection, domain, identifier, row[1])
+            _validate_persisted_validation_receipts(
+                _HistoryState(
+                    path,
+                    domain,
+                    catalog,
+                    evaluation_authority,
+                    lineages,
+                    identifier,
+                    revision,
+                ),
+                entry,
+            )
+        return _new_history(
+            path,
+            domain,
+            catalog,
+            evaluation_authority,
+            lineages,
+            identifier,
+            revision,
+        )
 
 
 class SkillLifecycleHistory:
@@ -545,7 +725,6 @@ def transition_skill(
     execution_evidence: ExecutionEvidenceBundle | None = None,
     version: str | None = None,
     supersedes: str | None = None,
-    validation_store: EvaluationEpochStore | None = None,
     validation_receipt: ValidationReceipt | None = None,
     rollback_target_id: str | None = None,
 ) -> SkillArtifact:
@@ -601,16 +780,12 @@ def transition_skill(
             elif version is not None or supersedes is not None:
                 raise ValueError("version and supersedes are accepted only for REFINED")
             if target_state is SkillLifecycleState.HELD_OUT_VALIDATED:
-                if type(validation_store) is not EvaluationEpochStore:
-                    raise ValueError("validation_store must be an exact EvaluationEpochStore")
                 if type(validation_receipt) is not ValidationReceipt:
                     raise ValueError("validation_receipt must be an exact ValidationReceipt")
+                validation_store = _trusted_evaluation_store(state)
                 held_out_receipt = validation_store.validate_validation_receipt(validation_receipt)
-                if held_out_receipt.candidate_version != current.version:
-                    raise ValueError(
-                        "validation receipt candidate_version must match skill version"
-                    )
-            elif validation_store is not None or validation_receipt is not None:
+                _validate_receipt_target(state, current, held_out_receipt)
+            elif validation_receipt is not None:
                 raise ValueError("validation receipt is accepted only for HELD_OUT_VALIDATED")
             if target_state in {
                 SkillLifecycleState.COMMITTED,
@@ -669,10 +844,91 @@ def transition_skill(
             state.database_path,
             state.authority_domain,
             state.catalog_id,
+            state.evaluation_authority,
+            state.allowed_evaluation_lineages,
             state.skill_id,
             updated.revision,
         )
         return _snapshot_artifact(updated)
+
+
+def skill_artifact_digest(artifact: SkillArtifact) -> str:
+    """Return the canonical digest used to bind held-out validation to one artifact."""
+
+    snapshot = _snapshot_artifact(artifact)
+    return _sha256_json(snapshot.to_dict())
+
+
+def _trusted_evaluation_store(state: _HistoryState) -> EvaluationEpochStore:
+    store = EvaluationEpochStore(
+        state.evaluation_authority.catalog_path,
+        state.evaluation_authority.authority_domain,
+    )
+    if store.authority() != state.evaluation_authority:
+        raise ValueError("trusted evaluation authority catalog identity changed")
+    return store
+
+
+def _validate_receipt_target(
+    state: _HistoryState,
+    current: SkillArtifact,
+    receipt: ValidationReceipt,
+) -> None:
+    if receipt.split is not ValidationSplit.HELD_OUT:
+        raise ValueError("HELD_OUT_VALIDATED requires the exact HELD_OUT split")
+    if receipt.lineage_id not in state.allowed_evaluation_lineages:
+        raise ValueError("validation receipt lineage is not an allowed lineage")
+    if receipt.catalog_id != state.evaluation_authority.catalog_id:
+        raise ValueError("validation receipt belongs to an untrusted evaluation catalog")
+    if receipt.catalog_path != state.evaluation_authority.catalog_path:
+        raise ValueError("validation receipt belongs to an untrusted evaluation catalog path")
+    if receipt.authority_domain != state.evaluation_authority.authority_domain:
+        raise ValueError("validation receipt belongs to an untrusted evaluation domain")
+    target = (
+        receipt.target_artifact_id,
+        receipt.target_skill_id,
+        receipt.target_version,
+        receipt.target_digest,
+    )
+    expected = (
+        current.artifact_id,
+        current.skill_id,
+        current.version,
+        skill_artifact_digest(current),
+    )
+    if target != expected:
+        raise ValueError("validation receipt must bind the exact current lifecycle artifact")
+
+
+def _validate_persisted_validation_receipts(
+    state: _HistoryState,
+    entry: tuple[SkillArtifact, ...],
+) -> None:
+    validation_store: EvaluationEpochStore | None = None
+    previous_receipt: ValidationReceipt | None = None
+    for index, artifact in enumerate(entry):
+        receipt = artifact.validation_receipt
+        if receipt is None or receipt == previous_receipt:
+            previous_receipt = receipt
+            continue
+        if index == 0:
+            raise ValueError("validation receipt cannot occur on a lifecycle root")
+        if validation_store is None:
+            validation_store = _trusted_evaluation_store(state)
+        canonical = validation_store.validate_validation_receipt(receipt)
+        _validate_receipt_target(state, entry[index - 1], canonical)
+        previous_receipt = receipt
+
+
+def _snapshot_evaluation_authority(value: object) -> EvaluationAuthority:
+    if type(value) is not EvaluationAuthority:
+        raise ValueError("evaluation authority must be an exact EvaluationAuthority")
+    checked = cast(EvaluationAuthority, value)
+    return EvaluationAuthority(
+        checked.catalog_path,
+        checked.catalog_id,
+        checked.authority_domain,
+    )
 
 
 def _validate_transition_provenance(
@@ -683,6 +939,13 @@ def _validate_transition_provenance(
     provenance: object,
 ) -> TransitionProvenance | None:
     if target is SkillLifecycleState.PROCEDURAL_FAMILY:
+        if type(provenance) is FamilySeedProvenance:
+            seed = _snapshot_family_seed(provenance)
+            if current.state is not SkillLifecycleState.VERIFIED_SKILL:
+                raise ValueError("family seed requires a current verified skill")
+            if seed.verified_source_artifact_id != current.artifact_id:
+                raise ValueError("family seed must bind the exact current verified artifact")
+            return seed
         checked = _snapshot_consolidation(provenance)
         for identifier in checked.constituent_task_local_artifact_ids:
             artifact = _load_artifact(connection, domain, identifier)
@@ -695,6 +958,8 @@ def _validate_transition_provenance(
             raise ValueError("consolidation pruning targets must be declared constituents")
         return checked
     if target is SkillLifecycleState.TASK_LOCAL:
+        if current.state is not SkillLifecycleState.PROCEDURAL_FAMILY:
+            raise ValueError("task-local instantiation requires a current procedural family")
         instantiation = _snapshot_instantiation(provenance)
         if instantiation.family_parent_artifact_id != current.artifact_id:
             raise ValueError("instantiation must bind the current parent artifact")
@@ -733,7 +998,14 @@ def _resolve_rollback_target(
     return target
 
 
-def _validated_bundle(bundle: object) -> tuple[ActionRecord, OutcomeObservation]:
+def _validated_bundle(
+    bundle: object,
+) -> tuple[
+    ActionRecord,
+    OutcomeObservation,
+    tuple[EvidenceReference, ...],
+    tuple[VerificationFindingReceipt, ...],
+]:
     if type(bundle) is not ExecutionEvidenceBundle:
         raise ValueError("execution evidence must be an exact ExecutionEvidenceBundle")
     checked = cast(ExecutionEvidenceBundle, bundle)
@@ -819,14 +1091,42 @@ def _validated_bundle(bundle: object) -> tuple[ActionRecord, OutcomeObservation]
             "relational verification must be uncontradicted and not a repeated failure"
         )
     outcome_refs = set(outcome.evidence_refs)
-    world_refs = {item.reference_id for item in world.after_observation.evidence_refs}
-    if not outcome_refs.intersection(world_refs):
+    observation_refs = tuple(
+        item for item in world.after_observation.evidence_refs if item.reference_id in outcome_refs
+    )
+    if not observation_refs:
         raise ValueError("outcome and world observation must share observable evidence")
-    return action, outcome
+    required_bindings = (
+        ("local_execution:executed", local.evidence_bindings, "executed"),
+        (
+            "local_execution:intended_operation_observed",
+            local.evidence_bindings,
+            "intended_operation_observed",
+        ),
+        (
+            "relational_evidence:claimed_outcome_supported",
+            relational.evidence_bindings,
+            "claimed_outcome_supported",
+        ),
+        (
+            "relational_evidence:provenance_intact",
+            relational.evidence_bindings,
+            "provenance_intact",
+        ),
+    )
+    observation_identities = {(item.reference_id, item.source_kind) for item in observation_refs}
+    findings: list[VerificationFindingReceipt] = []
+    for finding_key, bindings, field_name in required_bindings:
+        binding = next(item for item in bindings if item.field_name == field_name)
+        identities = {(item.reference_id, item.source_kind) for item in binding.evidence_refs}
+        if not identities.intersection(observation_identities):
+            raise ValueError(f"{finding_key} must bind canonical outcome observation evidence")
+        findings.append(VerificationFindingReceipt(finding_key, binding.evidence_refs))
+    return action, outcome, observation_refs, tuple(findings)
 
 
 def _issue_execution_receipt(bundle: ExecutionEvidenceBundle) -> ExecutionEvidenceReceipt:
-    action, outcome = _validated_bundle(bundle)
+    action, outcome, observation_refs, finding_receipts = _validated_bundle(bundle)
     snapshot = ExecutionEvidenceBundle(*_snapshot_bundle_fields(bundle))
     events = (
         snapshot.action_event,
@@ -870,6 +1170,8 @@ def _issue_execution_receipt(bundle: ExecutionEvidenceBundle) -> ExecutionEviden
         tuple(item.event_id for item in events),
         evidence_ids,
         verifier_ids,
+        observation_refs,
+        finding_receipts,
     )
 
 
@@ -1063,13 +1365,20 @@ def _validate_artifact_state(artifact: SkillArtifact) -> None:
         if artifact.validation_receipt is not None:
             raise ValueError("validation receipt is forbidden before held-out validation")
     expected_provenance: dict[SkillLifecycleState, type[object]] = {
-        SkillLifecycleState.PROCEDURAL_FAMILY: ConsolidationProvenance,
         SkillLifecycleState.TASK_LOCAL: InstantiationProvenance,
         SkillLifecycleState.REFINED: RefinementProvenance,
         SkillLifecycleState.ROLLED_BACK: PruningProvenance,
     }
     expected = expected_provenance.get(artifact.state)
-    if expected is None and artifact.transition_provenance is not None:
+    if artifact.state is SkillLifecycleState.PROCEDURAL_FAMILY:
+        if type(artifact.transition_provenance) not in {
+            ConsolidationProvenance,
+            FamilySeedProvenance,
+        }:
+            raise ValueError(
+                "procedural_family requires ConsolidationProvenance or FamilySeedProvenance"
+            )
+    elif expected is None and artifact.transition_provenance is not None:
         raise ValueError("transition provenance is not valid for this state")
     if expected is not None and type(artifact.transition_provenance) is not expected:
         raise ValueError(f"{artifact.state.value} requires {expected.__name__}")
@@ -1093,6 +1402,13 @@ def _initialize_database(connection: sqlite3.Connection) -> None:
             revision INTEGER NOT NULL,
             payload TEXT NOT NULL,
             PRIMARY KEY (authority_domain, skill_id)
+        );
+        CREATE TABLE IF NOT EXISTS lifecycle_authorities (
+            authority_domain TEXT PRIMARY KEY,
+            evaluation_catalog_path TEXT NOT NULL,
+            evaluation_catalog_id TEXT NOT NULL,
+            evaluation_authority_domain TEXT NOT NULL,
+            allowed_evaluation_lineages TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS skill_versions (
             authority_domain TEXT NOT NULL,
@@ -1130,28 +1446,123 @@ def _catalog_id(connection: sqlite3.Connection) -> str:
     return _require_token(row[0], "catalog_id")
 
 
-def _validated_store(store: object) -> tuple[str, str, str]:
+def _pin_evaluation_authority(
+    connection: sqlite3.Connection,
+    domain: str,
+    authority: EvaluationAuthority,
+    lineages: tuple[str, ...],
+) -> None:
+    payload = json.dumps(list(lineages), separators=(",", ":"))
+    connection.execute("BEGIN IMMEDIATE")
+    try:
+        row = connection.execute(
+            "SELECT evaluation_catalog_path, evaluation_catalog_id, "
+            "evaluation_authority_domain, allowed_evaluation_lineages "
+            "FROM lifecycle_authorities WHERE authority_domain = ?",
+            (domain,),
+        ).fetchone()
+        expected = (
+            authority.catalog_path,
+            authority.catalog_id,
+            authority.authority_domain,
+            payload,
+        )
+        if row is None:
+            connection.execute(
+                "INSERT INTO lifecycle_authorities VALUES (?, ?, ?, ?, ?)",
+                (domain, *expected),
+            )
+        elif tuple(row) != expected:
+            raise ValueError("trusted evaluation authority configuration is immutable")
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+
+
+def _require_pinned_evaluation_authority(
+    connection: sqlite3.Connection,
+    domain: str,
+    authority: EvaluationAuthority,
+    lineages: tuple[str, ...],
+) -> None:
+    row = connection.execute(
+        "SELECT evaluation_catalog_path, evaluation_catalog_id, "
+        "evaluation_authority_domain, allowed_evaluation_lineages "
+        "FROM lifecycle_authorities WHERE authority_domain = ?",
+        (domain,),
+    ).fetchone()
+    expected = (
+        authority.catalog_path,
+        authority.catalog_id,
+        authority.authority_domain,
+        json.dumps(list(lineages), separators=(",", ":")),
+    )
+    if row is None or tuple(row) != expected:
+        raise ValueError("trusted evaluation authority configuration changed")
+
+
+def _canonical_catalog_path(value: str | os.PathLike[str]) -> str:
+    if type(value) is not str and not isinstance(value, os.PathLike):
+        raise ValueError("catalog path must be an exact string or path-like value")
+    return os.path.normcase(os.path.realpath(os.path.abspath(os.fspath(value))))
+
+
+def _validated_store(
+    store: object,
+) -> tuple[str, str, str, EvaluationAuthority, tuple[str, ...]]:
     if type(store) is not SkillLifecycleStore:
         raise ValueError("store must be an exact SkillLifecycleStore")
     checked = cast(SkillLifecycleStore, store)
-    binding = (checked._database_path, checked._authority_domain, checked._catalog_id)
+    evaluation_authority = _snapshot_evaluation_authority(checked._evaluation_authority)
+    binding = (
+        checked._database_path,
+        checked._authority_domain,
+        checked._catalog_id,
+        evaluation_authority.catalog_path,
+        evaluation_authority.catalog_id,
+        evaluation_authority.authority_domain,
+        checked._allowed_evaluation_lineages,
+    )
     if checked._binding != binding:
         raise ValueError("SkillLifecycleStore binding changed after construction")
     with _open_database(checked._database_path) as connection:
         if _catalog_id(connection) != checked._catalog_id:
             raise ValueError("SkillLifecycleStore catalog identity changed")
-    return binding
+        _require_pinned_evaluation_authority(
+            connection,
+            checked._authority_domain,
+            evaluation_authority,
+            checked._allowed_evaluation_lineages,
+        )
+    return (
+        checked._database_path,
+        checked._authority_domain,
+        checked._catalog_id,
+        evaluation_authority,
+        checked._allowed_evaluation_lineages,
+    )
 
 
 def _new_history(
     path: str,
     domain: str,
     catalog: str,
+    evaluation_authority: EvaluationAuthority,
+    allowed_evaluation_lineages: tuple[str, ...],
     skill_id: str,
     revision: int,
 ) -> SkillLifecycleHistory:
     handle = object.__new__(SkillLifecycleHistory)
-    _HISTORY_STATE[handle] = _HistoryState(path, domain, catalog, skill_id, revision)
+    _HISTORY_STATE[handle] = _HistoryState(
+        path,
+        domain,
+        catalog,
+        evaluation_authority,
+        allowed_evaluation_lineages,
+        skill_id,
+        revision,
+    )
     return handle
 
 
@@ -1166,6 +1577,12 @@ def _begin_read(
     try:
         if _catalog_id(connection) != state.catalog_id:
             raise ValueError("skill lifecycle history catalog identity changed")
+        _require_pinned_evaluation_authority(
+            connection,
+            state.authority_domain,
+            state.evaluation_authority,
+            state.allowed_evaluation_lineages,
+        )
         row = connection.execute(
             "SELECT revision, payload FROM skill_lineages "
             "WHERE authority_domain = ? AND skill_id = ?",
@@ -1177,6 +1594,7 @@ def _begin_read(
         if revision != state.revision:
             raise RuntimeError("skill lifecycle history handle has a stale revision")
         entry = _validated_entry(connection, state.authority_domain, state.skill_id, row[1])
+        _validate_persisted_validation_receipts(state, entry)
         return state, connection, entry
     except Exception:
         connection.close()
@@ -1197,6 +1615,12 @@ def _begin_transition(
     try:
         if _catalog_id(connection) != state.catalog_id:
             raise ValueError("skill lifecycle history catalog identity changed")
+        _require_pinned_evaluation_authority(
+            connection,
+            state.authority_domain,
+            state.evaluation_authority,
+            state.allowed_evaluation_lineages,
+        )
         row = connection.execute(
             "SELECT revision, payload FROM skill_lineages "
             "WHERE authority_domain = ? AND skill_id = ?",
@@ -1206,11 +1630,9 @@ def _begin_transition(
             raise ValueError("authoritative skill lifecycle no longer exists")
         if _require_nonnegative_int(row[0], "revision") != state.revision:
             raise RuntimeError("skill lifecycle history handle has a stale revision")
-        return (
-            state,
-            connection,
-            _validated_entry(connection, state.authority_domain, state.skill_id, row[1]),
-        )
+        entry = _validated_entry(connection, state.authority_domain, state.skill_id, row[1])
+        _validate_persisted_validation_receipts(state, entry)
+        return state, connection, entry
     except Exception:
         connection.rollback()
         connection.close()
@@ -1268,6 +1690,15 @@ def _validated_entry(
         previous = artifacts[index - 1]
         if artifact.state not in _ALLOWED_TRANSITIONS[previous.state]:
             raise ValueError("skill lifecycle contains an illegal transition")
+        provenance = _validate_transition_provenance(
+            connection,
+            domain,
+            previous,
+            artifact.state,
+            artifact.transition_provenance,
+        )
+        if provenance != artifact.transition_provenance:
+            raise ValueError("skill lifecycle transition provenance is not canonical")
         if artifact.state is SkillLifecycleState.REFINED:
             if artifact.version in seen_versions or artifact.supersedes != previous.version:
                 raise ValueError("skill refinement version lineage is invalid")
@@ -1367,7 +1798,16 @@ def _snapshot_execution_receipt(value: object) -> ExecutionEvidenceReceipt:
         checked.event_ids,
         checked.evidence_ref_ids,
         checked.verifier_ref_ids,
+        checked.observation_evidence_refs,
+        checked.required_finding_evidence,
     )
+
+
+def _snapshot_finding_receipt(value: object) -> VerificationFindingReceipt:
+    if type(value) is not VerificationFindingReceipt:
+        raise ValueError("finding receipt must be an exact VerificationFindingReceipt")
+    checked = cast(VerificationFindingReceipt, value)
+    return VerificationFindingReceipt(checked.finding_key, checked.evidence_refs)
 
 
 def _execution_receipt_binding(value: ExecutionEvidenceReceipt) -> tuple[object, ...]:
@@ -1382,6 +1822,19 @@ def _execution_receipt_binding(value: ExecutionEvidenceReceipt) -> tuple[object,
         value.event_ids,
         value.evidence_ref_ids,
         value.verifier_ref_ids,
+        tuple(
+            (item.reference_id, item.source_kind.value) for item in value.observation_evidence_refs
+        ),
+        tuple(
+            (
+                item.finding_key,
+                tuple(
+                    (reference.reference_id, reference.source_kind.value)
+                    for reference in item.evidence_refs
+                ),
+            )
+            for item in value.required_finding_evidence
+        ),
     )
 
 
@@ -1453,6 +1906,8 @@ def _snapshot_optional_provenance(value: object) -> TransitionProvenance | None:
         return None
     if type(value) is ConsolidationProvenance:
         return _snapshot_consolidation(value)
+    if type(value) is FamilySeedProvenance:
+        return _snapshot_family_seed(value)
     if type(value) is InstantiationProvenance:
         return _snapshot_instantiation(value)
     if type(value) is RefinementProvenance:
@@ -1480,6 +1935,17 @@ def _snapshot_consolidation(value: object) -> ConsolidationProvenance:
     return ConsolidationProvenance(
         checked.constituent_task_local_artifact_ids,
         checked.pruning_decisions,
+    )
+
+
+def _snapshot_family_seed(value: object) -> FamilySeedProvenance:
+    if type(value) is not FamilySeedProvenance:
+        raise ValueError("transition requires exact FamilySeedProvenance")
+    checked = cast(FamilySeedProvenance, value)
+    return FamilySeedProvenance(
+        checked.verified_source_artifact_id,
+        checked.rationale,
+        checked.evidence_refs,
     )
 
 
@@ -1544,6 +2010,17 @@ def _provenance_from_dict(value: object) -> TransitionProvenance | None:
                 )
             ),
             decisions,
+        )
+    if kind == "family_seed":
+        checked = _exact_mapping(
+            value,
+            {"kind", "verified_source_artifact_id", "rationale", "evidence_refs"},
+            "FamilySeedProvenance",
+        )
+        return FamilySeedProvenance(
+            cast(str, checked["verified_source_artifact_id"]),
+            cast(str, checked["rationale"]),
+            _refs_from_json(checked["evidence_refs"]),
         )
     if kind == "instantiation":
         checked = _exact_mapping(
@@ -1668,6 +2145,7 @@ __all__ = [
     "ConsolidationProvenance",
     "ExecutionEvidenceBundle",
     "ExecutionEvidenceReceipt",
+    "FamilySeedProvenance",
     "InstantiationProvenance",
     "PruningProvenance",
     "RefinementProvenance",
@@ -1675,5 +2153,7 @@ __all__ = [
     "SkillLifecycleHistory",
     "SkillLifecycleState",
     "SkillLifecycleStore",
+    "VerificationFindingReceipt",
+    "skill_artifact_digest",
     "transition_skill",
 ]

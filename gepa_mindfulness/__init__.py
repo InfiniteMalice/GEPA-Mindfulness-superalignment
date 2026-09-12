@@ -1,6 +1,7 @@
 """Utility helpers for GEPA mindfulness alignment modeling."""
 
 from .learning_surfaces import (
+    EvaluationAuthority,
     EvaluationEpoch,
     EvaluationEpochHistory,
     EvaluationEpochStore,
@@ -11,6 +12,7 @@ from .learning_surfaces import (
     LessonReviewStatus,
     ValidationReceipt,
     ValidationSplit,
+    ValidationTarget,
     append_epoch_record,
     begin_candidate_epoch,
     classify_learning_surface,
@@ -24,6 +26,7 @@ from .skill_lifecycle import (
     ConsolidationProvenance,
     ExecutionEvidenceBundle,
     ExecutionEvidenceReceipt,
+    FamilySeedProvenance,
     InstantiationProvenance,
     PruningProvenance,
     RefinementProvenance,
@@ -31,17 +34,20 @@ from .skill_lifecycle import (
     SkillLifecycleHistory,
     SkillLifecycleState,
     SkillLifecycleStore,
+    skill_artifact_digest,
     transition_skill,
 )
 
 __all__ = [
     "AggregateResult",
     "ConsolidationProvenance",
+    "EvaluationAuthority",
     "EvaluationEpoch",
     "EvaluationEpochHistory",
     "EvaluationEpochStore",
     "ExecutionEvidenceBundle",
     "ExecutionEvidenceReceipt",
+    "FamilySeedProvenance",
     "InstantiationProvenance",
     "LearningSurface",
     "LessonCharacteristics",
@@ -57,6 +63,7 @@ __all__ = [
     "SkillLifecycleStore",
     "ValidationReceipt",
     "ValidationSplit",
+    "ValidationTarget",
     "append_epoch_record",
     "aggregate_gepa_metrics",
     "aggregate_gepa_score",
@@ -65,6 +72,7 @@ __all__ = [
     "close_evaluation_epoch",
     "evaluation_record_cell_id",
     "evaluation_record_id",
+    "skill_artifact_digest",
     "validate_epoch_record",
     "transition_skill",
 ]
