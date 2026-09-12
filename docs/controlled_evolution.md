@@ -19,9 +19,12 @@ version must change. Every changed version must be unused in the same evaluation
 receives no records from the source epoch.
 
 `EvaluationEpochStore` persists epoch lineages, canonical V5 records, candidate target claims, and
-validation receipts in SQLite. `BEGIN IMMEDIATE` transactions serialize catalog changes, and each
-opaque `EvaluationEpochHistory` handle carries an expected revision. A stale handle cannot append,
-close, or begin another candidate epoch. These properties are covered by
+validation receipts in SQLite. `BEGIN IMMEDIATE` transactions serialize catalog changes. The
+store creates an opaque `EvaluationEpochHistory` capability with a catalog locator and expected
+revision. While that exact handle remains valid, `append_epoch_record()`,
+`close_evaluation_epoch()`, and `begin_candidate_epoch()` can open the catalog and authorize a
+transition without retaining the Python `EvaluationEpochStore` object. A stale handle cannot read
+or change the lineage. These properties are covered by
 [`test_offline_evolution_epochs.py`](../tests/test_offline_evolution_epochs.py).
 
 ## One typed destination per lesson
@@ -51,9 +54,11 @@ authority. These rules are covered by
 
 ## Verified skill lifecycle
 
-`SkillLifecycleStore` is the sole transition authority for a skill lineage. It persists artifacts
-in SQLite and returns an opaque, revision-bound `SkillLifecycleHistory`. The normal state sequence
-is:
+`SkillLifecycleStore` creates or reopens a skill lineage and returns an opaque, revision-bound
+`SkillLifecycleHistory` capability. While that exact handle remains valid, `transition_skill()`
+uses the handle's catalog locator, catalog identity, authority domain, pinned evaluation authority,
+skill ID, and expected revision. The creating `SkillLifecycleStore` Python object does not need to
+remain alive. The normal state sequence is:
 
 ```text
 SOURCE_EXPERIENCE
@@ -144,6 +149,40 @@ domain, and configured lineage. An `EvaluationEpochStore`, `SkillLifecycleStore`
 `CoevolutionStore` does not establish universal authority across separate catalogs or authority
 domains. Reusing a domain name in another catalog does not merge the catalogs.
 
+### Handle capabilities and live stores
+
+`EvaluationEpochHistory` and `SkillLifecycleHistory` are process-local authority capabilities,
+not detached views. Each module keeps the capability state in a private `WeakKeyDictionary` keyed
+by the exact handle object. The capability state contains the catalog locator and expected
+revision; the skill handle also pins the catalog ID and evaluation authority. Consequently:
+
+- The original handle can authorize its transition functions after the creating store Python
+  object is garbage-collected. Each operation reopens and revalidates the SQLite catalog.
+- A successful transition increments the catalog revision and the calling handle's expected
+  revision. Any other handle at the old revision becomes stale. A stale read or transition raises
+  `RuntimeError` before it can commit a change.
+- Shallow copies, deep copies, and objects restored from pickle are different keys with no private
+  capability state. The transition and snapshot functions reject them as non-store-derived
+  handles. Pickle therefore serializes an object shape, not authority.
+- A handle's private locator cannot be retargeted to another catalog. Evaluation receipt issuance
+  additionally requires the supplied `EvaluationEpochStore` and history handle to have the same
+  canonical catalog path and authority domain. Skill operations revalidate the lifecycle catalog
+  ID and its pinned evaluation catalog on every read and transition.
+- On platforms with `os.register_at_fork`, each module clears inherited handle bindings in the
+  child process. The child rejects a parent handle as non-store-derived. The explicit process-ID
+  check also rejects a detected process change. Spawned processes and other inter-process transfers
+  do not receive capability state. A new process must construct the matching store and call
+  `open()` to obtain a new current-revision handle.
+
+Live store APIs remain necessary for authority configuration, root creation, and `open()`. The
+`EvaluationEpochStore` API issues and validates persisted evaluation receipts, claims and resolves
+candidate targets, and resolves persisted epochs. `SkillLifecycleStore` is required to create or
+reopen skill lineages; held-out transitions reconstruct and revalidate the pinned evaluation store
+internally.
+`CoevolutionStore` has no transferable history capability: trajectory and candidate registration,
+receipt and metric issuance, decision issue/read/validation, and single-use decision consumption
+all require a live store pinned to the matching catalogs.
+
 SQLite transactions, content digests, and strict schemas detect inconsistent records and serialize
 cooperating writers. They do not authenticate an operator who can replace or edit a database.
 Before deployment, the runtime owner must protect each catalog path with filesystem access control,
@@ -153,8 +192,9 @@ decision.
 
 `EvidenceReference` preserves typed provenance identifiers, but these modules do not dereference
 an identifier or authenticate its issuer. Likewise, in-memory proposal and serialized artifact
-snapshots are not authority tokens. Only the matching live store can authorize a persisted
-transition or validate a receipt. The implementation contains no external execution, filesystem
+snapshots are not authority tokens. A valid process-local history handle can authorize only its
+defined lineage transitions; matching store APIs authorize persisted catalog operations outside
+those transition functions. The implementation contains no external execution, filesystem
 deployment, model-weight mutation, live skill installation, or catalog-to-catalog federation.
 
 ## Verification map

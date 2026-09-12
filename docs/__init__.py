@@ -1,0 +1,1 @@
+"""Bundled project documentation resources."""
