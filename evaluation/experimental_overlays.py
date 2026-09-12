@@ -95,6 +95,35 @@ class ExperimentalOverlay:
     recommendation_refs: tuple[str, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class ExperimentalOverlayConfig:
+    """Explicit opt-in flags for diagnostic overlay declarations."""
+
+    competing_hypotheses: bool = False
+    expected_information_gain_inquiry: bool = False
+    adaptive_small_multi_agent_topology: bool = False
+    declarative_orchestration_scope: bool = False
+    mechanistic_circuit_audit: bool = False
+
+    def __post_init__(self) -> None:
+        _validated_config(self)
+
+    @classmethod
+    def from_mapping(cls, value: object) -> ExperimentalOverlayConfig:
+        """Parse external configuration without accepting unknown or truthy values."""
+
+        values = _mapping(value, "overlay configuration")
+        unknown = sorted(set(values) - set(EXPERIMENTAL_OVERLAY_IDS))
+        if unknown:
+            raise ValueError(f"unknown overlay configuration keys: {unknown}")
+        parsed: dict[str, bool] = {}
+        for name, raw in values.items():
+            if type(raw) is not bool:
+                raise ValueError(f"{name} must be a built-in bool")
+            parsed[name] = raw
+        return cls(**parsed)
+
+
 def load_experimental_overlay_registry() -> tuple[ExperimentalOverlay, ...]:
     """Load and validate the bundled experimental overlay registry."""
 
@@ -105,6 +134,17 @@ def load_experimental_overlay_registry() -> tuple[ExperimentalOverlay, ...]:
     except (OSError, yaml.YAMLError) as exc:
         raise ValueError(f"could not load experimental overlay registry: {exc}") from exc
     return _parse_experimental_overlay_registry(payload)
+
+
+def enabled_overlays(config: ExperimentalOverlayConfig) -> tuple[ExperimentalOverlay, ...]:
+    """Return only explicitly enabled diagnostic declarations in registry order."""
+
+    checked = _validated_config(config)
+    return tuple(
+        overlay
+        for overlay in load_experimental_overlay_registry()
+        if getattr(checked, overlay.feature_flag) is True
+    )
 
 
 def _parse_experimental_overlay_registry(payload: object) -> tuple[ExperimentalOverlay, ...]:
@@ -214,9 +254,20 @@ def _duplicates(values: Iterable[str]) -> tuple[str, ...]:
     return tuple(sorted(duplicates))
 
 
+def _validated_config(value: object) -> ExperimentalOverlayConfig:
+    if type(value) is not ExperimentalOverlayConfig:
+        raise ValueError("config must be an exact ExperimentalOverlayConfig")
+    for name in EXPERIMENTAL_OVERLAY_IDS:
+        if type(getattr(value, name)) is not bool:
+            raise ValueError(f"{name} must be a built-in bool")
+    return value
+
+
 __all__ = [
     "EXPERIMENTAL_OVERLAY_IDS",
     "REGISTRY_VERSION",
     "ExperimentalOverlay",
+    "ExperimentalOverlayConfig",
+    "enabled_overlays",
     "load_experimental_overlay_registry",
 ]
