@@ -18,6 +18,14 @@ from .learning_surfaces import (
     validate_epoch_record,
 )
 from .metrics import AggregateResult, PracticeSession, aggregate_gepa_metrics, aggregate_gepa_score
+from .skill_lifecycle import (
+    SkillArtifact,
+    SkillExecutionEvidence,
+    SkillLifecycleHistory,
+    SkillLifecycleState,
+    SkillLifecycleStore,
+    transition_skill,
+)
 
 __all__ = [
     "AggregateResult",
@@ -30,6 +38,11 @@ __all__ = [
     "LessonProposal",
     "LessonReviewStatus",
     "PracticeSession",
+    "SkillArtifact",
+    "SkillExecutionEvidence",
+    "SkillLifecycleHistory",
+    "SkillLifecycleState",
+    "SkillLifecycleStore",
     "append_epoch_record",
     "aggregate_gepa_metrics",
     "aggregate_gepa_score",
@@ -39,4 +52,5 @@ __all__ = [
     "evaluation_record_cell_id",
     "evaluation_record_id",
     "validate_epoch_record",
+    "transition_skill",
 ]
