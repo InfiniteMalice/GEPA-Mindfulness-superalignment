@@ -66,13 +66,13 @@ EXPECTED_RECOMMENDATIONS = (
         "REC-009",
         "Verified skill lifecycle.",
         "P1",
-        "accepted",
+        "implemented",
     ),
     (
         "REC-010",
         "Online experience collection; offline harness/skill evolution.",
         "P1",
-        "accepted",
+        "implemented",
     ),
     (
         "REC-011",

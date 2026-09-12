@@ -65,7 +65,7 @@ information-gain inquiry overlay; the repository does not adopt PEARL as its rea
 - DOI: `10.48550/arXiv.2609.08228`
 - Venue/status: Not supplied by official arXiv metadata.
 - Recommendations influenced: `REC-009`
-- Local repository notes: [V5 architecture design](../../history/2026-09-10-gepa-v5-unified-architecture-design.md), [reward pipeline](../../gepa_mindfulness/training/reward_pipeline.py)
+- Local repository notes: [V5 architecture design](../../history/2026-09-10-gepa-v5-unified-architecture-design.md), [controlled evolution](../controlled_evolution.md), [skill lifecycle](../../gepa_mindfulness/skill_lifecycle.py)
 
 **Source demonstrates:** The source reports execution-trace-driven graph topology, edge-weight,
 and description updates, including transfer measurements on a disjoint held-out split.
@@ -73,7 +73,8 @@ and description updates, including transfer measurements on a disjoint held-out 
 **Repository inference:** The reported execution feedback supports an execution-backed skill
 lifecycle with held-out checks; the repository lifecycle remains a separately specified interface.
 
-**Maturity:** Resolved arXiv preprint; REC-009 is accepted but incomplete.
+**Maturity:** Resolved arXiv preprint; the bounded catalog lifecycle portion of REC-009 is
+implemented. The repository does not claim the paper's complete skill system or empirical results.
 
 <a id="ref-coevolve"></a>
 
@@ -87,7 +88,7 @@ lifecycle with held-out checks; the repository lifecycle remains a separately sp
 - DOI: `10.48550/arXiv.2609.09134`
 - Venue/status: Not supplied by official arXiv metadata.
 - Recommendations influenced: `REC-010`
-- Local repository notes: [V5 architecture design](../../history/2026-09-10-gepa-v5-unified-architecture-design.md), [reward pipeline](../../gepa_mindfulness/training/reward_pipeline.py)
+- Local repository notes: [V5 architecture design](../../history/2026-09-10-gepa-v5-unified-architecture-design.md), [controlled evolution](../controlled_evolution.md), [learning surfaces](../../gepa_mindfulness/learning_surfaces.py), [coevolution](../../gepa_mindfulness/coevolution.py)
 
 **Source demonstrates:** The source reports that full expert-trajectory imitation regressed
 performance under an evolved harness, while localized on-policy expert correction preserved
@@ -97,7 +98,8 @@ model-harness fit.
 evaluation episode and controlled evolution between episodes rather than online mutation during
 scoring.
 
-**Maturity:** Resolved arXiv preprint; REC-010 is accepted but incomplete.
+**Maturity:** Resolved arXiv preprint; the bounded epoch and candidate-record portion of REC-010
+is implemented. The repository does not reproduce the paper's experiments or deploy a system.
 
 <a id="ref-consistency"></a>
 
@@ -133,7 +135,7 @@ distinct from average correctness in the V5 case-by-stripe-by-repeat evaluator.
 - DOI: `10.48550/arXiv.2609.05824`
 - Venue/status: Not supplied by official arXiv metadata.
 - Recommendations influenced: `REC-009`
-- Local repository notes: [V5 architecture design](../../history/2026-09-10-gepa-v5-unified-architecture-design.md), [reward pipeline](../../gepa_mindfulness/training/reward_pipeline.py)
+- Local repository notes: [V5 architecture design](../../history/2026-09-10-gepa-v5-unified-architecture-design.md), [controlled evolution](../controlled_evolution.md), [skill lifecycle](../../gepa_mindfulness/skill_lifecycle.py)
 
 **Source demonstrates:** The source reports diversity-aware skill reranking that balances query
 relevance and non-redundancy, with recall and coverage results on multi-skill queries.
@@ -141,7 +143,8 @@ relevance and non-redundancy, with recall and coverage results on multi-skill qu
 **Repository inference:** The result inspires future bounded skill routing within REC-009; the
 current repository does not implement the paper's Determinantal Point Process reranker.
 
-**Maturity:** Resolved arXiv preprint; REC-009 is accepted but incomplete.
+**Maturity:** Resolved arXiv preprint; the bounded lifecycle portion of REC-009 is implemented.
+The repository does not implement the paper's Determinantal Point Process reranker.
 
 <a id="ref-edgemem"></a>
 
@@ -291,7 +294,7 @@ implemented. It does not authenticate human identities, grant issuers, or eviden
 - DOI: `10.48550/arXiv.2609.01481`
 - Venue/status: Not supplied by official arXiv metadata.
 - Recommendations influenced: `REC-010`
-- Local repository notes: [V5 architecture design](../../history/2026-09-10-gepa-v5-unified-architecture-design.md), [reward pipeline](../../gepa_mindfulness/training/reward_pipeline.py)
+- Local repository notes: [V5 architecture design](../../history/2026-09-10-gepa-v5-unified-architecture-design.md), [controlled evolution](../controlled_evolution.md), [learning surfaces](../../gepa_mindfulness/learning_surfaces.py), [coevolution](../../gepa_mindfulness/coevolution.py)
 
 **Source demonstrates:** The source reports iterative planning, coding, and testing loops with
 small verifiable increments and separation between implementation-time tests and independent
@@ -300,7 +303,8 @@ evaluation.
 **Repository inference:** The process motivates controlled between-episode harness evolution and
 held-out validation rather than changing a scored episode in place.
 
-**Maturity:** Resolved arXiv preprint; REC-010 is accepted but incomplete.
+**Maturity:** Resolved arXiv preprint; the bounded offline-evolution record contract for REC-010
+is implemented. The repository does not execute or deploy harness changes.
 
 <a id="ref-agentscope"></a>
 
@@ -337,7 +341,7 @@ REC-013 remains experimental. Verifier identity authentication remains external 
 - DOI: `10.48550/arXiv.2609.02749`
 - Venue/status: Not supplied by official arXiv metadata.
 - Recommendations influenced: `REC-009`
-- Local repository notes: [V5 architecture design](../../history/2026-09-10-gepa-v5-unified-architecture-design.md), [reward pipeline](../../gepa_mindfulness/training/reward_pipeline.py)
+- Local repository notes: [V5 architecture design](../../history/2026-09-10-gepa-v5-unified-architecture-design.md), [controlled evolution](../controlled_evolution.md), [skill lifecycle](../../gepa_mindfulness/skill_lifecycle.py)
 
 **Source demonstrates:** The source reports repository-to-skill distillation and benchmark gains
 from a verified skill library under a fixed agent setup and execution budget.
@@ -345,7 +349,9 @@ from a verified skill library under a fixed agent setup and execution budget.
 **Repository inference:** The result supports treating procedural knowledge as a reviewable skill
 artifact whose value depends on execution evidence and held-out evaluation.
 
-**Maturity:** Resolved arXiv preprint; REC-009 is accepted but incomplete.
+**Maturity:** Resolved arXiv preprint; the bounded artifact lifecycle portion of REC-009 is
+implemented. The repository does not reproduce the paper's skill-distillation pipeline or
+benchmark.
 
 <a id="ref-skillglow"></a>
 
@@ -359,15 +365,17 @@ artifact whose value depends on execution evidence and held-out evaluation.
 - DOI: `10.48550/arXiv.2609.02217`
 - Venue/status: Not supplied by official arXiv metadata.
 - Recommendations influenced: `REC-009`
-- Local repository notes: [V5 architecture design](../../history/2026-09-10-gepa-v5-unified-architecture-design.md), [reward pipeline](../../gepa_mindfulness/training/reward_pipeline.py)
+- Local repository notes: [V5 architecture design](../../history/2026-09-10-gepa-v5-unified-architecture-design.md), [controlled evolution](../controlled_evolution.md), [skill lifecycle](../../gepa_mindfulness/skill_lifecycle.py)
 
 **Source demonstrates:** The source reports consolidation of task-local skills into procedural
 families and an execution-based commit gate evaluated across long-horizon task streams.
 
 **Repository inference:** The result supports procedural-family records, execution evidence,
-validation, commit, and rollback stages in the planned skill lifecycle.
+validation, commit, and rollback stages in the repository skill lifecycle.
 
-**Maturity:** Resolved arXiv preprint; REC-009 is accepted but incomplete.
+**Maturity:** Resolved arXiv preprint; the bounded procedural-family and lifecycle portion of
+REC-009 is implemented. The repository does not reproduce the paper's complete system or
+evaluation.
 
 <a id="ref-maskills"></a>
 

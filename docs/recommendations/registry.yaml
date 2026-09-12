@@ -194,7 +194,7 @@ recommendations:
   - id: REC-009
     title: "Verified skill lifecycle."
     priority: P1
-    status: accepted
+    status: implemented
     rationale: >-
       Skill credit must depend on execution evidence and held-out validation rather than an
       explanatory trace that merely claims a successful procedure.
@@ -209,21 +209,25 @@ recommendations:
       - REF-REPOTOSKILL
       - REF-DSR
     repo_refs:
-      - gepa_mindfulness/training/reward_pipeline.py
+      - gepa_mindfulness/skill_lifecycle.py
+      - docs/controlled_evolution.md
     acceptance_tests:
-      - tests/test_skill_lifecycle.py
-    implementation_refs: []
+      - tests/test_verified_skill_lifecycle.py
+      - tests/test_verified_skill_lifecycle_review.py
+    implementation_refs:
+      - gepa_mindfulness/skill_lifecycle.py
 
   - id: REC-010
     title: "Online experience collection; offline harness/skill evolution."
     priority: P1
-    status: accepted
+    status: implemented
     rationale: >-
       Model and harness versions remain fixed during an evaluation episode; evidence collected
       online informs controlled, reversible changes between episodes.
     targets:
       - gepa_mindfulness/learning_surfaces.py
       - gepa_mindfulness/skill_lifecycle.py
+      - gepa_mindfulness/coevolution.py
     supersedes: []
     dependencies:
       - REC-005
@@ -232,11 +236,20 @@ recommendations:
       - REF-COEVOLVE
       - REF-HOH
     repo_refs:
-      - gepa_mindfulness/training/reward_pipeline.py
+      - gepa_mindfulness/learning_surfaces.py
+      - gepa_mindfulness/skill_lifecycle.py
+      - gepa_mindfulness/coevolution.py
+      - docs/controlled_evolution.md
     acceptance_tests:
       - tests/test_learning_surfaces.py
-      - tests/test_skill_lifecycle.py
-    implementation_refs: []
+      - tests/test_offline_evolution_epochs.py
+      - tests/test_verified_skill_lifecycle.py
+      - tests/test_verified_skill_lifecycle_review.py
+      - tests/test_model_harness_coevolution.py
+    implementation_refs:
+      - gepa_mindfulness/learning_surfaces.py
+      - gepa_mindfulness/skill_lifecycle.py
+      - gepa_mindfulness/coevolution.py
 
   - id: REC-011
     title: "Multiple competing hypotheses + information-gain inquiry."

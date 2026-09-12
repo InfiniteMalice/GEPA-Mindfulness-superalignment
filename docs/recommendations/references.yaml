@@ -86,10 +86,13 @@ references:
     repository_inference: >-
       The reported execution feedback supports an execution-backed skill lifecycle with held-out
       checks; the repository lifecycle remains a separately specified interface.
-    maturity: "Resolved arXiv preprint; REC-009 is accepted but incomplete."
+    maturity: >-
+      Resolved arXiv preprint; the bounded catalog lifecycle portion of REC-009 is implemented.
+      The repository does not claim the paper's complete skill system or empirical results.
     local_repo_notes:
       - history/2026-09-10-gepa-v5-unified-architecture-design.md
-      - gepa_mindfulness/training/reward_pipeline.py
+      - docs/controlled_evolution.md
+      - gepa_mindfulness/skill_lifecycle.py
 
   - reference_id: REF-COEVOLVE
     metadata_status: resolved
@@ -124,10 +127,14 @@ references:
     repository_inference: >-
       The result motivates fixed model and harness versions within an evaluation episode and
       controlled evolution between episodes rather than online mutation during scoring.
-    maturity: "Resolved arXiv preprint; REC-010 is accepted but incomplete."
+    maturity: >-
+      Resolved arXiv preprint; the bounded epoch and candidate-record portion of REC-010 is
+      implemented. The repository does not reproduce the paper's experiments or deploy a system.
     local_repo_notes:
       - history/2026-09-10-gepa-v5-unified-architecture-design.md
-      - gepa_mindfulness/training/reward_pipeline.py
+      - docs/controlled_evolution.md
+      - gepa_mindfulness/learning_surfaces.py
+      - gepa_mindfulness/coevolution.py
 
   - reference_id: REF-CONSISTENCY
     metadata_status: resolved
@@ -186,10 +193,13 @@ references:
     repository_inference: >-
       The result inspires future bounded skill routing within REC-009; the current repository does
       not implement the paper's Determinantal Point Process reranker.
-    maturity: "Resolved arXiv preprint; REC-009 is accepted but incomplete."
+    maturity: >-
+      Resolved arXiv preprint; the bounded lifecycle portion of REC-009 is implemented. The
+      repository does not implement the paper's Determinantal Point Process reranker.
     local_repo_notes:
       - history/2026-09-10-gepa-v5-unified-architecture-design.md
-      - gepa_mindfulness/training/reward_pipeline.py
+      - docs/controlled_evolution.md
+      - gepa_mindfulness/skill_lifecycle.py
 
   - reference_id: REF-EDGEMEM
     metadata_status: resolved
@@ -404,10 +414,14 @@ references:
     repository_inference: >-
       The process motivates controlled between-episode harness evolution and held-out validation
       rather than changing a scored episode in place.
-    maturity: "Resolved arXiv preprint; REC-010 is accepted but incomplete."
+    maturity: >-
+      Resolved arXiv preprint; the bounded offline-evolution record contract for REC-010 is
+      implemented. The repository does not execute or deploy harness changes.
     local_repo_notes:
       - history/2026-09-10-gepa-v5-unified-architecture-design.md
-      - gepa_mindfulness/training/reward_pipeline.py
+      - docs/controlled_evolution.md
+      - gepa_mindfulness/learning_surfaces.py
+      - gepa_mindfulness/coevolution.py
 
   - reference_id: REF-AGENTSCOPE
     metadata_status: resolved
@@ -473,10 +487,13 @@ references:
     repository_inference: >-
       The result supports treating procedural knowledge as a reviewable skill artifact whose value
       depends on execution evidence and held-out evaluation.
-    maturity: "Resolved arXiv preprint; REC-009 is accepted but incomplete."
+    maturity: >-
+      Resolved arXiv preprint; the bounded artifact lifecycle portion of REC-009 is implemented.
+      The repository does not reproduce the paper's skill-distillation pipeline or benchmark.
     local_repo_notes:
       - history/2026-09-10-gepa-v5-unified-architecture-design.md
-      - gepa_mindfulness/training/reward_pipeline.py
+      - docs/controlled_evolution.md
+      - gepa_mindfulness/skill_lifecycle.py
 
   - reference_id: REF-SKILLGLOW
     metadata_status: resolved
@@ -503,11 +520,14 @@ references:
       execution-based commit gate evaluated across long-horizon task streams.
     repository_inference: >-
       The result supports procedural-family records, execution evidence, validation, commit, and
-      rollback stages in the planned skill lifecycle.
-    maturity: "Resolved arXiv preprint; REC-009 is accepted but incomplete."
+      rollback stages in the repository skill lifecycle.
+    maturity: >-
+      Resolved arXiv preprint; the bounded procedural-family and lifecycle portion of REC-009 is
+      implemented. The repository does not reproduce the paper's complete system or evaluation.
     local_repo_notes:
       - history/2026-09-10-gepa-v5-unified-architecture-design.md
-      - gepa_mindfulness/training/reward_pipeline.py
+      - docs/controlled_evolution.md
+      - gepa_mindfulness/skill_lifecycle.py
 
   - reference_id: REF-MASKILLS
     metadata_status: resolved

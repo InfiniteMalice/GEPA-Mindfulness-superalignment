@@ -68,18 +68,28 @@ a design choice, but do not establish this architecture as an empirical result.
   [`test_verifier_interfaces.py`](../../tests/test_verifier_interfaces.py).
 - Research: [`REF-HEART`](RESEARCH_TRACEABILITY.md#ref-heart), [`REF-BIOMETRIC-MEM`](RESEARCH_TRACEABILITY.md#ref-biometric-mem).
 
-### P1 — Accepted
-
 #### REC-009 — Verified skill lifecycle.
 
-- Repository evidence: [`reward_pipeline.py`](../../gepa_mindfulness/training/reward_pipeline.py).
-- Planned acceptance checks: `tests/test_skill_lifecycle.py`.
+- Repository evidence: [`skill_lifecycle.py`](../../gepa_mindfulness/skill_lifecycle.py).
+- Architecture boundary: [`controlled_evolution.md`](../controlled_evolution.md).
+- Limit: lifecycle authority is confined to one protected SQLite catalog, authority domain, and
+  pinned evaluation authority. A committed record does not install or deploy a skill.
+- Acceptance checks: [`test_verified_skill_lifecycle.py`](../../tests/test_verified_skill_lifecycle.py),
+  [`test_verified_skill_lifecycle_review.py`](../../tests/test_verified_skill_lifecycle_review.py).
 - Research: [`REF-SEGOS`](RESEARCH_TRACEABILITY.md#ref-segos), [`REF-SKILLGLOW`](RESEARCH_TRACEABILITY.md#ref-skillglow), [`REF-REPOTOSKILL`](RESEARCH_TRACEABILITY.md#ref-repotoskill), [`REF-DSR`](RESEARCH_TRACEABILITY.md#ref-dsr).
 
 #### REC-010 — Online experience collection; offline harness/skill evolution.
 
-- Repository evidence: [`reward_pipeline.py`](../../gepa_mindfulness/training/reward_pipeline.py).
-- Planned acceptance checks: `tests/test_learning_surfaces.py`, `tests/test_skill_lifecycle.py`.
+- Repository evidence: [`learning_surfaces.py`](../../gepa_mindfulness/learning_surfaces.py), [`skill_lifecycle.py`](../../gepa_mindfulness/skill_lifecycle.py), [`coevolution.py`](../../gepa_mindfulness/coevolution.py).
+- Architecture boundary: [`controlled_evolution.md`](../controlled_evolution.md).
+- Limit: acceptance decisions are audit-only, and each validated decision can be consumed once.
+  Consumption does not execute, install, deploy, or roll back a model, harness, or skill. A
+  decision has no universal authority across catalogs.
+- Acceptance checks: [`test_learning_surfaces.py`](../../tests/test_learning_surfaces.py),
+  [`test_offline_evolution_epochs.py`](../../tests/test_offline_evolution_epochs.py),
+  [`test_verified_skill_lifecycle.py`](../../tests/test_verified_skill_lifecycle.py),
+  [`test_verified_skill_lifecycle_review.py`](../../tests/test_verified_skill_lifecycle_review.py),
+  [`test_model_harness_coevolution.py`](../../tests/test_model_harness_coevolution.py).
 - Research: [`REF-COEVOLVE`](RESEARCH_TRACEABILITY.md#ref-coevolve), [`REF-HOH`](RESEARCH_TRACEABILITY.md#ref-hoh).
 
 ## P2

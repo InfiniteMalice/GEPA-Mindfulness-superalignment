@@ -39,6 +39,14 @@ Native Mojo was not installed or executed on the verification host. MAX was not 
 Vulkan/llama.cpp lanes were skipped. Those skips are limitations, not successes. The hybrid
 command does not claim PEFT-to-GGUF conversion, llama.cpp deployment, or actor reload.
 
+## Controlled learning and offline evolution
+
+The repository implements typed learning destinations, version-frozen evaluation epochs, an
+execution-backed skill lifecycle, and audit-only model-harness candidate decisions. These records
+and validators do not update model weights, install skills, execute candidates, or deploy systems.
+See the [controlled learning and offline evolution guide](docs/controlled_evolution.md) for the
+state transitions, acceptance evidence, and SQLite authority limits.
+
 ## Memory Safety, CPT, SSR, and Structured Logs
 
 The repository includes opt-in scaffolding for four longitudinal reflective-stability surfaces:
