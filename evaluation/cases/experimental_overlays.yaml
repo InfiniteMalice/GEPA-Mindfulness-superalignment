@@ -1,0 +1,77 @@
+registry_version: 17case-v5
+overlays:
+  - id: competing_hypotheses
+    title: Competing hypotheses
+    maturity: experimental
+    enabled_by_default: false
+    feature_flag: competing_hypotheses
+    allowed_outputs:
+      - hypothesis_set
+    prohibited_effects:
+      - canonical_case_creation
+      - direct_optimizer_reward
+    research_refs:
+      - REF-PEARL
+    recommendation_refs:
+      - REC-011
+
+  - id: expected_information_gain_inquiry
+    title: Expected information-gain inquiry
+    maturity: experimental
+    enabled_by_default: false
+    feature_flag: expected_information_gain_inquiry
+    allowed_outputs:
+      - information_gain_question
+    prohibited_effects:
+      - canonical_case_creation
+      - direct_optimizer_reward
+    research_refs:
+      - REF-PEARL
+    recommendation_refs:
+      - REC-011
+
+  - id: adaptive_small_multi_agent_topology
+    title: Adaptive small multi-agent topology
+    maturity: experimental
+    enabled_by_default: false
+    feature_flag: adaptive_small_multi_agent_topology
+    allowed_outputs:
+      - topology_proposal
+    prohibited_effects:
+      - canonical_case_creation
+      - direct_optimizer_reward
+    research_refs:
+      - REF-MASKILLS
+    recommendation_refs:
+      - REC-012
+
+  - id: declarative_orchestration_scope
+    title: Declarative orchestration scope
+    maturity: experimental
+    enabled_by_default: false
+    feature_flag: declarative_orchestration_scope
+    allowed_outputs:
+      - orchestration_scope_declaration
+    prohibited_effects:
+      - canonical_case_creation
+      - direct_optimizer_reward
+    research_refs:
+      - REF-AGENTSCOPE
+    recommendation_refs:
+      - REC-013
+
+  - id: mechanistic_circuit_audit
+    title: Mechanistic circuit audit
+    maturity: experimental
+    enabled_by_default: false
+    feature_flag: mechanistic_circuit_audit
+    allowed_outputs:
+      - mechanistic_audit_reference
+    prohibited_effects:
+      - canonical_case_creation
+      - direct_optimizer_reward
+      - correlation_as_causation
+    research_refs:
+      - REF-SAE
+    recommendation_refs:
+      - REC-014
