@@ -107,7 +107,7 @@ exclude = [
 ]
 
 [tool.setuptools.package-data]
-docs = ["controlled_evolution.md"]
+docs = ["controlled_evolution.md", "experimental_v5_overlays.md"]
 "docs.recommendations" = [
     "RESEARCH_TRACEABILITY.md",
     "UNIFIED_RECOMMENDATIONS.md",

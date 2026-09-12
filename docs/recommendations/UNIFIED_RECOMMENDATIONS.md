@@ -98,26 +98,26 @@ a design choice, but do not establish this architecture as an empirical result.
 
 #### REC-011 — Multiple competing hypotheses + information-gain inquiry.
 
-- Repository evidence: [`robustness_stripes.yaml`](../../evaluation/cases/robustness_stripes.yaml).
-- Planned acceptance checks: `tests/test_experimental_overlays.py`.
+- Repository evidence: [`experimental_overlays.py`](../../evaluation/experimental_overlays.py), [`experimental_records.py`](../../evaluation/experimental_records.py), [`experimental_v5_overlays.md`](../experimental_v5_overlays.md).
+- Acceptance checks: [`test_experimental_overlay_registry.py`](../../tests/test_experimental_overlay_registry.py), [`test_experimental_overlay_flags.py`](../../tests/test_experimental_overlay_flags.py), [`test_experimental_overlay_records.py`](../../tests/test_experimental_overlay_records.py).
 - Research: [`REF-PEARL`](RESEARCH_TRACEABILITY.md#ref-pearl).
 
 #### REC-012 — Small adaptive multi-agent topology codebook.
 
-- Repository evidence: [`reward_pipeline.py`](../../gepa_mindfulness/training/reward_pipeline.py).
-- Planned acceptance checks: `tests/test_experimental_overlays.py`.
+- Repository evidence: [`experimental_overlays.py`](../../evaluation/experimental_overlays.py), [`experimental_records.py`](../../evaluation/experimental_records.py), [`experimental_v5_overlays.md`](../experimental_v5_overlays.md).
+- Acceptance checks: [`test_experimental_overlay_registry.py`](../../tests/test_experimental_overlay_registry.py), [`test_experimental_overlay_flags.py`](../../tests/test_experimental_overlay_flags.py), [`test_experimental_overlay_records.py`](../../tests/test_experimental_overlay_records.py).
 - Research: [`REF-MASKILLS`](RESEARCH_TRACEABILITY.md#ref-maskills).
 
 #### REC-013 — Declarative global/focus/local orchestration scope.
 
-- Repository evidence: [`reward_pipeline.py`](../../gepa_mindfulness/training/reward_pipeline.py).
-- Planned acceptance checks: `tests/test_experimental_overlays.py`.
+- Repository evidence: [`experimental_overlays.py`](../../evaluation/experimental_overlays.py), [`experimental_records.py`](../../evaluation/experimental_records.py), [`experimental_v5_overlays.md`](../experimental_v5_overlays.md).
+- Acceptance checks: [`test_experimental_overlay_registry.py`](../../tests/test_experimental_overlay_registry.py), [`test_experimental_overlay_flags.py`](../../tests/test_experimental_overlay_flags.py), [`test_experimental_overlay_records.py`](../../tests/test_experimental_overlay_records.py).
 - Research: [`REF-AGENTSCOPE`](RESEARCH_TRACEABILITY.md#ref-agentscope).
 
 #### REC-014 — Mechanistic/circuit audit of actual model changes.
 
-- Repository evidence: [`rewards.py`](../../gepa_mindfulness/core/rewards.py).
-- Planned acceptance checks: `tests/test_experimental_overlays.py`.
+- Repository evidence: [`experimental_overlays.py`](../../evaluation/experimental_overlays.py), [`experimental_records.py`](../../evaluation/experimental_records.py), [`experimental_v5_overlays.md`](../experimental_v5_overlays.md).
+- Acceptance checks: [`test_experimental_overlay_registry.py`](../../tests/test_experimental_overlay_registry.py), [`test_experimental_overlay_flags.py`](../../tests/test_experimental_overlay_flags.py), [`test_experimental_overlay_records.py`](../../tests/test_experimental_overlay_records.py).
 - Research: [`REF-SAE`](RESEARCH_TRACEABILITY.md#ref-sae).
 
 ## Research traceability

@@ -259,17 +259,25 @@ recommendations:
       Competing hypotheses and targeted inquiry can be evaluated as a disabled overlay without
       adding canonical cases or making an unverified inference optimizer-facing.
     targets:
-      - gepa_mindfulness/experimental_overlays.py
+      - evaluation/experimental_overlays.py
+      - evaluation/experimental_records.py
     supersedes: []
     dependencies:
       - REC-006
     research_refs:
       - REF-PEARL
     repo_refs:
-      - evaluation/cases/robustness_stripes.yaml
+      - evaluation/experimental_overlays.py
+      - evaluation/experimental_records.py
+      - docs/experimental_v5_overlays.md
     acceptance_tests:
-      - tests/test_experimental_overlays.py
-    implementation_refs: []
+      - tests/test_experimental_overlay_registry.py
+      - tests/test_experimental_overlay_flags.py
+      - tests/test_experimental_overlay_records.py
+    implementation_refs:
+      - evaluation/experimental_overlays.py
+      - evaluation/experimental_records.py
+      - docs/experimental_v5_overlays.md
 
   - id: REC-012
     title: "Small adaptive multi-agent topology codebook."
@@ -279,17 +287,25 @@ recommendations:
       A bounded topology codebook can be tested as a feature-flagged orchestration overlay before
       it is considered a stable runtime capability.
     targets:
-      - gepa_mindfulness/experimental_overlays.py
+      - evaluation/experimental_overlays.py
+      - evaluation/experimental_records.py
     supersedes: []
     dependencies:
       - REC-008
     research_refs:
       - REF-MASKILLS
     repo_refs:
-      - gepa_mindfulness/training/reward_pipeline.py
+      - evaluation/experimental_overlays.py
+      - evaluation/experimental_records.py
+      - docs/experimental_v5_overlays.md
     acceptance_tests:
-      - tests/test_experimental_overlays.py
-    implementation_refs: []
+      - tests/test_experimental_overlay_registry.py
+      - tests/test_experimental_overlay_flags.py
+      - tests/test_experimental_overlay_records.py
+    implementation_refs:
+      - evaluation/experimental_overlays.py
+      - evaluation/experimental_records.py
+      - docs/experimental_v5_overlays.md
 
   - id: REC-013
     title: "Declarative global/focus/local orchestration scope."
@@ -299,17 +315,25 @@ recommendations:
       Declarative scope can make coordination boundaries inspectable while remaining disabled until
       runtime authority and outcome evidence demonstrate a safe operating contract.
     targets:
-      - gepa_mindfulness/experimental_overlays.py
+      - evaluation/experimental_overlays.py
+      - evaluation/experimental_records.py
     supersedes: []
     dependencies:
       - REC-008
     research_refs:
       - REF-AGENTSCOPE
     repo_refs:
-      - gepa_mindfulness/training/reward_pipeline.py
+      - evaluation/experimental_overlays.py
+      - evaluation/experimental_records.py
+      - docs/experimental_v5_overlays.md
     acceptance_tests:
-      - tests/test_experimental_overlays.py
-    implementation_refs: []
+      - tests/test_experimental_overlay_registry.py
+      - tests/test_experimental_overlay_flags.py
+      - tests/test_experimental_overlay_records.py
+    implementation_refs:
+      - evaluation/experimental_overlays.py
+      - evaluation/experimental_records.py
+      - docs/experimental_v5_overlays.md
 
   - id: REC-014
     title: "Mechanistic/circuit audit of actual model changes."
@@ -319,7 +343,8 @@ recommendations:
       Mechanistic and circuit signals can guide investigation as a disabled audit overlay, but they
       do not directly change optimizer fitness without causal validation and behavioral grounding.
     targets:
-      - gepa_mindfulness/experimental_overlays.py
+      - evaluation/experimental_overlays.py
+      - evaluation/experimental_records.py
     supersedes: []
     dependencies:
       - REC-001
@@ -327,7 +352,14 @@ recommendations:
     research_refs:
       - REF-SAE
     repo_refs:
-      - gepa_mindfulness/core/rewards.py
+      - evaluation/experimental_overlays.py
+      - evaluation/experimental_records.py
+      - docs/experimental_v5_overlays.md
     acceptance_tests:
-      - tests/test_experimental_overlays.py
-    implementation_refs: []
+      - tests/test_experimental_overlay_registry.py
+      - tests/test_experimental_overlay_flags.py
+      - tests/test_experimental_overlay_records.py
+    implementation_refs:
+      - evaluation/experimental_overlays.py
+      - evaluation/experimental_records.py
+      - docs/experimental_v5_overlays.md

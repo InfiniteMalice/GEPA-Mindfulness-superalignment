@@ -99,6 +99,32 @@ def test_registry_links_resolve_to_authored_recommendations_and_research() -> No
     assert {item for overlay in overlays for item in overlay.research_refs} <= reference_ids
 
 
+def test_experimental_recommendations_name_pr7_code_docs_and_tests() -> None:
+    expected_implementation = (
+        "evaluation/experimental_overlays.py",
+        "evaluation/experimental_records.py",
+        "docs/experimental_v5_overlays.md",
+    )
+    expected_tests = (
+        "tests/test_experimental_overlay_registry.py",
+        "tests/test_experimental_overlay_flags.py",
+        "tests/test_experimental_overlay_records.py",
+    )
+    by_id = {
+        item.recommendation_id: item for item in recommendations.load_recommendation_registry()
+    }
+
+    for recommendation_id in ("REC-011", "REC-012", "REC-013", "REC-014"):
+        recommendation = by_id[recommendation_id]
+        assert recommendation.status == "experimental"
+        assert recommendation.targets == (
+            "evaluation/experimental_overlays.py",
+            "evaluation/experimental_records.py",
+        )
+        assert recommendation.implementation_refs == expected_implementation
+        assert recommendation.acceptance_tests == expected_tests
+
+
 def test_overlay_records_are_frozen_and_resource_is_packaged() -> None:
     overlay = experimental_overlays.load_experimental_overlay_registry()[0]
 
@@ -171,6 +197,19 @@ def test_parser_rejects_cross_wired_flags_and_output_kinds() -> None:
     payload = _valid_payload()
     payload["overlays"][0]["allowed_outputs"] = ["topology_proposal"]
     with pytest.raises(ValueError, match="allowed_outputs do not match overlay"):
+        experimental_overlays._parse_experimental_overlay_registry(payload)
+
+
+def test_parser_rejects_cross_wired_known_traceability_ids() -> None:
+    payload = _valid_payload()
+    payload["overlays"][0]["research_refs"] = ["REF-SAE"]
+
+    with pytest.raises(ValueError, match="research_refs do not match overlay"):
+        experimental_overlays._parse_experimental_overlay_registry(payload)
+
+    payload = _valid_payload()
+    payload["overlays"][0]["recommendation_refs"] = ["REC-014"]
+    with pytest.raises(ValueError, match="recommendation_refs do not match overlay"):
         experimental_overlays._parse_experimental_overlay_registry(payload)
 
 

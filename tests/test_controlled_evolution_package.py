@@ -11,10 +11,14 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_RESOURCES = {
     "docs/__init__.py",
     "docs/controlled_evolution.md",
+    "docs/experimental_v5_overlays.md",
     "docs/recommendations/RESEARCH_TRACEABILITY.md",
     "docs/recommendations/UNIFIED_RECOMMENDATIONS.md",
     "docs/recommendations/references.yaml",
     "docs/recommendations/registry.yaml",
+    "evaluation/cases/experimental_overlays.yaml",
+    "evaluation/experimental_overlays.py",
+    "evaluation/experimental_records.py",
 }
 
 
@@ -61,6 +65,16 @@ recommendations = importlib.resources.files("docs.recommendations")
 assert root.joinpath("controlled_evolution.md").read_text(encoding="utf-8").startswith(
     "# Controlled Learning and Offline Evolution"
 )
+assert root.joinpath("experimental_v5_overlays.md").read_text(encoding="utf-8").startswith(
+    "# Experimental V5 Overlays"
+)
+from evaluation.experimental_overlays import ExperimentalOverlayConfig, enabled_overlays
+from evaluation.experimental_records import ExperimentalMaturity
+assert enabled_overlays(ExperimentalOverlayConfig()) == ()
+assert ExperimentalMaturity.EXPERIMENTAL.value == "experimental"
+assert importlib.resources.files("evaluation.cases").joinpath(
+    "experimental_overlays.yaml"
+).is_file()
 assert recommendations.joinpath("UNIFIED_RECOMMENDATIONS.md").read_text(
     encoding="utf-8"
 ).startswith("# Unified V5 Recommendations")

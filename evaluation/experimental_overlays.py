@@ -40,6 +40,13 @@ _ALLOWED_OUTPUTS_BY_ID = {
     "declarative_orchestration_scope": ("orchestration_scope_declaration",),
     "mechanistic_circuit_audit": ("mechanistic_audit_reference",),
 }
+_TRACEABILITY_BY_ID = {
+    "competing_hypotheses": (("REF-PEARL",), ("REC-011",)),
+    "expected_information_gain_inquiry": (("REF-PEARL",), ("REC-011",)),
+    "adaptive_small_multi_agent_topology": (("REF-MASKILLS",), ("REC-012",)),
+    "declarative_orchestration_scope": (("REF-AGENTSCOPE",), ("REC-013",)),
+    "mechanistic_circuit_audit": (("REF-SAE",), ("REC-014",)),
+}
 
 
 class _UniqueKeySafeLoader(yaml.SafeLoader):
@@ -199,6 +206,11 @@ def _parse_overlay(value: object, position: int) -> ExperimentalOverlay:
     unknown_recommendations = sorted(set(recommendations) - set(RECOMMENDATION_IDS))
     if unknown_recommendations:
         raise ValueError(f"unknown recommendation references: {unknown_recommendations}")
+    expected_research, expected_recommendations = _TRACEABILITY_BY_ID.get(identifier, ((), ()))
+    if research != expected_research:
+        raise ValueError("research_refs do not match overlay")
+    if recommendations != expected_recommendations:
+        raise ValueError("recommendation_refs do not match overlay")
     return ExperimentalOverlay(
         identifier,
         title,
