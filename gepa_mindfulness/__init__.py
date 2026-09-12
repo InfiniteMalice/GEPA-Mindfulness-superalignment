@@ -1,5 +1,17 @@
 """Utility helpers for GEPA mindfulness alignment modeling."""
 
+from .coevolution import (
+    AcceptanceDecision,
+    CandidateComponent,
+    CandidateSystem,
+    ComponentMetric,
+    CorrectionProposal,
+    CorrectionScope,
+    MetricDirection,
+    ValidationBundle,
+    bind_candidate_system,
+    decide_candidate_acceptance,
+)
 from .learning_surfaces import (
     EvaluationAuthority,
     EvaluationEpoch,
@@ -39,8 +51,14 @@ from .skill_lifecycle import (
 )
 
 __all__ = [
+    "AcceptanceDecision",
     "AggregateResult",
+    "CandidateComponent",
+    "CandidateSystem",
+    "ComponentMetric",
     "ConsolidationProvenance",
+    "CorrectionProposal",
+    "CorrectionScope",
     "EvaluationAuthority",
     "EvaluationEpoch",
     "EvaluationEpochHistory",
@@ -54,6 +72,7 @@ __all__ = [
     "LessonKind",
     "LessonProposal",
     "LessonReviewStatus",
+    "MetricDirection",
     "PracticeSession",
     "PruningProvenance",
     "RefinementProvenance",
@@ -62,14 +81,17 @@ __all__ = [
     "SkillLifecycleState",
     "SkillLifecycleStore",
     "ValidationReceipt",
+    "ValidationBundle",
     "ValidationSplit",
     "ValidationTarget",
     "append_epoch_record",
     "aggregate_gepa_metrics",
     "aggregate_gepa_score",
     "begin_candidate_epoch",
+    "bind_candidate_system",
     "classify_learning_surface",
     "close_evaluation_epoch",
+    "decide_candidate_acceptance",
     "evaluation_record_cell_id",
     "evaluation_record_id",
     "skill_artifact_digest",
