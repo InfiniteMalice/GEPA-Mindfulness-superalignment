@@ -14,9 +14,8 @@ from .representation import (
     SourceSpan,
     candidate_id_for,
     source_digest_for,
-    validated_candidate_snapshot,
 )
-from .schemas import SemanticSafetyRecord
+from .schemas import SemanticSafetyRecord, validate_representation_binding
 from .taxonomy import PolicyAction
 
 _SOURCE_ID = "semantic-hinges"
@@ -198,41 +197,7 @@ def locate_semantic_hinges(text: str) -> tuple[SourceSpan, ...]:
 def validate_representation_assessment(record: SemanticSafetyRecord) -> SemanticSafetyRecord:
     """Validate an optional representation binding before semantic decomposition."""
 
-    if type(record) is not SemanticSafetyRecord:
-        raise TypeError("record must be an exact SemanticSafetyRecord")
-    values = _binding_values(record)
-    if values is None:
-        return record
-    candidate, candidate_id, source_id, start, end, raw_text, source_document, source_digest = (
-        values
-    )
-    candidate = validated_candidate_snapshot(candidate)
-    if raw_text != record.representation_raw_text or end - start != len(raw_text):
-        raise ValueError("representation assessment has inconsistent raw source span")
-    if not candidate_id.startswith("representation-v1:") or not source_id:
-        raise ValueError("representation assessment has malformed provenance")
-    if source_document[start:end] != raw_text:
-        raise ValueError("representation raw span conflicts with the immutable source document")
-    if source_digest_for(source_id, source_document) != source_digest:
-        raise ValueError(
-            "representation source digest conflicts with the immutable source document"
-        )
-    if candidate_id_for(candidate) != candidate_id:
-        raise ValueError("representation candidate identifier is not bound to its snapshot")
-    span = candidate.source_span
-    if (span.source_id, span.start, span.end, span.raw_text) != (
-        source_id,
-        start,
-        end,
-        raw_text,
-    ):
-        raise ValueError("representation candidate SourceSpan is not bound to the source record")
-    if candidate.provenance != record.representation_provenance:
-        raise ValueError("representation candidate provenance is not bound to the source record")
-    assessed_text = source_document[:start] + candidate.candidate_text + source_document[end:]
-    if record.prompt_text != assessed_text:
-        raise ValueError("prompt_text must equal the actual assessed representation")
-    return record
+    return validate_representation_binding(record)
 
 
 def route_representation_disagreement(

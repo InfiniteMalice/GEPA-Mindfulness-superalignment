@@ -114,6 +114,7 @@ def test_rg_tracer_schema_v3_imports_with_only_its_source_tree(tmp_path: Path) -
         capture_output=True,
         text=True,
         check=False,
+        timeout=30,
     )
 
     assert completed.returncode == 0, completed.stderr

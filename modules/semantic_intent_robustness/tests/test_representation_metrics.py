@@ -1,3 +1,5 @@
+"""Tests for representation metric boundaries and runtime behavior."""
+
 from __future__ import annotations
 
 import builtins

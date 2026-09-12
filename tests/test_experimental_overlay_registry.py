@@ -140,7 +140,7 @@ def test_overlay_records_are_frozen_and_resource_is_packaged() -> None:
 @pytest.mark.parametrize(
     ("mutation", "message"),
     [
-        (lambda payload: payload.update(version="v5"), "registry_version"),
+        (lambda payload: payload.update(registry_version="v5"), "registry_version"),
         (lambda payload: payload.update(extra=True), "registry fields"),
         (lambda payload: payload["overlays"][0].pop("title"), "overlay fields"),
         (lambda payload: payload["overlays"][0].update(maturity="stable"), "maturity"),

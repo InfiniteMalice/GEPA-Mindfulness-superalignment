@@ -73,6 +73,7 @@ def _bundle(
     *,
     reversible: bool = False,
     finding_evidence: str = "evidence:observed",
+    artifact_ref: str = "artifact:skill.py",
 ) -> ExecutionEvidenceBundle:
     common = {
         "run_id": "run-1",
@@ -95,7 +96,7 @@ def _bundle(
     outcome = OutcomeObservation(
         "observation-1",
         "action-1",
-        {"artifact_ref": "artifact:skill.py", "digest": "a" * 64},
+        {"artifact_ref": artifact_ref, "digest": "a" * 64},
         ("evidence:observed",),
     )
     outcome_event = make_outcome_observation_event(
@@ -168,7 +169,7 @@ def _bundle(
     )
     observation = ArtifactObservation(
         "observation-1",
-        "artifact:skill.py",
+        artifact_ref,
         "a" * 64,
         "2026-09-10T12:00:01Z",
         (_ref(),),
@@ -307,7 +308,7 @@ def test_full_lifecycle_persists_structured_receipts_and_reopens(tmp_path: Path)
     executed = transition_skill(
         history,
         SkillLifecycleState.EXECUTED,
-        execution_evidence=_bundle(),
+        execution_evidence=_bundle(artifact_ref=history.current().artifact_id),
     )
     credited = transition_skill(history, SkillLifecycleState.CREDITED)
     refined = transition_skill(
@@ -352,7 +353,7 @@ def test_full_lifecycle_persists_structured_receipts_and_reopens(tmp_path: Path)
 
 def test_legacy_scalar_verification_never_creates_credit(tmp_path: Path) -> None:
     _store_value, history, _local = _main_history(tmp_path)
-    legacy = _bundle()
+    legacy = _bundle(artifact_ref=history.current().artifact_id)
     legacy_event = make_verification_result_event(
         VerificationResult("verifier", "v1", "observation-1", True, ("ref",)),
         event_id="legacy-verification",
@@ -365,6 +366,18 @@ def test_legacy_scalar_verification_never_creates_credit(tmp_path: Path) -> None
             history,
             SkillLifecycleState.EXECUTED,
             execution_evidence=legacy,
+        )
+
+
+def test_execution_evidence_must_target_the_current_lifecycle_artifact(tmp_path: Path) -> None:
+    store, history, _local = _main_history(tmp_path)
+    unrelated = _task_local(store, "unrelated")
+
+    with pytest.raises(ValueError, match="current lifecycle artifact"):
+        transition_skill(
+            history,
+            SkillLifecycleState.EXECUTED,
+            execution_evidence=_bundle(artifact_ref=unrelated.artifact_id),
         )
 
 
@@ -468,7 +481,11 @@ def test_held_out_transition_requires_exact_target_split_and_allowed_lineage(
     tmp_path: Path,
 ) -> None:
     _skill_store, history, _local = _main_history(tmp_path)
-    transition_skill(history, SkillLifecycleState.EXECUTED, execution_evidence=_bundle())
+    transition_skill(
+        history,
+        SkillLifecycleState.EXECUTED,
+        execution_evidence=_bundle(artifact_ref=history.current().artifact_id),
+    )
     transition_skill(history, SkillLifecycleState.CREDITED)
     refined = transition_skill(
         history,

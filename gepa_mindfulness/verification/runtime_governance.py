@@ -1062,6 +1062,8 @@ def _issue_authorization(
             or decision.registry_revision != entry.revision
         ):
             raise ValueError("decision registry identity changed during issuance")
+        if not decision.authorized:
+            return decision
         if decision.decision_id in entry.issuances:
             raise RuntimeError("authorization decision ID collision")
         entry.issuances[decision.decision_id] = _AuthorizationIssuance(

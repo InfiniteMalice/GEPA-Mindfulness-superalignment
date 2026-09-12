@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 
-from .rewards import EpistemicProcessAssessment
+from .rewards import EpistemicProcessAssessment, verified_optimizer_score
 
 
 @dataclasses.dataclass(frozen=True)
@@ -68,7 +68,7 @@ def compute_abstention_reward(
         confidence=confidence,
         threshold=threshold,
     )
-    optimizer_score = epistemic_process.optimizer_score() if epistemic_process is not None else 0.0
+    optimizer_score = verified_optimizer_score(epistemic_process)
     thought = optimizer_score if optimizer_score > 0.0 else 0.0
     return Reward(
         case_id=case_id,

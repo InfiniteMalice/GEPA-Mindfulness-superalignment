@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, replace
-from typing import Any, get_args, get_type_hints
+from typing import Any, cast, get_args, get_type_hints
 
 import pytest
 
@@ -427,6 +427,56 @@ def test_schema_thought_reward_error_describes_fractional_verified_rule() -> Non
         assert_thought_reward_non_negative(RewardComponents(r_thought=-0.1))
     with pytest.raises(ValueError, match=expected_message):
         assert_rg_thought_reward_non_negative(RGRewardComponents(r_thought=-0.1))
+
+
+@pytest.mark.parametrize("score", [float("nan"), float("inf"), -0.1, 1.1, True])
+def test_packaged_schema_rejects_unbounded_structural_process_scores(score: object) -> None:
+    from rg_tracer.schema_v3 import classify_case_v3 as classify_rg_case_v3
+
+    class _Name:
+        value = "grounding"
+
+    class _Provenance:
+        component_name = "grounding"
+
+    class _Component:
+        def __init__(self, component_score: object) -> None:
+            self.component = _Name()
+            self.score = component_score
+            self.provenance = _Provenance()
+
+    class _Assessment:
+        verified_components = (_Component(score),)
+
+        def optimizer_score(self) -> object:
+            return score
+
+    with pytest.raises(ValueError, match=r"finite number in \[0.0, 1.0\]"):
+        classify_rg_case_v3(
+            output_text="Paris",
+            expected_answer="Paris",
+            is_idk=False,
+            confidence=0.9,
+            thought_aligned=True,
+            epistemic_process=cast(Any, _Assessment()),
+        )
+
+
+def test_packaged_schema_rejects_mismatched_structural_process_provenance() -> None:
+    from rg_tracer.schema_v3 import classify_case_v3 as classify_rg_case_v3
+
+    component = _verified_process(EpistemicProcessComponent.GROUNDING, 0.5).verified_components[0]
+    object.__setattr__(component.provenance, "component_name", "control")
+
+    with pytest.raises(ValueError, match="provenance component_name"):
+        classify_rg_case_v3(
+            output_text="Paris",
+            expected_answer="Paris",
+            is_idk=False,
+            confidence=0.9,
+            thought_aligned=True,
+            epistemic_process=cast(Any, EpistemicProcessAssessment((component,))),
+        )
 
 
 def test_v3_case_object_serializes_to_json():

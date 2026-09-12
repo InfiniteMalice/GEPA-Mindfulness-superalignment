@@ -131,7 +131,7 @@ class SemanticSafetyRecord:
             raise ValueError("turn_index must be non-negative")
         if type(self.representation_disagreement) is not bool:
             raise TypeError("representation_disagreement must be an exact bool")
-        _validate_representation_binding(self)
+        validate_representation_binding(self)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a JSON-compatible mapping."""
@@ -392,7 +392,11 @@ def _coerce_str_sequence(value: object, *, field_name: str) -> tuple[str, ...]:
     return tuple(value)
 
 
-def _validate_representation_binding(record: SemanticSafetyRecord) -> None:
+def validate_representation_binding(record: object) -> SemanticSafetyRecord:
+    """Validate and return one exact representation-bound safety record."""
+
+    if type(record) is not SemanticSafetyRecord:
+        raise TypeError("record must be an exact SemanticSafetyRecord")
     binding = (
         record.representation_candidate,
         record.representation_candidate_id,
@@ -408,7 +412,7 @@ def _validate_representation_binding(record: SemanticSafetyRecord) -> None:
         and not record.representation_provenance
         and not record.representation_disagreement
     ):
-        return
+        return record
     if any(value is None for value in binding) or not record.representation_provenance:
         raise ValueError("representation assessment requires complete representation provenance")
 
@@ -471,6 +475,7 @@ def _validate_representation_binding(record: SemanticSafetyRecord) -> None:
     assessed_text = source_document[:start] + candidate.candidate_text + source_document[end:]
     if record.prompt_text != assessed_text:
         raise ValueError("prompt_text must equal the actual assessed representation")
+    return record
 
 
 def _validate_digest(value: object, *, prefix: str, field_name: str) -> None:
@@ -523,4 +528,5 @@ __all__ = [
     "PrincipleRobustnessRecord",
     "SemanticCluster",
     "SemanticSafetyRecord",
+    "validate_representation_binding",
 ]

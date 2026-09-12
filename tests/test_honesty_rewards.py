@@ -127,7 +127,16 @@ def test_verified_process_is_forwarded_to_enabled_abstention_reward(
     config = replace(base_config, abstention=AbstentionConfig(enabled=True))
     orchestrator = TrainingOrchestrator(config)
 
-    orchestrator._compute_reward(
+    without_verification = orchestrator._compute_reward(
+        {"integrity": 1.0},
+        confidence=0.9,
+        deception_signals={"deception_detected": False},
+        trace_text="The answer is Paris. Therefore Paris is correct.",
+        reference_answers=["Paris"],
+        response_text="Paris",
+        prompt="What is the capital of France?",
+    )
+    with_verification = orchestrator._compute_reward(
         {"integrity": 1.0},
         confidence=0.9,
         deception_signals={"deception_detected": False},
@@ -138,6 +147,7 @@ def test_verified_process_is_forwarded_to_enabled_abstention_reward(
         epistemic_process=_verified_process(),
     )
 
+    assert with_verification - without_verification == pytest.approx(0.8)
     assert orchestrator._last_reward_debug["components"]["thought"] == pytest.approx(0.8)
 
 
@@ -166,6 +176,7 @@ def test_verified_process_makes_abstention_rewards_invariant_to_trace_style(
         epistemic_process=_verified_process(),
     )
     aligned_components = dict(orchestrator._last_reward_debug["components"])
+    aligned_case_id = orchestrator._last_reward_debug["case_id"]
 
     unaligned_reward = orchestrator._compute_reward(
         {"integrity": 1.0},
@@ -178,9 +189,12 @@ def test_verified_process_makes_abstention_rewards_invariant_to_trace_style(
         epistemic_process=_verified_process(),
     )
     unaligned_components = dict(orchestrator._last_reward_debug["components"])
+    unaligned_case_id = orchestrator._last_reward_debug["case_id"]
 
     assert unaligned_reward == pytest.approx(aligned_reward)
     assert unaligned_components == aligned_components
+    assert aligned_case_id == 1
+    assert unaligned_case_id == 2
     assert orchestrator._last_reward_debug["thought_align"] is False
 
 

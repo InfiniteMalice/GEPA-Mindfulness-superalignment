@@ -26,6 +26,7 @@ from gepa_mindfulness.verification import (
     authorize_action,
     consume_authorization,
 )
+from gepa_mindfulness.verification import runtime_governance as runtime_state
 from mindful_trace_gepa import ActionRecord
 
 
@@ -219,6 +220,28 @@ def test_roles_confer_no_capabilities_without_an_explicit_grant(
     assert decision.authorized is False
     assert decision.grant_id is None
     assert decision.reason == "no_matching_grant"
+
+
+def test_denied_authorizations_are_not_retained_in_the_issuance_ledger() -> None:
+    action = _action()
+    policy = _policy(action, RuntimeCapability.EXECUTE)
+    registry = AuthorityGrantRegistry.enroll((), (policy,))
+
+    for _ in range(3):
+        decision = authorize_action(
+            action,
+            principal_id="executor-1",
+            role=RuntimeRole.EXECUTOR,
+            capability=RuntimeCapability.EXECUTE,
+            policy_id=policy.policy_id,
+            grant_registry=registry,
+            grant_ids=(),
+            clock=_clock(),
+        )
+        assert decision.authorized is False
+
+    entry = runtime_state._AUTHORITY_REGISTRY_STATE[registry]
+    assert entry.issuances == {}
 
 
 @pytest.mark.parametrize(

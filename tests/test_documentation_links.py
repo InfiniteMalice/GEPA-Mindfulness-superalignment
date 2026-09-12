@@ -24,6 +24,7 @@ DOCUMENTS = (
     ROOT / "docs" / "VERIFICATION_AND_RUNTIME_AUTHORITY.md",
     ROOT / "docs" / "FOUNDATIONAL_REPRESENTATION_ARCHITECTURE.md",
     ROOT / "docs" / "experimental_v5_overlays.md",
+    ROOT / "docs" / "adr" / "0001-17-case-v5-unified-architecture.md",
     ROOT / "docs" / "recommendations" / "UNIFIED_RECOMMENDATIONS.md",
     ROOT / "docs" / "recommendations" / "RESEARCH_TRACEABILITY.md",
     ROOT / "gepa_mindfulness" / "core" / "README.md",
@@ -40,13 +41,33 @@ _REC_ID = re.compile(r"\bREC-\d{3}\b")
 _REF_ID = re.compile(r"\bREF-[A-Z0-9-]+\b")
 
 
+def _markdown_link_targets(markdown: str) -> tuple[str, ...]:
+    visible_lines: list[str] = []
+    fence: str | None = None
+    for line in markdown.splitlines():
+        stripped = line.lstrip()
+        marker = stripped[:3]
+        if fence is None and marker in {"```", "~~~"}:
+            fence = marker
+            continue
+        if fence == marker:
+            fence = None
+            continue
+        if fence is None:
+            visible_lines.append(re.sub(r"`[^`\n]*`", "", line))
+    return tuple(_MARKDOWN_LINK.findall("\n".join(visible_lines)))
+
+
 def test_v5_documentation_relative_links_and_fragments_resolve() -> None:
     failures: list[str] = []
 
     for document in DOCUMENTS:
         text = document.read_text(encoding="utf-8")
-        for raw_target in _MARKDOWN_LINK.findall(text):
+        for raw_target in _markdown_link_targets(text):
             target = raw_target.strip().split(maxsplit=1)[0].strip("<>")
+            if not target:
+                failures.append(f"{document.relative_to(ROOT)} -> empty link target")
+                continue
             if target.startswith(("http://", "https://", "mailto:")):
                 continue
             if not any(character in target for character in ("/", "\\", ".", "#")):
@@ -64,6 +85,19 @@ def test_v5_documentation_relative_links_and_fragments_resolve() -> None:
                     failures.append(f"{document.relative_to(ROOT)} -> missing fragment {target}")
 
     assert not failures, "\n".join(failures)
+
+
+def test_markdown_link_targets_ignore_code_and_retain_empty_targets() -> None:
+    markdown = """
+[real](docs/README.md)
+`[inline](missing-inline.md)`
+```markdown
+[fenced](missing-fenced.md)
+```
+[empty]( )
+"""
+
+    assert _markdown_link_targets(markdown) == ("docs/README.md", " ")
 
 
 def test_v5_documentation_traceability_ids_resolve_to_registries() -> None:

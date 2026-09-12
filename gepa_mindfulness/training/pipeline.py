@@ -120,7 +120,9 @@ class LightweightTrainingOrchestrator:
             self._last_prompt = ""
 
         base = sum(gepa_scores.values()) / max(len(gepa_scores), 1)
-        reward = base + self._honesty_bonus(epistemic_process)
+        reward = base
+        if not self.config.abstention.enabled:
+            reward += self._honesty_bonus(epistemic_process)
 
         if self.config.abstention.enabled:
             abstained = is_abstention_response(self._last_response_text)
@@ -166,7 +168,7 @@ class LightweightTrainingOrchestrator:
                     response=self._last_response_text,
                     reference_answers=self._last_reference_answers,
                     confidence=confidence,
-                    thought_align=optimizer_thought_align,
+                    thought_align=thought_align,
                     threshold=self.config.abstention.threshold,
                     weights=self._abstention_weights,
                     epistemic_process=epistemic_process,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from pathlib import Path
 
 import pytest
 
@@ -217,7 +218,7 @@ def test_self_reported_uncertainty_without_verification_earns_zero_process_rewar
     assert breakdown.honesty == 0.0
 
 
-def test_adapter_diagnostic_prose_cannot_change_trainer_reward(tmp_path) -> None:
+def test_adapter_diagnostic_prose_cannot_change_trainer_reward(tmp_path: Path) -> None:
     """Adapter-derived abstention labels remain logged but cannot reach optimizer math."""
     dataset_path = tmp_path / "dataset.jsonl"
     dataset_path.write_text(

@@ -13,7 +13,7 @@ from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
 EvidenceStatus = Literal["unverified", "supported", "contradicted", "superseded"]
 _EVIDENCE_STATUSES = frozenset({"unverified", "supported", "contradicted", "superseded"})
 _RFC3339_OFFSET_DATETIME = re.compile(
-    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?"
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.(?P<fraction>\d{1,6}))?"
     r"(?:Z|[+-](?P<offset_hour>\d{2}):(?P<offset_minute>\d{2}))$"
 )
 
@@ -248,6 +248,14 @@ def _require_sha256(value: object, field_name: str) -> str:
 
 def _require_rfc3339(value: object, field_name: str) -> str:
     timestamp_value = _require_nonblank_string(value, field_name)
+    parse_rfc3339_datetime(timestamp_value, field_name)
+    return timestamp_value
+
+
+def parse_rfc3339_datetime(value: object, field_name: str) -> datetime:
+    """Parse an RFC3339 timestamp after normalizing fractional seconds."""
+
+    timestamp_value = _require_nonblank_string(value, field_name)
     match = _RFC3339_OFFSET_DATETIME.fullmatch(timestamp_value)
     if match is None:
         raise ValueError(f"{field_name} must be an RFC3339 offset datetime")
@@ -256,15 +264,18 @@ def _require_rfc3339(value: object, field_name: str) -> str:
     if hour is not None and (int(hour) > 23 or int(minute) > 59):
         raise ValueError(f"{field_name} must be an RFC3339 offset datetime")
     timestamp = (
-        f"{timestamp_value[:-1]}+00:00" if timestamp_value.endswith("Z") else timestamp_value
+        timestamp_value[:-1] + "+00:00" if timestamp_value.endswith("Z") else timestamp_value
     )
+    fraction = match.group("fraction")
+    if fraction is not None:
+        timestamp = timestamp.replace(f".{fraction}", f".{fraction.ljust(6, '0')}", 1)
     try:
         parsed = datetime.fromisoformat(timestamp)
     except ValueError as exc:
         raise ValueError(f"{field_name} must be an RFC3339 offset datetime") from exc
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         raise ValueError(f"{field_name} must include an explicit UTC offset")
-    return timestamp_value
+    return parsed
 
 
 def _snapshot_evidence_refs(values: object) -> tuple[EvidenceReference, ...]:
@@ -279,6 +290,9 @@ def _snapshot_evidence_refs(values: object) -> tuple[EvidenceReference, ...]:
         if type(reference.source_kind) is not EvidenceSourceKind:
             raise ValueError("evidence_refs source_kind must be an exact EvidenceSourceKind")
         references.append(EvidenceReference(reference.reference_id, reference.source_kind))
+    identities = {(item.reference_id, item.source_kind) for item in references}
+    if len(identities) != len(references):
+        raise ValueError("evidence_refs identities must be unique")
     return tuple(references)
 
 
@@ -388,4 +402,10 @@ def _require_exact_mapping(
     return cast(Mapping[str, object], data)
 
 
-__all__ = ["ArtifactObservation", "EvidenceClaim", "EvidenceState", "WorldStateChange"]
+__all__ = [
+    "ArtifactObservation",
+    "EvidenceClaim",
+    "EvidenceState",
+    "WorldStateChange",
+    "parse_rfc3339_datetime",
+]

@@ -182,6 +182,34 @@ def test_world_change_rejects_non_rfc3339_observation_time(observed_at: str) -> 
         )
 
 
+@pytest.mark.parametrize(
+    "observed_at",
+    [
+        "2026-09-10T12:00:00.1Z",
+        "2026-09-10T12:00:00.12+00:00",
+        "2026-09-10T12:00:00.1234-04:00",
+        "2026-09-10T12:00:00.12345Z",
+    ],
+)
+def test_world_change_accepts_rfc3339_fractional_seconds_portably(observed_at: str) -> None:
+    observation = _observation(observed_at=observed_at)
+
+    assert observation.observed_at == observed_at
+
+
+def test_world_change_rejects_duplicate_evidence_reference_identities() -> None:
+    duplicate = _reference()
+
+    with pytest.raises(ValueError, match="unique"):
+        ArtifactObservation(
+            "observation-after",
+            "artifact:fix.patch",
+            AFTER_DIGEST,
+            OBSERVED_AT,
+            (duplicate, duplicate),
+        )
+
+
 def test_world_change_is_frozen_slotted_and_json_round_trips() -> None:
     """Catch mutable or lossy observed-world records at the serialization boundary."""
 

@@ -85,6 +85,4 @@ training objective.
   the manifest.
 - `tests/test_recommendation_registry.py` and `tests/test_research_traceability.py` verify the
   recommendation and research traceability registries.
-- PR-8 documentation consolidation will include
-  `docs/adr/0001-17-case-v5-unified-architecture.md` in its Markdown link coverage. This ADR does
-  not implement unrelated PR-8 documentation changes.
+- `tests/test_documentation_links.py` includes this ADR in the consolidated Markdown link coverage.

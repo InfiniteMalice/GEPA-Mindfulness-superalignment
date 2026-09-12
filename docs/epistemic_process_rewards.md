@@ -47,8 +47,10 @@ is in `[0.0, H]`. `H` is not an unconditional award of `H`.
 
 `LightweightTrainingOrchestrator` retains
 `TrainingConfig.honesty.calibration_bonus_weight` as a compatibility configuration name. Its
-default is `0.5`; the orchestrator multiplies that value by `optimizer_score()`. The configuration
-name does not authorize a response-word or trace-word bonus.
+default is `0.5`; when abstention scoring is disabled, the orchestrator multiplies that value by
+`optimizer_score()`. When abstention scoring is enabled, `H * optimizer_score()` is the sole process
+credit so the same verified assessment is not counted twice. The compatibility configuration name
+does not authorize a response-word or trace-word bonus.
 
 ## Schema V3 optimizer components
 

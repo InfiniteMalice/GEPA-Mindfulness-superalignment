@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import re
 import sqlite3
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -28,12 +27,8 @@ from .learning_surfaces import (
     ValidationSplit,
 )
 from .verification.interfaces import LocalVerificationResult, RelationalVerificationResult
-from .verification.state import WorldStateChange
+from .verification.state import WorldStateChange, parse_rfc3339_datetime
 
-_RFC3339_OFFSET_DATETIME = re.compile(
-    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?"
-    r"(?:Z|[+-](?P<offset_hour>\d{2}):(?P<offset_minute>\d{2}))$"
-)
 _REQUIRED_FINDING_KEYS = (
     "local_execution:executed",
     "local_execution:intended_operation_observed",
@@ -757,6 +752,10 @@ def transition_skill(
             if target_state is SkillLifecycleState.EXECUTED:
                 if type(execution_evidence) is not ExecutionEvidenceBundle:
                     raise ValueError("EXECUTED requires an exact ExecutionEvidenceBundle")
+                if execution_evidence.world_change.artifact_ref != current.artifact_id:
+                    raise ValueError(
+                        "execution evidence must target the exact current lifecycle artifact"
+                    )
                 execution_receipt = _issue_execution_receipt(execution_evidence)
             elif execution_evidence is not None:
                 raise ValueError("execution_evidence is accepted only for EXECUTED")
@@ -1324,21 +1323,7 @@ def _validate_shared_context(*events: EventEnvelope) -> None:
 
 
 def _timestamp(value: object, field_name: str) -> datetime:
-    text = _require_token(value, field_name)
-    match = _RFC3339_OFFSET_DATETIME.fullmatch(text)
-    if match is None:
-        raise ValueError(f"{field_name} must be an RFC3339 offset datetime")
-    hour = match.group("offset_hour")
-    minute = match.group("offset_minute")
-    if hour is not None and (int(hour) > 23 or int(minute) > 59):
-        raise ValueError(f"{field_name} must be an RFC3339 offset datetime")
-    try:
-        parsed = datetime.fromisoformat(text[:-1] + "+00:00" if text.endswith("Z") else text)
-    except ValueError as exc:
-        raise ValueError(f"{field_name} must be an RFC3339 offset datetime") from exc
-    if parsed.tzinfo is None:
-        raise ValueError(f"{field_name} must be an RFC3339 offset datetime")
-    return parsed
+    return parse_rfc3339_datetime(value, field_name)
 
 
 def _validate_artifact_state(artifact: SkillArtifact) -> None:
