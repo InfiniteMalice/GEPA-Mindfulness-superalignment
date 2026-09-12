@@ -21,8 +21,11 @@ from evaluation import (
 )
 from gepa_mindfulness import (
     EvaluationEpoch,
+    EvaluationEpochHistory,
     append_epoch_record,
     begin_candidate_epoch,
+    close_evaluation_epoch,
+    evaluation_record_cell_id,
     evaluation_record_id,
     validate_epoch_record,
 )
@@ -84,14 +87,24 @@ def _epoch(
     model_version: str = "model-v1",
     harness_version: str = "harness-v1",
     record_ids: tuple[str, ...] | None = None,
+    record_cell_ids: tuple[str, ...] | None = None,
     closed: bool = False,
 ) -> EvaluationEpoch:
     declared_ids = (evaluation_record_id(_record()),) if record_ids is None else record_ids
+    if record_cell_ids is not None:
+        declared_cell_ids = record_cell_ids
+    elif record_ids is None:
+        declared_cell_ids = (evaluation_record_cell_id(_record()),)
+    else:
+        declared_cell_ids = tuple(
+            "sha256:" + f"{index + 1:064x}" for index in range(len(declared_ids))
+        )
     return EvaluationEpoch(
         epoch_id=epoch_id,
         model_version=model_version,
         harness_version=harness_version,
         record_ids=declared_ids,
+        record_cell_ids=declared_cell_ids,
         closed=closed,
     )
 
@@ -112,9 +125,9 @@ def test_epoch_accepts_only_the_declared_exact_record_and_versions() -> None:
         ("model_version", " model-v1 "),
         ("harness_version", " "),
         ("harness_version", " harness-v1 "),
-        ("record_ids", (" record-1 ",)),
-        ("record_ids", ("record-1", "record-1")),
-        ("record_ids", ["record-1"]),
+        ("record_ids", ("sha256:" + "A" * 64,)),
+        ("record_ids", ("sha256:" + "1" * 64, "sha256:" + "1" * 64)),
+        ("record_ids", ["sha256:" + "1" * 64]),
         ("closed", 0),
     ],
 )
@@ -123,7 +136,8 @@ def test_epoch_rejects_invalid_exact_fields(field_name: str, value: object) -> N
         "epoch_id": "epoch-1",
         "model_version": "model-v1",
         "harness_version": "harness-v1",
-        "record_ids": ("record-1",),
+        "record_ids": ("sha256:" + "1" * 64,),
+        "record_cell_ids": ("sha256:" + "2" * 64,),
         "closed": False,
     }
     values[field_name] = value
@@ -165,6 +179,7 @@ def test_epoch_is_frozen_slotted_and_json_round_trips() -> None:
             "model_version": "model-v1",
             "harness_version": "harness-v1",
             "record_ids": [],
+            "record_cell_ids": [],
             "closed": False,
             "extra": True,
         },
@@ -237,19 +252,24 @@ def test_online_append_rejects_closed_epochs_and_duplicate_records() -> None:
         append_epoch_record(_epoch(), record)
 
 
+def _history() -> EvaluationEpochHistory:
+    return EvaluationEpochHistory.enroll(_epoch(record_ids=()))
+
+
 def test_candidate_change_requires_a_closed_source_and_new_epoch() -> None:
+    history = _history()
     with pytest.raises(ValueError, match="source epoch.*closed"):
         begin_candidate_epoch(
-            (_epoch(record_ids=()),),
+            history,
             epoch_id="epoch-2",
             model_version="model-v2",
             harness_version="harness-v1",
         )
 
-    source = _epoch(record_ids=(), closed=True)
+    close_evaluation_epoch(history)
     with pytest.raises(ValueError, match="epoch_id.*new"):
         begin_candidate_epoch(
-            (source,),
+            history,
             epoch_id="epoch-1",
             model_version="model-v2",
             harness_version="harness-v1",
@@ -257,11 +277,12 @@ def test_candidate_change_requires_a_closed_source_and_new_epoch() -> None:
 
 
 def test_candidate_change_requires_at_least_one_new_version() -> None:
-    source = _epoch(record_ids=(), closed=True)
+    history = _history()
+    close_evaluation_epoch(history)
 
     with pytest.raises(ValueError, match="candidate.*version"):
         begin_candidate_epoch(
-            (source,),
+            history,
             epoch_id="epoch-2",
             model_version="model-v1",
             harness_version="harness-v1",
@@ -280,24 +301,19 @@ def test_candidate_cannot_reuse_a_prior_changed_component_version(
     harness_version: str,
     expected_message: str,
 ) -> None:
-    old = _epoch(
-        epoch_id="epoch-1",
-        model_version="model-v1",
-        harness_version="harness-v1",
-        record_ids=(),
-        closed=True,
-    )
-    source = _epoch(
+    history = _history()
+    close_evaluation_epoch(history)
+    begin_candidate_epoch(
+        history,
         epoch_id="epoch-2",
         model_version="model-v2",
         harness_version="harness-v2",
-        record_ids=(),
-        closed=True,
     )
+    close_evaluation_epoch(history)
 
     with pytest.raises(ValueError, match=expected_message):
         begin_candidate_epoch(
-            (old, source),
+            history,
             epoch_id="epoch-3",
             model_version=model_version,
             harness_version=harness_version,
@@ -305,10 +321,11 @@ def test_candidate_cannot_reuse_a_prior_changed_component_version(
 
 
 def test_candidate_epoch_has_new_identity_and_no_inherited_records() -> None:
-    source = _epoch(closed=True)
+    history = _history()
+    close_evaluation_epoch(history)
 
     candidate = begin_candidate_epoch(
-        (source,),
+        history,
         epoch_id="epoch-2",
         model_version="model-v2",
         harness_version="harness-v1",
@@ -319,23 +336,17 @@ def test_candidate_epoch_has_new_identity_and_no_inherited_records() -> None:
         model_version="model-v2",
         harness_version="harness-v1",
         record_ids=(),
+        record_cell_ids=(),
         closed=False,
     )
 
 
-def test_candidate_history_rejects_duplicate_epoch_ids_and_hostile_containers() -> None:
+def test_candidate_history_rejects_caller_supplied_containers() -> None:
     source = _epoch(record_ids=(), closed=True)
 
-    with pytest.raises(ValueError, match="exact tuple"):
+    with pytest.raises(ValueError, match="EvaluationEpochHistory"):
         begin_candidate_epoch(
             cast(Any, [source]),
-            epoch_id="epoch-2",
-            model_version="model-v2",
-            harness_version="harness-v1",
-        )
-    with pytest.raises(ValueError, match="unique epoch_id"):
-        begin_candidate_epoch(
-            (source, source),
             epoch_id="epoch-2",
             model_version="model-v2",
             harness_version="harness-v1",
@@ -356,6 +367,7 @@ def test_epoch_helpers_reject_record_and_epoch_subclasses() -> None:
         epoch.model_version,
         epoch.harness_version,
         epoch.record_ids,
+        epoch.record_cell_ids,
     )
     derived_record = RecordSubclass(
         record.case,
@@ -372,3 +384,127 @@ def test_epoch_helpers_reject_record_and_epoch_subclasses() -> None:
         validate_epoch_record(derived_epoch, record)
     with pytest.raises(ValueError, match="exact V5EvaluationRecord"):
         validate_epoch_record(epoch, derived_record)
+
+
+def test_record_identifiers_require_exact_lowercase_sha256() -> None:
+    class StringSubclass(str):
+        pass
+
+    invalid_ids = (
+        "sha256:" + "A" * 64,
+        "sha256:1234",
+        "sha256:" + "g" * 64,
+        cast(str, StringSubclass("sha256:" + "1" * 64)),
+    )
+    for invalid in invalid_ids:
+        with pytest.raises(ValueError, match="record_ids"):
+            _epoch(record_ids=(invalid,))
+
+    payload = _epoch(record_ids=("sha256:" + "1" * 64,)).to_dict()
+    cast(list[object], payload["record_ids"])[0] = "sha256:" + "A" * 64
+    with pytest.raises(ValueError, match="record_ids"):
+        EvaluationEpoch.from_dict(payload)
+
+
+def test_epoch_binding_rejects_coherent_epoch_and_record_mutation() -> None:
+    record = _record()
+    epoch = _epoch()
+    object.__setattr__(epoch, "model_version", "model-v2")
+    object.__setattr__(record.system, "model_version", "model-v2")
+    object.__setattr__(epoch, "record_ids", (evaluation_record_id(record),))
+    object.__setattr__(epoch, "record_cell_ids", (evaluation_record_cell_id(record),))
+
+    with pytest.raises(ValueError, match="construction binding"):
+        epoch.to_dict()
+    with pytest.raises(ValueError, match="construction binding"):
+        validate_epoch_record(epoch, record)
+
+
+def test_duplicate_logical_cell_is_rejected_when_content_differs() -> None:
+    first = _record()
+    open_epoch = _epoch(record_ids=())
+    updated = append_epoch_record(open_epoch, first)
+    changed = V5EvaluationRecord.from_dict(first.to_dict())
+    object.__setattr__(changed.scores, "total", 0.4)
+    assert evaluation_record_id(changed) != evaluation_record_id(first)
+    assert evaluation_record_cell_id(changed) == evaluation_record_cell_id(first)
+
+    with pytest.raises(ValueError, match="logical evaluation cell"):
+        append_epoch_record(updated, changed)
+
+
+def test_history_snapshot_is_detached_and_close_is_controlled() -> None:
+    history = _history()
+    record = _record()
+    appended = append_epoch_record(history, record)
+    validate_epoch_record(appended, record)
+    detached = history.snapshot()
+    object.__setattr__(detached[0], "closed", True)
+    with pytest.raises(ValueError, match="source epoch.*closed"):
+        begin_candidate_epoch(
+            history,
+            epoch_id="epoch-2",
+            model_version="model-v2",
+            harness_version="harness-v1",
+        )
+
+    closed = close_evaluation_epoch(history)
+    assert closed.closed is True
+    with pytest.raises(ValueError, match="already closed"):
+        close_evaluation_epoch(history)
+
+
+def test_history_rejects_omission_reorder_fork_and_non_tip_authority() -> None:
+    history = _history()
+    close_evaluation_epoch(history)
+    begin_candidate_epoch(
+        history,
+        epoch_id="epoch-2",
+        model_version="model-v2",
+        harness_version="harness-v1",
+    )
+    close_evaluation_epoch(history)
+    lineage = history.snapshot()
+
+    forged_histories = (lineage[:1], tuple(reversed(lineage)), (lineage[0], lineage[0]))
+    for forged in forged_histories:
+        with pytest.raises(ValueError, match="EvaluationEpochHistory"):
+            begin_candidate_epoch(
+                cast(Any, forged),
+                epoch_id="epoch-3",
+                model_version="model-v3",
+                harness_version="harness-v1",
+            )
+
+
+def test_history_validates_every_prior_transition_and_global_version_reuse() -> None:
+    history = _history()
+    close_evaluation_epoch(history)
+    begin_candidate_epoch(
+        history,
+        epoch_id="epoch-2",
+        model_version="model-v2",
+        harness_version="harness-v2",
+    )
+    close_evaluation_epoch(history)
+
+    with pytest.raises(ValueError, match="model_version"):
+        begin_candidate_epoch(
+            history,
+            epoch_id="epoch-3",
+            model_version="model-v1",
+            harness_version="harness-v3",
+        )
+
+    # Runtime-owned internal state is revalidated, including historical entries, before use.
+    import gepa_mindfulness.learning_surfaces as learning_surfaces
+
+    entry = learning_surfaces._EPOCH_HISTORY_STATE[history]
+    object.__setattr__(entry.lineage[0], "model_version", "model-v2")
+    with pytest.raises(ValueError, match="construction binding|lineage"):
+        begin_candidate_epoch(
+            history,
+            epoch_id="epoch-3",
+            model_version="model-v3",
+            harness_version="harness-v3",
+        )

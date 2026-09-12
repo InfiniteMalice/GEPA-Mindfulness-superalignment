@@ -2,6 +2,7 @@
 
 from .learning_surfaces import (
     EvaluationEpoch,
+    EvaluationEpochHistory,
     LearningSurface,
     LessonCharacteristics,
     LessonKind,
@@ -10,6 +11,8 @@ from .learning_surfaces import (
     append_epoch_record,
     begin_candidate_epoch,
     classify_learning_surface,
+    close_evaluation_epoch,
+    evaluation_record_cell_id,
     evaluation_record_id,
     validate_epoch_record,
 )
@@ -18,6 +21,7 @@ from .metrics import AggregateResult, PracticeSession, aggregate_gepa_metrics, a
 __all__ = [
     "AggregateResult",
     "EvaluationEpoch",
+    "EvaluationEpochHistory",
     "LearningSurface",
     "LessonCharacteristics",
     "LessonKind",
@@ -29,6 +33,8 @@ __all__ = [
     "aggregate_gepa_score",
     "begin_candidate_epoch",
     "classify_learning_surface",
+    "close_evaluation_epoch",
+    "evaluation_record_cell_id",
     "evaluation_record_id",
     "validate_epoch_record",
 ]
