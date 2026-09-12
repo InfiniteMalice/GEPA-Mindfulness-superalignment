@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from dataclasses import FrozenInstanceError
+from pathlib import Path
 from typing import Any, cast
 
 import pytest
@@ -22,6 +24,7 @@ from evaluation import (
 from gepa_mindfulness import (
     EvaluationEpoch,
     EvaluationEpochHistory,
+    EvaluationEpochStore,
     append_epoch_record,
     begin_candidate_epoch,
     close_evaluation_epoch,
@@ -230,34 +233,41 @@ def test_validation_rejects_record_and_epoch_use_time_mutation() -> None:
         validate_epoch_record(epoch, record)
 
 
-def test_online_record_append_keeps_frozen_system_versions() -> None:
+def test_online_record_append_keeps_frozen_system_versions(tmp_path: Path) -> None:
     record = _record()
-    open_epoch = _epoch(record_ids=())
+    history = _history(tmp_path)
 
-    updated = append_epoch_record(open_epoch, record)
+    updated = append_epoch_record(history, record)
 
     assert updated.record_ids == (evaluation_record_id(record),)
-    assert updated.model_version == open_epoch.model_version == record.system.model_version
-    assert updated.harness_version == open_epoch.harness_version == record.system.harness_version
-    assert open_epoch.record_ids == ()
+    assert updated.model_version == record.system.model_version
+    assert updated.harness_version == record.system.harness_version
     validate_epoch_record(updated, record)
 
 
-def test_online_append_rejects_closed_epochs_and_duplicate_records() -> None:
+def test_online_append_rejects_closed_epochs_and_duplicate_records(tmp_path: Path) -> None:
     record = _record()
-
-    with pytest.raises(ValueError, match="closed"):
-        append_epoch_record(_epoch(closed=True), record)
+    history = _history(tmp_path)
+    append_epoch_record(history, record)
     with pytest.raises(ValueError, match="duplicate"):
-        append_epoch_record(_epoch(), record)
+        append_epoch_record(history, record)
+    close_evaluation_epoch(history)
+    with pytest.raises(ValueError, match="closed"):
+        append_epoch_record(history, _record())
 
 
-def _history() -> EvaluationEpochHistory:
-    return EvaluationEpochHistory.enroll(_epoch(record_ids=()))
+def _history(tmp_path: Path, *, lineage_id: str = "lineage-1") -> EvaluationEpochHistory:
+    store = EvaluationEpochStore(tmp_path / "epochs.sqlite", "test-authority")
+    return store.create_root(
+        lineage_id=lineage_id,
+        epoch_id="epoch-1",
+        model_version="model-v1",
+        harness_version="harness-v1",
+    )
 
 
-def test_candidate_change_requires_a_closed_source_and_new_epoch() -> None:
-    history = _history()
+def test_candidate_change_requires_a_closed_source_and_new_epoch(tmp_path: Path) -> None:
+    history = _history(tmp_path)
     with pytest.raises(ValueError, match="source epoch.*closed"):
         begin_candidate_epoch(
             history,
@@ -276,8 +286,8 @@ def test_candidate_change_requires_a_closed_source_and_new_epoch() -> None:
         )
 
 
-def test_candidate_change_requires_at_least_one_new_version() -> None:
-    history = _history()
+def test_candidate_change_requires_at_least_one_new_version(tmp_path: Path) -> None:
+    history = _history(tmp_path)
     close_evaluation_epoch(history)
 
     with pytest.raises(ValueError, match="candidate.*version"):
@@ -297,11 +307,12 @@ def test_candidate_change_requires_at_least_one_new_version() -> None:
     ],
 )
 def test_candidate_cannot_reuse_a_prior_changed_component_version(
+    tmp_path: Path,
     model_version: str,
     harness_version: str,
     expected_message: str,
 ) -> None:
-    history = _history()
+    history = _history(tmp_path)
     close_evaluation_epoch(history)
     begin_candidate_epoch(
         history,
@@ -320,8 +331,8 @@ def test_candidate_cannot_reuse_a_prior_changed_component_version(
         )
 
 
-def test_candidate_epoch_has_new_identity_and_no_inherited_records() -> None:
-    history = _history()
+def test_candidate_epoch_has_new_identity_and_no_inherited_records(tmp_path: Path) -> None:
+    history = _history(tmp_path)
     close_evaluation_epoch(history)
 
     candidate = begin_candidate_epoch(
@@ -420,21 +431,21 @@ def test_epoch_binding_rejects_coherent_epoch_and_record_mutation() -> None:
         validate_epoch_record(epoch, record)
 
 
-def test_duplicate_logical_cell_is_rejected_when_content_differs() -> None:
+def test_duplicate_logical_cell_is_rejected_when_content_differs(tmp_path: Path) -> None:
     first = _record()
-    open_epoch = _epoch(record_ids=())
-    updated = append_epoch_record(open_epoch, first)
+    history = _history(tmp_path)
+    append_epoch_record(history, first)
     changed = V5EvaluationRecord.from_dict(first.to_dict())
     object.__setattr__(changed.scores, "total", 0.4)
     assert evaluation_record_id(changed) != evaluation_record_id(first)
     assert evaluation_record_cell_id(changed) == evaluation_record_cell_id(first)
 
     with pytest.raises(ValueError, match="logical evaluation cell"):
-        append_epoch_record(updated, changed)
+        append_epoch_record(history, changed)
 
 
-def test_history_snapshot_is_detached_and_close_is_controlled() -> None:
-    history = _history()
+def test_history_snapshot_is_detached_and_close_is_controlled(tmp_path: Path) -> None:
+    history = _history(tmp_path)
     record = _record()
     appended = append_epoch_record(history, record)
     validate_epoch_record(appended, record)
@@ -454,8 +465,8 @@ def test_history_snapshot_is_detached_and_close_is_controlled() -> None:
         close_evaluation_epoch(history)
 
 
-def test_history_rejects_omission_reorder_fork_and_non_tip_authority() -> None:
-    history = _history()
+def test_history_rejects_omission_reorder_fork_and_non_tip_authority(tmp_path: Path) -> None:
+    history = _history(tmp_path)
     close_evaluation_epoch(history)
     begin_candidate_epoch(
         history,
@@ -477,8 +488,8 @@ def test_history_rejects_omission_reorder_fork_and_non_tip_authority() -> None:
             )
 
 
-def test_history_validates_every_prior_transition_and_global_version_reuse() -> None:
-    history = _history()
+def test_history_validates_every_prior_transition_and_global_version_reuse(tmp_path: Path) -> None:
+    history = _history(tmp_path)
     close_evaluation_epoch(history)
     begin_candidate_epoch(
         history,
@@ -496,15 +507,129 @@ def test_history_validates_every_prior_transition_and_global_version_reuse() -> 
             harness_version="harness-v3",
         )
 
-    # Runtime-owned internal state is revalidated, including historical entries, before use.
-    import gepa_mindfulness.learning_surfaces as learning_surfaces
-
-    entry = learning_surfaces._EPOCH_HISTORY_STATE[history]
-    object.__setattr__(entry.lineage[0], "model_version", "model-v2")
-    with pytest.raises(ValueError, match="construction binding|lineage"):
+    # Persisted historical entries are revalidated against the authority catalog before use.
+    database = tmp_path / "epochs.sqlite"
+    with sqlite3.connect(database) as connection:
+        payload = connection.execute(
+            "SELECT payload FROM epoch_lineages WHERE authority_domain = ? AND lineage_id = ?",
+            ("test-authority", "lineage-1"),
+        ).fetchone()[0]
+        connection.execute(
+            "UPDATE epoch_lineages SET payload = ? WHERE authority_domain = ? AND lineage_id = ?",
+            (
+                payload.replace('"model_version":"model-v1"', '"model_version":"model-v2"'),
+                "test-authority",
+                "lineage-1",
+            ),
+        )
+    with pytest.raises(ValueError, match="catalog|lineage"):
         begin_candidate_epoch(
             history,
             epoch_id="epoch-3",
             model_version="model-v3",
             harness_version="harness-v3",
         )
+
+
+def test_durable_store_reopens_complete_lineage_and_preserves_nonreuse(tmp_path: Path) -> None:
+    database = tmp_path / "epochs.sqlite"
+    first_store = EvaluationEpochStore(database, "production-authority")
+    history = first_store.create_root(
+        lineage_id="main",
+        epoch_id="epoch-1",
+        model_version="model-v1",
+        harness_version="harness-v1",
+    )
+    append_epoch_record(history, _record())
+    close_evaluation_epoch(history)
+    begin_candidate_epoch(
+        history,
+        epoch_id="epoch-2",
+        model_version="model-v2",
+        harness_version="harness-v1",
+    )
+    close_evaluation_epoch(history)
+
+    restarted_store = EvaluationEpochStore(database, "production-authority")
+    resumed = restarted_store.open("main")
+    assert tuple(epoch.epoch_id for epoch in resumed.snapshot()) == ("epoch-1", "epoch-2")
+    with pytest.raises(ValueError, match="model_version"):
+        begin_candidate_epoch(
+            resumed,
+            epoch_id="epoch-3",
+            model_version="model-v1",
+            harness_version="harness-v2",
+        )
+
+
+def test_store_exclusively_claims_roots_epochs_and_versions_per_authority(tmp_path: Path) -> None:
+    database = tmp_path / "epochs.sqlite"
+    store = EvaluationEpochStore(database, "shared-authority")
+    store.create_root(
+        lineage_id="main",
+        epoch_id="epoch-1",
+        model_version="model-v1",
+        harness_version="harness-v1",
+    )
+    with pytest.raises(ValueError, match="lineage"):
+        store.create_root(
+            lineage_id="main",
+            epoch_id="epoch-2",
+            model_version="model-v2",
+            harness_version="harness-v2",
+        )
+    with pytest.raises(ValueError, match="authority domain"):
+        store.create_root(
+            lineage_id="fork",
+            epoch_id="epoch-1",
+            model_version="model-v2",
+            harness_version="harness-v2",
+        )
+    with pytest.raises(ValueError, match="authority domain"):
+        store.create_root(
+            lineage_id="fork",
+            epoch_id="epoch-other",
+            model_version="model-v1",
+            harness_version="harness-other",
+        )
+
+    # Nonreuse is scoped to an injected authority domain, not a universal process registry.
+    other_domain = EvaluationEpochStore(database, "independent-authority")
+    other_domain.create_root(
+        lineage_id="main",
+        epoch_id="epoch-1",
+        model_version="model-v1",
+        harness_version="harness-v1",
+    )
+
+
+def test_store_handles_fail_stale_transitions_atomically(tmp_path: Path) -> None:
+    database = tmp_path / "epochs.sqlite"
+    store = EvaluationEpochStore(database, "production-authority")
+    first = store.create_root(
+        lineage_id="main",
+        epoch_id="epoch-1",
+        model_version="model-v1",
+        harness_version="harness-v1",
+    )
+    stale = EvaluationEpochStore(database, "production-authority").open("main")
+    append_epoch_record(first, _record())
+
+    with pytest.raises(RuntimeError, match="stale revision"):
+        close_evaluation_epoch(stale)
+    assert store.open("main").snapshot()[0].closed is False
+
+
+def test_public_mutation_rejects_raw_epochs_even_with_forged_cell_manifest() -> None:
+    record = _record()
+    forged = EvaluationEpoch(
+        epoch_id="epoch-forged",
+        model_version=record.system.model_version,
+        harness_version=record.system.harness_version,
+        record_ids=("sha256:" + "0" * 64,),
+        record_cell_ids=(evaluation_record_cell_id(record),),
+    )
+
+    assert not hasattr(EvaluationEpochHistory, "enroll")
+    with pytest.raises(ValueError, match="authoritative EvaluationEpochHistory"):
+        append_epoch_record(cast(Any, forged), record)

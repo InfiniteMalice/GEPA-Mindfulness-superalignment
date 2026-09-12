@@ -5,11 +5,12 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import sqlite3
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import Enum
 from threading import RLock
-from typing import TypeVar, cast
+from typing import Any, TypeVar, cast
 from weakref import WeakKeyDictionary
 
 from evaluation.v5_records import V5EvaluationRecord
@@ -125,52 +126,121 @@ class _EpochHistoryEntry:
     records: tuple[tuple[str, V5EvaluationRecord], ...]
 
 
-class EvaluationEpochHistory:
-    """Runtime-owned local authority for one complete evaluation lineage.
+@dataclass(frozen=True, slots=True)
+class _EpochHistoryHandleState:
+    database_path: str
+    authority_domain: str
+    lineage_id: str
+    revision: int
 
-    The public object is only an opaque handle. Module-private process-local storage owns exact
-    snapshots, parent links, and accepted records. Callers must persist this authority in a
-    stronger authenticated store when process-local integrity is insufficient.
+
+class EvaluationEpochStore:
+    """Injected durable authority catalog for evaluation lineages.
+
+    SQLite transactions serialize root creation and transitions across processes. The authority
+    domain scopes epoch and changed-version nonreuse. The operator remains responsible for file
+    permissions, backups, and protecting the database from direct tampering.
+    """
+
+    __slots__ = ("_authority_domain", "_binding", "_database_path")
+    _authority_domain: str
+    _binding: tuple[str, str]
+    _database_path: str
+
+    def __init__(self, database_path: str | os.PathLike[str], authority_domain: str) -> None:
+        path = os.path.abspath(os.fspath(database_path))
+        domain = _require_epoch_token(authority_domain, "authority_domain")
+        if not os.path.isdir(os.path.dirname(path)):
+            raise ValueError("evaluation epoch store parent directory must already exist")
+        object.__setattr__(self, "_database_path", path)
+        object.__setattr__(self, "_authority_domain", domain)
+        object.__setattr__(self, "_binding", (path, domain))
+        with _open_epoch_database(path) as connection:
+            _initialize_epoch_database(connection)
+
+    def create_root(
+        self,
+        *,
+        lineage_id: str,
+        epoch_id: str,
+        model_version: str,
+        harness_version: str,
+    ) -> EvaluationEpochHistory:
+        """Exclusively create one empty open root and claim its versions in this domain."""
+
+        path, domain = _validated_epoch_store(self)
+        lineage = _require_epoch_token(lineage_id, "lineage_id")
+        root = EvaluationEpoch(epoch_id, model_version, harness_version, (), (), False)
+        entry = _validated_history_entry(_EpochHistoryEntry((root,), (None,), ()))
+        with _open_epoch_database(path) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if connection.execute(
+                "SELECT 1 FROM epoch_lineages WHERE authority_domain = ? AND lineage_id = ?",
+                (domain, lineage),
+            ).fetchone():
+                raise ValueError("evaluation lineage already exists in this authority domain")
+            _claim_catalog_identity(connection, "epoch_claims", domain, root.epoch_id, lineage)
+            _claim_catalog_identity(
+                connection, "model_version_claims", domain, root.model_version, lineage
+            )
+            _claim_catalog_identity(
+                connection, "harness_version_claims", domain, root.harness_version, lineage
+            )
+            connection.execute(
+                "INSERT INTO epoch_lineages VALUES (?, ?, ?, ?, ?)",
+                (domain, lineage, 0, root.epoch_id, _serialize_history_entry(entry)),
+            )
+            connection.commit()
+        return _new_history_handle(path, domain, lineage, 0)
+
+    def open(self, lineage_id: str) -> EvaluationEpochHistory:
+        """Open and fully validate a persisted lineage at its current revision."""
+
+        path, domain = _validated_epoch_store(self)
+        lineage = _require_epoch_token(lineage_id, "lineage_id")
+        with _open_epoch_database(path) as connection:
+            row = connection.execute(
+                "SELECT revision, tip_epoch_id, payload FROM epoch_lineages "
+                "WHERE authority_domain = ? AND lineage_id = ?",
+                (domain, lineage),
+            ).fetchone()
+            if row is None:
+                raise KeyError(lineage)
+            revision = _require_nonnegative_integer(row[0], "revision")
+            entry = _deserialize_history_entry(row[2])
+            _validate_catalog(connection, domain, lineage, row[1], entry)
+        return _new_history_handle(path, domain, lineage, revision)
+
+
+class EvaluationEpochHistory:
+    """Opaque revision-bound handle to one store-owned complete evaluation lineage.
+
+    Canonical epochs, parent links, accepted records, and revision authority live in the injected
+    SQLite catalog. The process-local state contains only the store locator and expected revision.
     """
 
     __slots__ = ("__weakref__",)
 
     def __init__(self) -> None:
-        raise TypeError("use EvaluationEpochHistory.enroll()")
+        raise TypeError("lineage handles are created by EvaluationEpochStore")
 
     def __setattr__(self, name: str, value: object) -> None:
         del name, value
         raise AttributeError("EvaluationEpochHistory is read-only")
-
-    @classmethod
-    def enroll(cls, initial_epoch: EvaluationEpoch) -> EvaluationEpochHistory:
-        if cls is not EvaluationEpochHistory:
-            raise ValueError("enrollment requires the exact EvaluationEpochHistory type")
-        _require_epoch_process()
-        epoch = _snapshot_epoch(initial_epoch)
-        if epoch.closed:
-            raise ValueError("initial epoch must be open; use the controlled close transition")
-        if epoch.record_ids:
-            raise ValueError("initial epoch must be empty; append records through the history")
-        with _EPOCH_HISTORY_LOCK:
-            handle = object.__new__(EvaluationEpochHistory)
-            _EPOCH_HISTORY_STATE[handle] = _validated_history_entry(
-                _EpochHistoryEntry((epoch,), (None,), ())
-            )
-        return handle
 
     def snapshot(self) -> tuple[EvaluationEpoch, ...]:
         """Return a detached, non-authoritative view of the complete lineage."""
 
         _require_exact_history(self)
         with _EPOCH_HISTORY_LOCK:
-            entry = _validated_history_entry(_EPOCH_HISTORY_STATE[self])
+            _state, connection, entry = _begin_history_read(self)
+            connection.close()
             return tuple(_snapshot_epoch(epoch) for epoch in entry.lineage)
 
 
 _EPOCH_HISTORY_PROCESS_ID = os.getpid()
 _EPOCH_HISTORY_LOCK = RLock()
-_EPOCH_HISTORY_STATE: WeakKeyDictionary[EvaluationEpochHistory, _EpochHistoryEntry] = (
+_EPOCH_HISTORY_STATE: WeakKeyDictionary[EvaluationEpochHistory, _EpochHistoryHandleState] = (
     WeakKeyDictionary()
 )
 
@@ -229,53 +299,47 @@ def validate_epoch_record(epoch: EvaluationEpoch, record: V5EvaluationRecord) ->
 
 
 def append_epoch_record(
-    epoch: EvaluationEpoch | EvaluationEpochHistory,
+    epoch: EvaluationEpochHistory,
     record: V5EvaluationRecord,
 ) -> EvaluationEpoch:
     """Append online evidence without changing the open epoch's system versions."""
 
-    if type(epoch) is EvaluationEpochHistory:
-        return _append_authoritative_epoch_record(epoch, record)
-    epoch_snapshot = _snapshot_epoch(epoch)
-    if epoch_snapshot.closed:
-        raise ValueError("cannot append a record to a closed evaluation epoch")
-    record_snapshot = _snapshot_evaluation_record(record)
-    if record_snapshot.system.model_version != epoch_snapshot.model_version:
-        raise ValueError("record model_version does not match evaluation epoch")
-    if record_snapshot.system.harness_version != epoch_snapshot.harness_version:
-        raise ValueError("record harness_version does not match evaluation epoch")
-    record_id = _evaluation_record_id_from_snapshot(record_snapshot)
-    cell_id = evaluation_record_cell_id(record_snapshot)
-    if record_id in epoch_snapshot.record_ids:
-        raise ValueError("cannot append a duplicate evaluation record")
-    if cell_id in epoch_snapshot.record_cell_ids:
-        raise ValueError("cannot append a duplicate logical evaluation cell")
-    return EvaluationEpoch(
-        epoch_id=epoch_snapshot.epoch_id,
-        model_version=epoch_snapshot.model_version,
-        harness_version=epoch_snapshot.harness_version,
-        record_ids=epoch_snapshot.record_ids + (record_id,),
-        record_cell_ids=epoch_snapshot.record_cell_ids + (cell_id,),
-        closed=False,
-    )
-
-
-def _append_authoritative_epoch_record(
-    history: EvaluationEpochHistory,
-    record: V5EvaluationRecord,
-) -> EvaluationEpoch:
-    _require_exact_history(history)
+    _require_exact_history(epoch)
     record_snapshot = _snapshot_evaluation_record(record)
     with _EPOCH_HISTORY_LOCK:
-        entry = _validated_history_entry(_EPOCH_HISTORY_STATE[history])
-        updated_tip = append_epoch_record(entry.lineage[-1], record_snapshot)
+        state, connection, entry = _begin_history_transition(epoch)
+        source = entry.lineage[-1]
+        if source.closed:
+            connection.close()
+            raise ValueError("cannot append a record to a closed evaluation epoch")
+        if record_snapshot.system.model_version != source.model_version:
+            connection.close()
+            raise ValueError("record model_version does not match evaluation epoch")
+        if record_snapshot.system.harness_version != source.harness_version:
+            connection.close()
+            raise ValueError("record harness_version does not match evaluation epoch")
         record_id = _evaluation_record_id_from_snapshot(record_snapshot)
+        cell_id = evaluation_record_cell_id(record_snapshot)
+        if record_id in {item[0] for item in entry.records}:
+            connection.close()
+            raise ValueError("cannot append a duplicate evaluation record")
+        if cell_id in source.record_cell_ids:
+            connection.close()
+            raise ValueError("cannot append a duplicate logical evaluation cell")
+        updated_tip = EvaluationEpoch(
+            source.epoch_id,
+            source.model_version,
+            source.harness_version,
+            (*source.record_ids, record_id),
+            (*source.record_cell_ids, cell_id),
+            False,
+        )
         updated = _EpochHistoryEntry(
             (*entry.lineage[:-1], updated_tip),
             entry.parent_epoch_ids,
             (*entry.records, (record_id, record_snapshot)),
         )
-        _EPOCH_HISTORY_STATE[history] = _validated_history_entry(updated)
+        _commit_history_transition(epoch, state, connection, updated)
         return _snapshot_epoch(updated_tip)
 
 
@@ -284,9 +348,10 @@ def close_evaluation_epoch(history: EvaluationEpochHistory) -> EvaluationEpoch:
 
     _require_exact_history(history)
     with _EPOCH_HISTORY_LOCK:
-        entry = _validated_history_entry(_EPOCH_HISTORY_STATE[history])
+        state, connection, entry = _begin_history_transition(history)
         source = entry.lineage[-1]
         if source.closed:
+            connection.close()
             raise ValueError("source evaluation epoch is already closed")
         closed = EvaluationEpoch(
             source.epoch_id,
@@ -299,7 +364,7 @@ def close_evaluation_epoch(history: EvaluationEpochHistory) -> EvaluationEpoch:
         updated = _EpochHistoryEntry(
             (*entry.lineage[:-1], closed), entry.parent_epoch_ids, entry.records
         )
-        _EPOCH_HISTORY_STATE[history] = _validated_history_entry(updated)
+        _commit_history_transition(history, state, connection, updated)
         return _snapshot_epoch(closed)
 
 
@@ -314,26 +379,55 @@ def begin_candidate_epoch(
 
     _require_exact_history(epoch_history)
     with _EPOCH_HISTORY_LOCK:
-        entry = _validated_history_entry(_EPOCH_HISTORY_STATE[epoch_history])
+        state, connection, entry = _begin_history_transition(epoch_history)
         history = entry.lineage
         source = history[-1]
         if not source.closed:
+            connection.close()
             raise ValueError("source epoch must be closed before a candidate version is evaluated")
-        candidate = EvaluationEpoch(
-            epoch_id=epoch_id,
-            model_version=model_version,
-            harness_version=harness_version,
-            record_ids=(),
-            record_cell_ids=(),
-            closed=False,
-        )
-        _validate_candidate_transition(history, source, candidate)
+        try:
+            candidate = EvaluationEpoch(
+                epoch_id=epoch_id,
+                model_version=model_version,
+                harness_version=harness_version,
+                record_ids=(),
+                record_cell_ids=(),
+                closed=False,
+            )
+            _validate_candidate_transition(history, source, candidate)
+            _claim_catalog_identity(
+                connection,
+                "epoch_claims",
+                state.authority_domain,
+                candidate.epoch_id,
+                state.lineage_id,
+            )
+            if candidate.model_version != source.model_version:
+                _claim_catalog_identity(
+                    connection,
+                    "model_version_claims",
+                    state.authority_domain,
+                    candidate.model_version,
+                    state.lineage_id,
+                )
+            if candidate.harness_version != source.harness_version:
+                _claim_catalog_identity(
+                    connection,
+                    "harness_version_claims",
+                    state.authority_domain,
+                    candidate.harness_version,
+                    state.lineage_id,
+                )
+        except Exception:
+            connection.rollback()
+            connection.close()
+            raise
         updated = _EpochHistoryEntry(
             (*history, candidate),
             (*entry.parent_epoch_ids, source.epoch_id),
             entry.records,
         )
-        _EPOCH_HISTORY_STATE[epoch_history] = _validated_history_entry(updated)
+        _commit_history_transition(epoch_history, state, connection, updated)
         return _snapshot_epoch(candidate)
 
 
@@ -562,18 +656,265 @@ def _snapshot_epoch(value: object) -> EvaluationEpoch:
     )
 
 
+def _open_epoch_database(path: str) -> sqlite3.Connection:
+    connection = sqlite3.connect(path, timeout=30.0, isolation_level=None)
+    connection.execute("PRAGMA foreign_keys = ON")
+    connection.execute("PRAGMA busy_timeout = 30000")
+    return connection
+
+
+def _initialize_epoch_database(connection: sqlite3.Connection) -> None:
+    connection.executescript("""
+        CREATE TABLE IF NOT EXISTS epoch_lineages (
+            authority_domain TEXT NOT NULL,
+            lineage_id TEXT NOT NULL,
+            revision INTEGER NOT NULL,
+            tip_epoch_id TEXT NOT NULL,
+            payload TEXT NOT NULL,
+            PRIMARY KEY (authority_domain, lineage_id)
+        );
+        CREATE TABLE IF NOT EXISTS epoch_claims (
+            authority_domain TEXT NOT NULL,
+            identity TEXT NOT NULL,
+            lineage_id TEXT NOT NULL,
+            PRIMARY KEY (authority_domain, identity)
+        );
+        CREATE TABLE IF NOT EXISTS model_version_claims (
+            authority_domain TEXT NOT NULL,
+            identity TEXT NOT NULL,
+            lineage_id TEXT NOT NULL,
+            PRIMARY KEY (authority_domain, identity)
+        );
+        CREATE TABLE IF NOT EXISTS harness_version_claims (
+            authority_domain TEXT NOT NULL,
+            identity TEXT NOT NULL,
+            lineage_id TEXT NOT NULL,
+            PRIMARY KEY (authority_domain, identity)
+        );
+        """)
+
+
+def _validated_epoch_store(store: object) -> tuple[str, str]:
+    if type(store) is not EvaluationEpochStore:
+        raise ValueError("store must be an exact EvaluationEpochStore")
+    checked_store = cast(EvaluationEpochStore, store)
+    if checked_store._binding != (
+        checked_store._database_path,
+        checked_store._authority_domain,
+    ):
+        raise ValueError("EvaluationEpochStore binding changed after construction")
+    return checked_store._database_path, checked_store._authority_domain
+
+
+def _new_history_handle(
+    path: str,
+    domain: str,
+    lineage_id: str,
+    revision: int,
+) -> EvaluationEpochHistory:
+    handle = object.__new__(EvaluationEpochHistory)
+    _EPOCH_HISTORY_STATE[handle] = _EpochHistoryHandleState(path, domain, lineage_id, revision)
+    return handle
+
+
+def _claim_catalog_identity(
+    connection: sqlite3.Connection,
+    table: str,
+    domain: str,
+    identity: str,
+    lineage_id: str,
+) -> None:
+    if table not in {"epoch_claims", "model_version_claims", "harness_version_claims"}:
+        raise RuntimeError("invalid evaluation authority catalog table")
+    try:
+        connection.execute(
+            f"INSERT INTO {table} VALUES (?, ?, ?)",
+            (domain, identity, lineage_id),
+        )
+    except sqlite3.IntegrityError as exc:
+        raise ValueError("identity is already claimed in this authority domain") from exc
+
+
+def _serialize_history_entry(entry: _EpochHistoryEntry) -> str:
+    snapshot = _validated_history_entry(entry)
+    return json.dumps(
+        {
+            "lineage": [epoch.to_dict() for epoch in snapshot.lineage],
+            "parent_epoch_ids": list(snapshot.parent_epoch_ids),
+            "records": [
+                {"record_id": record_id, "record": record.to_dict()}
+                for record_id, record in snapshot.records
+            ],
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+
+def _deserialize_history_entry(payload: object) -> _EpochHistoryEntry:
+    if type(payload) is not str:
+        raise ValueError("evaluation authority catalog payload must be exact text")
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError as exc:
+        raise ValueError("evaluation authority catalog payload is not valid JSON") from exc
+    values = _require_exact_mapping(
+        data, {"lineage", "parent_epoch_ids", "records"}, "epoch lineage payload"
+    )
+    if type(values["lineage"]) is not list or type(values["parent_epoch_ids"]) is not list:
+        raise ValueError("evaluation authority catalog lineage arrays are invalid")
+    if type(values["records"]) is not list:
+        raise ValueError("evaluation authority catalog records must be an array")
+    lineage = tuple(
+        EvaluationEpoch.from_dict(item) for item in cast(list[object], values["lineage"])
+    )
+    parents = tuple(
+        cast(str | None, item) for item in cast(list[object], values["parent_epoch_ids"])
+    )
+    records: list[tuple[str, V5EvaluationRecord]] = []
+    for item in cast(list[object], values["records"]):
+        record_values = _require_exact_mapping(
+            item, {"record_id", "record"}, "authoritative evaluation record"
+        )
+        records.append(
+            (
+                cast(str, record_values["record_id"]),
+                V5EvaluationRecord.from_dict(record_values["record"]),
+            )
+        )
+    return _validated_history_entry(_EpochHistoryEntry(lineage, parents, tuple(records)))
+
+
+def _validate_catalog(
+    connection: sqlite3.Connection,
+    domain: str,
+    lineage_id: str,
+    tip_epoch_id: object,
+    entry: _EpochHistoryEntry,
+) -> None:
+    snapshot = _validated_history_entry(entry)
+    if type(tip_epoch_id) is not str or tip_epoch_id != snapshot.lineage[-1].epoch_id:
+        raise ValueError("evaluation authority catalog tip does not match lineage")
+    expected = {
+        "epoch_claims": {epoch.epoch_id for epoch in snapshot.lineage},
+        "model_version_claims": {epoch.model_version for epoch in snapshot.lineage},
+        "harness_version_claims": {epoch.harness_version for epoch in snapshot.lineage},
+    }
+    for table, identities in expected.items():
+        rows = connection.execute(
+            f"SELECT identity FROM {table} WHERE authority_domain = ? AND lineage_id = ?",
+            (domain, lineage_id),
+        ).fetchall()
+        if {row[0] for row in rows} != identities:
+            raise ValueError("evaluation authority catalog claims do not match lineage")
+
+
+def _begin_history_read(
+    history: EvaluationEpochHistory,
+) -> tuple[_EpochHistoryHandleState, sqlite3.Connection, _EpochHistoryEntry]:
+    state = _EPOCH_HISTORY_STATE[history]
+    connection = _open_epoch_database(state.database_path)
+    try:
+        row = connection.execute(
+            "SELECT revision, tip_epoch_id, payload FROM epoch_lineages "
+            "WHERE authority_domain = ? AND lineage_id = ?",
+            (state.authority_domain, state.lineage_id),
+        ).fetchone()
+        if row is None:
+            raise ValueError("authoritative evaluation lineage no longer exists")
+        revision = _require_nonnegative_integer(row[0], "revision")
+        if revision != state.revision:
+            raise RuntimeError("evaluation history handle has a stale revision")
+        entry = _deserialize_history_entry(row[2])
+        _validate_catalog(connection, state.authority_domain, state.lineage_id, row[1], entry)
+        return state, connection, entry
+    except Exception:
+        connection.close()
+        raise
+
+
+def _begin_history_transition(
+    history: EvaluationEpochHistory,
+) -> tuple[_EpochHistoryHandleState, sqlite3.Connection, _EpochHistoryEntry]:
+    state = _EPOCH_HISTORY_STATE[history]
+    connection = _open_epoch_database(state.database_path)
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        row = connection.execute(
+            "SELECT revision, tip_epoch_id, payload FROM epoch_lineages "
+            "WHERE authority_domain = ? AND lineage_id = ?",
+            (state.authority_domain, state.lineage_id),
+        ).fetchone()
+        if row is None:
+            raise ValueError("authoritative evaluation lineage no longer exists")
+        revision = _require_nonnegative_integer(row[0], "revision")
+        if revision != state.revision:
+            raise RuntimeError("evaluation history handle has a stale revision")
+        entry = _deserialize_history_entry(row[2])
+        _validate_catalog(connection, state.authority_domain, state.lineage_id, row[1], entry)
+        return state, connection, entry
+    except Exception:
+        connection.rollback()
+        connection.close()
+        raise
+
+
+def _commit_history_transition(
+    history: EvaluationEpochHistory,
+    state: _EpochHistoryHandleState,
+    connection: sqlite3.Connection,
+    entry: _EpochHistoryEntry,
+) -> None:
+    try:
+        snapshot = _validated_history_entry(entry)
+        next_revision = state.revision + 1
+        result = connection.execute(
+            "UPDATE epoch_lineages SET revision = ?, tip_epoch_id = ?, payload = ? "
+            "WHERE authority_domain = ? AND lineage_id = ? AND revision = ?",
+            (
+                next_revision,
+                snapshot.lineage[-1].epoch_id,
+                _serialize_history_entry(snapshot),
+                state.authority_domain,
+                state.lineage_id,
+                state.revision,
+            ),
+        )
+        if result.rowcount != 1:
+            raise RuntimeError("evaluation history transition failed a stale revision check")
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        connection.close()
+        raise
+    connection.close()
+    _EPOCH_HISTORY_STATE[history] = _EpochHistoryHandleState(
+        state.database_path,
+        state.authority_domain,
+        state.lineage_id,
+        next_revision,
+    )
+
+
 def _require_exact_history(value: object) -> EvaluationEpochHistory:
     _require_epoch_process()
     if type(value) is not EvaluationEpochHistory:
-        raise ValueError("epoch_history must be an exact EvaluationEpochHistory")
+        raise ValueError("mutation requires an authoritative EvaluationEpochHistory")
     if value not in _EPOCH_HISTORY_STATE:
-        raise ValueError("EvaluationEpochHistory is not enrolled in this process")
+        raise ValueError("mutation requires a store-derived authoritative EvaluationEpochHistory")
     return value
 
 
 def _require_epoch_process() -> None:
     if os.getpid() != _EPOCH_HISTORY_PROCESS_ID:
         raise RuntimeError("evaluation epoch authority cannot cross a process boundary")
+
+
+def _require_nonnegative_integer(value: object, field_name: str) -> int:
+    if type(value) is not int or value < 0:
+        raise ValueError(f"{field_name} must be a nonnegative built-in integer")
+    return value
 
 
 def _validated_history_entry(value: object) -> _EpochHistoryEntry:
@@ -647,7 +988,9 @@ def _snapshot_evaluation_record(value: object) -> V5EvaluationRecord:
     if type(value) is not V5EvaluationRecord:
         raise ValueError("record must be an exact V5EvaluationRecord")
     try:
-        return V5EvaluationRecord.from_dict(value.to_dict())
+        record_type = cast(Any, V5EvaluationRecord)
+        record_value = cast(Any, value)
+        return cast(V5EvaluationRecord, record_type.from_dict(record_value.to_dict()))
     except (AttributeError, TypeError) as exc:
         raise ValueError("record must remain a valid V5EvaluationRecord") from exc
 
@@ -760,7 +1103,9 @@ def _snapshot_evidence_refs(values: object) -> tuple[EvidenceReference, ...]:
         if type(checked_reference.source_kind) is not EvidenceSourceKind:
             raise ValueError("evidence_refs source_kind must be an exact EvidenceSourceKind")
         references.append(
-            EvidenceReference(checked_reference.reference_id, checked_reference.source_kind)
+            cast(Any, EvidenceReference)(
+                checked_reference.reference_id, checked_reference.source_kind
+            )
         )
     return tuple(references)
 
@@ -805,6 +1150,7 @@ def _require_exact_mapping(
 __all__ = [
     "EvaluationEpoch",
     "EvaluationEpochHistory",
+    "EvaluationEpochStore",
     "LearningSurface",
     "LessonCharacteristics",
     "LessonKind",

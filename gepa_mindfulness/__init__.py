@@ -3,6 +3,7 @@
 from .learning_surfaces import (
     EvaluationEpoch,
     EvaluationEpochHistory,
+    EvaluationEpochStore,
     LearningSurface,
     LessonCharacteristics,
     LessonKind,
@@ -22,6 +23,7 @@ __all__ = [
     "AggregateResult",
     "EvaluationEpoch",
     "EvaluationEpochHistory",
+    "EvaluationEpochStore",
     "LearningSurface",
     "LessonCharacteristics",
     "LessonKind",
