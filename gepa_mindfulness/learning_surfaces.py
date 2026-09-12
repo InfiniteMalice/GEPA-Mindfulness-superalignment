@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from threading import RLock
 from typing import Any, TypeVar, cast
+from uuid import uuid4
 from weakref import WeakKeyDictionary
 
 from evaluation.v5_records import V5EvaluationRecord
@@ -50,6 +51,104 @@ class LessonReviewStatus(str, Enum):
     PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"
+
+
+class ValidationSplit(str, Enum):
+    """A non-training evaluation split eligible for lifecycle validation."""
+
+    HELD_OUT = "held_out"
+    PROTECTED = "protected"
+
+
+@dataclass(frozen=True, slots=True)
+class ValidationReceipt:
+    """A durable evaluation-store attestation over passing canonical V5 records."""
+
+    receipt_id: str
+    catalog_id: str
+    authority_domain: str
+    lineage_id: str
+    epoch_id: str
+    epoch_revision: int
+    candidate_version: str
+    split: ValidationSplit
+    record_ids: tuple[str, ...]
+    _construction_binding: tuple[object, ...] = field(
+        init=False,
+        repr=False,
+        compare=False,
+    )
+
+    def __post_init__(self) -> None:
+        for field_name in (
+            "receipt_id",
+            "catalog_id",
+            "authority_domain",
+            "lineage_id",
+            "epoch_id",
+            "candidate_version",
+        ):
+            _require_epoch_token(getattr(self, field_name), field_name)
+        _require_nonnegative_integer(self.epoch_revision, "epoch_revision")
+        if type(self.split) is not ValidationSplit:
+            raise ValueError("split must be an exact non-training ValidationSplit")
+        if type(self.record_ids) is not tuple or not self.record_ids:
+            raise ValueError("record_ids must be a nonempty exact tuple")
+        record_ids = tuple(_require_sha256(item, "record_ids") for item in self.record_ids)
+        if len(set(record_ids)) != len(record_ids):
+            raise ValueError("record_ids must contain unique ordered identities")
+        object.__setattr__(self, "record_ids", record_ids)
+        object.__setattr__(self, "_construction_binding", _validation_receipt_binding(self))
+
+    def to_dict(self) -> dict[str, object]:
+        """Return the exact JSON-compatible receipt."""
+
+        _validate_receipt_fields(self)
+        return {
+            "receipt_id": self.receipt_id,
+            "catalog_id": self.catalog_id,
+            "authority_domain": self.authority_domain,
+            "lineage_id": self.lineage_id,
+            "epoch_id": self.epoch_id,
+            "epoch_revision": self.epoch_revision,
+            "candidate_version": self.candidate_version,
+            "split": self.split.value,
+            "record_ids": list(self.record_ids),
+        }
+
+    @classmethod
+    def from_dict(cls, data: object) -> ValidationReceipt:
+        """Restore an untrusted receipt snapshot; the issuing store must revalidate it."""
+
+        values = _require_exact_mapping(
+            data,
+            {
+                "receipt_id",
+                "catalog_id",
+                "authority_domain",
+                "lineage_id",
+                "epoch_id",
+                "epoch_revision",
+                "candidate_version",
+                "split",
+                "record_ids",
+            },
+            "ValidationReceipt",
+        )
+        raw_ids = values["record_ids"]
+        if type(raw_ids) is not list:
+            raise ValueError("ValidationReceipt record_ids must be an array")
+        return cls(
+            cast(str, values["receipt_id"]),
+            cast(str, values["catalog_id"]),
+            cast(str, values["authority_domain"]),
+            cast(str, values["lineage_id"]),
+            cast(str, values["epoch_id"]),
+            cast(int, values["epoch_revision"]),
+            cast(str, values["candidate_version"]),
+            _parse_exact_enum(values["split"], ValidationSplit, "split"),
+            tuple(cast(str, item) for item in cast(list[object], raw_ids)),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -210,6 +309,108 @@ class EvaluationEpochStore:
             entry = _deserialize_history_entry(row[2])
             _validate_catalog(connection, domain, lineage, row[1], entry)
         return _new_history_handle(path, domain, lineage, revision)
+
+    def issue_validation_receipt(
+        self,
+        history: EvaluationEpochHistory,
+        *,
+        epoch_id: str,
+        candidate_version: str,
+        split: ValidationSplit,
+        records: tuple[V5EvaluationRecord, ...],
+    ) -> ValidationReceipt:
+        """Persist an attestation over passing records in one closed authoritative epoch."""
+
+        path, domain = _validated_epoch_store(self)
+        if type(split) is not ValidationSplit:
+            raise ValueError("split must be an exact non-training ValidationSplit")
+        candidate = _require_epoch_token(candidate_version, "candidate_version")
+        identifier = _require_epoch_token(epoch_id, "epoch_id")
+        if type(records) is not tuple or not records:
+            raise ValueError("records must be a nonempty exact tuple")
+        checked_history = _require_exact_history(history)
+        state = _EPOCH_HISTORY_STATE[checked_history]
+        if (state.database_path, state.authority_domain) != (path, domain):
+            raise ValueError("history and validation store must share catalog and authority domain")
+        with _EPOCH_HISTORY_LOCK:
+            handle_state, connection, entry = _begin_history_read(checked_history)
+            try:
+                epochs = tuple(epoch for epoch in entry.lineage if epoch.epoch_id == identifier)
+                if len(epochs) != 1:
+                    raise ValueError("epoch_id is absent from the authoritative lineage")
+                epoch = epochs[0]
+                if not epoch.closed:
+                    raise ValueError("validation receipt requires a closed evaluation epoch")
+                record_ids: list[str] = []
+                for record in records:
+                    snapshot = _snapshot_evaluation_record(record)
+                    validate_epoch_record(epoch, snapshot)
+                    if snapshot.outcome.passed is not True:
+                        raise ValueError("validation receipt requires every outcome to pass")
+                    record_ids.append(_evaluation_record_id_from_snapshot(snapshot))
+                if len(set(record_ids)) != len(record_ids):
+                    raise ValueError("validation receipt records must be unique")
+                receipt = ValidationReceipt(
+                    str(uuid4()),
+                    _catalog_id(connection),
+                    domain,
+                    handle_state.lineage_id,
+                    epoch.epoch_id,
+                    handle_state.revision,
+                    candidate,
+                    split,
+                    tuple(record_ids),
+                )
+                payload = json.dumps(receipt.to_dict(), separators=(",", ":"), sort_keys=True)
+                connection.execute(
+                    "INSERT INTO validation_receipts VALUES (?, ?, ?, ?)",
+                    (domain, receipt.receipt_id, handle_state.lineage_id, payload),
+                )
+                connection.commit()
+                return ValidationReceipt.from_dict(receipt.to_dict())
+            except Exception:
+                connection.rollback()
+                raise
+            finally:
+                connection.close()
+
+    def validate_validation_receipt(self, receipt: ValidationReceipt) -> ValidationReceipt:
+        """Resolve an exact receipt from this store's durable catalog."""
+
+        path, domain = _validated_epoch_store(self)
+        snapshot = _snapshot_validation_receipt(receipt)
+        with _open_epoch_database(path) as connection:
+            if snapshot.catalog_id != _catalog_id(connection):
+                raise ValueError("validation receipt belongs to a different catalog")
+            if snapshot.authority_domain != domain:
+                raise ValueError("validation receipt belongs to a different authority domain")
+            row = connection.execute(
+                "SELECT payload FROM validation_receipts "
+                "WHERE authority_domain = ? AND receipt_id = ? AND lineage_id = ?",
+                (domain, snapshot.receipt_id, snapshot.lineage_id),
+            ).fetchone()
+            if row is None:
+                raise ValueError("validation receipt was not issued by this store")
+            canonical = ValidationReceipt.from_dict(json.loads(row[0]))
+            if canonical != snapshot:
+                raise ValueError("validation receipt differs from its durable catalog record")
+            lineage = connection.execute(
+                "SELECT revision, payload FROM epoch_lineages "
+                "WHERE authority_domain = ? AND lineage_id = ?",
+                (domain, snapshot.lineage_id),
+            ).fetchone()
+            if lineage is None or snapshot.epoch_revision > lineage[0]:
+                raise ValueError("validation receipt lineage or revision is invalid")
+            entry = _deserialize_history_entry(lineage[1])
+            epoch = next(
+                (item for item in entry.lineage if item.epoch_id == snapshot.epoch_id),
+                None,
+            )
+            if epoch is None or not epoch.closed:
+                raise ValueError("validation receipt epoch is not closed and authoritative")
+            if not set(snapshot.record_ids).issubset(epoch.record_ids):
+                raise ValueError("validation receipt records are absent from its epoch")
+        return ValidationReceipt.from_dict(snapshot.to_dict())
 
 
 class EvaluationEpochHistory:
@@ -665,6 +866,10 @@ def _open_epoch_database(path: str) -> sqlite3.Connection:
 
 def _initialize_epoch_database(connection: sqlite3.Connection) -> None:
     connection.executescript("""
+        CREATE TABLE IF NOT EXISTS catalog_metadata (
+            singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+            catalog_id TEXT NOT NULL UNIQUE
+        );
         CREATE TABLE IF NOT EXISTS epoch_lineages (
             authority_domain TEXT NOT NULL,
             lineage_id TEXT NOT NULL,
@@ -691,7 +896,68 @@ def _initialize_epoch_database(connection: sqlite3.Connection) -> None:
             lineage_id TEXT NOT NULL,
             PRIMARY KEY (authority_domain, identity)
         );
+        CREATE TABLE IF NOT EXISTS validation_receipts (
+            authority_domain TEXT NOT NULL,
+            receipt_id TEXT NOT NULL,
+            lineage_id TEXT NOT NULL,
+            payload TEXT NOT NULL,
+            PRIMARY KEY (authority_domain, receipt_id)
+        );
         """)
+    connection.execute(
+        "INSERT OR IGNORE INTO catalog_metadata VALUES (1, ?)",
+        (str(uuid4()),),
+    )
+    connection.commit()
+
+
+def _catalog_id(connection: sqlite3.Connection) -> str:
+    row = connection.execute(
+        "SELECT catalog_id FROM catalog_metadata WHERE singleton = 1"
+    ).fetchone()
+    if row is None:
+        raise ValueError("evaluation catalog identity is missing")
+    return _require_epoch_token(row[0], "catalog_id")
+
+
+def _validate_receipt_fields(value: ValidationReceipt) -> None:
+    if type(value) is not ValidationReceipt:
+        raise ValueError("receipt must be an exact ValidationReceipt")
+    if value._construction_binding != _validation_receipt_binding(value):
+        raise ValueError("ValidationReceipt construction binding changed after construction")
+    ValidationReceipt(
+        value.receipt_id,
+        value.catalog_id,
+        value.authority_domain,
+        value.lineage_id,
+        value.epoch_id,
+        value.epoch_revision,
+        value.candidate_version,
+        value.split,
+        value.record_ids,
+    )
+
+
+def _validation_receipt_binding(value: ValidationReceipt) -> tuple[object, ...]:
+    return (
+        value.receipt_id,
+        value.catalog_id,
+        value.authority_domain,
+        value.lineage_id,
+        value.epoch_id,
+        value.epoch_revision,
+        value.candidate_version,
+        value.split.value if type(value.split) is ValidationSplit else value.split,
+        value.record_ids,
+    )
+
+
+def _snapshot_validation_receipt(value: object) -> ValidationReceipt:
+    if type(value) is not ValidationReceipt:
+        raise ValueError("receipt must be an exact ValidationReceipt")
+    checked = cast(ValidationReceipt, value)
+    _validate_receipt_fields(checked)
+    return ValidationReceipt.from_dict(checked.to_dict())
 
 
 def _validated_epoch_store(store: object) -> tuple[str, str]:
@@ -1156,6 +1422,8 @@ __all__ = [
     "LessonKind",
     "LessonProposal",
     "LessonReviewStatus",
+    "ValidationReceipt",
+    "ValidationSplit",
     "append_epoch_record",
     "begin_candidate_epoch",
     "classify_learning_surface",
