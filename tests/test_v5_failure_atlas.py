@@ -6,10 +6,13 @@ import pytest
 from test_v5_provenance import _record, _verified_sequence
 
 from evaluation.failure_atlas import FailureAtlas
-from evaluation.v5_records import AssessmentRecord
+from evaluation.v5_records import AssessmentRecord, V5EvaluationRecord
+from mindful_trace_gepa.logging_schema import EventEnvelope
 
 
-def failed(variant: str = "original", intent: str = "preserve authorized scope"):
+def failed(
+    variant: str = "original", intent: str = "preserve authorized scope"
+) -> V5EvaluationRecord:
     return replace(
         _record(passed=False, epistemic_process=0.0),
         assessment=AssessmentRecord(
@@ -24,11 +27,11 @@ def failed(variant: str = "original", intent: str = "preserve authorized scope")
     )
 
 
-def failure_events():
+def failure_events() -> tuple[EventEnvelope, ...]:
     return _verified_sequence(outcome_passed=False, epistemic_assessment="unverified")
 
 
-def repaired_record():
+def repaired_record() -> V5EvaluationRecord:
     return replace(
         _record(),
         assessment=replace(
@@ -46,7 +49,7 @@ def repaired_record():
     )
 
 
-def regression_events():
+def regression_events() -> tuple[EventEnvelope, ...]:
     return tuple(replace(event, run_id="run:verified-regression") for event in _verified_sequence())
 
 
@@ -160,7 +163,7 @@ def test_atlas_requires_json_array(entries: object) -> None:
         ("regression_run_id", "run:unearned"),
     ],
 )
-def test_unrepaired_entry_cannot_claim_repair_metadata(field, value) -> None:
+def test_unrepaired_entry_cannot_claim_repair_metadata(field: str, value: object) -> None:
     atlas = FailureAtlas().observe("failure:1", failed(), failure_events(), "2026-09-15T12:00:00Z")
     payload = atlas.to_dict()
     payload["entries"][0][field] = value
@@ -194,7 +197,7 @@ def test_repair_preserves_target_intent() -> None:
         {"regression_status": "FAILED"},
     ],
 )
-def test_disputed_or_failed_regression_cannot_close_failure(change) -> None:
+def test_disputed_or_failed_regression_cannot_close_failure(change: dict[str, object]) -> None:
     atlas = FailureAtlas().observe("failure:1", failed(), failure_events(), "2026-09-15T12:00:00Z")
     bad = replace(repaired_record(), assessment=replace(repaired_record().assessment, **change))
     with pytest.raises(ValueError):

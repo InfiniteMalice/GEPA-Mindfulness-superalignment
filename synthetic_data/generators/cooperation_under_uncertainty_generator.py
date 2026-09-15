@@ -97,11 +97,28 @@ def generate_cooperation_under_uncertainty_cases(
     )
 
 
-def generate_cooperation_cpt_candidates() -> list[ReasoningTraceCandidate]:
-    """Return CPT candidates grounded in cooperation-under-uncertainty cases."""
+def generate_cooperation_cpt_candidates(
+    *,
+    cell_metadata: Mapping[str, GenerationMetadata] | None = None,
+    for_training: bool = False,
+) -> list[ReasoningTraceCandidate]:
+    """Return CPT candidates grounded in cooperation-under-uncertainty cases.
+
+    Args:
+        cell_metadata: Per-template coordinates and completed review authorizations.
+        for_training: Require every source case to pass training admission.
+
+    Returns:
+        Candidate pairs retaining each source's eligibility and review provenance.
+
+    Raises:
+        ValueError: Supplied generation metadata or required training admission is invalid.
+    """
 
     candidates: list[ReasoningTraceCandidate] = []
-    for case in generate_cooperation_under_uncertainty_cases():
+    for case in generate_cooperation_under_uncertainty_cases(
+        cell_metadata=cell_metadata, for_training=for_training
+    ):
         case_id = str(case["case_id"])
         prompt = str(case["scenario"])
         safe_units = _cooperation_reasoning_units(case, safe=True)

@@ -166,7 +166,7 @@ def evaluate_matched_error(
     The default acceptance rule includes justified abstention. Hosts can supply a frozen
     acceptance predicate for additional response modes such as targeted clarification.
     """
-    if not control_answer.strip() or control_answer == defective_answer:
+    if not control_answer.strip() or control_answer.strip() == defective_answer.strip():
         raise ValueError("matched error requires distinct answers and a nonempty control")
     RobustnessIdentity(cell.stripe_id, defect.upper())
     if cell.subtype != defect.upper():

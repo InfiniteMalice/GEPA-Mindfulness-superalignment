@@ -10,6 +10,7 @@ import pytest
 
 from evaluation.cases.registry import FRAMEWORK_VERSION, load_case_manifest
 from evaluation.v5_runner import V5EvaluationCell
+from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
 from gepa_mindfulness.training.adapters.flat_jsonl import FlatJSONLAdapter
 from gepa_mindfulness.training.eligibility import TrainingEligibility
 from scripts.build_reward_integrity_rl_dataset import _pair_records, build_dataset
@@ -94,6 +95,9 @@ def test_explicit_cell_preserves_canonical_identity_and_transformation_lineage()
         training_eligibility=TrainingEligibility.TRAIN,
         transformations=("translation:es", "paraphrase:1"),
         verification_method="independent_semantic_review",
+        review_completed=True,
+        reviewed_by="reviewer:human",
+        review_authorization=EvidenceReference("review:1", EvidenceSourceKind.EXTERNAL_RECORD),
     )
     record = generate_semantic_laundering_chain_cases(cell_metadata={source_id: metadata})[0]
     assert record["metadata"]["canonical_case_id"] == 1
@@ -119,7 +123,15 @@ def test_training_metadata_cannot_relabel_hidden_source() -> None:
             invariant_field="safe",
             failure_field="unsafe",
             cell_metadata={
-                "hidden-seed": GenerationMetadata(training_eligibility=TrainingEligibility.TRAIN)
+                "hidden-seed": GenerationMetadata(
+                    cell=V5EvaluationCell(1, FRAMEWORK_VERSION, "NONE", None, 0, 1, "m", "h"),
+                    training_eligibility=TrainingEligibility.TRAIN,
+                    review_completed=True,
+                    reviewed_by="reviewer:human",
+                    review_authorization=EvidenceReference(
+                        "review:hidden", EvidenceSourceKind.EXTERNAL_RECORD
+                    ),
+                )
             },
         )
 

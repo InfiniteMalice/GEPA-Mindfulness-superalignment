@@ -66,3 +66,14 @@ Failed legacy optimizer exports intentionally fail closed; audited records remai
 No automatic semantic-equivalence verdicts, remote judge execution, training or deployment is
 claimed. Hosts remain responsible for authenticating external verifiers and supplying holdout
 policy; strings and local dataclasses are not a remote trust boundary.
+
+## PR 753 review follow-up
+
+Verified the nine inline CodeRabbit/Codex findings and the additional public-contract nitpick
+against commit 345b37b. Regression tests reproduced seven failing behaviors before fixes.
+The follow-up requires non-hidden regression evidence, latest-family and monotonic repair,
+distinct whitespace-normalized matched answers, conservative direct routing, and eligibility
+at CPT pair construction. Generated TRAIN data now carries a validated cell and explicit
+completed human-review references, revalidated at shared training ingress. Untagged legacy
+inputs remain compatible; review-source authentication remains host-owned. Public contracts
+and the named test annotations are updated. No taxonomy or reward-weight changes are intended.

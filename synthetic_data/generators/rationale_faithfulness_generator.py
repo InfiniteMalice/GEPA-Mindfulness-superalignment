@@ -15,7 +15,18 @@ def generate_rationale_faithfulness_cases(
     cell_metadata: Mapping[str, GenerationMetadata] | None = None,
     for_training: bool = False,
 ) -> list[dict[str, Any]]:
-    """Return small rationale-faithfulness examples."""
+    """Return small rationale-faithfulness examples.
+
+    Args:
+        cell_metadata: Optional per-template V5 coordinates and human-review authorization.
+        for_training: Require every generated example to pass shared training admission.
+
+    Returns:
+        Deterministic case dictionaries with source and generation metadata.
+
+    Raises:
+        ValueError: Metadata is invalid or required training admission fails.
+    """
 
     cases = [
         {

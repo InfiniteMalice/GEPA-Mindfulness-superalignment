@@ -202,6 +202,8 @@ failed record remains failed. Repair time cannot precede the previous observatio
 following repair become regressions. A completed repair cannot be overwritten; non-repaired
 entries cannot claim repair metadata. `repair_candidates()` retains one latest eligible
 observation per family, protecting rare families from domination by repeated surface forms.
+Only the latest family observation may close, and repair time must not precede any observation
+in that family. Hidden regression records cannot supply repair evidence for public failures.
 
 Provenance validation and optimization admission are separate. Failed records remain valid
 audit inputs. `optimizer_scores()` rejects every failed record; submit a new verified passing

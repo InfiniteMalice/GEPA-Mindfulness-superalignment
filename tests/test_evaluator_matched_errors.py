@@ -52,7 +52,7 @@ def test_constant_approving_judge_is_detected_as_false_negative() -> None:
         harness_version="h",
     )[0]
 
-    def biased_judge(example, answer):
+    def biased_judge(example: EvalCase, answer: str) -> EvalResult:
         return score_response(example, answer, outcome="correct")
 
     result = evaluate_matched_error(

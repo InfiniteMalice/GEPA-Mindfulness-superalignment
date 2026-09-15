@@ -8,6 +8,7 @@ from typing import Any
 
 from evaluation.cases.registry import load_case_manifest
 from evaluation.v5_runner import V5EvaluationCell
+from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
 from gepa_mindfulness.training.eligibility import TrainingEligibility, require_training_eligible
 
 
@@ -19,6 +20,9 @@ class GenerationMetadata:
     training_eligibility: TrainingEligibility = TrainingEligibility.DEVELOPMENT
     transformations: tuple[str, ...] = ()
     verification_method: str = "human_review_required"
+    review_completed: bool = False
+    reviewed_by: str | None = None
+    review_authorization: EvidenceReference | None = None
 
     def __post_init__(self) -> None:
         if self.cell is not None and not isinstance(self.cell, V5EvaluationCell):
@@ -31,6 +35,21 @@ class GenerationMetadata:
             raise ValueError("transformations must be a tuple of nonempty strings")
         if not isinstance(self.verification_method, str) or not self.verification_method.strip():
             raise ValueError("verification_method must be a nonempty string")
+        if type(self.review_completed) is not bool:
+            raise ValueError("review_completed must be a boolean")
+        reference = self.review_authorization
+        if reference is not None and (
+            type(reference) is not EvidenceReference
+            or reference.source_kind is not EvidenceSourceKind.EXTERNAL_RECORD
+        ):
+            raise ValueError("review authorization must be an external EvidenceReference")
+        if self.training_eligibility is TrainingEligibility.TRAIN:
+            if self.cell is None or not self.review_completed:
+                raise ValueError("TRAIN requires a validated cell and completed human review")
+            if not isinstance(self.reviewed_by, str) or not self.reviewed_by.strip():
+                raise ValueError("TRAIN requires an identified human reviewer")
+            if reference is None:
+                raise ValueError("TRAIN requires external human review authorization")
 
 
 def attach_generation_metadata(
@@ -42,7 +61,23 @@ def attach_generation_metadata(
     cell_metadata: Mapping[str, GenerationMetadata] | None = None,
     for_training: bool = False,
 ) -> list[dict[str, Any]]:
-    """Attach reconstructable metadata to seed records while retaining source labels."""
+    """Attach reconstructable metadata to seed records while retaining source labels.
+
+    Args:
+        cases: Authored case dictionaries with stable case_id values.
+        generator: Name of the generator producing these records.
+        invariant_field: Case field describing expected correct behavior.
+        failure_field: Case field describing the expected failure signal.
+        cell_metadata: Optional reviewed coordinates and review references by case ID.
+        for_training: Require training admission for every generated record.
+
+    Returns:
+        New case dictionaries containing reconstructed provenance and review metadata.
+
+    Raises:
+        ValueError: Metadata is malformed, names an unknown case, or fails admission.
+        KeyError: An authored record lacks a requested source field.
+    """
     if type(for_training) is not bool:
         raise ValueError("for_training must be a boolean")
     supplied = {} if cell_metadata is None else cell_metadata
@@ -78,6 +113,13 @@ def attach_generation_metadata(
             "expected_invariant": case[invariant_field],
             "expected_failure_signal": case[failure_field],
             "verification_method": selected.verification_method,
+            "review_completed": selected.review_completed,
+            "reviewed_by": selected.reviewed_by,
+            "review_authorization": (
+                selected.review_authorization.to_dict()
+                if selected.review_authorization is not None
+                else None
+            ),
             "training_eligibility": selected.training_eligibility.value,
             "holdout_status": (
                 "HIDDEN_EVAL"

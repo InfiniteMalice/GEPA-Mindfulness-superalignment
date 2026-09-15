@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
+from gepa_mindfulness.training.eligibility import require_training_eligible
+
 from .schemas import (
     CPTBatchMetrics,
     PairType,
@@ -62,11 +64,23 @@ def build_pairwise_examples(
     *,
     config: CognitivePairwiseTrainingConfig | None = None,
 ) -> list[PairwiseReasoningExample]:
-    """Build deterministic pairwise examples from rollout candidates."""
+    """Build deterministic pairwise examples from eligible rollout candidates.
+
+    Args:
+        candidates: Candidates with retained source and eligibility metadata.
+        config: Optional pairing, filtering and deterministic-shuffle settings.
+
+    Returns:
+        Training pairs preserving both candidates and their provenance.
+
+    Raises:
+        ValueError: Any candidate fails the shared training-eligibility policy.
+    """
 
     cfg = config or CognitivePairwiseTrainingConfig()
     grouped: dict[str, list[ReasoningTraceCandidate]] = {}
     for candidate in candidates:
+        require_training_eligible(candidate.metadata)
         grouped.setdefault(candidate.problem_id, []).append(candidate)
 
     rng = random.Random(cfg.seed)

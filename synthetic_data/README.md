@@ -33,9 +33,20 @@ Seed zero identifies the unchanged deterministic template when no cell is suppli
 New generated templates default to `DEVELOPMENT` and `human_review_required`.
 The verification method records the required method, not a claim that verification passed.
 `for_training=True` rejects any generated item whose retained provenance is not training
-eligible. Callers can explicitly select `TrainingEligibility.TRAIN` for reviewed seeds;
-this never overrides a hidden or non-training label in retained source metadata.
+eligible. `TrainingEligibility.TRAIN` requires a validated cell, `review_completed=True`,
+an identified human in `reviewed_by`, and `review_authorization` as an existing
+`EvidenceReference` of kind `EXTERNAL_RECORD`. The shared training boundary revalidates
+those fields and the complete V5 coordinate, so changing a DEVELOPMENT label alone cannot
+admit a generated record. The host must authenticate that the referenced completed human
+review authorizes the exact template, cell and transformation lineage. Serialized review
+fields are retained attestations, not credentials or an external identity service.
+This never overrides a hidden or non-training label in retained source metadata.
 `HIDDEN_EVAL` generation is available for evaluation preparation with `for_training=False`.
+
+`generate_cooperation_cpt_candidates` accepts the same `cell_metadata` and `for_training`
+arguments. Unreviewed candidates remain available for inspection; `build_pairwise_examples`
+checks every candidate's retained eligibility before constructing training pairs. Existing
+untagged legacy candidates retain compatibility.
 
 The rich curriculum pair builder rejects non-training source labels before writing outputs.
 It copies an optional source `metadata` object unchanged into every derived preference pair.

@@ -109,6 +109,8 @@ class FailureAtlasEntry:
                 raise ValueError("repair requires a distinct run")
             _require_exact_instance(self.regression_record, V5EvaluationRecord, "regression_record")
             regression = V5EvaluationRecord.from_dict(self.regression_record.to_dict())
+            if _review(regression).training_eligibility == "HIDDEN_EVAL":
+                raise ValueError("hidden regression evidence cannot close a failure")
             _require_reviewed_success(regression)
             if _review(regression).regression_status != "PASSED":
                 raise ValueError("repair requires a reviewed passing regression")
@@ -195,6 +197,22 @@ class FailureAtlas:
         severity: float = 1.0,
         localization_ref: str | None = None,
     ) -> FailureAtlas:
+        """Append a verified failure without modifying earlier observations.
+
+        Args:
+            failure_id: New unique observation identifier.
+            record: Failed V5 record with explicit family and semantic intent.
+            events: Host-authenticated action-bound evidence for that record.
+            observed_at: Timezone-aware observation time, monotonic within the family.
+            severity: Bounded severity in [0, 1].
+            localization_ref: Optional host artifact for within-trajectory localization.
+
+        Returns:
+            An immutable atlas containing the new classified observation.
+
+        Raises:
+            ValueError: Identity, provenance, lineage, severity or time is invalid.
+        """
         evidence = validate_v5_record_provenance(record, events)
         verified = evidence.record_snapshot()
         family = _family(verified)
@@ -231,6 +249,24 @@ class FailureAtlas:
         regression_tests: Sequence[str],
         observed_at: str,
     ) -> FailureAtlas:
+        """Close the latest family observation using an independently verified rerun.
+
+        Args:
+            failure_id: Latest unrepaired observation to close.
+            repair_id: Identifier of the corrective change.
+            record: Passing, reviewed, non-hidden regression of the same target.
+            events: Host-authenticated evidence from a distinct regression run.
+            regression_tests: Nonempty references to executed regression tests.
+            observed_at: Timezone-aware repair time at or after every family observation.
+
+        Returns:
+            An immutable atlas retaining the failed original and new repair evidence.
+
+        Raises:
+            KeyError: The requested failure does not exist.
+            ValueError: Eligibility, review, target, lineage, run or time checks fail,
+                or the observation is already repaired or is not the latest in its family.
+        """
         evidence = validate_v5_record_provenance(record, events)
         regression = evidence.record_snapshot()
         if not regression.outcome.passed:
@@ -245,8 +281,20 @@ class FailureAtlas:
             raise ValueError("failure is already repaired; record later failures as regressions")
         if _family(target.record) in self._hidden_families():
             raise ValueError("hidden evaluation must not enter repair generation")
-        if _time(observed_at) < _time(target.last_seen):
-            raise ValueError("repair time cannot precede last_seen")
+        family_last_seen = max(
+            _time(entry.last_seen)
+            for entry in self.entries
+            if _family(entry.record) == _family(target.record)
+        )
+        if _time(observed_at) < family_last_seen:
+            raise ValueError("repair time cannot precede family last_seen")
+        latest = next(
+            entry
+            for entry in reversed(self.entries)
+            if _family(entry.record) == _family(target.record)
+        )
+        if target.failure_id != latest.failure_id:
+            raise ValueError("repair must target the latest family observation")
         updated = tuple(
             (
                 replace(
@@ -266,16 +314,23 @@ class FailureAtlas:
         return FailureAtlas(updated)
 
     def repair_candidates(self) -> tuple[FailureAtlasEntry, ...]:
-        """Select one latest eligible observation per family; exclude held-out evaluation."""
+        """Select one latest eligible observation per family.
+
+        Returns:
+            Unrepaired candidates excluding hidden families and regression-only records.
+        """
         families: dict[tuple[int, str, str], FailureAtlasEntry] = {}
         hidden_families = self._hidden_families()
         for entry in self.entries:
             if _family(entry.record) in hidden_families:
                 continue
-            if _review(entry.record).training_eligibility in {"REGRESSION", "HIDDEN_EVAL"}:
-                continue
             families[_family(entry.record)] = entry
-        return tuple(entry for entry in families.values() if entry.status != "REPAIRED")
+        return tuple(
+            entry
+            for entry in families.values()
+            if entry.status != "REPAIRED"
+            and _review(entry.record).training_eligibility not in {"REGRESSION", "HIDDEN_EVAL"}
+        )
 
     def _hidden_families(self) -> set[tuple[int, str, str]]:
         return {
@@ -285,7 +340,11 @@ class FailureAtlas:
         }
 
     def report(self) -> dict[str, Any]:
-        """Count observations by CASE / stripe / subtype / family / repair status."""
+        """Count observations by CASE / stripe / subtype / family / repair status.
+
+        Returns:
+            Nested dictionaries whose leaf values count observations for each status.
+        """
         report: dict[str, Any] = {}
         for entry in self.entries:
             cursor = report
@@ -300,10 +359,26 @@ class FailureAtlas:
         return report
 
     def to_dict(self) -> dict[str, object]:
+        """Serialize this atlas as an audit report.
+
+        Returns:
+            A JSON-compatible entries mapping with all original and regression records.
+        """
         return {"entries": [entry.to_dict() for entry in self.entries]}
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, object]) -> FailureAtlas:
+        """Restore a structurally validated report without granting optimizer authority.
+
+        Args:
+            payload: Serialized atlas containing exactly an entries array.
+
+        Returns:
+            An immutable atlas reconstructed from the report.
+
+        Raises:
+            ValueError: Fields, records, lineage or repair metadata are inconsistent.
+        """
         if set(payload) != {"entries"}:
             raise ValueError("atlas requires exactly entries")
         if type(payload["entries"]) is not list:

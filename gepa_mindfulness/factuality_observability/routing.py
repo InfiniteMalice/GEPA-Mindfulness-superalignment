@@ -20,7 +20,7 @@ class RoutingContext:
     trace_worthy: bool
     abstention_viable: bool
     guessing_pressure: float
-    verification_required: bool = False
+    verification_required: bool = True
     representation_sensitive: bool = False
 
 

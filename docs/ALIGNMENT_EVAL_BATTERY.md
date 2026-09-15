@@ -229,12 +229,15 @@ for additional expected modes such as targeted clarification. For example,
 the exact-answer verifier separates `4` from an injected `5`; a constant approving judge yields
 a false negative. The helper does not itself prove that arbitrary texts differ by exactly one
 semantic defect. Hosts must review that condition before interpreting the measurements.
+The helper rejects answers that differ only by surrounding whitespace before calling the judge.
 
 Existing calibration suites retain Brier, ECE, AUROC/selective and abstention/risk-coverage
 metrics where their input contracts support them. Runtime confidence fusion now logs its
 sources, operational verification requirement and representation sensitivity. It remains a
 heuristic, not a fitted probability calibrator. Matched representation tests must keep the
 underlying evidence constant; the host supplies measured stability to confidence fusion.
+Direct `RoutingContext` construction defaults to requiring verification. An accepting caller
+must explicitly set `verification_required=False` after establishing sufficient verification.
 
 Protocol freezing uses existing model/harness versions, deterministic seeds and evaluation
 epochs. Hidden evaluation labels stay in evaluation-only provenance. Optimizer compilation
