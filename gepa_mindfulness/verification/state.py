@@ -2,13 +2,25 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
-from typing import Literal, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
+
+if TYPE_CHECKING:
+    from mindful_trace_gepa.action_bound_events import ActionRecord
+
+    from .interfaces import LocalVerificationResult, RelationalVerificationResult
+    from .runtime_governance import (
+        AuthorityGrantRegistry,
+        AuthorizationDecision,
+        TrustedClock,
+    )
 
 EvidenceStatus = Literal["unverified", "supported", "contradicted", "superseded"]
 _EVIDENCE_STATUSES = frozenset({"unverified", "supported", "contradicted", "superseded"})
@@ -216,6 +228,27 @@ class EvidenceState:
             current = claims_by_id[current.superseded_by]
         return _snapshot_claim(current)
 
+    def merge_equivalent(self, claim_ids: tuple[str, ...], canonical_id: str) -> EvidenceClaim:
+        """Propose a whitespace-equivalent canonical claim; never inherit authority.
+
+        Broader paraphrase or translation equivalence requires host verification. Original
+        claims remain in this state, and each distinct source survives in the candidate.
+        """
+
+        ids = _snapshot_claim_ids(claim_ids)
+        if len(ids) < 2:
+            raise ValueError("equivalence merging requires at least two claims")
+        claims = tuple(self.resolve(claim_id) for claim_id in ids)
+        if len({claim.claim_id for claim in claims}) < 2:
+            raise ValueError("equivalence merging requires at least two distinct current claims")
+        if canonical_id in {claim.claim_id for claim in _snapshot_claims(self.claims)}:
+            raise ValueError("canonical_id must be a new claim identity")
+        propositions = {" ".join(claim.proposition.split()) for claim in claims}
+        if len(propositions) != 1:
+            raise ValueError("claims are not whitespace-equivalent")
+        references = tuple(dict.fromkeys(ref for claim in claims for ref in claim.evidence_refs))
+        return EvidenceClaim(canonical_id, claims[0].proposition, references, "unverified")
+
     def to_dict(self) -> dict[str, object]:
         snapshots = _snapshot_claims(self.claims)
         _validate_claim_graph(snapshots)
@@ -228,6 +261,156 @@ class EvidenceState:
         if isinstance(raw_claims, (str, bytes, Mapping)) or not isinstance(raw_claims, Sequence):
             raise ValueError("EvidenceState claims must be an array")
         return cls(tuple(EvidenceClaim.from_dict(item) for item in raw_claims))
+
+
+def _snapshot_claim_ids(values: object) -> tuple[str, ...]:
+    if type(values) is not tuple:
+        raise ValueError("claim IDs must be an exact tuple")
+    ids = tuple(_require_nonblank_string(value, "claim_id") for value in values)
+    if len(set(ids)) != len(ids):
+        raise ValueError("claim IDs must be unique")
+    return ids
+
+
+def _proposed_evidence_state(
+    state: EvidenceState, claim: EvidenceClaim, supersedes: tuple[str, ...]
+) -> EvidenceState:
+    if type(state) is not EvidenceState:
+        raise ValueError("state must be an exact EvidenceState")
+    state = EvidenceState.from_dict(state.to_dict())
+    claim = _snapshot_claim(claim)
+    ids = _snapshot_claim_ids(supersedes)
+    for claim_id in ids:
+        if state.resolve(claim_id).claim_id != claim_id:
+            raise ValueError("supersedes must name current claims")
+    claims = tuple(
+        (
+            replace(old, status="superseded", superseded_by=claim.claim_id)
+            if old.claim_id in ids
+            else old
+        )
+        for old in state.claims
+    )
+    return EvidenceState((*claims, claim))
+
+
+def evidence_update_scope(
+    state: EvidenceState,
+    claim: EvidenceClaim,
+    *,
+    source_action_id: str,
+    supersedes: tuple[str, ...] = (),
+) -> str:
+    """Bind a host WRITE grant to the complete before and proposed evidence snapshots."""
+
+    proposed = _proposed_evidence_state(state, claim, supersedes)
+    _require_nonblank_string(source_action_id, "source_action_id")
+    payload = json.dumps(
+        {
+            "before": state.to_dict(),
+            "after": proposed.to_dict(),
+            "source_action_id": source_action_id,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    )
+    return "evidence-update:sha256:" + hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def commit_verified_claim(
+    *,
+    state: EvidenceState,
+    claim: EvidenceClaim,
+    source_action_id: str,
+    action: ActionRecord,
+    authorization: AuthorizationDecision,
+    grant_registry: AuthorityGrantRegistry,
+    clock: TrustedClock,
+    local_result: LocalVerificationResult,
+    relational_result: RelationalVerificationResult,
+    accepted_evidence_refs: tuple[EvidenceReference, ...],
+    quarantined_evidence_refs: tuple[EvidenceReference, ...] = (),
+    supersedes: tuple[str, ...] = (),
+) -> EvidenceState:
+    """Return a verified update after consuming a host-issued WRITE decision.
+
+    The trusted host authenticates verifier results and owns both evidence lists, registry,
+    clock and current state. These inputs must never come directly from model/tool output.
+    This adapter does not persist state; the host serializes publication of returned snapshots.
+    """
+
+    # Local imports avoid the existing verifier/authority contracts' dependency on state records.
+    from .interfaces import LocalVerificationResult, RelationalVerificationResult
+    from .runtime_governance import (
+        AuthorizationDecision,
+        RuntimeCapability,
+        consume_authorization,
+    )
+
+    proposed = _proposed_evidence_state(state, claim, supersedes)
+    claim = _snapshot_claim(claim)
+    if claim.status not in {"supported", "contradicted"}:
+        raise ValueError("only verified supported or contradicted claims may commit")
+    if type(local_result) is not LocalVerificationResult:
+        raise ValueError("local_result must be an exact LocalVerificationResult")
+    if type(relational_result) is not RelationalVerificationResult:
+        raise ValueError("relational_result must be an exact RelationalVerificationResult")
+    local = LocalVerificationResult.from_dict(local_result.to_dict())
+    relational = RelationalVerificationResult.from_dict(relational_result.to_dict())
+    _require_nonblank_string(source_action_id, "source_action_id")
+    if local.action_id != source_action_id or relational.action_id != source_action_id:
+        raise ValueError("verification must bind the source action")
+    if not all(
+        (
+            local.executed,
+            local.arguments_valid,
+            local.schema_valid,
+            local.authorization_valid,
+            local.intended_operation_observed,
+        )
+    ):
+        raise ValueError("local verification rejected the action")
+    if not all(
+        (
+            relational.task_fit,
+            relational.dependencies_satisfied,
+            relational.provenance_intact,
+            relational.authorization_scope_valid,
+        )
+    ):
+        raise ValueError("relational verification rejected the evidence")
+    expected = "none" if claim.status == "supported" else "contradicted"
+    if relational.contradiction_status != expected:
+        raise ValueError("contradiction finding does not support the proposed status")
+    if claim.status == "supported" and not relational.claimed_outcome_supported:
+        raise ValueError("claimed outcome is unsupported")
+    finding = "claimed_outcome_supported" if claim.status == "supported" else "contradiction_status"
+    bound = next(
+        binding.evidence_refs
+        for binding in relational.evidence_bindings
+        if binding.field_name == finding
+    )
+    if not set(claim.evidence_refs).issubset(bound):
+        raise ValueError("claim evidence is not bound to the verification finding")
+    accepted = set(_snapshot_evidence_refs(accepted_evidence_refs))
+    quarantined = {ref.reference_id for ref in _snapshot_evidence_refs(quarantined_evidence_refs)}
+    used = set((*claim.evidence_refs, *local.evidence_refs, *relational.evidence_refs))
+    if any(ref.reference_id in quarantined for ref in used):
+        raise ValueError("quarantined evidence cannot enter accepted evidence state")
+    if not used.issubset(accepted) or not all(ref.is_observable for ref in used):
+        raise ValueError("every commit reference requires host-accepted observable evidence")
+    scope = evidence_update_scope(
+        state, claim, source_action_id=source_action_id, supersedes=supersedes
+    )
+    if action.authorization_scope != scope:
+        raise ValueError("authorization scope does not bind the exact evidence update")
+    if type(authorization) is not AuthorizationDecision:
+        raise PermissionError("commit requires an issued WRITE authorization")
+    if authorization.capability is not RuntimeCapability.WRITE:
+        raise PermissionError("commit requires an issued WRITE authorization")
+    consume_authorization(authorization, action, grant_registry=grant_registry, clock=clock)
+    return proposed
 
 
 def _require_nonblank_string(value: object, field_name: str) -> str:
@@ -407,5 +590,7 @@ __all__ = [
     "EvidenceClaim",
     "EvidenceState",
     "WorldStateChange",
+    "commit_verified_claim",
+    "evidence_update_scope",
     "parse_rfc3339_datetime",
 ]

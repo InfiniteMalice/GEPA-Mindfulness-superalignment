@@ -20,6 +20,8 @@ class RoutingContext:
     trace_worthy: bool
     abstention_viable: bool
     guessing_pressure: float
+    verification_required: bool = False
+    representation_sensitive: bool = False
 
 
 @dataclass(slots=True)
@@ -42,6 +44,14 @@ def choose_routing_action(context: RoutingContext) -> RoutingDecision:
             return RoutingDecision(RecommendedAction.ABSTAIN, path, "abstention_handler")
         path.append("budget_exhausted->human")
         return RoutingDecision(RecommendedAction.ESCALATE, path, "human_review")
+
+    if context.representation_sensitive:
+        path.append("representation_sensitive->external_checker")
+        return RoutingDecision(RecommendedAction.ROUTE_EXTERNAL, path, "specialized_verifier")
+
+    if context.verification_required:
+        path.append("confidence_requires_verification->external_checker")
+        return RoutingDecision(RecommendedAction.ROUTE_EXTERNAL, path, "specialized_verifier")
 
     if context.domain_risk >= 0.8 and context.operational_confidence < 0.8:
         path.append("high_risk_low_confidence->external_checker")

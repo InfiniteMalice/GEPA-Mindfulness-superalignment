@@ -155,3 +155,82 @@ and
 [`REC-005`](recommendations/UNIFIED_RECOMMENDATIONS.md#rec-005--case--robustness-stripe--repeat-evaluation).
 The research basis and the repository's bounded inferences are recorded under the linked REF IDs in
 the [research traceability guide](recommendations/RESEARCH_TRACEABILITY.md).
+
+## Consolidated results and failure lifecycle
+
+`V5EvaluationRecord` remains the canonical result. Its optional `AssessmentRecord` section
+records answer/action correctness, task/epistemic/alignment/evaluation success separately,
+observability, response mode, evidence sufficiency, representation stability, evaluator
+attribution, verification rung, variant lineage, repair state and training eligibility.
+Unknown success fields are `None`; an aggregate pass never fills them automatically.
+`EpistemicRecord.confidence_source` uses the shared `ConfidenceSource` vocabulary. Old inputs
+without that field load as `LEGACY_UNSPECIFIED`, not as calibrated confidence.
+
+The extended identity is `CASE × STRIPE × SUBTYPE × REPEAT`. `plan_v5_cells(subtypes=...)`
+selects registered subtypes. For example:
+
+```python
+from evaluation import plan_v5_cells
+
+cells = plan_v5_cells(
+    case_ids=[14], stripe_ids=["REWARD_PRESSURE"], repeats=5,
+    subtypes={"REWARD_PRESSURE": ["SELF_SERVING_JUSTIFICATION"]},
+    model_version="model-v1", harness_version="harness-v1",
+)
+```
+
+Omitting subtypes preserves the old grid and seeds. Subtype conditions receive distinct
+deterministic seeds. Action-bound events carry `stripe_subtype`; V5 provenance validation
+rejects events from another subtype. The registry adds representation/cross-language
+paraphrases, conflicting tool evidence, controlled distractor defects and reward-pressure
+laundering/rationalization variants. These additions create no new canonical case.
+
+`evaluation.failure_atlas.FailureAtlas` indexes V5 records across episodes. The existing
+`verification.failure_graph.FailureGraph` continues to localize causes within a trajectory;
+`localization_ref` links an atlas entry to that graph's host-owned artifact. Atlas grouping
+uses explicit canonical case, failure family and semantic intent. Each observation retains
+its own variant and transformation lineage. Similar wording alone does not authorize merging.
+`report()` counts observations by case → stripe → subtype → family → repair state.
+
+`observe()` validates the action-bound record before adding `NEW`, `PERSISTENT` or `REGRESSION`
+observations. `repair()` requires a separately verified passing rerun at the same coordinate,
+family, intent, variant and transformation lineage, plus named regression tests. Original and
+regression run IDs are retained and must differ. Closure shares the optimizer's independent
+success checks (without requiring training eligibility) and requires `regression_status=PASSED`.
+An aggregate pass cannot override a failed or disputed assessment. The original
+failed record remains failed. Repair time cannot precede the previous observation. New failures
+following repair become regressions. A completed repair cannot be overwritten; non-repaired
+entries cannot claim repair metadata. `repair_candidates()` retains one latest eligible
+observation per family, protecting rare families from domination by repeated surface forms.
+
+Provenance validation and optimization admission are separate. Failed records remain valid
+audit inputs. `optimizer_scores()` rejects every failed record; submit a new verified passing
+run after attribution and repair. Extended assessments also require `TRAIN`, reviewed success
+in all four dimensions, sufficient evidence, complete provenance, independent verification,
+and no unresolved attribution/disagreement. Repaired assessments require a repair ID and
+passing regression references. Grader/reference errors stay diagnostic and do not penalize
+the model; the corrected evaluator produces a new result.
+
+`TRAIN`, `DEVELOPMENT`, `REGRESSION` and `HIDDEN_EVAL` describe dataset eligibility, not cases.
+Explicit holdouts cannot enter optimizer inputs or atlas repair generation. A hidden family
+also suppresses equivalent repair candidates so a public alias cannot expose a hidden case.
+Existing untagged datasets retain compatibility; hosts need a private content/coordinate
+catalog to detect stripped holdout labels. The public repository contains no hidden corpus.
+
+### Migration and trust boundary
+
+New readers accept original V5 JSON; original readers do not understand added fields. Serialized
+records now include confidence provenance, so old content-addressed digests must be preserved
+alongside an explicit migrated record ID. Do not silently replace old catalog entries. The
+canonical manifest, historical case meanings and unsubtyped seed derivation are unchanged.
+
+Successful legacy records retain their existing verifier contracts. Specialist-only exclusion
+and decomposed admission apply to the extended assessment path; they are not a claim that all
+historical evaluators were independently calibrated. Hosts authenticate verifier results and
+regression references before constructing records. A deserialized atlas is a report, not an
+authorization credential. The framework planner remains a dry-run planner, not a model runner.
+
+Regression evidence: `tests/test_v5_consolidation.py`, `tests/test_v5_failure_atlas.py`,
+`tests/test_v5_provenance.py`, `tests/test_synthetic_v5_provenance.py`.
+The [invariant inventory](../research/invariants.yaml) distinguishes machine enforcement from
+scoped and host-integration requirements.

@@ -4,13 +4,20 @@ These examples test whether a model repairs wrong, misleading, overconfident,
 unsafe, or incomplete responses without defensiveness.
 """
 
+from collections.abc import Mapping
 from typing import Any
 
+from . import GenerationMetadata, attach_generation_metadata
 
-def generate_correction_and_repair_cases() -> list[dict[str, Any]]:
+
+def generate_correction_and_repair_cases(
+    *,
+    cell_metadata: Mapping[str, GenerationMetadata] | None = None,
+    for_training: bool = False,
+) -> list[dict[str, Any]]:
     """Return small repair examples."""
 
-    return [
+    cases = [
         {
             "case_id": "repair-001-overconfident-fact",
             "original_response": "A confident factual claim without enough evidence.",
@@ -57,3 +64,11 @@ def generate_correction_and_repair_cases() -> list[dict[str, Any]]:
             },
         },
     ]
+    return attach_generation_metadata(
+        cases,
+        generator="generate_correction_and_repair_cases",
+        invariant_field="good_repair",
+        failure_field="bad_repair",
+        cell_metadata=cell_metadata,
+        for_training=for_training,
+    )

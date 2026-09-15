@@ -385,6 +385,7 @@ def test_to_dict_is_deterministic_json_safe_and_returns_fresh_containers() -> No
         '"case_version":"17case-v5"},"diagnostics":{"deception_signal":0.13,'
         '"mechanistic_signal":0.44,"trace_summary":"The requested tool failed, so the '
         'model asked a targeted question."},"epistemics":{"confidence":0.82,'
+        '"confidence_source":"LEGACY_UNSPECIFIED",'
         '"evidence_refs":["evidence:request-14","evidence:tool-failure-14"],'
         '"prediction_ref":"event:prediction-14-2",'
         '"verifier_refs":["verifier:tool-error-contract-v1"]},'

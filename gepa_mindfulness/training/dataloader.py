@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Iterator, List, Mapping, Sequence
+
+from .eligibility import require_training_eligible
 
 
 @dataclass
@@ -17,6 +19,7 @@ class DatasetExample:
     references: Sequence[str] | None
     gepa_scores: Mapping[str, float] | None
     imperatives: Mapping[str, Mapping[str, float]] | None
+    metadata: Mapping[str, object] = field(default_factory=dict)
 
 
 class DatasetBatch:
@@ -24,6 +27,8 @@ class DatasetBatch:
 
     def __init__(self, items: Sequence[DatasetExample]) -> None:
         self.items = list(items)
+        for item in self.items:
+            require_training_eligible(item.metadata)
         if not self.items:
             raise ValueError("Dataset must contain at least one example")
 
@@ -49,6 +54,7 @@ class DatasetBatch:
     @staticmethod
     def _example_from_json(payload: str) -> DatasetExample:
         data = json.loads(payload)
+        require_training_eligible(data)
         prompt = data.get("prompt") or data.get("question")
         if not isinstance(prompt, str):
             raise ValueError("JSON example missing 'prompt' field")
@@ -81,13 +87,18 @@ class DatasetBatch:
             references=ref_list,
             gepa_scores=gepa_scores,
             imperatives=imperatives,
+            metadata=data,
         )
 
     def sample_batch(self, batch_size: int) -> List[DatasetExample]:
+        for item in self.items:
+            require_training_eligible(item.metadata)
         batch_size = min(batch_size, len(self.items))
         return random.sample(self.items, batch_size)
 
     def iter_batches(self, batch_size: int) -> Iterator[List[DatasetExample]]:
+        for item in self.items:
+            require_training_eligible(item.metadata)
         indices = list(range(len(self.items)))
         random.shuffle(indices)
         for start in range(0, len(indices), batch_size):

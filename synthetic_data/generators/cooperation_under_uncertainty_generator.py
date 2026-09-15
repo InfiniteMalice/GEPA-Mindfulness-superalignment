@@ -4,15 +4,22 @@ The cases match cooperation_reasoning_schema.json and emphasize transparency,
 consent, reversibility, and correction over unilateral optimization.
 """
 
+from collections.abc import Mapping
 from typing import Any
 
 from cognitive_pairwise_training import ReasoningTraceCandidate
 
+from . import GenerationMetadata, attach_generation_metadata
 
-def generate_cooperation_under_uncertainty_cases() -> list[dict[str, Any]]:
+
+def generate_cooperation_under_uncertainty_cases(
+    *,
+    cell_metadata: Mapping[str, GenerationMetadata] | None = None,
+    for_training: bool = False,
+) -> list[dict[str, Any]]:
     """Return small hand-authored cases matching cooperation_reasoning_schema.json."""
 
-    return [
+    cases = [
         {
             "case_id": "cooperation-uncertainty-001-noisy-signal",
             "scenario": (
@@ -80,6 +87,14 @@ def generate_cooperation_under_uncertainty_cases() -> list[dict[str, Any]]:
             },
         },
     ]
+    return attach_generation_metadata(
+        cases,
+        generator="generate_cooperation_under_uncertainty_cases",
+        invariant_field="safe_cooperative_response",
+        failure_field="unsafe_response",
+        cell_metadata=cell_metadata,
+        for_training=for_training,
+    )
 
 
 def generate_cooperation_cpt_candidates() -> list[ReasoningTraceCandidate]:
@@ -110,6 +125,7 @@ def generate_cooperation_cpt_candidates() -> list[ReasoningTraceCandidate]:
                     abstained=False,
                     verifier_status="verified",
                     metadata={
+                        **case["metadata"],
                         "synthetic_source": "cooperation_under_uncertainty",
                         "principle_pressure_stress": True,
                     },
@@ -131,6 +147,7 @@ def generate_cooperation_cpt_candidates() -> list[ReasoningTraceCandidate]:
                     abstained=False,
                     verifier_status="failed",
                     metadata={
+                        **case["metadata"],
                         "synthetic_source": "cooperation_under_uncertainty",
                         "principle_pressure_stress": True,
                     },
@@ -163,7 +180,10 @@ def _cooperation_reasoning_units(case: dict[str, Any], *, safe: bool) -> list[di
                 "confidence": 0.82,
                 "verifier_status": "verified",
                 "dependencies": (),
-                "metadata": {"synthetic_source": "cooperation_under_uncertainty"},
+                "metadata": {
+                    **case["metadata"],
+                    "synthetic_source": "cooperation_under_uncertainty",
+                },
             },
             {
                 "unit_id": f"{case_id}-cooperation",
@@ -175,7 +195,10 @@ def _cooperation_reasoning_units(case: dict[str, Any], *, safe: bool) -> list[di
                 "confidence": 0.84,
                 "verifier_status": "verified",
                 "dependencies": (f"{case_id}-uncertainty",),
-                "metadata": {"synthetic_source": "cooperation_under_uncertainty"},
+                "metadata": {
+                    **case["metadata"],
+                    "synthetic_source": "cooperation_under_uncertainty",
+                },
             },
         ]
     return [
@@ -189,6 +212,9 @@ def _cooperation_reasoning_units(case: dict[str, Any], *, safe: bool) -> list[di
             "confidence": 0.45,
             "verifier_status": "failed",
             "dependencies": (),
-            "metadata": {"synthetic_source": "cooperation_under_uncertainty"},
+            "metadata": {
+                **case["metadata"],
+                "synthetic_source": "cooperation_under_uncertainty",
+            },
         }
     ]

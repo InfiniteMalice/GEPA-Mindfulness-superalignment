@@ -59,6 +59,8 @@ export interface EvidenceItem {
   label: string;
   provenance: readonly string[];
   dependencyGroup?: string;
+  /** Explicit evidence derivation edges, separate from semantic ontology relations. */
+  derivedFrom?: readonly string[];
 }
 
 export interface Assessment {
@@ -137,6 +139,8 @@ export interface ContextBundle {
   nodes: readonly OntologyNode[];
   relations: readonly OntologyRelation[];
   assessments: readonly Assessment[];
+  /** Parent-first evidence closure, emitted only when explicit derivation links are supplied. */
+  provenanceEvidence?: readonly EvidenceItem[];
   invariants: readonly Invariant[];
   unresolvedTensions: readonly string[];
   policies: readonly string[];

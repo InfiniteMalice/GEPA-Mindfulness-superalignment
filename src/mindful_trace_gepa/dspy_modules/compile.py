@@ -5,8 +5,11 @@ from __future__ import annotations
 import importlib
 import json
 import logging
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
+
+from gepa_mindfulness.training.eligibility import require_training_eligible
 
 try:  # pragma: no cover - dspy optional in some environments
     import dspy  # type: ignore
@@ -95,6 +98,11 @@ class GEPACompiler:
         if not self.config.get("allow_optimizations", False):
             LOGGER.info("DSPy optimizations not allowed in config")
             return module
+
+        # Validation examples influence candidate selection and are optimizer-visible too.
+        for example in [*trainset, *(valset or [])]:
+            payload = example if isinstance(example, Mapping) else dict(example.items())
+            require_training_eligible(payload)
 
         LOGGER.info("Starting DSPy compilation with %s", method)
 

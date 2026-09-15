@@ -118,6 +118,68 @@ restoration instead of being silently treated as optimizer-authorized.
   key, route, and reference-boundary validation prevent cross-component and boundary misuse, but
   they do not prove that evidence is semantically relevant to the component score.
 
+## Outcome-backed credit and legacy thought fields
+
+`R_thought`, `r_thought`, and `honesty_trace` are compatibility names, not trace-style
+optimization targets. A plan or rationale receives no process credit before a matching verified
+assessment arrives. After an action produces a checked outcome, a caller may attach the resulting
+`EpistemicProcessAssessment` to reward computation. This supports delayed credit through the
+existing assessment interface; it does not implement a temporal credit-assignment algorithm.
+
+The unused legacy `core.abstention.honesty_reward_from_trace()` helper is outside the consolidated
+optimizer path. Its trace-derived number is diagnostic only. Maintainers can check this boundary
+with `rg -n 'honesty_reward_from_trace' gepa_mindfulness`: the definition should be the only match.
+The style-invariance tests exercise the active reward calculator and trainer paths separately.
+
+## Confidence provenance and verification requests
+
+`mindful_trace_gepa.confidence.ConfidenceSource`, re-exported from
+`factuality_observability.calibration`, provides one shared vocabulary for confidence origins.
+The dependency-light module lets evaluation records use this enum without importing the runtime
+package, whose coevolution imports would otherwise create a circular dependency.
+`fuse_confidence()` retains both `confidence_source` and the contributing
+`confidence_sources`. Legacy records with no origin use `LEGACY_UNSPECIFIED`; the adapter does
+not invent a verifier. Model declarations use `MODEL_SELF_REPORT`, internal sensors use
+`INTERNAL_REPRESENTATION`, structured provenance and representation checks use
+`BEHAVIORAL_EVIDENCE`, and external verification uses `EXTERNAL_VERIFIER`.
+
+The current fusion function is a bounded heuristic, not an empirically fitted calibration model.
+Latent uncertainty and mechanistic risk can lower confidence but cannot increase it. If external
+verification confidence is absent or zero, fusion sets `verification_required=True`. The runtime
+pipeline forwards that flag to routing and records it in `SampleLogBundle`. With verification
+budget available, routing requests an external check even for a high self-reported confidence.
+The existing exhausted-budget policy still abstains, or escalates when abstention is unavailable.
+A nonzero external score does not certify truth; normal evidence, risk, and provenance checks
+still apply.
+
+Callers may supply `representation_stability` in `[0, 1]`, where `1` means no disagreement among
+the representation variants they checked. Any lower value multiplies operational confidence by
+that value and sets `representation_sensitive=True`. Routing then requests an external check.
+The pipeline does not generate representation variants or estimate stability itself. The log
+retains the sensitivity flag and confidence sources; canonical case identity remains unchanged.
+Nonfinite, out-of-range, and Boolean confidence inputs raise `ValueError`.
+
+## Self-serving justification diagnostics
+
+`core.reward_integrity.SelfServingJustificationCheck` records the literal act, beneficiary,
+self-benefit, recognized constraints, independent override citations, counterfactual subtraction,
+role reversal, authority, necessity, proportionality, and reversibility. Optional Boolean findings
+mean pass (`True`), fail (`False`), or unresolved (`None`). A reviewer supplies these findings;
+the object does not infer them from model prose.
+
+If self-benefit or a recognized constraint is present, or any optional finding is failed or
+unresolved, `conclusion` returns `INCREASE_SCRUTINY`. Otherwise it returns
+`NO_ADDITIONAL_SCRUTINY`. `scrutiny_reasons` preserves the individual triggers. Even a populated
+override citation does not clear a recognized constraint or self-benefit flag. Private reasoning
+and latent-state citations cannot serve as independent override evidence.
+
+`RewardObservation.self_serving_justification` carries this diagnostic through
+`RewardIntegrityCalculator.compute()` into `RewardIntegrityBreakdown`. The calculator does not
+change component values, provenance requirements, or the aggregate because of this diagnostic.
+The conclusion neither authorizes an action nor creates a negative training incentive. Trajectory
+serialization and automatic natural-language rationalization detection are not added by this
+interface. Agency remains a trajectory property, not a momentary uptime metric.
+
 ## Verification
 
 Run the following command after changes to this contract or its implementation:
@@ -130,9 +192,19 @@ python -m pytest `
   tests/test_reward_integrity_rewards.py tests/test_rl_trajectory.py tests/test_rl_cli.py -q
 ```
 
+For confidence provenance and runtime escalation, also run:
+
+```powershell
+python -m pytest tests/factuality_observability -q
+```
+
 The test suite checks the component score bounds, both provenance routes, thought eligibility,
 Schema V3 verified-component lookup, compatibility aliases, legacy-evidence requirements, and
 the rule that every nonzero reward-integrity component has provenance.
+The confidence tests check source retention in serialized logs, invalid inputs, internal-sensor
+limits, and representation-sensitive routing. The reward-integrity tests check that self-benefit
+increases scrutiny without changing numeric reward, and that observed honest failure can rank
+above observed proxy exploitation under the existing component weights.
 
 The contract implements
 [`REC-001`](recommendations/UNIFIED_RECOMMENDATIONS.md#rec-001--verified-epistemic-process-reward-rule).

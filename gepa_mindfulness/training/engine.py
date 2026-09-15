@@ -36,6 +36,7 @@ from .contracts import (
     RolloutBackend,
     TrainablePolicyBackend,
 )
+from .eligibility import require_training_eligible
 from .policy_versions import PolicyVersion, StalenessDecision, evaluate_staleness
 from .runtime_config import DistributedRuntimeConfig, RLRunConfig
 from .seeds import validate_seed
@@ -569,6 +570,9 @@ class RLTrainingEngine:
         if not requests:
             raise ValueError("RL dataset materialized no rollout requests")
         _preflight_rollout_request_seeds(requests)
+        if mode in {"train", "resume"}:
+            for request in requests:
+                require_training_eligible(request.metadata)
         if mode != "resume":
             _preflight_planned_rollout_seeds(
                 self.config,

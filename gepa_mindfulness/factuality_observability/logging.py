@@ -9,6 +9,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 
+from .calibration import CalibrationOutput, ConfidenceSource
 from .schemas import (
     CaseOverlayV2,
     GuessingAbstentionDiagnostics,
@@ -66,6 +67,11 @@ class SampleLogBundle:
     system_prompt_hash: str | None = None
     retrieved_context_ids: list[str] = field(default_factory=list)
     retrieved_context_hashes: list[str] = field(default_factory=list)
+    confidence_source: ConfidenceSource = ConfidenceSource.LEGACY_UNSPECIFIED
+    confidence_sources: list[ConfidenceSource] = field(default_factory=list)
+    operational_confidence: float | None = None
+    verification_required: bool = True
+    representation_sensitive: bool = False
 
 
 @dataclass(slots=True)
@@ -236,6 +242,7 @@ def build_sample_log_bundle(
     knowledge_boundary_risk: float,
     source_reference_divergence_risk: float,
     staleness_risk: float,
+    calibration: CalibrationOutput | None = None,
 ) -> SampleLogBundle:
     """Build minimum schema-complete log bundle for each evaluated sample."""
 
@@ -288,6 +295,13 @@ def build_sample_log_bundle(
         knowledge_boundary_risk=knowledge_boundary_risk,
         source_reference_divergence_risk=source_reference_divergence_risk,
         staleness_risk=staleness_risk,
+        confidence_source=(
+            calibration.confidence_source if calibration else ConfidenceSource.LEGACY_UNSPECIFIED
+        ),
+        confidence_sources=list(calibration.confidence_sources) if calibration else [],
+        operational_confidence=calibration.final_operational_confidence if calibration else None,
+        verification_required=calibration.verification_required if calibration else True,
+        representation_sensitive=calibration.representation_sensitive if calibration else False,
     )
 
 

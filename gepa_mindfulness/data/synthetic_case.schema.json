@@ -42,6 +42,10 @@
     "training_labels"
   ],
   "properties": {
+    "metadata": {
+      "type": "object",
+      "description": "Retained generation and V5 provenance; optimizer ingress validates eligibility."
+    },
     "id": {
       "type": "string",
       "minLength": 3

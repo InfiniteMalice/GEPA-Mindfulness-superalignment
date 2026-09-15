@@ -112,4 +112,63 @@ describe("bundle generation", () => {
   it("rejects incomplete invariant governance", () => {
     expect(() => buildContextBundle({ ...input, invariants: invariants.slice(0, 21) })).toThrow("complete set of 22 invariant keys");
   });
+
+  it("allows semantic cycles while retaining a bounded context neighborhood", () => {
+    const nodes = ontologyNodes.slice(0, 3);
+    const relations = nodes.map((node, index) => ({
+      ...ontologyRelations[0], id: `cycle:${index}`, source: node.id,
+      target: nodes[(index + 1) % nodes.length].id,
+    }));
+    const bundle = buildContextBundle({
+      ...input, kind: "context", targetIds: [nodes[0].id], nodes, relations, assessments: [],
+    });
+    expect(bundle.nodes).toHaveLength(3);
+    expect(bundle.relations).toHaveLength(2);
+    expect(bundle.authority).toBe("generated_noncanonical_bundle");
+  });
+
+  it("retains provenance ancestors outside the immediate semantic neighborhood", () => {
+    const [first, second, third] = ontologyNodes;
+    const source = { id: "source", label: "Observed source", provenance: ["record:source"] };
+    const derivative = {
+      id: "derivative", label: "Translation", provenance: ["transform:translation"],
+      derivedFrom: ["source"],
+    };
+    const local = { ...assessments[0], subject: first.id, target: second.id, evidence: [derivative] };
+    const remote = { ...assessments[0], id: "remote", subject: third.id, target: third.id, evidence: [source] };
+    const bundle = buildContextBundle({
+      ...input, kind: "context", targetIds: [first.id], relations: [], assessments: [local, remote],
+    });
+    expect(bundle.assessments).toEqual([local]);
+    expect(bundle.provenanceEvidence).toEqual([source, derivative]);
+    expect(serializeBundle(bundle, "markdown")).toContain("transform:translation");
+    expect(serializeBundle(bundle, "markdown")).toContain("Derived from: source");
+  });
+
+  it("rejects cycles in evidence derivation without banning semantic cycles", () => {
+    const evidence = [
+      { id: "a", label: "A", provenance: ["record:a"], derivedFrom: ["b"] },
+      { id: "b", label: "B", provenance: ["record:b"], derivedFrom: ["a"] },
+    ];
+    expect(() => buildContextBundle({
+      ...input, assessments: [{ ...assessments[0], evidence }],
+    })).toThrow("provenance cycle");
+  });
+
+  it("rejects dangling provenance and conflicting evidence identities", () => {
+    const evidence = [{ id: "a", label: "A", provenance: ["record:a"], derivedFrom: ["missing"] }];
+    expect(() => buildContextBundle({
+      ...input, assessments: [{ ...assessments[0], evidence }],
+    })).toThrow("Unknown provenance parent");
+    expect(() => buildContextBundle({
+      ...input, assessments: [{ ...assessments[0], evidence: [
+        evidence[0], { ...evidence[0], provenance: ["different:source"] },
+      ] }],
+    })).toThrow("Conflicting evidence identity");
+  });
+
+  it("rejects missing context targets instead of exporting an empty authority wrapper", () => {
+    expect(() => buildContextBundle({ ...input, kind: "context", targetIds: ["unknown"] }))
+      .toThrow("Unknown context target");
+  });
 });

@@ -28,6 +28,78 @@ artifact change.
 Verification: `tests/test_world_evidence_state.py` checks construction, supersession, corruption
 revalidation, and exact JSON round trips.
 
+### Host commit adapter: propose → verify → commit
+
+`gepa_mindfulness.verification.state.commit_verified_claim()` connects the existing evidence
+records, local and relational verifier results, and one-use runtime WRITE authorization.
+Constructing or deserializing `EvidenceState` remains a record operation and conveys no authority.
+
+The trusted host performs this sequence:
+
+1. Preserve a proposed `EvidenceClaim` separately from published evidence state. A generated claim
+   can remain `unverified`; the commit adapter rejects that status even with accepted references.
+2. Authenticate the evidence-producing action and its local and relational verifier results.
+   Independently classify captured evidence into accepted references and quarantine. Rejected,
+   injected, or evaluator-manipulated outputs belong in quarantine, including their derivatives.
+3. Bind an enrolled WRITE grant and commit action policy to `evidence_update_scope(state, claim,
+   source_action_id=..., supersedes=...)`. This digest covers the complete previous state,
+   proposed update, and evidence-producing action ID. Both verifier results identify that source
+   action. The separate `action` argument identifies the proposed memory write; local verification
+   does not claim that the memory write has already occurred. The host verifies that each finding
+   concerns this exact claim; evidence IDs alone cannot establish entailment.
+4. Call `commit_verified_claim()` with host-owned state, results, registry, clock, and evidence
+   lists. The adapter validates the update before consuming authorization. The adapter accepts
+   only supported claims with affirmative support or contradicted claims with a contradiction
+   finding. Every used reference needs host acceptance and an observable source kind. Quarantine
+   wins by reference ID even if a caller relabels its source kind.
+5. Publish the returned snapshot under the host's state lock or compare-and-swap transaction.
+   Serialize authorization consumption and publication with other writers. Retain rejected
+   proposals and outputs in a separate diagnostic store; do not append them to accepted state.
+
+The adapter does not authenticate callers, verifier identities, or evidence contents. It does not
+detect injection text or establish semantic truth. A caller with arbitrary Python execution can
+construct its own registry and evidence allowlist; this is not a sandbox against that caller.
+The host must keep these inputs outside the model/tool surface. Deployment review verifies that
+ownership and the publication transaction. The package supplies no durable evidence store,
+cross-process transaction, automatic quarantine propagation, or commit-to-disk recovery.
+
+Failed validation returns no new state and does not consume a write decision. Successful
+authorization consumption is one-use; a host publication failure requires explicit recovery and
+a fresh authorization, not replay of that decision. Irreversible memory writes retain the existing
+human-approval requirement in `consume_authorization()`.
+
+With `supersedes=(old_id,)`, a verified contradiction reopens the current claim by appending a
+`contradicted` successor. The older claim keeps its proposition and original references.
+`EvidenceState.merge_equivalent()` proposes one unverified claim for whitespace-equivalent
+propositions and retains every distinct source reference. It leaves original records intact.
+The merge requires at least two distinct current claims after resolving supersession links.
+It does not infer paraphrase or translation equivalence. Broader equivalence and promotion
+require an independently verified host decision. Embedding similarity confers no authority.
+
+Legacy `EvidenceClaim` and `EvidenceState` JSON fields and accepted status values are unchanged.
+Verification: `tests/test_governed_evidence_commit.py` exercises rejection, reference binding,
+quarantine precedence, exact-update authorization, replay, contradiction reopening, and retained
+equivalence provenance. Existing supersession DAG checks remain in `tests/test_world_evidence_state.py`.
+
+### Ontology context and provenance graphs
+
+The ontology workbench's `buildContextBundle()` retains the existing one-hop semantic
+neighborhood, assessments, independent support/opposition, conditions, and invariants. Semantic
+relations may contain cycles. Unknown requested targets fail instead of producing an empty view.
+
+An optional `EvidenceItem.derivedFrom` array names parent evidence IDs in the supplied assessments.
+When derivation links are supplied, the exporter rejects dangling parents, conflicting evidence
+identities, and provenance cycles. The exporter includes the selected evidence and all its
+ancestors in parent-first `provenanceEvidence`, even when an ancestor belongs to an assessment
+outside the semantic neighborhood. This is a separate directed acyclic graph (DAG); semantic
+ontology relations do not participate in its cycle check. Legacy inputs without derivation links
+keep their existing bundle shape. Unstructured provenance strings are not inferred into edges.
+
+JSON, YAML, and Markdown exports preserve explicit derivation provenance. The browser continues
+to produce `generated_noncanonical_bundle` artifacts and has no authoritative commit endpoint.
+Verification: `apps/gepa-ontology-workbench/app/lib/bundles.test.ts` checks semantic cycles,
+provenance rejection, ancestor retention, context targets, and export behavior.
+
 ## Local and relational verification
 
 `LocalVerificationResult` records execution-bound findings such as argument validity,

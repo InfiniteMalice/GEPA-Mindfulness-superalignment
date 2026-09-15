@@ -11,7 +11,13 @@ a design choice, but do not establish this architecture as an empirical result.
 
 #### REC-001 — Verified epistemic-process reward rule.
 
-- Repository evidence: [`epistemic_process.py`](../../gepa_mindfulness/core/epistemic_process.py), [`rewards.py`](../../gepa_mindfulness/core/rewards.py).
+- Consolidation evidence: [confidence.py](../../src/mindful_trace_gepa/confidence.py), [test_calibration_and_pipeline.py](../../tests/factuality_observability/test_calibration_and_pipeline.py).
+
+September 2026 consolidation: the [reward contract](../epistemic_process_rewards.md) preserves
+legacy verified-process fields, adds confidence provenance and self-serving scrutiny diagnostics,
+and keeps trace appearance outside optimizer targets.
+
+- Repository evidence: [`confidence.py`](../../src/mindful_trace_gepa/confidence.py), [`epistemic_process.py`](../../gepa_mindfulness/core/epistemic_process.py), [`rewards.py`](../../gepa_mindfulness/core/rewards.py).
 - Acceptance tests: [`test_epistemic_process_rewards.py`](../../tests/test_epistemic_process_rewards.py), [`test_reward_integrity_rewards.py`](../../tests/test_reward_integrity_rewards.py).
 - Research: [`REF-HEART`](RESEARCH_TRACEABILITY.md#ref-heart).
 
@@ -35,7 +41,14 @@ a design choice, but do not establish this architecture as an empirical result.
 
 #### REC-005 — Case × robustness stripe × repeat evaluation.
 
-- Repository evidence: [`v5_runner.py`](../../evaluation/v5_runner.py), [`v5_records.py`](../../evaluation/v5_records.py).
+- Consolidation evidence: [common.py](../../evaluation/suites/common.py), [test_v5_consolidation.py](../../tests/test_v5_consolidation.py), [test_evaluator_matched_errors.py](../../tests/test_evaluator_matched_errors.py).
+
+The [V5 integration guide](../17_CASE_FRAMEWORK.md#consolidated-results-and-failure-lifecycle)
+now specifies subtype selection, action-event subtype binding, decomposed assessment and
+repair-before-reinforce. The [invariant inventory](../../research/invariants.yaml) records
+enforcement scope. No manifest changes or additional canonical cases were introduced.
+
+- Repository evidence: [`common.py`](../../evaluation/suites/common.py), [`v5_runner.py`](../../evaluation/v5_runner.py), [`v5_records.py`](../../evaluation/v5_records.py).
 - Canonical inputs: [`robustness_stripes.yaml`](../../evaluation/cases/robustness_stripes.yaml), [`registry.py`](../../evaluation/cases/registry.py).
 - Acceptance tests: [`test_v5_cell_planner.py`](../../tests/test_v5_cell_planner.py), [`test_v5_evaluation_record.py`](../../tests/test_v5_evaluation_record.py), [`test_v5_repeat_metrics.py`](../../tests/test_v5_repeat_metrics.py).
 - Research: [`REF-CONSISTENCY`](RESEARCH_TRACEABILITY.md#ref-consistency), [`REF-LEXICAL-PERTURB`](RESEARCH_TRACEABILITY.md#ref-lexical-perturb), [`REF-TOKENIZER-BETRAYAL`](RESEARCH_TRACEABILITY.md#ref-tokenizer-betrayal).
@@ -46,6 +59,12 @@ a design choice, but do not establish this architecture as an empirical result.
 
 #### REC-006 — World/artifact state != evidence/belief state.
 
+- Consolidation evidence: [test_governed_evidence_commit.py](../../tests/test_governed_evidence_commit.py).
+
+The [host commit adapter](../VERIFICATION_AND_RUNTIME_AUTHORITY.md) now binds exact proposed
+evidence updates to existing WRITE grants and independent source-action verification. Equivalent
+claim candidates retain separate sources and remain provisional before host commitment.
+
 - Repository evidence: [`state.py`](../../gepa_mindfulness/verification/state.py).
 - Limit: evidence identifiers are not dereferenced or issuer-authenticated by this record layer.
 - Acceptance checks: [`test_world_evidence_state.py`](../../tests/test_world_evidence_state.py).
@@ -53,7 +72,14 @@ a design choice, but do not establish this architecture as an empirical result.
 
 #### REC-007 — Structured failure graph.
 
-- Repository evidence: [`failure_graph.py`](../../gepa_mindfulness/verification/failure_graph.py).
+- Consolidation evidence: [failure_atlas.py](../../evaluation/failure_atlas.py), [test_v5_failure_atlas.py](../../tests/test_v5_failure_atlas.py).
+
+[`failure_atlas.py`](../../evaluation/failure_atlas.py) indexes V5 episode failures across runs
+while existing failure graphs localize within-trajectory causes. Atlas repair keeps the original
+failure and independently verified same-target regression record. Equivalence preserves
+provenance and family-balanced repair candidates exclude hidden evaluation.
+
+- Repository evidence: [`failure_atlas.py`](../../evaluation/failure_atlas.py), [`failure_graph.py`](../../gepa_mindfulness/verification/failure_graph.py).
 - Limit: verifier identifiers are preserved but are not authenticated by the graph layer.
 - Acceptance checks: [`test_failure_graph.py`](../../tests/test_failure_graph.py).
 - Research: [`REF-AGENTSCOPE`](RESEARCH_TRACEABILITY.md#ref-agentscope).
@@ -79,7 +105,14 @@ a design choice, but do not establish this architecture as an empirical result.
 
 #### REC-010 — Online experience collection; offline harness/skill evolution.
 
-- Repository evidence: [`learning_surfaces.py`](../../gepa_mindfulness/learning_surfaces.py), [`skill_lifecycle.py`](../../gepa_mindfulness/skill_lifecycle.py), [`coevolution.py`](../../gepa_mindfulness/coevolution.py).
+- Consolidation evidence: [eligibility.py](../../gepa_mindfulness/training/eligibility.py), [test_training_eligibility.py](../../tests/test_training_eligibility.py), [test_synthetic_v5_provenance.py](../../tests/test_synthetic_v5_provenance.py).
+
+[`eligibility.py`](../../gepa_mindfulness/training/eligibility.py) consolidates explicit TRAIN,
+DEVELOPMENT, REGRESSION and HIDDEN_EVAL input policy across GEPA/RL and synthetic conversion.
+This complements existing protected evaluation receipts. Labels do not detect stripped or
+externally leaked holdout content; private catalog integration remains a host responsibility.
+
+- Repository evidence: [`eligibility.py`](../../gepa_mindfulness/training/eligibility.py), [`learning_surfaces.py`](../../gepa_mindfulness/learning_surfaces.py), [`skill_lifecycle.py`](../../gepa_mindfulness/skill_lifecycle.py), [`coevolution.py`](../../gepa_mindfulness/coevolution.py).
 - Architecture boundary: [`controlled_evolution.md`](../controlled_evolution.md).
 - Limit: acceptance decisions are audit-only, and each validated decision can be consumed once.
   Consumption does not execute, install, deploy, or roll back a model, harness, or skill. A

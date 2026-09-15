@@ -2,6 +2,7 @@
 
 from .v5_provenance import V5ProvenanceResult, validate_v5_record_provenance
 from .v5_records import (
+    AssessmentRecord,
     BehaviorRecord,
     CaseIdentity,
     DiagnosticRecord,
@@ -24,6 +25,7 @@ from .v5_runner import (
 )
 
 __all__ = [
+    "AssessmentRecord",
     "BehaviorRecord",
     "CaseIdentity",
     "DiagnosticRecord",

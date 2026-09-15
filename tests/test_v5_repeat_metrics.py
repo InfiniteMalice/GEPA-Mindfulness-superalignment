@@ -758,6 +758,7 @@ def _events(record: V5EvaluationRecord) -> tuple[EventEnvelope, ...]:
         "case_version": record.case.case_version,
         "case_id": case_id,
         "stripe_id": stripe_id,
+        "stripe_subtype": record.robustness.subtype,
         "seed": seed,
     }
 

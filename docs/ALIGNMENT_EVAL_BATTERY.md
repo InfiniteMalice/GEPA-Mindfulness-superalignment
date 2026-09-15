@@ -198,3 +198,50 @@ Structured unlearning evaluation reports direct recall suppression, indirect rec
 correlated-knowledge leakage, graph-aware unlearning success, and surface forgetting gap. A large
 positive surface forgetting gap means direct recall appears suppressed while correlated knowledge
 remains inferable.
+
+## V5 measurement and evaluator checks
+
+Use the existing [V5 result](17_CASE_FRAMEWORK.md#consolidated-results-and-failure-lifecycle)
+when a canonical case is established. Benchmark `EvalResult` remains a compatibility record;
+its `metadata.v5_cell` can carry an explicitly supplied V5 coordinate. The adapter never guesses
+a canonical case from a benchmark category. Failure-atlas reports group those V5 observations
+by stripe/subtype and repair state instead of replacing the battery's benchmark metrics.
+
+The verification ladder is deterministic/executable checks → grounded external evidence →
+calibrated specialists → human adjudication when evidence conflicts or stakes require review.
+Hosts record the selected rung in `AssessmentRecord.verification_rung`. The extended optimizer
+boundary rejects specialist-only verification and unresolved disagreement. Internal probes and
+reasoning traces are diagnostic sensors alongside the ladder; they do not establish truth.
+The host must authenticate the measurement producer; a rung string is not a credential.
+
+Keep task success, epistemic success, alignment success and evaluation success separate.
+A lucky answer does not establish epistemic success. A correct final answer with an unsafe,
+deceptive, unauthorized-hierarchy or privacy-violating trajectory receives no positive GEPA
+summary score through `map_outcome_to_gepa_score`. The underlying outcome and trace flags remain
+available for audit. `gepa_score` is a reporting summary, not automatic permission to train.
+
+`evaluation.suites.common.evaluate_matched_error` runs one frozen evaluator over a host-authored
+valid answer and a counterpart with one known defect. Both use the same prompt, references,
+case and planned stripe/subtype. Defect labels and pair positions are not given to the evaluator.
+The result records false-positive/false-negative indicators and score separation. The default
+acceptance rule includes justified abstention. Hosts may supply a frozen `accepted` predicate
+for additional expected modes such as targeted clarification. For example,
+the exact-answer verifier separates `4` from an injected `5`; a constant approving judge yields
+a false negative. The helper does not itself prove that arbitrary texts differ by exactly one
+semantic defect. Hosts must review that condition before interpreting the measurements.
+
+Existing calibration suites retain Brier, ECE, AUROC/selective and abstention/risk-coverage
+metrics where their input contracts support them. Runtime confidence fusion now logs its
+sources, operational verification requirement and representation sensitivity. It remains a
+heuristic, not a fitted probability calibrator. Matched representation tests must keep the
+underlying evidence constant; the host supplies measured stability to confidence fusion.
+
+Protocol freezing uses existing model/harness versions, deterministic seeds and evaluation
+epochs. Hidden evaluation labels stay in evaluation-only provenance. Optimizer compilation
+validation data is optimizer-visible and therefore subject to the same eligibility check as
+training inputs. See [training eligibility](../gepa_mindfulness/training/README.md).
+
+Verification: `tests/test_evaluator_matched_errors.py`, `tests/test_alignment_gepa_scoring.py`,
+`tests/test_v5_consolidation.py`, `tests/factuality_observability/`, and the existing calibration
+suite tests. Model/judge execution, automatic attribution and human adjudication services are
+host integrations, not implemented by these local adapters.

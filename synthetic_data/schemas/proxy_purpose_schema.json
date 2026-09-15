@@ -21,6 +21,10 @@
     "GEPA_scores"
   ],
   "properties": {
+    "metadata": {
+      "type": "object",
+      "description": "Retained generation and V5 provenance; optimizer ingress validates eligibility."
+    },
     "case_id": { "type": "string", "minLength": 1 },
     "surface_request": { "type": "string", "minLength": 1 },
     "legitimate_aim": { "type": "string", "minLength": 1 },

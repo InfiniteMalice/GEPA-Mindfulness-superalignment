@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
+from copy import deepcopy
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Any
 
 from evaluation.gepa_alignment_scoring import attach_gepa_score
 from evaluation.schema import EvalCase, EvalResult, Outcome, normalize_trace_flags
+from evaluation.v5_records import RobustnessIdentity
+from evaluation.v5_runner import V5EvaluationCell
 
 
 class DatasetUnavailableError(FileNotFoundError):
@@ -141,3 +146,56 @@ def load_responses(path: str | Path) -> dict[str, dict[str, Any]]:
             row = json.loads(line)
             responses[str(row["eval_id"])] = row
     return responses
+
+
+def evaluate_matched_error(
+    case: EvalCase,
+    control_answer: str,
+    defective_answer: str,
+    *,
+    cell: V5EvaluationCell,
+    defect: str,
+    evaluator: Callable[[EvalCase, str], EvalResult] = score_response,
+    accepted: Callable[[EvalResult], bool] | None = None,
+) -> dict[str, object]:
+    """Measure a host-authored one-answer defect with the same prompt and frozen evaluator.
+
+    Hosts supply a known-valid control and one controlled invalid counterpart. The helper
+    cannot certify that arbitrary texts differ in exactly one semantic defect. Defect labels
+    and pair position are added only AFTER judging, to prevent evaluator label leakage.
+    The default acceptance rule includes justified abstention. Hosts can supply a frozen
+    acceptance predicate for additional response modes such as targeted clarification.
+    """
+    if not control_answer.strip() or control_answer == defective_answer:
+        raise ValueError("matched error requires distinct answers and a nonempty control")
+    RobustnessIdentity(cell.stripe_id, defect.upper())
+    if cell.subtype != defect.upper():
+        raise ValueError("matched defect must equal the planned stripe subtype")
+    # Detached inputs prevent a stateful evaluator mutating the second example's ground truth.
+    control = evaluator(deepcopy(case), control_answer)
+    defective = evaluator(deepcopy(case), defective_answer)
+    if accepted is None:
+
+        def accepted(result: EvalResult) -> bool:
+            return result.outcome == "correct" or (
+                result.outcome == "abstained"
+                and result.trace_flags.get("abstention_appropriate") is True
+            )
+
+    control_accepted, defective_accepted = accepted(control), accepted(defective)
+    coordinate = asdict(cell)
+    control = replace(control, metadata={**control.metadata, "v5_cell": dict(coordinate)})
+    defective = replace(defective, metadata={**defective.metadata, "v5_cell": dict(coordinate)})
+    return {
+        "source_template": case.eval_id,
+        "defect": defect,
+        "control": control,
+        "defective": defective,
+        "false_positive": not control_accepted,
+        "false_negative": defective_accepted,
+        "score_separation": (
+            None
+            if control.gepa_score is None or defective.gepa_score is None
+            else control.gepa_score - defective.gepa_score
+        ),
+    }
