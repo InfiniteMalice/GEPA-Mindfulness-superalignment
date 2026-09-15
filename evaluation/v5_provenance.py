@@ -97,7 +97,9 @@ class _VerifiedV5Evaluation:
     def optimizer_scores(self) -> dict[str, object]:
         """Revalidate and return the five optimizer-facing score values."""
 
-        scores = self.record_snapshot().scores
+        record = self.record_snapshot()
+        _require_optimizer_admission(record)
+        scores = record.scores
         validated = ScoreRecord(
             correctness=scores.correctness,
             calibration=scores.calibration,
@@ -121,6 +123,60 @@ def validate_v5_record_provenance(
     """Validate and snapshot one record plus its same-cell PR-2 event sequence."""
 
     return _VerifiedV5Evaluation(record, events)
+
+
+def _require_optimizer_admission(record: V5EvaluationRecord) -> None:
+    """Keep diagnostic failures out of reinforcement; train on verified replacement runs.
+
+    A failed observation remains available to attribution and repair. Even a declared repair
+    cannot rewrite that observation into success. Hosts submit a new passing regression run.
+    """
+    from gepa_mindfulness.training.eligibility import require_training_eligible
+
+    _require_reviewed_success(record)
+    if record.assessment is not None:
+        require_training_eligible(record.assessment.to_dict())
+
+
+def _require_reviewed_success(record: V5EvaluationRecord) -> None:
+    """Share independent success checks between repair closure and optimizer admission."""
+    if not record.outcome.passed:
+        raise ValueError("repair before reinforce: failed evaluations are audit-only")
+    review = record.assessment
+    if review is None:
+        return  # Historical successful records retain their existing provenance requirements.
+    if review.evaluator_disagreement or review.verification_rung not in {
+        "DETERMINISTIC",
+        "EXTERNAL_EVIDENCE",
+        "HUMAN",
+    }:
+        raise ValueError("independent verification or human adjudication is required")
+    if review.evaluator_attribution is not None:
+        raise ValueError("unresolved evaluator attribution requires repair and a new evaluation")
+    for name in (
+        "task_success",
+        "epistemic_success",
+        "alignment_success",
+        "evaluation_success",
+        "evidence_sufficiency",
+        "provenance_complete",
+    ):
+        if getattr(review, name) is not True:
+            raise ValueError(f"verified success requires reviewed {name}")
+    if review.representation_stability is not None and review.representation_stability < 1.0:
+        raise ValueError("representation sensitivity requires adjudication")
+    if review.action_correctness is not None and review.action_correctness < 1.0:
+        raise ValueError("unsafe or incorrect action trajectory requires repair")
+    if review.answer_correctness is not None and review.answer_correctness < 1.0:
+        raise ValueError("incorrect answer conflicts with task success; repair is required")
+    if review.temporal_status in {"PERSISTENT", "REGRESSION"}:
+        raise ValueError("persistent or regressed failure requires repair")
+    if review.regression_status == "FAILED":
+        raise ValueError("failed regression requires repair")
+    if review.temporal_status == "REPAIRED" and (
+        not review.repair_id or not review.regression_tests or review.regression_status != "PASSED"
+    ):
+        raise ValueError("repaired failures require a passing regression and repair identity")
 
 
 def _validated_inputs(
@@ -172,6 +228,7 @@ def _validate_cell_identity(
         "case_version": record.case.case_version,
         "case_id": record.case.case_id,
         "stripe_id": record.robustness.stripe_id,
+        "stripe_subtype": record.robustness.subtype,
         "seed": record.system.seed,
     }
     run_id: str | None = None
@@ -202,6 +259,17 @@ def _validate_record_links(
     """Resolve record references and enforce verified pass/process ancestry."""
 
     events_by_id = {event.event_id: event for event in events}
+    if record.assessment is not None:
+        results = _resolve_many(
+            record.assessment.verification_results,
+            events_by_id,
+            {_VERIFICATION},
+            "assessment verification_results",
+        )
+        if record.outcome.passed and any(
+            event.event_id not in record.outcome.verifier_refs for event in results
+        ):
+            raise ValueError("passing assessment verification_results must bind outcome verifiers")
     prediction_event = _resolve_one(
         record.epistemics.prediction_ref,
         events_by_id,

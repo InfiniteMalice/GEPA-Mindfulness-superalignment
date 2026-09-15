@@ -155,18 +155,21 @@ def validate_pair_record(
     path: Path,
     line_number: int,
 ) -> dict[str, object]:
-    """Validate and return one exact versioned pair record without value coercion."""
+    """Validate a versioned pair with optional retained metadata, without value coercion."""
     if not isinstance(record, Mapping):
         raise _invalid(path, line_number, "expected a JSON object")
     if not all(isinstance(field, str) for field in record):
         raise _invalid(path, line_number, "pair-record field names must be strings")
     missing = PAIR_FIELDS - set(record)
-    unknown = set(record) - PAIR_FIELDS
+    unknown = set(record) - PAIR_FIELDS - {"metadata", "source_record"}
     if missing:
         first_missing = next(field for field in _REQUIRED_FIELD_ORDER if field in missing)
         raise _invalid(path, line_number, f"missing required field {first_missing!r}")
     if unknown:
         raise _invalid(path, line_number, f"unknown field {sorted(unknown)[0]!r}")
+    for field in ("metadata", "source_record"):
+        if field in record and not isinstance(record[field], Mapping):
+            raise _invalid(path, line_number, f"{field} must be an object")
 
     values = {field: _required_string(record, field, path, line_number) for field in _STRING_FIELDS}
     source_line = record["source_line"]

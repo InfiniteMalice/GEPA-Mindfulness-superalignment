@@ -1,6 +1,7 @@
 import type {
   Assessment,
   ContextBundle,
+  EvidenceItem,
   Invariant,
   OntologyNode,
   OntologyRelation,
@@ -94,6 +95,14 @@ const toMarkdown = (bundle: ContextBundle) => [
   "",
   "## Invariants",
   ...bundle.invariants.map((invariant) => `- ${invariant.order}. ${invariant.key}: ${invariant.statement}\n  - Explanation: ${invariant.explanation}\n  - Forbidden inference: ${invariant.forbiddenInference}`),
+  ...(bundle.provenanceEvidence ? [
+    "", "## Evidence derivation",
+    ...bundle.provenanceEvidence.flatMap((evidence) => [
+      `- ${evidence.id}: ${evidence.label}`,
+      `  - Provenance: ${evidence.provenance.join("; ")}`,
+      `  - Derived from: ${evidence.derivedFrom?.join(", ") || "source observation"}`,
+    ]),
+  ] : []),
   "",
   "## Unresolved tensions",
   ...bundle.unresolvedTensions.map((tension) => `- ${tension}`),
@@ -130,8 +139,13 @@ export function buildContextBundle(input: BuildBundleInput): ContextBundle {
     throw new Error(`Context bundle requires a complete set of 22 invariant keys. Missing: ${missingInvariantKeys.join(", ") || "none"}; extra: ${extraInvariantKeys.join(", ") || "none"}.`);
   }
   const targetIds = new Set(input.targetIds);
+  const knownNodeIds = new Set(input.nodes.map((node) => node.id));
+  for (const targetId of targetIds) {
+    if (!knownNodeIds.has(targetId)) throw new Error(`Unknown context target: ${targetId}.`);
+  }
   const relations = input.relations.filter((relation) => targetIds.has(relation.source) || targetIds.has(relation.target));
   const assessments = input.assessments.filter((assessment) => targetIds.has(assessment.subject) || targetIds.has(assessment.target));
+  const provenanceEvidence = collectProvenanceEvidence(input.assessments, assessments);
   const referencedNodeIds = new Set([
     ...targetIds,
     ...relations.flatMap((relation) => [relation.source, relation.target]),
@@ -154,11 +168,57 @@ export function buildContextBundle(input: BuildBundleInput): ContextBundle {
     nodes,
     relations,
     assessments,
+    ...(provenanceEvidence ? { provenanceEvidence } : {}),
     invariants: input.invariants,
     unresolvedTensions,
     policies,
     ...(training ? { training } : {}),
   };
+}
+
+function collectProvenanceEvidence(
+  allAssessments: readonly Assessment[], selectedAssessments: readonly Assessment[],
+): readonly EvidenceItem[] | undefined {
+  const evidenceById = new Map<string, EvidenceItem>();
+  const identity = (item: EvidenceItem) => JSON.stringify([
+    item.label, item.provenance, item.dependencyGroup, item.derivedFrom ?? [],
+  ]);
+  for (const item of allAssessments.flatMap((assessment) => assessment.evidence)) {
+    const previous = evidenceById.get(item.id);
+    if (previous && identity(previous) !== identity(item)) {
+      throw new Error(`Conflicting evidence identity: ${item.id}.`);
+    }
+    evidenceById.set(item.id, item);
+  }
+  if (![...evidenceById.values()].some((item) => item.derivedFrom !== undefined)) return undefined;
+
+  // Only evidence derivation edges participate here; semantic relation cycles remain valid.
+  const finished = new Set<string>();
+  const visiting = new Set<string>();
+  const ordered: EvidenceItem[] = [];
+  const visit = (id: string) => {
+    if (finished.has(id)) return;
+    if (visiting.has(id)) throw new Error(`Evidence provenance cycle at: ${id}.`);
+    const item = evidenceById.get(id);
+    if (!item) throw new Error(`Unknown provenance parent: ${id}.`);
+    visiting.add(id);
+    for (const parent of item.derivedFrom ?? []) visit(parent);
+    visiting.delete(id);
+    finished.add(id);
+    ordered.push(item);
+  };
+  for (const id of evidenceById.keys()) visit(id);
+
+  const included = new Set<string>();
+  const include = (id: string) => {
+    if (included.has(id)) return;
+    included.add(id);
+    for (const parent of evidenceById.get(id)?.derivedFrom ?? []) include(parent);
+  };
+  for (const assessment of selectedAssessments) {
+    for (const item of assessment.evidence) include(item.id);
+  }
+  return ordered.filter((item) => included.has(item.id));
 }
 
 function buildTrainingContent(input: BuildBundleInput, relations: readonly OntologyRelation[]) {

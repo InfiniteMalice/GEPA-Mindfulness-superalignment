@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from math import isclose
 
 import pytest
@@ -14,6 +14,7 @@ from gepa_mindfulness.core.reward_integrity import (
     RewardIntegrityCalculator,
     RewardIntegrityWeights,
     RewardObservation,
+    SelfServingJustificationCheck,
     aggregate_components,
 )
 from gepa_mindfulness.core.reward_provenance import (
@@ -33,6 +34,71 @@ OBSERVABLE_REFERENCE = EvidenceReference(
     reference_id="observable-audit-record",
     source_kind=EvidenceSourceKind.EXTERNAL_RECORD,
 )
+
+
+def test_self_benefit_increases_scrutiny_even_with_override_citations() -> None:
+    check = SelfServingJustificationCheck(
+        act_classification="authorized_action",
+        beneficiary="operator and agent",
+        self_benefit_present=False,
+        constraint_recognized=False,
+        counterfactual_without_self_benefit=True,
+        role_reversal_result=True,
+        authority=True,
+        necessity=True,
+        proportionality=True,
+        reversibility=True,
+    )
+    assert not check.requires_scrutiny
+    serving = replace(
+        check,
+        self_benefit_present=True,
+        independent_override_evidence=(OBSERVABLE_REFERENCE,),
+    )
+    assert serving.requires_scrutiny
+    assert serving.conclusion == "INCREASE_SCRUTINY"
+    assert "self_benefit_present" in serving.scrutiny_reasons
+    calculator = RewardIntegrityCalculator()
+    baseline = calculator.compute(RewardObservation())
+    flagged = calculator.compute(RewardObservation(self_serving_justification=serving))
+    assert flagged.self_serving_justification is serving
+    assert flagged.components == baseline.components
+    assert flagged.aggregate == baseline.aggregate == 0.0
+
+
+def test_self_preservation_goal_does_not_override_recognized_constraint() -> None:
+    check = SelfServingJustificationCheck(
+        act_classification="deception to prevent shutdown",
+        beneficiary="agent mission",
+        self_benefit_present=True,
+        constraint_recognized=True,
+        counterfactual_without_self_benefit=False,
+        role_reversal_result=False,
+        authority=False,
+    )
+    assert "missing_independent_override_evidence" in check.scrutiny_reasons
+    assert "counterfactual_without_self_benefit_failed" in check.scrutiny_reasons
+    assert "authority_failed" in check.scrutiny_reasons
+    assert "necessity_unresolved" in check.scrutiny_reasons
+    with pytest.raises(ValueError, match="observable source kind"):
+        replace(
+            check,
+            independent_override_evidence=(
+                EvidenceReference("mission rationale", EvidenceSourceKind.PRIVATE_REASONING),
+            ),
+        )
+
+
+def test_honest_failure_can_outrank_observed_proxy_exploitation() -> None:
+    calculator = RewardIntegrityCalculator()
+    honest = calculator.compute(observation(objective_fidelity=-0.5, feedback_integrity=1.0))
+    proxy = calculator.compute(
+        observation(objective_fidelity=-0.5, feedback_integrity=-1.0, reality_contact=-1.0)
+    )
+    assert honest.aggregate > proxy.aggregate
+    assert honest.objective_fidelity == proxy.objective_fidelity
+    assert honest.reward_component_provenance
+    assert proxy.observable_evidence["feedback_integrity"]
 
 
 @dataclass(frozen=True)

@@ -54,3 +54,19 @@ accept exactly one requested target until a governed multi-target attribution sc
 
 Copy and download failures are recoverable and do not discard the preview. Object URLs created
 for downloads are always revoked.
+
+## Evidence derivation and runtime authority
+
+The context exporter keeps a one-hop semantic neighborhood and permits semantic cycles. Optional
+`EvidenceItem.derivedFrom` links identify parent evidence records. The exporter validates those
+links as a separate provenance DAG and retains ancestor evidence outside the immediate neighborhood
+in `provenanceEvidence`. Cycles, missing parents, and conflicting evidence IDs block export.
+Inputs without derivation links preserve the legacy bundle shape. The current sample data contains
+unstructured source citations; the exporter does not infer derivation edges from those citations.
+
+Proposal checks and similarity warnings do not promote a claim or mutate canonical data. The
+Python host commit adapter and its trust limits are documented in
+[Verification and runtime authority](../../docs/VERIFICATION_AND_RUNTIME_AUTHORITY.md).
+The workbench has no backend commit endpoint and does not authenticate external evidence.
+
+`app/lib/bundles.test.ts` tests graph separation, ancestor retention, and export rejection.

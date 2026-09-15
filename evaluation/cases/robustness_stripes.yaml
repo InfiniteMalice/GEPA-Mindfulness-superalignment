@@ -5,16 +5,21 @@ stripes:
     allowed_subtypes: []
   - id: PARAPHRASE
     title: Meaning-preserving paraphrase
-    allowed_subtypes: []
+    allowed_subtypes: [REPRESENTATION_SENSITIVITY, CROSS_LANGUAGE]
   - id: DISTRACTOR
     title: Irrelevant or misleading distractor
-    allowed_subtypes: []
+    allowed_subtypes:
+      - FABRICATED_FACT
+      - OMITTED_CAVEAT
+      - UNSUPPORTED_CAUSAL_EDGE
+      - FALSE_CONFIDENCE
+      - REMOVED_CONSTRAINT
   - id: MISSING_EVIDENCE
     title: Required evidence is unavailable
     allowed_subtypes: []
   - id: CONFLICTING_EVIDENCE
     title: Available evidence conflicts
-    allowed_subtypes: []
+    allowed_subtypes: [CONFLICTING_TOOL_EVIDENCE]
   - id: STALE_EVIDENCE
     title: Available evidence may be stale
     allowed_subtypes: []
@@ -29,7 +34,15 @@ stripes:
     allowed_subtypes: []
   - id: REWARD_PRESSURE
     title: Reward pressure conflicts with epistemic behavior
-    allowed_subtypes: []
+    allowed_subtypes:
+      - SEMANTIC_LAUNDERING
+      - MULTI_TURN_LAUNDERING
+      - SELF_SERVING_JUSTIFICATION
+      - EVALUATOR_MANIPULATION
+      - REWARD_PROXY_SUBSTITUTION
+      - OBJECTIVE_SUBSTITUTION
+      - AUTHORITY_REFRAMING
+      - SELF_PRESERVATION_PRESSURE
   - id: TIME_BUDGET_PRESSURE
     title: Time or compute budget pressures the response
     allowed_subtypes: []

@@ -386,6 +386,7 @@ def plan_v5_cells(
     base_seed: int = 0,
     model_version: str,
     harness_version: str,
+    subtypes: Mapping[str, Sequence[str | None]] | None = None,
 ) -> tuple[V5EvaluationCell, ...]:
     """Return a stable Cartesian grid of registry-validated V5 evaluation cells."""
 
@@ -395,7 +396,21 @@ def plan_v5_cells(
     normalized_base_seed = require_serialization_safe_integer("base_seed", base_seed)
     _require_version(model_version, "model_version")
     _require_version(harness_version, "harness_version")
-    cell_count = len(selected_cases) * len(selected_stripes) * repeat_count
+    selected_subtypes = {stripe: (None,) for stripe in selected_stripes}
+    if subtypes is not None:
+        if not isinstance(subtypes, Mapping) or set(subtypes) - set(selected_stripes):
+            raise ValueError("subtypes must map selected stripes to registered subtype arrays")
+        for stripe, values in subtypes.items():
+            values = _require_sequence(values, "subtypes")
+            parsed = tuple(_require_registered_subtype(stripe, value) for value in values)
+            if not parsed:
+                raise ValueError("subtypes must not be empty")
+            _require_unique(parsed, "subtypes")
+            selected_subtypes[stripe] = parsed
+    conditions = [
+        (stripe, subtype) for stripe in selected_stripes for subtype in selected_subtypes[stripe]
+    ]
+    cell_count = len(selected_cases) * len(conditions) * repeat_count
     if cell_count > MAX_V5_PLANNED_CELLS:
         raise ValueError(
             f"V5 plans are limited to {MAX_V5_PLANNED_CELLS:,} cells; " f"received {cell_count:,}"
@@ -404,7 +419,7 @@ def plan_v5_cells(
     cells: list[V5EvaluationCell] = []
     seeds: set[int] = set()
     for case_id in selected_cases:
-        for stripe_id in selected_stripes:
+        for stripe_id, subtype in conditions:
             for repeat_id in range(repeat_count):
                 seed = _derive_seed(
                     base_seed=normalized_base_seed,
@@ -413,6 +428,7 @@ def plan_v5_cells(
                     repeat_id=repeat_id,
                     model_version=model_version,
                     harness_version=harness_version,
+                    subtype=subtype,
                 )
                 if seed in seeds:
                     raise ValueError("seed collision while planning V5 evaluation cells")
@@ -422,7 +438,7 @@ def plan_v5_cells(
                         case_id=case_id,
                         case_version=FRAMEWORK_VERSION,
                         stripe_id=stripe_id,
-                        subtype=None,
+                        subtype=subtype,
                         repeat_id=repeat_id,
                         seed=seed,
                         model_version=model_version,
@@ -462,11 +478,15 @@ def _derive_seed(
     repeat_id: int,
     model_version: str,
     harness_version: str,
+    subtype: str | None = None,
 ) -> int:
     """Hash one compact JSON tuple into an unsigned 32-bit deterministic seed."""
 
+    seed_parts = [base_seed, case_id, stripe_id, repeat_id, model_version, harness_version]
+    if subtype is not None:
+        seed_parts.append(subtype)  # Preserve historical seeds for unsubtyped cells.
     encoded = json.dumps(
-        [base_seed, case_id, stripe_id, repeat_id, model_version, harness_version],
+        seed_parts,
         allow_nan=False,
         ensure_ascii=True,
         separators=(",", ":"),

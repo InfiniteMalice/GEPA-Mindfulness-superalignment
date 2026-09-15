@@ -41,6 +41,7 @@ class PipelineInputs:
     knowledge_boundary_risk: float = 0.2
     source_reference_divergence_risk: float = 0.2
     staleness_risk: float = 0.1
+    representation_stability: float | None = None
 
 
 @dataclass(slots=True)
@@ -70,6 +71,7 @@ def run_v2_pipeline(
             declared_confidence=inputs.declared_confidence,
             latent_uncertainty_signal=inputs.latent_uncertainty_signal,
             external_verification_confidence=decomposition.support_coverage_score,
+            representation_stability=inputs.representation_stability,
         )
     )
 
@@ -92,6 +94,8 @@ def run_v2_pipeline(
             trace_worthy=decomposition.fact_risk_score > config.trace_worthy_threshold,
             abstention_viable=inputs.abstention_viable,
             guessing_pressure=config.default_guessing_pressure,
+            verification_required=calibration.verification_required,
+            representation_sensitive=calibration.representation_sensitive,
         )
     )
 
@@ -178,6 +182,7 @@ def run_v2_pipeline(
         knowledge_boundary_risk=inputs.knowledge_boundary_risk,
         source_reference_divergence_risk=inputs.source_reference_divergence_risk,
         staleness_risk=inputs.staleness_risk,
+        calibration=calibration,
     )
 
     return PipelineOutputs(

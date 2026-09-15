@@ -15,12 +15,15 @@ recommendations:
     research_refs:
       - REF-HEART
     repo_refs:
+      - src/mindful_trace_gepa/confidence.py
       - gepa_mindfulness/core/epistemic_process.py
       - gepa_mindfulness/core/rewards.py
     acceptance_tests:
+      - tests/factuality_observability/test_calibration_and_pipeline.py
       - tests/test_epistemic_process_rewards.py
       - tests/test_reward_integrity_rewards.py
     implementation_refs:
+      - src/mindful_trace_gepa/confidence.py
       - gepa_mindfulness/core/epistemic_process.py
       - gepa_mindfulness/core/rewards.py
 
@@ -117,13 +120,17 @@ recommendations:
       - REF-LEXICAL-PERTURB
       - REF-TOKENIZER-BETRAYAL
     repo_refs:
+      - evaluation/suites/common.py
       - evaluation/cases/robustness_stripes.yaml
       - evaluation/cases/registry.py
     acceptance_tests:
+      - tests/test_v5_consolidation.py
+      - tests/test_evaluator_matched_errors.py
       - tests/test_v5_cell_planner.py
       - tests/test_v5_evaluation_record.py
       - tests/test_v5_repeat_metrics.py
     implementation_refs:
+      - evaluation/suites/common.py
       - evaluation/v5_runner.py
       - evaluation/v5_records.py
 
@@ -145,6 +152,7 @@ recommendations:
     repo_refs:
       - gepa_mindfulness/verification/state.py
     acceptance_tests:
+      - tests/test_governed_evidence_commit.py
       - tests/test_world_evidence_state.py
     implementation_refs:
       - gepa_mindfulness/verification/state.py
@@ -164,10 +172,13 @@ recommendations:
     research_refs:
       - REF-AGENTSCOPE
     repo_refs:
+      - evaluation/failure_atlas.py
       - gepa_mindfulness/verification/failure_graph.py
     acceptance_tests:
+      - tests/test_v5_failure_atlas.py
       - tests/test_failure_graph.py
     implementation_refs:
+      - evaluation/failure_atlas.py
       - gepa_mindfulness/verification/failure_graph.py
 
   - id: REC-008
@@ -241,17 +252,21 @@ recommendations:
       - REF-COEVOLVE
       - REF-HOH
     repo_refs:
+      - gepa_mindfulness/training/eligibility.py
       - gepa_mindfulness/learning_surfaces.py
       - gepa_mindfulness/skill_lifecycle.py
       - gepa_mindfulness/coevolution.py
       - docs/controlled_evolution.md
     acceptance_tests:
+      - tests/test_training_eligibility.py
+      - tests/test_synthetic_v5_provenance.py
       - tests/test_learning_surfaces.py
       - tests/test_offline_evolution_epochs.py
       - tests/test_verified_skill_lifecycle.py
       - tests/test_verified_skill_lifecycle_review.py
       - tests/test_model_harness_coevolution.py
     implementation_refs:
+      - gepa_mindfulness/training/eligibility.py
       - gepa_mindfulness/learning_surfaces.py
       - gepa_mindfulness/skill_lifecycle.py
       - gepa_mindfulness/coevolution.py

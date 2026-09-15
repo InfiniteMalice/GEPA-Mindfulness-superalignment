@@ -1,0 +1,57 @@
+version: 17case-v5
+invariants:
+  canonical_v5_case_identity_is_immutable:
+    rule: Canonical case identity comes only from the unchanged V5 manifest, IDs 1 through 17.
+    enforcement: machine
+    tests: [tests/test_v5_case_registry.py, tests/test_v5_documentation_consistency.py]
+  case_zero_is_noncanonical:
+    rule: Case 0 remains diagnostic triage and cannot be planned or scored as a canonical V5 cell.
+    enforcement: machine
+    tests: [tests/test_v5_case_registry.py, tests/test_v5_cell_planner.py]
+  robustness_conditions_do_not_create_new_cases:
+    rule: Stripes, registered subtypes and deterministic repeats retain canonical case identity.
+    enforcement: machine
+    tests: [tests/test_v5_consolidation.py, tests/test_v5_cell_planner.py]
+  no_direct_thought_reward:
+    rule: Generated trace style alone earns no optimizer reward.
+    enforcement: machine
+    tests: [tests/test_epistemic_process_rewards.py, tests/test_reward_style_invariance.py]
+  outcome_backed_reasoning_credit:
+    rule: Positive V5 process credit requires verified action-bound evidence ancestry.
+    enforcement: machine
+    tests: [tests/test_v5_provenance.py]
+  repair_before_reinforce:
+    rule: Failed V5 results remain audit-only; optimizer export requires a new verified passing run.
+    enforcement: machine
+    tests: [tests/test_v5_consolidation.py, tests/test_v5_provenance.py]
+  repaired_failures_become_regression_tests:
+    rule: Atlas repair retains a reviewed passing same-target regression from a distinct run and named tests.
+    enforcement: machine
+    tests: [tests/test_v5_failure_atlas.py]
+  no_unverified_memory_commit:
+    rule: The host commit adapter requires accepted observable evidence, verification and scoped WRITE authority.
+    enforcement: machine
+    tests: [tests/test_governed_evidence_commit.py]
+  provenance_required_for_authoritative_claims:
+    rule: Each committed claim reference binds the relevant independent verifier finding and accepted evidence.
+    enforcement: machine
+    tests: [tests/test_governed_evidence_commit.py]
+  failed_actions_do_not_contaminate_evidence:
+    rule: Quarantined and rejected source action outputs cannot pass the host commit adapter.
+    enforcement: machine
+    tests: [tests/test_governed_evidence_commit.py]
+  no_single_judge_authority:
+    rule: Extended V5 assessment export rejects specialist-only measurement and unresolved disagreement.
+    enforcement: machine_scoped
+    scope: Host-authored AssessmentRecord; legacy successful records retain prior verifier contracts.
+    tests: [tests/test_v5_consolidation.py]
+  hidden_eval_isolation:
+    rule: Explicit hidden labels cannot enter GEPA/RL inputs, seed-to-training conversion or atlas repair candidates.
+    enforcement: machine_scoped
+    scope: Retained provenance labels; content with stripped provenance needs a host-owned holdout catalog.
+    tests: [tests/test_synthetic_v5_provenance.py, tests/test_v5_failure_atlas.py]
+  authenticated_external_verification:
+    rule: The host authenticates verifier identities and owns accepted evidence, holdout policy and publication locks.
+    enforcement: host_integration
+    scope: Python values and exported reports are not credentials or a remote trust boundary.
+    tests: [tests/test_governed_evidence_commit.py]

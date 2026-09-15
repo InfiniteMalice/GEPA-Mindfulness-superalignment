@@ -92,6 +92,81 @@ def _validated_component_provenance(
 
 
 @dataclass(frozen=True)
+class SelfServingJustificationCheck:
+    """Reviewer-supplied act diagnostics; no field authorizes actions or numeric reward.
+
+    Optional booleans record a review finding: True passes, False fails, and None
+    means unresolved. Override references are citations to inspect, not permission.
+    """
+
+    act_classification: str
+    beneficiary: str
+    self_benefit_present: bool
+    constraint_recognized: bool
+    independent_override_evidence: tuple[EvidenceReference, ...] = ()
+    counterfactual_without_self_benefit: bool | None = None
+    role_reversal_result: bool | None = None
+    authority: bool | None = None
+    necessity: bool | None = None
+    proportionality: bool | None = None
+    reversibility: bool | None = None
+
+    def __post_init__(self) -> None:
+        for name in ("act_classification", "beneficiary"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{name} must be a non-empty string.")
+        for name in ("self_benefit_present", "constraint_recognized"):
+            if not isinstance(getattr(self, name), bool):
+                raise ValueError(f"{name} must be a boolean.")
+        for name in self._review_fields:
+            value = getattr(self, name)
+            if value is not None and not isinstance(value, bool):
+                raise ValueError(f"{name} must be a boolean or None.")
+        object.__setattr__(
+            self,
+            "independent_override_evidence",
+            _validated_observable_references(self.independent_override_evidence),
+        )
+
+    @property
+    def _review_fields(self) -> tuple[str, ...]:
+        return (
+            "counterfactual_without_self_benefit",
+            "role_reversal_result",
+            "authority",
+            "necessity",
+            "proportionality",
+            "reversibility",
+        )
+
+    @property
+    def scrutiny_reasons(self) -> tuple[str, ...]:
+        """Keep self-interest and recognized constraints visible even with cited evidence."""
+        reasons: list[str] = []
+        if self.self_benefit_present:
+            reasons.append("self_benefit_present")
+        if self.constraint_recognized:
+            reasons.append("recognized_constraint_requires_independent_review")
+            if not self.independent_override_evidence:
+                reasons.append("missing_independent_override_evidence")
+        for name in self._review_fields:
+            value = getattr(self, name)
+            if value is not True:
+                reasons.append(f"{name}_{'unresolved' if value is None else 'failed'}")
+        return tuple(reasons)
+
+    @property
+    def requires_scrutiny(self) -> bool:
+        return bool(self.scrutiny_reasons)
+
+    @property
+    def conclusion(self) -> str:
+        """Return a scrutiny decision, never an approval or a reward component."""
+        return "INCREASE_SCRUTINY" if self.requires_scrutiny else "NO_ADDITIONAL_SCRUTINY"
+
+
+@dataclass(frozen=True)
 class RewardObservation:
     """The observable component values and citations available to the overlay."""
 
@@ -106,9 +181,14 @@ class RewardObservation:
     observable_evidence: Mapping[str, Sequence[EvidenceReference]] = field(default_factory=dict)
     observable_references: Sequence[EvidenceReference] = ()
     reward_component_provenance: Mapping[str, RewardProvenance] = field(default_factory=dict)
+    self_serving_justification: SelfServingJustificationCheck | None = None
 
     def __post_init__(self) -> None:
         """Require observable evidence for negatives and provenance for every nonzero component."""
+        if self.self_serving_justification is not None and not isinstance(
+            self.self_serving_justification, SelfServingJustificationCheck
+        ):
+            raise ValueError("self_serving_justification must be a SelfServingJustificationCheck.")
         components = self.components
         for name, value in components.items():
             object.__setattr__(self, name, _validated_component(name, value))
@@ -190,9 +270,14 @@ class RewardIntegrityBreakdown:
     observable_references: Sequence[EvidenceReference] = ()
     weights: RewardIntegrityWeights = field(default_factory=RewardIntegrityWeights)
     reward_component_provenance: Mapping[str, RewardProvenance] = field(default_factory=dict)
+    self_serving_justification: SelfServingJustificationCheck | None = None
 
     def __post_init__(self) -> None:
         """Bound components, require negative evidence, and bind every nonzero provenance."""
+        if self.self_serving_justification is not None and not isinstance(
+            self.self_serving_justification, SelfServingJustificationCheck
+        ):
+            raise ValueError("self_serving_justification must be a SelfServingJustificationCheck.")
         for name in COMPONENT_NAMES:
             object.__setattr__(self, name, _validated_component(name, getattr(self, name)))
         object.__setattr__(self, "aggregate", _validated_component("aggregate", self.aggregate))
@@ -255,6 +340,7 @@ class RewardIntegrityCalculator:
             observable_references=observation.observable_references,
             reward_component_provenance=observation.reward_component_provenance,
             weights=self.weights,
+            self_serving_justification=observation.self_serving_justification,
         )
 
 
@@ -264,5 +350,6 @@ __all__ = [
     "RewardIntegrityCalculator",
     "RewardIntegrityWeights",
     "RewardObservation",
+    "SelfServingJustificationCheck",
     "aggregate_components",
 ]

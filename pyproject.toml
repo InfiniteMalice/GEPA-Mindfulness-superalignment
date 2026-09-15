@@ -165,6 +165,7 @@ ignore = ["E203"]
 
 [tool.ruff.lint.isort]
 known-first-party = [
+    "test_v5_failure_atlas",
     "mindful_trace_gepa",
     "gepa_mindfulness",
     "rg_tracer",

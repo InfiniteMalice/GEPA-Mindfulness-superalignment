@@ -4,6 +4,35 @@ The training package contains the canonical portable PyTorch RL engine and compa
 surfaces retained for older workflows. Start with the [portable RL guide](../../docs/rl/README.md)
 for offline CPU PPO, GRPO, checkpoint resume, collection, evaluation, and capability diagnosis.
 
+## Optimizer input eligibility
+
+[`eligibility.py`](eligibility.py) defines `TRAIN`, `DEVELOPMENT`, `REGRESSION`, and
+`HIDDEN_EVAL`. Explicitly tagged optimizer inputs require `TRAIN`. The canonical engine
+checks all request metadata on `train` and `resume` before backend creation. The legacy
+dataset loader retains original JSON provenance and checks eligibility when loading and
+batching. GEPA checks both trainset and valset before optimizer construction, because
+validation examples also influence prompt selection. Collection and evaluation remain
+available for non-training records.
+
+Checks traverse nested mappings, lists, and tuples, including `metadata` and
+`source_record`. An outer `TRAIN` label cannot override a nested non-training label.
+Malformed labels and malformed provenance containers raise `ValueError`. At optimizer
+ingress, an explicit `holdout_status` accepts only `not_held_out` or `TRAIN`.
+The existing controlled-evolution `held_out`/`protected` validation receipts retain their
+separate authority and isolation requirements.
+
+When metadata contains an explicit `v5_record` object or a raw record with
+`case.case_version == "17case-v5"`, the record requires structured `case`, `system`, and
+`outcome` sections and the literal boolean `outcome.passed: true`. Failed or malformed observations
+remain audit-only even when wrapped in `TRAIN`; repair requires a new passing evaluation.
+This boundary does not infer success or failure from natural-language descriptions and
+does not replace the V5 event-provenance verification used to obtain optimizer scores.
+
+For compatibility, records without any eligibility or holdout label remain accepted.
+This is a legacy migration allowance, not evidence that the content is uncontaminated.
+These checks cannot identify copied hidden text after all provenance has been removed.
+Verify these boundaries with `python -m pytest tests/test_training_eligibility.py`.
+
 ## RL maturity matrix
 
 | Path | Maturity | Verified boundary |

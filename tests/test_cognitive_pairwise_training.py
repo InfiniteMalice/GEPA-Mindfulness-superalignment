@@ -13,10 +13,15 @@ from cognitive_pairwise_training import (
     compute_pairwise_label_loss,
     export_pairwise_jsonl,
 )
+from evaluation.v5_runner import V5EvaluationCell
+from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
 from gepa_mindfulness.training.configs import TrainingConfig
+from gepa_mindfulness.training.eligibility import TrainingEligibility
 from mindful_trace_gepa.logging_schema import StructuredEventType, make_event_envelope
+from synthetic_data.generators import GenerationMetadata
 from synthetic_data.generators.cooperation_under_uncertainty_generator import (
     generate_cooperation_cpt_candidates,
+    generate_cooperation_under_uncertainty_cases,
 )
 
 
@@ -186,8 +191,18 @@ def test_prediction_count_must_match_examples() -> None:
 
 
 def test_cooperation_under_uncertainty_generates_cpt_pairs() -> None:
+    reviewed = GenerationMetadata(
+        cell=V5EvaluationCell(1, "17case-v5", "NONE", None, 0, 1, "m", "h"),
+        training_eligibility=TrainingEligibility.TRAIN,
+        review_completed=True,
+        reviewed_by="reviewer:human",
+        review_authorization=EvidenceReference("review:cpt", EvidenceSourceKind.EXTERNAL_RECORD),
+    )
+    metadata = {
+        case["case_id"]: reviewed for case in generate_cooperation_under_uncertainty_cases()
+    }
     pairs = build_pairwise_examples(
-        generate_cooperation_cpt_candidates(),
+        generate_cooperation_cpt_candidates(cell_metadata=metadata, for_training=True),
         config=CognitivePairwiseTrainingConfig(randomize_pair_order=False),
     )
     assert pairs

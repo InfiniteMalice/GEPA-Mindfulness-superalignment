@@ -15,6 +15,7 @@ from gepa_mindfulness.training.adapters.pair_records import (
     PAIR_SCHEMA_VERSION,
     validate_pair_record,
 )
+from gepa_mindfulness.training.eligibility import require_training_eligible
 
 try:
     from scripts.synthetic_dataset_tool import _validate_jsonl
@@ -129,6 +130,21 @@ def _pair_records(source: Path, source_sha256: str, source_path: str) -> list[di
     seen_ids: set[str] = set()
 
     for source_line, record in records:
+        require_training_eligible(record)
+        retained_source = (
+            {"source_record": record}
+            if any(
+                field in record
+                for field in (
+                    "metadata",
+                    "source_record",
+                    "training_eligibility",
+                    "holdout_status",
+                    "v5_record",
+                )
+            )
+            else {}
+        )
         case_id = str(record["id"])
         metadata = record.get("case_metadata")
         scenario = record.get("scenario")
@@ -184,6 +200,8 @@ def _pair_records(source: Path, source_sha256: str, source_path: str) -> list[di
                         "supporting": integrity["supporting_diagnostics"],
                     },
                     "schema_version": SCHEMA_VERSION,
+                    **({"metadata": record["metadata"]} if "metadata" in record else {}),
+                    **retained_source,
                 }
             )
     return pairs
@@ -191,6 +209,8 @@ def _pair_records(source: Path, source_sha256: str, source_path: str) -> list[di
 
 def build_dataset(source: Path, pairs: Path, manifest: Path) -> BuildResult:
     """Validate rich input and write deterministic preference pairs and a hash manifest."""
+    for _, record in _source_records(source):
+        require_training_eligible(record)
     _, validation_errors = _validate_jsonl(source)
     if validation_errors:
         raise ValueError("Invalid reward-integrity source: " + "; ".join(validation_errors))

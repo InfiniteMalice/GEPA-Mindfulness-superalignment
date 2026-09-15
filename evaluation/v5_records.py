@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Collection, Mapping, Sequence
+from dataclasses import asdict, dataclass, fields
 from functools import cache
 from math import isfinite
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, cast
 
 from mindful_trace_gepa._json_values import require_serialization_safe_integer
+from mindful_trace_gepa.confidence import ConfidenceSource
 
 from .cases.registry import FRAMEWORK_VERSION, load_case_manifest, load_stripe_registry
 
@@ -109,6 +110,7 @@ class EpistemicRecord:
     evidence_refs: tuple[str, ...]
     verifier_refs: tuple[str, ...]
     confidence: float
+    confidence_source: ConfidenceSource = ConfidenceSource.LEGACY_UNSPECIFIED
 
     def __post_init__(self) -> None:
         """Snapshot references and validate bounded confidence."""
@@ -121,6 +123,8 @@ class EpistemicRecord:
             self, "verifier_refs", _reference_tuple(self.verifier_refs, "verifier_refs")
         )
         object.__setattr__(self, "confidence", _bounded_number(self.confidence, "confidence"))
+        if type(self.confidence_source) is not ConfidenceSource:
+            raise ValueError("confidence_source must be an exact ConfidenceSource")
 
     def to_dict(self) -> dict[str, object]:
         """Return a fresh JSON-compatible representation."""
@@ -130,6 +134,7 @@ class EpistemicRecord:
             "evidence_refs": list(self.evidence_refs),
             "verifier_refs": list(self.verifier_refs),
             "confidence": self.confidence,
+            "confidence_source": self.confidence_source.value,
         }
 
 
@@ -258,6 +263,135 @@ class DiagnosticRecord:
         }
 
 
+ATTRIBUTIONS = frozenset(
+    {
+        "MODEL_DEFICIENCY",
+        "GRADER_ERROR",
+        "REFERENCE_OR_TASK_ERROR",
+        "AMBIGUOUS_OR_UNDERSPECIFIED",
+        "EVIDENCE_UNAVAILABLE",
+        "REPRESENTATION_SENSITIVITY",
+        "TOOL_OR_ENVIRONMENT_FAILURE",
+        "UNRESOLVED_DISAGREEMENT",
+    }
+)
+VERIFICATION_RUNGS = frozenset({"DETERMINISTIC", "EXTERNAL_EVIDENCE", "SPECIALIST", "HUMAN"})
+TEMPORAL_STATUSES = frozenset({"NEW", "PERSISTENT", "REGRESSION", "REPAIRED"})
+
+
+@dataclass(frozen=True, slots=True)
+class AssessmentRecord:
+    """Host-authored measurement metadata; unknown successes remain None.
+
+    This is an additive section of V5EvaluationRecord, not a second result schema.
+    Verifier identity/authentication remains the host's responsibility. Rung declarations
+    are metadata, never an alternative to action-bound provenance validation.
+    """
+
+    variant_id: str | None = None
+    transformation_lineage: tuple[str, ...] = ()
+    semantic_intent: str | None = None
+    observed_behavior: str | None = None
+    expected_behavior: str | None = None
+    observability_tier: str = "O0"
+    answer_correctness: float | None = None
+    action_correctness: float | None = None
+    abstention_quality: float | None = None
+    response_mode: str | None = None
+    task_success: bool | None = None
+    epistemic_success: bool | None = None
+    alignment_success: bool | None = None
+    evaluation_success: bool | None = None
+    evidence_sufficiency: bool | None = None
+    representation_stability: float | None = None
+    provenance_complete: bool | None = None
+    verification_results: tuple[str, ...] = ()
+    verification_rung: str | None = None
+    evaluator_disagreement: bool = False
+    evaluator_attribution: str | None = None
+    failure_family: str | None = None
+    temporal_status: str = "NEW"
+    regression_status: str = "PENDING"
+    repair_id: str | None = None
+    regression_tests: tuple[str, ...] = ()
+    training_eligibility: str = "DEVELOPMENT"
+
+    def __post_init__(self) -> None:
+        from gepa_mindfulness.training.eligibility import TrainingEligibility
+
+        for name in ("transformation_lineage", "verification_results", "regression_tests"):
+            object.__setattr__(self, name, _reference_tuple(getattr(self, name), name))
+        for name in (
+            "answer_correctness",
+            "action_correctness",
+            "abstention_quality",
+            "representation_stability",
+        ):
+            value = getattr(self, name)
+            if value is not None:
+                object.__setattr__(self, name, _bounded_number(value, name))
+        for name in (
+            "task_success",
+            "epistemic_success",
+            "alignment_success",
+            "evaluation_success",
+            "evidence_sufficiency",
+            "provenance_complete",
+        ):
+            value = getattr(self, name)
+            if value is not None:
+                _require_bool(value, name)
+        _require_bool(self.evaluator_disagreement, "evaluator_disagreement")
+        for name in (
+            "variant_id",
+            "semantic_intent",
+            "observed_behavior",
+            "expected_behavior",
+            "failure_family",
+            "repair_id",
+        ):
+            value = getattr(self, name)
+            if value is not None:
+                _require_nonblank_string(value, name)
+        enums: dict[str, Collection[str | None]] = {
+            "observability_tier": {"O0", "O1", "O2", "O3", "O4", "O5"},
+            "response_mode": {
+                None,
+                "ANSWER",
+                "CONDITIONAL_ANSWER",
+                "ASSUMPTIVE_PROCEED",
+                "CLARIFY",
+                "IDK",
+                "ABSTAIN",
+            },
+            "verification_rung": VERIFICATION_RUNGS | {None},
+            "evaluator_attribution": ATTRIBUTIONS | {None},
+            "temporal_status": TEMPORAL_STATUSES,
+            "regression_status": {"PENDING", "PASSED", "FAILED"},
+            "training_eligibility": {item.value for item in TrainingEligibility},
+        }
+        for name, allowed in enums.items():
+            value = getattr(self, name)
+            if value is not None and type(value) is not str:
+                raise ValueError(f"{name} must be an exact registered string")
+            if value not in allowed:
+                raise ValueError(f"unsupported {name}: {value!r}")
+
+    def to_dict(self) -> dict[str, object]:
+        result = asdict(self)
+        for name in ("transformation_lineage", "verification_results", "regression_tests"):
+            result[name] = list(result[name])
+        return result
+
+    @classmethod
+    def from_dict(cls, payload: object) -> AssessmentRecord:
+        values = dict(_require_mapping(payload, "assessment"))
+        _require_exact_fields(values, {item.name for item in fields(cls)}, "assessment")
+        for name in ("transformation_lineage", "verification_results", "regression_tests"):
+            values[name] = _json_reference_tuple(values[name], name)
+        return cls(**values)
+
+
 @dataclass(frozen=True, slots=True)
 class V5EvaluationRecord:
     """One immutable case-by-stripe-by-repeat V5 evaluation result."""
@@ -270,6 +404,7 @@ class V5EvaluationRecord:
     outcome: OutcomeRecord
     scores: ScoreRecord
     diagnostics: DiagnosticRecord
+    assessment: AssessmentRecord | None = None
 
     def __post_init__(self) -> None:
         """Reject foreign sections and detach the root from caller-owned section objects."""
@@ -282,6 +417,11 @@ class V5EvaluationRecord:
         _require_exact_instance(self.outcome, OutcomeRecord, "outcome")
         _require_exact_instance(self.scores, ScoreRecord, "scores")
         _require_exact_instance(self.diagnostics, DiagnosticRecord, "diagnostics")
+        if self.assessment is not None:
+            _require_exact_instance(self.assessment, AssessmentRecord, "assessment")
+            object.__setattr__(
+                self, "assessment", AssessmentRecord.from_dict(self.assessment.to_dict())
+            )
         object.__setattr__(
             self,
             "case",
@@ -318,6 +458,7 @@ class V5EvaluationRecord:
                 evidence_refs=self.epistemics.evidence_refs,
                 verifier_refs=self.epistemics.verifier_refs,
                 confidence=self.epistemics.confidence,
+                confidence_source=self.epistemics.confidence_source,
             ),
         )
         object.__setattr__(
@@ -371,13 +512,15 @@ class V5EvaluationRecord:
             "outcome": self.outcome.to_dict(),
             "scores": self.scores.to_dict(),
             "diagnostics": self.diagnostics.to_dict(),
+            **({"assessment": self.assessment.to_dict()} if self.assessment is not None else {}),
         }
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, object]) -> "V5EvaluationRecord":
         """Hydrate one strict JSON object without accepting unknown or omitted fields."""
 
-        root = _require_mapping(payload, "V5 evaluation record")
+        root = dict(_require_mapping(payload, "V5 evaluation record"))
+        assessment = root.pop("assessment", None)
         _require_exact_fields(
             root,
             {
@@ -395,7 +538,10 @@ class V5EvaluationRecord:
         case = _require_mapping(root["case"], "case")
         robustness = _require_mapping(root["robustness"], "robustness")
         system = _require_mapping(root["system"], "system")
-        epistemics = _require_mapping(root["epistemics"], "epistemics")
+        epistemics = dict(_require_mapping(root["epistemics"], "epistemics"))
+        confidence_source = epistemics.pop("confidence_source", "LEGACY_UNSPECIFIED")
+        if type(confidence_source) is not str:
+            raise ValueError("confidence_source must be a registered string")
         behavior = _require_mapping(root["behavior"], "behavior")
         outcome = _require_mapping(root["outcome"], "outcome")
         scores = _require_mapping(root["scores"], "scores")
@@ -433,6 +579,7 @@ class V5EvaluationRecord:
             "diagnostics",
         )
         return cls(
+            assessment=None if assessment is None else AssessmentRecord.from_dict(assessment),
             case=CaseIdentity(
                 case_id=case["case_id"],
                 case_version=case["case_version"],
@@ -454,6 +601,7 @@ class V5EvaluationRecord:
                 evidence_refs=_json_reference_tuple(epistemics["evidence_refs"], "evidence_refs"),
                 verifier_refs=_json_reference_tuple(epistemics["verifier_refs"], "verifier_refs"),
                 confidence=epistemics["confidence"],
+                confidence_source=ConfidenceSource(confidence_source),
             ),
             behavior=BehaviorRecord(
                 action_refs=_json_reference_tuple(behavior["action_refs"], "action_refs"),
@@ -602,6 +750,7 @@ def _require_exact_instance(value: object, record_type: type[object], field_name
 
 
 __all__ = [
+    "AssessmentRecord",
     "BehaviorRecord",
     "CaseIdentity",
     "DiagnosticRecord",

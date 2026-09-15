@@ -115,6 +115,7 @@ class EventEnvelope:
     case_version: str | None = None
     case_id: int | None = None
     stripe_id: str | None = None
+    stripe_subtype: str | None = None
     repeat_id: int | None = None
     seed: int | None = None
     authorization_scope: str | None = None
@@ -132,6 +133,7 @@ class EventEnvelope:
             "harness_version",
             "case_version",
             "stripe_id",
+            "stripe_subtype",
             "authorization_scope",
             "superseded_by",
         ):

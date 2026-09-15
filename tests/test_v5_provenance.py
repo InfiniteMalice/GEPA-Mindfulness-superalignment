@@ -519,13 +519,16 @@ def test_failed_zero_process_record_accepts_resolved_negative_verification() -> 
         epistemic_assessment="unverified",
     )
 
-    assert record.optimizer_scores(events) == {
+    audited = validate_v5_record_provenance(record, events)
+    assert audited.record_snapshot().scores.to_dict() == {
         "correctness": 0.0,
         "calibration": 0.82,
         "abstention": 1.0,
         "epistemic_process": 0.0,
         "total": 0.25,
     }
+    with pytest.raises(ValueError, match="repair before reinforce"):
+        audited.optimizer_scores()
 
 
 def test_verified_wrapper_is_detached_from_later_record_event_and_diagnostic_mutation() -> None:

@@ -1,6 +1,6 @@
 """Atomic factuality, observability, diagnostics, and trace logging toolkit."""
 
-from .calibration import CalibrationOutput, ConfidenceSignals, fuse_confidence
+from .calibration import CalibrationOutput, ConfidenceSignals, ConfidenceSource, fuse_confidence
 from .config import FactualityObservabilityConfig
 from .consistency import QueryRecord, compute_related_query_consistency
 from .decomposition import AtomicDecompositionResult, decompose_verify_and_repair
@@ -21,6 +21,7 @@ __all__ = [
     "CalibrationOutput",
     "CaseOverlayV2",
     "ConfidenceSignals",
+    "ConfidenceSource",
     "EvaluationScoresV2",
     "FactualityObservabilityConfig",
     "ObservabilityTier",
