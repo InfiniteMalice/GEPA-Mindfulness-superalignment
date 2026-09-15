@@ -3,7 +3,6 @@
 from dataclasses import replace
 
 import pytest
-from test_v5_failure_atlas import failed, failure_events, regression_events, repaired_record
 
 from cognitive_pairwise_training import build_pairwise_examples
 from evaluation.failure_atlas import FailureAtlas
@@ -19,6 +18,7 @@ from synthetic_data.generators.cooperation_under_uncertainty_generator import (
     generate_cooperation_cpt_candidates,
 )
 from synthetic_data.generators.proxy_vs_purpose_generator import generate_proxy_vs_purpose_cases
+from test_v5_failure_atlas import failed, failure_events, regression_events, repaired_record
 
 
 def test_hidden_regression_cannot_close_public_failure() -> None:
