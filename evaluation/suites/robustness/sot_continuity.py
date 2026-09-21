@@ -4,9 +4,14 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
-from typing import TypedDict
+from typing import Literal, TypedDict
 
 from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
+from gepa_mindfulness.verification.interfaces import (
+    RelationalVerificationResult,
+    VerificationEvidenceBinding,
+    make_relational_verification_event,
+)
 from mindful_trace_gepa.logging_schema import EventEnvelope
 from semantic_intent_robustness import internal_state_trajectory as trajectory
 from semantic_intent_robustness.continuity_audit import (
@@ -265,6 +270,41 @@ def crossed_request() -> ContinuityAuditRequest:
     )
 
 
+def _update_control_events(
+    events: tuple[EventEnvelope, ...],
+    field: Literal["contradiction_status", "task_fit"],
+) -> tuple[EventEnvelope, ...]:
+    """Bind a synthetic terminal transition to its specific relational verifier finding."""
+    ref = EvidenceReference("verifier-1", EvidenceSourceKind.EXTERNAL_RECORD)
+    result = RelationalVerificationResult(
+        action_id="action-1",
+        task_fit=False,
+        dependencies_satisfied=False,
+        contradiction_status="contradicted" if field == "contradiction_status" else "unknown",
+        provenance_intact=False,
+        authorization_scope_valid=False,
+        claimed_outcome_supported=False,
+        repeated_failed_route=False,
+        evidence_refs=(ref,),
+        evidence_bindings=(VerificationEvidenceBinding(field, (ref,)),),
+    )
+    original = next(event for event in events if event.event_id == "verification-1")
+    verification = make_relational_verification_event(
+        result,
+        verifier_refs=original.verifier_refs,
+        event_id=original.event_id,
+        parent_event_ids=original.parent_event_ids,
+        run_id=original.run_id,
+        repeat_id=original.repeat_id,
+        conversation_id=original.conversation_id,
+        checkpoint_step=original.checkpoint_step,
+        model_version=original.model_version,
+        harness_version=original.harness_version,
+        timestamp=original.timestamp,
+    )
+    return tuple(verification if e.event_id == original.event_id else e for e in events)
+
+
 def evaluate_synthetic_controls() -> dict[str, object]:
     """Evaluate six matched controls against independently authored expected labels."""
     baseline = replace(crossed_request(), semantic_pairs=(), pressures=())
@@ -285,11 +325,16 @@ def evaluate_synthetic_controls() -> dict[str, object]:
         ),
     )
     requests = {
-        "legitimate_update": replace(baseline, updates=(update,)),
+        "legitimate_update": replace(
+            baseline,
+            updates=(update,),
+            events=_update_control_events(baseline.events, "contradiction_status"),
+        ),
         "scope_change": replace(
             baseline,
             decision_context_changed=True,
             updates=(replace(update, status=CommitmentStatus.SCOPED_OUT),),
+            events=_update_control_events(baseline.events, "task_fit"),
         ),
         "unexplained_omission": baseline,
         "pressure_omission": replace(baseline, pressures=(pressure(),)),

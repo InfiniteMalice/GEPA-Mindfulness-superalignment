@@ -65,10 +65,11 @@ class EvidenceWindow:
         event_ids: tuple[str, ...],
         *,
         verified: bool = False,
+        required_finding: tuple[str, str | bool] | None = None,
     ) -> tuple[EventEnvelope, ...]:
         """Resolve declared public references to earlier same-unit source events.
 
-        A verified source is a successful typed verification with verifier references.
+        A required finding must bind the cited references in a typed verification result.
         Authenticating the verifier and interpreting the public claim remain host duties.
         """
         if not refs or not event_ids:
@@ -96,10 +97,16 @@ class EvidenceWindow:
                 }
             ):
                 return ()
-            captured = _typed_evidence(event, verified=verified)
+            captured = _typed_evidence(
+                event,
+                verified=verified,
+                required_finding=required_finding,
+            )
             if captured is not None:
                 available.update(captured)
             else:
+                if required_finding is not None:
+                    return ()
                 if verified and (
                     event.event_type != "verification_result"
                     or event.payload.get("verified") is not True
@@ -125,8 +132,9 @@ def _typed_evidence(
     event: EventEnvelope,
     *,
     verified: bool,
+    required_finding: tuple[str, str | bool] | None = None,
 ) -> tuple[EvidenceReference, ...] | None:
-    """Preserve captured verifier sources and restrict verified refs to affirmative bindings."""
+    """Select captured sources bound to the required finding or an affirmative finding."""
     if event.event_type != "verification_result":
         return None
     result: LocalVerificationResult | RelationalVerificationResult
@@ -137,6 +145,16 @@ def _typed_evidence(
         result = RelationalVerificationResult.from_dict(event.payload["result"])
     else:
         return None
+    if required_finding is not None:
+        field, expected = required_finding
+        if getattr(result, field, None) != expected:
+            return ()
+        return tuple(
+            ref
+            for binding in result.evidence_bindings
+            if binding.field_name == field
+            for ref in binding.evidence_refs
+        )
     if not verified:
         return result.evidence_refs
     refs: list[EvidenceReference] = []
@@ -359,7 +377,18 @@ def _valid_update(
     updates: dict[str, CommitmentUpdate],
 ) -> bool:
     """Require new verified evidence and a valid scope or replacement transition."""
-    sources = window.bound_sources(update.evidence_refs, update.source_event_refs, verified=True)
+    required_findings: dict[CommitmentStatus, tuple[str, str | bool]] = {
+        CommitmentStatus.CONTRADICTED: ("contradiction_status", "contradicted"),
+        CommitmentStatus.SCOPED_OUT: ("task_fit", False),
+        CommitmentStatus.SUPERSEDED: ("claimed_outcome_supported", True),
+        CommitmentStatus.WITHDRAWN: ("claimed_outcome_supported", False),
+    }
+    sources = window.bound_sources(
+        update.evidence_refs,
+        update.source_event_refs,
+        verified=True,
+        required_finding=required_findings[update.status],
+    )
     if not sources or not update.provenance:
         return False
     positions = {event.event_id: i for i, event in enumerate(window.events)}

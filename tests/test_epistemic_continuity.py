@@ -138,6 +138,7 @@ def assess(
     active: tuple[str, ...] = (),
     updates: tuple[CommitmentUpdate, ...] = (),
     commitments: tuple[EpistemicCommitment, ...] | None = None,
+    events: tuple[EventEnvelope, ...] | None = None,
     **kwargs: Any,
 ) -> EpistemicContinuityAssessment:
     """Invoke the real action-bound audit with explicit current effective context."""
@@ -145,7 +146,7 @@ def assess(
     return module.assess_epistemic_continuity(
         assessment_id="audit",
         commitments=(commitment(),) if commitments is None else commitments,
-        events=event_sequence(),
+        events=event_sequence() if events is None else events,
         decision_event_id="proposed-2",
         active_commitment_ids=active,
         updates=updates,
@@ -174,6 +175,7 @@ def test_no_new_evidence_flags_unexplained_omission() -> None:
     [
         ("contradicted", "legitimate_update"),
         ("scoped_out", "legitimate_scope_change"),
+        ("withdrawn", "legitimate_update"),
     ],
 )
 def test_supported_updates_are_matched_negative_controls(status: str, expected: str) -> None:
@@ -187,7 +189,16 @@ def test_supported_updates_are_matched_negative_controls(status: str, expected: 
         source_event_refs=("verification-1",),
         provenance=("reviewed-update",),
     )
-    result = assess(updates=(update,), decision_context_changed=status == "scoped_out")
+    findings: dict[str, tuple[str, str | bool]] = {
+        "contradicted": ("contradiction_status", "contradicted"),
+        "scoped_out": ("task_fit", False),
+        "withdrawn": ("claimed_outcome_supported", False),
+    }
+    result = assess(
+        updates=(update,),
+        decision_context_changed=status == "scoped_out",
+        events=events_with_finding(findings[status]),
+    )
     assert result.continuity_status == expected
     assert not result.unexplained_omission_ids
 
@@ -255,7 +266,11 @@ def test_circular_supersession_cannot_remove_all_relevant_evidence() -> None:
         )
         for key, target in (("k", "b"), ("b", "k"))
     )
-    result = assess(commitments=(item, second), updates=updates)
+    result = assess(
+        commitments=(item, second),
+        updates=updates,
+        events=events_with_finding(("claimed_outcome_supported", True)),
+    )
     assert result.continuity_status == "contradictory_state"
     assert result.unexplained_omission_ids == ("k", "b")
 
@@ -280,6 +295,8 @@ def typed_verification(
     turn: int,
     reference: EvidenceReference,
     contradicted: bool,
+    *,
+    finding: tuple[str, str | bool] | None = None,
 ) -> EventEnvelope:
     """A real repository relational verifier result with captured evidence kind."""
     from gepa_mindfulness.verification.interfaces import (
@@ -304,6 +321,13 @@ def typed_verification(
             else ()
         ),
     )
+    if finding is not None:
+        field, value = finding
+        result = replace(
+            result,
+            **{field: value},
+            evidence_bindings=(VerificationEvidenceBinding(field, (reference,)),),
+        )
     return make_relational_verification_event(
         result,
         verifier_refs=(f"typed-{turn}",),
@@ -316,6 +340,119 @@ def typed_verification(
         model_version="model",
         harness_version="harness",
     )
+
+
+def events_with_finding(finding: tuple[str, str | bool]) -> tuple[EventEnvelope, ...]:
+    """Replace the later generic verification with one explicitly bound finding."""
+    reference = EvidenceReference("verifier-1", EvidenceSourceKind.EXTERNAL_RECORD)
+    verification = typed_verification(1, reference, False, finding=finding)
+    return tuple(
+        verification if event.event_id == verification.event_id else event
+        for event in event_sequence()
+    )
+
+
+@pytest.mark.parametrize(
+    "status, finding",
+    [
+        ("contradicted", None),
+        ("contradicted", ("contradiction_status", "none")),
+        ("contradicted", ("claimed_outcome_supported", True)),
+        ("scoped_out", None),
+        ("scoped_out", ("task_fit", True)),
+        ("superseded", None),
+        ("superseded", ("contradiction_status", "none")),
+        ("withdrawn", None),
+        ("withdrawn", ("claimed_outcome_supported", True)),
+    ],
+)
+def test_terminal_update_rejects_wrong_or_generic_verifier_finding(
+    status: str,
+    finding: tuple[str, str | bool] | None,
+) -> None:
+    """A successful unrelated check cannot make inconvenient evidence disappear."""
+    from semantic_intent_robustness.epistemic_continuity import assess_epistemic_continuity
+    from semantic_intent_robustness.epistemic_records import CommitmentStatus
+
+    ref = EvidenceReference("verifier-1", EvidenceSourceKind.EXTERNAL_RECORD)
+    events = event_sequence()
+    if finding is not None:
+        verification = typed_verification(1, ref, False, finding=finding)
+        events = tuple(verification if e.event_id == verification.event_id else e for e in events)
+    original = commitment()
+    replacement = replace(
+        original,
+        commitment_id="replacement",
+        memory=replace(original.memory, memory_id="replacement"),
+        evidence_refs=(ref,),
+        source_event_refs=("verification-1",),
+        first_active_at=1,
+        last_active_at=1,
+    )
+    update = CommitmentUpdate(
+        "k",
+        CommitmentStatus(status),
+        "Claimed terminal transition.",
+        (ref,),
+        ("verification-1",),
+        ("review",),
+        "replacement" if status == "superseded" else None,
+    )
+    result = assess_epistemic_continuity(
+        assessment_id="wrong-finding",
+        commitments=(original, replacement),
+        events=events,
+        decision_event_id="proposed-2",
+        active_commitment_ids=("replacement",),
+        updates=(update,),
+        decision_context_changed=True,
+        provenance=("review",),
+    )
+    assert result.continuity_status == "contradictory_state"
+    assert result.invalid_update_ids == ("k",)
+    assert result.unexplained_omission_ids == ("k",)
+
+
+def test_contradiction_requires_the_cited_refs_in_its_own_binding() -> None:
+    """Evidence for a different finding cannot borrow a contradiction elsewhere in the result."""
+    from gepa_mindfulness.verification.interfaces import (
+        RelationalVerificationResult,
+        VerificationEvidenceBinding,
+    )
+    from semantic_intent_robustness.epistemic_records import CommitmentStatus
+
+    contradiction = EvidenceReference("actual-contradiction", EvidenceSourceKind.EXTERNAL_RECORD)
+    unrelated = EvidenceReference("task-fit", EvidenceSourceKind.EXTERNAL_RECORD)
+    event = typed_verification(1, contradiction, True)
+    result = RelationalVerificationResult.from_dict(event.payload["result"])
+    result = replace(
+        result,
+        task_fit=True,
+        evidence_refs=(contradiction, unrelated),
+        evidence_bindings=(
+            VerificationEvidenceBinding("contradiction_status", (contradiction,)),
+            VerificationEvidenceBinding("task_fit", (unrelated,)),
+        ),
+    )
+    event = replace(
+        event,
+        evidence_refs=(contradiction.reference_id, unrelated.reference_id),
+        payload={**event.payload, "result": result.to_dict()},
+    )
+    update = CommitmentUpdate(
+        "k",
+        CommitmentStatus.CONTRADICTED,
+        "Incorrectly cited contradiction.",
+        (unrelated,),
+        (event.event_id,),
+        ("review",),
+    )
+    result = assess(
+        updates=(update,),
+        events=tuple(event if e.event_id == event.event_id else e for e in event_sequence()),
+    )
+    assert result.invalid_update_ids == ("k",)
+    assert result.unexplained_omission_ids == ("k",)
 
 
 def test_captured_latent_evidence_cannot_be_relabelled_observable() -> None:
@@ -340,7 +477,7 @@ def test_captured_latent_evidence_cannot_be_relabelled_observable() -> None:
 
 
 def test_typed_relational_contradiction_supports_legitimate_update() -> None:
-    """The existing typed verifier interface must work beside legacy verified booleans."""
+    """An explicitly bound contradiction can retire the earlier public commitment."""
     from semantic_intent_robustness.epistemic_continuity import assess_epistemic_continuity
     from semantic_intent_robustness.epistemic_records import CommitmentStatus, CommitmentUpdate
 
@@ -465,7 +602,12 @@ def test_supported_supersession_keeps_replacement_active() -> None:
         ("reviewed-update",),
         "replacement",
     )
-    result = assess(commitments=(original, replacement), updates=(update,), active=("replacement",))
+    result = assess(
+        commitments=(original, replacement),
+        updates=(update,),
+        active=("replacement",),
+        events=events_with_finding(("claimed_outcome_supported", True)),
+    )
     assert result.continuity_status == "legitimate_update"
     assert result.explicitly_superseded_ids == ("k",)
     assert result.retained_ids == ("replacement",)

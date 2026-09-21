@@ -492,11 +492,22 @@ state, proposal, action, outcome, verification, then explicit commitment update.
 The harness supplies observed active IDs and optionally behaviorally ignored IDs. This is an
 observation contract, not private-reasoning inspection. Prior decision relevance persists;
 `relevant_commitment_ids` can add relevance but cannot remove it. A terminal update requires later,
-new, provenance-bound verified evidence. Legacy `verified=True` and typed affirmative verifier
-bindings are supported. An explicit scope change also requires `decision_context_changed=True`.
+new, provenance-bound evidence in a typed relational verifier's status-specific binding:
+
+| Terminal status | Required bound finding | Additional condition |
+| --- | --- | --- |
+| `contradicted` | `contradiction_status="contradicted"` | New contradictory evidence |
+| `scoped_out` | `task_fit=False` | `decision_context_changed=True` |
+| `superseded` | `claimed_outcome_supported=True` | Grounded later replacement |
+| `withdrawn` | `claimed_outcome_supported=False` | Explicit reason for withdrawal |
+
+Every update reference must be bound to the required finding, including negative findings.
+Legacy `verified=True`, unrelated affirmative checks, and `contradiction_status="none"` cannot
+substitute for a required finding. Legacy records remain available as ordinary prior evidence.
 Supersession requires an available replacement supported by the update evidence; replacement
 chains and simultaneous terminal replacement targets are rejected. Semantic relevance of the
-reviewer's stated reason remains an external verification responsibility.
+reviewer's stated reason and its relationship to the verifier's action/claim remain external
+verification responsibilities; a matching field alone does not establish semantic truth.
 
 Missing provenance or untrusted memory promotion yields quarantine/review. Conflicting updates
 produce `contradictory_state`; absence without supported update is `unexplained_omission`.

@@ -117,7 +117,7 @@ class EpistemicCommitment:
 
 @dataclass(frozen=True, slots=True)
 class CommitmentUpdate:
-    """Public reviewer declaration requiring later verified evidence before acceptance."""
+    """Public transition declaration requiring a status-specific verifier binding."""
 
     commitment_id: str
     status: CommitmentStatus
