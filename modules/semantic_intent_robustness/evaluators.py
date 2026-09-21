@@ -5,7 +5,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import nan
-from typing import Iterable, cast
+from typing import TYPE_CHECKING, Iterable, cast
+
+if TYPE_CHECKING:
+    from .continuity_metrics import (
+        ContinuityEvaluationCase,
+        ContinuityEvaluationResult,
+        ContinuityEvaluationSummary,
+    )
 
 # Local
 from .consistency import (
@@ -119,6 +126,16 @@ class SemanticRobustnessEvaluator:
             "semantic_cluster_agreement": semantic_cluster_agreement(cluster),
         }
         return metrics
+
+    def evaluate_continuity_cases(
+        self,
+        cases: Iterable[ContinuityEvaluationCase],
+        results: Iterable[ContinuityEvaluationResult],
+    ) -> ContinuityEvaluationSummary:
+        """Report explicit experimental continuity metrics outside ordinary reward summaries."""
+        from .continuity_metrics import evaluate_continuity_cases
+
+        return evaluate_continuity_cases(tuple(cases), tuple(results))
 
     def summarize(
         self,

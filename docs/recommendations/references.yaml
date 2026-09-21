@@ -689,3 +689,38 @@ references:
     local_repo_notes:
       - history/2026-09-10-gepa-v5-unified-architecture-design.md
       - evaluation/cases/robustness_stripes.yaml
+
+  - reference_id: REF-SOT
+    metadata_status: resolved
+    supplied_title: "State of Thought Enables Endogenous Reasoning"
+    title: "State of Thought Enables Endogenous Reasoning"
+    authors:
+      - Zhiren Gong
+      - Yikun Hou
+      - Zihao Zeng
+      - Ming Xiao
+      - Chau Yuen
+      - Wei Yang Bryan Lim
+    year: 2026
+    arxiv_id: "2609.16055"
+    doi: "10.48550/arXiv.2609.16055"
+    venue_status: null
+    canonical_url: "https://arxiv.org/abs/2609.16055"
+    recommendation_ids:
+      - REC-015
+    source_demonstrates: >-
+      The source reports a compact dynamics-geometric state derived from internal information
+      transfer in frozen models. A lightweight controller uses that state to select historical
+      reasoning support and regulate reasoning progression, evaluated on language and
+      vision-language reasoning tasks.
+    repository_inference: >-
+      Compact states and state-conditioned historical support motivate experimental diagnostics
+      for intent continuity across semantic laundering and retrieval of prior public evidence
+      omitted without supported supersession. These are repository hypotheses, not results
+      demonstrated by SoT; omission alone does not establish motivated forgetting.
+    maturity: >-
+      Resolved arXiv preprint; REC-015 is experimental and disabled by default. Synthetic contract
+      tests do not reproduce SoT results or establish true intent, deception, or motive from states.
+    local_repo_notes:
+      - modules/semantic_intent_robustness/internal_state_trajectory.py
+      - modules/semantic_intent_robustness/README.md

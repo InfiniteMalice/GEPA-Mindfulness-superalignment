@@ -98,6 +98,12 @@ EXPECTED_RECOMMENDATIONS = (
         "P2",
         "experimental",
     ),
+    (
+        "REC-015",
+        "Internal-state semantic continuity and epistemic continuity audit.",
+        "P2",
+        "experimental",
+    ),
 )
 
 
@@ -150,7 +156,7 @@ def test_registry_loads_as_a_package_resource_outside_current_directory(
     loaded = recommendations.load_recommendation_registry()
     package_files = importlib.resources.files("docs.recommendations")
 
-    assert len(loaded) == 14
+    assert len(loaded) == 15
     assert package_files.joinpath("registry.yaml").is_file()
 
 
@@ -242,8 +248,11 @@ def test_loader_allows_normalized_suffixless_implementation_reference_path() -> 
     ("mutation", "message"),
     [
         (lambda payload: payload["recommendations"][1].update(id="REC-001"), "duplicate IDs"),
-        (lambda payload: payload["recommendations"][0].update(id="REC-015"), "ordered REC-001"),
-        (lambda payload: payload["recommendations"][5].update(priority="P0"), "priority sequence"),
+        (lambda payload: payload["recommendations"][0].update(id="REC-016"), "ordered REC-001"),
+        (
+            lambda payload: payload["recommendations"][5].update(priority="P0"),
+            "priority sequence must be five P0, five P1, then five P2",
+        ),
         (lambda payload: payload["recommendations"][0].update(dependencies=["REC-001"]), "self"),
         (lambda payload: payload["recommendations"][0].update(supersedes=["REC-001"]), "self"),
         (lambda payload: payload["recommendations"][0].update(dependencies=["REC-999"]), "unknown"),

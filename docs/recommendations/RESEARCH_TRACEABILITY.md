@@ -497,3 +497,23 @@ tokenizer-level remediation outside the repository's current application-layer s
 **Maturity:** Resolved arXiv preprint; the repository's deterministic
 case-by-stripe-by-repeat contracts for REC-005 are implemented. The paper's measurements are not
 reproduced.
+
+<a id="ref-sot"></a>
+
+## REF-SOT — State of Thought Enables Endogenous Reasoning
+
+- Metadata status: `resolved`
+- Supplied title: State of Thought Enables Endogenous Reasoning
+- Authors: Zhiren Gong, Yikun Hou, Zihao Zeng, Ming Xiao, Chau Yuen, Wei Yang Bryan Lim
+- Year: 2026
+- arXiv: [`2609.16055`](https://arxiv.org/abs/2609.16055)
+- DOI: `10.48550/arXiv.2609.16055`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-015`
+- Local repository notes: [state interface](../../modules/semantic_intent_robustness/internal_state_trajectory.py), [continuity documentation](../../modules/semantic_intent_robustness/README.md)
+
+**Source demonstrates:** The source reports a compact dynamics-geometric state derived from internal information transfer in frozen models. A lightweight controller uses that state to select historical reasoning support and regulate reasoning progression, evaluated on language and vision-language reasoning tasks.
+
+**Repository inference:** Compact states and state-conditioned historical support motivate experimental diagnostics for intent continuity across semantic laundering and retrieval of prior public evidence omitted without supported supersession. These are repository hypotheses, not results demonstrated by SoT; omission alone does not establish motivated forgetting.
+
+**Maturity:** Resolved arXiv preprint; REC-015 is experimental and disabled by default. Synthetic contract tests do not reproduce SoT results or establish true intent, deception, or motive from states.

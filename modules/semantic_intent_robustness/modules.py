@@ -4,7 +4,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .continuity_audit import ContinuityAuditRequest, ContinuityAuditResult, ContinuityConfig
 
 # Local
 from .consistency import (
@@ -367,6 +370,17 @@ class SemanticIntentPipeline:
         """Run the separate memory-mediated laundering boundary layer."""
 
         return self.memory_boundary(writes, retrievals)
+
+    def run_continuity_audit(
+        self,
+        request: ContinuityAuditRequest | None,
+        *,
+        config: ContinuityConfig,
+    ) -> ContinuityAuditResult | None:
+        """Run explicit shadow diagnostics without modifying policy or optimizer inputs."""
+        from .continuity_audit import run_continuity_audit
+
+        return run_continuity_audit(request, config=config)
 
     def run_kv_context_assessment(
         self,
