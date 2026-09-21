@@ -192,7 +192,8 @@ The repository exposes modular, mostly opt-in safety surfaces:
 - [Semantic intent robustness](modules/semantic_intent_robustness/README.md) tracks intent across
   paraphrase, translation, wrappers, code-switching, and multi-turn composition. Its foundational
   representation layer treats alternate readings as provenance-bound candidates, not silent
-  repairs.
+  repairs. Its experimental SoT continuity audit compares bounded state summaries and retains
+  provenance-bound public evidence across reframing. All four features are disabled by default.
 - [Objective and validator robustness](modules/objective_validator_robustness/README.md) detects
   unsafe local-success pressure, proxy breakdown, novelty, and objective ambiguity. Its interrupts
   are advisory and do not authorize execution.

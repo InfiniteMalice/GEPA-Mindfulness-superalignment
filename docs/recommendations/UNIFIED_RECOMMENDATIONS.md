@@ -152,6 +152,16 @@ externally leaked holdout content; private catalog integration remains a host re
 - Acceptance checks: [`test_experimental_overlay_registry.py`](../../tests/test_experimental_overlay_registry.py), [`test_experimental_overlay_flags.py`](../../tests/test_experimental_overlay_flags.py), [`test_experimental_overlay_records.py`](../../tests/test_experimental_overlay_records.py).
 - Research: [`REF-SAE`](RESEARCH_TRACEABILITY.md#ref-sae).
 
+#### REC-015 — Internal-state semantic continuity and epistemic continuity audit.
+
+Experimental and disabled by default. Extends the existing trajectory, semantic, memory, and
+action-bound interfaces. Dependencies are REC-002, REC-005, REC-006, REC-010, REC-011 and REC-014.
+Synthetic matched controls verify record behavior; empirical effectiveness remains unestablished.
+
+- Repository evidence: [`internal_state_trajectory.py`](../../modules/semantic_intent_robustness/internal_state_trajectory.py), [`continuity_audit.py`](../../modules/semantic_intent_robustness/continuity_audit.py), [`README.md`](../../modules/semantic_intent_robustness/README.md).
+- Acceptance checks: [`test_sot_state_continuity.py`](../../tests/test_sot_state_continuity.py), [`test_epistemic_continuity.py`](../../tests/test_epistemic_continuity.py), [`test_motivated_forgetting.py`](../../tests/test_motivated_forgetting.py), [`test_continuity_evaluation.py`](../../tests/test_continuity_evaluation.py).
+- Research: [`REF-SOT`](RESEARCH_TRACEABILITY.md#ref-sot).
+
 ## Research traceability
 
 See [`RESEARCH_TRACEABILITY.md`](RESEARCH_TRACEABILITY.md) for primary metadata, source links,

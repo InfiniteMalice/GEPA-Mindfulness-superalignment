@@ -108,3 +108,20 @@ The action-bound sequence implements
 [`REC-002`](recommendations/UNIFIED_RECOMMENDATIONS.md#rec-002--action-bound-epistemic-commitments).
 World/evidence separation and verifier authority are specified in
 [`VERIFICATION_AND_RUNTIME_AUTHORITY.md`](VERIFICATION_AND_RUNTIME_AUTHORITY.md).
+
+## Experimental continuity diagnostics
+
+The continuity audit reuses `validate_action_bound_sequence()` before resolving commitment
+sources. Source events precede the assessed `action_proposed` event, share its `run_id`,
+`repeat_id` and `conversation_id`, and carry `checkpoint_step` as the conversation turn.
+Commitment `first_active_at`/`last_active_at` use that turn coordinate. Event-window and
+current-state digests prevent downstream replay against altered inputs. Typed verifier evidence
+retains its captured source kind; latent/private references cannot be relabeled public.
+
+Optional diagnostic event types are `sot_state_snapshot`, `semantic_state_continuity_assessment`,
+`epistemic_commitment`, `epistemic_continuity_assessment`, and `motivated_forgetting_assessment`.
+Callers may pass the corresponding record's `to_dict()` to `make_event_envelope()`. These events
+do not replace action-bound events or grant optimizer/execution authority. The audit writes no
+logs automatically. Recall records reactivated IDs without rewriting the original omission.
+See [continuity contracts](../modules/semantic_intent_robustness/README.md#state-of-thought-semantic-continuity-and-epistemic-continuity)
+and `tests/test_epistemic_continuity.py` for verification examples.

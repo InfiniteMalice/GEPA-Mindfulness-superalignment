@@ -130,9 +130,11 @@ EXPECTED_REFERENCES = (
         "2601.14658",
         "Say Anything but This: When Tokenizer Betrays Reasoning in LLMs",
     ),
+    ("REF-SOT", "2609.16055", "State of Thought Enables Endogenous Reasoning"),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
+    "REF-SOT": ("REC-015",),
     "REF-HEART": ("REC-001", "REC-008"),
     "REF-PEARL": ("REC-011",),
     "REF-SEGOS": ("REC-009",),

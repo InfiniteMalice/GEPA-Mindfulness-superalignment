@@ -208,3 +208,11 @@ above observed proxy exploitation under the existing component weights.
 
 The contract implements
 [`REC-001`](recommendations/UNIFIED_RECOMMENDATIONS.md#rec-001--verified-epistemic-process-reward-rule).
+
+## SoT continuity diagnostics
+
+State geometry, semantic continuity, epistemic omissions, recall and motivated-forgetting labels
+are diagnostic records. They do not implement `VerifiedProcessComponent` or authorize optimizer
+credit. Only a separately verified component under this existing contract may be supplied to
+reward calculation. The integration does not modify this contract or add a reward component.
+The reward-boundary regression is in `tests/test_continuity_evaluation.py`.

@@ -383,3 +383,37 @@ recommendations:
       - evaluation/experimental_overlays.py
       - evaluation/experimental_records.py
       - docs/experimental_v5_overlays.md
+
+  - id: REC-015
+    title: "Internal-state semantic continuity and epistemic continuity audit."
+    priority: P2
+    status: experimental
+    rationale: >-
+      Bounded state diagnostics and provenance-bound public evidence recall may help expose
+      semantic laundering and unexplained epistemic omission. Directional pressure supports
+      only a possible motivated-forgetting signal, never causal proof or optimizer credit.
+    targets:
+      - modules/semantic_intent_robustness
+    supersedes: []
+    dependencies:
+      - REC-002
+      - REC-005
+      - REC-006
+      - REC-010
+      - REC-011
+      - REC-014
+    research_refs:
+      - REF-SOT
+    repo_refs:
+      - modules/semantic_intent_robustness/internal_state_trajectory.py
+      - modules/semantic_intent_robustness/continuity_audit.py
+      - modules/semantic_intent_robustness/README.md
+    acceptance_tests:
+      - tests/test_sot_state_continuity.py
+      - tests/test_epistemic_continuity.py
+      - tests/test_motivated_forgetting.py
+      - tests/test_continuity_evaluation.py
+    implementation_refs:
+      - modules/semantic_intent_robustness/semantic_state_continuity.py
+      - modules/semantic_intent_robustness/epistemic_continuity.py
+      - modules/semantic_intent_robustness/motivated_forgetting.py

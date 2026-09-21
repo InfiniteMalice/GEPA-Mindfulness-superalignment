@@ -58,3 +58,11 @@ verified component scores in `[0.0, 1.0]`, so a configured `H` bounds the compon
 `H`. A positive verified assessment can add that component to any case. The diagnostic alignment
 label never adds, removes, or rescales the bonus. Calibration terms use threshold-driven confidence
 gaps, and abstention penalties apply to high-confidence abstention when references are available.
+
+
+SoT-compatible continuity features are bounded diagnostic summaries, not truthful reasoning
+or hidden-thought supervision. The experimental semantic-intent audit retains public evidence
+and explicitly distinguishes unexplained omission from a possible pressure-correlated signal.
+No private chain-of-thought is required, serialized, rewarded or retrieved. State similarity
+cannot authorize a policy action. See the
+[continuity contract](../modules/semantic_intent_robustness/README.md#state-of-thought-semantic-continuity-and-epistemic-continuity).
