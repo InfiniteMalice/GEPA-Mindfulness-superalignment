@@ -2,11 +2,14 @@
 
 from dataclasses import replace
 from importlib import import_module
+from typing import Any
 
 import pytest
 
 from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
 from mindful_trace_gepa.logging_schema import EventEnvelope
+from semantic_intent_robustness.epistemic_continuity import EpistemicContinuityAssessment
+from semantic_intent_robustness.epistemic_records import CommitmentUpdate, EpistemicCommitment
 from semantic_intent_robustness.memory_safety import RetrievedMemory
 
 
@@ -93,7 +96,7 @@ def event_sequence() -> tuple[EventEnvelope, ...]:
     return tuple(events)
 
 
-def commitment():
+def commitment() -> EpistemicCommitment:
     """One public commitment that earlier observable evidence blocks an action."""
     records = import_module("semantic_intent_robustness.epistemic_records")
     memory = RetrievedMemory(
@@ -130,7 +133,13 @@ def commitment():
     )
 
 
-def assess(*, active=(), updates=(), commitments=None, **kwargs):
+def assess(
+    *,
+    active: tuple[str, ...] = (),
+    updates: tuple[CommitmentUpdate, ...] = (),
+    commitments: tuple[EpistemicCommitment, ...] | None = None,
+    **kwargs: Any,
+) -> EpistemicContinuityAssessment:
     """Invoke the real action-bound audit with explicit current effective context."""
     module = import_module("semantic_intent_robustness.epistemic_continuity")
     return module.assess_epistemic_continuity(
@@ -267,7 +276,11 @@ def test_same_id_changed_state_cannot_rank_recall() -> None:
         )
 
 
-def typed_verification(turn: int, reference: EvidenceReference, contradicted: bool):
+def typed_verification(
+    turn: int,
+    reference: EvidenceReference,
+    contradicted: bool,
+) -> EventEnvelope:
     """A real repository relational verifier result with captured evidence kind."""
     from gepa_mindfulness.verification.interfaces import (
         RelationalVerificationResult,
@@ -457,3 +470,59 @@ def test_supported_supersession_keeps_replacement_active() -> None:
     assert result.explicitly_superseded_ids == ("k",)
     assert result.retained_ids == ("replacement",)
     assert result.unexplained_omission_ids == ()
+
+
+@pytest.mark.parametrize("change", ["features", "remove", "add", "drop_current"])
+def test_recall_rejects_changed_assessed_state_context(change: str) -> None:
+    """Replaying an assessment cannot change the state-ranked winner under a budget."""
+    from test_sot_state_continuity import snapshot
+
+    from semantic_intent_robustness.epistemic_continuity import recall_historical_support
+
+    item = commitment()
+    items = (
+        replace(
+            item,
+            commitment_id="a",
+            memory=replace(item.memory, memory_id="a"),
+            state_snapshot_id="prior-a",
+        ),
+        replace(
+            item,
+            commitment_id="b",
+            memory=replace(item.memory, memory_id="b"),
+            state_snapshot_id="prior-b",
+        ),
+    )
+    prior = (
+        replace(snapshot(value=0.9), snapshot_id="prior-a"),
+        replace(snapshot(value=0.5), snapshot_id="prior-b"),
+    )
+    current = snapshot(2)
+    assessment = assess(commitments=items, current_state=current, prior_states=prior)
+    support = recall_historical_support(
+        commitments=items,
+        assessment=assessment,
+        current_state=current,
+        prior_states=tuple(reversed(prior)),
+        max_items=1,
+    )
+    assert support.reactivated_ids == ("b",)
+    assert support.deferred_ids == ("a",)
+    if change == "features":
+        prior = (snapshot(), prior[1])
+        prior = (replace(prior[0], snapshot_id="prior-a"), prior[1])
+    elif change == "remove":
+        prior = prior[:1]
+    elif change == "add":
+        prior = (*prior, replace(snapshot(), snapshot_id="unassessed"))
+    else:
+        current = None
+    with pytest.raises(ValueError, match="state"):
+        recall_historical_support(
+            commitments=items,
+            assessment=assessment,
+            current_state=current,
+            prior_states=prior,
+            max_items=1,
+        )

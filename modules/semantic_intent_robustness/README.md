@@ -508,7 +508,9 @@ Remembering content adds no policy, goal, identity or protected-state authority.
 Recall defaults to at most 32 items (allowed range 1-128). Relevant items not returned are explicit
 `deferred_ids`. Recall cannot erase the pre-recall omission. The audit records `reactivated_ids`
 separately, so retention and recovery can be measured independently. Digests bind subsequent
-recall and pressure analysis to the assessed commitments, current state and event window.
+recall and pressure analysis to the assessed commitments, current/prior states and event window.
+Low-level callers must supply the same `prior_states` at assessment and recall. Reordering is allowed;
+adding, dropping or changing snapshots requires a new assessment, as does dropping current state.
 
 ### Possible motivated forgetting
 
@@ -542,7 +544,9 @@ unchanged. No AGG, generic adaptive controller, optimizer or reward scheme is in
 `SemanticRobustnessEvaluator.evaluate_continuity_cases()` joins independent expected cases to
 results by exact unique IDs. It requires epistemic and motivated-forgetting outputs for every case;
 missing required diagnostics raise `ValueError`. State metrics are stratified by measurement
-status and include comparison coverage. Metrics remain separate:
+origin and include comparison coverage. Incomparable endpoints of the same measurement status stay
+in that status's denominator; endpoints with different statuses use an explicit `mixed` bucket.
+Missing endpoints use `unavailable`. Metrics remain separate:
 
 - Same-intent state/transition continuity and different-intent separation count pairs satisfying
   their recorded thresholds over comparable pairs of the corresponding label.

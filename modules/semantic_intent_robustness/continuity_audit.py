@@ -35,6 +35,7 @@ class DiagnosticFeature:
     maturity: str = "research"
 
     def __post_init__(self) -> None:
+        """Reject invalid diagnostic switches, maturity labels and dependencies."""
         boolean(self.enabled, "enabled")
         if self.maturity not in {"research", "shadow"}:
             raise ValueError("continuity features support research/shadow diagnostics only")
@@ -54,6 +55,7 @@ class ContinuityConfig:
     motivated_forgetting: DiagnosticFeature = field(default_factory=DiagnosticFeature)
 
     def __post_init__(self) -> None:
+        """Reject invalid diagnostic switches, maturity labels and dependencies."""
         for feature, maturity in (
             (self.state_of_thought, "research"),
             (self.semantic_state_continuity, "shadow"),
@@ -150,6 +152,7 @@ def run_continuity_audit(
             relevant_commitment_ids=request.relevant_commitment_ids,
             ignored_commitment_ids=request.ignored_commitment_ids,
             current_state=state,
+            prior_states=request.prior_states if config.state_of_thought.enabled else (),
             decision_context_changed=request.decision_context_changed,
             provenance=request.provenance,
         )

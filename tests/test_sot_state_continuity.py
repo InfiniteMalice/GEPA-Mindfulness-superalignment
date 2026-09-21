@@ -39,7 +39,7 @@ def test_invalid_features_fail_closed(value: object) -> None:
         replace(snapshot(), local_organization=value)
 
 
-def snapshot(turn: int = 0, value: float = 0.5):
+def snapshot(turn: int = 0, value: float = 0.5) -> trajectory.SoTStateSnapshot:
     """Create a synthetic feature fixture with an explicit non-measured label."""
     return trajectory.SoTStateSnapshot(
         snapshot_id=f"s{turn}",
@@ -154,3 +154,28 @@ def test_incompatible_state_spaces_are_not_compared() -> None:
     )
     assert result.state_distance is None
     assert result.status == "incomparable"
+
+
+def test_mixed_measurement_origins_have_an_explicit_bucket() -> None:
+    """A mixed pair is present telemetry with incompatible origins, not missing telemetry."""
+    module = import_module("semantic_intent_robustness.semantic_state_continuity")
+    anchor = build_example_dataset()[0][0].records[0]
+    transcript = replace(
+        snapshot(),
+        snapshot_id="transcript",
+        source_kind="transcript",
+        evidence_status="unverified",
+        measurement_status=trajectory.MeasurementStatus.TRANSCRIPT_PROXY,
+    )
+    result = module.assess_semantic_state_continuity(
+        assessment_id="mixed",
+        left=anchor,
+        right=replace(anchor, prompt_id="r"),
+        same_intent_expected=True,
+        left_states=(snapshot(),),
+        right_states=(transcript,),
+        provenance=("fixture",),
+    )
+    assert result.status == "incomparable"
+    assert result.measurement_status == "mixed"
+    assert result.state_distance is None

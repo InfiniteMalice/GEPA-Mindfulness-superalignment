@@ -409,7 +409,7 @@ def _validate_registry_sequence(recommendations: tuple[Recommendation, ...]) -> 
     priorities = tuple(record.priority for record in recommendations)
     if priorities != RECOMMENDATION_PRIORITIES:
         raise ValueError(
-            "recommendation priority sequence must be five P0, five P1, then four P2; "
+            "recommendation priority sequence must be five P0, five P1, then five P2; "
             f"received {priorities}"
         )
 

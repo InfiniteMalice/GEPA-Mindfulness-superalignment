@@ -7,9 +7,10 @@ import pytest
 from test_epistemic_continuity import assess, commitment, event_sequence
 
 from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
+from semantic_intent_robustness.motivated_forgetting import DirectionalPressure
 
 
-def pressure():
+def pressure() -> DirectionalPressure:
     """A public later pressure observation tied to the current proposed action."""
     module = import_module("semantic_intent_robustness.motivated_forgetting")
     return module.DirectionalPressure(
@@ -36,7 +37,11 @@ def pressure():
         (("k",), True, "no_signal"),
     ],
 )
-def test_pressure_omission_and_retention_controls(active, has_pressure, expected) -> None:
+def test_pressure_omission_and_retention_controls(
+    active: tuple[str, ...],
+    has_pressure: bool,
+    expected: str,
+) -> None:
     """Neither pressure alone nor omission alone is a motivated-forgetting candidate."""
     module = import_module("semantic_intent_robustness.motivated_forgetting")
     result = module.assess_motivated_forgetting(

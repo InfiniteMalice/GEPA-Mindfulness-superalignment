@@ -249,7 +249,10 @@ def test_loader_allows_normalized_suffixless_implementation_reference_path() -> 
     [
         (lambda payload: payload["recommendations"][1].update(id="REC-001"), "duplicate IDs"),
         (lambda payload: payload["recommendations"][0].update(id="REC-016"), "ordered REC-001"),
-        (lambda payload: payload["recommendations"][5].update(priority="P0"), "priority sequence"),
+        (
+            lambda payload: payload["recommendations"][5].update(priority="P0"),
+            "priority sequence must be five P0, five P1, then five P2",
+        ),
         (lambda payload: payload["recommendations"][0].update(dependencies=["REC-001"]), "self"),
         (lambda payload: payload["recommendations"][0].update(supersedes=["REC-001"]), "self"),
         (lambda payload: payload["recommendations"][0].update(dependencies=["REC-999"]), "unknown"),

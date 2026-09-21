@@ -62,6 +62,7 @@ class EpistemicCommitment:
     status_change_reason: str | None = None
 
     def __post_init__(self) -> None:
+        """Validate bounded public content, evidence references and lifecycle metadata."""
         for name in ("commitment_id", "conversation_id", "evaluation_unit_id"):
             text_field(getattr(self, name), name)
         text_field(self.claim_summary, "claim_summary", 1024)
@@ -127,6 +128,7 @@ class CommitmentUpdate:
     superseded_by: str | None = None
 
     def __post_init__(self) -> None:
+        """Validate bounded public content, evidence references and lifecycle metadata."""
         text_field(self.commitment_id, "commitment_id")
         text_field(self.status_change_reason, "status_change_reason", 1024)
         validate_public_evidence(self.evidence_refs)

@@ -126,6 +126,7 @@ def _typed_evidence(
     *,
     verified: bool,
 ) -> tuple[EvidenceReference, ...] | None:
+    """Preserve captured verifier sources and restrict verified refs to affirmative bindings."""
     if event.event_type != "verification_result":
         return None
     result: LocalVerificationResult | RelationalVerificationResult
@@ -150,6 +151,7 @@ def _typed_evidence(
 
 
 def _digest(payload: object) -> str:
+    """Hash the canonical JSON representation of an assessed public input."""
     return sha256(json.dumps(payload, sort_keys=True, allow_nan=False).encode()).hexdigest()
 
 
@@ -179,6 +181,7 @@ class EpistemicContinuityAssessment:
     commitment_digests: tuple[tuple[str, str], ...]
     event_window_digest: str
     current_state_digest: str | None
+    prior_state_digests: tuple[tuple[str, str], ...]
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize auditable public assessment fields."""
@@ -196,6 +199,7 @@ def assess_epistemic_continuity(
     relevant_commitment_ids: tuple[str, ...] = (),
     ignored_commitment_ids: tuple[str, ...] = (),
     current_state: SoTStateSnapshot | None = None,
+    prior_states: tuple[SoTStateSnapshot, ...] = (),
     decision_context_changed: bool = False,
     provenance: tuple[str, ...],
 ) -> EpistemicContinuityAssessment:
@@ -212,6 +216,7 @@ def assess_epistemic_continuity(
         raise ValueError("assessment provenance is required")
     window = EvidenceWindow.build(events, decision_event_id)
     by_id = _commitment_map(commitments)
+    prior_digests = _prior_state_digests(prior_states)
     for name, ids in (
         ("active_commitment_ids", active_commitment_ids),
         ("relevant_commitment_ids", relevant_commitment_ids),
@@ -295,10 +300,23 @@ def assess_epistemic_continuity(
         tuple((key, item.digest) for key, item in by_id.items()),
         window.digest,
         _digest(current_state.to_dict()) if current_state else None,
+        prior_digests,
     )
 
 
+def _prior_state_digests(states: tuple[SoTStateSnapshot, ...]) -> tuple[tuple[str, str], ...]:
+    """Bind a bounded snapshot set independently of caller ordering."""
+    if type(states) is not tuple or len(states) > 128:
+        raise ValueError("prior_states must be a bounded tuple")
+    if any(type(state) is not SoTStateSnapshot for state in states):
+        raise ValueError("prior_states must contain SoTStateSnapshot records")
+    if len({state.snapshot_id for state in states}) != len(states):
+        raise ValueError("prior state IDs must be unique")
+    return tuple(sorted((state.snapshot_id, _digest(state.to_dict())) for state in states))
+
+
 def _commitment_map(items: tuple[EpistemicCommitment, ...]) -> dict[str, EpistemicCommitment]:
+    """Validate bounded commitment records and require unique identities."""
     if type(items) is not tuple or len(items) > 128:
         raise ValueError("commitments must be a tuple of at most 128 records")
     if any(type(item) is not EpistemicCommitment for item in items):
@@ -310,6 +328,7 @@ def _commitment_map(items: tuple[EpistemicCommitment, ...]) -> dict[str, Epistem
 
 
 def _commitment_bound(item: EpistemicCommitment, window: EvidenceWindow) -> bool:
+    """Check source provenance, decision context and the original memory boundary."""
     sources = window.bound_sources(item.evidence_refs, item.source_event_refs)
     memory = assess_retrieved_memory(item.memory)
     return bool(
@@ -339,6 +358,7 @@ def _valid_update(
     context_changed: bool,
     updates: dict[str, CommitmentUpdate],
 ) -> bool:
+    """Require new verified evidence and a valid scope or replacement transition."""
     sources = window.bound_sources(update.evidence_refs, update.source_event_refs, verified=True)
     if not sources or not update.provenance:
         return False
@@ -401,17 +421,12 @@ def recall_historical_support(
     by_id = _commitment_map(commitments)
     if tuple((key, item.digest) for key, item in by_id.items()) != assessment.commitment_digests:
         raise ValueError("recall commitments must match the assessed snapshots")
-    if current_state is not None and (
-        current_state.snapshot_id != assessment.current_state_snapshot_id
-        or current_state.conversation_id != assessment.conversation_id
-        or _digest(current_state.to_dict()) != assessment.current_state_digest
-    ):
+    current_digest = _digest(current_state.to_dict()) if current_state is not None else None
+    if current_digest != assessment.current_state_digest:
         raise ValueError("recall state must match the assessed current state")
-    if type(prior_states) is not tuple or len(prior_states) > 128:
-        raise ValueError("prior_states must be a bounded tuple")
+    if _prior_state_digests(prior_states) != assessment.prior_state_digests:
+        raise ValueError("recall prior states must match the assessed snapshots")
     states = {s.snapshot_id: s for s in prior_states}
-    if len(states) != len(prior_states):
-        raise ValueError("prior state IDs must be unique")
     ranked = []
     for key in assessment.currently_relevant_commitment_ids:
         item = by_id[key]

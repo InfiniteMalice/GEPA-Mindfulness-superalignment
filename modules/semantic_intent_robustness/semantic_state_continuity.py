@@ -96,11 +96,13 @@ def assess_semantic_state_continuity(
     measurement = None
     if left_states and right_states:
         a, b = left_states[-1], right_states[-1]
+        measurement = (
+            a.measurement_status.value if a.measurement_status == b.measurement_status else "mixed"
+        )
         distance = state_distance(a, b)
         if a.feature_vector is not None and b.feature_vector is not None:
             status = "incomparable"
         if distance is not None:
-            measurement = a.measurement_status.value
             assert a.predictive_uncertainty is not None and b.predictive_uncertainty is not None
             uncertainty = b.predictive_uncertainty - a.predictive_uncertainty
             assert a.directional_consistency is not None and b.directional_consistency is not None
@@ -149,6 +151,7 @@ def _validate_trajectory(
     states: tuple[SoTStateSnapshot, ...],
     record: SemanticSafetyRecord,
 ) -> None:
+    """Require bounded snapshots in one conversation with increasing turns and a bound endpoint."""
     if type(states) is not tuple or len(states) > 128:
         raise ValueError("trajectory must be a tuple of at most 128 states")
     for state in states:
@@ -173,6 +176,7 @@ def _transition_distance(
     left: tuple[SoTStateSnapshot, ...],
     right: tuple[SoTStateSnapshot, ...],
 ) -> float | None:
+    """Compare aligned transitions only within one compatible measurement space."""
     if len(left) < 2 or len(left) != len(right):
         return None
     if any(s.comparison_key != left[0].comparison_key for s in left + right):

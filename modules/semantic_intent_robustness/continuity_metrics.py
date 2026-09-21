@@ -32,6 +32,7 @@ class ContinuityEvaluationCase:
     matched_control: bool = False
 
     def __post_init__(self) -> None:
+        """Validate independent case labels and mutually exclusive control membership."""
         text_field(self.case_id, "case_id")
         for name in (
             "expected_omission_ids",
@@ -68,6 +69,7 @@ class ContinuityEvaluationSummary:
 
 
 def _rate(numerator: float, denominator: int, *, empty: float = 1.0) -> DiagnosticMetric:
+    """Retain the denominator and an explicit vacuous value for empty samples."""
     return DiagnosticMetric(
         numerator / denominator if denominator else empty, numerator, denominator
     )
@@ -167,12 +169,14 @@ def evaluate_continuity_cases(
 
 
 def _semantic_metrics(rows: list[SemanticStateContinuityAssessment]) -> dict[str, DiagnosticMetric]:
+    """Separate comparison coverage from rates over comparable state observations."""
     available = [r for r in rows if r.state_distance is not None]
     same = [r for r in available if r.same_intent_expected]
     different = [r for r in available if not r.same_intent_expected]
     transitions = [r for r in same if r.transition_distance is not None]
 
     def state_stable(row: SemanticStateContinuityAssessment) -> bool:
+        """Apply the recorded endpoint continuity threshold to available state."""
         return row.state_distance is not None and row.state_distance <= row.continuity_threshold
 
     return {

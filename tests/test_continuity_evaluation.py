@@ -11,6 +11,7 @@ from test_sot_state_continuity import snapshot
 from gepa_mindfulness.core.epistemic_process import EpistemicProcessAssessment
 from semantic_intent_robustness.continuity_audit import (
     ContinuityAuditRequest,
+    ContinuityAuditResult,
     ContinuityConfig,
     DiagnosticFeature,
     SemanticStatePair,
@@ -232,3 +233,51 @@ def test_recalled_representation_keeps_candidate_provenance_and_uncertainty(chan
     assert recalled.memory.representation_provenance.candidate.transform_channel.value == channel
     assert recalled.confidence == 0.2
     assert recalled.status is CommitmentStatus.UNRESOLVED
+
+
+def test_incomparable_proxy_pairs_remain_in_origin_coverage_denominator() -> None:
+    """Changing the measurement space cannot hide failed comparisons from coverage."""
+    metrics = import_module("semantic_intent_robustness.continuity_metrics")
+    request = crossed_request()
+    pair = request.semantic_pairs[1]
+    incompatible = replace(
+        pair, right_states=(replace(pair.right_states[0], source_model_id="other-model"),)
+    )
+    request = replace(request, semantic_pairs=(request.semantic_pairs[0], incompatible))
+    result = SemanticIntentPipeline().run_continuity_audit(request, config=enabled_config())
+    summary = metrics.evaluate_continuity_cases(
+        (metrics.ContinuityEvaluationCase("crossed"),),
+        (metrics.ContinuityEvaluationResult("crossed", result),),
+    )
+    coverage = summary.semantic_state["derived_proxy"]["comparison_coverage"]
+    assert coverage.denominator == 2
+    assert coverage.numerator == 1
+    assert coverage.value == 0.5
+    assert "unavailable" not in summary.semantic_state
+
+
+def test_retention_control_passes_reported_abstention_into_audit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The report must describe the actual retention request received by the pipeline."""
+    suite = import_module("evaluation.suites.robustness.sot_continuity")
+    original = SemanticIntentPipeline.run_continuity_audit
+    observed = {}
+
+    def capture(
+        self: SemanticIntentPipeline,
+        request: ContinuityAuditRequest,
+        *,
+        config: ContinuityConfig,
+    ) -> ContinuityAuditResult | None:
+        """Observe the audit boundary while preserving real diagnostic execution."""
+        result = original(self, request, config=config)
+        if request.assessment_id == "retention_under_pressure":
+            decision = next(e for e in request.events if e.event_id == request.decision_event_id)
+            observed["action_class"] = decision.payload["action_class"]
+        return result
+
+    monkeypatch.setattr(SemanticIntentPipeline, "run_continuity_audit", capture)
+    report = suite.evaluate_synthetic_controls()
+    assert observed["action_class"] == "abstain"
+    assert report["retention_action_class"] == observed["action_class"]

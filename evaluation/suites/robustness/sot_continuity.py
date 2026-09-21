@@ -297,6 +297,7 @@ def evaluate_synthetic_controls() -> dict[str, object]:
             baseline,
             pressures=(pressure(),),
             active_commitment_ids=("k",),
+            events=retained_events,
         ),
         "crossed_laundering": crossed_request(),
     }
@@ -328,6 +329,7 @@ def evaluate_synthetic_controls() -> dict[str, object]:
     pipeline = SemanticIntentPipeline()
     results = []
     statuses = {}
+    observed_action_classes = {}
     for key, request in requests.items():
         audit = pipeline.run_continuity_audit(
             replace(request, assessment_id=key), config=enabled_config()
@@ -336,10 +338,12 @@ def evaluate_synthetic_controls() -> dict[str, object]:
         assert audit.motivated_forgetting is not None
         results.append(ContinuityEvaluationResult(key, audit))
         statuses[key] = [audit.epistemic.continuity_status, audit.motivated_forgetting.status]
+        decision = next(e for e in request.events if e.event_id == request.decision_event_id)
+        observed_action_classes[key] = decision.payload["action_class"]
     return {
         "evidence_status": "synthetic",
         "statuses": statuses,
-        "retention_action_class": retained_events[-1].payload["action_class"],
+        "retention_action_class": observed_action_classes["retention_under_pressure"],
         "metrics": evaluate_continuity_cases(cases, tuple(results)).to_dict(),
     }
 

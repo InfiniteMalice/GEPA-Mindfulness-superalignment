@@ -29,6 +29,7 @@ class DirectionalPressure:
     provenance: tuple[str, ...]
 
     def __post_init__(self) -> None:
+        """Validate bounded pressure labels and public source and support references."""
         text_field(self.pressure_id, "pressure_id")
         text_field(self.favored_action_id, "favored_action_id")
         if self.pressure_type not in {
