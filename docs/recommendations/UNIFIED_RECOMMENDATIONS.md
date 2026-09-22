@@ -162,6 +162,55 @@ Synthetic matched controls verify record behavior; empirical effectiveness remai
 - Acceptance checks: [`test_sot_state_continuity.py`](../../tests/test_sot_state_continuity.py), [`test_epistemic_continuity.py`](../../tests/test_epistemic_continuity.py), [`test_motivated_forgetting.py`](../../tests/test_motivated_forgetting.py), [`test_continuity_evaluation.py`](../../tests/test_continuity_evaluation.py).
 - Research: [`REF-SOT`](RESEARCH_TRACEABILITY.md#ref-sot).
 
+REC-016 through REC-019 remain experimental research overlays. They retain exactly 17 canonical
+cases (IDs 1-17). Diagnostic signals do not independently authorize external actions, training,
+deployment, or repair success. These additions neither require nor directly reward private
+chain-of-thought; the existing verified epistemic-process reward contract remains unchanged.
+
+#### REC-016 — EvoFlint semantic-laundering quality-diversity search.
+
+Experimental and disabled by default. A bounded archive can retain distinct semantic strategies and evidence-linked generation insights without treating novelty or generated judgments as behavioral authority.
+
+Apply bounded quality-diversity search to semantic-laundering transformations within the fixed 17-case framework. Require verified semantic preservation, immutable lineage, hidden-evaluation exclusion, and independently verified behavioral failures before FailureAtlas admission.
+
+- Repository evidence: [`evolutionary_atlas.py`](../../modules/semantic_intent_robustness/evolutionary_atlas.py), [`research_overlays.md`](../research_overlays.md).
+- Acceptance checks: [`test_evolutionary_semantic_atlas.py`](../../tests/test_evolutionary_semantic_atlas.py).
+- Research: [`REF-EVOFLINT`](RESEARCH_TRACEABILITY.md#ref-evoflint).
+- Limitations: The paper does not study GEPA or this repository's semantic-laundering curriculum. The implementation uses harmless synthetic transformations and structured feature novelty; it does not reproduce the paper's attack generator or empirical results.
+
+#### REC-017 — Round-trip structural communication audit.
+
+Experimental and disabled by default. Communication audits distinguish changed meaning and channel failure from verified preservation with a changed policy judgment, avoiding false semantic-laundering successes.
+
+Audit public structured objects through serialization and extraction. Keep exact equality, verified semantics, heuristic similarity, non-equivalence, and unknown outcomes separate; attribute individual stage faults only when independent stage evidence supports attribution.
+
+- Repository evidence: [`serialization_roundtrip.py`](../../evaluation/serialization_roundtrip.py), [`research_overlays.md`](../research_overlays.md).
+- Acceptance checks: [`test_serialization_roundtrip.py`](../../tests/test_serialization_roundtrip.py).
+- Research: [`REF-COMM-BOTTLENECK`](RESEARCH_TRACEABILITY.md#ref-comm-bottleneck).
+- Limitations: The paper does not evaluate alignment laundering. The implementation verifies a bounded propositional fragment and a synthetic JSON codec; arbitrary natural-language equivalence requires a host-supplied verifier and independently authenticated stage evidence.
+
+#### REC-018 — Formal reasoning / LogicTrack audit.
+
+Experimental and disabled by default. Formal audits expose invalid public inference steps while preserving separate premise grounding and behavioral verification. Solver outcomes alone do not authorize actions or receive optimizer reward.
+
+Check explicit public reasoning objects with a bounded solver adapter and optional bounded retries. Keep premise grounding, formal validity, factual correctness, calibration, and behavioral outcomes separate without importing the paper's reasoning-text reward.
+
+- Repository evidence: [`formal_reasoning.py`](../../gepa_mindfulness/verification/formal_reasoning.py), [`research_overlays.md`](../research_overlays.md).
+- Acceptance checks: [`test_formal_reasoning_audit.py`](../../tests/test_formal_reasoning_audit.py).
+- Research: [`REF-LOGICTRACK`](RESEARCH_TRACEABILITY.md#ref-logictrack).
+- Limitations: Formal validity does not establish factual truth, authentic evidence, or a faithful natural-language translation. The reference solver supports a limited propositional fragment; host-authenticated grounding and existing training-eligibility controls remain separate.
+
+#### REC-019 — Latent-to-language transition audit.
+
+Experimental and disabled by default. Separating internal-state movement from public language and action changes prevents latent metrics from being interpreted as behavioral success or deployment authority.
+
+Measure comparable latent, language, and policy/action deltas independently. Report latent-language decoupling or language change without a matching measured latent signal while retaining origin, comparability, and unavailable-state information.
+
+- Repository evidence: [`latent_language_transition.py`](../../modules/semantic_intent_robustness/latent_language_transition.py), [`research_overlays.md`](../research_overlays.md).
+- Acceptance checks: [`test_latent_language_transition.py`](../../tests/test_latent_language_transition.py).
+- Research: [`REF-LATENT-LANGUAGE-GAP`](RESEARCH_TRACEABILITY.md#ref-latent-language-gap).
+- Limitations: These diagnostics do not establish intent, deception, causal use of a representation, successful steering, or alignment. Transfer ratios depend on measurement normalization. Black-box behavioral evaluation remains available without internal-state access.
+
 ## Research traceability
 
 See [`RESEARCH_TRACEABILITY.md`](RESEARCH_TRACEABILITY.md) for primary metadata, source links,

@@ -724,3 +724,138 @@ references:
     local_repo_notes:
       - modules/semantic_intent_robustness/internal_state_trajectory.py
       - modules/semantic_intent_robustness/README.md
+
+  - reference_id: "REF-EVOFLINT"
+    metadata_status: "resolved"
+    supplied_title: "EvoFlint: An Evolutionary Atlas of Multi-Turn LLM Vulnerabilities"
+    title: "EvoFlint: An Evolutionary Atlas of Multi-Turn LLM Vulnerabilities"
+    authors:
+      - "Feitong Qiao"
+      - "Liren Peng"
+      - "Shiming Ren"
+      - "Aishwarya Jadhav"
+      - "Arghavan Bahadorinejad"
+      - "Marinette Chen"
+      - "Muhan Zhang"
+      - "Abdulaziz Suria"
+      - "Gennevi Lu"
+      - "Anish Das Sarma"
+    year: 2026
+    arxiv_id: "2609.00487"
+    doi: "10.48550/arXiv.2609.00487"
+    venue_status: null
+    canonical_url: "https://arxiv.org/abs/2609.00487"
+    recommendation_ids:
+      - "REC-016"
+    source_demonstrates: >-
+      The source studies evolutionary quality-diversity search over phased multi-turn red-team
+      strategies. It combines mutation and crossover, a persistent structured archive, local
+      novelty competition, Pareto fitness, and generation-level memory of target-model
+      observations.
+    repository_inference: >-
+      Apply bounded quality-diversity search to semantic-laundering transformations within the
+      fixed 17-case framework. Require verified semantic preservation, immutable lineage,
+      hidden-evaluation exclusion, and independently verified behavioral failures before
+      FailureAtlas admission.
+    maturity: >-
+      Resolved arXiv preprint; REC-016 is experimental and disabled by default. Synthetic tests
+      establish software contracts, not alignment effectiveness.
+    local_repo_notes:
+      - "modules/semantic_intent_robustness/evolutionary_atlas.py"
+      - "tests/test_evolutionary_semantic_atlas.py"
+      - "docs/research_overlays.md"
+
+  - reference_id: "REF-COMM-BOTTLENECK"
+    metadata_status: "resolved"
+    supplied_title: "The Communication Bottleneck: A Round-Trip Study of Tree-Structured Expression Serialization in Language Models"
+    title: "The Communication Bottleneck: A Round-Trip Study of Tree-Structured Expression Serialization in Language Models"
+    authors:
+      - "Xavier Suau"
+      - "Alex Ferrando de las Morenas"
+      - "Luca Zappella"
+      - "Samy Bengio"
+    year: 2026
+    arxiv_id: "2609.21509"
+    doi: "10.48550/arXiv.2609.21509"
+    venue_status: null
+    canonical_url: "https://arxiv.org/abs/2609.21509"
+    recommendation_ids:
+      - "REC-017"
+    source_demonstrates: >-
+      The source evaluates arithmetic-expression communication through word problems using
+      separate generators and extractors with symbolic equivalence checks. It measures lossy,
+      asymmetric round trips and analyzes generation versus extraction errors and structural
+      complexity.
+    repository_inference: >-
+      Audit public structured objects through serialization and extraction. Keep exact equality,
+      verified semantics, heuristic similarity, non-equivalence, and unknown outcomes separate;
+      attribute individual stage faults only when independent stage evidence supports attribution.
+    maturity: >-
+      Resolved arXiv preprint; REC-017 is experimental and disabled by default. Synthetic tests
+      establish software contracts, not alignment effectiveness.
+    local_repo_notes:
+      - "evaluation/serialization_roundtrip.py"
+      - "tests/test_serialization_roundtrip.py"
+      - "docs/research_overlays.md"
+
+  - reference_id: "REF-LOGICTRACK"
+    metadata_status: "resolved"
+    supplied_title: "LogicTrack: Auditing Reasoning Trajectories of Large Language Models with Formal Logic Solvers"
+    title: "LogicTrack: Auditing Reasoning Trajectories of Large Language Models with Formal Logic Solvers"
+    authors:
+      - "Jingyu Hu"
+      - "Shu Yang"
+      - "Weiru Liu"
+      - "Di Wang"
+    year: 2026
+    arxiv_id: "2609.21492"
+    doi: "10.48550/arXiv.2609.21492"
+    venue_status: null
+    canonical_url: "https://arxiv.org/abs/2609.21492"
+    recommendation_ids:
+      - "REC-018"
+    source_demonstrates: >-
+      The source formalizes reasoning steps for automated theorem-prover checks, uses
+      solver-guided backtracking during inference, and constructs supervised examples from audited
+      trajectories. It evaluates the approach across reasoning benchmarks.
+    repository_inference: >-
+      Check explicit public reasoning objects with a bounded solver adapter and optional bounded
+      retries. Keep premise grounding, formal validity, factual correctness, calibration, and
+      behavioral outcomes separate without importing the paper's reasoning-text reward.
+    maturity: >-
+      Resolved arXiv preprint; REC-018 is experimental and disabled by default. Synthetic tests
+      establish software contracts, not alignment effectiveness.
+    local_repo_notes:
+      - "gepa_mindfulness/verification/formal_reasoning.py"
+      - "tests/test_formal_reasoning_audit.py"
+      - "docs/research_overlays.md"
+
+  - reference_id: "REF-LATENT-LANGUAGE-GAP"
+    metadata_status: "resolved"
+    supplied_title: "When Steering Fails in Latent Reasoning: A Latent-to-Language Transition Gap"
+    title: "When Steering Fails in Latent Reasoning: A Latent-to-Language Transition Gap"
+    authors:
+      - "Gaoxiang Huang"
+      - "Lei Qi"
+    year: 2026
+    arxiv_id: "2609.21662"
+    doi: "10.48550/arXiv.2609.21662"
+    venue_status: null
+    canonical_url: "https://arxiv.org/abs/2609.21662"
+    recommendation_ids:
+      - "REC-019"
+    source_demonstrates: >-
+      The source reports that comparable hidden-representation movements can yield weaker effects
+      on language generation during latent reasoning. It investigates transition-boundary
+      distribution changes and differences in task-direction control.
+    repository_inference: >-
+      Measure comparable latent, language, and policy/action deltas independently. Report
+      latent-language decoupling or language change without a matching measured latent signal while
+      retaining origin, comparability, and unavailable-state information.
+    maturity: >-
+      Resolved arXiv preprint; REC-019 is experimental and disabled by default. Synthetic tests
+      establish software contracts, not alignment effectiveness.
+    local_repo_notes:
+      - "modules/semantic_intent_robustness/latent_language_transition.py"
+      - "tests/test_latent_language_transition.py"
+      - "docs/research_overlays.md"

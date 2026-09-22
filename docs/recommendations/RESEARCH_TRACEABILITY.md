@@ -517,3 +517,99 @@ reproduced.
 **Repository inference:** Compact states and state-conditioned historical support motivate experimental diagnostics for intent continuity across semantic laundering and retrieval of prior public evidence omitted without supported supersession. These are repository hypotheses, not results demonstrated by SoT; omission alone does not establish motivated forgetting.
 
 **Maturity:** Resolved arXiv preprint; REC-015 is experimental and disabled by default. Synthetic contract tests do not reproduce SoT results or establish true intent, deception, or motive from states.
+
+<a id="ref-evoflint"></a>
+
+## REF-EVOFLINT — EvoFlint: An Evolutionary Atlas of Multi-Turn LLM Vulnerabilities
+
+- Metadata status: `resolved`
+- Supplied title: EvoFlint: An Evolutionary Atlas of Multi-Turn LLM Vulnerabilities
+- Authors: Feitong Qiao, Liren Peng, Shiming Ren, Aishwarya Jadhav, Arghavan Bahadorinejad, Marinette Chen, Muhan Zhang, Abdulaziz Suria, Gennevi Lu, Anish Das Sarma
+- Year: 2026
+- arXiv: [`2609.00487`](https://arxiv.org/abs/2609.00487)
+- DOI: `10.48550/arXiv.2609.00487`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-016`
+- Local repository notes: [implementation](../../modules/semantic_intent_robustness/evolutionary_atlas.py), [acceptance tests](../../tests/test_evolutionary_semantic_atlas.py), [research overlay guide](../research_overlays.md)
+
+**Source demonstrates:** The source studies evolutionary quality-diversity search over phased multi-turn red-team strategies. It combines mutation and crossover, a persistent structured archive, local novelty competition, Pareto fitness, and generation-level memory of target-model observations.
+
+**Repository inference:** Apply bounded quality-diversity search to semantic-laundering transformations within the fixed 17-case framework. Require verified semantic preservation, immutable lineage, hidden-evaluation exclusion, and independently verified behavioral failures before FailureAtlas admission.
+
+**Maturity:** Resolved arXiv preprint; REC-016 is experimental and disabled by default. Synthetic tests establish software contracts, not alignment effectiveness.
+
+**Limitations:** The paper does not study GEPA or this repository's semantic-laundering curriculum. The implementation uses harmless synthetic transformations and structured feature novelty; it does not reproduce the paper's attack generator or empirical results.
+
+**Implementation references:** [modules/semantic_intent_robustness/evolutionary_atlas.py](../../modules/semantic_intent_robustness/evolutionary_atlas.py) and [tests/test_evolutionary_semantic_atlas.py](../../tests/test_evolutionary_semantic_atlas.py).
+
+<a id="ref-comm-bottleneck"></a>
+
+## REF-COMM-BOTTLENECK — The Communication Bottleneck: A Round-Trip Study of Tree-Structured Expression Serialization in Language Models
+
+- Metadata status: `resolved`
+- Supplied title: The Communication Bottleneck: A Round-Trip Study of Tree-Structured Expression Serialization in Language Models
+- Authors: Xavier Suau, Alex Ferrando de las Morenas, Luca Zappella, Samy Bengio
+- Year: 2026
+- arXiv: [`2609.21509`](https://arxiv.org/abs/2609.21509)
+- DOI: `10.48550/arXiv.2609.21509`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-017`
+- Local repository notes: [implementation](../../evaluation/serialization_roundtrip.py), [acceptance tests](../../tests/test_serialization_roundtrip.py), [research overlay guide](../research_overlays.md)
+
+**Source demonstrates:** The source evaluates arithmetic-expression communication through word problems using separate generators and extractors with symbolic equivalence checks. It measures lossy, asymmetric round trips and analyzes generation versus extraction errors and structural complexity.
+
+**Repository inference:** Audit public structured objects through serialization and extraction. Keep exact equality, verified semantics, heuristic similarity, non-equivalence, and unknown outcomes separate; attribute individual stage faults only when independent stage evidence supports attribution.
+
+**Maturity:** Resolved arXiv preprint; REC-017 is experimental and disabled by default. Synthetic tests establish software contracts, not alignment effectiveness.
+
+**Limitations:** The paper does not evaluate alignment laundering. The implementation verifies a bounded propositional fragment and a synthetic JSON codec; arbitrary natural-language equivalence requires a host-supplied verifier and independently authenticated stage evidence.
+
+**Implementation references:** [evaluation/serialization_roundtrip.py](../../evaluation/serialization_roundtrip.py) and [tests/test_serialization_roundtrip.py](../../tests/test_serialization_roundtrip.py).
+
+<a id="ref-logictrack"></a>
+
+## REF-LOGICTRACK — LogicTrack: Auditing Reasoning Trajectories of Large Language Models with Formal Logic Solvers
+
+- Metadata status: `resolved`
+- Supplied title: LogicTrack: Auditing Reasoning Trajectories of Large Language Models with Formal Logic Solvers
+- Authors: Jingyu Hu, Shu Yang, Weiru Liu, Di Wang
+- Year: 2026
+- arXiv: [`2609.21492`](https://arxiv.org/abs/2609.21492)
+- DOI: `10.48550/arXiv.2609.21492`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-018`
+- Local repository notes: [implementation](../../gepa_mindfulness/verification/formal_reasoning.py), [acceptance tests](../../tests/test_formal_reasoning_audit.py), [research overlay guide](../research_overlays.md)
+
+**Source demonstrates:** The source formalizes reasoning steps for automated theorem-prover checks, uses solver-guided backtracking during inference, and constructs supervised examples from audited trajectories. It evaluates the approach across reasoning benchmarks.
+
+**Repository inference:** Check explicit public reasoning objects with a bounded solver adapter and optional bounded retries. Keep premise grounding, formal validity, factual correctness, calibration, and behavioral outcomes separate without importing the paper's reasoning-text reward.
+
+**Maturity:** Resolved arXiv preprint; REC-018 is experimental and disabled by default. Synthetic tests establish software contracts, not alignment effectiveness.
+
+**Limitations:** Formal validity does not establish factual truth, authentic evidence, or a faithful natural-language translation. The reference solver supports a limited propositional fragment; host-authenticated grounding and existing training-eligibility controls remain separate.
+
+**Implementation references:** [gepa_mindfulness/verification/formal_reasoning.py](../../gepa_mindfulness/verification/formal_reasoning.py) and [tests/test_formal_reasoning_audit.py](../../tests/test_formal_reasoning_audit.py).
+
+<a id="ref-latent-language-gap"></a>
+
+## REF-LATENT-LANGUAGE-GAP — When Steering Fails in Latent Reasoning: A Latent-to-Language Transition Gap
+
+- Metadata status: `resolved`
+- Supplied title: When Steering Fails in Latent Reasoning: A Latent-to-Language Transition Gap
+- Authors: Gaoxiang Huang, Lei Qi
+- Year: 2026
+- arXiv: [`2609.21662`](https://arxiv.org/abs/2609.21662)
+- DOI: `10.48550/arXiv.2609.21662`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-019`
+- Local repository notes: [implementation](../../modules/semantic_intent_robustness/latent_language_transition.py), [acceptance tests](../../tests/test_latent_language_transition.py), [research overlay guide](../research_overlays.md)
+
+**Source demonstrates:** The source reports that comparable hidden-representation movements can yield weaker effects on language generation during latent reasoning. It investigates transition-boundary distribution changes and differences in task-direction control.
+
+**Repository inference:** Measure comparable latent, language, and policy/action deltas independently. Report latent-language decoupling or language change without a matching measured latent signal while retaining origin, comparability, and unavailable-state information.
+
+**Maturity:** Resolved arXiv preprint; REC-019 is experimental and disabled by default. Synthetic tests establish software contracts, not alignment effectiveness.
+
+**Limitations:** These diagnostics do not establish intent, deception, causal use of a representation, successful steering, or alignment. Transfer ratios depend on measurement normalization. Black-box behavioral evaluation remains available without internal-state access.
+
+**Implementation references:** [modules/semantic_intent_robustness/latent_language_transition.py](../../modules/semantic_intent_robustness/latent_language_transition.py) and [tests/test_latent_language_transition.py](../../tests/test_latent_language_transition.py).

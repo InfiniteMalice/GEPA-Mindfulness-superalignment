@@ -131,9 +131,35 @@ EXPECTED_REFERENCES = (
         "Say Anything but This: When Tokenizer Betrays Reasoning in LLMs",
     ),
     ("REF-SOT", "2609.16055", "State of Thought Enables Endogenous Reasoning"),
+    (
+        "REF-EVOFLINT",
+        "2609.00487",
+        "EvoFlint: An Evolutionary Atlas of Multi-Turn LLM Vulnerabilities",
+    ),
+    (
+        "REF-COMM-BOTTLENECK",
+        "2609.21509",
+        "The Communication Bottleneck: A Round-Trip Study of Tree-Structured Expression "
+        "Serialization in Language Models",
+    ),
+    (
+        "REF-LOGICTRACK",
+        "2609.21492",
+        "LogicTrack: Auditing Reasoning Trajectories of Large Language Models with Formal "
+        "Logic Solvers",
+    ),
+    (
+        "REF-LATENT-LANGUAGE-GAP",
+        "2609.21662",
+        "When Steering Fails in Latent Reasoning: A Latent-to-Language Transition Gap",
+    ),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
+    "REF-EVOFLINT": ("REC-016",),
+    "REF-COMM-BOTTLENECK": ("REC-017",),
+    "REF-LOGICTRACK": ("REC-018",),
+    "REF-LATENT-LANGUAGE-GAP": ("REC-019",),
     "REF-SOT": ("REC-015",),
     "REF-HEART": ("REC-001", "REC-008"),
     "REF-PEARL": ("REC-011",),

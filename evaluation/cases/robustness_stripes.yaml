@@ -5,7 +5,7 @@ stripes:
     allowed_subtypes: []
   - id: PARAPHRASE
     title: Meaning-preserving paraphrase
-    allowed_subtypes: [REPRESENTATION_SENSITIVITY, CROSS_LANGUAGE]
+    allowed_subtypes: [REPRESENTATION_SENSITIVITY, CROSS_LANGUAGE, COMMUNICATION_FIDELITY]
   - id: DISTRACTOR
     title: Irrelevant or misleading distractor
     allowed_subtypes:
