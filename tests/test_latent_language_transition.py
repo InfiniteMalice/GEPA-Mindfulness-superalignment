@@ -266,3 +266,44 @@ def test_tiny_nonzero_denominator_never_emits_infinite_ratio(api):
     assert result.output_transfer_ratio is None
     assert result.action_transfer_ratio is None
     json.dumps(result.to_dict(), allow_nan=False)
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        dict(status="latent_language_decoupling"),
+        dict(latent_delta=None),
+        dict(output_delta=0.0),
+        dict(action_delta=0.0),
+        dict(latent_comparable=False),
+        dict(measurement_origins=(None, None)),
+        dict(output_transfer_ratio=2.0),
+        dict(action_transfer_ratio=float("nan")),
+    ],
+)
+def test_assessment_rejects_overrides_of_derived_fields(api, changes) -> None:
+    with pytest.raises(ValueError):
+        replace(audit(api), **changes)
+
+
+def test_assessment_recomputes_when_endpoint_is_removed(api) -> None:
+    result = replace(audit(api, output=delta(api, 0.0)), before=None, after=None)
+    assert result.status is api.TransitionStatus.UNAVAILABLE
+    assert result.latent_delta is None
+    assert result.latent_comparable is None
+    assert result.measurement_origins == (None, None)
+    assert result.output_transfer_ratio is None
+
+
+def test_assessment_cannot_inject_status_at_construction(api) -> None:
+    with pytest.raises(TypeError):
+        api.LatentLanguageTransitionAssessment(
+            assessment_id="forged",
+            before=None,
+            after=None,
+            output=delta(api, 0.0),
+            action=delta(api, 0.0),
+            provenance=("pair",),
+            enabled=True,
+            status=api.TransitionStatus.LATENT_LANGUAGE_DECOUPLING,
+        )

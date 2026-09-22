@@ -1,11 +1,13 @@
 """Research overlays compose through references without expanding V5 authority."""
 
 from dataclasses import replace
+from typing import Any
 
 import pytest
 
 from evaluation.cases.registry import load_case_manifest, load_stripe_registry
 from evaluation.research_audits import (
+    ResearchAuditBundle,
     ResearchAuditReferences,
     bind_research_audits,
     make_research_event,
@@ -32,6 +34,7 @@ from gepa_mindfulness.verification.runtime_governance import AuthorityGrantRegis
 from mindful_trace_gepa.logging_schema import StructuredEventType, make_event_envelope
 from semantic_intent_robustness.internal_state_trajectory import MeasurementStatus, SoTStateSnapshot
 from semantic_intent_robustness.latent_language_transition import (
+    LatentLanguageTransitionAssessment,
     PublicDelta,
     PublicMeasurementOrigin,
     audit_latent_language_transition,
@@ -39,7 +42,7 @@ from semantic_intent_robustness.latent_language_transition import (
 from test_v5_failure_atlas import failed, failure_events
 
 
-def test_existing_v5_payload_and_seventeen_cases_stay_stable():
+def test_existing_v5_payload_and_seventeen_cases_stay_stable() -> None:
     record = failed()
     payload = record.to_dict()
     bundle = bind_research_audits(
@@ -64,7 +67,7 @@ def test_existing_v5_payload_and_seventeen_cases_stay_stable():
     assert bundle.to_event().model_version == record.system.model_version
 
 
-def test_unknown_attribution_stays_unknown_even_when_outcome_failed():
+def test_unknown_attribution_stays_unknown_even_when_outcome_failed() -> None:
     bundle = bind_research_audits(
         failed(),
         failure_events(),
@@ -74,19 +77,19 @@ def test_unknown_attribution_stays_unknown_even_when_outcome_failed():
     assert bundle.attributions == ("FINAL_OUTPUT_FAILURE", "UNKNOWN")
 
 
-def test_communication_fidelity_is_an_orthogonal_subtype():
+def test_communication_fidelity_is_an_orthogonal_subtype() -> None:
     stripes = load_stripe_registry().stripes
     stripe = next(s for s in stripes if s.id == "PARAPHRASE")
     assert "COMMUNICATION_FIDELITY" in stripe.allowed_subtypes
     assert len(stripes) == 11
 
 
-def test_audit_reference_cannot_replace_external_v5_verification():
+def test_audit_reference_cannot_replace_external_v5_verification() -> None:
     with pytest.raises(ValueError):
         bind_research_audits(failed(), (), evaluation_ref="eval:1", trace_id="trace:1")
 
 
-def test_research_event_requires_context_and_is_deeply_immutable():
+def test_research_event_requires_context_and_is_deeply_immutable() -> None:
     event = make_research_event(
         StructuredEventType.SEMANTIC_STRATEGY_CANDIDATE,
         "strategy:1",
@@ -108,7 +111,7 @@ def test_research_event_requires_context_and_is_deeply_immutable():
     assert event.event_type != StructuredEventType.VERIFICATION_RESULT.value
 
 
-def bundle(**changes):
+def bundle(**changes: Any) -> ResearchAuditBundle:
     return bind_research_audits(
         failed(), failure_events(), evaluation_ref="evaluation:1", trace_id="trace:1", **changes
     )
@@ -146,7 +149,9 @@ def bundle(**changes):
         },
     ],
 )
-def test_bundle_rejects_mutable_malformed_or_incoherent_construction(changes):
+def test_bundle_rejects_mutable_malformed_or_incoherent_construction(
+    changes: dict[str, Any],
+) -> None:
     with pytest.raises(ValueError):
         replace(bundle(), **changes)
 
@@ -161,15 +166,17 @@ def test_bundle_rejects_mutable_malformed_or_incoherent_construction(changes):
         ("LATENT_LANGUAGE_DECOUPLING",),
     ],
 )
-def test_bundle_rejects_contradictory_findings_for_single_artifact_pair(findings):
+def test_bundle_rejects_contradictory_findings_for_single_artifact_pair(
+    findings: tuple[str, ...],
+) -> None:
     refs = ResearchAuditReferences("equivalence:1", "roundtrip:1", None, "transition:1")
     with pytest.raises(ValueError):
         replace(bundle(), references=refs, attributions=findings)
 
 
-def test_unknown_roundtrip_does_not_mask_confirmed_semantic_preservation():
+def test_unknown_roundtrip_does_not_mask_confirmed_semantic_preservation() -> None:
     class UnknownVerifier:
-        def verify(self, source, reconstructed):
+        def verify(self, source: Expression, reconstructed: Expression) -> EquivalenceResult:
             return EquivalenceResult(EquivalenceStatus.UNKNOWN, "unknown-verifier", ())
 
     source = StructuredSource("source:1", Expression("atom", atom="scope"), ("raw:source",))
@@ -188,9 +195,9 @@ def test_unknown_roundtrip_does_not_mask_confirmed_semantic_preservation():
     assert "MEANING_PRESERVED_JUDGMENT_CHANGED" in record.attributions
 
 
-def test_total_channel_failure_blocks_preserved_semantics_without_stage_blame():
+def test_total_channel_failure_blocks_preserved_semantics_without_stage_blame() -> None:
     class ChangedExtractor:
-        def extract(self, text):
+        def extract(self, text: str) -> Expression:
             return Expression("atom", atom="other")
 
     source = StructuredSource("source:1", Expression("atom", atom="scope"), ("raw:source",))
@@ -210,7 +217,7 @@ def test_total_channel_failure_blocks_preserved_semantics_without_stage_blame():
     assert record.attributions == ("COMMUNICATION_FAILURE_UNATTRIBUTED", "FINAL_OUTPUT_FAILURE")
 
 
-def transition(kind="measured", enabled=True):
+def transition(kind: str = "measured", enabled: bool = True) -> LatentLanguageTransitionAssessment:
     before = SoTStateSnapshot(
         "state:before",
         "conversation:1",
@@ -273,12 +280,14 @@ def transition(kind="measured", enabled=True):
 @pytest.mark.parametrize(
     "kind,enabled", [("proxy", True), ("unavailable", True), ("measured", False)]
 )
-def test_proxy_unavailable_and_disabled_transition_cannot_claim_measured_drift(kind, enabled):
+def test_proxy_unavailable_and_disabled_transition_cannot_claim_measured_drift(
+    kind: str, enabled: bool
+) -> None:
     result = bundle(transition=("transition:1", transition(kind, enabled)))
     assert result.attributions == ("FINAL_OUTPUT_FAILURE", "UNKNOWN")
 
 
-def test_latent_attribution_retains_snapshot_and_public_raw_references():
+def test_latent_attribution_retains_snapshot_and_public_raw_references() -> None:
     result = bundle(transition=("transition:1", transition()))
     assert result.attributions == (
         "INTERNAL_STATE_DRIFT",
@@ -298,8 +307,16 @@ def test_latent_attribution_retains_snapshot_and_public_raw_references():
     } <= set(result.to_event().evidence_refs)
 
 
-def test_invalid_inference_and_unsupported_premises_remain_separate_and_provenance_complete():
-    def ref(name):
+def test_removing_latent_endpoints_cannot_retain_measured_drift_attribution() -> None:
+    assessment = replace(transition(), before=None, after=None)
+    result = bundle(transition=("transition:1", assessment))
+    assert result.attributions == ("FINAL_OUTPUT_FAILURE", "UNKNOWN")
+
+
+def test_invalid_inference_and_unsupported_premises_remain_separate_and_provenance_complete() -> (
+    None
+):
+    def ref(name: str) -> EvidenceReference:
         return EvidenceReference(name, EvidenceSourceKind.EXTERNAL_RECORD)
 
     claim = FormalClaim(
@@ -340,7 +357,7 @@ def test_invalid_inference_and_unsupported_premises_remain_separate_and_provenan
     } <= set(result.to_event().evidence_refs)
 
 
-def test_diagnostic_event_cannot_replace_v5_verification_or_runtime_authority():
+def test_diagnostic_event_cannot_replace_v5_verification_or_runtime_authority() -> None:
     event = bundle().to_event()
     with pytest.raises(ValueError):
         AuthorityGrantRegistry.enroll((event,))
@@ -355,7 +372,7 @@ def test_diagnostic_event_cannot_replace_v5_verification_or_runtime_authority():
         )
 
 
-def test_research_payload_detaches_nested_inputs_and_serialized_output():
+def test_research_payload_detaches_nested_inputs_and_serialized_output() -> None:
     provenance = ["source:1"]
     nested = {"references": ["audit:1"]}
     event = make_event_envelope(
@@ -382,7 +399,7 @@ def test_research_payload_detaches_nested_inputs_and_serialized_output():
 
 
 @pytest.mark.parametrize("payload", [[], None, "not a mapping"])
-def test_research_logging_rejects_nonmapping_payload_with_value_error(payload):
+def test_research_logging_rejects_nonmapping_payload_with_value_error(payload: object) -> None:
     with pytest.raises(ValueError, match="payload"):
         make_event_envelope(
             StructuredEventType.RESEARCH_FAILURE_ATTRIBUTION,
@@ -396,7 +413,7 @@ def test_research_logging_rejects_nonmapping_payload_with_value_error(payload):
         )
 
 
-def test_evidence_aggregation_rejects_overflow_instead_of_dropping_raw_references():
+def test_evidence_aggregation_rejects_overflow_instead_of_dropping_raw_references() -> None:
     result = EquivalenceResult(
         EquivalenceStatus.EXACT_EQUIVALENCE, "exact-verifier", tuple(f"raw:{i}" for i in range(128))
     )
@@ -405,7 +422,7 @@ def test_evidence_aggregation_rejects_overflow_instead_of_dropping_raw_reference
 
 
 @pytest.mark.parametrize("field", ["parent_event_ids", "evidence_refs", "provenance_refs"])
-def test_research_event_helper_bounds_each_reference_collection(field):
+def test_research_event_helper_bounds_each_reference_collection(field: str) -> None:
     args = dict(
         run_id="run:1",
         trace_id="trace:1",

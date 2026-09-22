@@ -357,3 +357,83 @@ def test_total_channel_failure_blocks_laundering_even_with_unknown_stage_attribu
     assert classify_laundering(preserved, judgment_changed=True, roundtrip=result) is (
         LaunderingClassification.COMMUNICATION_FAILURE
     )
+
+
+@pytest.mark.parametrize("field", ["serialization_fault", "extraction_fault"])
+def test_result_rejects_stage_blame_without_independent_stage_evidence(field: str) -> None:
+    result = audit_roundtrip(
+        source(), JsonTreeCodec(), JsonTreeCodec(), PropositionalTreeVerifier(), enabled=True
+    )
+    assert result is not None
+    with pytest.raises(ValueError):
+        replace(result, **{field: FaultStatus.FAULT})
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        dict(serialization_fault=FaultStatus.FAULT),
+        dict(extraction_fault=FaultStatus.FAULT),
+        dict(serialized_text="unrelated serialized text"),
+        dict(serialized_text=None),
+        dict(reconstructed=None),
+        dict(serialization_equivalence=None),
+        dict(extraction_equivalence=None),
+        dict(stage_evidence=None),
+        dict(reconstructed=Expression("atom", atom="different")),
+        dict(equivalence=EquivalenceResult(EquivalenceStatus.NOT_EQUIVALENT, "verifier", ())),
+    ],
+)
+def test_result_rejects_inconsistent_roundtrip_artifacts(changes) -> None:
+    original = source()
+    result = audit_roundtrip(
+        original,
+        JsonTreeCodec(),
+        JsonTreeCodec(),
+        PropositionalTreeVerifier(),
+        enabled=True,
+        stage_evidence=stage_evidence(JsonTreeCodec().serialize(original), original.expression),
+    )
+    assert result is not None
+    with pytest.raises(ValueError):
+        replace(result, **changes)
+
+
+def test_independently_verified_stage_errors_can_cancel_in_total_roundtrip() -> None:
+    original = source()
+    lost = original.expression.children[0]
+    serializer = FixedSerializer(lost)
+    result = audit_roundtrip(
+        original,
+        serializer,
+        FixedExtractor(original.expression),
+        PropositionalTreeVerifier(),
+        enabled=True,
+        stage_evidence=stage_evidence(serializer.serialize(original), lost),
+    )
+    assert result is not None
+    assert result.roundtrip_failure is False
+    assert result.serialization_fault is FaultStatus.FAULT
+    assert result.extraction_fault is FaultStatus.FAULT
+    assert classify_laundering(result.equivalence, judgment_changed=True, roundtrip=result) is (
+        LaunderingClassification.COMMUNICATION_FAILURE
+    )
+
+
+def test_preserved_stages_cannot_claim_non_equivalent_total() -> None:
+    original = source()
+    reordered = Expression("and", tuple(reversed(original.expression.children)))
+    result = audit_roundtrip(
+        original,
+        JsonTreeCodec(),
+        FixedExtractor(reordered),
+        PropositionalTreeVerifier(),
+        enabled=True,
+        stage_evidence=stage_evidence(JsonTreeCodec().serialize(original), original.expression),
+    )
+    assert result is not None
+    with pytest.raises(ValueError, match="contradict"):
+        replace(
+            result,
+            equivalence=EquivalenceResult(EquivalenceStatus.NOT_EQUIVALENT, "other-verifier", ()),
+        )

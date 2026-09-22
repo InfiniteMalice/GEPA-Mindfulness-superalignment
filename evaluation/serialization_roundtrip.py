@@ -272,7 +272,11 @@ class StageEvidence:
 
 @dataclass(frozen=True, slots=True)
 class RoundTripResult:
-    """Immutable diagnostic evidence; no action, training, repair, or reward grant."""
+    """Immutable diagnostic evidence; no action, training, repair, or reward grant.
+
+    Construction checks artifact presence, digest binding, exact equality, and stage
+    fault coherence. Semantic verdicts still require host-authenticated verifiers.
+    """
 
     source: StructuredSource
     serialized_text: str | None
@@ -303,6 +307,57 @@ class RoundTripResult:
         for result in (self.serialization_equivalence, self.extraction_equivalence):
             if result is not None and type(result) is not EquivalenceResult:
                 raise ValueError("stage equivalence must be an EquivalenceResult or None")
+        _validate_equivalence_pair(self.source.expression, self.reconstructed, self.equivalence)
+        if self.serialized_text is None:
+            if self.reconstructed is not None or self.stage_evidence is not None:
+                raise ValueError("failed serialization cannot have downstream artifacts")
+            serialization_fault = FaultStatus.FAULT
+        else:
+            serialization_fault = FaultStatus.UNKNOWN
+        if self.stage_evidence is None:
+            if (
+                self.serialization_equivalence is not None
+                or self.extraction_equivalence is not None
+            ):
+                raise ValueError("stage equivalence requires independent stage evidence")
+        else:
+            assert self.serialized_text is not None
+            digest = sha256(self.serialized_text.encode("utf-8")).hexdigest()
+            if self.stage_evidence.serialized_sha256 != digest:
+                raise ValueError("stage evidence digest does not match serialized text")
+            if self.serialization_equivalence is None:
+                raise ValueError("stage evidence requires serialization equivalence")
+            represented = self.stage_evidence.represented_expression
+            _validate_equivalence_pair(
+                self.source.expression, represented, self.serialization_equivalence
+            )
+            serialization_fault = _fault(self.serialization_equivalence)
+            if self.reconstructed is not None:
+                if self.extraction_equivalence is None:
+                    raise ValueError("stage evidence requires extraction equivalence")
+                _validate_equivalence_pair(
+                    represented, self.reconstructed, self.extraction_equivalence
+                )
+        if self.reconstructed is None and self.extraction_equivalence is not None:
+            raise ValueError("failed extraction cannot have extraction equivalence")
+        extraction_fault = FaultStatus.UNKNOWN
+        if self.serialized_text is not None and self.reconstructed is None:
+            extraction_fault = FaultStatus.FAULT
+        elif self.extraction_equivalence is not None:
+            extraction_fault = _fault(self.extraction_equivalence)
+        if (
+            self.serialization_fault is not serialization_fault
+            or self.extraction_fault is not extraction_fault
+        ):
+            raise ValueError("stage fault flags contradict artifacts or stage equivalence")
+        results = (self.equivalence, self.serialization_equivalence, self.extraction_equivalence)
+        if sum(
+            result is not None and result.semantics_preserved for result in results
+        ) == 2 and any(
+            result is not None and result.status is EquivalenceStatus.NOT_EQUIVALENT
+            for result in results
+        ):
+            raise ValueError("stage and total equivalence verdicts contradict transitivity")
 
     @property
     def node_count(self) -> int:
@@ -329,6 +384,19 @@ class RoundTripResult:
         ):
             return True
         return False if self.equivalence.semantics_preserved else None
+
+
+def _validate_equivalence_pair(
+    source: Expression, reconstructed: Expression | None, result: EquivalenceResult
+) -> None:
+    """Reject structural contradictions without upgrading an external semantic verdict."""
+    if reconstructed is None:
+        if result.status is not EquivalenceStatus.UNKNOWN:
+            raise ValueError("missing reconstruction requires UNKNOWN equivalence")
+    elif result.status is EquivalenceStatus.EXACT_EQUIVALENCE and source != reconstructed:
+        raise ValueError("exact equivalence requires identical expressions")
+    elif result.status is EquivalenceStatus.NOT_EQUIVALENT and source == reconstructed:
+        raise ValueError("identical expressions cannot be NOT_EQUIVALENT")
 
 
 def _fault(result: EquivalenceResult) -> FaultStatus:

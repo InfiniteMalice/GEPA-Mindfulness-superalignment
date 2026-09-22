@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from enum import Enum
-from math import isfinite
+from math import isclose, isfinite
 from types import MappingProxyType
 from typing import Protocol
 
@@ -681,7 +681,10 @@ def evolve(
         if mutations >= budget.max_mutation_operations:
             stop = "mutation_budget"
             break
-        if tokens == budget.max_tokens or cost == budget.max_cost:
+        if (budget.max_tokens is not None and tokens >= budget.max_tokens) or (
+            budget.max_cost is not None
+            and (cost >= budget.max_cost or isclose(cost, budget.max_cost, rel_tol=1e-12))
+        ):
             stop = "resource_budget"
             break
         parents = select_parents(tuple(e.strategy for e in archive.entries)[-2:] or (template,))
@@ -732,12 +735,15 @@ def evolve(
         if result.strategy != candidate:
             raise ValueError("execution returned a different strategy")
         _validate_evaluation(result)
-        tokens += result.tokens_used
-        cost += result.cost_used
-        if (budget.max_tokens is not None and tokens > budget.max_tokens) or (
-            budget.max_cost is not None and cost > budget.max_cost
+        # Check the allowance actually sent to the host; tolerate only relative float noise.
+        if (allowance.max_tokens is not None and result.tokens_used > allowance.max_tokens) or (
+            allowance.max_cost is not None
+            and result.cost_used > allowance.max_cost
+            and not isclose(result.cost_used, allowance.max_cost, rel_tol=1e-12)
         ):
             raise ValueError("host adapter exceeded resource allowance")
+        tokens += result.tokens_used
+        cost += result.cost_used
         evaluations.append(result)
         archive = archive.admit(result)
     return EvolutionResult(archive, tuple(evaluations), len(evaluations), turns, mutations, stop)

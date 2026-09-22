@@ -323,6 +323,36 @@ def test_search_resource_allowance_terminates_and_rejects_overspend():
         evolve(strategy(), consume, budget=EvolutionBudget(3, 3, 6, 3, 1, 0.1), enabled=True)
 
 
+@pytest.mark.parametrize("max_cost,calls", [(0.3, 3), (0.6, 6)])
+def test_fractional_cost_budget_stops_without_false_overspend(max_cost, calls) -> None:
+    def consume(candidate, allowance):
+        assert allowance.max_cost > 0
+        return replace(evaluation(candidate), cost_used=0.1)
+
+    result = evolve(
+        strategy(),
+        consume,
+        budget=EvolutionBudget(10, 10, 100, 10, max_cost=max_cost),
+        enabled=True,
+    )
+    assert len(result.evaluations) == calls
+    assert result.stop_reason == "resource_budget"
+
+
+@pytest.mark.parametrize("max_cost,spent", [(0.3, 0.300001), (1e-15, 2e-15)])
+def test_cost_tolerance_does_not_hide_real_overspend(max_cost, spent) -> None:
+    def consume(candidate, allowance):
+        return replace(evaluation(candidate), cost_used=spent)
+
+    with pytest.raises(ValueError, match="exceeded resource allowance"):
+        evolve(
+            strategy(),
+            consume,
+            budget=EvolutionBudget(2, 2, 10, 2, max_cost=max_cost),
+            enabled=True,
+        )
+
+
 def test_failed_search_observation_cannot_be_promoted_to_training():
     from gepa_mindfulness.training.eligibility import require_training_eligible
 

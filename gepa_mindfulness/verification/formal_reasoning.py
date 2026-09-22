@@ -334,26 +334,28 @@ def audit_formal_claim(
         raise ValueError("claim must be a FormalClaim")
     _text(audit_id, "audit_id")
     premise_grounding = _groundings(claim, premise_grounding)
-    adapter = solver if solver is not None else BoundedPropositionalSolver()
-    _text(adapter.backend_id, "solver backend_id")
     if claim.logic_fragment != "propositional-v1":
+        backend_id = "formal-fragment-validator-v1"
         finding = _finding(
             FormalAuditStatus.UNSUPPORTED_TRANSLATION,
             "Unsupported logic fragment",
-            adapter.backend_id,
+            backend_id,
         )
     else:
+        adapter = solver if solver is not None else BoundedPropositionalSolver()
+        backend_id = adapter.backend_id
+        _text(backend_id, "solver backend_id")
         try:
             finding = adapter.solve(claim)
         except TimeoutError:
-            finding = _finding(FormalAuditStatus.UNKNOWN, "Solver timed out", adapter.backend_id)
+            finding = _finding(FormalAuditStatus.UNKNOWN, "Solver timed out", backend_id)
     if not isinstance(finding, SolverFinding):
         raise ValueError("solver must return a SolverFinding")
     return FormalAuditResult(
         audit_id,
         claim,
         finding.status,
-        adapter.backend_id,
+        backend_id,
         premise_grounding,
         finding.verifier_refs,
         finding.reason,

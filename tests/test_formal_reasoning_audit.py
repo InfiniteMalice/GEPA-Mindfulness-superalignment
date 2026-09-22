@@ -109,6 +109,10 @@ def test_unsupported_fragment_does_not_run_custom_solver(formal):
 
     result = audit(formal, claim(formal, logic_fragment="first-order"), solver=MustNotRun())
     assert result.status is formal.FormalAuditStatus.UNSUPPORTED_TRANSLATION
+    assert result.solver_backend == "formal-fragment-validator-v1"
+    assert tuple(item.reference_id for item in result.verifier_refs) == (
+        "verifier:formal-fragment-validator-v1",
+    )
 
 
 def test_disabled_default_never_runs_solver(formal):

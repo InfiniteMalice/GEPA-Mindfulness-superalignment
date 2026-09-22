@@ -57,7 +57,10 @@ adapter interprets phases and transition conditions; conditions are never execut
 candidate, aggregate turn, and mutation-operation limits. This small reference scheduler
 generates one candidate per generation. It reserves every candidate's full turn allowance
 before execution. The host adapter enforces call timeouts and actual turn/token/cost allowances.
-The loop rejects reported token/cost overspend. Optional token/cost budgets require the
+The loop checks reported usage against each allowance and rejects overspend. Cost comparisons
+use a relative tolerance of 1e-12 with no absolute tolerance, so floating-point roundoff does not
+reject a compliant execution or permit disproportionate overspend on a tiny budget. The loop
+stops when cumulative cost reaches the budget within that tolerance. Optional token/cost budgets require the
 zero-cost reference proposal operator because custom proposal costs cannot be accounted for
 by the present protocol. LLM proposal adapters need separate host resource controls.
 
@@ -109,6 +112,12 @@ evidence, an end-to-end mismatch does not identify which stage lost meaning. A s
 extractor exception is reported at its corresponding stage. Hosts authenticate stage-reader
 independence and retain raw stage artifacts.
 
+`RoundTripResult` validates artifact presence, serialized digest binding, exact tree equality,
+stage fault flags, and consistency between stage and total equivalence verdicts during
+construction. Stage errors may cancel, so an exact total reconstruction does not invalidate
+two independently supported stage faults. Semantic verdicts still require authenticated host
+verifiers; these consistency checks do not authenticate external evidence.
+
 ```python
 from evaluation.serialization_roundtrip import (
     Expression, JsonTreeCodec, PropositionalTreeVerifier, StructuredSource, audit_roundtrip,
@@ -137,6 +146,9 @@ backend, verifier references, and premise-grounding status remain separate. A ta
 inference with unsupported premises cannot establish factual correctness. Unknown grounding stays
 unknown; formalization success is not rewarded.
 
+For an unsupported logic fragment, the audit records `formal-fragment-validator-v1` and its
+verifier reference. The solver adapter is not invoked or credited for that rejection.
+
 `bounded_backtrack` takes an explicit retry limit. On an invalid public claim it anchors at the
 latest preceding valid auditable claim, retaining every audit and retry. UNKNOWN or unsupported
 results stop retrying; exhaustion is explicit. Hosts bound solver/callback wall time. This helper
@@ -150,6 +162,13 @@ supported-fragment coverage, and existing host verification/review gates; none i
 reuses `SoTStateSnapshot` and `state_distance`. Independent `PublicDelta` records retain language
 and action differences, metric calibration, origins, paired raw references, and comparability.
 Missing/incomparable states remain unavailable; black-box behavioral evaluation remains possible.
+
+`LatentLanguageTransitionAssessment` computes status, deltas, origins, comparability and ratios
+from validated inputs at construction. Those derived fields cannot be constructor arguments
+or `dataclasses.replace` overrides. Replacing an endpoint recomputes the diagnostics. The
+serialized `enabled` flag preserves the distinction between disabled and computed assessments;
+direct construction also defaults to disabled. Callers of the experimental constructor pass
+only source inputs, thresholds and enablement, rather than manually supplied derived fields.
 
 Only comparable measured-internal snapshots with observed public-output metrics can yield the
 two anomaly statuses: LATENT_LANGUAGE_DECOUPLING and LANGUAGE_CHANGE_WITHOUT_MATCHED_LATENT_SIGNAL.

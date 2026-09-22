@@ -8,7 +8,7 @@ co-change, and transfer ratios confer no behavioral pass, reward, or runtime aut
 # Standard library
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 from math import isfinite
 from typing import Any
@@ -88,7 +88,8 @@ class LatentLanguageTransitionAssessment:
     remain independent, so changed actions do not mask unchanged language. Ratios
     depend on the declared feature and public-metric normalizations; ratios above
     one are valid and do not mean successful steering. No ratio proves causal use.
-    Source records retain origins, calibration, and raw-evidence references.
+    Source records retain origins, calibration, and raw-evidence references. Derived
+    fields are constructor outputs: callers cannot supply or replace those fields.
     """
 
     assessment_id: str
@@ -97,16 +98,62 @@ class LatentLanguageTransitionAssessment:
     output: PublicDelta
     action: PublicDelta
     provenance: tuple[str, ...]
-    status: TransitionStatus
-    latent_delta: float | None
-    output_delta: float | None
-    action_delta: float | None
-    latent_comparable: bool | None
-    measurement_origins: tuple[MeasurementStatus | None, MeasurementStatus | None]
-    output_transfer_ratio: float | None
-    action_transfer_ratio: float | None
-    substantial_threshold: float
-    negligible_threshold: float
+    status: TransitionStatus = field(init=False)
+    latent_delta: float | None = field(init=False)
+    output_delta: float | None = field(init=False)
+    action_delta: float | None = field(init=False)
+    latent_comparable: bool | None = field(init=False)
+    measurement_origins: tuple[MeasurementStatus | None, MeasurementStatus | None] = field(
+        init=False
+    )
+    output_transfer_ratio: float | None = field(init=False)
+    action_transfer_ratio: float | None = field(init=False)
+    substantial_threshold: float = 0.25
+    negligible_threshold: float = 0.05
+    enabled: bool = False
+
+    def __post_init__(self) -> None:
+        text_field(self.assessment_id, "assessment_id")
+        boolean(self.enabled, "enabled")
+        references(self.provenance, "provenance")
+        if not self.provenance:
+            raise ValueError("paired observation provenance is required")
+        score(self.substantial_threshold, "substantial_threshold")
+        score(self.negligible_threshold, "negligible_threshold")
+        if not self.negligible_threshold < self.substantial_threshold:
+            raise ValueError("negligible_threshold must be less than substantial_threshold")
+        _validate_pair(self.before, self.after)
+        if type(self.output) is not PublicDelta or type(self.action) is not PublicDelta:
+            raise ValueError("output and action must be PublicDelta records")
+        origins = (
+            self.before.measurement_status if self.before is not None else None,
+            self.after.measurement_status if self.after is not None else None,
+        )
+        latent = None
+        comparable = None
+        if self.enabled and self.before is not None and self.after is not None:
+            latent = state_distance(self.before, self.after)
+            if self.before.feature_vector is not None and self.after.feature_vector is not None:
+                comparable = latent is not None
+        measured = all(origin is MeasurementStatus.MEASURED_INTERNAL for origin in origins)
+        status = _transition_status(
+            self.enabled,
+            latent,
+            comparable,
+            measured,
+            self.output,
+            self.substantial_threshold,
+            self.negligible_threshold,
+        )
+        object.__setattr__(self, "status", status)
+        object.__setattr__(self, "latent_delta", latent)
+        object.__setattr__(self, "latent_comparable", comparable)
+        object.__setattr__(self, "measurement_origins", origins)
+        object.__setattr__(self, "output_delta", self.output.value)
+        object.__setattr__(self, "action_delta", self.action.value)
+        for name, public in (("output", self.output), ("action", self.action)):
+            ratio = _transfer_ratio(latent, public, measured, self.negligible_threshold)
+            object.__setattr__(self, f"{name}_transfer_ratio", ratio)
 
     def to_dict(self) -> dict[str, Any]:
         """Return JSON-compatible evidence; absent measurements remain null."""
@@ -144,36 +191,23 @@ def audit_latent_language_transition(
     anomaly statuses. Proxy distances remain labeled and cannot produce transfer
     ratios. Each public ratio additionally requires an observed comparable metric
     and latent movement above negligible_threshold. Non-finite ratios are omitted.
-    Missing state preserves public
-    measurements, allowing black-box behavioral evaluation to remain independent.
-    """
-    text_field(assessment_id, "assessment_id")
-    boolean(enabled, "enabled")
-    references(provenance, "provenance")
-    if not provenance:
-        raise ValueError("paired observation provenance is required")
-    score(substantial_threshold, "substantial_threshold")
-    score(negligible_threshold, "negligible_threshold")
-    if not negligible_threshold < substantial_threshold:
-        raise ValueError("negligible_threshold must be less than substantial_threshold")
-    _validate_pair(before, after)
-    if type(output) is not PublicDelta or type(action) is not PublicDelta:
-        raise ValueError("output and action must be PublicDelta records")
+    Missing state preserves public measurements, allowing black-box behavioral
+    evaluation to remain independent.
 
-    origins = (
-        before.measurement_status if before is not None else None,
-        after.measurement_status if after is not None else None,
-    )
-    latent = None
-    comparable = None
-    if enabled and before is not None and after is not None:
-        latent = state_distance(before, after)
-        if before.feature_vector is not None and after.feature_vector is not None:
-            comparable = latent is not None
-    measured = all(origin is MeasurementStatus.MEASURED_INTERNAL for origin in origins)
-    status = _transition_status(
-        enabled, latent, comparable, measured, output, substantial_threshold, negligible_threshold
-    )
+    Args:
+        assessment_id: Identifier for the assessment.
+        before: Earlier state snapshot, or None when unavailable.
+        after: Later state snapshot from the same conversation, or None.
+        output: Normalized public language difference with ordered evidence refs.
+        action: Independent public action difference with ordered evidence refs.
+        provenance: Immutable references binding the paired observation.
+        enabled: Compute latent differences only when True; otherwise return DISABLED.
+        substantial_threshold: Inclusive lower bound for substantial change, in [0, 1].
+        negligible_threshold: Inclusive upper bound for negligible change, below substantial.
+
+    Returns:
+        A LatentLanguageTransitionAssessment retaining inputs and derived diagnostics.
+    """
     return LatentLanguageTransitionAssessment(
         assessment_id=assessment_id,
         before=before,
@@ -181,16 +215,9 @@ def audit_latent_language_transition(
         output=output,
         action=action,
         provenance=provenance,
-        status=status,
-        latent_delta=latent,
-        output_delta=output.value,
-        action_delta=action.value,
-        latent_comparable=comparable,
-        measurement_origins=origins,
-        output_transfer_ratio=_transfer_ratio(latent, output, measured, negligible_threshold),
-        action_transfer_ratio=_transfer_ratio(latent, action, measured, negligible_threshold),
         substantial_threshold=substantial_threshold,
         negligible_threshold=negligible_threshold,
+        enabled=enabled,
     )
 
 
