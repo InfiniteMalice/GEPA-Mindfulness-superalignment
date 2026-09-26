@@ -38,9 +38,18 @@ diagnostic record. It is not permission to act on a proposal.
 | `adaptive_small_multi_agent_topology` | A two-to-five-role directed topology proposal. | Spawn agents, delegate authority, execute work, or change reward. |
 | `declarative_orchestration_scope` | A `global`, `focus`, or `local` scope declaration. | Enforce scope, grant capabilities, execute actions, or change reward. |
 | `mechanistic_circuit_audit` | A provenance-bound audit observation and audit references. | Treat correlation as causation, modify a model, create a case, or change reward. |
+| `evolutionary_semantic_search` | Bounded defensive strategies and independently verified search evaluations. | Consume hidden evaluation, promote training data, close repairs, or grant runtime authority. |
+| `serialization_roundtrip` | Separate structural equivalence and communication-stage findings. | Treat heuristic similarity as verified semantics or create a canonical case. |
+| `formal_reasoning_audit` | Formal validity and separate public-premise grounding. | Reward private reasoning or equate logical validity with factual truth. |
+| `latent_language_transition` | Comparable latent, language, and action differences. | Treat latent movement as behavioral success, causal proof, or deployment authority. |
 
 The research links explain why each experiment may be worth evaluating. They do not establish the
 overlay's conclusions or prove the repository architecture.
+
+The [research overlay guide](research_overlays.md) describes REC-016–REC-019 computation APIs,
+explicit enablement, host adapter responsibilities, boundedness, and reference-only composition.
+Their records live in their respective modules and `evaluation.research_audits`; the five
+original `experimental_records` types and their deserialization contract remain unchanged.
 
 ## Typed diagnostic records
 

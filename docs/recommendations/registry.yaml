@@ -417,3 +417,105 @@ recommendations:
       - modules/semantic_intent_robustness/semantic_state_continuity.py
       - modules/semantic_intent_robustness/epistemic_continuity.py
       - modules/semantic_intent_robustness/motivated_forgetting.py
+
+  - id: "REC-016"
+    title: "EvoFlint semantic-laundering quality-diversity search."
+    priority: "P2"
+    status: "experimental"
+    rationale: >-
+      A bounded archive can retain distinct semantic strategies and evidence-linked generation
+      insights without treating novelty or generated judgments as behavioral authority.
+    targets:
+      - "modules/semantic_intent_robustness/evolutionary_atlas.py"
+    supersedes: []
+    dependencies:
+      - "REC-005"
+      - "REC-007"
+      - "REC-010"
+      - "REC-017"
+    research_refs:
+      - "REF-EVOFLINT"
+    repo_refs:
+      - "modules/semantic_intent_robustness/evolutionary_atlas.py"
+      - "docs/research_overlays.md"
+    acceptance_tests:
+      - "tests/test_evolutionary_semantic_atlas.py"
+    implementation_refs:
+      - "modules/semantic_intent_robustness/evolutionary_atlas.py"
+      - "tests/test_evolutionary_semantic_atlas.py"
+
+  - id: "REC-017"
+    title: "Round-trip structural communication audit."
+    priority: "P2"
+    status: "experimental"
+    rationale: >-
+      Communication audits distinguish changed meaning and channel failure from verified
+      preservation with a changed policy judgment, avoiding false semantic-laundering successes.
+    targets:
+      - "evaluation/serialization_roundtrip.py"
+    supersedes: []
+    dependencies:
+      - "REC-005"
+      - "REC-007"
+    research_refs:
+      - "REF-COMM-BOTTLENECK"
+    repo_refs:
+      - "evaluation/serialization_roundtrip.py"
+      - "docs/research_overlays.md"
+    acceptance_tests:
+      - "tests/test_serialization_roundtrip.py"
+    implementation_refs:
+      - "evaluation/serialization_roundtrip.py"
+      - "tests/test_serialization_roundtrip.py"
+
+  - id: "REC-018"
+    title: "Formal reasoning / LogicTrack audit."
+    priority: "P2"
+    status: "experimental"
+    rationale: >-
+      Formal audits expose invalid public inference steps while preserving separate premise
+      grounding and behavioral verification. Solver outcomes alone do not authorize actions or
+      receive optimizer reward.
+    targets:
+      - "gepa_mindfulness/verification/formal_reasoning.py"
+    supersedes: []
+    dependencies:
+      - "REC-001"
+      - "REC-002"
+      - "REC-008"
+      - "REC-010"
+    research_refs:
+      - "REF-LOGICTRACK"
+    repo_refs:
+      - "gepa_mindfulness/verification/formal_reasoning.py"
+      - "docs/research_overlays.md"
+    acceptance_tests:
+      - "tests/test_formal_reasoning_audit.py"
+    implementation_refs:
+      - "gepa_mindfulness/verification/formal_reasoning.py"
+      - "tests/test_formal_reasoning_audit.py"
+
+  - id: "REC-019"
+    title: "Latent-to-language transition audit."
+    priority: "P2"
+    status: "experimental"
+    rationale: >-
+      Separating internal-state movement from public language and action changes prevents latent
+      metrics from being interpreted as behavioral success or deployment authority.
+    targets:
+      - "modules/semantic_intent_robustness/latent_language_transition.py"
+    supersedes: []
+    dependencies:
+      - "REC-005"
+      - "REC-014"
+      - "REC-015"
+    research_refs:
+      - "REF-LATENT-LANGUAGE-GAP"
+    repo_refs:
+      - "modules/semantic_intent_robustness/latent_language_transition.py"
+      - "docs/research_overlays.md"
+    acceptance_tests:
+      - "tests/test_latent_language_transition.py"
+    implementation_refs:
+      - "modules/semantic_intent_robustness/latent_language_transition.py"
+      - "tests/test_latent_language_transition.py"

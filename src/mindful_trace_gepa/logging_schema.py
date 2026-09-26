@@ -78,6 +78,28 @@ class StructuredEventType(str, Enum):
     VERIFICATION_RESULT = "verification_result"
     EPISTEMIC_ASSESSMENT = "epistemic_assessment"
     CASE_ASSESSMENT = "case_assessment"
+    SEMANTIC_STRATEGY_CANDIDATE = "semantic_strategy_candidate"
+    SEMANTIC_STRATEGY_EVALUATION = "semantic_strategy_evaluation"
+    QUALITY_DIVERSITY_ADMISSION = "quality_diversity_admission"
+    GENERATION_INSIGHT = "generation_insight"
+    SERIALIZATION_ROUNDTRIP = "serialization_roundtrip"
+    FORMAL_REASONING_AUDIT = "formal_reasoning_audit"
+    LATENT_LANGUAGE_TRANSITION = "latent_language_transition"
+    RESEARCH_FAILURE_ATTRIBUTION = "research_failure_attribution"
+
+
+RESEARCH_DIAGNOSTIC_EVENT_TYPES = frozenset(
+    {
+        StructuredEventType.SEMANTIC_STRATEGY_CANDIDATE.value,
+        StructuredEventType.SEMANTIC_STRATEGY_EVALUATION.value,
+        StructuredEventType.QUALITY_DIVERSITY_ADMISSION.value,
+        StructuredEventType.GENERATION_INSIGHT.value,
+        StructuredEventType.SERIALIZATION_ROUNDTRIP.value,
+        StructuredEventType.FORMAL_REASONING_AUDIT.value,
+        StructuredEventType.LATENT_LANGUAGE_TRANSITION.value,
+        StructuredEventType.RESEARCH_FAILURE_ATTRIBUTION.value,
+    }
+)
 
 
 _ACTION_BOUND_EVENT_TYPES = frozenset(
@@ -91,6 +113,8 @@ _ACTION_BOUND_EVENT_TYPES = frozenset(
         StructuredEventType.CASE_ASSESSMENT.value,
     }
 )
+
+_IMMUTABLE_EVENT_TYPES = _ACTION_BOUND_EVENT_TYPES | RESEARCH_DIAGNOSTIC_EVENT_TYPES
 
 
 @dataclass(frozen=True)
@@ -158,12 +182,31 @@ class EventEnvelope:
         valid_until = _parse_validity_bound("valid_until", self.valid_until)
         if valid_from is not None and valid_until is not None and valid_until < valid_from:
             raise ValueError("valid_until must not be earlier than valid_from")
-        if self.event_type in _ACTION_BOUND_EVENT_TYPES:
+        if self.event_type in RESEARCH_DIAGNOSTIC_EVENT_TYPES:
+            if not isinstance(self.payload, Mapping):
+                raise ValueError("research diagnostic payload must be a mapping")
+            for name in ("run_id", "trace_id", "model_version", "harness_version"):
+                value = getattr(self, name)
+                if type(value) is not str or not value.strip():
+                    raise ValueError(f"research diagnostics require {name}")
+            if not self.evidence_refs or not self.parent_event_ids:
+                raise ValueError(
+                    "research diagnostics require evidence and parent event references"
+                )
+            for name in ("record_ref", "evaluation_ref"):
+                value = self.payload.get(name)
+                if type(value) is not str or not value.strip():
+                    raise ValueError(f"research diagnostics require payload {name}")
+            refs = self.payload.get("provenance_refs")
+            if not isinstance(refs, (tuple, list)) or not refs:
+                raise ValueError("research diagnostics require provenance_refs")
+            _coerce_reference_tuple("provenance_refs", refs)
+        if self.event_type in _IMMUTABLE_EVENT_TYPES:
             frozen_payload = freeze_json_mapping(self.payload, field_name="payload")
             object.__setattr__(self, "payload", frozen_payload)
 
     def to_dict(self) -> dict[str, Any]:
-        if self.event_type not in _ACTION_BOUND_EVENT_TYPES:
+        if self.event_type not in _IMMUTABLE_EVENT_TYPES:
             values = asdict(self)
         else:
             values = {item.name: getattr(self, item.name) for item in fields(self)}
@@ -180,7 +223,7 @@ def make_event_envelope(
     event_value = (
         event_type.value if isinstance(event_type, StructuredEventType) else str(event_type)
     )
-    if event_value in _ACTION_BOUND_EVENT_TYPES:
+    if event_value in _IMMUTABLE_EVENT_TYPES:
         event_payload = cast(dict[str, Any], payload)
     else:
         event_payload = dict(payload)
