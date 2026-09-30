@@ -989,3 +989,182 @@ references:
     local_repo_notes:
       - "gepa_mindfulness/verification/scalar_fusion.py"
       - "docs/scalar_fusion.md"
+
+  - reference_id: REF-MEMCALIB
+    metadata_status: resolved
+    supplied_title: "MemCalib"
+    title: "MemCalib: Benchmarking and Optimizing Memory Use in LLM Agents"
+    authors:
+      - Ruike Cao
+      - Fanyu Zhao
+      - Fugen Yao
+      - Liang Dong
+      - Jian Xu
+      - Guanjun Jiang
+      - Yifei Zhao
+      - Han Zhang
+      - Li Xiao
+    year: 2026
+    arxiv_id: "2609.24259"
+    doi: "10.48550/arXiv.2609.24259"
+    venue_status: null
+    canonical_url: "https://arxiv.org/abs/2609.24259"
+    recommendation_ids:
+      - REC-002
+    source_demonstrates: "The benchmark evaluates under-use and over-use against per-proposition Ignore, Bound and Control targets; the paper also evaluates a token credit-assignment training method."
+    repository_inference: "Retain declared target influence separately from numeric eligibility. Do not import token rewards or infer execution authority from Control."
+    maturity: "Resolved arXiv preprint; PR-5 implements diagnostic evidence/memory eligibility and retained summary views. No published experiment or trained policy is reproduced."
+    local_repo_notes:
+      - gepa_mindfulness/verification/evidence_use.py
+      - docs/evidence_memory.md
+
+  - reference_id: REF-JITMEM
+    metadata_status: resolved
+    supplied_title: "JITMEM"
+    title: "Just-in-Time Memory: Learning to Curate Task-Adaptive Memory for LLM Agents"
+    authors:
+      - Yefan Zhou
+      - Yang Li
+      - Zeyu Leo Liu
+      - Semih Yavuz
+      - Shafiq Joty
+    year: 2026
+    arxiv_id: "2609.27334"
+    doi: "10.48550/arXiv.2609.27334"
+    venue_status: null
+    canonical_url: "https://arxiv.org/abs/2609.27334"
+    recommendation_ids:
+      - REC-002
+    source_demonstrates: "The method retains trajectories and curates task-conditioned memory at read time, with evaluated task-success gains over the compared write-time methods."
+    repository_inference: "Preserve original records while appending task-specific summary views. No raw private-reasoning storage or learned curator is introduced."
+    maturity: "Resolved arXiv preprint; PR-5 implements diagnostic evidence/memory eligibility and retained summary views. No published experiment or trained policy is reproduced."
+    local_repo_notes:
+      - gepa_mindfulness/verification/evidence_use.py
+      - docs/evidence_memory.md
+
+  - reference_id: REF-COMPKV
+    metadata_status: resolved
+    supplied_title: "CompKV"
+    title: "CompKV: Compensation-Aware KV Selection for Long-Context LLM Inference"
+    authors:
+      - Zhen Huang
+      - Ruizhe Yao
+      - Danyi Liu
+      - Xinrui Chen
+      - Shuwei Li
+      - Siru Zhong
+      - Zijian Cao
+      - Yushan Lai
+      - Mingming Guo
+      - Weijie Zheng
+      - Haohuan Fu
+    year: 2026
+    arxiv_id: "2609.26300"
+    doi: "10.48550/arXiv.2609.26300"
+    venue_status: null
+    canonical_url: "https://arxiv.org/abs/2609.26300"
+    recommendation_ids:
+      - REC-002
+    source_demonstrates: "Sparse attention selection accounts for the compensation residual of omitted blocks using block statistics, with evaluated accuracy and speed results."
+    repository_inference: "Use only the analogy that compression can lose consequential information. A declared semantic distortion score is not the paper's KV residual or a covariance."
+    maturity: "Resolved arXiv preprint; PR-5 implements diagnostic evidence/memory eligibility and retained summary views. No published experiment or trained policy is reproduced."
+    local_repo_notes:
+      - gepa_mindfulness/verification/evidence_use.py
+      - docs/evidence_memory.md
+
+  - reference_id: REF-QWEN-PLANNER
+    metadata_status: resolved
+    supplied_title: "Qwen-Planner-Agent"
+    title: "Qwen-Planner-Agent: A Closed-Loop AI-for-AI Framework for Real-World Mobile Planner Agents"
+    authors:
+      - Tingyu Qu
+      - Weigao Sun
+      - Yuecheng Liu
+      - Yucheng Zhao
+      - Yi Zhu
+      - Yifeng Ding
+      - Qiyi Wang
+      - Sihan Cao
+      - Pengkun Jiao
+      - Hanlei Xie
+      - Xiongwei Wu
+      - Qichao Wang
+      - Haodong Zhang
+      - Jiajun Liu
+      - Yuhao Wang
+      - Yuqing Xie
+      - Junpeng Zhao
+      - Long Chen
+      - Ming Ma
+      - Sihan Yang
+      - Ziwang Zhao
+      - Yanhao Jia
+      - Liangquan Gong
+      - Feida Zhu
+      - Yiran Zhong
+      - Steven Hoi
+    year: 2026
+    arxiv_id: "2609.29892"
+    doi: "10.48550/arXiv.2609.29892"
+    venue_status: null
+    canonical_url: "https://arxiv.org/abs/2609.29892"
+    recommendation_ids:
+      - REC-002
+    source_demonstrates: "The planner framework links data, training and runtime tools, skills and memory through execution feedback and verification, retaining failed and incomplete traces."
+    repository_inference: "Keep original execution evidence distinct from summaries and preserve failed or unusable evidence in reports. No mobile planner or training loop is reproduced."
+    maturity: "Resolved arXiv preprint; PR-5 implements diagnostic evidence/memory eligibility and retained summary views. No published experiment or trained policy is reproduced."
+    local_repo_notes:
+      - gepa_mindfulness/verification/evidence_use.py
+      - docs/evidence_memory.md
+
+  - reference_id: REF-SHARE-BORNE
+    metadata_status: resolved
+    supplied_title: "Share-Borne AI Virus"
+    title: "Share-Borne AI Virus: Memory-Hopping Attacks Across LLM Agents"
+    authors:
+      - Sidharth Pulipaka
+      - Ansh Sharma
+      - Stanislau Hlebik
+      - Leonidas Raghav
+      - Vyas Raina
+      - Ivaxi Sheth
+      - Mario Fritz
+    year: 2026
+    arxiv_id: "2609.35576"
+    doi: "10.48550/arXiv.2609.35576"
+    venue_status: null
+    canonical_url: "https://arxiv.org/abs/2609.35576"
+    recommendation_ids:
+      - REC-002
+    source_demonstrates: "The study demonstrates adversarial content propagating through persistent memory and shared artifacts across assistants in simulated interaction networks."
+    repository_inference: "Keep source trust, authority and taint attached to every summary view. Metadata preservation alone does not detect injection or secure downstream transport."
+    maturity: "Resolved arXiv preprint; PR-5 implements diagnostic evidence/memory eligibility and retained summary views. No published experiment or trained policy is reproduced."
+    local_repo_notes:
+      - gepa_mindfulness/verification/evidence_use.py
+      - docs/evidence_memory.md
+
+  - reference_id: REF-A2M
+    metadata_status: resolved
+    supplied_title: "A2M/MCP semantic hijacking"
+    title: "A2M: Trace-Optimized Agent Hijacking in the MCP Ecosystem"
+    authors:
+      - Laizhen Li
+      - Xuan Wang
+      - Peicheng Zhao
+      - Juanjuan Zhao
+      - Kejiang Ye
+      - Cheng-zhong Xu
+      - Xitong Gao
+    year: 2026
+    arxiv_id: "2609.26761"
+    doi: "10.48550/arXiv.2609.26761"
+    venue_status: null
+    canonical_url: "https://arxiv.org/abs/2609.26761"
+    recommendation_ids:
+      - REC-002
+    source_demonstrates: "The study evaluates attacks on MCP tool metadata and returned content that affect tool selection and subsequent agent behavior."
+    repository_inference: "Reuse existing memory boundary assessment and keep tool information separate from permission. This adapter neither vets MCP servers nor implements the attacks."
+    maturity: "Resolved arXiv preprint; PR-5 implements diagnostic evidence/memory eligibility and retained summary views. No published experiment or trained policy is reproduced."
+    local_repo_notes:
+      - gepa_mindfulness/verification/evidence_use.py
+      - docs/evidence_memory.md

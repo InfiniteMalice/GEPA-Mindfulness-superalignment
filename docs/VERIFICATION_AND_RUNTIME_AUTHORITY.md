@@ -22,6 +22,10 @@ and observable evidence. `WorldStateChange` is an observed artifact transition t
 action to an exact after observation and, when available, an exact before observation.
 
 `EvidenceClaim` records a proposition, its canonical evidence references, and one explicit status.
+The [PR-5 evidence and memory adapter](evidence_memory.md) connects numeric measurements to
+qualitative eligibility and preserves trust, authority and integrity metadata in summary views.
+Claims also support `observed`, `inferred`, `unavailable`, and `stale`; these new labels do not
+expand the governed commit allowlist of `supported` and `contradicted`.
 Claims marked `supported` or `contradicted` must retain at least one evidence reference; an
 evidence-free claim can remain `unverified` but cannot be promoted by mutating its status.
 `EvidenceState` preserves superseded claims and resolves only validated, acyclic

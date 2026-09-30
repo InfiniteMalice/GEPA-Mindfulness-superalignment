@@ -159,9 +159,21 @@ EXPECTED_REFERENCES = (
     ("REF-CI", None, "Julier & Uhlmann 1997 — Covariance Intersection"),
     ("REF-UNANIMITY", "2609.26145", "Unanimity Without Persuasion"),
     ("REF-WSQEM", "2609.25555", "Weakly Supervised Quantum Error Mitigation"),
+    ("REF-MEMCALIB", "2609.24259", "MemCalib"),
+    ("REF-JITMEM", "2609.27334", "JITMEM"),
+    ("REF-COMPKV", "2609.26300", "CompKV"),
+    ("REF-QWEN-PLANNER", "2609.29892", "Qwen-Planner-Agent"),
+    ("REF-SHARE-BORNE", "2609.35576", "Share-Borne AI Virus"),
+    ("REF-A2M", "2609.26761", "A2M/MCP semantic hijacking"),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
+    "REF-MEMCALIB": ("REC-002",),
+    "REF-JITMEM": ("REC-002",),
+    "REF-COMPKV": ("REC-002",),
+    "REF-QWEN-PLANNER": ("REC-002",),
+    "REF-SHARE-BORNE": ("REC-002",),
+    "REF-A2M": ("REC-002",),
     "REF-CI": ("REC-002",),
     "REF-UNANIMITY": ("REC-002",),
     "REF-WSQEM": ("REC-002",),
