@@ -12,7 +12,7 @@ must equal the previous mean. The host supplies variance in squared representati
 declares independent process/measurement errors through `independent_noise=True`. This declaration
 is an assumption, not a verification result. Arbitrary semantic state need not be linear or
 Gaussian. Repeated or correlated judgments do not become independent by changing their IDs.
-PR-4 will address multi-source correlation; this estimator consumes one configured channel.
+[PR-4](scalar_fusion.md) adds separate multi-source fusion; this estimator consumes one configured channel.
 
 The constructor requires an available one-dimensional `DiagonalState` with covariance. Scalar
 nonnegative covariance is symmetric and positive semidefinite by construction. Full matrices,
@@ -170,4 +170,4 @@ motivates keeping confident errors visible; no entropy-based training is impleme
 [C3-JEPA](recommendations/RESEARCH_TRACEABILITY.md#ref-c3-jepa) motivates explicit correspondence,
 without establishing semantic linearity. Published results, repository inferences and untested
 hypotheses are separated in the register. No paper's agent-performance experiment is reproduced.
-See [ADR 0004](adr/0004-temporal-estimator.md). PR-4 correlation-aware fusion remains deferred.
+See [ADR 0004](adr/0004-temporal-estimator.md). [PR-4 scalar fusion](scalar_fusion.md) is available as a separate diagnostic API; automatic composition remains deferred.

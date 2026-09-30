@@ -927,3 +927,65 @@ references:
     local_repo_notes:
       - "gepa_mindfulness/verification/temporal_estimator.py"
       - "docs/temporal_estimator.md"
+
+  - reference_id: REF-CI
+    metadata_status: "resolved"
+    supplied_title: "Julier & Uhlmann 1997 — Covariance Intersection"
+    title: "A Non-divergent Estimation Algorithm in the Presence of Unknown Correlations"
+    authors:
+      - "Simon J. Julier"
+      - "Jeffrey K. Uhlmann"
+    year: 1997
+    arxiv_id: null
+    doi: "10.1109/ACC.1997.609105"
+    venue_status: "Proceedings of the 1997 American Control Conference, volume 4, pages 2369-2373."
+    canonical_url: "https://doi.org/10.1109/ACC.1997.609105"
+    recommendation_ids:
+      - "REC-002"
+    source_demonstrates: "Covariance Intersection combines estimates with unknown error cross-correlation using a convex mixture of information, assuming consistent input covariance bounds."
+    repository_inference: "Default to conservative scalar fusion when cross-correlation is unknown. Use explicitly supplied covariance when known, while retaining its provenance and checking its numerical validity."
+    maturity: "Published estimation method; PR-4 implements scalar CI, declared known-covariance fusion and a conservative bound. Semantic calibration and unbiasedness remain host-reviewed assumptions."
+    local_repo_notes:
+      - "gepa_mindfulness/verification/scalar_fusion.py"
+      - "docs/scalar_fusion.md"
+
+  - reference_id: REF-UNANIMITY
+    metadata_status: "resolved"
+    supplied_title: "Unanimity Without Persuasion"
+    title: "Unanimity Without Persuasion: A Single Round of Debate Erases the Disagreement That Verification Needs"
+    authors:
+      - "Yang Shu"
+    year: 2026
+    arxiv_id: "2609.26145"
+    doi: "10.48550/arXiv.2609.26145"
+    venue_status: null
+    canonical_url: "https://arxiv.org/abs/2609.26145"
+    recommendation_ids:
+      - "REC-002"
+    source_demonstrates: "The study reports rapid consensus after a debate round with little accuracy change, and shows that peer exposure can remove disagreement useful for targeting verification."
+    repository_inference: "Freeze and verify the complete blind judgment cohort before releasing a peer packet. Treat post-discussion agreement as dependent evidence and preserve the original dissent."
+    maturity: "Resolved arXiv preprint; PR-4 implements an explicit in-memory verified Round-0 collector. The host enforces real peer isolation; no debate benchmark result is reproduced."
+    local_repo_notes:
+      - "gepa_mindfulness/verification/judgment_panel.py"
+      - "docs/scalar_fusion.md"
+
+  - reference_id: REF-WSQEM
+    metadata_status: "resolved"
+    supplied_title: "Weakly Supervised Quantum Error Mitigation"
+    title: "Weakly Supervised Quantum Error Mitigation"
+    authors:
+      - "Seyed Mohamad Ali Tousi"
+      - "G. N. DeSouza"
+    year: 2026
+    arxiv_id: "2609.25555"
+    doi: "10.48550/arXiv.2609.25555"
+    venue_status: null
+    canonical_url: "https://arxiv.org/abs/2609.25555"
+    recommendation_ids:
+      - "REC-002"
+    source_demonstrates: "The quantum error-mitigation study combines circuit and hardware heuristics through a probabilistic label model without ideal outputs in its training path."
+    repository_inference: "Use only the structural analogy of combining weak signals under explicit assumptions. Unknown or unavailable uncertainty should remain explicit rather than receiving independence credit."
+    maturity: "Resolved arXiv preprint; PR-4 provides scalar fusion and an unresolved mode. No quantum label model, hardware result or transfer of quantum calibration to LLM judgments is implemented."
+    local_repo_notes:
+      - "gepa_mindfulness/verification/scalar_fusion.py"
+      - "docs/scalar_fusion.md"

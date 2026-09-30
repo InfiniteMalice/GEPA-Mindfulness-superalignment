@@ -156,9 +156,15 @@ EXPECTED_REFERENCES = (
     ("REF-GRUET", "2609.24831", "GRUET"),
     ("REF-DUAL-FRONTIER", "2609.26293", "Dual-Frontier"),
     ("REF-DEEPO", "2609.28570", "DEEPO"),
+    ("REF-CI", None, "Julier & Uhlmann 1997 — Covariance Intersection"),
+    ("REF-UNANIMITY", "2609.26145", "Unanimity Without Persuasion"),
+    ("REF-WSQEM", "2609.25555", "Weakly Supervised Quantum Error Mitigation"),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
+    "REF-CI": ("REC-002",),
+    "REF-UNANIMITY": ("REC-002",),
+    "REF-WSQEM": ("REC-002",),
     "REF-GRUET": ("REC-002",),
     "REF-DUAL-FRONTIER": ("REC-002",),
     "REF-DEEPO": ("REC-002",),
@@ -205,7 +211,8 @@ def test_bundled_registry_has_every_requested_reference_once() -> None:
         == EXPECTED_REFERENCES
     )
     assert len({item.reference_id for item in loaded}) == len(loaded)
-    assert len({item.arxiv_id for item in loaded}) == len(loaded)
+    arxiv_ids = [item.arxiv_id for item in loaded if item.arxiv_id is not None]
+    assert len(set(arxiv_ids)) == len(arxiv_ids)
     assert all(item.metadata_status == "resolved" for item in loaded)
 
 
@@ -213,6 +220,12 @@ def test_resolved_metadata_is_complete_and_uses_canonical_arxiv_urls() -> None:
     for reference in recommendations.load_research_reference_registry():
         assert reference.title
         assert reference.authors
+        if reference.reference_id == "REF-CI":
+            assert reference.year == 1997
+            assert reference.arxiv_id is None
+            assert reference.doi == "10.1109/ACC.1997.609105"
+            assert reference.canonical_url == "https://doi.org/10.1109/ACC.1997.609105"
+            continue
         if reference.reference_id == "REF-KALMAN":
             assert reference.year == 1960
             assert reference.arxiv_id is None
@@ -571,6 +584,11 @@ def test_traceability_reader_avoids_prohibited_proof_language() -> None:
 def _valid_reference_registry_payload() -> dict[str, Any]:
     records = []
     for reference_id, arxiv_id, supplied_title in EXPECTED_REFERENCES:
+        doi = (
+            f"10.48550/arXiv.{arxiv_id}"
+            if arxiv_id
+            else "10.1109/ACC.1997.609105" if reference_id == "REF-CI" else "10.1115/1.3662552"
+        )
         records.append(
             {
                 "reference_id": reference_id,
@@ -580,12 +598,10 @@ def _valid_reference_registry_payload() -> dict[str, Any]:
                 "authors": ["Verified Author"],
                 "year": 2026,
                 "arxiv_id": arxiv_id,
-                "doi": f"10.48550/arXiv.{arxiv_id}" if arxiv_id else "10.1115/1.3662552",
+                "doi": doi,
                 "venue_status": None,
                 "canonical_url": (
-                    f"https://arxiv.org/abs/{arxiv_id}"
-                    if arxiv_id
-                    else "https://doi.org/10.1115/1.3662552"
+                    f"https://arxiv.org/abs/{arxiv_id}" if arxiv_id else f"https://doi.org/{doi}"
                 ),
                 "recommendation_ids": list(EXPECTED_RECOMMENDATION_LINKS[reference_id]),
                 "source_demonstrates": "The source reports a related mechanism.",
