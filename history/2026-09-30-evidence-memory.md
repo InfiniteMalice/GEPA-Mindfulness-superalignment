@@ -94,3 +94,27 @@ Research metadata test failed with six missing references before adding the prim
 records. Reader synchronization initially missed evidence_use.py in the canonical evidence list;
 corrected that list. Ruff found one test import ordering issue; fixed it. Build produced wheel and
 sdist successfully. Final whole-suite, distribution and independent-review results follow.
+
+Independent final review: review_pr5 examined 9db9f3a..4dbe79c read-only. No Critical, Important
+or Minor findings; documentation precision PASS with no BLOCK/WARN. Reviewer ran 141 focused
+tests and adversarial nested-representation mutation checks. No fix pass or second review needed.
+
+Final: Ruling: host authentication, score calibration and semantic target mapping remain host
+responsibilities, as specified by the explicit diagnostic boundary. Incorrect declarations can
+admit misleading measurements despite valid record structure.
+
+Final: Ruling: actual model influence and continuity diagnosis remain PR-6 work. This stage records
+target influence and numeric eligibility; treating either as observed causal influence would
+overstate the evidence.
+
+Final: Ruling: full-suite and distribution acceptance remain the implementer's responsibility.
+The installed wheel passed an outside-checkout smoke covering admission, stale refusal, summary
+preservation, fusion, JSON export, 39 references and the packaged guide. Skipping such validation
+could hide a discrepancy between source and distribution.
+
+Repository Ruff passed; Black reported 578 files unchanged. CI-selected mypy and checks of the
+adapter, state and registry passed. The 50 adapter tests cover 96% of its statements. The full
+offline suite result is recorded below. No deferred minors remain.
+
+Final full offline suite: 3,617 passed, 18 skipped, 16 warnings in 215.10 seconds. No full-suite
+failures occurred. git diff --check passed. PR-5 scope is complete; PR-6 is next after merge.
