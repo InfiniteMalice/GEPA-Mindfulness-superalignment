@@ -23,7 +23,14 @@ and keeps trace appearance outside optimizer targets.
 
 #### REC-002 — Action-bound epistemic commitments.
 
-- Repository evidence: [`logging_schema.py`](../../src/mindful_trace_gepa/logging_schema.py), [`v5_records.py`](../../evaluation/v5_records.py).
+PR-1 adds [temporal epistemic record contracts](../epistemic_state.md) for declared state,
+measurements, innovations and updates. These records are experimental diagnostics; causal
+reconciliation, estimation, routing and training integration remain deferred.
+
+- Additional evidence: [epistemic_state.py](../../gepa_mindfulness/verification/epistemic_state.py), [test_epistemic_state.py](../../tests/test_epistemic_state.py).
+- Additional research: [`REF-KALMAN`](RESEARCH_TRACEABILITY.md#ref-kalman).
+
+- Repository evidence: [`logging_schema.py`](../../src/mindful_trace_gepa/logging_schema.py), [`v5_records.py`](../../evaluation/v5_records.py), [`epistemic_state.py`](../../gepa_mindfulness/verification/epistemic_state.py).
 - Acceptance tests: [`test_action_bound_logging.py`](../../tests/test_action_bound_logging.py), [`test_v5_provenance.py`](../../tests/test_v5_provenance.py).
 - Research: [`REF-WMLLM`](RESEARCH_TRACEABILITY.md#ref-wmllm), [`REF-DWM`](RESEARCH_TRACEABILITY.md#ref-dwm), [`REF-SHEAVES`](RESEARCH_TRACEABILITY.md#ref-sheaves), [`REF-HERO`](RESEARCH_TRACEABILITY.md#ref-hero).
 

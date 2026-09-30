@@ -21,6 +21,8 @@ is the project orientation; detailed semantics live here and in subsystem README
   provenance routes, component bounds, compatibility aliases, and Goodhart risks.
 - [Structured logging](structured_logging.md): event envelope, action-bound causal sequence,
   serialization, supersession, and telemetry honesty.
+- [Temporal epistemic records](epistemic_state.md): experimental state, measurement, innovation
+  and update contracts; no estimator, causal reconciliation, reward or authority.
 - [Verification and runtime authority](VERIFICATION_AND_RUNTIME_AUTHORITY.md): world/evidence state,
   local and relational verification, failure graph, recovery, and authority separation.
 - [Foundational representation architecture](FOUNDATIONAL_REPRESENTATION_ARCHITECTURE.md):

@@ -13,6 +13,10 @@ true.
 
 ## World state and evidence state
 
+The separate [temporal epistemic records](epistemic_state.md) retain diagnostic estimates,
+measurements, innovations and declared uncertainty updates. They reuse typed evidence and system
+identity. They do not commit evidence claims, validate causal reconciliation or grant authority.
+
 `ArtifactObservation` binds an observation ID, artifact identity, SHA-256 digest, RFC 3339 time,
 and observable evidence. `WorldStateChange` is an observed artifact transition that binds one
 action to an exact after observation and, when available, an exact before observation.

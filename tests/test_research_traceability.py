@@ -131,9 +131,11 @@ EXPECTED_REFERENCES = (
         "Say Anything but This: When Tokenizer Betrays Reasoning in LLMs",
     ),
     ("REF-SOT", "2609.16055", "State of Thought Enables Endogenous Reasoning"),
+    ("REF-KALMAN", None, "A New Approach to Linear Filtering and Prediction Problems"),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
+    "REF-KALMAN": ("REC-002",),
     "REF-SOT": ("REC-015",),
     "REF-HEART": ("REC-001", "REC-008"),
     "REF-PEARL": ("REC-011",),
@@ -180,6 +182,12 @@ def test_resolved_metadata_is_complete_and_uses_canonical_arxiv_urls() -> None:
     for reference in recommendations.load_research_reference_registry():
         assert reference.title
         assert reference.authors
+        if reference.reference_id == "REF-KALMAN":
+            assert reference.year == 1960
+            assert reference.arxiv_id is None
+            assert reference.doi == "10.1115/1.3662552"
+            assert reference.canonical_url == "https://doi.org/10.1115/1.3662552"
+            continue
         assert reference.year == 2026
         assert reference.doi == f"10.48550/arXiv.{reference.arxiv_id}"
         assert reference.canonical_url == f"https://arxiv.org/abs/{reference.arxiv_id}"
@@ -191,6 +199,21 @@ def test_reference_records_are_frozen() -> None:
 
     with pytest.raises(FrozenInstanceError):
         reference.metadata_status = "unresolved"
+
+
+@pytest.mark.parametrize(
+    "changes, message",
+    [
+        ({"doi": None}, "arxiv_id or doi"),
+        ({"canonical_url": "https://example.com/paper"}, "canonical_url"),
+        ({"arxiv_id": ""}, "arxiv_id"),
+    ],
+)
+def test_doi_only_source_rejects_missing_identity_and_wrong_url(changes, message) -> None:
+    payload = _valid_reference_registry_payload()
+    payload["references"][-1].update(changes)
+    with pytest.raises(ValueError, match=message):
+        recommendations._parse_research_reference_registry(payload)
 
 
 def test_registry_loads_as_a_package_resource_outside_current_directory(
@@ -467,9 +490,13 @@ def test_traceability_reader_exactly_mirrors_registry_fields() -> None:
         assert _markdown_list_value(section, "Authors") == ", ".join(reference.authors)
         assert _markdown_list_value(section, "Year") == str(reference.year)
         assert _markdown_list_value(section, "DOI") == f"`{reference.doi}`"
-        assert _markdown_list_value(section, "arXiv") == (
-            f"[`{reference.arxiv_id}`]({reference.canonical_url})"
-        )
+        if reference.arxiv_id is None:
+            assert _markdown_list_value(section, "arXiv") == "Not applicable."
+            assert reference.canonical_url in section
+        else:
+            assert _markdown_list_value(section, "arXiv") == (
+                f"[`{reference.arxiv_id}`]({reference.canonical_url})"
+            )
         assert _markdown_list_value(section, "Venue/status") == expected_venue
         assert _markdown_list_value(section, "Recommendations influenced") == ", ".join(
             f"`{recommendation_id}`" for recommendation_id in reference.recommendation_ids
@@ -521,9 +548,13 @@ def _valid_reference_registry_payload() -> dict[str, Any]:
                 "authors": ["Verified Author"],
                 "year": 2026,
                 "arxiv_id": arxiv_id,
-                "doi": f"10.48550/arXiv.{arxiv_id}",
+                "doi": f"10.48550/arXiv.{arxiv_id}" if arxiv_id else "10.1115/1.3662552",
                 "venue_status": None,
-                "canonical_url": f"https://arxiv.org/abs/{arxiv_id}",
+                "canonical_url": (
+                    f"https://arxiv.org/abs/{arxiv_id}"
+                    if arxiv_id
+                    else "https://doi.org/10.1115/1.3662552"
+                ),
                 "recommendation_ids": list(EXPECTED_RECOMMENDATION_LINKS[reference_id]),
                 "source_demonstrates": "The source reports a related mechanism.",
                 "repository_inference": "The result motivates a bounded repository decision.",

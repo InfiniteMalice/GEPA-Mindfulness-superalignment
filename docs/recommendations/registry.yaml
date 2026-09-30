@@ -45,14 +45,17 @@ recommendations:
       - REF-DWM
       - REF-SHEAVES
       - REF-HERO
+      - REF-KALMAN
     repo_refs:
       - src/mindful_trace_gepa/logging_schema.py
     acceptance_tests:
       - tests/test_action_bound_logging.py
+      - tests/test_epistemic_state.py
       - tests/test_v5_provenance.py
     implementation_refs:
       - src/mindful_trace_gepa/logging_schema.py
       - evaluation/v5_records.py
+      - gepa_mindfulness/verification/epistemic_state.py
 
   - id: REC-003
     title: "One canonical 17-case V5 manifest."
