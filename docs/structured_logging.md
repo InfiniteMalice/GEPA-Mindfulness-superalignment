@@ -26,7 +26,7 @@ probes, attribution references, review events, repair events, objective specific
 assessments, proxy-objective assessments, novelty assessments, objective-posterior updates,
 robust-objective decisions, proxy-breakdown reports, and objective-validation interrupts. Action-bound
 event types are prediction commits, proposed and executed actions, observed outcomes, verification results,
-epistemic assessments, and case assessments.
+epistemic reconciliations, epistemic assessments, and case assessments.
 
 ## Action-bound envelope construction
 
