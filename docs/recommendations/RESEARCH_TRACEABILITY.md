@@ -1,7 +1,12 @@
 # V5 Research Traceability
 
 [`references.yaml`](references.yaml) is the single authored metadata registry. The bibliographic
-fields below mirror official arXiv abstract metadata queried on 2026-09-10. A research connection
+fields below mirror primary metadata: the original arXiv entries were queried on 2026-09-10;
+REF-KALMAN and the four PR-2 sources (FTA, PINNForge, C3-JEPA and AI Neuroscientist) were checked
+against primary texts on 2026-09-30, as were PR-3's GRUET, Dual-Frontier and DEEPO sources.
+PR-4 adds CI metadata from the author publication list and the Unanimity/WSQEM primary texts,
+also checked on 2026-09-30. PR-5 adds primary-text checks for MemCalib, JitMem, CompKV,
+Qwen-Planner-Agent, Share-Borne AI Virus and A2M on the same date. A research connection
 can motivate or support one repository decision; no entry establishes the unified architecture as
 an empirical result.
 

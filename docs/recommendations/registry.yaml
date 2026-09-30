@@ -45,14 +45,37 @@ recommendations:
       - REF-DWM
       - REF-SHEAVES
       - REF-HERO
+      - REF-KALMAN
+      - REF-FTA
+      - REF-PINNFORGE
+      - REF-C3-JEPA
+      - REF-AI-NEUROSCIENTIST
+      - REF-GRUET
+      - REF-DUAL-FRONTIER
+      - REF-DEEPO
+      - REF-CI
+      - REF-UNANIMITY
+      - REF-WSQEM
+      - REF-MEMCALIB
+      - REF-JITMEM
+      - REF-COMPKV
+      - REF-QWEN-PLANNER
+      - REF-SHARE-BORNE
+      - REF-A2M
     repo_refs:
       - src/mindful_trace_gepa/logging_schema.py
     acceptance_tests:
       - tests/test_action_bound_logging.py
+      - tests/test_epistemic_state.py
+      - tests/test_epistemic_reconciliation.py
+      - tests/test_evidence_use.py
       - tests/test_v5_provenance.py
     implementation_refs:
       - src/mindful_trace_gepa/logging_schema.py
       - evaluation/v5_records.py
+      - gepa_mindfulness/verification/epistemic_state.py
+      - gepa_mindfulness/verification/epistemic_reconciliation.py
+      - gepa_mindfulness/verification/evidence_use.py
 
   - id: REC-003
     title: "One canonical 17-case V5 manifest."
