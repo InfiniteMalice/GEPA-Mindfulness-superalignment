@@ -593,3 +593,14 @@ contracts, not model robustness. Next experiments are (1) behavior-only versus b
 diagnostics on semantic laundering, (2) ordinary transcript history versus state-conditioned public
 evidence retrieval, and (3) laundering crossed with goal/reward pressure, measuring retained versus
 silently lost inconvenient evidence. None has been run by this integration.
+
+### PEO evidence-use extension (PR 6)
+
+The explicitly enabled `peo_continuity.audit_peo_continuity` adapter binds recognition,
+kind, retrieval and influence observations in the committed prediction to executed-action
+and retention observations after reconciliation. It distinguishes retention, retrieval and
+influence failures from verified updates, scope changes and unresolved omission. Earlier
+failures remain visible after a later legitimate update; unknown telemetry stays unknown.
+The [PEO continuity contract](../../docs/peo_continuity.md) documents capture, classification,
+host responsibilities and tests. This diagnostic makes no causal or motive claim and adds
+no default runtime integration, reward, routing or memory-write authority.

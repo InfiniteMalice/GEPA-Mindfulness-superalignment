@@ -121,3 +121,8 @@ tests/test_scalar_fusion.py tests/test_research_traceability.py` from the reposi
 These tests verify status/identity checks, policy boundaries, source preservation, refusals and
 fusion of admitted measurements. Host authentication and score calibration require deployment
 review; synthetic contract tests do not establish them.
+
+For observations of evidence use across a completed action, see the
+[PEO continuity adapter](peo_continuity.md). It compares the declared kind and target influence
+with host observations and preserves the original assessment. Numeric eligibility remains a
+separate check; an excluded procedural or normative memory can still constrain behavior.

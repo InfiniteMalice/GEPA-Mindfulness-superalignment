@@ -1011,6 +1011,7 @@ references:
     canonical_url: "https://arxiv.org/abs/2609.24259"
     recommendation_ids:
       - REC-002
+      - REC-015
     source_demonstrates: "The benchmark evaluates under-use and over-use against per-proposition Ignore, Bound and Control targets; the paper also evaluates a token credit-assignment training method."
     repository_inference: "Retain declared target influence separately from numeric eligibility. Do not import token rewards or infer execution authority from Control."
     maturity: "Resolved arXiv preprint; PR-5 implements diagnostic evidence/memory eligibility and retained summary views. No published experiment or trained policy is reproduced."
@@ -1035,6 +1036,7 @@ references:
     canonical_url: "https://arxiv.org/abs/2609.27334"
     recommendation_ids:
       - REC-002
+      - REC-015
     source_demonstrates: "The method retains trajectories and curates task-conditioned memory at read time, with evaluated task-success gains over the compared write-time methods."
     repository_inference: "Preserve original records while appending task-specific summary views. No raw private-reasoning storage or learned curator is introduced."
     maturity: "Resolved arXiv preprint; PR-5 implements diagnostic evidence/memory eligibility and retained summary views. No published experiment or trained policy is reproduced."
@@ -1303,3 +1305,72 @@ references:
       - "modules/semantic_intent_robustness/latent_language_transition.py"
       - "tests/test_latent_language_transition.py"
       - "docs/research_overlays.md"
+
+  - reference_id: REF-CDR
+    metadata_status: resolved
+    supplied_title: Coverage-Directed Revision
+    title: Knowledge Graph-Augmented Ambient AI for Clinical Note Generation
+    authors:
+    - Jakir Hossain
+    - Yi-Fei Zhao
+    - Hongjian Wang
+    - Minmei Shih
+    - Katie Leigh Mullen
+    - Ahmad P. Tafti
+    - Leming Zhou
+    - Manoj Purohit
+    - William Hogan
+    - Jay Zeng
+    - Elizabeth Skidmore
+    - Yanshan Wang
+    year: 2026
+    arxiv_id: '2609.22239'
+    doi: 10.48550/arXiv.2609.22239
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2609.22239
+    recommendation_ids:
+    - REC-015
+    source_demonstrates: The source builds transcript-grounded knowledge graphs to identify concepts
+      missing from generated clinical notes and direct revision. It reports improved content recall
+      on Pitt-Bench and ACI-Bench.
+    repository_inference: Compare later evidence coverage with an original available inventory and preserve
+      unexplained omissions. This transfer is a diagnostic hypothesis; the clinical graph construction
+      and revision procedure are not implemented.
+    maturity: Resolved arXiv preprint; PR-6 adds disabled-by-default public PEO continuity diagnostics.
+      Synthetic tests establish software contracts, not model effectiveness or causal influence.
+    local_repo_notes:
+    - modules/semantic_intent_robustness/peo_continuity.py
+    - tests/test_peo_continuity.py
+    - docs/peo_continuity.md
+  - reference_id: REF-TTSE
+    metadata_status: resolved
+    supplied_title: TTSE
+    title: 'TTSE: A Two-Track Online Self-Evolution Framework for LLM Agents'
+    authors:
+    - Ruimin Pei
+    - Yongkang Wu
+    - Shangyi Zheng
+    - Yaqing Zhang
+    - Deyang Li
+    - Jianjun Tao
+    - Xinyu Zhang
+    - Xiang Zhang
+    year: 2026
+    arxiv_id: '2609.24289'
+    doi: 10.48550/arXiv.2609.24289
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2609.24289
+    recommendation_ids:
+    - REC-015
+    source_demonstrates: TTSE separates environmental facts (FACT) from task-conditioned procedures
+      (TIP), with separate evolution lifecycles. Its analysis separates environment-representation and
+      conditional-execution errors; agent benchmark ablations evaluate the dual-track design.
+    repository_inference: Retain fact/procedure distinctions and localize failures between evidence
+      availability and behavioral influence. Host observations do not reproduce the paper's risk decomposition,
+      autonomous updates, retirement, or training.
+    maturity: Resolved arXiv preprint; PR-6 adds disabled-by-default public PEO continuity diagnostics.
+      Synthetic tests establish software contracts, not model effectiveness or causal influence.
+    local_repo_notes:
+    - modules/semantic_intent_robustness/peo_continuity.py
+    - tests/test_peo_continuity.py
+    - docs/peo_continuity.md

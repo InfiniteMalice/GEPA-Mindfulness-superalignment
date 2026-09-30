@@ -6,7 +6,7 @@ REF-KALMAN and the four PR-2 sources (FTA, PINNForge, C3-JEPA and AI Neuroscient
 against primary texts on 2026-09-30, as were PR-3's GRUET, Dual-Frontier and DEEPO sources.
 PR-4 adds CI metadata from the author publication list and the Unanimity/WSQEM primary texts,
 also checked on 2026-09-30. PR-5 adds primary-text checks for MemCalib, JitMem, CompKV,
-Qwen-Planner-Agent, Share-Borne AI Virus and A2M on the same date. A research connection
+Qwen-Planner-Agent, Share-Borne AI Virus and A2M on the same date. PR-6 adds CDR and TTSE primary-text checks on 2026-09-30. A research connection
 can motivate or support one repository decision; no entry establishes the unified architecture as
 an empirical result.
 
@@ -787,7 +787,7 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - arXiv: [`2609.24259`](https://arxiv.org/abs/2609.24259)
 - DOI: `10.48550/arXiv.2609.24259`
 - Venue/status: Not supplied by official arXiv metadata.
-- Recommendations influenced: `REC-002`
+- Recommendations influenced: `REC-002`, `REC-015`
 - Local repository notes: [evidence_use.py](../../gepa_mindfulness/verification/evidence_use.py), [evidence_memory.md](../evidence_memory.md)
 - Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.24259v1), 2026-09-30.
 
@@ -808,7 +808,7 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - arXiv: [`2609.27334`](https://arxiv.org/abs/2609.27334)
 - DOI: `10.48550/arXiv.2609.27334`
 - Venue/status: Not supplied by official arXiv metadata.
-- Recommendations influenced: `REC-002`
+- Recommendations influenced: `REC-002`, `REC-015`
 - Local repository notes: [evidence_use.py](../../gepa_mindfulness/verification/evidence_use.py), [evidence_memory.md](../evidence_memory.md)
 - Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.27334v1), 2026-09-30.
 
@@ -997,3 +997,43 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 **Limitations:** These diagnostics do not establish intent, deception, causal use of a representation, successful steering, or alignment. Transfer ratios depend on measurement normalization. Black-box behavioral evaluation remains available without internal-state access.
 
 **Implementation references:** [modules/semantic_intent_robustness/latent_language_transition.py](../../modules/semantic_intent_robustness/latent_language_transition.py) and [tests/test_latent_language_transition.py](../../tests/test_latent_language_transition.py).
+
+<a id="ref-cdr"></a>
+
+## REF-CDR — Knowledge Graph-Augmented Ambient AI for Clinical Note Generation
+
+- Metadata status: `resolved`
+- Supplied title: Coverage-Directed Revision
+- Authors: Jakir Hossain, Yi-Fei Zhao, Hongjian Wang, Minmei Shih, Katie Leigh Mullen, Ahmad P. Tafti, Leming Zhou, Manoj Purohit, William Hogan, Jay Zeng, Elizabeth Skidmore, Yanshan Wang
+- Year: 2026
+- arXiv: [`2609.22239`](https://arxiv.org/abs/2609.22239)
+- DOI: `10.48550/arXiv.2609.22239`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-015`
+- Local repository notes: [implementation](../../modules/semantic_intent_robustness/peo_continuity.py), [tests](../../tests/test_peo_continuity.py), [guide](../peo_continuity.md)
+
+**Source demonstrates:** The source builds transcript-grounded knowledge graphs to identify concepts missing from generated clinical notes and direct revision. It reports improved content recall on Pitt-Bench and ACI-Bench.
+
+**Repository inference:** Compare later evidence coverage with an original available inventory and preserve unexplained omissions. This transfer is a diagnostic hypothesis; the clinical graph construction and revision procedure are not implemented.
+
+**Maturity:** Resolved arXiv preprint; PR-6 adds disabled-by-default public PEO continuity diagnostics. Synthetic tests establish software contracts, not model effectiveness or causal influence.
+
+<a id="ref-ttse"></a>
+
+## REF-TTSE — TTSE: A Two-Track Online Self-Evolution Framework for LLM Agents
+
+- Metadata status: `resolved`
+- Supplied title: TTSE
+- Authors: Ruimin Pei, Yongkang Wu, Shangyi Zheng, Yaqing Zhang, Deyang Li, Jianjun Tao, Xinyu Zhang, Xiang Zhang
+- Year: 2026
+- arXiv: [`2609.24289`](https://arxiv.org/abs/2609.24289)
+- DOI: `10.48550/arXiv.2609.24289`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-015`
+- Local repository notes: [implementation](../../modules/semantic_intent_robustness/peo_continuity.py), [tests](../../tests/test_peo_continuity.py), [guide](../peo_continuity.md)
+
+**Source demonstrates:** TTSE separates environmental facts (FACT) from task-conditioned procedures (TIP), with separate evolution lifecycles. Its analysis separates environment-representation and conditional-execution errors; agent benchmark ablations evaluate the dual-track design.
+
+**Repository inference:** Retain fact/procedure distinctions and localize failures between evidence availability and behavioral influence. Host observations do not reproduce the paper's risk decomposition, autonomous updates, retirement, or training.
+
+**Maturity:** Resolved arXiv preprint; PR-6 adds disabled-by-default public PEO continuity diagnostics. Synthetic tests establish software contracts, not model effectiveness or causal influence.

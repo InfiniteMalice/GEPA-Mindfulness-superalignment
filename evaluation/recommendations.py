@@ -62,6 +62,8 @@ REFERENCE_IDS = (
     "REF-COMM-BOTTLENECK",
     "REF-LOGICTRACK",
     "REF-LATENT-LANGUAGE-GAP",
+    "REF-CDR",
+    "REF-TTSE",
 )
 REFERENCE_ARXIV_IDS = (
     "2609.01736",
@@ -107,6 +109,8 @@ REFERENCE_ARXIV_IDS = (
     "2609.21509",
     "2609.21492",
     "2609.21662",
+    "2609.22239",
+    "2609.24289",
 )
 ALLOWED_METADATA_STATUSES = frozenset({"resolved", "unresolved"})
 
