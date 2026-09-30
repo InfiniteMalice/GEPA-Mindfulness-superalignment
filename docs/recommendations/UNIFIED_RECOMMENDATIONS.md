@@ -25,11 +25,12 @@ and keeps trace appearance outside optimizer targets.
 
 PR-1 adds [temporal epistemic record contracts](../epistemic_state.md) for declared state,
 measurements, innovations and updates. PR-2 adds causal reconciliation with numeric outcome
-bindings, timestamp ordering and verifier evidence checks. Estimation, routing and training
-integration remain deferred.
+bindings, timestamp ordering and verifier evidence checks. PR-3 adds a disabled-by-default
+[scalar temporal estimator](../temporal_estimator.md) with explicit gating and adaptive noise.
+Routing and training integration remain deferred.
 
 - Additional evidence: [epistemic_state.py](../../gepa_mindfulness/verification/epistemic_state.py), [test_epistemic_state.py](../../tests/test_epistemic_state.py), [test_epistemic_reconciliation.py](../../tests/test_epistemic_reconciliation.py).
-- Additional research: [`REF-KALMAN`](RESEARCH_TRACEABILITY.md#ref-kalman), [`REF-FTA`](RESEARCH_TRACEABILITY.md#ref-fta), [`REF-PINNFORGE`](RESEARCH_TRACEABILITY.md#ref-pinnforge), [`REF-C3-JEPA`](RESEARCH_TRACEABILITY.md#ref-c3-jepa), [`REF-AI-NEUROSCIENTIST`](RESEARCH_TRACEABILITY.md#ref-ai-neuroscientist).
+- Additional research: [`REF-KALMAN`](RESEARCH_TRACEABILITY.md#ref-kalman), [`REF-FTA`](RESEARCH_TRACEABILITY.md#ref-fta), [`REF-PINNFORGE`](RESEARCH_TRACEABILITY.md#ref-pinnforge), [`REF-C3-JEPA`](RESEARCH_TRACEABILITY.md#ref-c3-jepa), [`REF-AI-NEUROSCIENTIST`](RESEARCH_TRACEABILITY.md#ref-ai-neuroscientist), [`REF-GRUET`](RESEARCH_TRACEABILITY.md#ref-gruet), [`REF-DUAL-FRONTIER`](RESEARCH_TRACEABILITY.md#ref-dual-frontier), [`REF-DEEPO`](RESEARCH_TRACEABILITY.md#ref-deepo).
 
 - Repository evidence: [`logging_schema.py`](../../src/mindful_trace_gepa/logging_schema.py), [`v5_records.py`](../../evaluation/v5_records.py), [`epistemic_state.py`](../../gepa_mindfulness/verification/epistemic_state.py), [`epistemic_reconciliation.py`](../../gepa_mindfulness/verification/epistemic_reconciliation.py).
 - Acceptance tests: [`test_action_bound_logging.py`](../../tests/test_action_bound_logging.py), [`test_v5_provenance.py`](../../tests/test_v5_provenance.py).
