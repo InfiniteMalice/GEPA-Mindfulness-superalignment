@@ -73,4 +73,10 @@ experiments. Treating synthetic contract results as empirical validation would o
 Final: Ruling: full-suite and installed-distribution acceptance remain the implementer's duty.
 Skipping either can hide integration failures or source/distribution discrepancies.
 
-Final validation results follow below; no deferred minor findings.
+Final validation: the post-fix focused suite passed 264 tests, followed by all 56 adapter tests
+including the additional valid-replacement control (94% statement coverage). Repository Ruff,
+Black (590 files), CI-selected mypy and new-module checks passed. Rebuilt wheel and sdist; the
+outside-checkout installed-wheel smoke passed with the final implementation. The complete offline
+suite passed **3917 tests, 18 skipped, 16 warnings** in 211.09 seconds. `git diff --check` passed.
+The chronology regression demonstrated RED before the fix and GREEN afterward. No deferred minor
+findings or unresolved documentation BLOCK/WARN remain. PR 7 System-One routing is next, not started.
