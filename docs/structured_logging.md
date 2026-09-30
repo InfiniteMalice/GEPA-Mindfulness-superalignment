@@ -65,14 +65,18 @@ The validator enforces these causal links:
 - An `action_executed` event cites exactly one earlier matching `action_proposed` event.
 - An `outcome_observed` event cites exactly one earlier matching `action_executed` event.
 - A `verification_result` event cites exactly one earlier matching `outcome_observed` event.
+- An optional `epistemic_reconciliation` event cites its earlier prediction, observation and
+  verifier events. Its typed update validates numeric residuals, evidence and timestamp chronology
+  through that observation's executed-action ancestry; see [reconciliation](epistemic_state.md).
 - An `epistemic_assessment` event cites one or more earlier `verification_result` events.
 - A `case_assessment` event cites one or more earlier `epistemic_assessment` events.
 
 All parents of one derived assessment must belong to the same evaluation unit and resolve to one
 `action_id`. A verification or assessment may omit its envelope `action_id`; when supplied, the
 `action_id` must match the action resolved from its causal ancestry. Parent references must be
-distinct and point backward to existing events. Envelope IDs and typed semantic IDs must not be
-reused.
+distinct and point backward to existing events. Event IDs and prediction, observation, verifier
+and reconciliation update IDs must be unique. Each action ID permits one proposal and one matching
+execution. Nested diagnostic snapshots may retain prior measurement or estimate IDs.
 
 Raw evidence and raw action or outcome events are append-only. Only an epistemic or case assessment
 may identify a later same-type replacement in the same evaluation unit and action ancestry through

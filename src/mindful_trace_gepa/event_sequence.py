@@ -24,11 +24,21 @@ _PROPOSED = StructuredEventType.ACTION_PROPOSED.value
 _EXECUTED = StructuredEventType.ACTION_EXECUTED.value
 _OBSERVATION = StructuredEventType.OUTCOME_OBSERVED.value
 _VERIFICATION = StructuredEventType.VERIFICATION_RESULT.value
+_RECONCILIATION = StructuredEventType.EPISTEMIC_RECONCILIATION.value
 _EPISTEMIC = StructuredEventType.EPISTEMIC_ASSESSMENT.value
 _CASE = StructuredEventType.CASE_ASSESSMENT.value
 
 _ACTION_BOUND_TYPES = frozenset(
-    {_PREDICTION, _PROPOSED, _EXECUTED, _OBSERVATION, _VERIFICATION, _EPISTEMIC, _CASE}
+    {
+        _PREDICTION,
+        _PROPOSED,
+        _EXECUTED,
+        _OBSERVATION,
+        _VERIFICATION,
+        _RECONCILIATION,
+        _EPISTEMIC,
+        _CASE,
+    }
 )
 _DERIVED_TYPES = frozenset({_EPISTEMIC, _CASE})
 _Payload = TypeVar(
@@ -72,6 +82,7 @@ def validate_action_bound_sequence(events: Sequence[EventEnvelope]) -> None:
     executed_actions: dict[str, EventEnvelope] = {}
     observations: dict[str, EventEnvelope] = {}
     verifications: set[str] = set()
+    reconciliation_updates: set[str] = set()
     seen_events: dict[str, EventEnvelope] = {}
     resolved_action_ids: dict[str, str] = {}
 
@@ -157,6 +168,18 @@ def validate_action_bound_sequence(events: Sequence[EventEnvelope]) -> None:
                     unit,
                 )
             resolved_action_ids[event.event_id] = action_id
+        elif event.event_type == _RECONCILIATION:
+            # Delay the cross-package import: diagnostic contracts reuse EvaluatedSystemVersion.
+            from gepa_mindfulness.verification.epistemic_reconciliation import (
+                _validate_reconciliation_event,
+            )
+
+            reconciliation = _validate_reconciliation_event(event, seen_events)
+            update_id = reconciliation.update.update_id
+            if update_id in reconciliation_updates:
+                raise ValueError("duplicate reconciliation update_id")
+            reconciliation_updates.add(update_id)
+            resolved_action_ids[event.event_id] = _required_string("action_id", event.action_id)
         elif event.event_type == _EPISTEMIC:
             parents = _require_derived_parents(event, seen_events, _VERIFICATION)
             for parent in parents:

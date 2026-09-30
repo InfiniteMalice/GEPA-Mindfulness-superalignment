@@ -1,14 +1,15 @@
-# Temporal epistemic record contracts
+# Temporal epistemic records and causal reconciliation
 
 ## Status and scope
 
 `gepa_mindfulness.verification.epistemic_state` implements PR-1 of the temporal
 Predict → Execute → Observe → Reconcile program. These are experimental diagnostic records,
 constructed explicitly by callers. Importing the module installs no runtime behavior. Existing
-events, confidence fusion, routing, rewards, training and authority remain unchanged.
+confidence fusion, routing, rewards, training and authority remain unchanged.
 
-The module does not resolve evidence or event references, authenticate producers, verify truth,
-estimate state, reconcile an event sequence, authorize an action or persist an update.
+The record module does not resolve evidence or event references, authenticate producers, verify
+truth, estimate state, authorize an action or persist an update. PR-2 adds explicit causal
+validation through `epistemic_reconciliation` and the existing action-bound sequence validator.
 An available number and an `EXTERNAL_VERIFIER` source label do not establish verified evidence.
 
 ## Contracts
@@ -61,8 +62,9 @@ This diagnostic is not a probability, squared innovation statistic or deception 
 
 `EpistemicContext.validate_event(event)` checks run, repeat, model and harness identity against an
 existing `EventEnvelope`. It does not resolve prediction/action/observation IDs or validate order.
-PR-2 must perform that work through the existing action-bound event sequence before treating an
-update as causally reconciled. A constructed PR-1 record is not a valid runtime reconciliation.
+Callers must run `validate_action_bound_sequence(events)` with the reconciliation and its causal
+inputs before treating an update as causally reconciled. Constructing records or envelopes alone
+does not establish valid ancestry.
 
 An update rejects mismatched contexts and reused prior/posterior estimate IDs. When numerical
 states exist, their representations and ordered dimensions must agree, and each measurement must
@@ -96,6 +98,74 @@ estimate = EpistemicStateEstimate(
 assert EpistemicStateEstimate.from_dict(estimate.to_dict()) == estimate
 ```
 
+## Causal reconciliation (PR-2)
+
+`EpistemicReconciliation` contains an `UncertaintyUpdateRecord`, prediction and observation
+event IDs, nonempty verifier event IDs, and exactly one `OutcomeMeasurementBinding` per used
+measurement. Each binding carries an `InnovationRecord`, prediction/observation JSON paths,
+and an optional verifier event ID. Paths contain exact string object keys or nonnegative integer
+array indices; an empty path selects a scalar root. Both selected values must be finite numbers.
+Booleans, null, numeric strings and missing telemetry fail validation.
+
+`make_epistemic_reconciliation_event(record, **metadata)` emits `epistemic_reconciliation` in the
+existing stream. The payload uses `epistemic-reconciliation-v1`; nested PR-1 records retain their
+schema. Serialization is exact and detached, and the envelope deep-freezes the payload. The adapter
+derives run/repeat/model/harness, action, evidence and parent IDs and rejects conflicting overrides.
+The caller supplies an event ID and timestamp or uses the existing envelope defaults.
+
+The sequence validator requires these conditions:
+
+- All inputs occur earlier in the stream. Parents are exactly prediction, observation, then the
+  declared verifier events, in that order. Each verifier binds the same observation.
+- Observation ancestry resolves through execution and proposal to the selected prediction.
+  Posterior action/prediction IDs and innovation prediction/observation IDs match that chain.
+  All records and events share run, repeat, model and harness identity.
+- Timestamps are timezone-aware RFC3339. Prediction strictly predates execution; proposal lies
+  between them; observation follows execution; each verifier lies between observation and
+  reconciliation. Equal timestamps are allowed except prediction versus execution. Both stream
+  order and timestamps must pass; this additional timestamp rule applies only to reconciled chains.
+- Innovation numbers equal the selected prediction and observation values; measurement value
+  equals the latter. Innovation and measurement retain identical typed evidence sets, and their
+  reference IDs occur in the observation. Prior evidence IDs occur in the committed prediction.
+  All update evidence IDs occur in prediction, observation or verifier inputs.
+- Optional prior action/prediction IDs resolve to the same evaluation context and agree when both
+  are supplied. They may name the current action/prediction for an action-conditioned prior.
+  Historical predictions or executed actions must occur before the current prediction in stream
+  order, with timestamps no later than that prediction. Null IDs allow an initial unbound prior.
+- Each update ID is unique. Reconciliation is append-only; it cannot use `superseded_by`.
+
+### External verification boundary
+
+An `EXTERNAL_VERIFIER` measurement requires a verifier event binding. Any binding that names a
+verifier, regardless of source label, must retain that verifier's `verifier_refs` in measurement
+provenance and use observable evidence. Legacy `VerificationResult` requires `verified=True` and
+keeps its existing observation-level meaning. A relational result requires both
+`claimed_outcome_supported=True` and `provenance_intact=True`, with every typed measurement
+reference bound to each of those fields. Local execution findings alone cannot certify outcomes.
+
+A diagnostic without a verifier binding may coexist with a failed verification; it cannot use
+the external-verifier source label. This code validates recorded relationships, not producer
+authentication, evidence truth, selected-path units or the update algorithm. Legacy string
+reference IDs do not independently establish source kinds. The host must authenticate producers,
+preserve captured source kinds, and review the measurement contract before relying on results.
+Prior numbers remain producer declarations; committing prior evidence does not commit those numbers.
+
+### Residual scope
+
+| Residual | Meaning | Current support |
+| --- | --- | --- |
+| World | Predicted outcome versus observed outcome | Explicit numeric paths; `actual - predicted`. |
+| Action | Intended/proposed action versus executed action | The existing action schema requires exact proposal/execution equality and rejects rewrites. No independently observed action representation exists for a numeric residual. |
+| Report | Verified action/outcome versus a later public report | Deferred until a typed later-report event and its causal binding exist. |
+
+Unavailable residual categories are not reported as zero. No residual establishes motive,
+deception, reward eligibility, execution authority or persistence authority. Mismatch labels and
+normalization assumptions remain producer declarations. No estimator or runtime producer is added.
+
+Legacy assessment parents remain verifier events. V5 validates reconciliation cell identity, but
+its scored outcome still accepts only `{"passed": bool}`; numeric telemetry belongs to an additional
+action trajectory in that cell. Adding a valid diagnostic trajectory does not change optimizer scores.
+
 ## Research, compatibility and next stage
 
 [REF-KALMAN](recommendations/RESEARCH_TRACEABILITY.md#ref-kalman) separates the mathematical result,
@@ -107,20 +177,24 @@ Existing event JSON and the canonical 17 cases require no migration. The researc
 permits a null `arxiv_id` for a DOI-backed source and requires its exact `https://doi.org/<doi>`
 canonical URL. Existing arXiv entries retain their prior fields and URL validation.
 
-PR-2 depends on these types and must bind reconciliation to existing prediction, execution,
-observation and verifier ancestry. It must validate causal ordering and verifier evidence before
-introducing a reconciliation event adapter. PR-3 can then implement an explicitly gated estimator.
+PR-2 now binds reconciliation to prediction, execution, observation and verifier ancestry.
+The [research register](recommendations/RESEARCH_TRACEABILITY.md#ref-fta) distinguishes published
+findings from repository hypotheses for FTA, PINNForge, C3-JEPA and AI Neuroscientist. Synthetic
+contract tests do not reproduce their experiments. PR-3 is the next explicitly gated estimator
+stage; PR-4 covers correlation-aware fusion. See [ADR 0003](adr/0003-epistemic-reconciliation.md).
 
 ## Verification
 
 From the repository root, run:
 
 ```text
-python -m pytest tests/test_epistemic_state.py tests/test_action_bound_events.py tests/test_action_bound_event_sequence.py tests/test_epistemic_process_rewards.py tests/test_research_traceability.py -q
+python -m pytest tests/test_epistemic_state.py tests/test_epistemic_reconciliation.py tests/test_action_bound_events.py tests/test_action_bound_event_sequence.py tests/test_epistemic_process_rewards.py tests/test_research_traceability.py -q
 ```
 
 `test_epistemic_state.py` covers the validation rules above, exact round trips, detached snapshots,
 identity mismatches and rejection by the existing optimizer component contract. Existing event
 and reward tests provide compatibility coverage. Registry tests check DOI metadata and reciprocal
 research links. Deployment assumptions such as evidence authentication and normalization validity
-require host review; this record-only PR supplies no deployed estimator to qualify.
+require host review; these stages supply no deployed estimator to qualify. Reconciliation tests
+cover missing/forward inputs, chronology, residual spoofing, evidence laundering, immutability,
+schema round trips and V5 score compatibility.
