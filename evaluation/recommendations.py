@@ -49,6 +49,9 @@ REFERENCE_IDS = (
     "REF-GRUET",
     "REF-DUAL-FRONTIER",
     "REF-DEEPO",
+    "REF-CI",
+    "REF-UNANIMITY",
+    "REF-WSQEM",
 )
 REFERENCE_ARXIV_IDS = (
     "2609.01736",
@@ -81,6 +84,9 @@ REFERENCE_ARXIV_IDS = (
     "2609.24831",
     "2609.26293",
     "2609.28570",
+    None,
+    "2609.26145",
+    "2609.25555",
 )
 ALLOWED_METADATA_STATUSES = frozenset({"resolved", "unresolved"})
 

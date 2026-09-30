@@ -53,6 +53,9 @@ recommendations:
       - REF-GRUET
       - REF-DUAL-FRONTIER
       - REF-DEEPO
+      - REF-CI
+      - REF-UNANIMITY
+      - REF-WSQEM
     repo_refs:
       - src/mindful_trace_gepa/logging_schema.py
     acceptance_tests:

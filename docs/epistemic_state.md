@@ -75,8 +75,8 @@ measurements cannot appear in `measurements` (which records measurements used in
 Correlation treatment defaults to `UNRESOLVED_CORRELATION`. `KNOWN_COVARIANCE`,
 `COVARIANCE_INTERSECTION` and `CONSERVATIVE_BOUND` are producer-declared method labels only.
 No label executes or certifies fusion. A null correlation group means unknown dependence;
-different group names also do not establish independence. PR-4 must verify a selected algorithm's
-covariance/correlation assumptions before consuming these records for fusion.
+different group names also do not establish independence. [PR-4 scalar fusion](scalar_fusion.md) validates numerical covariance contracts; the host must
+review the physical covariance/correlation assumptions.
 
 ## Example
 
@@ -182,7 +182,7 @@ PR-2 now binds reconciliation to prediction, execution, observation and verifier
 The [research register](recommendations/RESEARCH_TRACEABILITY.md#ref-fta) distinguishes published
 findings from repository hypotheses for FTA, PINNForge, C3-JEPA and AI Neuroscientist. Synthetic
 contract tests do not reproduce their experiments. PR-3 adds an experimental, disabled-by-default
-[scalar temporal estimator](temporal_estimator.md); PR-4 covers correlation-aware fusion. See [ADR 0003](adr/0003-epistemic-reconciliation.md).
+[scalar temporal estimator](temporal_estimator.md); PR-4 adds [scalar correlation-aware fusion](scalar_fusion.md). See [ADR 0003](adr/0003-epistemic-reconciliation.md).
 
 ## Verification
 
