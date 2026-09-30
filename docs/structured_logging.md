@@ -66,8 +66,8 @@ The validator enforces these causal links:
 - An `outcome_observed` event cites exactly one earlier matching `action_executed` event.
 - A `verification_result` event cites exactly one earlier matching `outcome_observed` event.
 - An optional `epistemic_reconciliation` event cites its earlier prediction, observation and
-  verifier events. Its typed update validates numeric residuals, evidence and timestamp chronology
-  through that observation's executed-action ancestry; see [reconciliation](epistemic_state.md).
+  verifier events. `validate_action_bound_sequence()` checks numeric residuals, evidence and timestamp
+  chronology through that observation's executed-action ancestry; see [reconciliation](epistemic_state.md).
 - An `epistemic_assessment` event cites one or more earlier `verification_result` events.
 - A `case_assessment` event cites one or more earlier `epistemic_assessment` events.
 
