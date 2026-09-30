@@ -49,6 +49,38 @@ EXPECTED_OVERLAYS = (
         ("REF-SAE",),
         ("REC-014",),
     ),
+    (
+        "evolutionary_semantic_search",
+        "Evolutionary semantic search",
+        "evolutionary_semantic_search",
+        ("semantic_strategy_evaluation",),
+        ("REF-EVOFLINT",),
+        ("REC-016",),
+    ),
+    (
+        "serialization_roundtrip",
+        "Structural communication round-trip audit",
+        "serialization_roundtrip",
+        ("serialization_roundtrip_result",),
+        ("REF-COMM-BOTTLENECK",),
+        ("REC-017",),
+    ),
+    (
+        "formal_reasoning_audit",
+        "Formal reasoning audit",
+        "formal_reasoning_audit",
+        ("formal_audit_result",),
+        ("REF-LOGICTRACK",),
+        ("REC-018",),
+    ),
+    (
+        "latent_language_transition",
+        "Latent-to-language transition audit",
+        "latent_language_transition",
+        ("latent_language_transition_assessment",),
+        ("REF-LATENT-LANGUAGE-GAP",),
+        ("REC-019",),
+    ),
 )
 
 
@@ -71,7 +103,21 @@ def test_registry_exposes_exact_disabled_experimental_overlays() -> None:
     )
     assert all(item.maturity == "experimental" for item in loaded)
     assert all(item.enabled_by_default is False for item in loaded)
-    assert len({item.feature_flag for item in loaded}) == 5
+    assert len({item.feature_flag for item in loaded}) == 9
+
+
+@pytest.mark.parametrize("overlay_id", [item[0] for item in EXPECTED_OVERLAYS[-4:]])
+def test_research_overlay_flags_require_explicit_boolean_opt_in(overlay_id: str) -> None:
+    assert (
+        experimental_overlays.enabled_overlays(experimental_overlays.ExperimentalOverlayConfig())
+        == ()
+    )
+    config = experimental_overlays.ExperimentalOverlayConfig.from_mapping({overlay_id: True})
+    assert tuple(item.id for item in experimental_overlays.enabled_overlays(config)) == (
+        overlay_id,
+    )
+    with pytest.raises(ValueError, match="built-in bool"):
+        experimental_overlays.ExperimentalOverlayConfig.from_mapping({overlay_id: 1})
 
 
 def test_every_overlay_prohibits_case_creation_and_direct_reward() -> None:

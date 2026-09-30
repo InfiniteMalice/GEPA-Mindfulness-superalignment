@@ -75,3 +75,75 @@ overlays:
       - REF-SAE
     recommendation_refs:
       - REC-014
+
+  - id: "evolutionary_semantic_search"
+    title: "Evolutionary semantic search"
+    maturity: "experimental"
+    enabled_by_default: false
+    feature_flag: "evolutionary_semantic_search"
+    allowed_outputs:
+      - "semantic_strategy_evaluation"
+    prohibited_effects:
+      - "canonical_case_creation"
+      - "direct_optimizer_reward"
+      - "runtime_authority"
+      - "automatic_training_promotion"
+      - "private_chain_of_thought_reward"
+    research_refs:
+      - "REF-EVOFLINT"
+    recommendation_refs:
+      - "REC-016"
+
+  - id: "serialization_roundtrip"
+    title: "Structural communication round-trip audit"
+    maturity: "experimental"
+    enabled_by_default: false
+    feature_flag: "serialization_roundtrip"
+    allowed_outputs:
+      - "serialization_roundtrip_result"
+    prohibited_effects:
+      - "canonical_case_creation"
+      - "direct_optimizer_reward"
+      - "runtime_authority"
+      - "automatic_training_promotion"
+      - "private_chain_of_thought_reward"
+    research_refs:
+      - "REF-COMM-BOTTLENECK"
+    recommendation_refs:
+      - "REC-017"
+
+  - id: "formal_reasoning_audit"
+    title: "Formal reasoning audit"
+    maturity: "experimental"
+    enabled_by_default: false
+    feature_flag: "formal_reasoning_audit"
+    allowed_outputs:
+      - "formal_audit_result"
+    prohibited_effects:
+      - "canonical_case_creation"
+      - "direct_optimizer_reward"
+      - "runtime_authority"
+      - "automatic_training_promotion"
+      - "private_chain_of_thought_reward"
+    research_refs:
+      - "REF-LOGICTRACK"
+    recommendation_refs:
+      - "REC-018"
+
+  - id: "latent_language_transition"
+    title: "Latent-to-language transition audit"
+    maturity: "experimental"
+    enabled_by_default: false
+    feature_flag: "latent_language_transition"
+    allowed_outputs:
+      - "latent_language_transition_assessment"
+    prohibited_effects:
+      - "canonical_case_creation"
+      - "direct_optimizer_reward"
+      - "runtime_authority"
+      - "automatic_training_promotion"
+      - "private_chain_of_thought_reward"
+    research_refs:
+      - "REF-LATENT-LANGUAGE-GAP"
+    recommendation_refs:
+      - "REC-019"

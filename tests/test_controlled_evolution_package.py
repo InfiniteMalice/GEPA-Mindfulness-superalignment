@@ -12,6 +12,11 @@ EXPECTED_RESOURCES = {
     "docs/__init__.py",
     "docs/controlled_evolution.md",
     "docs/experimental_v5_overlays.md",
+    "docs/research_overlays.md",
+    "docs/epistemic_state.md",
+    "docs/temporal_estimator.md",
+    "docs/scalar_fusion.md",
+    "docs/evidence_memory.md",
     "docs/recommendations/RESEARCH_TRACEABILITY.md",
     "docs/recommendations/UNIFIED_RECOMMENDATIONS.md",
     "docs/recommendations/references.yaml",
@@ -68,6 +73,19 @@ assert root.joinpath("controlled_evolution.md").read_text(encoding="utf-8").star
 assert root.joinpath("experimental_v5_overlays.md").read_text(encoding="utf-8").startswith(
     "# Experimental V5 Overlays"
 )
+for name in (
+    "research_overlays.md", "epistemic_state.md", "temporal_estimator.md",
+    "scalar_fusion.md", "evidence_memory.md",
+):
+    assert root.joinpath(name).read_text(encoding="utf-8").startswith("# ")
+from evaluation.recommendations import (
+    load_recommendation_registry, load_research_reference_registry,
+)
+assert len(load_recommendation_registry()) == 19
+reference_ids = {reference.reference_id for reference in load_research_reference_registry()}
+assert {
+    "REF-KALMAN", "REF-CI", "REF-A2M", "REF-EVOFLINT", "REF-LATENT-LANGUAGE-GAP"
+} <= reference_ids
 from evaluation.experimental_overlays import ExperimentalOverlayConfig, enabled_overlays
 from evaluation.experimental_records import ExperimentalMaturity
 assert enabled_overlays(ExperimentalOverlayConfig()) == ()

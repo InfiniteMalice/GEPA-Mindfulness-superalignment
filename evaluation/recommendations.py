@@ -12,8 +12,8 @@ from typing import Any
 import yaml
 
 REGISTRY_VERSION = "17case-v5"
-RECOMMENDATION_IDS = tuple(f"REC-{number:03d}" for number in range(1, 16))
-RECOMMENDATION_PRIORITIES = ("P0",) * 5 + ("P1",) * 5 + ("P2",) * 5
+RECOMMENDATION_IDS = tuple(f"REC-{number:03d}" for number in range(1, 20))
+RECOMMENDATION_PRIORITIES = ("P0",) * 5 + ("P1",) * 5 + ("P2",) * 9
 ALLOWED_PRIORITIES = frozenset({"P0", "P1", "P2"})
 ALLOWED_STATUSES = frozenset(
     {"proposed", "experimental", "accepted", "implemented", "rejected", "superseded"}
@@ -58,6 +58,10 @@ REFERENCE_IDS = (
     "REF-QWEN-PLANNER",
     "REF-SHARE-BORNE",
     "REF-A2M",
+    "REF-EVOFLINT",
+    "REF-COMM-BOTTLENECK",
+    "REF-LOGICTRACK",
+    "REF-LATENT-LANGUAGE-GAP",
 )
 REFERENCE_ARXIV_IDS = (
     "2609.01736",
@@ -99,6 +103,10 @@ REFERENCE_ARXIV_IDS = (
     "2609.29892",
     "2609.35576",
     "2609.26761",
+    "2609.00487",
+    "2609.21509",
+    "2609.21492",
+    "2609.21662",
 )
 ALLOWED_METADATA_STATUSES = frozenset({"resolved", "unresolved"})
 
@@ -442,14 +450,14 @@ def _validate_registry_sequence(recommendations: tuple[Recommendation, ...]) -> 
         raise ValueError(f"recommendation registry contains duplicate IDs: {duplicate_ids}")
     if identifiers != RECOMMENDATION_IDS:
         raise ValueError(
-            "recommendation IDs must be the ordered REC-001 through REC-015 sequence; "
+            "recommendation IDs must be the ordered REC-001 through REC-019 sequence; "
             f"received {identifiers}"
         )
 
     priorities = tuple(record.priority for record in recommendations)
     if priorities != RECOMMENDATION_PRIORITIES:
         raise ValueError(
-            "recommendation priority sequence must be five P0, five P1, then five P2; "
+            "recommendation priority sequence must be five P0, five P1, then nine P2; "
             f"received {priorities}"
         )
 

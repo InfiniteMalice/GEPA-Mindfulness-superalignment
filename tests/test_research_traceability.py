@@ -165,9 +165,35 @@ EXPECTED_REFERENCES = (
     ("REF-QWEN-PLANNER", "2609.29892", "Qwen-Planner-Agent"),
     ("REF-SHARE-BORNE", "2609.35576", "Share-Borne AI Virus"),
     ("REF-A2M", "2609.26761", "A2M/MCP semantic hijacking"),
+    (
+        "REF-EVOFLINT",
+        "2609.00487",
+        "EvoFlint: An Evolutionary Atlas of Multi-Turn LLM Vulnerabilities",
+    ),
+    (
+        "REF-COMM-BOTTLENECK",
+        "2609.21509",
+        "The Communication Bottleneck: A Round-Trip Study of Tree-Structured Expression "
+        "Serialization in Language Models",
+    ),
+    (
+        "REF-LOGICTRACK",
+        "2609.21492",
+        "LogicTrack: Auditing Reasoning Trajectories of Large Language Models with Formal "
+        "Logic Solvers",
+    ),
+    (
+        "REF-LATENT-LANGUAGE-GAP",
+        "2609.21662",
+        "When Steering Fails in Latent Reasoning: A Latent-to-Language Transition Gap",
+    ),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
+    "REF-EVOFLINT": ("REC-016",),
+    "REF-COMM-BOTTLENECK": ("REC-017",),
+    "REF-LOGICTRACK": ("REC-018",),
+    "REF-LATENT-LANGUAGE-GAP": ("REC-019",),
     "REF-MEMCALIB": ("REC-002",),
     "REF-JITMEM": ("REC-002",),
     "REF-COMPKV": ("REC-002",),

@@ -18,6 +18,10 @@ EXPERIMENTAL_OVERLAY_IDS = (
     "adaptive_small_multi_agent_topology",
     "declarative_orchestration_scope",
     "mechanistic_circuit_audit",
+    "evolutionary_semantic_search",
+    "serialization_roundtrip",
+    "formal_reasoning_audit",
+    "latent_language_transition",
 )
 
 _REGISTRY_FIELDS = {"registry_version", "overlays"}
@@ -39,6 +43,10 @@ _ALLOWED_OUTPUTS_BY_ID = {
     "adaptive_small_multi_agent_topology": ("topology_proposal",),
     "declarative_orchestration_scope": ("orchestration_scope_declaration",),
     "mechanistic_circuit_audit": ("mechanistic_audit_reference",),
+    "evolutionary_semantic_search": ("semantic_strategy_evaluation",),
+    "serialization_roundtrip": ("serialization_roundtrip_result",),
+    "formal_reasoning_audit": ("formal_audit_result",),
+    "latent_language_transition": ("latent_language_transition_assessment",),
 }
 _TRACEABILITY_BY_ID = {
     "competing_hypotheses": (("REF-PEARL",), ("REC-011",)),
@@ -46,6 +54,10 @@ _TRACEABILITY_BY_ID = {
     "adaptive_small_multi_agent_topology": (("REF-MASKILLS",), ("REC-012",)),
     "declarative_orchestration_scope": (("REF-AGENTSCOPE",), ("REC-013",)),
     "mechanistic_circuit_audit": (("REF-SAE",), ("REC-014",)),
+    "evolutionary_semantic_search": (("REF-EVOFLINT",), ("REC-016",)),
+    "serialization_roundtrip": (("REF-COMM-BOTTLENECK",), ("REC-017",)),
+    "formal_reasoning_audit": (("REF-LOGICTRACK",), ("REC-018",)),
+    "latent_language_transition": (("REF-LATENT-LANGUAGE-GAP",), ("REC-019",)),
 }
 
 
@@ -111,6 +123,10 @@ class ExperimentalOverlayConfig:
     adaptive_small_multi_agent_topology: bool = False
     declarative_orchestration_scope: bool = False
     mechanistic_circuit_audit: bool = False
+    evolutionary_semantic_search: bool = False
+    serialization_roundtrip: bool = False
+    formal_reasoning_audit: bool = False
+    latent_language_transition: bool = False
 
     def __post_init__(self) -> None:
         _validated_config(self)
