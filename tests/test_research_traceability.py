@@ -153,9 +153,15 @@ EXPECTED_REFERENCES = (
         "2609.25254",
         "AI Neuroscientist",
     ),
+    ("REF-GRUET", "2609.24831", "GRUET"),
+    ("REF-DUAL-FRONTIER", "2609.26293", "Dual-Frontier"),
+    ("REF-DEEPO", "2609.28570", "DEEPO"),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
+    "REF-GRUET": ("REC-002",),
+    "REF-DUAL-FRONTIER": ("REC-002",),
+    "REF-DEEPO": ("REC-002",),
     "REF-FTA": ("REC-002",),
     "REF-PINNFORGE": ("REC-002",),
     "REF-C3-JEPA": ("REC-002",),

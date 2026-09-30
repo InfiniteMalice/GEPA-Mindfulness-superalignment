@@ -46,6 +46,9 @@ REFERENCE_IDS = (
     "REF-PINNFORGE",
     "REF-C3-JEPA",
     "REF-AI-NEUROSCIENTIST",
+    "REF-GRUET",
+    "REF-DUAL-FRONTIER",
+    "REF-DEEPO",
 )
 REFERENCE_ARXIV_IDS = (
     "2609.01736",
@@ -75,6 +78,9 @@ REFERENCE_ARXIV_IDS = (
     "2609.23023",
     "2609.30214",
     "2609.25254",
+    "2609.24831",
+    "2609.26293",
+    "2609.28570",
 )
 ALLOWED_METADATA_STATUSES = frozenset({"resolved", "unresolved"})
 

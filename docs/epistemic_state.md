@@ -160,7 +160,8 @@ Prior numbers remain producer declarations; committing prior evidence does not c
 
 Unavailable residual categories are not reported as zero. No residual establishes motive,
 deception, reward eligibility, execution authority or persistence authority. Mismatch labels and
-normalization assumptions remain producer declarations. No estimator or runtime producer is added.
+normalization assumptions remain producer declarations. PR-2 adds no runtime producer; the
+[PR-3 scalar estimator](temporal_estimator.md) is separately imported and explicitly enabled.
 
 Legacy assessment parents remain verifier events. V5 validates reconciliation cell identity, but
 its scored outcome still accepts only `{"passed": bool}`; numeric telemetry belongs to an additional
@@ -180,8 +181,8 @@ canonical URL. Existing arXiv entries retain their prior fields and URL validati
 PR-2 now binds reconciliation to prediction, execution, observation and verifier ancestry.
 The [research register](recommendations/RESEARCH_TRACEABILITY.md#ref-fta) distinguishes published
 findings from repository hypotheses for FTA, PINNForge, C3-JEPA and AI Neuroscientist. Synthetic
-contract tests do not reproduce their experiments. PR-3 is the next explicitly gated estimator
-stage; PR-4 covers correlation-aware fusion. See [ADR 0003](adr/0003-epistemic-reconciliation.md).
+contract tests do not reproduce their experiments. PR-3 adds an experimental, disabled-by-default
+[scalar temporal estimator](temporal_estimator.md); PR-4 covers correlation-aware fusion. See [ADR 0003](adr/0003-epistemic-reconciliation.md).
 
 ## Verification
 
@@ -195,6 +196,6 @@ python -m pytest tests/test_epistemic_state.py tests/test_epistemic_reconciliati
 identity mismatches and rejection by the existing optimizer component contract. Existing event
 and reward tests provide compatibility coverage. Registry tests check DOI metadata and reciprocal
 research links. Deployment assumptions such as evidence authentication and normalization validity
-require host review; these stages supply no deployed estimator to qualify. Reconciliation tests
+require host review; the experimental PR-3 estimator has no deployed runtime integration. Reconciliation tests
 cover missing/forward inputs, chronology, residual spoofing, evidence laundering, immutability,
 schema round trips and V5 score compatibility.

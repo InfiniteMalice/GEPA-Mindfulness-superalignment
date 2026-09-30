@@ -3,7 +3,8 @@
 [`references.yaml`](references.yaml) is the single authored metadata registry. The bibliographic
 fields below mirror primary metadata: the original arXiv entries were queried on 2026-09-10;
 REF-KALMAN and the four PR-2 sources (FTA, PINNForge, C3-JEPA and AI Neuroscientist) were checked
-against primary texts on 2026-09-30. A research connection
+against primary texts on 2026-09-30, as were PR-3's GRUET, Dual-Frontier and DEEPO sources.
+A research connection
 can motivate or support one repository decision; no entry establishes the unified architecture as
 an empirical result.
 
@@ -540,19 +541,19 @@ reproduced.
 
 **Repository inference:** Separate state, measurement, innovation and update records can preserve temporal uncertainty diagnostics. Applying estimation to semantic state remains a repository hypothesis.
 
-**Maturity:** Published mathematical result; PR-1 implements diagnostic records and PR-2 adds causal validation. No temporal estimator, semantic calibration result, optimizer reward or runtime authority is introduced.
+**Maturity:** Published mathematical result; PR-1 implements records, PR-2 causal validation and PR-3 an opt-in scalar estimator. Semantic calibration, optimizer integration and runtime authority remain outside this implementation.
 
 **Design hypothesis:** Separating world, model and monitor uncertainty may improve subsequent
 evidence-acquisition decisions. Arbitrary semantic state need not satisfy linear or Gaussian
 assumptions. With fixed process/measurement noise, covariance reduction alone is not a
-model-mismatch detector; later estimator work needs an explicit mismatch mechanism.
+model-mismatch detector. PR-3 adds explicit gating and adaptive noise as experimental mechanisms.
 
-**Experiment:** After causal integration, compare a disabled scalar/diagonal estimator with
-the current confidence heuristic on held-out temporal outcomes and abrupt regime changes.
+**Experiment:** PR-3 compares fixed-noise scalar updates with gated adaptive updates on a
+synthetic abrupt shift. Held-out comparisons with the current confidence heuristic remain future work.
 Measure calibration and false confidence before considering routing or training integration.
 
-**Implementation status:** Diagnostic contracts, causal reconciliation and synthetic validation tests implemented.
-Causal reconciliation is implemented in PR-2; temporal estimation is PR-3; correlation-aware fusion is PR-4.
+**Implementation status:** Diagnostic contracts, causal reconciliation and an opt-in scalar estimator
+are implemented with synthetic validation tests. Correlation-aware fusion remains PR-4.
 
 <a id="ref-fta"></a>
 
@@ -645,3 +646,66 @@ Causal reconciliation is implemented in PR-2; temporal estimation is PR-3; corre
 **Maturity:** Resolved arXiv preprint; PR-2 implements ordered causal validation. No neuroimaging workflow or model-performance result is reproduced.
 
 **Experiment:** Current tests mutate causal inputs and evidence bindings. Later model experiments must measure calibration and reporting errors separately from execution failures; no behavioral result is claimed here.
+
+<a id="ref-gruet"></a>
+
+## REF-GRUET — GRUET: Quantifying Uncertainty of Agentic Reasoning-and-Acting Processes
+
+- Metadata status: `resolved`
+- Supplied title: GRUET
+- Authors: Shuang Liang, Xin-Yu Hu, Shao-Qun Zhang
+- Year: 2026
+- arXiv: [`2609.24831`](https://arxiv.org/abs/2609.24831)
+- DOI: `10.48550/arXiv.2609.24831`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-002`
+- Local repository notes: [scalar estimator](../../gepa_mindfulness/verification/temporal_estimator.py), [guide](../temporal_estimator.md)
+- Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.24831v1), 2026-09-30.
+
+**Source demonstrates:** The paper models reasoning-and-acting trajectories as graphs and evaluates turn-level and trajectory uncertainty for selective generation.
+
+**Repository inference:** Retain uncertainty as trajectory diagnostics. Scalar numeric residuals do not reproduce graph-based reasoning uncertainty or establish semantic calibration.
+
+**Maturity:** Resolved arXiv preprint; PR-3 implements opt-in scalar diagnostics. No reasoning-graph extraction, private-chain-of-thought reward or GRUET experiment is implemented.
+
+<a id="ref-dual-frontier"></a>
+
+## REF-DUAL-FRONTIER — Dual-Frontier: When Can an Agent Trust Its World Model?
+
+- Metadata status: `resolved`
+- Supplied title: Dual-Frontier
+- Authors: Huatai Zhu, Qiang Chen, Ziqian Kou, Wenhao Li, Fei Wang, Yichao Cao, Xiu Su, Yi Chen
+- Year: 2026
+- arXiv: [`2609.26293`](https://arxiv.org/abs/2609.26293)
+- DOI: `10.48550/arXiv.2609.26293`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-002`
+- Local repository notes: [scalar estimator](../../gepa_mindfulness/verification/temporal_estimator.py), [guide](../temporal_estimator.md)
+- Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.26293v1), 2026-09-30.
+
+**Source demonstrates:** The paper analyzes policy-versus-world-model error ambiguity and proposes conditional decision admission using predicted advantage and calibrated model-error bounds.
+
+**Repository inference:** Keep model mismatch explicit and separate numerical confidence from decision authority. A small scalar variance cannot certify an agent decision.
+
+**Maturity:** Resolved arXiv preprint; PR-3 implements mismatch statuses and a latched insufficient-model state. No decision-admission certificate or published agent-performance result is reproduced.
+
+<a id="ref-deepo"></a>
+
+## REF-DEEPO — DEEPO: Dual-Entropy Enhanced Policy Optimization for Hallucination in MLLMs
+
+- Metadata status: `resolved`
+- Supplied title: DEEPO
+- Authors: Yingxuan Zhuang, Miao Pan, Wangjie Gan, Jingxiao Yang, Fan Wang, Weiming Liu, Cheng Tan, Xuhong Zhang, Jintao Chen
+- Year: 2026
+- arXiv: [`2609.28570`](https://arxiv.org/abs/2609.28570)
+- DOI: `10.48550/arXiv.2609.28570`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-002`
+- Local repository notes: [scalar estimator](../../gepa_mindfulness/verification/temporal_estimator.py), [guide](../temporal_estimator.md)
+- Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.28570v1), 2026-09-30.
+
+**Source demonstrates:** The paper studies uncertain queries and confident errors in multimodal reinforcement learning, combining entropy-triggered expert prefixes with gradient preconditioning.
+
+**Repository inference:** Track persistent mismatch even when numerical confidence appears high. Entropy and confidence are not universal truth signals.
+
+**Maturity:** Resolved arXiv preprint; PR-3 implements explicit scalar mismatch diagnostics. No entropy extraction, policy optimization or hallucination benchmark result is reproduced.
