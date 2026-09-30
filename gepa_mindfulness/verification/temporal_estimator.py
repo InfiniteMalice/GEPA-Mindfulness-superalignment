@@ -204,6 +204,8 @@ class ScalarTemporalEstimator:
         if type(binding) is not OutcomeMeasurementBinding:
             raise ValueError("binding must be OutcomeMeasurementBinding")
         binding = OutcomeMeasurementBinding.from_dict(binding.to_dict())
+        if binding.verifier_event_id is None:
+            raise ValueError("estimator requires an explicit successful verifier event binding")
         state = self._estimate.state
         assert state is not None and state.variances is not None
         if (
@@ -368,7 +370,10 @@ def _digest(value: object) -> str:
 
 
 def _grow(value: float, factor: float, ceiling: float) -> float:
-    return min(ceiling, min(value, ceiling / factor) * factor)
+    # Return the cap directly when ceiling/factor underflows; multiplying it would lose the cap.
+    if value >= ceiling / factor:
+        return ceiling
+    return min(ceiling, value * factor)
 
 
 def _uncertainty(variance: float, scale: float) -> float:

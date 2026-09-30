@@ -104,7 +104,9 @@ verification_event_ids, update_id, estimate_id, event_id, timestamp, **metadata)
 and `OutcomeMeasurementBinding` use the [existing reconciliation contracts](epistemic_state.md#causal-reconciliation-pr-2).
 The call validates prediction → proposal → execution → observation → verifier ancestry and the
 returned reconciliation using `validate_action_bound_sequence()`. Metadata is forwarded to the
-existing event adapter. The measurement must match the initial context, representation and
+existing event adapter. Every binding must name a verifier event that successfully verifies the
+bound observation. Missing or unsuccessful verification raises `ValueError` without changing
+estimator state. The measurement must match the initial context, representation and
 dimension, as well as the configured source/provenance. Fresh measurement, estimate and evidence
 IDs are required; put reusable calibration references in provenance rather than observation evidence.
 

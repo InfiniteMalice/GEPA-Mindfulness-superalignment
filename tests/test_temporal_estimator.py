@@ -286,6 +286,28 @@ def test_invalid_step_is_atomic(change: str) -> None:
     assert result.process_variance == 4
 
 
+@pytest.mark.parametrize("verified", [True, False])
+def test_estimator_requires_explicit_verifier_binding_before_assimilation(verified: bool) -> None:
+    estimator = ScalarTemporalEstimator(initial(), config())
+    events, kwargs = inputs(estimator, 1)
+    original_events, original_kwargs = events, dict(kwargs)
+    events = (
+        *events[:-1],
+        replace(
+            events[-1],
+            payload=dict(events[-1].payload)
+            | {
+                "verified": verified,
+            },
+        ),
+    )
+    kwargs["binding"] = replace(kwargs["binding"], verifier_event_id=None)
+    with pytest.raises(ValueError, match="verifier.*binding"):
+        estimator.reconcile(events, **kwargs)
+    assert estimator.estimate == initial()
+    assert estimator.reconcile(original_events, **original_kwargs).assimilated
+
+
 @pytest.mark.parametrize(
     "field",
     [
@@ -368,6 +390,23 @@ def test_overflow_rolls_back_before_a_valid_retry() -> None:
     result = estimator.reconcile(events, **kwargs)
     assert result.assimilated and result.outlier_count == 0
     assert result.estimate.state.variances == (1,)
+
+
+def test_saturated_process_noise_cannot_underflow_to_zero_on_outlier() -> None:
+    estimator = ScalarTemporalEstimator(
+        initial(state=DiagonalState("sensor-units-v1", ("value",), (0,), (0,))),
+        config(
+            process_variance=1e-300,
+            process_variance_floor=1e-300,
+            max_process_variance=1e-300,
+            process_noise_growth=1e100,
+        ),
+    )
+    events, kwargs = inputs(estimator, 1, variance=1e-300)
+    result = estimator.reconcile(events, **kwargs)
+    assert not result.assimilated
+    assert result.process_variance == 1e-300
+    assert result.estimate.state.variances == (1e-300,)
 
 
 @pytest.mark.parametrize("change", ["prefix", "timestamp", "measurement", "evidence", "estimate"])
