@@ -132,9 +132,34 @@ EXPECTED_REFERENCES = (
     ),
     ("REF-SOT", "2609.16055", "State of Thought Enables Endogenous Reasoning"),
     ("REF-KALMAN", None, "A New Approach to Linear Filtering and Prediction Problems"),
+    (
+        "REF-FTA",
+        "2609.35732",
+        "Failure-Transparent Agents: Benchmarking Post-Failure Reporting "
+        "in Tool-Using Language Models",
+    ),
+    (
+        "REF-PINNFORGE",
+        "2609.23023",
+        "PINNsForge",
+    ),
+    (
+        "REF-C3-JEPA",
+        "2609.30214",
+        "C3-JEPA",
+    ),
+    (
+        "REF-AI-NEUROSCIENTIST",
+        "2609.25254",
+        "AI Neuroscientist",
+    ),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
+    "REF-FTA": ("REC-002",),
+    "REF-PINNFORGE": ("REC-002",),
+    "REF-C3-JEPA": ("REC-002",),
+    "REF-AI-NEUROSCIENTIST": ("REC-002",),
     "REF-KALMAN": ("REC-002",),
     "REF-SOT": ("REC-015",),
     "REF-HEART": ("REC-001", "REC-008"),
@@ -211,7 +236,8 @@ def test_reference_records_are_frozen() -> None:
 )
 def test_doi_only_source_rejects_missing_identity_and_wrong_url(changes, message) -> None:
     payload = _valid_reference_registry_payload()
-    payload["references"][-1].update(changes)
+    source = next(item for item in payload["references"] if item["reference_id"] == "REF-KALMAN")
+    source.update(changes)
     with pytest.raises(ValueError, match=message):
         recommendations._parse_research_reference_registry(payload)
 

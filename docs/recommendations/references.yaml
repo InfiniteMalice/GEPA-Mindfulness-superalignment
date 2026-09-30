@@ -745,8 +745,108 @@ references:
       Separate state, measurement, innovation and update records can preserve temporal uncertainty
       diagnostics. Applying estimation to semantic state remains a repository hypothesis.
     maturity: >-
-      Published mathematical result; PR-1 implements diagnostic record contracts only. No temporal
-      estimator, semantic calibration result, optimizer reward or runtime authority is introduced.
+      Published mathematical result; PR-1 implements diagnostic records and PR-2 adds causal validation.
+      No temporal estimator, semantic calibration result, optimizer reward or runtime authority is introduced.
     local_repo_notes:
       - gepa_mindfulness/verification/epistemic_state.py
+      - docs/epistemic_state.md
+
+  - reference_id: REF-FTA
+    metadata_status: resolved
+    supplied_title: "Failure-Transparent Agents: Benchmarking Post-Failure Reporting in Tool-Using Language Models"
+    title: "Failure-Transparent Agents: Benchmarking Post-Failure Reporting in Tool-Using Language Models"
+    authors:
+      - Junru Zhu
+      - Shiming Xie
+      - Aime Lu Fan Chen
+      - Xiaoqing Ding
+      - Chunxin Tang
+      - Ruoyu Qi
+      - Yulang Fei
+    year: 2026
+    arxiv_id: "2609.35732"
+    doi: "10.48550/arXiv.2609.35732"
+    venue_status: null
+    canonical_url: "https://arxiv.org/abs/2609.35732"
+    recommendation_ids:
+      - REC-002
+    source_demonstrates: "The benchmark fixes failed-tool observations before evaluating subsequent reports; structured evidence reporting is associated with fewer unsupported claims in its blocked-task setting."
+    repository_inference: "Separate execution, observation and reporting evidence. A residual identifies a recorded mismatch, not deceptive motive; report residuals require future public-report telemetry."
+    maturity: "Resolved arXiv preprint; PR-2 implements causal and verifier evidence checks. Report residuals and the paper's model experiment remain unimplemented."
+    local_repo_notes:
+      - gepa_mindfulness/verification/epistemic_reconciliation.py
+      - docs/epistemic_state.md
+
+  - reference_id: REF-PINNFORGE
+    metadata_status: resolved
+    supplied_title: "PINNsForge"
+    title: "PINNForge: Execution-Grounded Evolutionary Design of Physics-Informed Neural Networks"
+    authors:
+      - Mingyang Yu
+      - Xu Yang
+      - Jun Zhang
+      - Jing Xu
+      - Keqian Li
+    year: 2026
+    arxiv_id: "2609.23023"
+    doi: "10.48550/arXiv.2609.23023"
+    venue_status: null
+    canonical_url: "https://arxiv.org/abs/2609.23023"
+    recommendation_ids:
+      - REC-002
+    source_demonstrates: "The PDE experiments use recorded training behavior to inform later candidate designs; withholding execution feedback degrades the reported aggregate error measure."
+    repository_inference: "Preserve execution evidence before accepting diagnostic updates. Transferring a PDE design loop to epistemic reconciliation is a repository hypothesis."
+    maturity: "Resolved arXiv preprint, v2 metadata; PR-2 binds diagnostic measurements to execution ancestry. No evolutionary search or PDE experiment is implemented."
+    local_repo_notes:
+      - gepa_mindfulness/verification/epistemic_reconciliation.py
+      - docs/epistemic_state.md
+
+  - reference_id: REF-C3-JEPA
+    metadata_status: resolved
+    supplied_title: "C3-JEPA"
+    title: "Underwater C3-JEPA: An Object-Centric Cross-View World Model for ROV Salvage"
+    authors:
+      - Yuncong Yang
+      - Jinlong Li
+      - Yulong Xue
+      - Feng Wu
+      - Chunwen Zhang
+      - Lei Qiao
+      - Xuyang Wang
+    year: 2026
+    arxiv_id: "2609.30214"
+    doi: "10.48550/arXiv.2609.30214"
+    venue_status: null
+    canonical_url: "https://arxiv.org/abs/2609.30214"
+    recommendation_ids:
+      - REC-002
+    source_demonstrates: "The underwater world model uses binding guidance for identifiable task-object representations and reports representation and prediction evaluations."
+    repository_inference: "Make measurement correspondence explicit before comparing predicted and observed values. JSON path bindings do not validate learned representations or their semantic units."
+    maturity: "Resolved arXiv preprint; PR-2 implements explicit numeric outcome bindings. No JEPA backend, rollout learner or robotics result is reproduced."
+    local_repo_notes:
+      - gepa_mindfulness/verification/epistemic_reconciliation.py
+      - docs/epistemic_state.md
+
+  - reference_id: REF-AI-NEUROSCIENTIST
+    metadata_status: resolved
+    supplied_title: "AI Neuroscientist"
+    title: "The AI Neuroscientist: An Interactive Agentic Interface for Neuroimaging Analysis"
+    authors:
+      - Aakash Patel
+      - Panos Ketonis
+      - Shreya Saxena
+      - Smita Krishnaswamy
+      - David van Dijk
+    year: 2026
+    arxiv_id: "2609.25254"
+    doi: "10.48550/arXiv.2609.25254"
+    venue_status: null
+    canonical_url: "https://arxiv.org/abs/2609.25254"
+    recommendation_ids:
+      - REC-002
+    source_demonstrates: "The neuroimaging agent uses ordered tool-mediated phases with explicit intermediate artifacts before interpretation and evaluates fNIRS analysis tasks."
+    repository_inference: "Encode required artifact ordering in the harness. Reject a reconciliation when its prediction, execution, observation or verifier dependency is missing."
+    maturity: "Resolved arXiv preprint; PR-2 implements ordered causal validation. No neuroimaging workflow or model-performance result is reproduced."
+    local_repo_notes:
+      - gepa_mindfulness/verification/epistemic_reconciliation.py
       - docs/epistemic_state.md

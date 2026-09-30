@@ -2,7 +2,8 @@
 
 [`references.yaml`](references.yaml) is the single authored metadata registry. The bibliographic
 fields below mirror primary metadata: the original arXiv entries were queried on 2026-09-10;
-REF-KALMAN was checked against the published paper on 2026-09-30. A research connection
+REF-KALMAN and the four PR-2 sources (FTA, PINNForge, C3-JEPA and AI Neuroscientist) were checked
+against primary texts on 2026-09-30. A research connection
 can motivate or support one repository decision; no entry establishes the unified architecture as
 an empirical result.
 
@@ -539,7 +540,7 @@ reproduced.
 
 **Repository inference:** Separate state, measurement, innovation and update records can preserve temporal uncertainty diagnostics. Applying estimation to semantic state remains a repository hypothesis.
 
-**Maturity:** Published mathematical result; PR-1 implements diagnostic record contracts only. No temporal estimator, semantic calibration result, optimizer reward or runtime authority is introduced.
+**Maturity:** Published mathematical result; PR-1 implements diagnostic records and PR-2 adds causal validation. No temporal estimator, semantic calibration result, optimizer reward or runtime authority is introduced.
 
 **Design hypothesis:** Separating world, model and monitor uncertainty may improve subsequent
 evidence-acquisition decisions. Arbitrary semantic state need not satisfy linear or Gaussian
@@ -550,5 +551,97 @@ model-mismatch detector; later estimator work needs an explicit mismatch mechani
 the current confidence heuristic on held-out temporal outcomes and abrupt regime changes.
 Measure calibration and false confidence before considering routing or training integration.
 
-**Implementation status:** Diagnostic contracts and synthetic validation tests implemented.
-Causal reconciliation is PR-2; temporal estimation is PR-3; correlation-aware fusion is PR-4.
+**Implementation status:** Diagnostic contracts, causal reconciliation and synthetic validation tests implemented.
+Causal reconciliation is implemented in PR-2; temporal estimation is PR-3; correlation-aware fusion is PR-4.
+
+<a id="ref-fta"></a>
+
+## REF-FTA — Failure-Transparent Agents: Benchmarking Post-Failure Reporting in Tool-Using Language Models
+
+- Metadata status: `resolved`
+- Supplied title: Failure-Transparent Agents: Benchmarking Post-Failure Reporting in Tool-Using Language Models
+- Authors: Junru Zhu, Shiming Xie, Aime Lu Fan Chen, Xiaoqing Ding, Chunxin Tang, Ruoyu Qi, Yulang Fei
+- Year: 2026
+- arXiv: [`2609.35732`](https://arxiv.org/abs/2609.35732)
+- DOI: `10.48550/arXiv.2609.35732`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-002`
+- Local repository notes: [causal reconciliation](../../gepa_mindfulness/verification/epistemic_reconciliation.py), [guide](../epistemic_state.md)
+- Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.35732v1), 2026-09-30.
+
+**Source demonstrates:** The benchmark fixes failed-tool observations before evaluating subsequent reports; structured evidence reporting is associated with fewer unsupported claims in its blocked-task setting.
+
+**Repository inference:** Separate execution, observation and reporting evidence. A residual identifies a recorded mismatch, not deceptive motive; report residuals require future public-report telemetry.
+
+**Maturity:** Resolved arXiv preprint; PR-2 implements causal and verifier evidence checks. Report residuals and the paper's model experiment remain unimplemented.
+
+**Experiment:** Current tests mutate causal inputs and evidence bindings. Later model experiments must measure calibration and reporting errors separately from execution failures; no behavioral result is claimed here.
+
+<a id="ref-pinnforge"></a>
+
+## REF-PINNFORGE — PINNForge: Execution-Grounded Evolutionary Design of Physics-Informed Neural Networks
+
+- Metadata status: `resolved`
+- Supplied title: PINNsForge
+- Authors: Mingyang Yu, Xu Yang, Jun Zhang, Jing Xu, Keqian Li
+- Year: 2026
+- arXiv: [`2609.23023`](https://arxiv.org/abs/2609.23023)
+- DOI: `10.48550/arXiv.2609.23023`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-002`
+- Local repository notes: [causal reconciliation](../../gepa_mindfulness/verification/epistemic_reconciliation.py), [guide](../epistemic_state.md)
+- Primary text inspected: [v2 HTML](https://arxiv.org/html/2609.23023v2), 2026-09-30.
+
+**Source demonstrates:** The PDE experiments use recorded training behavior to inform later candidate designs; withholding execution feedback degrades the reported aggregate error measure.
+
+**Repository inference:** Preserve execution evidence before accepting diagnostic updates. Transferring a PDE design loop to epistemic reconciliation is a repository hypothesis.
+
+**Maturity:** Resolved arXiv preprint, v2 metadata; PR-2 binds diagnostic measurements to execution ancestry. No evolutionary search or PDE experiment is implemented.
+
+**Experiment:** Current tests mutate causal inputs and evidence bindings. Later model experiments must measure calibration and reporting errors separately from execution failures; no behavioral result is claimed here.
+
+<a id="ref-c3-jepa"></a>
+
+## REF-C3-JEPA — Underwater C3-JEPA: An Object-Centric Cross-View World Model for ROV Salvage
+
+- Metadata status: `resolved`
+- Supplied title: C3-JEPA
+- Authors: Yuncong Yang, Jinlong Li, Yulong Xue, Feng Wu, Chunwen Zhang, Lei Qiao, Xuyang Wang
+- Year: 2026
+- arXiv: [`2609.30214`](https://arxiv.org/abs/2609.30214)
+- DOI: `10.48550/arXiv.2609.30214`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-002`
+- Local repository notes: [causal reconciliation](../../gepa_mindfulness/verification/epistemic_reconciliation.py), [guide](../epistemic_state.md)
+- Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.30214v1), 2026-09-30.
+
+**Source demonstrates:** The underwater world model uses binding guidance for identifiable task-object representations and reports representation and prediction evaluations.
+
+**Repository inference:** Make measurement correspondence explicit before comparing predicted and observed values. JSON path bindings do not validate learned representations or their semantic units.
+
+**Maturity:** Resolved arXiv preprint; PR-2 implements explicit numeric outcome bindings. No JEPA backend, rollout learner or robotics result is reproduced.
+
+**Experiment:** Current tests mutate causal inputs and evidence bindings. Later model experiments must measure calibration and reporting errors separately from execution failures; no behavioral result is claimed here.
+
+<a id="ref-ai-neuroscientist"></a>
+
+## REF-AI-NEUROSCIENTIST — The AI Neuroscientist: An Interactive Agentic Interface for Neuroimaging Analysis
+
+- Metadata status: `resolved`
+- Supplied title: AI Neuroscientist
+- Authors: Aakash Patel, Panos Ketonis, Shreya Saxena, Smita Krishnaswamy, David van Dijk
+- Year: 2026
+- arXiv: [`2609.25254`](https://arxiv.org/abs/2609.25254)
+- DOI: `10.48550/arXiv.2609.25254`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-002`
+- Local repository notes: [causal reconciliation](../../gepa_mindfulness/verification/epistemic_reconciliation.py), [guide](../epistemic_state.md)
+- Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.25254v1), 2026-09-30.
+
+**Source demonstrates:** The neuroimaging agent uses ordered tool-mediated phases with explicit intermediate artifacts before interpretation and evaluates fNIRS analysis tasks.
+
+**Repository inference:** Encode required artifact ordering in the harness. Reject a reconciliation when its prediction, execution, observation or verifier dependency is missing.
+
+**Maturity:** Resolved arXiv preprint; PR-2 implements ordered causal validation. No neuroimaging workflow or model-performance result is reproduced.
+
+**Experiment:** Current tests mutate causal inputs and evidence bindings. Later model experiments must measure calibration and reporting errors separately from execution failures; no behavioral result is claimed here.

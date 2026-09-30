@@ -23,11 +23,21 @@ _PROPOSED = StructuredEventType.ACTION_PROPOSED.value
 _EXECUTED = StructuredEventType.ACTION_EXECUTED.value
 _OBSERVATION = StructuredEventType.OUTCOME_OBSERVED.value
 _VERIFICATION = StructuredEventType.VERIFICATION_RESULT.value
+_RECONCILIATION = StructuredEventType.EPISTEMIC_RECONCILIATION.value
 _EPISTEMIC = StructuredEventType.EPISTEMIC_ASSESSMENT.value
 _CASE = StructuredEventType.CASE_ASSESSMENT.value
 _ACTION_TYPES = frozenset({_PROPOSED, _EXECUTED})
 _ACTION_BOUND_TYPES = frozenset(
-    {_PREDICTION, _PROPOSED, _EXECUTED, _OBSERVATION, _VERIFICATION, _EPISTEMIC, _CASE}
+    {
+        _PREDICTION,
+        _PROPOSED,
+        _EXECUTED,
+        _OBSERVATION,
+        _VERIFICATION,
+        _RECONCILIATION,
+        _EPISTEMIC,
+        _CASE,
+    }
 )
 _CASE_ASSESSMENT_VALUES = frozenset({"pass", "fail"})
 _EPISTEMIC_ASSESSMENT_VALUES = frozenset({"verified", "unverified"})

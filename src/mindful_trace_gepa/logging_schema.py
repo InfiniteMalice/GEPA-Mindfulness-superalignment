@@ -76,6 +76,7 @@ class StructuredEventType(str, Enum):
     ACTION_EXECUTED = "action_executed"
     OUTCOME_OBSERVED = "outcome_observed"
     VERIFICATION_RESULT = "verification_result"
+    EPISTEMIC_RECONCILIATION = "epistemic_reconciliation"
     EPISTEMIC_ASSESSMENT = "epistemic_assessment"
     CASE_ASSESSMENT = "case_assessment"
 
@@ -87,6 +88,7 @@ _ACTION_BOUND_EVENT_TYPES = frozenset(
         StructuredEventType.ACTION_EXECUTED.value,
         StructuredEventType.OUTCOME_OBSERVED.value,
         StructuredEventType.VERIFICATION_RESULT.value,
+        StructuredEventType.EPISTEMIC_RECONCILIATION.value,
         StructuredEventType.EPISTEMIC_ASSESSMENT.value,
         StructuredEventType.CASE_ASSESSMENT.value,
     }
