@@ -41,6 +41,7 @@ REFERENCE_IDS = (
     "REF-LEXICAL-PERTURB",
     "REF-TOKENIZER-BETRAYAL",
     "REF-SOT",
+    "REF-KALMAN",
 )
 REFERENCE_ARXIV_IDS = (
     "2609.01736",
@@ -65,6 +66,7 @@ REFERENCE_ARXIV_IDS = (
     "2608.22140",
     "2601.14658",
     "2609.16055",
+    None,
 )
 ALLOWED_METADATA_STATUSES = frozenset({"resolved", "unresolved"})
 
@@ -171,7 +173,7 @@ class ResearchReference:
     title: str | None
     authors: tuple[str, ...]
     year: int | None
-    arxiv_id: str
+    arxiv_id: str | None
     doi: str | None
     venue_status: str | None
     canonical_url: str
@@ -328,7 +330,11 @@ def _parse_research_reference(value: Any, position: int) -> ResearchReference:
         ALLOWED_METADATA_STATUSES,
         f"{context} metadata_status",
     )
-    arxiv_id = _require_arxiv_id(record["arxiv_id"], f"{context} arxiv_id")
+    arxiv_id = (
+        None
+        if record["arxiv_id"] is None
+        else _require_arxiv_id(record["arxiv_id"], f"{context} arxiv_id")
+    )
     title = _require_optional_string(record["title"], f"{context} title")
     authors = _require_string_tuple(record["authors"], f"{context} authors")
     year = _require_optional_year(record["year"], f"{context} year")
@@ -352,7 +358,9 @@ def _parse_research_reference(value: Any, position: int) -> ResearchReference:
         source_demonstrates=source_demonstrates,
     )
 
-    expected_url = f"https://arxiv.org/abs/{arxiv_id}"
+    if arxiv_id is None and doi is None:
+        raise ValueError(f"{context} requires an arxiv_id or doi")
+    expected_url = f"https://arxiv.org/abs/{arxiv_id}" if arxiv_id else f"https://doi.org/{doi}"
     canonical_url = _require_nonempty_string(
         record["canonical_url"],
         f"{context} canonical_url",
@@ -426,7 +434,7 @@ def _validate_reference_sequence(references: tuple[ResearchReference, ...]) -> N
         )
 
     arxiv_ids = tuple(record.arxiv_id for record in references)
-    duplicate_arxiv_ids = _duplicates(arxiv_ids)
+    duplicate_arxiv_ids = _duplicates(value for value in arxiv_ids if value is not None)
     if duplicate_arxiv_ids:
         raise ValueError(
             "research reference registry contains duplicate arXiv IDs: " f"{duplicate_arxiv_ids}"

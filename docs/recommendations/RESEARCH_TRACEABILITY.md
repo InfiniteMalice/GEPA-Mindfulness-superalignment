@@ -1,7 +1,8 @@
 # V5 Research Traceability
 
 [`references.yaml`](references.yaml) is the single authored metadata registry. The bibliographic
-fields below mirror official arXiv abstract metadata queried on 2026-09-10. A research connection
+fields below mirror primary metadata: the original arXiv entries were queried on 2026-09-10;
+REF-KALMAN was checked against the published paper on 2026-09-30. A research connection
 can motivate or support one repository decision; no entry establishes the unified architecture as
 an empirical result.
 
@@ -517,3 +518,37 @@ reproduced.
 **Repository inference:** Compact states and state-conditioned historical support motivate experimental diagnostics for intent continuity across semantic laundering and retrieval of prior public evidence omitted without supported supersession. These are repository hypotheses, not results demonstrated by SoT; omission alone does not establish motivated forgetting.
 
 **Maturity:** Resolved arXiv preprint; REC-015 is experimental and disabled by default. Synthetic contract tests do not reproduce SoT results or establish true intent, deception, or motive from states.
+
+<a id="ref-kalman"></a>
+
+## REF-KALMAN — A New Approach to Linear Filtering and Prediction Problems
+
+- Metadata status: `resolved`
+- Supplied title: A New Approach to Linear Filtering and Prediction Problems
+- Authors: R. E. Kalman
+- Year: 1960
+- arXiv: Not applicable.
+- DOI: `10.1115/1.3662552`
+- Canonical source: [ASME paper](https://doi.org/10.1115/1.3662552)
+- Primary text inspected: [CMU-hosted ASME paper](https://www.cs.cmu.edu/~./motionplanning/papers/sbp_papers/k/Kalman1960.pdf)
+- Venue/status: Journal of Basic Engineering, 82(1), 35-45 (1960).
+- Recommendations influenced: `REC-002`
+- Local repository notes: [record contracts](../../gepa_mindfulness/verification/epistemic_state.py), [contract guide](../epistemic_state.md)
+
+**Source demonstrates:** The paper derives recursive linear estimation and an estimation-error covariance equation under explicit stochastic system assumptions.
+
+**Repository inference:** Separate state, measurement, innovation and update records can preserve temporal uncertainty diagnostics. Applying estimation to semantic state remains a repository hypothesis.
+
+**Maturity:** Published mathematical result; PR-1 implements diagnostic record contracts only. No temporal estimator, semantic calibration result, optimizer reward or runtime authority is introduced.
+
+**Design hypothesis:** Separating world, model and monitor uncertainty may improve subsequent
+evidence-acquisition decisions. Arbitrary semantic state need not satisfy linear or Gaussian
+assumptions. With fixed process/measurement noise, covariance reduction alone is not a
+model-mismatch detector; later estimator work needs an explicit mismatch mechanism.
+
+**Experiment:** After causal integration, compare a disabled scalar/diagonal estimator with
+the current confidence heuristic on held-out temporal outcomes and abrupt regime changes.
+Measure calibration and false confidence before considering routing or training integration.
+
+**Implementation status:** Diagnostic contracts and synthetic validation tests implemented.
+Causal reconciliation is PR-2; temporal estimation is PR-3; correlation-aware fusion is PR-4.
