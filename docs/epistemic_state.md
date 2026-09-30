@@ -186,6 +186,9 @@ contract tests do not reproduce their experiments. PR-3 adds an experimental, di
 
 ## Verification
 
+PR-5 adds [qualitative evidence and memory eligibility](evidence_memory.md) around existing
+measurements. Numeric availability remains separate from evidence status and permission.
+
 From the repository root, run:
 
 ```text

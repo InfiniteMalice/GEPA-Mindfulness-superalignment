@@ -22,8 +22,28 @@ if TYPE_CHECKING:
         TrustedClock,
     )
 
-EvidenceStatus = Literal["unverified", "supported", "contradicted", "superseded"]
-_EVIDENCE_STATUSES = frozenset({"unverified", "supported", "contradicted", "superseded"})
+EvidenceStatus = Literal[
+    "unverified",
+    "supported",
+    "contradicted",
+    "superseded",
+    "observed",
+    "inferred",
+    "unavailable",
+    "stale",
+]
+_EVIDENCE_STATUSES = frozenset(
+    {
+        "unverified",
+        "supported",
+        "contradicted",
+        "superseded",
+        "observed",
+        "inferred",
+        "unavailable",
+        "stale",
+    }
+)
 _RFC3339_OFFSET_DATETIME = re.compile(
     r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.(?P<fraction>\d{1,6}))?"
     r"(?:Z|[+-](?P<offset_hour>\d{2}):(?P<offset_minute>\d{2}))$"
@@ -177,8 +197,13 @@ class EvidenceClaim:
                 raise ValueError("a claim cannot supersede itself")
         if (self.status == "superseded") != (self.superseded_by is not None):
             raise ValueError("superseded status requires exactly one superseded_by link")
-        if self.status in {"supported", "contradicted"} and not self.evidence_refs:
+        if (
+            self.status in {"supported", "contradicted", "observed", "inferred", "stale"}
+            and not self.evidence_refs
+        ):
             raise ValueError(f"{self.status} status requires evidence_refs")
+        if self.status == "observed" and not any(ref.is_observable for ref in self.evidence_refs):
+            raise ValueError("observed status requires observable evidence_refs")
 
     def to_dict(self) -> dict[str, object]:
         snapshot = _snapshot_claim(self)

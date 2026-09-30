@@ -28,12 +28,19 @@ measurements, innovations and updates. PR-2 adds causal reconciliation with nume
 bindings, timestamp ordering and verifier evidence checks. PR-3 adds a disabled-by-default
 [scalar temporal estimator](../temporal_estimator.md) with explicit gating and adaptive noise.
 PR-4 adds [scalar correlation-aware fusion and verified Round-0 collection](../scalar_fusion.md).
+PR-5 adds [evidence and memory eligibility](../evidence_memory.md), preserving qualitative
+status and source boundaries alongside numeric uncertainty.
+
+- PR-5 evidence: [evidence_use.py](../../gepa_mindfulness/verification/evidence_use.py),
+  [test_evidence_use.py](../../tests/test_evidence_use.py).
+- PR-5 research: [`REF-MEMCALIB`](RESEARCH_TRACEABILITY.md#ref-memcalib), [`REF-JITMEM`](RESEARCH_TRACEABILITY.md#ref-jitmem), [`REF-COMPKV`](RESEARCH_TRACEABILITY.md#ref-compkv), [`REF-QWEN-PLANNER`](RESEARCH_TRACEABILITY.md#ref-qwen-planner), [`REF-SHARE-BORNE`](RESEARCH_TRACEABILITY.md#ref-share-borne), [`REF-A2M`](RESEARCH_TRACEABILITY.md#ref-a2m).
+
 Routing and training integration remain deferred.
 
 - Additional evidence: [epistemic_state.py](../../gepa_mindfulness/verification/epistemic_state.py), [test_epistemic_state.py](../../tests/test_epistemic_state.py), [test_epistemic_reconciliation.py](../../tests/test_epistemic_reconciliation.py).
 - Additional research: [`REF-KALMAN`](RESEARCH_TRACEABILITY.md#ref-kalman), [`REF-FTA`](RESEARCH_TRACEABILITY.md#ref-fta), [`REF-PINNFORGE`](RESEARCH_TRACEABILITY.md#ref-pinnforge), [`REF-C3-JEPA`](RESEARCH_TRACEABILITY.md#ref-c3-jepa), [`REF-AI-NEUROSCIENTIST`](RESEARCH_TRACEABILITY.md#ref-ai-neuroscientist), [`REF-GRUET`](RESEARCH_TRACEABILITY.md#ref-gruet), [`REF-DUAL-FRONTIER`](RESEARCH_TRACEABILITY.md#ref-dual-frontier), [`REF-DEEPO`](RESEARCH_TRACEABILITY.md#ref-deepo), [`REF-CI`](RESEARCH_TRACEABILITY.md#ref-ci), [`REF-UNANIMITY`](RESEARCH_TRACEABILITY.md#ref-unanimity), [`REF-WSQEM`](RESEARCH_TRACEABILITY.md#ref-wsqem).
 
-- Repository evidence: [`logging_schema.py`](../../src/mindful_trace_gepa/logging_schema.py), [`v5_records.py`](../../evaluation/v5_records.py), [`epistemic_state.py`](../../gepa_mindfulness/verification/epistemic_state.py), [`epistemic_reconciliation.py`](../../gepa_mindfulness/verification/epistemic_reconciliation.py).
+- Repository evidence: [`logging_schema.py`](../../src/mindful_trace_gepa/logging_schema.py), [`v5_records.py`](../../evaluation/v5_records.py), [`epistemic_state.py`](../../gepa_mindfulness/verification/epistemic_state.py), [`epistemic_reconciliation.py`](../../gepa_mindfulness/verification/epistemic_reconciliation.py), [`evidence_use.py`](../../gepa_mindfulness/verification/evidence_use.py).
 - Acceptance tests: [`test_action_bound_logging.py`](../../tests/test_action_bound_logging.py), [`test_v5_provenance.py`](../../tests/test_v5_provenance.py).
 - Research: [`REF-WMLLM`](RESEARCH_TRACEABILITY.md#ref-wmllm), [`REF-DWM`](RESEARCH_TRACEABILITY.md#ref-dwm), [`REF-SHEAVES`](RESEARCH_TRACEABILITY.md#ref-sheaves), [`REF-HERO`](RESEARCH_TRACEABILITY.md#ref-hero).
 

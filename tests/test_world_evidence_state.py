@@ -21,6 +21,25 @@ BEFORE_DIGEST = "b" * 64
 OBSERVED_AT = "2026-09-10T12:00:00Z"
 
 
+@pytest.mark.parametrize("status", ["observed", "inferred", "unavailable", "stale"])
+def test_qualitative_status_survives_state_roundtrip(status):
+    claim = EvidenceClaim("c", "Sensor reading", (_reference(),), status)
+    restored = EvidenceState.from_dict(json.loads(json.dumps(EvidenceState((claim,)).to_dict())))
+    assert restored.resolve("c").status == status
+
+
+@pytest.mark.parametrize("status", ["observed", "inferred", "stale"])
+def test_qualitative_claim_requires_evidence(status):
+    with pytest.raises(ValueError, match="evidence_refs"):
+        EvidenceClaim("c", "Sensor reading", (), status)
+
+
+def test_observed_claim_requires_observable_source():
+    ref = EvidenceReference("hidden", EvidenceSourceKind.PRIVATE_REASONING)
+    with pytest.raises(ValueError, match="observable"):
+        EvidenceClaim("c", "Sensor reading", (ref,), "observed")
+
+
 def _reference(reference_id: str = "output:bug-fix") -> EvidenceReference:
     return EvidenceReference(reference_id, EvidenceSourceKind.OBSERVABLE_OUTPUT)
 

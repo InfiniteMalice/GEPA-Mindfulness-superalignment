@@ -25,6 +25,8 @@ is the project orientation; detailed semantics live here and in subsystem README
   and update contracts; no estimator, causal reconciliation, reward or authority.
 - [Verification and runtime authority](VERIFICATION_AND_RUNTIME_AUTHORITY.md): world/evidence state,
   local and relational verification, failure graph, recovery, and authority separation.
+- [Evidence and memory integration](evidence_memory.md): qualitative numeric eligibility,
+  memory kind/influence and preservation of source boundaries through summary views.
 - [Foundational representation architecture](FOUNDATIONAL_REPRESENTATION_ARCHITECTURE.md):
   immutable source text, provenance-bound representation candidates, bounded search, and metrics.
 - [Controlled learning and offline evolution](controlled_evolution.md): learning destinations,

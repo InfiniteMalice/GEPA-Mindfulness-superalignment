@@ -52,6 +52,12 @@ REFERENCE_IDS = (
     "REF-CI",
     "REF-UNANIMITY",
     "REF-WSQEM",
+    "REF-MEMCALIB",
+    "REF-JITMEM",
+    "REF-COMPKV",
+    "REF-QWEN-PLANNER",
+    "REF-SHARE-BORNE",
+    "REF-A2M",
 )
 REFERENCE_ARXIV_IDS = (
     "2609.01736",
@@ -87,6 +93,12 @@ REFERENCE_ARXIV_IDS = (
     None,
     "2609.26145",
     "2609.25555",
+    "2609.24259",
+    "2609.27334",
+    "2609.26300",
+    "2609.29892",
+    "2609.35576",
+    "2609.26761",
 )
 ALLOWED_METADATA_STATUSES = frozenset({"resolved", "unresolved"})
 
