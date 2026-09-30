@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from enum import Enum
+from graphlib import CycleError, TopologicalSorter
 from math import isclose, isfinite
 from types import MappingProxyType
 from typing import Protocol
@@ -197,14 +198,12 @@ class DeterministicOperators:
             phases = tuple(replace(p, allowed_transform_families=(family,)) for p in phases[::-1])
         elif operation is EvolutionOperation.GENESIS:
             phases = (StrategyPhase("Compare public scope judgments", 2, (family,)),)
-        lineage = tuple(
-            dict.fromkeys(
-                (
-                    *template.transformation_lineage,
-                    *(link for parent in parents for link in parent.transformation_lineage),
-                    candidate_id,
-                )
-            )
+        lineage = _merge_lineages(
+            (
+                template.transformation_lineage,
+                *(parent.transformation_lineage for parent in parents),
+            ),
+            candidate_id,
         )
         return replace(
             template,
@@ -219,6 +218,25 @@ class DeterministicOperators:
                 "parents": [p.provenance for p in parents],
             },
         )
+
+
+def _merge_lineages(histories: tuple[tuple[str, ...], ...], candidate_id: str) -> tuple[str, ...]:
+    """Combine shared ancestry without changing any history's chronological order."""
+    order: TopologicalSorter[str] = TopologicalSorter()
+    for history in histories:
+        for index, link in enumerate(history):
+            order.add(link, *history[max(0, index - 1) : index])
+        order.add(candidate_id, history[-1])
+    try:
+        return tuple(order.static_order())
+    except CycleError as exc:
+        raise ValueError("parent lineage order is incompatible") from exc
+
+
+def _preserves_lineage(parent: tuple[str, ...], child: tuple[str, ...]) -> bool:
+    """Allow inserted links while requiring each parent history as an ordered subsequence."""
+    remaining = iter(child)
+    return all(any(link == ancestor for link in remaining) for ancestor in parent)
 
 
 def materialize_strategy(
@@ -707,7 +725,7 @@ def evolve(
             or candidate.target_subtype != template.target_subtype
             or candidate.semantic_intent_id != template.semantic_intent_id
             or not all(
-                set(parent.transformation_lineage) <= set(candidate.transformation_lineage)
+                _preserves_lineage(parent.transformation_lineage, candidate.transformation_lineage)
                 for parent in parents
             )
         ):

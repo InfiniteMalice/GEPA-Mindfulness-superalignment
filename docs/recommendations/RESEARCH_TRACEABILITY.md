@@ -523,6 +523,385 @@ reproduced.
 
 **Maturity:** Resolved arXiv preprint; REC-015 is experimental and disabled by default. Synthetic contract tests do not reproduce SoT results or establish true intent, deception, or motive from states.
 
+<a id="ref-kalman"></a>
+
+## REF-KALMAN — A New Approach to Linear Filtering and Prediction Problems
+
+- Metadata status: `resolved`
+- Supplied title: A New Approach to Linear Filtering and Prediction Problems
+- Authors: R. E. Kalman
+- Year: 1960
+- arXiv: Not applicable.
+- DOI: `10.1115/1.3662552`
+- Canonical source: [ASME paper](https://doi.org/10.1115/1.3662552)
+- Primary text inspected: [CMU-hosted ASME paper](https://www.cs.cmu.edu/~./motionplanning/papers/sbp_papers/k/Kalman1960.pdf)
+- Venue/status: Journal of Basic Engineering, 82(1), 35-45 (1960).
+- Recommendations influenced: `REC-002`
+- Local repository notes: [record contracts](../../gepa_mindfulness/verification/epistemic_state.py), [contract guide](../epistemic_state.md)
+
+**Source demonstrates:** The paper derives recursive linear estimation and an estimation-error covariance equation under explicit stochastic system assumptions.
+
+**Repository inference:** Separate state, measurement, innovation and update records can preserve temporal uncertainty diagnostics. Applying estimation to semantic state remains a repository hypothesis.
+
+**Maturity:** Published mathematical result; PR-1 implements records, PR-2 causal validation and PR-3 an opt-in scalar estimator. Semantic calibration, optimizer integration and runtime authority remain outside this implementation.
+
+**Design hypothesis:** Separating world, model and monitor uncertainty may improve subsequent
+evidence-acquisition decisions. Arbitrary semantic state need not satisfy linear or Gaussian
+assumptions. With fixed process/measurement noise, covariance reduction alone is not a
+model-mismatch detector. PR-3 adds explicit gating and adaptive noise as experimental mechanisms.
+
+**Experiment:** PR-3 compares fixed-noise scalar updates with gated adaptive updates on a
+synthetic abrupt shift. Held-out comparisons with the current confidence heuristic remain future work.
+Measure calibration and false confidence before considering routing or training integration.
+
+**Implementation status:** Diagnostic contracts, causal reconciliation and an opt-in scalar estimator
+are implemented with synthetic validation tests. PR-4 adds scalar correlation-aware fusion.
+
+<a id="ref-fta"></a>
+
+## REF-FTA — Failure-Transparent Agents: Benchmarking Post-Failure Reporting in Tool-Using Language Models
+
+- Metadata status: `resolved`
+- Supplied title: Failure-Transparent Agents: Benchmarking Post-Failure Reporting in Tool-Using Language Models
+- Authors: Junru Zhu, Shiming Xie, Aime Lu Fan Chen, Xiaoqing Ding, Chunxin Tang, Ruoyu Qi, Yulang Fei
+- Year: 2026
+- arXiv: [`2609.35732`](https://arxiv.org/abs/2609.35732)
+- DOI: `10.48550/arXiv.2609.35732`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-002`
+- Local repository notes: [causal reconciliation](../../gepa_mindfulness/verification/epistemic_reconciliation.py), [guide](../epistemic_state.md)
+- Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.35732v1), 2026-09-30.
+
+**Source demonstrates:** The benchmark fixes failed-tool observations before evaluating subsequent reports; structured evidence reporting is associated with fewer unsupported claims in its blocked-task setting.
+
+**Repository inference:** Separate execution, observation and reporting evidence. A residual identifies a recorded mismatch, not deceptive motive; report residuals require future public-report telemetry.
+
+**Maturity:** Resolved arXiv preprint; PR-2 implements causal and verifier evidence checks. Report residuals and the paper's model experiment remain unimplemented.
+
+**Experiment:** Current tests mutate causal inputs and evidence bindings. Later model experiments must measure calibration and reporting errors separately from execution failures; no behavioral result is claimed here.
+
+<a id="ref-pinnforge"></a>
+
+## REF-PINNFORGE — PINNForge: Execution-Grounded Evolutionary Design of Physics-Informed Neural Networks
+
+- Metadata status: `resolved`
+- Supplied title: PINNsForge
+- Authors: Mingyang Yu, Xu Yang, Jun Zhang, Jing Xu, Keqian Li
+- Year: 2026
+- arXiv: [`2609.23023`](https://arxiv.org/abs/2609.23023)
+- DOI: `10.48550/arXiv.2609.23023`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-002`
+- Local repository notes: [causal reconciliation](../../gepa_mindfulness/verification/epistemic_reconciliation.py), [guide](../epistemic_state.md)
+- Primary text inspected: [v2 HTML](https://arxiv.org/html/2609.23023v2), 2026-09-30.
+
+**Source demonstrates:** The PDE experiments use recorded training behavior to inform later candidate designs; withholding execution feedback degrades the reported aggregate error measure.
+
+**Repository inference:** Preserve execution evidence before accepting diagnostic updates. Transferring a PDE design loop to epistemic reconciliation is a repository hypothesis.
+
+**Maturity:** Resolved arXiv preprint, v2 metadata; PR-2 binds diagnostic measurements to execution ancestry. No evolutionary search or PDE experiment is implemented.
+
+**Experiment:** Current tests mutate causal inputs and evidence bindings. Later model experiments must measure calibration and reporting errors separately from execution failures; no behavioral result is claimed here.
+
+<a id="ref-c3-jepa"></a>
+
+## REF-C3-JEPA — Underwater C3-JEPA: An Object-Centric Cross-View World Model for ROV Salvage
+
+- Metadata status: `resolved`
+- Supplied title: C3-JEPA
+- Authors: Yuncong Yang, Jinlong Li, Yulong Xue, Feng Wu, Chunwen Zhang, Lei Qiao, Xuyang Wang
+- Year: 2026
+- arXiv: [`2609.30214`](https://arxiv.org/abs/2609.30214)
+- DOI: `10.48550/arXiv.2609.30214`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-002`
+- Local repository notes: [causal reconciliation](../../gepa_mindfulness/verification/epistemic_reconciliation.py), [guide](../epistemic_state.md)
+- Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.30214v1), 2026-09-30.
+
+**Source demonstrates:** The underwater world model uses binding guidance for identifiable task-object representations and reports representation and prediction evaluations.
+
+**Repository inference:** Make measurement correspondence explicit before comparing predicted and observed values. JSON path bindings do not validate learned representations or their semantic units.
+
+**Maturity:** Resolved arXiv preprint; PR-2 implements explicit numeric outcome bindings. No JEPA backend, rollout learner or robotics result is reproduced.
+
+**Experiment:** Current tests mutate causal inputs and evidence bindings. Later model experiments must measure calibration and reporting errors separately from execution failures; no behavioral result is claimed here.
+
+<a id="ref-ai-neuroscientist"></a>
+
+## REF-AI-NEUROSCIENTIST — The AI Neuroscientist: An Interactive Agentic Interface for Neuroimaging Analysis
+
+- Metadata status: `resolved`
+- Supplied title: AI Neuroscientist
+- Authors: Aakash Patel, Panos Ketonis, Shreya Saxena, Smita Krishnaswamy, David van Dijk
+- Year: 2026
+- arXiv: [`2609.25254`](https://arxiv.org/abs/2609.25254)
+- DOI: `10.48550/arXiv.2609.25254`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-002`
+- Local repository notes: [causal reconciliation](../../gepa_mindfulness/verification/epistemic_reconciliation.py), [guide](../epistemic_state.md)
+- Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.25254v1), 2026-09-30.
+
+**Source demonstrates:** The neuroimaging agent uses ordered tool-mediated phases with explicit intermediate artifacts before interpretation and evaluates fNIRS analysis tasks.
+
+**Repository inference:** Encode required artifact ordering in the harness. Reject a reconciliation when its prediction, execution, observation or verifier dependency is missing.
+
+**Maturity:** Resolved arXiv preprint; PR-2 implements ordered causal validation. No neuroimaging workflow or model-performance result is reproduced.
+
+**Experiment:** Current tests mutate causal inputs and evidence bindings. Later model experiments must measure calibration and reporting errors separately from execution failures; no behavioral result is claimed here.
+
+<a id="ref-gruet"></a>
+
+## REF-GRUET — GRUET: Quantifying Uncertainty of Agentic Reasoning-and-Acting Processes
+
+- Metadata status: `resolved`
+- Supplied title: GRUET
+- Authors: Shuang Liang, Xin-Yu Hu, Shao-Qun Zhang
+- Year: 2026
+- arXiv: [`2609.24831`](https://arxiv.org/abs/2609.24831)
+- DOI: `10.48550/arXiv.2609.24831`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-002`
+- Local repository notes: [scalar estimator](../../gepa_mindfulness/verification/temporal_estimator.py), [guide](../temporal_estimator.md)
+- Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.24831v1), 2026-09-30.
+
+**Source demonstrates:** The paper models reasoning-and-acting trajectories as graphs and evaluates turn-level and trajectory uncertainty for selective generation.
+
+**Repository inference:** Retain uncertainty as trajectory diagnostics. Scalar numeric residuals do not reproduce graph-based reasoning uncertainty or establish semantic calibration.
+
+**Maturity:** Resolved arXiv preprint; PR-3 implements opt-in scalar diagnostics. No reasoning-graph extraction, private-chain-of-thought reward or GRUET experiment is implemented.
+
+<a id="ref-dual-frontier"></a>
+
+## REF-DUAL-FRONTIER — Dual-Frontier: When Can an Agent Trust Its World Model?
+
+- Metadata status: `resolved`
+- Supplied title: Dual-Frontier
+- Authors: Huatai Zhu, Qiang Chen, Ziqian Kou, Wenhao Li, Fei Wang, Yichao Cao, Xiu Su, Yi Chen
+- Year: 2026
+- arXiv: [`2609.26293`](https://arxiv.org/abs/2609.26293)
+- DOI: `10.48550/arXiv.2609.26293`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-002`
+- Local repository notes: [scalar estimator](../../gepa_mindfulness/verification/temporal_estimator.py), [guide](../temporal_estimator.md)
+- Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.26293v1), 2026-09-30.
+
+**Source demonstrates:** The paper analyzes policy-versus-world-model error ambiguity and proposes conditional decision admission using predicted advantage and calibrated model-error bounds.
+
+**Repository inference:** Keep model mismatch explicit and separate numerical confidence from decision authority. A small scalar variance cannot certify an agent decision.
+
+**Maturity:** Resolved arXiv preprint; PR-3 implements mismatch statuses and a latched insufficient-model state. No decision-admission certificate or published agent-performance result is reproduced.
+
+<a id="ref-deepo"></a>
+
+## REF-DEEPO — DEEPO: Dual-Entropy Enhanced Policy Optimization for Hallucination in MLLMs
+
+- Metadata status: `resolved`
+- Supplied title: DEEPO
+- Authors: Yingxuan Zhuang, Miao Pan, Wangjie Gan, Jingxiao Yang, Fan Wang, Weiming Liu, Cheng Tan, Xuhong Zhang, Jintao Chen
+- Year: 2026
+- arXiv: [`2609.28570`](https://arxiv.org/abs/2609.28570)
+- DOI: `10.48550/arXiv.2609.28570`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-002`
+- Local repository notes: [scalar estimator](../../gepa_mindfulness/verification/temporal_estimator.py), [guide](../temporal_estimator.md)
+- Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.28570v1), 2026-09-30.
+
+**Source demonstrates:** The paper studies uncertain queries and confident errors in multimodal reinforcement learning, combining entropy-triggered expert prefixes with gradient preconditioning.
+
+**Repository inference:** Track persistent mismatch even when numerical confidence appears high. Entropy and confidence are not universal truth signals.
+
+**Maturity:** Resolved arXiv preprint; PR-3 implements explicit scalar mismatch diagnostics. No entropy extraction, policy optimization or hallucination benchmark result is reproduced.
+
+<a id="ref-ci"></a>
+
+## REF-CI — A Non-divergent Estimation Algorithm in the Presence of Unknown Correlations
+
+- Metadata status: `resolved`
+- Supplied title: Julier & Uhlmann 1997 — Covariance Intersection
+- Authors: Simon J. Julier, Jeffrey K. Uhlmann
+- Year: 1997
+- arXiv: Not applicable.
+- DOI: `10.1109/ACC.1997.609105`
+- Venue/status: Proceedings of the 1997 American Control Conference, volume 4, pages 2369-2373.
+- Recommendations influenced: `REC-002`
+- Local repository notes: [scalar_fusion.py](../../gepa_mindfulness/verification/scalar_fusion.py), [scalar_fusion.md](../scalar_fusion.md)
+- Canonical source: [1997 paper DOI](https://doi.org/10.1109/ACC.1997.609105)
+- Metadata checked: [author publication list](https://sites.google.com/umsystem.edu/uhlmannj/home/publications), 2026-09-30. Publisher full text was inaccessible; CI equations and multi-source weighting were checked in the [author-coauthored 2025 primary paper](https://discovery.ucl.ac.uk/id/eprint/10217482/1/SSP-2025-GeneralisedCovarianceIntersection-2.1.pdf).
+
+**Source demonstrates:** Covariance Intersection combines estimates with unknown error cross-correlation using a convex mixture of information, assuming consistent input covariance bounds.
+
+**Repository inference:** Default to conservative scalar fusion when cross-correlation is unknown. Use explicitly supplied covariance when known, while retaining its provenance and checking its numerical validity.
+
+**Maturity:** Published estimation method; PR-4 implements scalar CI, declared known-covariance fusion and a conservative bound. Semantic calibration and unbiasedness remain host-reviewed assumptions.
+
+<a id="ref-unanimity"></a>
+
+## REF-UNANIMITY — Unanimity Without Persuasion: A Single Round of Debate Erases the Disagreement That Verification Needs
+
+- Metadata status: `resolved`
+- Supplied title: Unanimity Without Persuasion
+- Authors: Yang Shu
+- Year: 2026
+- arXiv: [`2609.26145`](https://arxiv.org/abs/2609.26145)
+- DOI: `10.48550/arXiv.2609.26145`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-002`
+- Local repository notes: [judgment_panel.py](../../gepa_mindfulness/verification/judgment_panel.py), [scalar_fusion.md](../scalar_fusion.md)
+- Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.26145v1), 2026-09-30.
+
+**Source demonstrates:** The study reports rapid consensus after a debate round with little accuracy change, and shows that peer exposure can remove disagreement useful for targeting verification.
+
+**Repository inference:** Freeze and verify the complete blind judgment cohort before releasing a peer packet. Treat post-discussion agreement as dependent evidence and preserve the original dissent.
+
+**Maturity:** Resolved arXiv preprint; PR-4 implements an explicit in-memory verified Round-0 collector. The host enforces real peer isolation; no debate benchmark result is reproduced.
+
+<a id="ref-wsqem"></a>
+
+## REF-WSQEM — Weakly Supervised Quantum Error Mitigation
+
+- Metadata status: `resolved`
+- Supplied title: Weakly Supervised Quantum Error Mitigation
+- Authors: Seyed Mohamad Ali Tousi, G. N. DeSouza
+- Year: 2026
+- arXiv: [`2609.25555`](https://arxiv.org/abs/2609.25555)
+- DOI: `10.48550/arXiv.2609.25555`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-002`
+- Local repository notes: [scalar_fusion.py](../../gepa_mindfulness/verification/scalar_fusion.py), [scalar_fusion.md](../scalar_fusion.md)
+- Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.25555v1), 2026-09-30.
+
+**Source demonstrates:** The quantum error-mitigation study combines circuit and hardware heuristics through a probabilistic label model without ideal outputs in its training path.
+
+**Repository inference:** Use only the structural analogy of combining weak signals under explicit assumptions. Unknown or unavailable uncertainty should remain explicit rather than receiving independence credit.
+
+**Maturity:** Resolved arXiv preprint; PR-4 provides scalar fusion and an unresolved mode. No quantum label model, hardware result or transfer of quantum calibration to LLM judgments is implemented.
+
+<a id="ref-memcalib"></a>
+
+## REF-MEMCALIB — MemCalib: Benchmarking and Optimizing Memory Use in LLM Agents
+
+- Metadata status: `resolved`
+- Supplied title: MemCalib
+- Authors: Ruike Cao, Fanyu Zhao, Fugen Yao, Liang Dong, Jian Xu, Guanjun Jiang, Yifei Zhao, Han Zhang, Li Xiao
+- Year: 2026
+- arXiv: [`2609.24259`](https://arxiv.org/abs/2609.24259)
+- DOI: `10.48550/arXiv.2609.24259`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-002`
+- Local repository notes: [evidence_use.py](../../gepa_mindfulness/verification/evidence_use.py), [evidence_memory.md](../evidence_memory.md)
+- Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.24259v1), 2026-09-30.
+
+**Source demonstrates:** The benchmark evaluates under-use and over-use against per-proposition Ignore, Bound and Control targets; the paper also evaluates a token credit-assignment training method.
+
+**Repository inference:** Retain declared target influence separately from numeric eligibility. Do not import token rewards or infer execution authority from Control.
+
+**Maturity:** Resolved arXiv preprint; PR-5 implements diagnostic evidence/memory eligibility and retained summary views. No published experiment or trained policy is reproduced.
+
+<a id="ref-jitmem"></a>
+
+## REF-JITMEM — Just-in-Time Memory: Learning to Curate Task-Adaptive Memory for LLM Agents
+
+- Metadata status: `resolved`
+- Supplied title: JITMEM
+- Authors: Yefan Zhou, Yang Li, Zeyu Leo Liu, Semih Yavuz, Shafiq Joty
+- Year: 2026
+- arXiv: [`2609.27334`](https://arxiv.org/abs/2609.27334)
+- DOI: `10.48550/arXiv.2609.27334`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-002`
+- Local repository notes: [evidence_use.py](../../gepa_mindfulness/verification/evidence_use.py), [evidence_memory.md](../evidence_memory.md)
+- Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.27334v1), 2026-09-30.
+
+**Source demonstrates:** The method retains trajectories and curates task-conditioned memory at read time, with evaluated task-success gains over the compared write-time methods.
+
+**Repository inference:** Preserve original records while appending task-specific summary views. No raw private-reasoning storage or learned curator is introduced.
+
+**Maturity:** Resolved arXiv preprint; PR-5 implements diagnostic evidence/memory eligibility and retained summary views. No published experiment or trained policy is reproduced.
+
+<a id="ref-compkv"></a>
+
+## REF-COMPKV — CompKV: Compensation-Aware KV Selection for Long-Context LLM Inference
+
+- Metadata status: `resolved`
+- Supplied title: CompKV
+- Authors: Zhen Huang, Ruizhe Yao, Danyi Liu, Xinrui Chen, Shuwei Li, Siru Zhong, Zijian Cao, Yushan Lai, Mingming Guo, Weijie Zheng, Haohuan Fu
+- Year: 2026
+- arXiv: [`2609.26300`](https://arxiv.org/abs/2609.26300)
+- DOI: `10.48550/arXiv.2609.26300`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-002`
+- Local repository notes: [evidence_use.py](../../gepa_mindfulness/verification/evidence_use.py), [evidence_memory.md](../evidence_memory.md)
+- Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.26300v1), 2026-09-30.
+
+**Source demonstrates:** Sparse attention selection accounts for the compensation residual of omitted blocks using block statistics, with evaluated accuracy and speed results.
+
+**Repository inference:** Use only the analogy that compression can lose consequential information. A declared semantic distortion score is not the paper's KV residual or a covariance.
+
+**Maturity:** Resolved arXiv preprint; PR-5 implements diagnostic evidence/memory eligibility and retained summary views. No published experiment or trained policy is reproduced.
+
+<a id="ref-qwen-planner"></a>
+
+## REF-QWEN-PLANNER — Qwen-Planner-Agent: A Closed-Loop AI-for-AI Framework for Real-World Mobile Planner Agents
+
+- Metadata status: `resolved`
+- Supplied title: Qwen-Planner-Agent
+- Authors: Tingyu Qu, Weigao Sun, Yuecheng Liu, Yucheng Zhao, Yi Zhu, Yifeng Ding, Qiyi Wang, Sihan Cao, Pengkun Jiao, Hanlei Xie, Xiongwei Wu, Qichao Wang, Haodong Zhang, Jiajun Liu, Yuhao Wang, Yuqing Xie, Junpeng Zhao, Long Chen, Ming Ma, Sihan Yang, Ziwang Zhao, Yanhao Jia, Liangquan Gong, Feida Zhu, Yiran Zhong, Steven Hoi
+- Year: 2026
+- arXiv: [`2609.29892`](https://arxiv.org/abs/2609.29892)
+- DOI: `10.48550/arXiv.2609.29892`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-002`
+- Local repository notes: [evidence_use.py](../../gepa_mindfulness/verification/evidence_use.py), [evidence_memory.md](../evidence_memory.md)
+- Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.29892v1), 2026-09-30.
+
+**Source demonstrates:** The planner framework links data, training and runtime tools, skills and memory through execution feedback and verification, retaining failed and incomplete traces.
+
+**Repository inference:** Keep original execution evidence distinct from summaries and preserve failed or unusable evidence in reports. No mobile planner or training loop is reproduced.
+
+**Maturity:** Resolved arXiv preprint; PR-5 implements diagnostic evidence/memory eligibility and retained summary views. No published experiment or trained policy is reproduced.
+
+<a id="ref-share-borne"></a>
+
+## REF-SHARE-BORNE — Share-Borne AI Virus: Memory-Hopping Attacks Across LLM Agents
+
+- Metadata status: `resolved`
+- Supplied title: Share-Borne AI Virus
+- Authors: Sidharth Pulipaka, Ansh Sharma, Stanislau Hlebik, Leonidas Raghav, Vyas Raina, Ivaxi Sheth, Mario Fritz
+- Year: 2026
+- arXiv: [`2609.35576`](https://arxiv.org/abs/2609.35576)
+- DOI: `10.48550/arXiv.2609.35576`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-002`
+- Local repository notes: [evidence_use.py](../../gepa_mindfulness/verification/evidence_use.py), [evidence_memory.md](../evidence_memory.md)
+- Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.35576v1), 2026-09-30.
+
+**Source demonstrates:** The study demonstrates adversarial content propagating through persistent memory and shared artifacts across assistants in simulated interaction networks.
+
+**Repository inference:** Keep source trust, authority and taint attached to every summary view. Metadata preservation alone does not detect injection or secure downstream transport.
+
+**Maturity:** Resolved arXiv preprint; PR-5 implements diagnostic evidence/memory eligibility and retained summary views. No published experiment or trained policy is reproduced.
+
+<a id="ref-a2m"></a>
+
+## REF-A2M — A2M: Trace-Optimized Agent Hijacking in the MCP Ecosystem
+
+- Metadata status: `resolved`
+- Supplied title: A2M/MCP semantic hijacking
+- Authors: Laizhen Li, Xuan Wang, Peicheng Zhao, Juanjuan Zhao, Kejiang Ye, Cheng-zhong Xu, Xitong Gao
+- Year: 2026
+- arXiv: [`2609.26761`](https://arxiv.org/abs/2609.26761)
+- DOI: `10.48550/arXiv.2609.26761`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-002`
+- Local repository notes: [evidence_use.py](../../gepa_mindfulness/verification/evidence_use.py), [evidence_memory.md](../evidence_memory.md)
+- Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.26761v1), 2026-09-30.
+
+**Source demonstrates:** The study evaluates attacks on MCP tool metadata and returned content that affect tool selection and subsequent agent behavior.
+
+**Repository inference:** Reuse existing memory boundary assessment and keep tool information separate from permission. This adapter neither vets MCP servers nor implements the attacks.
+
+**Maturity:** Resolved arXiv preprint; PR-5 implements diagnostic evidence/memory eligibility and retained summary views. No published experiment or trained policy is reproduced.
+
 <a id="ref-evoflint"></a>
 
 ## REF-EVOFLINT — EvoFlint: An Evolutionary Atlas of Multi-Turn LLM Vulnerabilities

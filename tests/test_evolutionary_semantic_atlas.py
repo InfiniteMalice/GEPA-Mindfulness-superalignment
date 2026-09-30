@@ -248,6 +248,76 @@ def test_child_retains_each_parent_transformation_lineage():
     assert set(parent.transformation_lineage) <= set(child.transformation_lineage)
 
 
+def test_custom_operator_cannot_reorder_parent_lineage_before_execution() -> None:
+    class ReorderedOperator(DeterministicOperators):
+        def propose(self, *args, **kwargs):
+            child = super().propose(*args, **kwargs)
+            return replace(
+                child, transformation_lineage=tuple(reversed(child.transformation_lineage))
+            )
+
+    calls = []
+
+    def execute(candidate, allowance):
+        calls.append(candidate.strategy_id)
+        return evaluation(candidate)
+
+    with pytest.raises(ValueError, match="parent lineage"):
+        evolve(
+            strategy(),
+            execute,
+            budget=EvolutionBudget(1, 1, 2, 1),
+            enabled=True,
+            operators=ReorderedOperator(),
+        )
+    assert calls == []
+
+
+def test_custom_operator_can_insert_links_without_reordering_ancestry() -> None:
+    class ExtendedOperator(DeterministicOperators):
+        def propose(self, *args, **kwargs):
+            child = super().propose(*args, **kwargs)
+            first, *remaining = child.transformation_lineage
+            return replace(child, transformation_lineage=(first, "extra:step", *remaining))
+
+    result = evolve(
+        strategy(),
+        lambda candidate, allowance: evaluation(candidate),
+        budget=EvolutionBudget(1, 1, 2, 1),
+        enabled=True,
+        operators=ExtendedOperator(),
+    )
+    assert result.evaluations[0].strategy.transformation_lineage == (
+        "source:1",
+        "extra:step",
+        "original",
+        "original:g1",
+    )
+
+
+def test_reference_crossover_preserves_order_across_shared_ancestry() -> None:
+    template = replace(strategy(), transformation_lineage=("root",))
+    parents = (
+        replace(strategy("left"), transformation_lineage=("root", "left", "shared")),
+        replace(strategy("right"), transformation_lineage=("root", "right", "shared")),
+    )
+    child = DeterministicOperators().propose(
+        EvolutionOperation.CROSSOVER, parents, template, "child", 1, ()
+    )
+    assert child.transformation_lineage == ("root", "left", "right", "shared", "child")
+
+
+def test_reference_operator_rejects_conflicting_parent_lineage_order() -> None:
+    parents = (
+        replace(strategy("first"), transformation_lineage=("root", "left", "right")),
+        replace(strategy("second"), transformation_lineage=("root", "right", "left")),
+    )
+    with pytest.raises(ValueError, match="lineage order"):
+        DeterministicOperators().propose(
+            EvolutionOperation.CROSSOVER, parents, parents[0], "child", 1, ()
+        )
+
+
 def test_direct_archive_construction_cannot_bypass_clone_rejection():
     with pytest.raises(ValueError, match="duplicate"):
         QualityDiversityArchive(entries=(evaluation(strategy()), evaluation(strategy("clone"))))

@@ -52,6 +52,9 @@ retained eligibility allows search. The host retains that source envelope and ra
 genesis over abstract plans. `EvolutionOperators` is the extension protocol. The reference
 operators have no network calls or harmful operational instructions. An external execution
 adapter interprets phases and transition conditions; conditions are never executed as code.
+The reference operators merge shared ancestry in chronological order and reject conflicting
+parent histories. Before execution, the search checks that each parent lineage remains an
+ordered subsequence of the candidate lineage; inserted links cannot reorder prior transformations.
 
 `evolve(template, execute_and_verify, budget=..., enabled=True)` requires explicit generation,
 candidate, aggregate turn, and mutation-operation limits. This small reference scheduler
