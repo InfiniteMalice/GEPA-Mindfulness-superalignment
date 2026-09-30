@@ -81,4 +81,62 @@ unknown-correlation defaults, no synthetic raw-observation laundering, and sourc
 
 ## Execution evidence
 
-Record test, review and documentation-quality results here before completion.
+Initial RED: each new test module failed on its missing production module. After implementation,
+the numerical/panel suite passed 47 tests, then 56 with additional strict-policy and snapshot
+checks. The focused record/reconciliation/temporal/fusion/panel/research suite passed 326 tests.
+
+Fresh whole-branch review: review_pr4 inspected 836ca32..67f37e8 and relevant dependencies/specs.
+One Important finding: separate valid participant histories could reuse causal IDs behind fresh
+envelope IDs. The five parameter cases of
+test_causal_identity_reuse_across_separately_valid_histories_is_atomic failed before the fix.
+The collector now retains detached event JSON and validates the deduplicated combined history
+before storing a participant. This reuses existing prediction/action/observation/verifier/update
+identity rules and preserves atomic failure and valid overlapping submissions. All five cases
+then passed; the focused suite passed 331 tests. No second reviewer or deferred minors.
+
+Documentation precision: updated retained-history semantics to describe full detached JSON and
+combined validation, including memory/cost growth. No unresolved documentation BLOCK or WARN.
+
+Final: Ruling: physical covariance validity and semantic calibration remain host responsibilities;
+the scalar algorithms validate declared numeric contracts. Invalid assumptions can make the
+reported uncertainty misleading.
+
+Final: Ruling: participant authentication and actual external peer isolation remain host boundaries;
+the collector enforces its own release sequence only. Undeclared exposure can invalidate a claimed
+blind round.
+
+Final: Ruling: optimal covariance/CI weights remain excluded; declared convex weights are used
+consistently. This can sacrifice useful precision but avoids adding an optimization policy.
+
+Final: Ruling: temporal-prior composition and runtime routing remain deferred. Treating source
+fusion as an independent new observation without a later contract could double-count evidence.
+
+Final: Ruling: real LLM calibration and reproduction of published experiments are not claimed.
+Synthetic arithmetic and protocol tests alone do not establish semantic performance.
+
+Final: Ruling: persistence, concurrent calls and transport remain outside this in-memory sequential
+API. A host that ignores those limits can lose audit records or race the release boundary.
+
+Final: Ruling: full-suite and installed-wheel validation are the implementer's responsibility;
+the reviewer ran the focused tests and read source. An unchecked distribution could differ from
+checkout behavior, so the final built wheel is exercised outside the repository.
+
+The first full run hit test_invalid_pipe_write_progress_fails_closed[0]: its 0.1-second deadline
+expired before the expected invalid-write-progress error. The test and Mojo coordinator source
+are unchanged from the base; the deadline check precedes the progress check. All four parameter
+cases passed on an isolated rerun (1.97 seconds). Final full-suite results are recorded below.
+
+Final validation on the corrected branch:
+- Full offline suite: 3,555 passed, 18 skipped, 16 warnings in 196.97 seconds. The earlier
+  invalid-write-progress deadline failure did not recur; no unrelated RL code or tests changed.
+- Focused contracts/reconciliation/temporal/fusion/panel/research suite: 331 passed.
+- New fusion/panel tests: 61 passed; combined statement coverage 97% (208 statements, 6 missed).
+- Repository Ruff passed; Black reported 576 files unchanged; applicable CI-selected mypy checks
+  and checks of the new modules and research registry passed. git diff --check passed.
+- Rebuilt sdist and wheel, reinstalled the wheel, and ran the smoke test outside the checkout.
+  Verified panel release, independent versus CI variance, correlated post-discussion handling,
+  JSON export, all 33 research references and the packaged guide.
+
+Final: fixed the review's cross-submission causal identity issue with five RED-to-GREEN cases.
+The corrected full suite and installed distribution both passed. No unresolved review findings
+or deferred minors remain. PR-5 evidence/memory integration is the next stage.

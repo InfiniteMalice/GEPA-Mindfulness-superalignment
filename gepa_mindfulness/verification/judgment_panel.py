@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -13,7 +14,6 @@ from .epistemic_reconciliation import EpistemicReconciliation
 from .epistemic_state import EpistemicMeasurement, _snapshot, _strings, _text
 from .scalar_fusion import MAX_SOURCES, ScalarFusionResult, _measurements, fuse_scalar_measurements
 from .state import parse_rfc3339_datetime
-from .temporal_estimator import _digest
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,9 +75,19 @@ class VerifiedJudgmentPanel:
             raise ValueError("participant must be declared and submit exactly once")
         history = tuple(events)
         validate_action_bound_sequence(history)
-        digests = {e.event_id: _digest(e.to_dict()) for e in history}
-        if any(k in self._history and self._history[k] != v for k, v in digests.items()):
+        snapshots = {
+            e.event_id: json.dumps(
+                e.to_dict(), sort_keys=True, separators=(",", ":"), allow_nan=False
+            )
+            for e in history
+        }
+        if any(k in self._history and self._history[k] != v for k, v in snapshots.items()):
             raise ValueError("submitted history conflicts with retained events")
+        combined = self._history | snapshots
+        # Fresh envelope IDs must not conceal reuse of an immutable causal-record identity.
+        validate_action_bound_sequence(
+            tuple(EventEnvelope(**json.loads(data)) for data in combined.values())
+        )
         event = next((e for e in history if e.event_id == reconciliation_event_id), None)
         if event is None or event.event_type != StructuredEventType.EPISTEMIC_RECONCILIATION.value:
             raise ValueError("judgment requires a validated reconciliation event")
@@ -95,7 +105,7 @@ class VerifiedJudgmentPanel:
             event.event_id,
             event.timestamp,
         )
-        self._history.update(digests)
+        self._history = combined
 
     def open_discussion(self, released_at: str) -> FrozenRoundZero:
         """Atomically seal the complete verified cohort before returning its first peer packet."""

@@ -118,11 +118,14 @@ external communication, authenticate participants or make their model errors ind
    are not newly verified observations. Known zero cross-covariance fails; CI remains the default.
 
 Incomplete cohorts, duplicate participants/measurements, failed or unbound verification, and
-conflicting reuse of an event ID all fail before storing a judgment. A failed release leaves the
+conflicting reuse of an event ID all fail before storing a judgment. The collector also validates
+the deduplicated union of retained and new histories, so fresh event IDs cannot conceal duplicate
+prediction, action, observation, verifier or update identities. A failed release leaves the
 collector open. After release, additions and another release fail. Returned snapshots cannot
 change retained judgments. Calls must be sequential; the collector is not thread-safe and has no
-persistence, transport, voting, action-selection or reward behavior. Retained event hashes grow
-with the histories supplied; the host retains full events for later audit.
+persistence, transport, voting, action-selection or reward behavior. The collector retains detached
+event JSON snapshots in memory; validation cost and storage grow with the combined history.
+The host must retain full events outside the collector for durable audit.
 
 ## Numerical comparison and validation
 

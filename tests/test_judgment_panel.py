@@ -129,6 +129,32 @@ def test_shared_history_cannot_be_rewritten_between_submissions():
     assert panel.open_discussion("2026-09-30T12:01:00Z")
 
 
+@pytest.mark.parametrize("identity", ["prediction", "action", "observation", "verifier", "update"])
+def test_causal_identity_reuse_across_separately_valid_histories_is_atomic(identity):
+    from mindful_trace_gepa.event_sequence import validate_action_bound_sequence
+    from mindful_trace_gepa.logging_schema import EventEnvelope
+
+    panel = VerifiedJudgmentPanel("panel", ("alice", "bob"))
+    first, _ = submit(panel, "alice", 0, 0)
+    second, m = trajectory(1, 2)
+    encoded = json.dumps([e.to_dict() for e in second]).replace(
+        f'"{identity}-1"', f'"{identity}-0"'
+    )
+    conflicting = tuple(EventEnvelope(**e) for e in json.loads(encoded))
+    validate_action_bound_sequence(conflicting)
+    with pytest.raises(ValueError):
+        panel.add_judgment(
+            "bob", conflicting, reconciliation_event_id="r1", measurement_id=m.measurement_id
+        )
+    with pytest.raises(ValueError, match="complete"):
+        panel.open_discussion("2026-09-30T12:01:00Z")
+    panel.add_judgment(
+        "bob", (*first, *second), reconciliation_event_id="r1", measurement_id=m.measurement_id
+    )
+    packet = panel.open_discussion("2026-09-30T12:01:00Z")
+    assert tuple(m.value for m in packet.measurements) == (0, 2)
+
+
 def test_post_discussion_consensus_is_correlated_and_round_zero_is_preserved():
     panel = VerifiedJudgmentPanel("panel", ("alice", "bob"))
     _, first = submit(panel, "alice", 0, 0)
