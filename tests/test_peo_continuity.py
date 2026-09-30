@@ -398,3 +398,53 @@ def test_public_exports_and_strict_enable_flag():
         audit_peo_continuity(enabled=1)
     with pytest.raises(ValueError):
         audit_peo_continuity(enabled=True)
+
+
+@pytest.mark.parametrize(
+    "timestamp,conversation",
+    [
+        ("2026-09-30T12:00:08Z", "c"),
+        ("2026-09-30T12:00:05Z", "other"),
+        ("2026-09-30T12:00:05Z", "c"),
+    ],
+)
+def test_supersession_checks_replacement_source_chronology_and_conversation(
+    timestamp, conversation
+):
+    req = with_update(
+        request(active=()), CommitmentStatus.WITHDRAWN, ("claimed_outcome_supported", True)
+    )
+    update = replace(
+        req.updates[0], status=CommitmentStatus.SUPERSEDED, superseded_by="replacement"
+    )
+    verifier = next(e for e in req.events if e.event_id == "update-verifier")
+    source = replace(
+        verifier, event_id="replacement-source", timestamp=timestamp, conversation_id=conversation
+    )
+    original = req.commitments[0]
+    replacement = replace(
+        original,
+        commitment_id="replacement",
+        memory=replace(original.memory, memory_id="replacement"),
+        evidence_refs=update.evidence_refs,
+        source_event_refs=("replacement-source",),
+        first_active_at=1,
+        last_active_at=1,
+    )
+    position = next(i for i, e in enumerate(req.events) if e.event_id == "post")
+    req = replace(
+        req,
+        updates=(update,),
+        commitments=(original, replacement),
+        events=req.events[:position] + (source,) + req.events[position:],
+    )
+    if conversation == "other":
+        # Existing continuity already rejects this source, so it cannot yield an accepted update.
+        assert audit_peo_continuity(req, enabled=True).classification == "unresolved_omission"
+    elif timestamp.endswith("08Z"):
+        with pytest.raises(ValueError, match="chronology"):
+            audit_peo_continuity(req, enabled=True)
+    else:
+        result = audit_peo_continuity(req, enabled=True)
+        assert result.classification == "legitimate_update"
+        assert ("replacement-source", timestamp) in result.chronology

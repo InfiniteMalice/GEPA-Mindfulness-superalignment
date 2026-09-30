@@ -27,7 +27,7 @@ from .epistemic_continuity import (
     _digest,
     assess_epistemic_continuity,
 )
-from .epistemic_records import CommitmentUpdate, EpistemicCommitment
+from .epistemic_records import CommitmentStatus, CommitmentUpdate, EpistemicCommitment
 
 
 def evidence_use_digest(assessment: EvidenceUseAssessment) -> str:
@@ -305,6 +305,13 @@ def audit_peo_continuity(
                 if positions[key] <= positions[outcome.event_id]:
                     raise ValueError("later update evidence must follow the audited outcome")
                 ordered.append(by_id[key])
+        if (
+            update.status is CommitmentStatus.SUPERSEDED
+            and item.commitment_id in continuity.explicitly_superseded_ids
+        ):
+            # Accepted supersession also depends on the replacement's own bound sources.
+            replacement = items[update.superseded_by or ""]
+            ordered.extend(by_id[key] for key in replacement.source_event_refs)
     ordered = list({event.event_id: event for event in ordered}.values())
     ordered.sort(key=lambda event: positions[event.event_id])
     ordered.append(window.decision)

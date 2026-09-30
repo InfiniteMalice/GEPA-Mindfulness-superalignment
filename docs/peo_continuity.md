@@ -30,8 +30,8 @@ The host supplies a `PEOContinuityRequest` for one decision-relevant `EpistemicC
    assessment, active commitment IDs, and audit provenance. Optional `CommitmentUpdate` records
    and `decision_context_changed` reuse the existing continuity rules for verified changes.
 
-Relevant sources, the selected PEO ancestry, later update sources and decision must share the
-conversation and evaluation identity. Their timestamps and checkpoint indices must be
+Relevant sources, the selected PEO ancestry, later update sources, accepted replacement sources
+and decision must share the conversation and evaluation identity. Their timestamps and checkpoint indices must be
 nondecreasing in event order. Later update sources must follow the audited outcome. The adapter
 rejects mismatched digests, malformed telemetry, missing causal records and chronology violations.
 It checks structural binding; authenticating the host and verifying the meaning of each observation
@@ -102,6 +102,21 @@ coverage against original available evidence; its clinical-note revision method 
 against explicit targets. [TTSE](recommendations/RESEARCH_TRACEABILITY.md#ref-ttse) motivates
 distinguishing facts from procedures. [JITMEM](recommendations/RESEARCH_TRACEABILITY.md#ref-jitmem)
 motivates keeping originals through later retrieval and views. No training method is imported.
+
+Paper results and repository inferences are recorded separately in those registry entries.
+The following transfers are **implemented experimental diagnostics**; their effectiveness
+hypotheses remain unvalidated. Proposed experiments use public host instrumentation:
+
+| Source | Design hypothesis | Proposed experiment |
+| --- | --- | --- |
+| State of Thought | Preserving historical evidence helps expose unexplained discontinuity. | Compare omission detection with ordinary transcript history and with the bound commitment inventory. |
+| CDR | Comparing later coverage with the original inventory exposes omissions that fluent reports hide. | Hold outcomes fixed and remove relevant evidence from later reports; measure detection and false alarms. |
+| MemCalib | Explicit targets distinguish appropriate use from both under-use and over-use. | Pair Ignore, Bound and Control cases with independently observed prediction/action changes. |
+| TTSE | Separating facts and procedures helps localize type and influence errors. | Compare typed and undifferentiated audits on matched fact/procedure swaps. |
+| JITMEM | Retaining originals prevents later views from erasing evidence history. | Compare original-plus-view and summary-only records under matched omission and legitimate-update cases. |
+
+These model/intervention experiments are deferred. The implemented tests supply controlled
+observations to validate the adapter; they do not substitute for the proposed experiments.
 
 Run `python -m pytest -q tests/test_peo_continuity.py tests/test_epistemic_continuity.py
 tests/test_motivated_forgetting.py tests/test_research_traceability.py` from the repository root.

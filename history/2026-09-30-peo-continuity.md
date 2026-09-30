@@ -44,4 +44,33 @@ unknown stages, ignored evidence, norms/procedures and preservation after nonzer
 No reward, authorization, private reasoning, canonical cases, memory writes or model calls change.
 Public schema is additive and experimental; no new dependency or automatic evaluator hook.
 
-Validation results and review will be appended after implementation.
+## Execution evidence
+
+The new adapter tests failed on the missing module before implementation. Matched Ignore and
+future-update controls subsequently failed before adding target-aware retrieval/reflection and
+later-update timestamp checks. Initial implementation passed 44 stage tests; further malformed
+input, supersession, exports and source-binding controls brought this to 53 tests.
+Research inventory tests failed on the two missing sources before adding CDR/TTSE. The focused
+adapter/registry suite then passed 99 tests. Ruff, Black (590 files) and CI-selected plus new-module
+mypy checks passed. Wheel and sdist built; outside-checkout wheel smoke exercised consistent and
+failed action influence, JSON output, 45 references, 19 recommendations and the packaged guide.
+
+The first full suite stopped at 1835 passed because REC-015's reader lacked the newly registered
+guide/test/research links. Corrected the reader; its 7 consistency tests pass.
+
+Independent read-only review by review_pr6 covered 8795c3d..d8dedb0 plus the added research
+hypothesis/experiment table. It independently passed 99 tests and alternate parent-order,
+multi-verifier, Control and Ignore controls. One Important finding: accepted supersession could
+use a replacement source dated after the later decision because only the update's own sources
+were checked. A new regression reproduced the failure. The fix includes accepted replacement
+sources in chronology/context validation, with future-date, wrong-conversation and valid controls.
+This also resolves the review's documentation BLOCK on the chronology guarantee. No Minor issues.
+
+Final: Ruling: host authenticity and semantic observation accuracy remain host responsibilities,
+reaffirming R1. Incorrect declarations can produce misleading diagnostics despite valid structure.
+Final: Ruling: model effectiveness and causal identification require the documented deferred
+experiments. Treating synthetic contract results as empirical validation would overstate safety.
+Final: Ruling: full-suite and installed-distribution acceptance remain the implementer's duty.
+Skipping either can hide integration failures or source/distribution discrepancies.
+
+Final validation results follow below; no deferred minor findings.
