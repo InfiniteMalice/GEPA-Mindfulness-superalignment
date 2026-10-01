@@ -35,9 +35,13 @@ retain the full input window and graph alongside the report's SHA256 digests.
 The adapter derives hypotheses from negative typed verifier findings only when
 the finding has observable evidence bound to the graph node. It preserves caller
 claims as `reported_claim`, never as verified diagnoses. A producer-declared model
-mismatch in the aggregate update or any innovation produces a world-model
-hypothesis on a node referencing the reconciliation event. `unassessed` produces
-no such hypothesis. Nonzero residuals and high uncertainty alone prove no layer.
+mismatch produces a world-model hypothesis on a node referencing the reconciliation
+event only when the node cites evidence for that mismatch. Aggregate mismatches use
+the update's evidence and the basis `declared_model_mismatch`. Each mismatching
+innovation uses its own evidence and the basis `declared_innovation_mismatch:<measurement_id>`.
+Annotations cite only the intersection with the node's evidence; evidence from another
+measurement does not qualify. `unassessed` produces no such hypothesis. Nonzero
+residuals and high uncertainty alone prove no layer.
 The report retains residuals and all three uncertainty dimensions, including `None`.
 
 | Layer | Evidence needed for review | Proposed repair surface |

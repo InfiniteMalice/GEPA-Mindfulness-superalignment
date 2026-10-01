@@ -282,24 +282,25 @@ def localize_failure_layers(
             "reported_claim",
             tuple(ref.reference_id for ref in claim.evidence_refs),
         )
-    mismatch = record.update.model_mismatch not in {MismatchStatus.NONE, MismatchStatus.UNASSESSED}
-    mismatch |= any(
-        binding.innovation.mismatch_status
-        not in {
-            MismatchStatus.NONE,
-            MismatchStatus.UNASSESSED,
-        }
-        for binding in record.bindings
-    )
+    no_mismatch = {MismatchStatus.NONE, MismatchStatus.UNASSESSED}
+    mismatches: list[tuple[str, tuple[EvidenceReference, ...]]] = []
+    if record.update.model_mismatch not in no_mismatch:
+        mismatches.append(("declared_model_mismatch", record.update.evidence_refs))
+    for measurement_binding in record.bindings:
+        if measurement_binding.innovation.mismatch_status not in no_mismatch:
+            mismatches.append(
+                (
+                    f"declared_innovation_mismatch:{measurement_binding.measurement_id}",
+                    measurement_binding.innovation.evidence_refs,
+                )
+            )
     for node in graph.nodes:
         event = by_id[node.event_id]
-        if mismatch and event.event_id == selected.event_id:
-            add(
-                node.failure_id,
-                FailureLayer.WORLD_MODEL,
-                "declared_model_mismatch",
-                tuple(ref.reference_id for ref in node.evidence_refs),
-            )
+        if event.event_id == selected.event_id:
+            for basis, evidence in mismatches:
+                refs = tuple(ref.reference_id for ref in node.evidence_refs if ref in evidence)
+                if refs:
+                    add(node.failure_id, FailureLayer.WORLD_MODEL, basis, refs)
         result = _typed_verifier(event)
         if result is None:
             continue

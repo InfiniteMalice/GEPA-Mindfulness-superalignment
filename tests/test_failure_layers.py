@@ -278,6 +278,105 @@ def test_per_binding_mismatch_is_not_hidden_by_aggregate_none():
     assert diagnose(sequence(record)).annotations[0].layer == FailureLayer.WORLD_MODEL
 
 
+@pytest.mark.parametrize("status", list(MismatchStatus))
+@pytest.mark.parametrize("node_sources", [(0,), (1,), (0, 1)])
+@pytest.mark.parametrize("aggregate_mismatch", [False, True])
+@pytest.mark.parametrize("mismatching_index", [0, 1])
+def test_measurement_mismatches_only_cite_their_own_evidence(
+    status, node_sources, aggregate_mismatch, mismatching_index
+):
+    sources = (EVIDENCE, replace(EVIDENCE, reference_id="second-sensor"))
+    record = reconciliation()
+    first = replace(
+        record.bindings[0],
+        innovation=replace(
+            record.bindings[0].innovation,
+            mismatch_status=status if mismatching_index == 0 else MismatchStatus.NONE,
+        ),
+    )
+    second = replace(
+        record.bindings[0],
+        measurement_id="second-measurement",
+        prediction_path=("temperature", 1),
+        observation_path=("temperature", 1),
+        innovation=replace(
+            record.bindings[0].innovation,
+            innovation_id="second-innovation",
+            predicted_measurement=30,
+            actual_measurement=31,
+            evidence_refs=(sources[1],),
+            mismatch_status=status if mismatching_index == 1 else MismatchStatus.NONE,
+        ),
+    )
+    measurement = replace(
+        record.update.measurements[0],
+        measurement_id="second-measurement",
+        value=31,
+        evidence_refs=(sources[1],),
+    )
+    record = replace(
+        record,
+        bindings=(first, second),
+        update=replace(
+            record.update,
+            measurements=record.update.measurements + (measurement,),
+            evidence_refs=sources,
+            model_mismatch=(
+                MismatchStatus.MODEL_MISMATCH if aggregate_mismatch else MismatchStatus.NONE
+            ),
+        ),
+    )
+    events = sequence(record)
+    events[0] = replace(
+        events[0],
+        payload=dict(events[0].payload)
+        | {
+            "predicted_outcome": {"temperature": [20, 30]},
+        },
+    )
+    events[3] = replace(
+        events[3],
+        evidence_refs=tuple(ref.reference_id for ref in sources),
+        payload=dict(events[3].payload)
+        | {
+            "actual_outcome": {"temperature": [22, 31]},
+            "evidence_refs": [ref.reference_id for ref in sources],
+        },
+    )
+    failure_graph = graph()
+    failure_graph = replace(
+        failure_graph,
+        nodes=(
+            replace(
+                failure_graph.nodes[0],
+                evidence_refs=tuple(sources[index] for index in node_sources),
+            ),
+        ),
+    )
+    result = diagnose(events, failure_graph)
+    expected = []
+    if aggregate_mismatch:
+        expected.append(
+            (
+                "declared_model_mismatch",
+                tuple(sources[index].reference_id for index in node_sources),
+            )
+        )
+    if (
+        status not in {MismatchStatus.NONE, MismatchStatus.UNASSESSED}
+        and mismatching_index in node_sources
+    ):
+        measurement_id = record.bindings[mismatching_index].measurement_id
+        expected.append(
+            (
+                f"declared_innovation_mismatch:{measurement_id}",
+                (sources[mismatching_index].reference_id,),
+            )
+        )
+    assert [(item.basis, item.evidence_refs) for item in result.annotations] == expected
+    assert result.unlocalized_failure_ids == (() if expected else ("failure",))
+
+
 @pytest.mark.parametrize("bad", [True, "routing", None])
 def test_invalid_layer_is_rejected(bad):
     with pytest.raises(ValueError):
