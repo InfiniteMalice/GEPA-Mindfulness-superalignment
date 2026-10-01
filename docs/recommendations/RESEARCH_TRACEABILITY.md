@@ -1059,15 +1059,15 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - arXiv: Not applicable.
 - DOI: `None`
 - Venue/status: Official project and Notion blog; no arXiv or DOI supplied.
-- Recommendations influenced: `REC-008`
-- Local repository notes: [epistemic_routing.py](../../gepa_mindfulness/factuality_observability/epistemic_routing.py), [system_one_benchmark.py](../../evaluation/system_one_benchmark.py), [test_epistemic_routing.py](../../tests/test_epistemic_routing.py), [test_system_one_benchmark.py](../../tests/test_system_one_benchmark.py), [system_one_routing.md](../system_one_routing.md)
+- Recommendations influenced: `REC-008`, `REC-010`
+- Local repository notes: [epistemic_routing.py](../../gepa_mindfulness/factuality_observability/epistemic_routing.py), [system_one_benchmark.py](../../evaluation/system_one_benchmark.py), [test_epistemic_routing.py](../../tests/test_epistemic_routing.py), [test_system_one_benchmark.py](../../tests/test_system_one_benchmark.py), [system_one_routing.md](../system_one_routing.md), [contrastive.py](../../gepa_mindfulness/training/contrastive.py), [contrastive_negatives.py](../../synthetic_data/contrastive_negatives.py), [contrastive.py](../../evaluation/contrastive.py), [test_contrastive_training.py](../../tests/test_contrastive_training.py), [test_contrastive_negatives.py](../../tests/test_contrastive_negatives.py), [test_contrastive_evaluation.py](../../tests/test_contrastive_evaluation.py), [contrastive_training.md](../contrastive_training.md)
 - Primary source: [official project](https://github.com/Contrastive-LM/CLM)
 
-**Source demonstrates:** The official project describes contrastive state/action representations, independently cached embeddings, candidate ranking and a TypeSafe-compatible typed decision API.
+**Source demonstrates:** The official project describes contrastive state/action representations, independently cached embeddings, candidate ranking and a TypeSafe-compatible typed decision API. The official trainer implements separate projection heads with a group-masked bidirectional in-batch contrastive loss.
 
-**Repository inference:** Expose bounded public routing features to a host-supplied CLM callback. Evaluate raw proposals, failures and latency separately from guarded outcomes; do not treat model scores as authority.
+**Repository inference:** Expose bounded public routing features to a host-supplied CLM callback. Evaluate raw proposals, failures and latency separately from guarded outcomes; do not treat model scores as authority. PR-12 reuses CPT pairs for an opt-in two-candidate optimizer and four-arm ranking comparison. This is not the source bidirectional in-batch objective or a trained CLM checkpoint.
 
-**Maturity:** Experimental opt-in routing adapter. Synthetic contract comparisons do not establish learned-backend quality, alignment or source-benchmark reproduction.
+**Maturity:** Experimental opt-in routing adapter. Synthetic contract comparisons do not establish learned-backend quality, alignment or source-benchmark reproduction. PR-12 contract and CPU wiring tests are implemented; learned comparative effectiveness remains unmeasured.
 
 <a id="ref-toollery"></a>
 
@@ -1200,14 +1200,14 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - arXiv: [`2609.22327`](https://arxiv.org/abs/2609.22327)
 - DOI: `10.48550/arXiv.2609.22327`
 - Venue/status: Not supplied by official arXiv metadata.
-- Recommendations influenced: `REC-005`
-- Local repository notes: [worlds.py](../../synthetic_data/worlds.py), [world_peo.py](../../synthetic_data/world_peo.py), [test_synthetic_worlds.py](../../tests/test_synthetic_worlds.py), [test_synthetic_world_peo.py](../../tests/test_synthetic_world_peo.py), [synthetic_worlds.md](../synthetic_worlds.md)
+- Recommendations influenced: `REC-005`, `REC-010`
+- Local repository notes: [worlds.py](../../synthetic_data/worlds.py), [world_peo.py](../../synthetic_data/world_peo.py), [test_synthetic_worlds.py](../../tests/test_synthetic_worlds.py), [test_synthetic_world_peo.py](../../tests/test_synthetic_world_peo.py), [synthetic_worlds.md](../synthetic_worlds.md), [contrastive.py](../../gepa_mindfulness/training/contrastive.py), [contrastive_negatives.py](../../synthetic_data/contrastive_negatives.py), [contrastive.py](../../evaluation/contrastive.py), [test_contrastive_training.py](../../tests/test_contrastive_training.py), [test_contrastive_negatives.py](../../tests/test_contrastive_negatives.py), [test_contrastive_evaluation.py](../../tests/test_contrastive_evaluation.py), [contrastive_training.md](../contrastive_training.md)
 
 **Source demonstrates:** A representation compiler maps visual input to an explicit attributed graph, and an operation compiler maps a query and graph to an executable operation. Sections 3.1–3.2 and Figure 3 distinguish style changes with fixed graph state from graph-state changes with fixed style.
 
-**Repository inference:** Separate typed latent world truth from surface rendering and compare invariant surfaces with decisive permission counterfactuals. No visual parser, learned compiler, or model-generated executable code is introduced.
+**Repository inference:** Separate typed latent world truth from surface rendering and compare invariant surfaces with decisive permission counterfactuals. No visual parser, learned compiler, or model-generated executable code is introduced. PR-12 derives causal and PEO negatives from the existing deterministic world structure, keeping latent snapshots outside public scoring inputs.
 
-**Maturity:** Resolved arXiv preprint; experimental opt-in synthetic-world contracts. Contract tests do not establish real-world policy quality or reproduce source results.
+**Maturity:** Resolved arXiv preprint; experimental opt-in synthetic-world contracts. Contract tests do not establish real-world policy quality or reproduce source results. PR-12 contract and CPU wiring tests are implemented; learned comparative effectiveness remains unmeasured.
 
 <a id="ref-physical-languages"></a>
 
@@ -1220,14 +1220,14 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - arXiv: [`2609.23381`](https://arxiv.org/abs/2609.23381)
 - DOI: `10.48550/arXiv.2609.23381`
 - Venue/status: Not supplied by official arXiv metadata.
-- Recommendations influenced: `REC-005`
-- Local repository notes: [worlds.py](../../synthetic_data/worlds.py), [world_peo.py](../../synthetic_data/world_peo.py), [test_synthetic_worlds.py](../../tests/test_synthetic_worlds.py), [test_synthetic_world_peo.py](../../tests/test_synthetic_world_peo.py), [synthetic_worlds.md](../synthetic_worlds.md)
+- Recommendations influenced: `REC-005`, `REC-010`
+- Local repository notes: [worlds.py](../../synthetic_data/worlds.py), [world_peo.py](../../synthetic_data/world_peo.py), [test_synthetic_worlds.py](../../tests/test_synthetic_worlds.py), [test_synthetic_world_peo.py](../../tests/test_synthetic_world_peo.py), [synthetic_worlds.md](../synthetic_worlds.md), [contrastive.py](../../gepa_mindfulness/training/contrastive.py), [contrastive_negatives.py](../../synthetic_data/contrastive_negatives.py), [contrastive.py](../../evaluation/contrastive.py), [test_contrastive_training.py](../../tests/test_contrastive_training.py), [test_contrastive_negatives.py](../../tests/test_contrastive_negatives.py), [test_contrastive_evaluation.py](../../tests/test_contrastive_evaluation.py), [contrastive_training.md](../contrastive_training.md)
 
 **Source demonstrates:** Controlled anonymous physical experiments recover representation structure and measurement types while exposing residual observational equivalences and identifiability limits.
 
-**Repository inference:** Keep unavailable latent facts distinct from observable evidence and avoid resolving hidden truth from surface text. This simulator does not reproduce the physical experiments or establish identifiability results.
+**Repository inference:** Keep unavailable latent facts distinct from observable evidence and avoid resolving hidden truth from surface text. This simulator does not reproduce the physical experiments or establish identifiability results. PR-12 retains typed source provenance for world-derived negatives and limits claims to observable outcomes; it does not recover physical representations.
 
-**Maturity:** Resolved arXiv preprint; experimental opt-in synthetic-world contracts. Contract tests do not establish real-world policy quality or reproduce source results.
+**Maturity:** Resolved arXiv preprint; experimental opt-in synthetic-world contracts. Contract tests do not establish real-world policy quality or reproduce source results. PR-12 contract and CPU wiring tests are implemented; learned comparative effectiveness remains unmeasured.
 
 <a id="ref-generalized-tamp"></a>
 
@@ -1261,13 +1261,13 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - DOI: `10.48550/arXiv.2609.22247`
 - Venue/status: Not supplied by official arXiv metadata.
 - Recommendations influenced: `REC-010`
-- Local repository notes: [peo_curriculum.py](../../gepa_mindfulness/training/peo_curriculum.py), [curriculum.py](../../gepa_mindfulness/participatory_agency/training/curriculum.py), [test_peo_curriculum.py](../../tests/test_peo_curriculum.py), [test_rl_engine_cpu.py](../../tests/test_rl_engine_cpu.py), [peo_curriculum.md](../peo_curriculum.md)
+- Local repository notes: [peo_curriculum.py](../../gepa_mindfulness/training/peo_curriculum.py), [curriculum.py](../../gepa_mindfulness/participatory_agency/training/curriculum.py), [test_peo_curriculum.py](../../tests/test_peo_curriculum.py), [test_rl_engine_cpu.py](../../tests/test_rl_engine_cpu.py), [peo_curriculum.md](../peo_curriculum.md), [contrastive.py](../../gepa_mindfulness/training/contrastive.py), [contrastive_negatives.py](../../synthetic_data/contrastive_negatives.py), [contrastive.py](../../evaluation/contrastive.py), [test_contrastive_training.py](../../tests/test_contrastive_training.py), [test_contrastive_negatives.py](../../tests/test_contrastive_negatives.py), [test_contrastive_evaluation.py](../../tests/test_contrastive_evaluation.py), [contrastive_training.md](../contrastive_training.md)
 
 **Source demonstrates:** Section 3.2 maintains a small active harness window and rotates learned harnesses for still-learnable ones.
 
-**Repository inference:** Use controlled distribution rotation with separate persistent anchor checks. Persistent anchor quotas are a repository design choice; this provider does not implement CHART GRPO or reproduce its training results.
+**Repository inference:** Use controlled distribution rotation with separate persistent anchor checks. Persistent anchor quotas are a repository design choice; this provider does not implement CHART GRPO or reproduce its training results. PR-12 compares a fixed five-family contrastive schedule with equal-exposure pooled training; it does not reproduce adaptive harness graduation or GRPO.
 
-**Maturity:** Resolved arXiv preprint; experimental opt-in curriculum contracts. Contract tests do not establish learned retention or reproduce source results.
+**Maturity:** Resolved arXiv preprint; experimental opt-in curriculum contracts. Contract tests do not establish learned retention or reproduce source results. PR-12 contract and CPU wiring tests are implemented; learned comparative effectiveness remains unmeasured.
 
 <a id="ref-spectral-grokking"></a>
 
@@ -1320,14 +1320,14 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - arXiv: [`2609.35109`](https://arxiv.org/abs/2609.35109)
 - DOI: `10.48550/arXiv.2609.35109`
 - Venue/status: Not supplied by official arXiv metadata.
-- Recommendations influenced: `REC-014`
-- Local repository notes: [relation_flips.py](../../synthetic_data/relation_flips.py), [relation_flips.py](../../evaluation/relation_flips.py), [test_relation_flip_worlds.py](../../tests/test_relation_flip_worlds.py), [test_relation_flip_evaluation.py](../../tests/test_relation_flip_evaluation.py), [relation_flips.md](../relation_flips.md)
+- Recommendations influenced: `REC-010`, `REC-014`
+- Local repository notes: [relation_flips.py](../../synthetic_data/relation_flips.py), [relation_flips.py](../../evaluation/relation_flips.py), [test_relation_flip_worlds.py](../../tests/test_relation_flip_worlds.py), [test_relation_flip_evaluation.py](../../tests/test_relation_flip_evaluation.py), [relation_flips.md](../relation_flips.md), [contrastive.py](../../gepa_mindfulness/training/contrastive.py), [contrastive_negatives.py](../../synthetic_data/contrastive_negatives.py), [contrastive.py](../../evaluation/contrastive.py), [test_contrastive_training.py](../../tests/test_contrastive_training.py), [test_contrastive_negatives.py](../../tests/test_contrastive_negatives.py), [test_contrastive_evaluation.py](../../tests/test_contrastive_evaluation.py), [contrastive_training.md](../contrastive_training.md)
 
 **Source demonstrates:** Appendix D reverses contextual preference labels with response content fixed, retains only variants with an unambiguous opposite target preference, and measures flips among initially correct predictions.
 
-**Repository inference:** Use explicit relation reversals with validated expected changes and reject masked or unresolved pairs. No fast-weight learning, personalized reward model, or source flip-rate reproduction is implemented.
+**Repository inference:** Use explicit relation reversals with validated expected changes and reject masked or unresolved pairs. No fast-weight learning, personalized reward model, or source flip-rate reproduction is implemented. PR-12 uses opposite-world decisions as contrastive negatives while retaining non-TRAIN world provenance; no fast-weight training is reproduced.
 
-**Maturity:** Resolved arXiv preprint; experimental opt-in behavioral counterfactual diagnostics. Contract tests do not establish internal mechanism recovery or reproduce source results.
+**Maturity:** Resolved arXiv preprint; experimental opt-in behavioral counterfactual diagnostics. Contract tests do not establish internal mechanism recovery or reproduce source results. PR-12 contract and CPU wiring tests are implemented; learned comparative effectiveness remains unmeasured.
 
 <a id="ref-mechbench"></a>
 
@@ -1340,14 +1340,14 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - arXiv: [`2609.35515`](https://arxiv.org/abs/2609.35515)
 - DOI: `10.48550/arXiv.2609.35515`
 - Venue/status: Not supplied by official arXiv metadata.
-- Recommendations influenced: `REC-014`
-- Local repository notes: [relation_flips.py](../../synthetic_data/relation_flips.py), [relation_flips.py](../../evaluation/relation_flips.py), [test_relation_flip_worlds.py](../../tests/test_relation_flip_worlds.py), [test_relation_flip_evaluation.py](../../tests/test_relation_flip_evaluation.py), [relation_flips.md](../relation_flips.md)
+- Recommendations influenced: `REC-010`, `REC-014`
+- Local repository notes: [relation_flips.py](../../synthetic_data/relation_flips.py), [relation_flips.py](../../evaluation/relation_flips.py), [test_relation_flip_worlds.py](../../tests/test_relation_flip_worlds.py), [test_relation_flip_evaluation.py](../../tests/test_relation_flip_evaluation.py), [relation_flips.md](../relation_flips.md), [contrastive.py](../../gepa_mindfulness/training/contrastive.py), [contrastive_negatives.py](../../synthetic_data/contrastive_negatives.py), [contrastive.py](../../evaluation/contrastive.py), [test_contrastive_training.py](../../tests/test_contrastive_training.py), [test_contrastive_negatives.py](../../tests/test_contrastive_negatives.py), [test_contrastive_evaluation.py](../../tests/test_contrastive_evaluation.py), [contrastive_training.md](../contrastive_training.md)
 
 **Source demonstrates:** Sections 3 and 4 separate phenomenal-law recovery from internal scientific mechanism probes, construct meaningful mechanism mutations, and screen for competing mechanisms with indistinguishable phenomenal laws.
 
-**Repository inference:** Report visible correctness separately from correct behavior under decisive interventions and reject uninformative pairs. Behavioral sensitivity does not establish internal mechanism recovery; no symbolic scientific discovery system is reproduced.
+**Repository inference:** Report visible correctness separately from correct behavior under decisive interventions and reject uninformative pairs. Behavioral sensitivity does not establish internal mechanism recovery; no symbolic scientific discovery system is reproduced. PR-12 admits only decisive relation changes as causal negatives; observable ranking margins do not establish internal mechanism recovery.
 
-**Maturity:** Resolved arXiv preprint; experimental opt-in behavioral counterfactual diagnostics. Contract tests do not establish internal mechanism recovery or reproduce source results.
+**Maturity:** Resolved arXiv preprint; experimental opt-in behavioral counterfactual diagnostics. Contract tests do not establish internal mechanism recovery or reproduce source results. PR-12 contract and CPU wiring tests are implemented; learned comparative effectiveness remains unmeasured.
 
 <a id="ref-quantum-think"></a>
 
