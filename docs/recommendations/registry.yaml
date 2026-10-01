@@ -142,20 +142,32 @@ recommendations:
       - REF-CONSISTENCY
       - REF-LEXICAL-PERTURB
       - REF-TOKENIZER-BETRAYAL
+      - REF-QWEN-PLANNER
+      - REF-TABPFN-35
+      - REF-VGCOMPILER
+      - REF-PHYSICAL-LANGUAGES
+      - REF-GENERALIZED-TAMP
     repo_refs:
       - evaluation/suites/common.py
       - evaluation/cases/robustness_stripes.yaml
       - evaluation/cases/registry.py
+      - synthetic_data/worlds.py
+      - synthetic_data/world_peo.py
+      - docs/synthetic_worlds.md
     acceptance_tests:
       - tests/test_v5_consolidation.py
       - tests/test_evaluator_matched_errors.py
       - tests/test_v5_cell_planner.py
       - tests/test_v5_evaluation_record.py
       - tests/test_v5_repeat_metrics.py
+      - tests/test_synthetic_worlds.py
+      - tests/test_synthetic_world_peo.py
     implementation_refs:
       - evaluation/suites/common.py
       - evaluation/v5_runner.py
       - evaluation/v5_records.py
+      - synthetic_data/worlds.py
+      - synthetic_data/world_peo.py
 
   - id: REC-006
     title: "World/artifact state != evidence/belief state."

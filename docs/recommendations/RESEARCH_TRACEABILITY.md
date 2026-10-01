@@ -844,12 +844,12 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - arXiv: [`2609.29892`](https://arxiv.org/abs/2609.29892)
 - DOI: `10.48550/arXiv.2609.29892`
 - Venue/status: Not supplied by official arXiv metadata.
-- Recommendations influenced: `REC-002`, `REC-007`, `REC-009`
-- Local repository notes: [evidence_use.py](../../gepa_mindfulness/verification/evidence_use.py), [evidence_memory.md](../evidence_memory.md), [failure_layers.py](../../gepa_mindfulness/verification/failure_layers.py), [skill_bank.py](../../gepa_mindfulness/skill_bank.py), [test_failure_layers.py](../../tests/test_failure_layers.py), [test_skill_bank.py](../../tests/test_skill_bank.py), [skill_failure_localization.md](../skill_failure_localization.md)
+- Recommendations influenced: `REC-002`, `REC-005`, `REC-007`, `REC-009`
+- Local repository notes: [evidence_use.py](../../gepa_mindfulness/verification/evidence_use.py), [evidence_memory.md](../evidence_memory.md), [failure_layers.py](../../gepa_mindfulness/verification/failure_layers.py), [skill_bank.py](../../gepa_mindfulness/skill_bank.py), [test_failure_layers.py](../../tests/test_failure_layers.py), [test_skill_bank.py](../../tests/test_skill_bank.py), [skill_failure_localization.md](../skill_failure_localization.md), [worlds.py](../../synthetic_data/worlds.py), [world_peo.py](../../synthetic_data/world_peo.py), [test_synthetic_worlds.py](../../tests/test_synthetic_worlds.py), [test_synthetic_world_peo.py](../../tests/test_synthetic_world_peo.py), [synthetic_worlds.md](../synthetic_worlds.md)
 
 **Source demonstrates:** The planner framework links data, training and runtime tools, skills and memory through execution feedback and verification, retaining failed and incomplete traces.
 
-**Repository inference:** Keep original execution evidence distinct from summaries and preserve failed or unusable evidence in reports. No mobile planner or training loop is reproduced. PR-8 adds layer-specific diagnostic hypotheses and review paths while retaining existing causal and persistence authority boundaries.
+**Repository inference:** Keep original execution evidence distinct from summaries and preserve failed or unusable evidence in reports. No mobile planner or training loop is reproduced. PR-8 adds layer-specific diagnostic hypotheses and review paths while retaining existing causal and persistence authority boundaries. PR-9 adds simulated action-feedback trajectories with caller-supplied predictions, existing causal PEO validation, and explicit exclusion from training admission.
 
 **Maturity:** Resolved arXiv preprint; PR-5 implements diagnostic evidence/memory eligibility and retained summary views. No published experiment or trained policy is reproduced.
 
@@ -1171,3 +1171,83 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 **Repository inference:** Use observed gaps to motivate bounded skill review proposals. Foundational norms remain protected from autonomous changes or retirement regardless of performance; no adaptive reward or rubric-retirement algorithm is introduced.
 
 **Maturity:** Resolved arXiv preprint; experimental skill metadata and proposal contracts are implemented. Contract tests do not reproduce agentic reinforcement-learning results.
+
+<a id="ref-tabpfn-35"></a>
+
+## REF-TABPFN-35 — TabPFN-3.5: Technical Report
+
+- Metadata status: `resolved`
+- Supplied title: TabPFN-3.5
+- Authors: Benjamin Jäger, Nick Erickson, Léo Grinsztajn, Felix Birkel, Klemens Flöge, Oscar Key, Kürşat Kaya, Jonas Kübler, Adèle Frankel, Tobias Schröder, Anurag Garg, Jan Hendrik Metzen, David Salinas, Simon Bing, Kristina Collins, Tuana Çelik, Vahid Balazadeh, Lydia Sidhoum, Tomás Pereda, Brendan Roof, Andrej Tschalzev, Siyuan Guo, Philipp Singer, Lennart Purucker, Jake Robertson, Marie Salmon, Philipp Jund, Jerry Chen, Diana Kriuchkova, Arthur Cahu, Eliott Kalfon, Adrian Hayler, Georg Grab, Vitor Monteiro, Lilly Wehrhahn, Dominik Safaric, Clara Cornu, Alan Arazi, Rylee Grace, Simone Alessi, Mihir Manium, Bernhard Schölkopf, Yann LeCun, Madelon Hulsebos, Sauraj Gambhir, Noah Hollmann, Frank Hutter
+- Year: 2026
+- arXiv: [`2609.17895`](https://arxiv.org/abs/2609.17895)
+- DOI: `10.48550/arXiv.2609.17895`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-005`
+- Local repository notes: [worlds.py](../../synthetic_data/worlds.py), [world_peo.py](../../synthetic_data/world_peo.py), [test_synthetic_worlds.py](../../tests/test_synthetic_worlds.py), [test_synthetic_world_peo.py](../../tests/test_synthetic_world_peo.py), [synthetic_worlds.md](../synthetic_worlds.md)
+
+**Source demonstrates:** Section 3.3 describes a more diverse and scalable synthetic prior, including high-cardinality, high-feature-count and grouped tabular data with distinct train/test groups.
+
+**Repository inference:** Use controlled seeded latent-world generation as an experimental data contract. This boolean fixture does not implement the TabPFN prior, train a tabular model, or reproduce its benchmarks.
+
+**Maturity:** Resolved arXiv preprint; experimental opt-in synthetic-world contracts. Contract tests do not establish real-world policy quality or reproduce source results.
+
+<a id="ref-vgcompiler"></a>
+
+## REF-VGCOMPILER — Visual Graph Reasoning via Knowledge Compilation
+
+- Metadata status: `resolved`
+- Supplied title: VGCompiler
+- Authors: Rongzheng Wang, Zhe Wang, Ke Qin, Rongwei Wang, Muquan Li, Yizhuo Ma, Yihong Huang, Jielei Wang, Shuang Liang
+- Year: 2026
+- arXiv: [`2609.22327`](https://arxiv.org/abs/2609.22327)
+- DOI: `10.48550/arXiv.2609.22327`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-005`
+- Local repository notes: [worlds.py](../../synthetic_data/worlds.py), [world_peo.py](../../synthetic_data/world_peo.py), [test_synthetic_worlds.py](../../tests/test_synthetic_worlds.py), [test_synthetic_world_peo.py](../../tests/test_synthetic_world_peo.py), [synthetic_worlds.md](../synthetic_worlds.md)
+
+**Source demonstrates:** A representation compiler maps visual input to an explicit attributed graph, and an operation compiler maps a query and graph to an executable operation. Sections 3.1–3.2 and Figure 3 distinguish style changes with fixed graph state from graph-state changes with fixed style.
+
+**Repository inference:** Separate typed latent world truth from surface rendering and compare invariant surfaces with decisive permission counterfactuals. No visual parser, learned compiler, or model-generated executable code is introduced.
+
+**Maturity:** Resolved arXiv preprint; experimental opt-in synthetic-world contracts. Contract tests do not establish real-world policy quality or reproduce source results.
+
+<a id="ref-physical-languages"></a>
+
+## REF-PHYSICAL-LANGUAGES — Discovering Physical Representation Languages
+
+- Metadata status: `resolved`
+- Supplied title: Discovering Physical Representation Languages
+- Authors: Linzhe Zhang, Changming Xu
+- Year: 2026
+- arXiv: [`2609.23381`](https://arxiv.org/abs/2609.23381)
+- DOI: `10.48550/arXiv.2609.23381`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-005`
+- Local repository notes: [worlds.py](../../synthetic_data/worlds.py), [world_peo.py](../../synthetic_data/world_peo.py), [test_synthetic_worlds.py](../../tests/test_synthetic_worlds.py), [test_synthetic_world_peo.py](../../tests/test_synthetic_world_peo.py), [synthetic_worlds.md](../synthetic_worlds.md)
+
+**Source demonstrates:** Controlled anonymous physical experiments recover representation structure and measurement types while exposing residual observational equivalences and identifiability limits.
+
+**Repository inference:** Keep unavailable latent facts distinct from observable evidence and avoid resolving hidden truth from surface text. This simulator does not reproduce the physical experiments or establish identifiability results.
+
+**Maturity:** Resolved arXiv preprint; experimental opt-in synthetic-world contracts. Contract tests do not establish real-world policy quality or reproduce source results.
+
+<a id="ref-generalized-tamp"></a>
+
+## REF-GENERALIZED-TAMP — Coding Agents for Generalized Task and Motion Planning Problems
+
+- Metadata status: `resolved`
+- Supplied title: Coding Agents for Generalized Task and Motion Planning Problems
+- Authors: Matteo Merler, Bowen Li, Josh Roy, Yichao Liang, Qianwei Wang, Yixuan Huang, Tom Silver
+- Year: 2026
+- arXiv: [`2609.30233`](https://arxiv.org/abs/2609.30233)
+- DOI: `10.48550/arXiv.2609.30233`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-005`
+- Local repository notes: [worlds.py](../../synthetic_data/worlds.py), [world_peo.py](../../synthetic_data/world_peo.py), [test_synthetic_worlds.py](../../tests/test_synthetic_worlds.py), [test_synthetic_world_peo.py](../../tests/test_synthetic_world_peo.py), [synthetic_worlds.md](../synthetic_worlds.md)
+
+**Source demonstrates:** Coding agents receive a task description, simulator and fixed synthesis budget to produce a program, which is frozen before evaluation on unseen problem instances.
+
+**Repository inference:** Use reusable deterministic transition rules across seeded instances and keep evaluator truth separate from actor observations. No robotic planner, motion dynamics, agent synthesis loop, or generalization benchmark is reproduced.
+
+**Maturity:** Resolved arXiv preprint; experimental opt-in synthetic-world contracts. Contract tests do not establish real-world policy quality or reproduce source results.
