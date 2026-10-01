@@ -322,6 +322,12 @@ recommendations:
       - REF-VGCOMPILER
       - REF-MECHBENCH
       - REF-PHYSICAL-LANGUAGES
+      - REF-KALMAN
+      - REF-SOT
+      - REF-GRUET
+      - REF-DEEPO
+      - REF-FTA
+      - REF-CAT-SEARCH
     repo_refs:
       - gepa_mindfulness/training/eligibility.py
       - gepa_mindfulness/learning_surfaces.py
@@ -335,6 +341,9 @@ recommendations:
       - synthetic_data/contrastive_negatives.py
       - evaluation/contrastive.py
       - docs/contrastive_training.md
+      - gepa_mindfulness/training/dynamic_uncertainty.py
+      - evaluation/dynamic_uncertainty.py
+      - docs/dynamic_uncertainty.md
     acceptance_tests:
       - tests/test_training_eligibility.py
       - tests/test_synthetic_v5_provenance.py
@@ -348,6 +357,7 @@ recommendations:
       - tests/test_contrastive_training.py
       - tests/test_contrastive_negatives.py
       - tests/test_contrastive_evaluation.py
+      - tests/test_dynamic_uncertainty.py
     implementation_refs:
       - gepa_mindfulness/training/eligibility.py
       - gepa_mindfulness/learning_surfaces.py
@@ -358,6 +368,8 @@ recommendations:
       - gepa_mindfulness/training/contrastive.py
       - synthetic_data/contrastive_negatives.py
       - evaluation/contrastive.py
+      - gepa_mindfulness/training/dynamic_uncertainty.py
+      - evaluation/dynamic_uncertainty.py
 
   - id: REC-011
     title: "Multiple competing hypotheses + information-gain inquiry."
