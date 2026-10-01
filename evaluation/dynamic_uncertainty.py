@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import random
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from gepa_mindfulness.factuality_observability.schemas import RecommendedAction
@@ -23,7 +23,7 @@ from gepa_mindfulness.training.dynamic_uncertainty import (
 from gepa_mindfulness.training.eligibility import TrainingEligibility
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class DecisionBackend:
     """A frozen host-owned policy configuration producing proposals only."""
 
@@ -76,6 +76,7 @@ def compare_decisions(
             if type(backend) is not DecisionBackend:
                 raise ValueError("backend must be DecisionBackend or None")
             backend.__post_init__()
+            frozen_backends[name] = replace(backend)
     prepared = prepare_trajectories(examples, for_training=False)
     training = tuple(training_examples)
     if training:
@@ -83,7 +84,7 @@ def compare_decisions(
         for field in ("example_id", "source_group", "fingerprint"):
             if {getattr(p, field) for p in prepared} & {getattr(p, field) for p in train}:
                 raise ValueError(f"training/evaluation overlap in {field}")
-    tables, assessment_digest = _verified_tables(prepared, verifier)
+    tables, assessment_digest, evaluator = _verified_tables(prepared, verifier)
     order = list(range(len(prepared)))
     random.Random(seed).shuffle(order)
     results: dict[str, Any] = {}
@@ -94,7 +95,7 @@ def compare_decisions(
         rows: list[dict[str, Any]] = []
         for index in order:
             item = prepared[index]
-            action = backend.decide(item.input)
+            action = backend.decide(replace(item.input))
             if type(action) is not RecommendedAction:
                 raise ValueError("policy must return a typed RecommendedAction")
             score = tables[index][ACTIONS.index(action)]
@@ -145,7 +146,7 @@ def compare_decisions(
         training_eligibility=split.value,
         dataset_digest=_digest([(p.example_id, p.source_digest) for p in prepared]),
         assessment_digest=assessment_digest,
-        evaluator=asdict(verifier.contract),
+        evaluator=evaluator,
         seed=seed,
         presentation_order=[prepared[index].example_id for index in order],
         split_check="passed" if training else "unavailable",

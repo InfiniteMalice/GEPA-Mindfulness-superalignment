@@ -24,7 +24,9 @@ action: successful verification means the observation is supported, not that the
 succeeded. Existing synthetic-world exports remain development-only. Serialize and read
 those exports as JSON before supplying them, so their enum fields are plain strings.
 
-Policies receive only immutable `DecisionInput(context, history_json)`. Each history
+Policies receive only immutable `DecisionInput(context, history_json)`. Each callback
+gets a separate snapshot, so low-level mutation cannot alter subsequent visits or other arms.
+Each history
 step includes the prior uncertainty, committed bound predictions and confidence,
 executed action class, bound observations, verification success, residuals, and posterior
 uncertainty with its estimator version. Measurement arrays share binding order and include dimensions and representation
@@ -43,6 +45,8 @@ A `DecisionVerifier` holds a `TrustedEvaluatorContract` and a callback. The call
 receives an immutable evaluator-only `PreparedTrajectory` with the retained source JSON.
 It returns exactly eight `EpistemicProcessAssessment` records in `ACTIONS` order. Every
 action uses the same nonempty component set; every component names that verifier contract.
+Nested reward records require exact canonical types and bounded finite scores. The harness
+snapshots evaluator identity and callbacks before assessment and uses that identity in reports.
 Allowed existing components are `CALIBRATION`, `CONSEQUENCE_PREDICTION`, `BELIEF_UPDATE`,
 `CONTRADICTION_HANDLING`, `MISSING_EVIDENCE_DETECTION`, `JUSTIFIED_ABSTENTION`, and `RECOVERY`.
 The decision score is their existing unweighted mean.
@@ -78,10 +82,16 @@ a differentiable floating Torch tensor of shape `(8,)` in `ACTIONS` order. The l
 `-sum(softmax(logits) * verified_scores)`. This is a full-information decision objective;
 the host evaluator must be able to assess every candidate proposal without performing
 side effects. It is not an online environment rollout or a paper-specific RL algorithm.
+The objective accumulates in float32 (float64 for float64 logits), preserving gradient
+flow through mixed precision outputs. If verified scores become indistinguishable at
+the objective precision, the trainer raises before that update.
 
 Each record receives `epochs` updates (`1..1000`), in locally shuffled order controlled
 by `seed` (`0..2**32-1`). All records and all assessments are validated before the first
 optimizer update. Nonfinite parameters, logits, losses or gradients stop training.
+Dense and sparse COO gradients are supported; sparse finiteness checks do not densify.
+The optimizer's `step()` must accept no required arguments. Required-closure optimizers
+such as LBFGS are rejected before evaluator or model callbacks; the API does not supply closures.
 The caller owns initialization, model mode, optimizer configuration and checkpointing.
 Earlier updates remain if a later callback fails. If a step creates nonfinite parameters,
 restore a valid checkpoint before using that model. No files or network calls are made
@@ -190,8 +200,8 @@ tabular fixture learns authored decisions; it does not establish generalization,
 uncertainty, independence recognition or LLM improvement. No production checkpoint or
 admitted real training corpus is supplied. The canonical inventory remains 17 cases.
 
-Run `python -m pytest tests/test_dynamic_uncertainty.py tests/test_research_traceability.py -q`.
-The first file covers admission, causal corruption, callback isolation, numeric diagnostics,
+Run `python -m pytest tests/test_dynamic_uncertainty.py tests/test_dynamic_uncertainty_review.py tests/test_research_traceability.py -q`.
+The feature files cover admission, causal corruption, callback isolation, numeric diagnostics,
 eight-stratum evaluation and actual Torch parameter updates. The latter verifies research
 metadata and reciprocal links. Host verifier semantics require the manual contract review
 described above; fixtures cannot establish an external evaluator's trustworthiness.

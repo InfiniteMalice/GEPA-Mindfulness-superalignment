@@ -3,18 +3,24 @@
 from __future__ import annotations
 
 import json
+import math
 import random
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from enum import Enum
+from inspect import Parameter, signature
 from typing import Any, cast
 
 from mindful_trace_gepa._json_values import freeze_json_mapping, thaw_json_mapping
 from mindful_trace_gepa.event_sequence import validate_action_bound_sequence
 from mindful_trace_gepa.logging_schema import EventEnvelope, StructuredEventType
 
-from ..core.epistemic_process import EpistemicProcessAssessment, EpistemicProcessComponent
-from ..core.reward_provenance import TrustedEvaluatorContract, VerificationRoute
+from ..core.epistemic_process import (
+    EpistemicProcessAssessment,
+    EpistemicProcessComponent,
+    VerifiedProcessComponent,
+)
+from ..core.reward_provenance import RewardProvenance, TrustedEvaluatorContract, VerificationRoute
 from ..factuality_observability.schemas import RecommendedAction
 from ..verification.epistemic_reconciliation import EpistemicReconciliation
 from ..verification.state import parse_rfc3339_datetime
@@ -49,7 +55,7 @@ class Behavior(str, Enum):
     SCOPED_SUCCESS = "scoped_success"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class TrajectoryExample:
     """Host-authored input; retained provenance may be mutable until preparation."""
 
@@ -61,7 +67,7 @@ class TrajectoryExample:
     source_record: Mapping[str, Any]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class DecisionInput:
     """Policy-visible context and numeric history, without labels or record identities."""
 
@@ -69,7 +75,7 @@ class DecisionInput:
     history_json: str
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class PreparedTrajectory:
     """Evaluator-only snapshot; pass only its input field to a policy."""
 
@@ -83,7 +89,7 @@ class PreparedTrajectory:
     fingerprint: str
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class DecisionVerifier:
     """Host-trusted evaluator; scores every ACTIONS entry using external behavior evidence.
 
@@ -98,7 +104,7 @@ class DecisionVerifier:
         """Require an explicit, complete evaluator contract and callback."""
         if type(self.contract) is not TrustedEvaluatorContract or not callable(self.assess):
             raise ValueError("verifier requires a trusted evaluator contract and callback")
-        self.contract.__post_init__()
+        TrustedEvaluatorContract.__post_init__(self.contract)
 
 
 def _json(value: object) -> str:
@@ -290,21 +296,30 @@ def prepare_trajectories(
 
 def _verified_tables(
     examples: tuple[PreparedTrajectory, ...], verifier: DecisionVerifier
-) -> tuple[tuple[tuple[float, ...], ...], str]:
+) -> tuple[tuple[tuple[float, ...], ...], str, dict[str, Any]]:
     if type(verifier) is not DecisionVerifier:
         raise ValueError("a trusted DecisionVerifier is required")
-    verifier.__post_init__()
+    DecisionVerifier.__post_init__(verifier)
+    contract = TrustedEvaluatorContract(**asdict(verifier.contract))
+    assess = verifier.assess
     tables = []
     evidence = []
     for example in examples:
-        assessments = verifier.assess(example)
+        assessments = assess(replace(example, input=replace(example.input)))
         if type(assessments) is not tuple or len(assessments) != len(ACTIONS):
             raise ValueError("verifier must assess every canonical action in ACTIONS order")
         components = None
         for assessment in assessments:
             if type(assessment) is not EpistemicProcessAssessment:
                 raise ValueError("verifier must return EpistemicProcessAssessment records")
-            assessment.__post_init__()
+            EpistemicProcessAssessment.__post_init__(assessment)
+            for item in assessment.verified_components:
+                if (
+                    type(item) is not VerifiedProcessComponent
+                    or type(item.provenance) is not RewardProvenance
+                    or type(item.provenance.evaluator) is not TrustedEvaluatorContract
+                ):
+                    raise ValueError("decision scores require canonical component provenance")
             names = frozenset(item.component for item in assessment.verified_components)
             if not names or not names <= ALLOWED_COMPONENTS:
                 raise ValueError("decision scores require allowed verified components")
@@ -312,14 +327,20 @@ def _verified_tables(
                 raise ValueError("all actions require the same verified component set")
             components = names
             for item in assessment.verified_components:
-                item.__post_init__()
-                item.provenance.__post_init__()
+                VerifiedProcessComponent.__post_init__(item)
+                RewardProvenance.__post_init__(item.provenance)
+                TrustedEvaluatorContract.__post_init__(
+                    cast(TrustedEvaluatorContract, item.provenance.evaluator)
+                )
                 if (
                     item.provenance.route is not VerificationRoute.TRUSTED_EVALUATOR
-                    or item.provenance.evaluator != verifier.contract
+                    or item.provenance.evaluator != contract
                 ):
                     raise ValueError("score provenance must match the trusted evaluator contract")
-        tables.append(tuple(item.optimizer_score() for item in assessments))
+        scores = tuple(EpistemicProcessAssessment.optimizer_score(item) for item in assessments)
+        if any(not math.isfinite(score) or not 0 <= score <= 1 for score in scores):
+            raise ValueError("verified decision scores must be finite unit-interval values")
+        tables.append(scores)
         # Grounding diagnostics are excluded from both reward and assessment identity.
         evidence.append(
             [
@@ -327,7 +348,7 @@ def _verified_tables(
                 [[asdict(c) for c in a.verified_components] for a in assessments],
             ]
         )
-    return tuple(tables), _digest(evidence)
+    return tuple(tables), _digest(evidence), asdict(contract)
 
 
 def _configuration(enabled: bool, seed: int) -> None:
@@ -356,7 +377,7 @@ def train_decisions(
     Args:
         examples: Explicitly admitted TRAIN records covering all eight behavior strata.
         score: Return eight differentiable logits in the fixed ACTIONS order.
-        optimizer: Existing Torch optimizer owning the policy's parameters.
+        optimizer: Torch optimizer supporting step() without required arguments.
         verifier: Authenticated host evaluator of externally observable decisions.
         epochs: Visits per record, an integer from 1 to 1000.
         seed: Local shuffle seed, from zero through 2**32 - 1.
@@ -375,16 +396,26 @@ def train_decisions(
     prepared = prepare_trajectories(examples, for_training=True)
     if {item.behavior for item in prepared} != set(Behavior):
         raise ValueError("training requires all eight behavior strata")
-    tables, assessment_digest = _verified_tables(prepared, verifier)
-    if any(max(table) == min(table) for table in tables):
-        raise ValueError("training requires informative verified decision scores")
     import torch
 
     if not callable(score) or not isinstance(optimizer, torch.optim.Optimizer):
         raise ValueError("training requires a scorer and torch optimizer")
+    try:
+        step_parameters = signature(optimizer.step).parameters.values()
+    except (TypeError, ValueError) as error:
+        raise ValueError("optimizer.step must have an inspectable signature") from error
+    if any(
+        p.default is Parameter.empty
+        and p.kind not in (Parameter.VAR_POSITIONAL, Parameter.VAR_KEYWORD)
+        for p in step_parameters
+    ):
+        raise ValueError("optimizer.step must be callable without required arguments")
     parameters = [p for group in optimizer.param_groups for p in group["params"]]
     if not parameters or any(not torch.isfinite(p).all().item() for p in parameters):
         raise ValueError("optimizer parameters must be finite")
+    tables, assessment_digest, evaluator = _verified_tables(prepared, verifier)
+    if any(max(table) == min(table) for table in tables):
+        raise ValueError("training requires informative verified decision scores")
     counts = dict.fromkeys((behavior.value for behavior in Behavior), 0)
     losses = []
     rng = random.Random(seed)
@@ -394,7 +425,7 @@ def train_decisions(
         for index in order:
             example = prepared[index]
             optimizer.zero_grad(set_to_none=True)
-            logits = score(example.input)
+            logits = score(replace(example.input))
             if (
                 not isinstance(logits, torch.Tensor)
                 or logits.shape != (len(ACTIONS),)
@@ -403,12 +434,25 @@ def train_decisions(
                 or not torch.isfinite(logits).all().item()
             ):
                 raise ValueError("scorer must return eight finite differentiable floating logits")
-            target = logits.new_tensor(tables[index])
-            loss = -(logits.softmax(dim=0) * target).sum()
+            # Preserve verified preferences when the policy emits low-precision logits.
+            objective_logits = logits if logits.dtype == torch.float64 else logits.float()
+            target = objective_logits.new_tensor(tables[index])
+            if target.max().item() == target.min().item():
+                raise ValueError("verified scores lose informativeness in objective precision")
+            loss = -(objective_logits.softmax(dim=0) * target).sum()
             if not torch.isfinite(loss).item():
                 raise ValueError("decision loss must be finite")
             loss.backward()
-            gradients = [p.grad for p in parameters if p.grad is not None]
+            gradients = []
+            for parameter in parameters:
+                gradient = parameter.grad
+                if gradient is None:
+                    continue
+                if gradient.is_sparse:
+                    gradient = gradient.coalesce().values()
+                elif gradient.layout != torch.strided:
+                    raise ValueError("optimizer requires dense or sparse COO gradients")
+                gradients.append(gradient)
             if not gradients or any(not torch.isfinite(g).all().item() for g in gradients):
                 optimizer.zero_grad(set_to_none=True)
                 raise ValueError("optimizer must receive finite gradients")
@@ -423,7 +467,7 @@ def train_decisions(
         epochs=epochs,
         dataset_digest=_digest([(p.example_id, p.source_digest) for p in prepared]),
         assessment_digest=assessment_digest,
-        evaluator=asdict(verifier.contract),
+        evaluator=evaluator,
         source_groups=sorted({p.source_group for p in prepared}),
         updates_by_behavior=counts,
         losses=losses,

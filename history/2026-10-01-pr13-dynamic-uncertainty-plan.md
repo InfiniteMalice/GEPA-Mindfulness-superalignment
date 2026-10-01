@@ -62,3 +62,53 @@ Task 1 implementation evidence:
 - Documentation precision gate: no unresolved BLOCK or WARN. Host evaluator authentication,
   scoring semantics, retained provenance, split checks and checkpoint recovery are explicit.
 - No real-model effectiveness measured; the tiny tabular policy verifies optimization only.
+
+## Fresh review and rulings
+
+One gpt-6-astra/high reviewer inspected `6b28c61..933b77e`. Four Important findings:
+nested validation overrides, shared callback input/report identity mutation, BF16 target
+rounding, and unsupported sparse/required-closure optimizer operations. No Critical or Minor
+findings. Nine new regression cases reproduced these issues before the single fix pass.
+The complete suite at the reviewed commit passed again: 4,365 passed, 18 skipped (241.91s).
+
+Final: Ruling: External verifier truthfulness/authentication remains the host's responsibility
+because structural checks cannot establish it — a dishonest verifier could reward bad decisions.
+
+Final: Ruling: Hosts sanitize permitted text/numeric inputs and names — hidden labels or secrets
+could otherwise leak despite the narrow projection.
+
+Final: Ruling: Real-model improvement and generalization remain unmeasured — contract tests
+provide no evidence of production benefit.
+
+Final: Ruling: Split checks cover retained declared provenance — stripped or renamed provenance
+and undisclosed checkpoint exposure could leave contamination undetected.
+
+Final: Ruling: Require causal prior links, not numeric equality with the preceding posterior,
+because estimators may propagate state — hosts must assess the validity of numerical transitions.
+
+Final: Ruling: Zero gradients from stationary policies or zero learning rates remain valid
+caller configurations — update counts alone do not prove parameter movement or improvement.
+
+Final: Ruling: Callback/optimizer failures retain earlier updates as documented — callers must
+restore a checkpoint when partial training is unacceptable.
+
+Final: Ruling: Host Python callbacks are not sandboxed — arbitrary external side effects remain
+possible; isolated callback snapshots protect the experiment's own retained inputs and identity.
+
+
+Final: fixed all four Important review findings in one pass. Nine new regression cases
+failed before the fixes and passed afterward: exact nested component/provenance/contract
+validation; dictionary-free callback records; disposable inputs for evaluator, comparison
+arms and repeated training visits; stable evaluator identity; BF16 preference gradients;
+sparse optimizer updates; and pre-callback rejection of required-closure optimizers.
+
+The full fix-pass run found one registry/reader link mismatch (4,373 tests passed). The
+existing documentation consistency test reproduced it; adding the new regression-test link
+restored the reader/registry contract. No unrelated code changed.
+
+Final focused validation: 98 passed; trainer 90%, evaluator 94%, combined 90% coverage
+(334 statements). Ruff, Black (618 files), scoped mypy and Python 3.10/100-column checks
+passed. The final wheel matches current source/guide and retains 17 cases and 63 references.
+
+Final suite after the fix pass: 4,374 passed, 18 skipped, 16 warnings (220.46 seconds).
+No unresolved review findings or deferred minors remain. All eight scope rulings above stand.

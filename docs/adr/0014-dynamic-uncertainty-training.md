@@ -20,6 +20,9 @@ The evaluator assesses every candidate proposal using external behavior/outcome 
 The host authenticates this evaluator and its sources. The new API checks structure and
 contract identity; it cannot prove evaluator semantics. Require the same allowed component
 set for every action so omitted components cannot inflate one action's score.
+Require exact nested reward records, snapshot evaluator identities and pass disposable
+input snapshots to callbacks. Accumulate the objective in at least float32. Support
+dense/sparse COO gradients and reject optimizers that require closure arguments.
 
 Keep numeric state diagnostics separate from reward. Eight behavior strata organize
 experiments without adding canonical cases. Require all strata for training and report

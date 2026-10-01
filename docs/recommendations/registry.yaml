@@ -358,6 +358,7 @@ recommendations:
       - tests/test_contrastive_negatives.py
       - tests/test_contrastive_evaluation.py
       - tests/test_dynamic_uncertainty.py
+      - tests/test_dynamic_uncertainty_review.py
     implementation_refs:
       - gepa_mindfulness/training/eligibility.py
       - gepa_mindfulness/learning_surfaces.py

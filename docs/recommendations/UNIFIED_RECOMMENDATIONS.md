@@ -153,7 +153,7 @@ PR-10 adds an experimental [peo_curriculum.md](../peo_curriculum.md). Seven data
 
 PR-12 adds an experimental [contrastive_training.md](../contrastive_training.md) with five negative families, a real optimizer loop, retained source admission and a matched four-arm comparison. External learned-backend results remain unmeasured. Acceptance coverage: [test_contrastive_training.py](../../tests/test_contrastive_training.py), [test_contrastive_negatives.py](../../tests/test_contrastive_negatives.py), [test_contrastive_evaluation.py](../../tests/test_contrastive_evaluation.py).
 
-PR-13 adds experimental [dynamic_uncertainty.md](../dynamic_uncertainty.md): a real optimizer over verified next-decision scores and matched evaluation across eight uncertainty-behavior strata. Public PEO histories are inputs; uncertainty and residual values do not independently earn credit. Host evaluator authentication and real-model effectiveness remain external. Acceptance coverage: [test_dynamic_uncertainty.py](../../tests/test_dynamic_uncertainty.py).
+PR-13 adds experimental [dynamic_uncertainty.md](../dynamic_uncertainty.md): a real optimizer over verified next-decision scores and matched evaluation across eight uncertainty-behavior strata. Public PEO histories are inputs; uncertainty and residual values do not independently earn credit. Host evaluator authentication and real-model effectiveness remain external. Acceptance coverage: [test_dynamic_uncertainty.py](../../tests/test_dynamic_uncertainty.py), [test_dynamic_uncertainty_review.py](../../tests/test_dynamic_uncertainty_review.py).
 
 ## P2
 
