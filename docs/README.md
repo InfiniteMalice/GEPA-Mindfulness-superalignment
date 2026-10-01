@@ -27,6 +27,8 @@ is the project orientation; detailed semantics live here and in subsystem README
   local and relational verification, failure graph, recovery, and authority separation.
 - [Evidence and memory integration](evidence_memory.md): qualitative numeric eligibility,
   memory kind/influence and preservation of source boundaries through summary views.
+- [PEO evidence continuity](peo_continuity.md): prospective evidence use, executed-action
+  influence, later retention and verified updates without automatic motive attribution.
 - [Foundational representation architecture](FOUNDATIONAL_REPRESENTATION_ARCHITECTURE.md):
   immutable source text, provenance-bound representation candidates, bounded search, and metrics.
 - [Controlled learning and offline evolution](controlled_evolution.md): learning destinations,

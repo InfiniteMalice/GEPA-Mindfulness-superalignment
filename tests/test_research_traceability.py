@@ -187,6 +187,8 @@ EXPECTED_REFERENCES = (
         "2609.21662",
         "When Steering Fails in Latent Reasoning: A Latent-to-Language Transition Gap",
     ),
+    ("REF-CDR", "2609.22239", "Coverage-Directed Revision"),
+    ("REF-TTSE", "2609.24289", "TTSE"),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
@@ -194,8 +196,10 @@ EXPECTED_RECOMMENDATION_LINKS = {
     "REF-COMM-BOTTLENECK": ("REC-017",),
     "REF-LOGICTRACK": ("REC-018",),
     "REF-LATENT-LANGUAGE-GAP": ("REC-019",),
-    "REF-MEMCALIB": ("REC-002",),
-    "REF-JITMEM": ("REC-002",),
+    "REF-MEMCALIB": ("REC-002", "REC-015"),
+    "REF-JITMEM": ("REC-002", "REC-015"),
+    "REF-CDR": ("REC-015",),
+    "REF-TTSE": ("REC-015",),
     "REF-COMPKV": ("REC-002",),
     "REF-QWEN-PLANNER": ("REC-002",),
     "REF-SHARE-BORNE": ("REC-002",),

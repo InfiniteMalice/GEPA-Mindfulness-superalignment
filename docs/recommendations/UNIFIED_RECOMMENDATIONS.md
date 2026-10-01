@@ -175,9 +175,9 @@ Experimental and disabled by default. Extends the existing trajectory, semantic,
 action-bound interfaces. Dependencies are REC-002, REC-005, REC-006, REC-010, REC-011 and REC-014.
 Synthetic matched controls verify record behavior; empirical effectiveness remains unestablished.
 
-- Repository evidence: [`internal_state_trajectory.py`](../../modules/semantic_intent_robustness/internal_state_trajectory.py), [`continuity_audit.py`](../../modules/semantic_intent_robustness/continuity_audit.py), [`README.md`](../../modules/semantic_intent_robustness/README.md).
-- Acceptance checks: [`test_sot_state_continuity.py`](../../tests/test_sot_state_continuity.py), [`test_epistemic_continuity.py`](../../tests/test_epistemic_continuity.py), [`test_motivated_forgetting.py`](../../tests/test_motivated_forgetting.py), [`test_continuity_evaluation.py`](../../tests/test_continuity_evaluation.py).
-- Research: [`REF-SOT`](RESEARCH_TRACEABILITY.md#ref-sot).
+- Repository evidence: [`internal_state_trajectory.py`](../../modules/semantic_intent_robustness/internal_state_trajectory.py), [`continuity_audit.py`](../../modules/semantic_intent_robustness/continuity_audit.py), [`README.md`](../../modules/semantic_intent_robustness/README.md), [`peo_continuity.md`](../peo_continuity.md).
+- Acceptance checks: [`test_sot_state_continuity.py`](../../tests/test_sot_state_continuity.py), [`test_epistemic_continuity.py`](../../tests/test_epistemic_continuity.py), [`test_motivated_forgetting.py`](../../tests/test_motivated_forgetting.py), [`test_continuity_evaluation.py`](../../tests/test_continuity_evaluation.py), [`test_peo_continuity.py`](../../tests/test_peo_continuity.py).
+- Research: [`REF-SOT`](RESEARCH_TRACEABILITY.md#ref-sot), [`REF-CDR`](RESEARCH_TRACEABILITY.md#ref-cdr), [`REF-MEMCALIB`](RESEARCH_TRACEABILITY.md#ref-memcalib), [`REF-TTSE`](RESEARCH_TRACEABILITY.md#ref-ttse), [`REF-JITMEM`](RESEARCH_TRACEABILITY.md#ref-jitmem).
 
 REC-016 through REC-019 remain experimental research overlays. They retain exactly 17 canonical
 cases (IDs 1-17). Diagnostic signals do not independently authorize external actions, training,

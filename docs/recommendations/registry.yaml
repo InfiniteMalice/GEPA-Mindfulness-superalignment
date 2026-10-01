@@ -427,19 +427,26 @@ recommendations:
       - REC-014
     research_refs:
       - REF-SOT
+      - REF-CDR
+      - REF-MEMCALIB
+      - REF-TTSE
+      - REF-JITMEM
     repo_refs:
       - modules/semantic_intent_robustness/internal_state_trajectory.py
       - modules/semantic_intent_robustness/continuity_audit.py
       - modules/semantic_intent_robustness/README.md
+      - docs/peo_continuity.md
     acceptance_tests:
       - tests/test_sot_state_continuity.py
       - tests/test_epistemic_continuity.py
       - tests/test_motivated_forgetting.py
       - tests/test_continuity_evaluation.py
+      - tests/test_peo_continuity.py
     implementation_refs:
       - modules/semantic_intent_robustness/semantic_state_continuity.py
       - modules/semantic_intent_robustness/epistemic_continuity.py
       - modules/semantic_intent_robustness/motivated_forgetting.py
+      - modules/semantic_intent_robustness/peo_continuity.py
 
   - id: "REC-016"
     title: "EvoFlint semantic-laundering quality-diversity search."

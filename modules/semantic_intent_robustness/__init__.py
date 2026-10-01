@@ -7,6 +7,12 @@ from importlib import import_module
 from typing import Any
 
 _EXPORT_TO_MODULE: dict[str, str] = {
+    "PEOContinuityRequest": ".peo_continuity",
+    "PEOContinuityAudit": ".peo_continuity",
+    "ProspectiveEvidenceUse": ".peo_continuity",
+    "RetrospectiveEvidenceUse": ".peo_continuity",
+    "audit_peo_continuity": ".peo_continuity",
+    "evidence_use_digest": ".peo_continuity",
     "ALL_SIGNATURES": ".signatures",
     "CandidateOutcome": ".representation",
     "DEFAULT_CONFIG": ".config",
