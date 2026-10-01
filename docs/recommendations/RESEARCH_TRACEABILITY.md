@@ -514,14 +514,14 @@ reproduced.
 - arXiv: [`2609.16055`](https://arxiv.org/abs/2609.16055)
 - DOI: `10.48550/arXiv.2609.16055`
 - Venue/status: Not supplied by official arXiv metadata.
-- Recommendations influenced: `REC-015`
-- Local repository notes: [state interface](../../modules/semantic_intent_robustness/internal_state_trajectory.py), [continuity documentation](../../modules/semantic_intent_robustness/README.md)
+- Recommendations influenced: `REC-010`, `REC-015`
+- Local repository notes: [internal_state_trajectory.py](../../modules/semantic_intent_robustness/internal_state_trajectory.py), [README.md](../../modules/semantic_intent_robustness/README.md), [dynamic_uncertainty.py](../../gepa_mindfulness/training/dynamic_uncertainty.py), [dynamic_uncertainty.py](../../evaluation/dynamic_uncertainty.py), [test_dynamic_uncertainty.py](../../tests/test_dynamic_uncertainty.py), [dynamic_uncertainty.md](../dynamic_uncertainty.md)
 
 **Source demonstrates:** The source reports a compact dynamics-geometric state derived from internal information transfer in frozen models. A lightweight controller uses that state to select historical reasoning support and regulate reasoning progression, evaluated on language and vision-language reasoning tasks.
 
-**Repository inference:** Compact states and state-conditioned historical support motivate experimental diagnostics for intent continuity across semantic laundering and retrieval of prior public evidence omitted without supported supersession. These are repository hypotheses, not results demonstrated by SoT; omission alone does not establish motivated forgetting.
+**Repository inference:** Compact states and state-conditioned historical support motivate experimental diagnostics for intent continuity across semantic laundering and retrieval of prior public evidence omitted without supported supersession. These are repository hypotheses, not results demonstrated by SoT; omission alone does not establish motivated forgetting. PR-13 conditions a policy on public PEO history rather than internal state; the source controller is not reproduced.
 
-**Maturity:** Resolved arXiv preprint; REC-015 is experimental and disabled by default. Synthetic contract tests do not reproduce SoT results or establish true intent, deception, or motive from states.
+**Maturity:** Resolved arXiv preprint; REC-015 is experimental and disabled by default. Synthetic contract tests do not reproduce SoT results or establish true intent, deception, or motive from states. PR-13 implements opt-in decision learning and contract tests; real-model effectiveness remains unmeasured.
 
 <a id="ref-kalman"></a>
 
@@ -536,14 +536,14 @@ reproduced.
 - Canonical source: [ASME paper](https://doi.org/10.1115/1.3662552)
 - Primary text inspected: [CMU-hosted ASME paper](https://www.cs.cmu.edu/~./motionplanning/papers/sbp_papers/k/Kalman1960.pdf)
 - Venue/status: Journal of Basic Engineering, 82(1), 35-45 (1960).
-- Recommendations influenced: `REC-002`
-- Local repository notes: [record contracts](../../gepa_mindfulness/verification/epistemic_state.py), [contract guide](../epistemic_state.md)
+- Recommendations influenced: `REC-002`, `REC-010`
+- Local repository notes: [epistemic_state.py](../../gepa_mindfulness/verification/epistemic_state.py), [epistemic_state.md](../epistemic_state.md), [dynamic_uncertainty.py](../../gepa_mindfulness/training/dynamic_uncertainty.py), [dynamic_uncertainty.py](../../evaluation/dynamic_uncertainty.py), [test_dynamic_uncertainty.py](../../tests/test_dynamic_uncertainty.py), [dynamic_uncertainty.md](../dynamic_uncertainty.md)
 
 **Source demonstrates:** The paper derives recursive linear estimation and an estimation-error covariance equation under explicit stochastic system assumptions.
 
-**Repository inference:** Separate state, measurement, innovation and update records can preserve temporal uncertainty diagnostics. Applying estimation to semantic state remains a repository hypothesis.
+**Repository inference:** Separate state, measurement, innovation and update records can preserve temporal uncertainty diagnostics. Applying estimation to semantic state remains a repository hypothesis. PR-13 uses validated prior/posterior histories to train verified next decisions; covariance and residual values are not reward targets.
 
-**Maturity:** Published mathematical result; PR-1 implements records, PR-2 causal validation and PR-3 an opt-in scalar estimator. Semantic calibration, optimizer integration and runtime authority remain outside this implementation.
+**Maturity:** Published mathematical result; PR-1 implements records, PR-2 causal validation and PR-3 an opt-in scalar estimator. Semantic calibration, optimizer integration and runtime authority remain outside this implementation. PR-13 implements opt-in decision learning and contract tests; real-model effectiveness remains unmeasured.
 
 **Design hypothesis:** Separating world, model and monitor uncertainty may improve subsequent
 evidence-acquisition decisions. Arbitrary semantic state need not satisfy linear or Gaussian
@@ -568,14 +568,14 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - arXiv: [`2609.35732`](https://arxiv.org/abs/2609.35732)
 - DOI: `10.48550/arXiv.2609.35732`
 - Venue/status: Not supplied by official arXiv metadata.
-- Recommendations influenced: `REC-002`, `REC-007`
-- Local repository notes: [epistemic_reconciliation.py](../../gepa_mindfulness/verification/epistemic_reconciliation.py), [epistemic_state.md](../epistemic_state.md), [failure_layers.py](../../gepa_mindfulness/verification/failure_layers.py), [skill_bank.py](../../gepa_mindfulness/skill_bank.py), [test_failure_layers.py](../../tests/test_failure_layers.py), [test_skill_bank.py](../../tests/test_skill_bank.py), [skill_failure_localization.md](../skill_failure_localization.md)
+- Recommendations influenced: `REC-002`, `REC-007`, `REC-010`
+- Local repository notes: [epistemic_reconciliation.py](../../gepa_mindfulness/verification/epistemic_reconciliation.py), [epistemic_state.md](../epistemic_state.md), [failure_layers.py](../../gepa_mindfulness/verification/failure_layers.py), [skill_bank.py](../../gepa_mindfulness/skill_bank.py), [test_failure_layers.py](../../tests/test_failure_layers.py), [test_skill_bank.py](../../tests/test_skill_bank.py), [skill_failure_localization.md](../skill_failure_localization.md), [dynamic_uncertainty.py](../../gepa_mindfulness/training/dynamic_uncertainty.py), [dynamic_uncertainty.py](../../evaluation/dynamic_uncertainty.py), [test_dynamic_uncertainty.py](../../tests/test_dynamic_uncertainty.py), [dynamic_uncertainty.md](../dynamic_uncertainty.md)
 
 **Source demonstrates:** The benchmark fixes failed-tool observations before evaluating subsequent reports; structured evidence reporting is associated with fewer unsupported claims in its blocked-task setting.
 
-**Repository inference:** Separate execution, observation and reporting evidence. A residual identifies a recorded mismatch, not deceptive motive; report residuals require future public-report telemetry. PR-8 adds layer-specific diagnostic hypotheses and review paths while retaining existing causal and persistence authority boundaries.
+**Repository inference:** Separate execution, observation and reporting evidence. A residual identifies a recorded mismatch, not deceptive motive; report residuals require future public-report telemetry. PR-8 adds layer-specific diagnostic hypotheses and review paths while retaining existing causal and persistence authority boundaries. PR-13 retains verified observations of failed actions for next-decision assessment; offline proposals do not establish successful execution.
 
-**Maturity:** Resolved arXiv preprint; PR-2 implements causal and verifier evidence checks. Report residuals and the paper's model experiment remain unimplemented.
+**Maturity:** Resolved arXiv preprint; PR-2 implements causal and verifier evidence checks. Report residuals and the paper's model experiment remain unimplemented. PR-13 implements opt-in decision learning and contract tests; real-model effectiveness remains unmeasured.
 
 <a id="ref-pinnforge"></a>
 
@@ -651,15 +651,15 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - arXiv: [`2609.24831`](https://arxiv.org/abs/2609.24831)
 - DOI: `10.48550/arXiv.2609.24831`
 - Venue/status: Not supplied by official arXiv metadata.
-- Recommendations influenced: `REC-002`
-- Local repository notes: [scalar estimator](../../gepa_mindfulness/verification/temporal_estimator.py), [guide](../temporal_estimator.md)
+- Recommendations influenced: `REC-002`, `REC-010`
+- Local repository notes: [temporal_estimator.py](../../gepa_mindfulness/verification/temporal_estimator.py), [temporal_estimator.md](../temporal_estimator.md), [dynamic_uncertainty.py](../../gepa_mindfulness/training/dynamic_uncertainty.py), [dynamic_uncertainty.py](../../evaluation/dynamic_uncertainty.py), [test_dynamic_uncertainty.py](../../tests/test_dynamic_uncertainty.py), [dynamic_uncertainty.md](../dynamic_uncertainty.md)
 - Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.24831v1), 2026-09-30.
 
 **Source demonstrates:** The paper models reasoning-and-acting trajectories as graphs and evaluates turn-level and trajectory uncertainty for selective generation.
 
-**Repository inference:** Retain uncertainty as trajectory diagnostics. Scalar numeric residuals do not reproduce graph-based reasoning uncertainty or establish semantic calibration.
+**Repository inference:** Retain uncertainty as trajectory diagnostics. Scalar numeric residuals do not reproduce graph-based reasoning uncertainty or establish semantic calibration. PR-13 stratifies longitudinal decision evaluation without extracting private reasoning graphs or using uncertainty as reward.
 
-**Maturity:** Resolved arXiv preprint; PR-3 implements opt-in scalar diagnostics. No reasoning-graph extraction, private-chain-of-thought reward or GRUET experiment is implemented.
+**Maturity:** Resolved arXiv preprint; PR-3 implements opt-in scalar diagnostics. No reasoning-graph extraction, private-chain-of-thought reward or GRUET experiment is implemented. PR-13 implements opt-in decision learning and contract tests; real-model effectiveness remains unmeasured.
 
 <a id="ref-dual-frontier"></a>
 
@@ -693,15 +693,15 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - arXiv: [`2609.28570`](https://arxiv.org/abs/2609.28570)
 - DOI: `10.48550/arXiv.2609.28570`
 - Venue/status: Not supplied by official arXiv metadata.
-- Recommendations influenced: `REC-002`
-- Local repository notes: [scalar estimator](../../gepa_mindfulness/verification/temporal_estimator.py), [guide](../temporal_estimator.md)
+- Recommendations influenced: `REC-002`, `REC-010`
+- Local repository notes: [temporal_estimator.py](../../gepa_mindfulness/verification/temporal_estimator.py), [temporal_estimator.md](../temporal_estimator.md), [dynamic_uncertainty.py](../../gepa_mindfulness/training/dynamic_uncertainty.py), [dynamic_uncertainty.py](../../evaluation/dynamic_uncertainty.py), [test_dynamic_uncertainty.py](../../tests/test_dynamic_uncertainty.py), [dynamic_uncertainty.md](../dynamic_uncertainty.md)
 - Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.28570v1), 2026-09-30.
 
 **Source demonstrates:** The paper studies uncertain queries and confident errors in multimodal reinforcement learning, combining entropy-triggered expert prefixes with gradient preconditioning.
 
-**Repository inference:** Track persistent mismatch even when numerical confidence appears high. Entropy and confidence are not universal truth signals.
+**Repository inference:** Track persistent mismatch even when numerical confidence appears high. Entropy and confidence are not universal truth signals. PR-13 includes mismatch and recovery decision strata with informative verified targets; entropy triggers and gradient preconditioning are not implemented.
 
-**Maturity:** Resolved arXiv preprint; PR-3 implements explicit scalar mismatch diagnostics. No entropy extraction, policy optimization or hallucination benchmark result is reproduced.
+**Maturity:** Resolved arXiv preprint; PR-3 implements explicit scalar mismatch diagnostics. No entropy extraction, policy optimization or hallucination benchmark result is reproduced. PR-13 implements opt-in decision learning and contract tests; real-model effectiveness remains unmeasured.
 
 <a id="ref-ci"></a>
 
@@ -1301,13 +1301,13 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - DOI: `10.48550/arXiv.2609.26708`
 - Venue/status: Not supplied by official arXiv metadata.
 - Recommendations influenced: `REC-010`
-- Local repository notes: [peo_curriculum.py](../../gepa_mindfulness/training/peo_curriculum.py), [curriculum.py](../../gepa_mindfulness/participatory_agency/training/curriculum.py), [test_peo_curriculum.py](../../tests/test_peo_curriculum.py), [test_rl_engine_cpu.py](../../tests/test_rl_engine_cpu.py), [peo_curriculum.md](../peo_curriculum.md)
+- Local repository notes: [peo_curriculum.py](../../gepa_mindfulness/training/peo_curriculum.py), [curriculum.py](../../gepa_mindfulness/participatory_agency/training/curriculum.py), [test_peo_curriculum.py](../../tests/test_peo_curriculum.py), [test_rl_engine_cpu.py](../../tests/test_rl_engine_cpu.py), [peo_curriculum.md](../peo_curriculum.md), [dynamic_uncertainty.py](../../gepa_mindfulness/training/dynamic_uncertainty.py), [dynamic_uncertainty.py](../../evaluation/dynamic_uncertainty.py), [test_dynamic_uncertainty.py](../../tests/test_dynamic_uncertainty.py), [dynamic_uncertainty.md](../dynamic_uncertainty.md)
 
 **Source demonstrates:** Student rollouts use the deployment quantized forward path; a frozen full-precision teacher scores student prefixes alongside task-verifier rewards.
 
-**Repository inference:** Allow reviewed student-induced weakness and recovery data in a bounded curriculum mixture. No quantization, distillation loss, teacher scoring, or admission of raw failed traces is introduced.
+**Repository inference:** Allow reviewed student-induced weakness and recovery data in a bounded curriculum mixture. No quantization, distillation loss, teacher scoring, or admission of raw failed traces is introduced. PR-13 accepts reviewed deployment histories for behavioral decision training; no quantized distillation or automatic admission is added.
 
-**Maturity:** Resolved arXiv preprint; experimental opt-in curriculum contracts. Contract tests do not establish learned retention or reproduce source results.
+**Maturity:** Resolved arXiv preprint; experimental opt-in curriculum contracts. Contract tests do not establish learned retention or reproduce source results. PR-13 implements opt-in decision learning and contract tests; real-model effectiveness remains unmeasured.
 
 <a id="ref-p-ttt"></a>
 
@@ -1368,3 +1368,23 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 **Repository inference:** Require observable intervention outcomes and avoid equating a correlated signal or correct answer with mechanism recovery. No quantum circuit, attention attribution, or private-reasoning audit is implemented.
 
 **Maturity:** Resolved arXiv preprint; experimental opt-in behavioral counterfactual diagnostics. Contract tests do not establish internal mechanism recovery or reproduce source results.
+
+<a id="ref-cat-search"></a>
+
+## REF-CAT-SEARCH — Direct Optimization of Generators for Search in Automated Theorem Proving
+
+- Metadata status: `resolved`
+- Supplied title: Compute-Aligned Training for Search
+- Authors: Adam Ousherovitch, Ambuj Tewari
+- Year: 2026
+- arXiv: [`2609.25575`](https://arxiv.org/abs/2609.25575)
+- DOI: `10.48550/arXiv.2609.25575`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-010`
+- Local repository notes: [dynamic_uncertainty.py](../../gepa_mindfulness/training/dynamic_uncertainty.py), [dynamic_uncertainty.py](../../evaluation/dynamic_uncertainty.py), [test_dynamic_uncertainty.py](../../tests/test_dynamic_uncertainty.py), [dynamic_uncertainty.md](../dynamic_uncertainty.md)
+
+**Source demonstrates:** Search-aware and uniform-allocation objectives weight per-tactic cross-entropy gradients according to modeled search success and compute allocation. The trace-supported approximation omits off-trace alternatives and exploration costs.
+
+**Repository inference:** The supplied shorthand is mapped by mechanism and timing to this September search extension of Compute Aligned Training. PR-13 trains and evaluates the same next-decision interface; it does not implement search-aware losses, theorem proving or compute-budget accounting.
+
+**Maturity:** Resolved arXiv preprint with an explicitly inferred shorthand mapping. Opt-in decision-training contracts are implemented; source search objectives and real-model experiments remain unimplemented.
