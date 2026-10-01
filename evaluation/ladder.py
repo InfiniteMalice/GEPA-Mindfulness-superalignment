@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from enum import Enum
 from hashlib import sha256
 from math import ceil, isfinite
 from statistics import mean
 from typing import Any, cast
 
-from gepa_mindfulness.core.evidence import EvidenceReference
+from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
 from gepa_mindfulness.core.reward_provenance import TrustedEvaluatorContract
 from gepa_mindfulness.training.eligibility import TrainingEligibility
 
@@ -145,6 +145,9 @@ class Observation:
         for ref in self.evidence_refs:
             if type(ref) is not EvidenceReference:
                 raise ValueError("capture requires exact EvidenceReference records")
+            _text(ref.reference_id, "reference_id")
+            if type(ref.source_kind) is not EvidenceSourceKind:
+                raise ValueError("source_kind must be an exact EvidenceSourceKind")
             EvidenceReference.__post_init__(ref)
             if not ref.is_observable:
                 raise ValueError("capture evidence must be observable")
@@ -286,7 +289,14 @@ def evaluate_ladder(
     if type(system) is not SystemIdentity or type(evaluator) is not TrustedEvaluatorContract:
         raise ValueError("system and evaluator require exact identity record types")
     SystemIdentity.__post_init__(system)
+    for name in ("evaluator_id", "evaluator_version", "contract_id"):
+        _text(getattr(evaluator, name), name)
     TrustedEvaluatorContract.__post_init__(evaluator)
+    evaluator_data = dict(
+        evaluator_id=evaluator.evaluator_id,
+        evaluator_version=evaluator.evaluator_version,
+        contract_id=evaluator.contract_id,
+    )
     if (
         type(training_eligibility) is not TrainingEligibility
         or training_eligibility is TrainingEligibility.TRAIN
@@ -331,7 +341,7 @@ def evaluate_ladder(
                     value=capture.value,
                     outcome=capture.outcome,
                     evidence_refs=[
-                        r.to_dict()
+                        dict(reference_id=r.reference_id, source_kind=r.source_kind.value)
                         for r in sorted(capture.evidence_refs, key=lambda r: r.reference_id)
                     ],
                 )
@@ -362,14 +372,14 @@ def evaluate_ladder(
         stages[stage.value] = dict(
             metrics=names, expected=len(selected), missing=missing, observed=len(selected) - missing
         )
-    protocol = dict(protocol_id=protocol_id, probes=roster, evaluator=asdict(evaluator))
+    protocol = dict(protocol_id=protocol_id, probes=roster, evaluator=evaluator_data)
     result = dict(
         schema_version="evaluation-ladder-v1",
         maturity="experimental",
         diagnostic_status="diagnostic",
         training_eligibility=training_eligibility.value,
         system=system.to_dict(),
-        evaluator=asdict(evaluator),
+        evaluator=evaluator_data,
         protocol_id=protocol_id,
         protocol_digest=_digest(protocol),
         stages=stages,

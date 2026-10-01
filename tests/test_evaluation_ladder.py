@@ -332,3 +332,96 @@ def test_largest_finite_measurements_have_a_finite_accurate_mean():
     assert group(result, metric)["mean"] == sys.float_info.max
     captures = [observation("0", 1e308), observation("1", -1e308), observation("2", 1.0)]
     assert group(report(probes, captures), metric)["mean"] == pytest.approx(1 / 3)
+
+
+def test_evidence_serialization_never_invokes_instance_overrides():
+    """Mutable legacy instance dictionaries cannot inject callbacks or private evidence."""
+    capture = observation(value=True)
+    called = []
+
+    def forged():
+        """Attempt to replace a validated observable capture during serialization."""
+        called.append(True)
+        return dict(reference_id="private", source_kind="private_reasoning")
+
+    capture.evidence_refs[0].__dict__["to_dict"] = forged
+    result = report([probe(severity=Severity.CATASTROPHIC)], [capture])
+    assert called == []
+    for rows in (result["rows"], result["failures"], result["severe_observations"]):
+        assert rows[0]["evidence_refs"] == [
+            dict(reference_id="capture-p", source_kind="external_record")
+        ]
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "reference_id",
+        "evaluator_id",
+        "evaluator_version",
+        "contract_id",
+        "model_version",
+        "harness_version",
+    ],
+)
+def test_nested_identity_strings_cannot_execute_methods_or_hide_blank_values(field):
+    """Reject string subclasses before calling legacy validators or serializers."""
+    called = []
+
+    class Nonblank(str):
+        def strip(self):
+            """Attempt to disguise an empty serialized identifier."""
+            called.append(True)
+            return "nonblank"
+
+    capture = observation()
+    evaluator = TrustedEvaluatorContract("host", "v1", "toy-contract")
+    system = SystemIdentity(0, 7, "model-v1", "harness-v1")
+    if field == "reference_id":
+        capture.evidence_refs[0].__dict__[field] = Nonblank("")
+    elif field in ("model_version", "harness_version"):
+        object.__setattr__(system, field, Nonblank(""))
+    else:
+        evaluator.__dict__[field] = Nonblank("")
+    with pytest.raises(ValueError):
+        report([probe()], [capture], evaluator=evaluator, system=system)
+    assert called == []
+
+
+def test_evaluator_serialization_ignores_instance_dataclass_metadata():
+    """Legacy instance dictionaries cannot erase evaluator identity via asdict metadata."""
+    evaluator = TrustedEvaluatorContract("host", "v1", "toy-contract")
+    evaluator.__dict__["__dataclass_fields__"] = {}
+    result = report([probe()], evaluator=evaluator)
+    assert result["evaluator"] == dict(
+        evaluator_id="host", evaluator_version="v1", contract_id="toy-contract"
+    )
+    assert result["protocol_digest"] == report([probe()])["protocol_digest"]
+
+
+def test_evidence_kind_cannot_spoof_enum_identity():
+    """Exact enum checks reject fabricated source kinds before invoking object methods."""
+    called = []
+
+    class FakeKind:
+        value = "private_reasoning"
+
+        @property
+        def __class__(self):
+            """Attempt to pass the legacy isinstance validation."""
+            called.append(True)
+            return EvidenceSourceKind
+
+        def __hash__(self):
+            """Attempt to enter the observable-kind set."""
+            return hash(EvidenceSourceKind.EXTERNAL_RECORD)
+
+        def __eq__(self, other):
+            """Attempt to compare equal to an allowed kind."""
+            return True
+
+    capture = observation()
+    capture.evidence_refs[0].__dict__["source_kind"] = FakeKind()
+    with pytest.raises(ValueError):
+        report([probe()], [capture])
+    assert called == []

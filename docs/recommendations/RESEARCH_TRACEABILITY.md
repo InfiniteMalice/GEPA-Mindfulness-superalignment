@@ -1419,7 +1419,7 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - Year: 2026
 - arXiv: [`2609.25014`](https://arxiv.org/abs/2609.25014)
 - DOI: `10.48550/arXiv.2609.25014`
-- Venue/status: Not supplied by official arXiv metadata.
+- Venue/status: Accepted for publication at SBSeg 2026
 - Recommendations influenced: `REC-010`
 - Local repository notes: [ladder.py](../../evaluation/ladder.py), [test_evaluation_ladder.py](../../tests/test_evaluation_ladder.py), [evaluation_ladder.md](../evaluation_ladder.md)
 
