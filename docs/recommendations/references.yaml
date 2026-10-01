@@ -1489,14 +1489,31 @@ references:
     canonical_url: https://github.com/Contrastive-LM/CLM
     recommendation_ids:
     - REC-008
+    - REC-010
     source_demonstrates: The official project describes contrastive state/action representations, independently
-      cached embeddings, candidate ranking and a TypeSafe-compatible typed decision API.
+      cached embeddings, candidate ranking and a TypeSafe-compatible typed decision API. The official
+      trainer implements separate projection heads with a group-masked bidirectional in-batch contrastive
+      loss.
     repository_inference: Expose bounded public routing features to a host-supplied CLM callback. Evaluate
-      raw proposals, failures and latency separately from guarded outcomes; do not treat model scores as
-      authority.
+      raw proposals, failures and latency separately from guarded outcomes; do not treat model scores
+      as authority. PR-12 reuses CPT pairs for an opt-in two-candidate optimizer and four-arm ranking
+      comparison. This is not the source bidirectional in-batch objective or a trained CLM checkpoint.
     maturity: Experimental opt-in routing adapter. Synthetic contract comparisons do not establish learned-backend
-      quality, alignment or source-benchmark reproduction.
-    local_repo_notes: *id001
+      quality, alignment or source-benchmark reproduction. PR-12 contract and CPU wiring tests are implemented;
+      learned comparative effectiveness remains unmeasured.
+    local_repo_notes:
+    - gepa_mindfulness/factuality_observability/epistemic_routing.py
+    - evaluation/system_one_benchmark.py
+    - tests/test_epistemic_routing.py
+    - tests/test_system_one_benchmark.py
+    - docs/system_one_routing.md
+    - gepa_mindfulness/training/contrastive.py
+    - synthetic_data/contrastive_negatives.py
+    - evaluation/contrastive.py
+    - tests/test_contrastive_training.py
+    - tests/test_contrastive_negatives.py
+    - tests/test_contrastive_evaluation.py
+    - docs/contrastive_training.md
   - reference_id: REF-TOOLLERY
     metadata_status: resolved
     supplied_title: Toollery
@@ -1747,20 +1764,31 @@ references:
     canonical_url: https://arxiv.org/abs/2609.22327
     recommendation_ids:
     - REC-005
+    - REC-010
     source_demonstrates: A representation compiler maps visual input to an explicit attributed graph,
-      and an operation compiler maps a query and graph to an executable operation. Sections 3.1–3.2 and Figure 3 distinguish
-      style changes with fixed graph state from graph-state changes with fixed style.
+      and an operation compiler maps a query and graph to an executable operation. Sections 3.1–3.2
+      and Figure 3 distinguish style changes with fixed graph state from graph-state changes with fixed
+      style.
     repository_inference: Separate typed latent world truth from surface rendering and compare invariant
       surfaces with decisive permission counterfactuals. No visual parser, learned compiler, or model-generated
-      executable code is introduced.
+      executable code is introduced. PR-12 derives causal and PEO negatives from the existing deterministic
+      world structure, keeping latent snapshots outside public scoring inputs.
     maturity: Resolved arXiv preprint; experimental opt-in synthetic-world contracts. Contract tests
-      do not establish real-world policy quality or reproduce source results.
+      do not establish real-world policy quality or reproduce source results. PR-12 contract and CPU
+      wiring tests are implemented; learned comparative effectiveness remains unmeasured.
     local_repo_notes:
     - synthetic_data/worlds.py
     - synthetic_data/world_peo.py
     - tests/test_synthetic_worlds.py
     - tests/test_synthetic_world_peo.py
     - docs/synthetic_worlds.md
+    - gepa_mindfulness/training/contrastive.py
+    - synthetic_data/contrastive_negatives.py
+    - evaluation/contrastive.py
+    - tests/test_contrastive_training.py
+    - tests/test_contrastive_negatives.py
+    - tests/test_contrastive_evaluation.py
+    - docs/contrastive_training.md
   - reference_id: REF-PHYSICAL-LANGUAGES
     metadata_status: resolved
     supplied_title: Discovering Physical Representation Languages
@@ -1775,19 +1803,29 @@ references:
     canonical_url: https://arxiv.org/abs/2609.23381
     recommendation_ids:
     - REC-005
+    - REC-010
     source_demonstrates: Controlled anonymous physical experiments recover representation structure
       and measurement types while exposing residual observational equivalences and identifiability limits.
     repository_inference: Keep unavailable latent facts distinct from observable evidence and avoid
       resolving hidden truth from surface text. This simulator does not reproduce the physical experiments
-      or establish identifiability results.
+      or establish identifiability results. PR-12 retains typed source provenance for world-derived
+      negatives and limits claims to observable outcomes; it does not recover physical representations.
     maturity: Resolved arXiv preprint; experimental opt-in synthetic-world contracts. Contract tests
-      do not establish real-world policy quality or reproduce source results.
+      do not establish real-world policy quality or reproduce source results. PR-12 contract and CPU
+      wiring tests are implemented; learned comparative effectiveness remains unmeasured.
     local_repo_notes:
     - synthetic_data/worlds.py
     - synthetic_data/world_peo.py
     - tests/test_synthetic_worlds.py
     - tests/test_synthetic_world_peo.py
     - docs/synthetic_worlds.md
+    - gepa_mindfulness/training/contrastive.py
+    - synthetic_data/contrastive_negatives.py
+    - evaluation/contrastive.py
+    - tests/test_contrastive_training.py
+    - tests/test_contrastive_negatives.py
+    - tests/test_contrastive_evaluation.py
+    - docs/contrastive_training.md
   - reference_id: REF-GENERALIZED-TAMP
     metadata_status: resolved
     supplied_title: Coding Agents for Generalized Task and Motion Planning Problems
@@ -1841,15 +1879,24 @@ references:
       for still-learnable ones.
     repository_inference: Use controlled distribution rotation with separate persistent anchor checks.
       Persistent anchor quotas are a repository design choice; this provider does not implement CHART
-      GRPO or reproduce its training results.
+      GRPO or reproduce its training results. PR-12 compares a fixed five-family contrastive schedule
+      with equal-exposure pooled training; it does not reproduce adaptive harness graduation or GRPO.
     maturity: Resolved arXiv preprint; experimental opt-in curriculum contracts. Contract tests do not
-      establish learned retention or reproduce source results.
+      establish learned retention or reproduce source results. PR-12 contract and CPU wiring tests are
+      implemented; learned comparative effectiveness remains unmeasured.
     local_repo_notes:
     - gepa_mindfulness/training/peo_curriculum.py
     - gepa_mindfulness/participatory_agency/training/curriculum.py
     - tests/test_peo_curriculum.py
     - tests/test_rl_engine_cpu.py
     - docs/peo_curriculum.md
+    - gepa_mindfulness/training/contrastive.py
+    - synthetic_data/contrastive_negatives.py
+    - evaluation/contrastive.py
+    - tests/test_contrastive_training.py
+    - tests/test_contrastive_negatives.py
+    - tests/test_contrastive_evaluation.py
+    - docs/contrastive_training.md
   - reference_id: REF-SPECTRAL-GROKKING
     metadata_status: resolved
     supplied_title: Spectral Theory of Grokking
@@ -1933,21 +1980,31 @@ references:
     venue_status: null
     canonical_url: https://arxiv.org/abs/2609.35109
     recommendation_ids:
+    - REC-010
     - REC-014
     source_demonstrates: Appendix D reverses contextual preference labels with response content fixed,
       retains only variants with an unambiguous opposite target preference, and measures flips among
       initially correct predictions.
     repository_inference: Use explicit relation reversals with validated expected changes and reject
       masked or unresolved pairs. No fast-weight learning, personalized reward model, or source flip-rate
-      reproduction is implemented.
+      reproduction is implemented. PR-12 uses opposite-world decisions as contrastive negatives while
+      retaining non-TRAIN world provenance; no fast-weight training is reproduced.
     maturity: Resolved arXiv preprint; experimental opt-in behavioral counterfactual diagnostics. Contract
-      tests do not establish internal mechanism recovery or reproduce source results.
+      tests do not establish internal mechanism recovery or reproduce source results. PR-12 contract
+      and CPU wiring tests are implemented; learned comparative effectiveness remains unmeasured.
     local_repo_notes:
     - synthetic_data/relation_flips.py
     - evaluation/relation_flips.py
     - tests/test_relation_flip_worlds.py
     - tests/test_relation_flip_evaluation.py
     - docs/relation_flips.md
+    - gepa_mindfulness/training/contrastive.py
+    - synthetic_data/contrastive_negatives.py
+    - evaluation/contrastive.py
+    - tests/test_contrastive_training.py
+    - tests/test_contrastive_negatives.py
+    - tests/test_contrastive_evaluation.py
+    - docs/contrastive_training.md
   - reference_id: REF-MECHBENCH
     metadata_status: resolved
     supplied_title: MechBench
@@ -1964,21 +2021,32 @@ references:
     venue_status: null
     canonical_url: https://arxiv.org/abs/2609.35515
     recommendation_ids:
+    - REC-010
     - REC-014
     source_demonstrates: Sections 3 and 4 separate phenomenal-law recovery from internal scientific
       mechanism probes, construct meaningful mechanism mutations, and screen for competing mechanisms
       with indistinguishable phenomenal laws.
     repository_inference: Report visible correctness separately from correct behavior under decisive
       interventions and reject uninformative pairs. Behavioral sensitivity does not establish internal
-      mechanism recovery; no symbolic scientific discovery system is reproduced.
+      mechanism recovery; no symbolic scientific discovery system is reproduced. PR-12 admits only decisive
+      relation changes as causal negatives; observable ranking margins do not establish internal mechanism
+      recovery.
     maturity: Resolved arXiv preprint; experimental opt-in behavioral counterfactual diagnostics. Contract
-      tests do not establish internal mechanism recovery or reproduce source results.
+      tests do not establish internal mechanism recovery or reproduce source results. PR-12 contract
+      and CPU wiring tests are implemented; learned comparative effectiveness remains unmeasured.
     local_repo_notes:
     - synthetic_data/relation_flips.py
     - evaluation/relation_flips.py
     - tests/test_relation_flip_worlds.py
     - tests/test_relation_flip_evaluation.py
     - docs/relation_flips.md
+    - gepa_mindfulness/training/contrastive.py
+    - synthetic_data/contrastive_negatives.py
+    - evaluation/contrastive.py
+    - tests/test_contrastive_training.py
+    - tests/test_contrastive_negatives.py
+    - tests/test_contrastive_evaluation.py
+    - docs/contrastive_training.md
   - reference_id: REF-QUANTUM-THINK
     metadata_status: resolved
     supplied_title: Watching Quantum Models Think

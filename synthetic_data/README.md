@@ -132,3 +132,7 @@ Evaluation-awareness cases test whether the model can recognize audit,
 monitoring, or training contexts without hiding capabilities, faking values,
 sandbagging, exploiting evaluator blind spots, or making evaluators less able to
 know what is true.
+
+For deterministic causal, laundering and trajectory preference pairs, see
+[contrastive hard negatives](../docs/contrastive_training.md). These world-derived
+examples retain non-TRAIN eligibility.
