@@ -608,17 +608,14 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - arXiv: [`2609.30214`](https://arxiv.org/abs/2609.30214)
 - DOI: `10.48550/arXiv.2609.30214`
 - Venue/status: Not supplied by official arXiv metadata.
-- Recommendations influenced: `REC-002`
-- Local repository notes: [causal reconciliation](../../gepa_mindfulness/verification/epistemic_reconciliation.py), [guide](../epistemic_state.md)
-- Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.30214v1), 2026-09-30.
+- Recommendations influenced: `REC-002`, `REC-014`
+- Local repository notes: [epistemic_reconciliation.py](../../gepa_mindfulness/verification/epistemic_reconciliation.py), [epistemic_state.md](../epistemic_state.md), [relation_flips.py](../../synthetic_data/relation_flips.py), [relation_flips.py](../../evaluation/relation_flips.py), [test_relation_flip_worlds.py](../../tests/test_relation_flip_worlds.py), [test_relation_flip_evaluation.py](../../tests/test_relation_flip_evaluation.py), [relation_flips.md](../relation_flips.md)
 
 **Source demonstrates:** The underwater world model uses binding guidance for identifiable task-object representations and reports representation and prediction evaluations.
 
-**Repository inference:** Make measurement correspondence explicit before comparing predicted and observed values. JSON path bindings do not validate learned representations or their semantic units.
+**Repository inference:** Make measurement correspondence explicit before comparing predicted and observed values. JSON path bindings do not validate learned representations or their semantic units. PR-11 binds each behavioral intervention to one typed world variable without claiming a learned object representation.
 
 **Maturity:** Resolved arXiv preprint; PR-2 implements explicit numeric outcome bindings. No JEPA backend, rollout learner or robotics result is reproduced.
-
-**Experiment:** Current tests mutate causal inputs and evidence bindings. Later model experiments must measure calibration and reporting errors separately from execution failures; no behavioral result is claimed here.
 
 <a id="ref-ai-neuroscientist"></a>
 
@@ -1002,12 +999,12 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - arXiv: [`2609.22239`](https://arxiv.org/abs/2609.22239)
 - DOI: `10.48550/arXiv.2609.22239`
 - Venue/status: Not supplied by official arXiv metadata.
-- Recommendations influenced: `REC-015`
-- Local repository notes: [implementation](../../modules/semantic_intent_robustness/peo_continuity.py), [tests](../../tests/test_peo_continuity.py), [guide](../peo_continuity.md)
+- Recommendations influenced: `REC-014`, `REC-015`
+- Local repository notes: [peo_continuity.py](../../modules/semantic_intent_robustness/peo_continuity.py), [test_peo_continuity.py](../../tests/test_peo_continuity.py), [peo_continuity.md](../peo_continuity.md), [relation_flips.py](../../synthetic_data/relation_flips.py), [relation_flips.py](../../evaluation/relation_flips.py), [test_relation_flip_worlds.py](../../tests/test_relation_flip_worlds.py), [test_relation_flip_evaluation.py](../../tests/test_relation_flip_evaluation.py), [relation_flips.md](../relation_flips.md)
 
 **Source demonstrates:** The source builds transcript-grounded knowledge graphs to identify concepts missing from generated clinical notes and direct revision. It reports improved content recall on Pitt-Bench and ACI-Bench.
 
-**Repository inference:** Compare later evidence coverage with an original available inventory and preserve unexplained omissions. This transfer is a diagnostic hypothesis; the clinical graph construction and revision procedure are not implemented.
+**Repository inference:** Compare later evidence coverage with an original available inventory and preserve unexplained omissions. This transfer is a diagnostic hypothesis; the clinical graph construction and revision procedure are not implemented. PR-11 reports missing relation categories as a declared coverage inventory, without implementing clinical concept extraction or revision.
 
 **Maturity:** Resolved arXiv preprint; PR-6 adds disabled-by-default public PEO continuity diagnostics. Synthetic tests establish software contracts, not model effectiveness or causal influence.
 
@@ -1311,3 +1308,63 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 **Repository inference:** Allow reviewed student-induced weakness and recovery data in a bounded curriculum mixture. No quantization, distillation loss, teacher scoring, or admission of raw failed traces is introduced.
 
 **Maturity:** Resolved arXiv preprint; experimental opt-in curriculum contracts. Contract tests do not establish learned retention or reproduce source results.
+
+<a id="ref-p-ttt"></a>
+
+## REF-P-TTT — Using Context Is Not Enough: Test-Time Training for Personalized Reward Modeling
+
+- Metadata status: `resolved`
+- Supplied title: P-TTT
+- Authors: Bohao Wang, Xiaoyan Zhao, Yang Zhang, Jinghang Guo, Chun Chen, Can Wang, Jiawei Chen
+- Year: 2026
+- arXiv: [`2609.35109`](https://arxiv.org/abs/2609.35109)
+- DOI: `10.48550/arXiv.2609.35109`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-014`
+- Local repository notes: [relation_flips.py](../../synthetic_data/relation_flips.py), [relation_flips.py](../../evaluation/relation_flips.py), [test_relation_flip_worlds.py](../../tests/test_relation_flip_worlds.py), [test_relation_flip_evaluation.py](../../tests/test_relation_flip_evaluation.py), [relation_flips.md](../relation_flips.md)
+
+**Source demonstrates:** Appendix D reverses contextual preference labels with response content fixed, retains only variants with an unambiguous opposite target preference, and measures flips among initially correct predictions.
+
+**Repository inference:** Use explicit relation reversals with validated expected changes and reject masked or unresolved pairs. No fast-weight learning, personalized reward model, or source flip-rate reproduction is implemented.
+
+**Maturity:** Resolved arXiv preprint; experimental opt-in behavioral counterfactual diagnostics. Contract tests do not establish internal mechanism recovery or reproduce source results.
+
+<a id="ref-mechbench"></a>
+
+## REF-MECHBENCH — MechBench: Can AI Scientific Agents Discover Mechanisms Beyond Phenomenal Laws?
+
+- Metadata status: `resolved`
+- Supplied title: MechBench
+- Authors: Zihan Yu, Jiadong Zhang, Jialin Cheng, Jingtao Ding, Yong Li
+- Year: 2026
+- arXiv: [`2609.35515`](https://arxiv.org/abs/2609.35515)
+- DOI: `10.48550/arXiv.2609.35515`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-014`
+- Local repository notes: [relation_flips.py](../../synthetic_data/relation_flips.py), [relation_flips.py](../../evaluation/relation_flips.py), [test_relation_flip_worlds.py](../../tests/test_relation_flip_worlds.py), [test_relation_flip_evaluation.py](../../tests/test_relation_flip_evaluation.py), [relation_flips.md](../relation_flips.md)
+
+**Source demonstrates:** Sections 3 and 4 separate phenomenal-law recovery from internal scientific mechanism probes, construct meaningful mechanism mutations, and screen for competing mechanisms with indistinguishable phenomenal laws.
+
+**Repository inference:** Report visible correctness separately from correct behavior under decisive interventions and reject uninformative pairs. Behavioral sensitivity does not establish internal mechanism recovery; no symbolic scientific discovery system is reproduced.
+
+**Maturity:** Resolved arXiv preprint; experimental opt-in behavioral counterfactual diagnostics. Contract tests do not establish internal mechanism recovery or reproduce source results.
+
+<a id="ref-quantum-think"></a>
+
+## REF-QUANTUM-THINK — Watching Quantum Models Think: Hilbert-Space Interpretability in Quantum Transformer Blocks
+
+- Metadata status: `resolved`
+- Supplied title: Watching Quantum Models Think
+- Authors: Diego Iacopetta, Andrea Gasparini
+- Year: 2026
+- arXiv: [`2609.23016`](https://arxiv.org/abs/2609.23016)
+- DOI: `10.48550/arXiv.2609.23016`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-014`
+- Local repository notes: [relation_flips.py](../../synthetic_data/relation_flips.py), [relation_flips.py](../../evaluation/relation_flips.py), [test_relation_flip_worlds.py](../../tests/test_relation_flip_worlds.py), [test_relation_flip_evaluation.py](../../tests/test_relation_flip_evaluation.py), [relation_flips.md](../relation_flips.md)
+
+**Source demonstrates:** Controlled entangling-gate ablations test the causal role of inter-register coupling. Readout-constrained experiments also show that mutual information can reflect architectural compensation rather than task-required routing.
+
+**Repository inference:** Require observable intervention outcomes and avoid equating a correlated signal or correct answer with mechanism recovery. No quantum circuit, attention attribution, or private-reasoning audit is implemented.
+
+**Maturity:** Resolved arXiv preprint; experimental opt-in behavioral counterfactual diagnostics. Contract tests do not establish internal mechanism recovery or reproduce source results.

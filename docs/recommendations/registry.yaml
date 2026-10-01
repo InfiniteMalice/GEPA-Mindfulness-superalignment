@@ -444,18 +444,30 @@ recommendations:
       - REC-010
     research_refs:
       - REF-SAE
+      - REF-C3-JEPA
+      - REF-CDR
+      - REF-P-TTT
+      - REF-MECHBENCH
+      - REF-QUANTUM-THINK
     repo_refs:
       - evaluation/experimental_overlays.py
       - evaluation/experimental_records.py
       - docs/experimental_v5_overlays.md
+      - synthetic_data/relation_flips.py
+      - evaluation/relation_flips.py
+      - docs/relation_flips.md
     acceptance_tests:
       - tests/test_experimental_overlay_registry.py
       - tests/test_experimental_overlay_flags.py
       - tests/test_experimental_overlay_records.py
+      - tests/test_relation_flip_worlds.py
+      - tests/test_relation_flip_evaluation.py
     implementation_refs:
       - evaluation/experimental_overlays.py
       - evaluation/experimental_records.py
       - docs/experimental_v5_overlays.md
+      - synthetic_data/relation_flips.py
+      - evaluation/relation_flips.py
 
   - id: REC-015
     title: "Internal-state semantic continuity and epistemic continuity audit."

@@ -175,9 +175,11 @@ PR-10 adds an experimental [peo_curriculum.md](../peo_curriculum.md). Seven data
 
 #### REC-014 — Mechanistic/circuit audit of actual model changes.
 
-- Repository evidence: [`experimental_overlays.py`](../../evaluation/experimental_overlays.py), [`experimental_records.py`](../../evaluation/experimental_records.py), [`experimental_v5_overlays.md`](../experimental_v5_overlays.md).
+- Repository evidence: [experimental_overlays.py](../../evaluation/experimental_overlays.py), [experimental_records.py](../../evaluation/experimental_records.py), [experimental_v5_overlays.md](../experimental_v5_overlays.md), [relation_flips.py](../../synthetic_data/relation_flips.py), [relation_flips.py](../../evaluation/relation_flips.py), [relation_flips.md](../relation_flips.md).
 - Acceptance checks: [`test_experimental_overlay_registry.py`](../../tests/test_experimental_overlay_registry.py), [`test_experimental_overlay_flags.py`](../../tests/test_experimental_overlay_flags.py), [`test_experimental_overlay_records.py`](../../tests/test_experimental_overlay_records.py).
-- Research: [`REF-SAE`](RESEARCH_TRACEABILITY.md#ref-sae).
+- Research: [`REF-SAE`](RESEARCH_TRACEABILITY.md#ref-sae), [`REF-C3-JEPA`](RESEARCH_TRACEABILITY.md#ref-c3-jepa), [`REF-CDR`](RESEARCH_TRACEABILITY.md#ref-cdr), [`REF-P-TTT`](RESEARCH_TRACEABILITY.md#ref-p-ttt), [`REF-MECHBENCH`](RESEARCH_TRACEABILITY.md#ref-mechbench), [`REF-QUANTUM-THINK`](RESEARCH_TRACEABILITY.md#ref-quantum-think).
+
+PR-11 adds an experimental [relation_flips.md](../relation_flips.md). Observable relation interventions separate visible correctness from behavioral sensitivity. Mechanism recovery remains unestablished; rewards and authority remain unchanged. Acceptance coverage: [test_relation_flip_worlds.py](../../tests/test_relation_flip_worlds.py), [test_relation_flip_evaluation.py](../../tests/test_relation_flip_evaluation.py).
 
 #### REC-015 — Internal-state semantic continuity and epistemic continuity audit.
 

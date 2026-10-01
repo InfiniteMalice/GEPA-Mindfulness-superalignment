@@ -207,9 +207,15 @@ EXPECTED_REFERENCES = (
     ("REF-CHART", "2609.22247", "CHART / Harness-Rotation"),
     ("REF-SPECTRAL-GROKKING", "2609.26679", "Spectral Theory of Grokking"),
     ("REF-LOW-BIT-OPD", "2609.26708", "On-Policy Distillation for Low-Bit Reasoning"),
+    ("REF-P-TTT", "2609.35109", "P-TTT"),
+    ("REF-MECHBENCH", "2609.35515", "MechBench"),
+    ("REF-QUANTUM-THINK", "2609.23016", "Watching Quantum Models Think"),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
+    "REF-P-TTT": ("REC-014",),
+    "REF-MECHBENCH": ("REC-014",),
+    "REF-QUANTUM-THINK": ("REC-014",),
     "REF-CHART": ("REC-010",),
     "REF-SPECTRAL-GROKKING": ("REC-010",),
     "REF-LOW-BIT-OPD": ("REC-010",),
@@ -230,7 +236,7 @@ EXPECTED_RECOMMENDATION_LINKS = {
     "REF-LATENT-LANGUAGE-GAP": ("REC-019",),
     "REF-MEMCALIB": ("REC-002", "REC-015"),
     "REF-JITMEM": ("REC-002", "REC-015"),
-    "REF-CDR": ("REC-015",),
+    "REF-CDR": ("REC-014", "REC-015"),
     "REF-TTSE": ("REC-015",),
     "REF-COMPKV": ("REC-002",),
     "REF-QWEN-PLANNER": ("REC-002", "REC-005", "REC-007", "REC-009", "REC-010"),
@@ -244,7 +250,7 @@ EXPECTED_RECOMMENDATION_LINKS = {
     "REF-DEEPO": ("REC-002",),
     "REF-FTA": ("REC-002", "REC-007"),
     "REF-PINNFORGE": ("REC-002", "REC-007"),
-    "REF-C3-JEPA": ("REC-002",),
+    "REF-C3-JEPA": ("REC-002", "REC-014"),
     "REF-AI-NEUROSCIENTIST": ("REC-002",),
     "REF-KALMAN": ("REC-002",),
     "REF-SOT": ("REC-015",),

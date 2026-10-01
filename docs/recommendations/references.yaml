@@ -825,30 +825,40 @@ references:
     - docs/skill_failure_localization.md
   - reference_id: REF-C3-JEPA
     metadata_status: resolved
-    supplied_title: "C3-JEPA"
-    title: "Underwater C3-JEPA: An Object-Centric Cross-View World Model for ROV Salvage"
+    supplied_title: C3-JEPA
+    title: 'Underwater C3-JEPA: An Object-Centric Cross-View World Model for ROV Salvage'
     authors:
-      - Yuncong Yang
-      - Jinlong Li
-      - Yulong Xue
-      - Feng Wu
-      - Chunwen Zhang
-      - Lei Qiao
-      - Xuyang Wang
+    - Yuncong Yang
+    - Jinlong Li
+    - Yulong Xue
+    - Feng Wu
+    - Chunwen Zhang
+    - Lei Qiao
+    - Xuyang Wang
     year: 2026
-    arxiv_id: "2609.30214"
-    doi: "10.48550/arXiv.2609.30214"
+    arxiv_id: '2609.30214'
+    doi: 10.48550/arXiv.2609.30214
     venue_status: null
-    canonical_url: "https://arxiv.org/abs/2609.30214"
+    canonical_url: https://arxiv.org/abs/2609.30214
     recommendation_ids:
-      - REC-002
-    source_demonstrates: "The underwater world model uses binding guidance for identifiable task-object representations and reports representation and prediction evaluations."
-    repository_inference: "Make measurement correspondence explicit before comparing predicted and observed values. JSON path bindings do not validate learned representations or their semantic units."
-    maturity: "Resolved arXiv preprint; PR-2 implements explicit numeric outcome bindings. No JEPA backend, rollout learner or robotics result is reproduced."
+    - REC-002
+    - REC-014
+    source_demonstrates: The underwater world model uses binding guidance for identifiable task-object
+      representations and reports representation and prediction evaluations.
+    repository_inference: Make measurement correspondence explicit before comparing predicted and observed
+      values. JSON path bindings do not validate learned representations or their semantic units. PR-11
+      binds each behavioral intervention to one typed world variable without claiming a learned object
+      representation.
+    maturity: Resolved arXiv preprint; PR-2 implements explicit numeric outcome bindings. No JEPA backend,
+      rollout learner or robotics result is reproduced.
     local_repo_notes:
-      - gepa_mindfulness/verification/epistemic_reconciliation.py
-      - docs/epistemic_state.md
-
+    - gepa_mindfulness/verification/epistemic_reconciliation.py
+    - docs/epistemic_state.md
+    - synthetic_data/relation_flips.py
+    - evaluation/relation_flips.py
+    - tests/test_relation_flip_worlds.py
+    - tests/test_relation_flip_evaluation.py
+    - docs/relation_flips.md
   - reference_id: REF-AI-NEUROSCIENTIST
     metadata_status: resolved
     supplied_title: "AI Neuroscientist"
@@ -1379,19 +1389,26 @@ references:
     venue_status: null
     canonical_url: https://arxiv.org/abs/2609.22239
     recommendation_ids:
+    - REC-014
     - REC-015
     source_demonstrates: The source builds transcript-grounded knowledge graphs to identify concepts
       missing from generated clinical notes and direct revision. It reports improved content recall
       on Pitt-Bench and ACI-Bench.
     repository_inference: Compare later evidence coverage with an original available inventory and preserve
       unexplained omissions. This transfer is a diagnostic hypothesis; the clinical graph construction
-      and revision procedure are not implemented.
+      and revision procedure are not implemented. PR-11 reports missing relation categories as a declared
+      coverage inventory, without implementing clinical concept extraction or revision.
     maturity: Resolved arXiv preprint; PR-6 adds disabled-by-default public PEO continuity diagnostics.
       Synthetic tests establish software contracts, not model effectiveness or causal influence.
     local_repo_notes:
     - modules/semantic_intent_robustness/peo_continuity.py
     - tests/test_peo_continuity.py
     - docs/peo_continuity.md
+    - synthetic_data/relation_flips.py
+    - evaluation/relation_flips.py
+    - tests/test_relation_flip_worlds.py
+    - tests/test_relation_flip_evaluation.py
+    - docs/relation_flips.md
   - reference_id: REF-TTSE
     metadata_status: resolved
     supplied_title: TTSE
@@ -1898,3 +1915,95 @@ references:
     - tests/test_peo_curriculum.py
     - tests/test_rl_engine_cpu.py
     - docs/peo_curriculum.md
+  - reference_id: REF-P-TTT
+    metadata_status: resolved
+    supplied_title: P-TTT
+    title: 'Using Context Is Not Enough: Test-Time Training for Personalized Reward Modeling'
+    authors:
+    - Bohao Wang
+    - Xiaoyan Zhao
+    - Yang Zhang
+    - Jinghang Guo
+    - Chun Chen
+    - Can Wang
+    - Jiawei Chen
+    year: 2026
+    arxiv_id: '2609.35109'
+    doi: 10.48550/arXiv.2609.35109
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2609.35109
+    recommendation_ids:
+    - REC-014
+    source_demonstrates: Appendix D reverses contextual preference labels with response content fixed,
+      retains only variants with an unambiguous opposite target preference, and measures flips among
+      initially correct predictions.
+    repository_inference: Use explicit relation reversals with validated expected changes and reject
+      masked or unresolved pairs. No fast-weight learning, personalized reward model, or source flip-rate
+      reproduction is implemented.
+    maturity: Resolved arXiv preprint; experimental opt-in behavioral counterfactual diagnostics. Contract
+      tests do not establish internal mechanism recovery or reproduce source results.
+    local_repo_notes:
+    - synthetic_data/relation_flips.py
+    - evaluation/relation_flips.py
+    - tests/test_relation_flip_worlds.py
+    - tests/test_relation_flip_evaluation.py
+    - docs/relation_flips.md
+  - reference_id: REF-MECHBENCH
+    metadata_status: resolved
+    supplied_title: MechBench
+    title: 'MechBench: Can AI Scientific Agents Discover Mechanisms Beyond Phenomenal Laws?'
+    authors:
+    - Zihan Yu
+    - Jiadong Zhang
+    - Jialin Cheng
+    - Jingtao Ding
+    - Yong Li
+    year: 2026
+    arxiv_id: '2609.35515'
+    doi: 10.48550/arXiv.2609.35515
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2609.35515
+    recommendation_ids:
+    - REC-014
+    source_demonstrates: Sections 3 and 4 separate phenomenal-law recovery from internal scientific
+      mechanism probes, construct meaningful mechanism mutations, and screen for competing mechanisms
+      with indistinguishable phenomenal laws.
+    repository_inference: Report visible correctness separately from correct behavior under decisive
+      interventions and reject uninformative pairs. Behavioral sensitivity does not establish internal
+      mechanism recovery; no symbolic scientific discovery system is reproduced.
+    maturity: Resolved arXiv preprint; experimental opt-in behavioral counterfactual diagnostics. Contract
+      tests do not establish internal mechanism recovery or reproduce source results.
+    local_repo_notes:
+    - synthetic_data/relation_flips.py
+    - evaluation/relation_flips.py
+    - tests/test_relation_flip_worlds.py
+    - tests/test_relation_flip_evaluation.py
+    - docs/relation_flips.md
+  - reference_id: REF-QUANTUM-THINK
+    metadata_status: resolved
+    supplied_title: Watching Quantum Models Think
+    title: 'Watching Quantum Models Think: Hilbert-Space Interpretability in Quantum Transformer Blocks'
+    authors:
+    - Diego Iacopetta
+    - Andrea Gasparini
+    year: 2026
+    arxiv_id: '2609.23016'
+    doi: 10.48550/arXiv.2609.23016
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2609.23016
+    recommendation_ids:
+    - REC-014
+    source_demonstrates: Controlled entangling-gate ablations test the causal role of inter-register
+      coupling. Readout-constrained experiments also show that mutual information can reflect architectural
+      compensation rather than task-required routing.
+    repository_inference: Require observable intervention outcomes and avoid equating a correlated signal
+      or correct answer with mechanism recovery. No quantum circuit, attention attribution, or private-reasoning
+      audit is implemented.
+    maturity: Resolved arXiv preprint; experimental opt-in behavioral counterfactual diagnostics. Contract
+      tests do not establish internal mechanism recovery or reproduce source results.
+    local_repo_notes:
+    - synthetic_data/relation_flips.py
+    - evaluation/relation_flips.py
+    - tests/test_relation_flip_worlds.py
+    - tests/test_relation_flip_evaluation.py
+    - docs/relation_flips.md

@@ -145,7 +145,7 @@ def test_registry_links_resolve_to_authored_recommendations_and_research() -> No
     assert {item for overlay in overlays for item in overlay.research_refs} <= reference_ids
 
 
-def test_experimental_recommendations_name_pr7_code_docs_and_tests() -> None:
+def test_experimental_recommendations_name_current_code_docs_and_tests() -> None:
     expected_implementation = (
         "evaluation/experimental_overlays.py",
         "evaluation/experimental_records.py",
@@ -167,8 +167,20 @@ def test_experimental_recommendations_name_pr7_code_docs_and_tests() -> None:
             "evaluation/experimental_overlays.py",
             "evaluation/experimental_records.py",
         )
-        assert recommendation.implementation_refs == expected_implementation
-        assert recommendation.acceptance_tests == expected_tests
+        relation_implementation = (
+            ("synthetic_data/relation_flips.py", "evaluation/relation_flips.py")
+            if recommendation_id == "REC-014"
+            else ()
+        )
+        relation_tests = (
+            ("tests/test_relation_flip_worlds.py", "tests/test_relation_flip_evaluation.py")
+            if recommendation_id == "REC-014"
+            else ()
+        )
+        assert (
+            recommendation.implementation_refs == expected_implementation + relation_implementation
+        )
+        assert recommendation.acceptance_tests == expected_tests + relation_tests
 
 
 def test_overlay_records_are_frozen_and_resource_is_packaged() -> None:
