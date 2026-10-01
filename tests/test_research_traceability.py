@@ -196,9 +196,21 @@ EXPECTED_REFERENCES = (
     ("REF-LADDER", "2609.24346", "LADDER"),
     ("REF-REASONING-TOPOLOGY", "2609.24710", "Reasoning Topology Matters"),
     ("REF-ARISE", "2609.35532", "ARISE"),
+    ("REF-TABPFN-35", "2609.17895", "TabPFN-3.5"),
+    ("REF-VGCOMPILER", "2609.22327", "VGCompiler"),
+    ("REF-PHYSICAL-LANGUAGES", "2609.23381", "Discovering Physical Representation Languages"),
+    (
+        "REF-GENERALIZED-TAMP",
+        "2609.30233",
+        "Coding Agents for Generalized Task and Motion Planning Problems",
+    ),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
+    "REF-TABPFN-35": ("REC-005",),
+    "REF-VGCOMPILER": ("REC-005",),
+    "REF-PHYSICAL-LANGUAGES": ("REC-005",),
+    "REF-GENERALIZED-TAMP": ("REC-005",),
     "REF-ARISE": ("REC-009",),
     "REF-JEV-MEM": ("REC-008",),
     "REF-CLM": ("REC-008",),
@@ -215,7 +227,7 @@ EXPECTED_RECOMMENDATION_LINKS = {
     "REF-CDR": ("REC-015",),
     "REF-TTSE": ("REC-015",),
     "REF-COMPKV": ("REC-002",),
-    "REF-QWEN-PLANNER": ("REC-002", "REC-007", "REC-009"),
+    "REF-QWEN-PLANNER": ("REC-002", "REC-005", "REC-007", "REC-009"),
     "REF-SHARE-BORNE": ("REC-002",),
     "REF-A2M": ("REC-002",),
     "REF-CI": ("REC-002",),

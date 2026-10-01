@@ -65,14 +65,16 @@ now specifies subtype selection, action-event subtype binding, decomposed assess
 repair-before-reinforce. The [invariant inventory](../../research/invariants.yaml) records
 enforcement scope. No manifest changes or additional canonical cases were introduced.
 
-- Repository evidence: [`common.py`](../../evaluation/suites/common.py), [`v5_runner.py`](../../evaluation/v5_runner.py), [`v5_records.py`](../../evaluation/v5_records.py).
+- Repository evidence: [common.py](../../evaluation/suites/common.py), [v5_runner.py](../../evaluation/v5_runner.py), [v5_records.py](../../evaluation/v5_records.py), [worlds.py](../../synthetic_data/worlds.py), [world_peo.py](../../synthetic_data/world_peo.py).
 - Canonical inputs: [`robustness_stripes.yaml`](../../evaluation/cases/robustness_stripes.yaml), [`registry.py`](../../evaluation/cases/registry.py).
 - Acceptance tests: [`test_v5_cell_planner.py`](../../tests/test_v5_cell_planner.py), [`test_v5_evaluation_record.py`](../../tests/test_v5_evaluation_record.py), [`test_v5_repeat_metrics.py`](../../tests/test_v5_repeat_metrics.py).
-- Research: [`REF-CONSISTENCY`](RESEARCH_TRACEABILITY.md#ref-consistency), [`REF-LEXICAL-PERTURB`](RESEARCH_TRACEABILITY.md#ref-lexical-perturb), [`REF-TOKENIZER-BETRAYAL`](RESEARCH_TRACEABILITY.md#ref-tokenizer-betrayal).
+- Research: [`REF-CONSISTENCY`](RESEARCH_TRACEABILITY.md#ref-consistency), [`REF-LEXICAL-PERTURB`](RESEARCH_TRACEABILITY.md#ref-lexical-perturb), [`REF-TOKENIZER-BETRAYAL`](RESEARCH_TRACEABILITY.md#ref-tokenizer-betrayal), [`REF-QWEN-PLANNER`](RESEARCH_TRACEABILITY.md#ref-qwen-planner), [`REF-TABPFN-35`](RESEARCH_TRACEABILITY.md#ref-tabpfn-35), [`REF-VGCOMPILER`](RESEARCH_TRACEABILITY.md#ref-vgcompiler), [`REF-PHYSICAL-LANGUAGES`](RESEARCH_TRACEABILITY.md#ref-physical-languages), [`REF-GENERALIZED-TAMP`](RESEARCH_TRACEABILITY.md#ref-generalized-tamp).
 
 ## P1
 
 ### P1 — Implemented
+
+PR-9 adds opt-in [synthetic_worlds.md](../synthetic_worlds.md) for invariant renderings, permission counterfactuals, and longitudinal PEO episodes. These experimental fixtures do not add canonical cases or trainable curriculum data. Additional acceptance coverage: [test_synthetic_worlds.py](../../tests/test_synthetic_worlds.py), [test_synthetic_world_peo.py](../../tests/test_synthetic_world_peo.py).
 
 #### REC-006 — World/artifact state != evidence/belief state.
 
