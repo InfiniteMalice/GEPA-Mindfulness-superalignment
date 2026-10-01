@@ -53,7 +53,7 @@ The first applicable row determines the required route:
 | Missing, stale, expired, superseded, foreign, unavailable or changed-context state | External verification |
 | Monitor uncertainty unknown or at/above threshold | Independent monitor verification |
 | Model uncertainty unknown or at/above threshold | Verification with reduced autonomy |
-| Any mismatch status other than `NONE` | Decompose and verify; reconsider the hypothesis |
+| Aggregate update or any binding has a mismatch status other than `NONE` | Decompose and verify; reconsider the hypothesis |
 | World uncertainty unknown or at/above threshold | Retrieve more evidence |
 | Insufficient typed verification | External verification |
 | Complete low uncertainty and typed verification | Preserve the legacy router's decision |

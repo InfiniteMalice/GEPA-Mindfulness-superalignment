@@ -36,7 +36,13 @@ from tests.test_epistemic_reconciliation import (
 ENABLED = RoutingPolicy(enabled=True)
 
 
-def request(*, typed=True, mismatch=MismatchStatus.NONE, **uncertainty):
+def request(
+    *,
+    typed=True,
+    mismatch=MismatchStatus.NONE,
+    aggregate_mismatch=MismatchStatus.NONE,
+    **uncertainty,
+):
     record = reconciliation()
     posterior = replace(
         record.update.posterior_state,
@@ -47,7 +53,7 @@ def request(*, typed=True, mismatch=MismatchStatus.NONE, **uncertainty):
     )
     record = replace(
         record,
-        update=replace(record.update, posterior_state=posterior),
+        update=replace(record.update, posterior_state=posterior, model_mismatch=aggregate_mismatch),
         bindings=tuple(
             replace(b, innovation=replace(b.innovation, mismatch_status=mismatch))
             for b in record.bindings
@@ -128,6 +134,19 @@ def test_epistemic_gates_override_accept(values, expected):
     assert result.proposed_action == Action.ACCEPT
     assert result.action == expected
     assert result.overridden
+
+
+@pytest.mark.parametrize("aggregate", tuple(MismatchStatus))
+@pytest.mark.parametrize("binding", tuple(MismatchStatus))
+def test_aggregate_and_binding_mismatches_both_constrain_continuation(aggregate, binding):
+    """Only explicit NONE at both levels can permit the legacy ACCEPT proposal."""
+    req = request(aggregate_mismatch=aggregate, mismatch=binding)
+    result = route_epistemic(req, policy=ENABLED, backend=backend())
+    mismatch = aggregate != MismatchStatus.NONE or binding != MismatchStatus.NONE
+    assert result.proposed_action == Action.ACCEPT
+    assert result.features.mismatch is mismatch
+    assert result.action == (Action.DECOMPOSE_AND_VERIFY if mismatch else Action.ACCEPT)
+    assert result.overridden is mismatch
 
 
 @pytest.mark.parametrize(

@@ -330,7 +330,7 @@ def prepare_routing(request: RoutingRequest, policy: RoutingPolicy) -> RoutingFe
                 estimate.model_uncertainty,
                 estimate.monitor_uncertainty,
             )
-            mismatch = any(
+            mismatch = record.update.model_mismatch != MismatchStatus.NONE or any(
                 b.innovation.mismatch_status != MismatchStatus.NONE for b in record.bindings
             )
             verified = _verified(record, {e.event_id: e for e in events})
