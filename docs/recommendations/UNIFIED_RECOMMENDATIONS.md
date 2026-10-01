@@ -103,12 +103,14 @@ provenance and family-balanced repair candidates exclude hidden evaluation.
 
 #### REC-008 — Runtime Planner/Executor/Verifier authority separation.
 
-- Repository evidence: [`interfaces.py`](../../gepa_mindfulness/verification/interfaces.py), [`runtime_governance.py`](../../gepa_mindfulness/verification/runtime_governance.py).
+- Repository evidence: [`interfaces.py`](../../gepa_mindfulness/verification/interfaces.py), [`runtime_governance.py`](../../gepa_mindfulness/verification/runtime_governance.py), [`epistemic_routing.py`](../../gepa_mindfulness/factuality_observability/epistemic_routing.py), [`system_one_benchmark.py`](../../evaluation/system_one_benchmark.py).
 - Limit: authority is process-local and enrollment authenticates neither principals nor evidence
   issuers.
 - Acceptance checks: [`test_runtime_authority.py`](../../tests/test_runtime_authority.py),
-  [`test_verifier_interfaces.py`](../../tests/test_verifier_interfaces.py).
-- Research: [`REF-HEART`](RESEARCH_TRACEABILITY.md#ref-heart), [`REF-BIOMETRIC-MEM`](RESEARCH_TRACEABILITY.md#ref-biometric-mem).
+  [`test_verifier_interfaces.py`](../../tests/test_verifier_interfaces.py), [`test_epistemic_routing.py`](../../tests/test_epistemic_routing.py), [`test_system_one_benchmark.py`](../../tests/test_system_one_benchmark.py).
+- Research: [`REF-HEART`](RESEARCH_TRACEABILITY.md#ref-heart), [`REF-BIOMETRIC-MEM`](RESEARCH_TRACEABILITY.md#ref-biometric-mem), [`REF-JEV-MEM`](RESEARCH_TRACEABILITY.md#ref-jev-mem), [`REF-CLM`](RESEARCH_TRACEABILITY.md#ref-clm), [`REF-TOOLLERY`](RESEARCH_TRACEABILITY.md#ref-toollery), [`REF-SEEK`](RESEARCH_TRACEABILITY.md#ref-seek), [`REF-LADDER`](RESEARCH_TRACEABILITY.md#ref-ladder), [`REF-REASONING-TOPOLOGY`](RESEARCH_TRACEABILITY.md#ref-reasoning-topology).
+
+- Experimental routing: [System-One guide](../system_one_routing.md); opt-in proposals retain host authority gates.
 
 #### REC-009 — Verified skill lifecycle.
 

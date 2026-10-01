@@ -64,6 +64,12 @@ REFERENCE_IDS = (
     "REF-LATENT-LANGUAGE-GAP",
     "REF-CDR",
     "REF-TTSE",
+    "REF-JEV-MEM",
+    "REF-CLM",
+    "REF-TOOLLERY",
+    "REF-SEEK",
+    "REF-LADDER",
+    "REF-REASONING-TOPOLOGY",
 )
 REFERENCE_ARXIV_IDS = (
     "2609.01736",
@@ -111,6 +117,12 @@ REFERENCE_ARXIV_IDS = (
     "2609.21662",
     "2609.22239",
     "2609.24289",
+    "2609.23986",
+    None,
+    "2609.22218",
+    "2609.29803",
+    "2609.24346",
+    "2609.24710",
 )
 ALLOWED_METADATA_STATUSES = frozenset({"resolved", "unresolved"})
 
@@ -403,8 +415,12 @@ def _parse_research_reference(value: Any, position: int) -> ResearchReference:
     )
 
     if arxiv_id is None and doi is None:
-        raise ValueError(f"{context} requires an arxiv_id or doi")
-    expected_url = f"https://arxiv.org/abs/{arxiv_id}" if arxiv_id else f"https://doi.org/{doi}"
+        # CLM's official citation names a project/blog, without a paper identifier.
+        if parsed_id != "REF-CLM":
+            raise ValueError(f"{context} requires an arxiv_id or doi")
+        expected_url = "https://github.com/Contrastive-LM/CLM"
+    else:
+        expected_url = f"https://arxiv.org/abs/{arxiv_id}" if arxiv_id else f"https://doi.org/{doi}"
     canonical_url = _require_nonempty_string(
         record["canonical_url"],
         f"{context} canonical_url",
