@@ -130,3 +130,16 @@ need separate validation. No finding is deferred.
   CLI help, 17 canonical cases, and 56 primary references.
 - Fresh whole-branch review and documentation precision gate completed; all findings
   corrected. Git whitespace checks passed. No new dependency or default enablement.
+
+## Codex follow-up: custom-world provenance
+
+Verified the PR comment against `build_episode`: snapshots retain supplied world
+provenance, but estimates, measurements, innovations, and updates use a hard-coded
+generator label. Scope: initialize diagnostic provenance from the input world and
+test default, custom, and multi-source lineage through both episode steps and JSON
+serialization. Preserve verifier/estimator versions, event contracts, and behavior.
+
+The regression reproduced two failures for custom lineage before the one-line fix;
+the bundled-generator case already passed. After the fix, all 397 focused world,
+epistemic, continuity, and action-bound tests passed. Ruff, Black, Mypy, and whitespace
+checks passed. The full suite was not repeated for this provenance-only follow-up.

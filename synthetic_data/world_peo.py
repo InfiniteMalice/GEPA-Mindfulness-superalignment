@@ -79,7 +79,7 @@ def build_episode(
     snapshots = [world.to_dict()]
     step_records = []
     evidence_records: dict[str, dict[str, Any]] = {}
-    provenance = ("boolean-world-v1",)
+    provenance = world.provenance
     previous_action: str | None = None
     previous_prediction: str | None = None
     for index, step in enumerate(steps):

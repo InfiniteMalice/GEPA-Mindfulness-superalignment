@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 
 import pytest
 
@@ -72,6 +73,31 @@ def test_denied_attempt_is_an_explicit_offline_simulation() -> None:
     record = EpistemicReconciliation.from_dict(result["events"][-1]["payload"])
     assert record.bindings[0].innovation.residual == -1.0
     assert record.bindings[0].innovation.mismatch_status.value == "unassessed"
+
+
+@pytest.mark.parametrize(
+    "provenance", [("boolean-world-v1",), ("custom-world-v2",), ("source-v1", "curation-v3")]
+)
+def test_episode_preserves_input_world_provenance(provenance: tuple[str, ...]) -> None:
+    world = replace(generate_world(seed=1, enabled=True), provenance=provenance)
+    result = build_episode(
+        world,
+        (EpisodeStep("inspect", 0.8, 0.6), EpisodeStep("release", 0.7, 0.6)),
+        context=CONTEXT,
+        episode_id="custom-world",
+        start_timestamp="2026-10-01T00:00:00Z",
+        enabled=True,
+    )
+    exported = json.loads(json.dumps(result))
+    events = [EventEnvelope(**value) for value in exported["events"]]
+    validate_action_bound_sequence(events)
+    assert all(tuple(snapshot["provenance"]) == provenance for snapshot in exported["worlds"])
+    for event in (events[5], events[11]):
+        record = EpistemicReconciliation.from_dict(event.payload)
+        update = record.update
+        records = (update, update.prior_state, update.posterior_state, *update.measurements)
+        assert all(item.provenance == provenance for item in records)
+        assert all(binding.innovation.provenance == provenance for binding in record.bindings)
 
 
 def test_episode_requires_opt_in() -> None:
