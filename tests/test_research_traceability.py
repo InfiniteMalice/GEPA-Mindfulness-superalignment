@@ -189,9 +189,21 @@ EXPECTED_REFERENCES = (
     ),
     ("REF-CDR", "2609.22239", "Coverage-Directed Revision"),
     ("REF-TTSE", "2609.24289", "TTSE"),
+    ("REF-JEV-MEM", "2609.23986", "Jev-Mem"),
+    ("REF-CLM", None, "Contrastive Language Models"),
+    ("REF-TOOLLERY", "2609.22218", "Toollery"),
+    ("REF-SEEK", "2609.29803", "SEEK"),
+    ("REF-LADDER", "2609.24346", "LADDER"),
+    ("REF-REASONING-TOPOLOGY", "2609.24710", "Reasoning Topology Matters"),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
+    "REF-JEV-MEM": ("REC-008",),
+    "REF-CLM": ("REC-008",),
+    "REF-TOOLLERY": ("REC-008",),
+    "REF-SEEK": ("REC-008",),
+    "REF-LADDER": ("REC-008",),
+    "REF-REASONING-TOPOLOGY": ("REC-008",),
     "REF-EVOFLINT": ("REC-016",),
     "REF-COMM-BOTTLENECK": ("REC-017",),
     "REF-LOGICTRACK": ("REC-018",),
@@ -262,6 +274,12 @@ def test_resolved_metadata_is_complete_and_uses_canonical_arxiv_urls() -> None:
     for reference in recommendations.load_research_reference_registry():
         assert reference.title
         assert reference.authors
+        if reference.reference_id == "REF-CLM":
+            assert reference.year == 2026
+            assert reference.arxiv_id is None
+            assert reference.doi is None
+            assert reference.canonical_url == "https://github.com/Contrastive-LM/CLM"
+            continue
         if reference.reference_id == "REF-CI":
             assert reference.year == 1997
             assert reference.arxiv_id is None
@@ -300,6 +318,16 @@ def test_doi_only_source_rejects_missing_identity_and_wrong_url(changes, message
     source = next(item for item in payload["references"] if item["reference_id"] == "REF-KALMAN")
     source.update(changes)
     with pytest.raises(ValueError, match=message):
+        recommendations._parse_research_reference_registry(payload)
+
+
+def test_clm_project_identity_requires_its_exact_primary_url() -> None:
+    _, payload = _authored_registry_payloads()
+    source = next(item for item in payload["references"] if item["reference_id"] == "REF-CLM")
+    assert source["arxiv_id"] is None and source["doi"] is None
+    recommendations._parse_research_reference_registry(payload)
+    source["canonical_url"] = "https://example.com/clm"
+    with pytest.raises(ValueError, match="canonical_url"):
         recommendations._parse_research_reference_registry(payload)
 
 

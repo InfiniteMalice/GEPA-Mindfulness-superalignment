@@ -6,7 +6,7 @@ REF-KALMAN and the four PR-2 sources (FTA, PINNForge, C3-JEPA and AI Neuroscient
 against primary texts on 2026-09-30, as were PR-3's GRUET, Dual-Frontier and DEEPO sources.
 PR-4 adds CI metadata from the author publication list and the Unanimity/WSQEM primary texts,
 also checked on 2026-09-30. PR-5 adds primary-text checks for MemCalib, JitMem, CompKV,
-Qwen-Planner-Agent, Share-Borne AI Virus and A2M on the same date. PR-6 adds CDR and TTSE primary-text checks on 2026-09-30. A research connection
+Qwen-Planner-Agent, Share-Borne AI Virus and A2M on the same date. PR-6 adds CDR and TTSE primary-text checks on 2026-09-30. PR-7 adds the six System-One sources checked on 2026-10-01. A research connection
 can motivate or support one repository decision; no entry establishes the unified architecture as
 an empirical result.
 
@@ -1037,3 +1037,124 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 **Repository inference:** Retain fact/procedure distinctions and localize failures between evidence availability and behavioral influence. Host observations do not reproduce the paper's risk decomposition, autonomous updates, retirement, or training.
 
 **Maturity:** Resolved arXiv preprint; PR-6 adds disabled-by-default public PEO continuity diagnostics. Synthetic tests establish software contracts, not model effectiveness or causal influence.
+
+<a id="ref-jev-mem"></a>
+
+## REF-JEV-MEM — Jev-Mem: System-One-Controlled Agentic Memory for Efficient AI Agents
+
+- Metadata status: `resolved`
+- Supplied title: Jev-Mem
+- Authors: Dongming Jiang, Yi Li, Bingzhe Li
+- Year: 2026
+- arXiv: [`2609.23986`](https://arxiv.org/abs/2609.23986)
+- DOI: `10.48550/arXiv.2609.23986`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-008`
+- Local repository notes: [epistemic_routing.py](../../gepa_mindfulness/factuality_observability/epistemic_routing.py), [system_one_benchmark.py](../../evaluation/system_one_benchmark.py), [test_epistemic_routing.py](../../tests/test_epistemic_routing.py), [test_system_one_benchmark.py](../../tests/test_system_one_benchmark.py), [system_one_routing.md](../system_one_routing.md)
+
+**Source demonstrates:** Jev-Mem separates fast memory control from deliberative reasoning. Its controller routes queries, budgets retrieval, scores candidates and stops retrieval; evaluations compare memory quality and latency.
+
+**Repository inference:** Compare interchangeable bounded route proposers on identical inputs and retain stopping and verification constraints outside each proposer.
+
+**Maturity:** Experimental opt-in routing adapter. Synthetic contract comparisons do not establish learned-backend quality, alignment or source-benchmark reproduction.
+
+<a id="ref-clm"></a>
+
+## REF-CLM — Contrastive Language Models: A System One Model for Fast and Generalizable Decision-Making
+
+- Metadata status: `resolved`
+- Supplied title: Contrastive Language Models
+- Authors: Jacky Kwok, Hangoo Kang, Tarun Suresh, Jon Saad-Falcon, Marco Pavone, Christopher Ré, Azalia Mirhoseini
+- Year: 2026
+- arXiv: Not applicable.
+- DOI: `None`
+- Venue/status: Official project and Notion blog; no arXiv or DOI supplied.
+- Recommendations influenced: `REC-008`
+- Local repository notes: [epistemic_routing.py](../../gepa_mindfulness/factuality_observability/epistemic_routing.py), [system_one_benchmark.py](../../evaluation/system_one_benchmark.py), [test_epistemic_routing.py](../../tests/test_epistemic_routing.py), [test_system_one_benchmark.py](../../tests/test_system_one_benchmark.py), [system_one_routing.md](../system_one_routing.md)
+- Primary source: [official project](https://github.com/Contrastive-LM/CLM)
+
+**Source demonstrates:** The official project describes contrastive state/action representations, independently cached embeddings, candidate ranking and a TypeSafe-compatible typed decision API.
+
+**Repository inference:** Expose bounded public routing features to a host-supplied CLM callback. Evaluate raw proposals, failures and latency separately from guarded outcomes; do not treat model scores as authority.
+
+**Maturity:** Experimental opt-in routing adapter. Synthetic contract comparisons do not establish learned-backend quality, alignment or source-benchmark reproduction.
+
+<a id="ref-toollery"></a>
+
+## REF-TOOLLERY — Toollery: Scaling LLM Agents to Thousands of Skills and Tools
+
+- Metadata status: `resolved`
+- Supplied title: Toollery
+- Authors: Xiangxi Tian, Ran Guan
+- Year: 2026
+- arXiv: [`2609.22218`](https://arxiv.org/abs/2609.22218)
+- DOI: `10.48550/arXiv.2609.22218`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-008`
+- Local repository notes: [epistemic_routing.py](../../gepa_mindfulness/factuality_observability/epistemic_routing.py), [system_one_benchmark.py](../../evaluation/system_one_benchmark.py), [test_epistemic_routing.py](../../tests/test_epistemic_routing.py), [test_system_one_benchmark.py](../../tests/test_system_one_benchmark.py), [system_one_routing.md](../system_one_routing.md)
+
+**Source demonstrates:** Toollery indexes intent queries generated from capability specifications and retrieves compact candidate sets before final selection. Evaluations measure selection quality and cost at bounded candidate budgets.
+
+**Repository inference:** Keep route proposals within the existing finite action vocabulary. This stage does not implement query expansion, a tool index or capability execution.
+
+**Maturity:** Experimental opt-in routing adapter. Synthetic contract comparisons do not establish learned-backend quality, alignment or source-benchmark reproduction.
+
+<a id="ref-seek"></a>
+
+## REF-SEEK — SEEK: Skill-Routed Evaluation with Evolvable Knowledge for Industrial Search
+
+- Metadata status: `resolved`
+- Supplied title: SEEK
+- Authors: Zhongxin Huang, Songyang Li, Renzhe Zhou, Feiran Zhu, Chenglei Dai, Zhen Xiao, Xuanping Li, Jingwei Zhuo
+- Year: 2026
+- arXiv: [`2609.29803`](https://arxiv.org/abs/2609.29803)
+- DOI: `10.48550/arXiv.2609.29803`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-008`
+- Local repository notes: [epistemic_routing.py](../../gepa_mindfulness/factuality_observability/epistemic_routing.py), [system_one_benchmark.py](../../evaluation/system_one_benchmark.py), [test_epistemic_routing.py](../../tests/test_epistemic_routing.py), [test_system_one_benchmark.py](../../tests/test_system_one_benchmark.py), [system_one_routing.md](../system_one_routing.md)
+
+**Source demonstrates:** SEEK routes externalized evaluation skills to a listwise evaluator and diagnoses failure modes. Replay gates updates to the skill bank in industrial search evaluation.
+
+**Repository inference:** Separate routing proposal quality from downstream guarded outcomes. Skill-bank updates and failure localization remain separate implementation stages.
+
+**Maturity:** Experimental opt-in routing adapter. Synthetic contract comparisons do not establish learned-backend quality, alignment or source-benchmark reproduction.
+
+<a id="ref-ladder"></a>
+
+## REF-LADDER — LADDER: Graph-Guided Diffusion Language Models for Efficient Multi-Hop Reasoning
+
+- Metadata status: `resolved`
+- Supplied title: LADDER
+- Authors: Senlei Zhang, Linhao Luo, Qian-Wen Zhang, Siyu An, Junnan Dong, Shuhao Zhang, Xing Sun
+- Year: 2026
+- arXiv: [`2609.24346`](https://arxiv.org/abs/2609.24346)
+- DOI: `10.48550/arXiv.2609.24346`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-008`
+- Local repository notes: [epistemic_routing.py](../../gepa_mindfulness/factuality_observability/epistemic_routing.py), [system_one_benchmark.py](../../evaluation/system_one_benchmark.py), [test_epistemic_routing.py](../../tests/test_epistemic_routing.py), [test_system_one_benchmark.py](../../tests/test_system_one_benchmark.py), [system_one_routing.md](../system_one_routing.md)
+
+**Source demonstrates:** LADDER triggers graph retrieval when graph-linkable entities expand during diffusion decoding and propagates incomplete queries through a graph model. The retrieval trigger bypasses learned gates and heuristic thresholds.
+
+**Repository inference:** Reconsider routing when recorded uncertainty or mismatch requires more evidence. These host thresholds are a distinct hypothesis, not a reproduction of diffusion decoding or self-clocking retrieval.
+
+**Maturity:** Experimental opt-in routing adapter. Synthetic contract comparisons do not establish learned-backend quality, alignment or source-benchmark reproduction.
+
+<a id="ref-reasoning-topology"></a>
+
+## REF-REASONING-TOPOLOGY — Reasoning Topology Matters: A Controlled Study of LLM-Based Cybersecurity Analysis
+
+- Metadata status: `resolved`
+- Supplied title: Reasoning Topology Matters
+- Authors: Jiling Zhou, Aisvarya Adeseye, Antti Hakkala, Seppo Virtanen, Jouni Isoaho
+- Year: 2026
+- arXiv: [`2609.24710`](https://arxiv.org/abs/2609.24710)
+- DOI: `10.48550/arXiv.2609.24710`
+- Venue/status: Accepted at AIAIS 2027.
+- Recommendations influenced: `REC-008`
+- Local repository notes: [epistemic_routing.py](../../gepa_mindfulness/factuality_observability/epistemic_routing.py), [system_one_benchmark.py](../../evaluation/system_one_benchmark.py), [test_epistemic_routing.py](../../tests/test_epistemic_routing.py), [test_system_one_benchmark.py](../../tests/test_system_one_benchmark.py), [system_one_routing.md](../system_one_routing.md)
+
+**Source demonstrates:** The source compares linear, branching and graph reasoning prompts across three cybersecurity datasets and several model families. Reported gains are conditional on the evaluated tasks and prompting setup.
+
+**Repository inference:** A mismatch requests hypothesis reconsideration through the existing decompose-and-verify route. This adapter does not select or claim to execute a universally superior reasoning topology.
+
+**Maturity:** Experimental opt-in routing adapter. Synthetic contract comparisons do not establish learned-backend quality, alignment or source-benchmark reproduction.

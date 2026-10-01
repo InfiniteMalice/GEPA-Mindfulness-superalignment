@@ -220,15 +220,28 @@ recommendations:
     research_refs:
       - REF-HEART
       - REF-BIOMETRIC-MEM
+      - REF-JEV-MEM
+      - REF-CLM
+      - REF-TOOLLERY
+      - REF-SEEK
+      - REF-LADDER
+      - REF-REASONING-TOPOLOGY
     repo_refs:
       - gepa_mindfulness/verification/interfaces.py
       - gepa_mindfulness/verification/runtime_governance.py
+      - gepa_mindfulness/factuality_observability/epistemic_routing.py
+      - evaluation/system_one_benchmark.py
+      - docs/system_one_routing.md
     acceptance_tests:
       - tests/test_runtime_authority.py
       - tests/test_verifier_interfaces.py
+      - tests/test_epistemic_routing.py
+      - tests/test_system_one_benchmark.py
     implementation_refs:
       - gepa_mindfulness/verification/interfaces.py
       - gepa_mindfulness/verification/runtime_governance.py
+      - gepa_mindfulness/factuality_observability/epistemic_routing.py
+      - evaluation/system_one_benchmark.py
 
   - id: REC-009
     title: "Verified skill lifecycle."

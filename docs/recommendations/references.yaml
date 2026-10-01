@@ -1374,3 +1374,161 @@ references:
     - modules/semantic_intent_robustness/peo_continuity.py
     - tests/test_peo_continuity.py
     - docs/peo_continuity.md
+
+  - reference_id: REF-JEV-MEM
+    metadata_status: resolved
+    supplied_title: Jev-Mem
+    title: 'Jev-Mem: System-One-Controlled Agentic Memory for Efficient AI Agents'
+    authors:
+    - Dongming Jiang
+    - Yi Li
+    - Bingzhe Li
+    year: 2026
+    arxiv_id: '2609.23986'
+    doi: 10.48550/arXiv.2609.23986
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2609.23986
+    recommendation_ids:
+    - REC-008
+    source_demonstrates: Jev-Mem separates fast memory control from deliberative reasoning. Its controller
+      routes queries, budgets retrieval, scores candidates and stops retrieval; evaluations compare memory
+      quality and latency.
+    repository_inference: Compare interchangeable bounded route proposers on identical inputs and retain
+      stopping and verification constraints outside each proposer.
+    maturity: Experimental opt-in routing adapter. Synthetic contract comparisons do not establish learned-backend
+      quality, alignment or source-benchmark reproduction.
+    local_repo_notes: &id001
+    - gepa_mindfulness/factuality_observability/epistemic_routing.py
+    - evaluation/system_one_benchmark.py
+    - tests/test_epistemic_routing.py
+    - tests/test_system_one_benchmark.py
+    - docs/system_one_routing.md
+  - reference_id: REF-CLM
+    metadata_status: resolved
+    supplied_title: Contrastive Language Models
+    title: 'Contrastive Language Models: A System One Model for Fast and Generalizable Decision-Making'
+    authors:
+    - Jacky Kwok
+    - Hangoo Kang
+    - Tarun Suresh
+    - Jon Saad-Falcon
+    - Marco Pavone
+    - Christopher Ré
+    - Azalia Mirhoseini
+    year: 2026
+    arxiv_id: null
+    doi: null
+    venue_status: Official project and Notion blog; no arXiv or DOI supplied.
+    canonical_url: https://github.com/Contrastive-LM/CLM
+    recommendation_ids:
+    - REC-008
+    source_demonstrates: The official project describes contrastive state/action representations, independently
+      cached embeddings, candidate ranking and a TypeSafe-compatible typed decision API.
+    repository_inference: Expose bounded public routing features to a host-supplied CLM callback. Evaluate
+      raw proposals, failures and latency separately from guarded outcomes; do not treat model scores as
+      authority.
+    maturity: Experimental opt-in routing adapter. Synthetic contract comparisons do not establish learned-backend
+      quality, alignment or source-benchmark reproduction.
+    local_repo_notes: *id001
+  - reference_id: REF-TOOLLERY
+    metadata_status: resolved
+    supplied_title: Toollery
+    title: 'Toollery: Scaling LLM Agents to Thousands of Skills and Tools'
+    authors:
+    - Xiangxi Tian
+    - Ran Guan
+    year: 2026
+    arxiv_id: '2609.22218'
+    doi: 10.48550/arXiv.2609.22218
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2609.22218
+    recommendation_ids:
+    - REC-008
+    source_demonstrates: Toollery indexes intent queries generated from capability specifications and retrieves
+      compact candidate sets before final selection. Evaluations measure selection quality and cost at bounded
+      candidate budgets.
+    repository_inference: Keep route proposals within the existing finite action vocabulary. This stage
+      does not implement query expansion, a tool index or capability execution.
+    maturity: Experimental opt-in routing adapter. Synthetic contract comparisons do not establish learned-backend
+      quality, alignment or source-benchmark reproduction.
+    local_repo_notes: *id001
+  - reference_id: REF-SEEK
+    metadata_status: resolved
+    supplied_title: SEEK
+    title: 'SEEK: Skill-Routed Evaluation with Evolvable Knowledge for Industrial Search'
+    authors:
+    - Zhongxin Huang
+    - Songyang Li
+    - Renzhe Zhou
+    - Feiran Zhu
+    - Chenglei Dai
+    - Zhen Xiao
+    - Xuanping Li
+    - Jingwei Zhuo
+    year: 2026
+    arxiv_id: '2609.29803'
+    doi: 10.48550/arXiv.2609.29803
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2609.29803
+    recommendation_ids:
+    - REC-008
+    source_demonstrates: SEEK routes externalized evaluation skills to a listwise evaluator and diagnoses
+      failure modes. Replay gates updates to the skill bank in industrial search evaluation.
+    repository_inference: Separate routing proposal quality from downstream guarded outcomes. Skill-bank
+      updates and failure localization remain separate implementation stages.
+    maturity: Experimental opt-in routing adapter. Synthetic contract comparisons do not establish learned-backend
+      quality, alignment or source-benchmark reproduction.
+    local_repo_notes: *id001
+  - reference_id: REF-LADDER
+    metadata_status: resolved
+    supplied_title: LADDER
+    title: 'LADDER: Graph-Guided Diffusion Language Models for Efficient Multi-Hop Reasoning'
+    authors:
+    - Senlei Zhang
+    - Linhao Luo
+    - Qian-Wen Zhang
+    - Siyu An
+    - Junnan Dong
+    - Shuhao Zhang
+    - Xing Sun
+    year: 2026
+    arxiv_id: '2609.24346'
+    doi: 10.48550/arXiv.2609.24346
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2609.24346
+    recommendation_ids:
+    - REC-008
+    source_demonstrates: LADDER triggers graph retrieval when graph-linkable entities expand during diffusion
+      decoding and propagates incomplete queries through a graph model. The retrieval trigger bypasses learned
+      gates and heuristic thresholds.
+    repository_inference: Reconsider routing when recorded uncertainty or mismatch requires more evidence.
+      These host thresholds are a distinct hypothesis, not a reproduction of diffusion decoding or self-clocking
+      retrieval.
+    maturity: Experimental opt-in routing adapter. Synthetic contract comparisons do not establish learned-backend
+      quality, alignment or source-benchmark reproduction.
+    local_repo_notes: *id001
+  - reference_id: REF-REASONING-TOPOLOGY
+    metadata_status: resolved
+    supplied_title: Reasoning Topology Matters
+    title: 'Reasoning Topology Matters: A Controlled Study of LLM-Based Cybersecurity Analysis'
+    authors:
+    - Jiling Zhou
+    - Aisvarya Adeseye
+    - Antti Hakkala
+    - Seppo Virtanen
+    - Jouni Isoaho
+    year: 2026
+    arxiv_id: '2609.24710'
+    doi: 10.48550/arXiv.2609.24710
+    venue_status: Accepted at AIAIS 2027.
+    canonical_url: https://arxiv.org/abs/2609.24710
+    recommendation_ids:
+    - REC-008
+    source_demonstrates: The source compares linear, branching and graph reasoning prompts across three
+      cybersecurity datasets and several model families. Reported gains are conditional on the evaluated
+      tasks and prompting setup.
+    repository_inference: A mismatch requests hypothesis reconsideration through the existing decompose-and-verify
+      route. This adapter does not select or claim to execute a universally superior reasoning topology.
+    maturity: Experimental opt-in routing adapter. Synthetic contract comparisons do not establish learned-backend
+      quality, alignment or source-benchmark reproduction.
+    local_repo_notes: *id001
