@@ -181,28 +181,35 @@ recommendations:
       - gepa_mindfulness/verification/state.py
 
   - id: REC-007
-    title: "Structured failure graph."
+    title: Structured failure graph.
     priority: P1
     status: implemented
-    rationale: >-
-      Failure reports must distinguish anomalies, causes, decisive failures, and symptoms without
+    rationale: Failure reports must distinguish anomalies, causes, decisive failures, and symptoms without
       claiming causality that the available evidence does not support.
     targets:
-      - gepa_mindfulness/verification/failure_graph.py
+    - gepa_mindfulness/verification/failure_graph.py
     supersedes: []
     dependencies:
-      - REC-006
+    - REC-006
     research_refs:
-      - REF-AGENTSCOPE
+    - REF-AGENTSCOPE
+    - REF-FTA
+    - REF-PINNFORGE
+    - REF-QWEN-PLANNER
+    - REF-SEEK
     repo_refs:
-      - evaluation/failure_atlas.py
-      - gepa_mindfulness/verification/failure_graph.py
+    - evaluation/failure_atlas.py
+    - gepa_mindfulness/verification/failure_graph.py
+    - gepa_mindfulness/verification/failure_layers.py
+    - docs/skill_failure_localization.md
     acceptance_tests:
-      - tests/test_v5_failure_atlas.py
-      - tests/test_failure_graph.py
+    - tests/test_v5_failure_atlas.py
+    - tests/test_failure_graph.py
+    - tests/test_failure_layers.py
     implementation_refs:
-      - evaluation/failure_atlas.py
-      - gepa_mindfulness/verification/failure_graph.py
+    - evaluation/failure_atlas.py
+    - gepa_mindfulness/verification/failure_graph.py
+    - gepa_mindfulness/verification/failure_layers.py
 
   - id: REC-008
     title: "Runtime Planner/Executor/Verifier authority separation."
@@ -244,30 +251,36 @@ recommendations:
       - evaluation/system_one_benchmark.py
 
   - id: REC-009
-    title: "Verified skill lifecycle."
+    title: Verified skill lifecycle.
     priority: P1
     status: implemented
-    rationale: >-
-      Skill credit must depend on execution evidence and held-out validation rather than an
+    rationale: Skill credit must depend on execution evidence and held-out validation rather than an
       explanatory trace that merely claims a successful procedure.
     targets:
-      - gepa_mindfulness/skill_lifecycle.py
+    - gepa_mindfulness/skill_lifecycle.py
     supersedes: []
     dependencies:
-      - REC-001
+    - REC-001
     research_refs:
-      - REF-SEGOS
-      - REF-SKILLGLOW
-      - REF-REPOTOSKILL
-      - REF-DSR
+    - REF-SEGOS
+    - REF-DSR
+    - REF-REPOTOSKILL
+    - REF-SKILLGLOW
+    - REF-QWEN-PLANNER
+    - REF-SEEK
+    - REF-ARISE
     repo_refs:
-      - gepa_mindfulness/skill_lifecycle.py
-      - docs/controlled_evolution.md
+    - gepa_mindfulness/skill_lifecycle.py
+    - docs/controlled_evolution.md
+    - gepa_mindfulness/skill_bank.py
+    - docs/skill_failure_localization.md
     acceptance_tests:
-      - tests/test_verified_skill_lifecycle.py
-      - tests/test_verified_skill_lifecycle_review.py
+    - tests/test_verified_skill_lifecycle.py
+    - tests/test_verified_skill_lifecycle_review.py
+    - tests/test_skill_bank.py
     implementation_refs:
-      - gepa_mindfulness/skill_lifecycle.py
+    - gepa_mindfulness/skill_lifecycle.py
+    - gepa_mindfulness/skill_bank.py
 
   - id: REC-010
     title: "Online experience collection; offline harness/skill evolution."

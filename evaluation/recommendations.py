@@ -70,6 +70,7 @@ REFERENCE_IDS = (
     "REF-SEEK",
     "REF-LADDER",
     "REF-REASONING-TOPOLOGY",
+    "REF-ARISE",
 )
 REFERENCE_ARXIV_IDS = (
     "2609.01736",
@@ -123,6 +124,7 @@ REFERENCE_ARXIV_IDS = (
     "2609.29803",
     "2609.24346",
     "2609.24710",
+    "2609.35532",
 )
 ALLOWED_METADATA_STATUSES = frozenset({"resolved", "unresolved"})
 

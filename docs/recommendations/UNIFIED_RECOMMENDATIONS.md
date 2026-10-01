@@ -96,10 +96,12 @@ while existing failure graphs localize within-trajectory causes. Atlas repair ke
 failure and independently verified same-target regression record. Equivalence preserves
 provenance and family-balanced repair candidates exclude hidden evaluation.
 
-- Repository evidence: [`failure_atlas.py`](../../evaluation/failure_atlas.py), [`failure_graph.py`](../../gepa_mindfulness/verification/failure_graph.py).
+- Repository evidence: [failure_atlas.py](../../evaluation/failure_atlas.py), [failure_graph.py](../../gepa_mindfulness/verification/failure_graph.py), [failure_layers.py](../../gepa_mindfulness/verification/failure_layers.py).
 - Limit: verifier identifiers are preserved but are not authenticated by the graph layer.
 - Acceptance checks: [`test_failure_graph.py`](../../tests/test_failure_graph.py).
-- Research: [`REF-AGENTSCOPE`](RESEARCH_TRACEABILITY.md#ref-agentscope).
+- Research: [`REF-AGENTSCOPE`](RESEARCH_TRACEABILITY.md#ref-agentscope), [`REF-FTA`](RESEARCH_TRACEABILITY.md#ref-fta), [`REF-PINNFORGE`](RESEARCH_TRACEABILITY.md#ref-pinnforge), [`REF-QWEN-PLANNER`](RESEARCH_TRACEABILITY.md#ref-qwen-planner), [`REF-SEEK`](RESEARCH_TRACEABILITY.md#ref-seek).
+
+PR-8 adds [skill_failure_localization.md](../skill_failure_localization.md). Additional acceptance coverage: [test_failure_layers.py](../../tests/test_failure_layers.py).
 
 #### REC-008 — Runtime Planner/Executor/Verifier authority separation.
 
@@ -114,13 +116,15 @@ provenance and family-balanced repair candidates exclude hidden evaluation.
 
 #### REC-009 — Verified skill lifecycle.
 
-- Repository evidence: [`skill_lifecycle.py`](../../gepa_mindfulness/skill_lifecycle.py).
+- Repository evidence: [skill_lifecycle.py](../../gepa_mindfulness/skill_lifecycle.py), [skill_bank.py](../../gepa_mindfulness/skill_bank.py).
 - Architecture boundary: [`controlled_evolution.md`](../controlled_evolution.md).
 - Limit: lifecycle authority is confined to one protected SQLite catalog, authority domain, and
   pinned evaluation authority. A committed record does not install or deploy a skill.
 - Acceptance checks: [`test_verified_skill_lifecycle.py`](../../tests/test_verified_skill_lifecycle.py),
   [`test_verified_skill_lifecycle_review.py`](../../tests/test_verified_skill_lifecycle_review.py).
-- Research: [`REF-SEGOS`](RESEARCH_TRACEABILITY.md#ref-segos), [`REF-SKILLGLOW`](RESEARCH_TRACEABILITY.md#ref-skillglow), [`REF-REPOTOSKILL`](RESEARCH_TRACEABILITY.md#ref-repotoskill), [`REF-DSR`](RESEARCH_TRACEABILITY.md#ref-dsr).
+- Research: [`REF-SEGOS`](RESEARCH_TRACEABILITY.md#ref-segos), [`REF-DSR`](RESEARCH_TRACEABILITY.md#ref-dsr), [`REF-REPOTOSKILL`](RESEARCH_TRACEABILITY.md#ref-repotoskill), [`REF-SKILLGLOW`](RESEARCH_TRACEABILITY.md#ref-skillglow), [`REF-QWEN-PLANNER`](RESEARCH_TRACEABILITY.md#ref-qwen-planner), [`REF-SEEK`](RESEARCH_TRACEABILITY.md#ref-seek), [`REF-ARISE`](RESEARCH_TRACEABILITY.md#ref-arise).
+
+PR-8 adds [skill_failure_localization.md](../skill_failure_localization.md). Additional acceptance coverage: [test_skill_bank.py](../../tests/test_skill_bank.py).
 
 #### REC-010 — Online experience collection; offline harness/skill evolution.
 

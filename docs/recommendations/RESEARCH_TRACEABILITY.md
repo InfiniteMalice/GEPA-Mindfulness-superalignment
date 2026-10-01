@@ -568,17 +568,14 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - arXiv: [`2609.35732`](https://arxiv.org/abs/2609.35732)
 - DOI: `10.48550/arXiv.2609.35732`
 - Venue/status: Not supplied by official arXiv metadata.
-- Recommendations influenced: `REC-002`
-- Local repository notes: [causal reconciliation](../../gepa_mindfulness/verification/epistemic_reconciliation.py), [guide](../epistemic_state.md)
-- Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.35732v1), 2026-09-30.
+- Recommendations influenced: `REC-002`, `REC-007`
+- Local repository notes: [epistemic_reconciliation.py](../../gepa_mindfulness/verification/epistemic_reconciliation.py), [epistemic_state.md](../epistemic_state.md), [failure_layers.py](../../gepa_mindfulness/verification/failure_layers.py), [skill_bank.py](../../gepa_mindfulness/skill_bank.py), [test_failure_layers.py](../../tests/test_failure_layers.py), [test_skill_bank.py](../../tests/test_skill_bank.py), [skill_failure_localization.md](../skill_failure_localization.md)
 
 **Source demonstrates:** The benchmark fixes failed-tool observations before evaluating subsequent reports; structured evidence reporting is associated with fewer unsupported claims in its blocked-task setting.
 
-**Repository inference:** Separate execution, observation and reporting evidence. A residual identifies a recorded mismatch, not deceptive motive; report residuals require future public-report telemetry.
+**Repository inference:** Separate execution, observation and reporting evidence. A residual identifies a recorded mismatch, not deceptive motive; report residuals require future public-report telemetry. PR-8 adds layer-specific diagnostic hypotheses and review paths while retaining existing causal and persistence authority boundaries.
 
 **Maturity:** Resolved arXiv preprint; PR-2 implements causal and verifier evidence checks. Report residuals and the paper's model experiment remain unimplemented.
-
-**Experiment:** Current tests mutate causal inputs and evidence bindings. Later model experiments must measure calibration and reporting errors separately from execution failures; no behavioral result is claimed here.
 
 <a id="ref-pinnforge"></a>
 
@@ -591,17 +588,14 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - arXiv: [`2609.23023`](https://arxiv.org/abs/2609.23023)
 - DOI: `10.48550/arXiv.2609.23023`
 - Venue/status: Not supplied by official arXiv metadata.
-- Recommendations influenced: `REC-002`
-- Local repository notes: [causal reconciliation](../../gepa_mindfulness/verification/epistemic_reconciliation.py), [guide](../epistemic_state.md)
-- Primary text inspected: [v2 HTML](https://arxiv.org/html/2609.23023v2), 2026-09-30.
+- Recommendations influenced: `REC-002`, `REC-007`
+- Local repository notes: [epistemic_reconciliation.py](../../gepa_mindfulness/verification/epistemic_reconciliation.py), [epistemic_state.md](../epistemic_state.md), [failure_layers.py](../../gepa_mindfulness/verification/failure_layers.py), [skill_bank.py](../../gepa_mindfulness/skill_bank.py), [test_failure_layers.py](../../tests/test_failure_layers.py), [test_skill_bank.py](../../tests/test_skill_bank.py), [skill_failure_localization.md](../skill_failure_localization.md)
 
 **Source demonstrates:** The PDE experiments use recorded training behavior to inform later candidate designs; withholding execution feedback degrades the reported aggregate error measure.
 
-**Repository inference:** Preserve execution evidence before accepting diagnostic updates. Transferring a PDE design loop to epistemic reconciliation is a repository hypothesis.
+**Repository inference:** Preserve execution evidence before accepting diagnostic updates. Transferring a PDE design loop to epistemic reconciliation is a repository hypothesis. PR-8 adds layer-specific diagnostic hypotheses and review paths while retaining existing causal and persistence authority boundaries.
 
 **Maturity:** Resolved arXiv preprint, v2 metadata; PR-2 binds diagnostic measurements to execution ancestry. No evolutionary search or PDE experiment is implemented.
-
-**Experiment:** Current tests mutate causal inputs and evidence bindings. Later model experiments must measure calibration and reporting errors separately from execution failures; no behavioral result is claimed here.
 
 <a id="ref-c3-jepa"></a>
 
@@ -850,13 +844,12 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - arXiv: [`2609.29892`](https://arxiv.org/abs/2609.29892)
 - DOI: `10.48550/arXiv.2609.29892`
 - Venue/status: Not supplied by official arXiv metadata.
-- Recommendations influenced: `REC-002`
-- Local repository notes: [evidence_use.py](../../gepa_mindfulness/verification/evidence_use.py), [evidence_memory.md](../evidence_memory.md)
-- Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.29892v1), 2026-09-30.
+- Recommendations influenced: `REC-002`, `REC-007`, `REC-009`
+- Local repository notes: [evidence_use.py](../../gepa_mindfulness/verification/evidence_use.py), [evidence_memory.md](../evidence_memory.md), [failure_layers.py](../../gepa_mindfulness/verification/failure_layers.py), [skill_bank.py](../../gepa_mindfulness/skill_bank.py), [test_failure_layers.py](../../tests/test_failure_layers.py), [test_skill_bank.py](../../tests/test_skill_bank.py), [skill_failure_localization.md](../skill_failure_localization.md)
 
 **Source demonstrates:** The planner framework links data, training and runtime tools, skills and memory through execution feedback and verification, retaining failed and incomplete traces.
 
-**Repository inference:** Keep original execution evidence distinct from summaries and preserve failed or unusable evidence in reports. No mobile planner or training loop is reproduced.
+**Repository inference:** Keep original execution evidence distinct from summaries and preserve failed or unusable evidence in reports. No mobile planner or training loop is reproduced. PR-8 adds layer-specific diagnostic hypotheses and review paths while retaining existing causal and persistence authority boundaries.
 
 **Maturity:** Resolved arXiv preprint; PR-5 implements diagnostic evidence/memory eligibility and retained summary views. No published experiment or trained policy is reproduced.
 
@@ -1110,14 +1103,14 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - arXiv: [`2609.29803`](https://arxiv.org/abs/2609.29803)
 - DOI: `10.48550/arXiv.2609.29803`
 - Venue/status: Not supplied by official arXiv metadata.
-- Recommendations influenced: `REC-008`
-- Local repository notes: [epistemic_routing.py](../../gepa_mindfulness/factuality_observability/epistemic_routing.py), [system_one_benchmark.py](../../evaluation/system_one_benchmark.py), [test_epistemic_routing.py](../../tests/test_epistemic_routing.py), [test_system_one_benchmark.py](../../tests/test_system_one_benchmark.py), [system_one_routing.md](../system_one_routing.md)
+- Recommendations influenced: `REC-007`, `REC-008`, `REC-009`
+- Local repository notes: [epistemic_routing.py](../../gepa_mindfulness/factuality_observability/epistemic_routing.py), [system_one_benchmark.py](../../evaluation/system_one_benchmark.py), [test_epistemic_routing.py](../../tests/test_epistemic_routing.py), [test_system_one_benchmark.py](../../tests/test_system_one_benchmark.py), [system_one_routing.md](../system_one_routing.md), [failure_layers.py](../../gepa_mindfulness/verification/failure_layers.py), [skill_bank.py](../../gepa_mindfulness/skill_bank.py), [test_failure_layers.py](../../tests/test_failure_layers.py), [test_skill_bank.py](../../tests/test_skill_bank.py), [skill_failure_localization.md](../skill_failure_localization.md)
 
-**Source demonstrates:** SEEK routes externalized evaluation skills to a listwise evaluator and diagnoses failure modes. Replay gates updates to the skill bank in industrial search evaluation.
+**Source demonstrates:** SEEK separates skill routing descriptions from operational guidance, diagnoses routing, knowledge and execution errors, and replay-gates skill updates in industrial search evaluation.
 
-**Repository inference:** Separate routing proposal quality from downstream guarded outcomes. Skill-bank updates and failure localization remain separate implementation stages.
+**Repository inference:** Separate routing proposal quality from guarded outcomes. Preserve WHEN and HOW in immutable skill cards and annotate failure layers as evidence-bound hypotheses; skill changes remain review proposals without persistence authority.
 
-**Maturity:** Experimental opt-in routing adapter. Synthetic contract comparisons do not establish learned-backend quality, alignment or source-benchmark reproduction.
+**Maturity:** Experimental opt-in routing and failure diagnostics with immutable skill metadata. Contract tests do not establish learned-backend quality or diagnosis accuracy.
 
 <a id="ref-ladder"></a>
 
@@ -1158,3 +1151,23 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 **Repository inference:** A mismatch requests hypothesis reconsideration through the existing decompose-and-verify route. This adapter does not select or claim to execute a universally superior reasoning topology.
 
 **Maturity:** Experimental opt-in routing adapter. Synthetic contract comparisons do not establish learned-backend quality, alignment or source-benchmark reproduction.
+
+<a id="ref-arise"></a>
+
+## REF-ARISE — ARISE: Adapting to Evolving Capability Gaps in Agentic Reinforcement Learning
+
+- Metadata status: `resolved`
+- Supplied title: ARISE
+- Authors: Kun Feng, Yuchen Fang, Yiyang Tan, Shuqi Gu, Yongxiang Zhao, Yu Liu, Xingyu Lu, Lintao Ma, Kan Ren
+- Year: 2026
+- arXiv: [`2609.35532`](https://arxiv.org/abs/2609.35532)
+- DOI: `10.48550/arXiv.2609.35532`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-009`
+- Local repository notes: [failure_layers.py](../../gepa_mindfulness/verification/failure_layers.py), [skill_bank.py](../../gepa_mindfulness/skill_bank.py), [test_failure_layers.py](../../tests/test_failure_layers.py), [test_skill_bank.py](../../tests/test_skill_bank.py), [skill_failure_localization.md](../skill_failure_localization.md)
+
+**Source demonstrates:** ARISE uses rollout evidence to evolve rubric-skill pairs and adapt task sampling. Its training procedure activates guidance for capability gaps and retires consistently satisfied criteria.
+
+**Repository inference:** Use observed gaps to motivate bounded skill review proposals. Foundational norms remain protected from autonomous changes or retirement regardless of performance; no adaptive reward or rubric-retirement algorithm is introduced.
+
+**Maturity:** Resolved arXiv preprint; experimental skill metadata and proposal contracts are implemented. Contract tests do not reproduce agentic reinforcement-learning results.

@@ -753,54 +753,76 @@ references:
 
   - reference_id: REF-FTA
     metadata_status: resolved
-    supplied_title: "Failure-Transparent Agents: Benchmarking Post-Failure Reporting in Tool-Using Language Models"
-    title: "Failure-Transparent Agents: Benchmarking Post-Failure Reporting in Tool-Using Language Models"
+    supplied_title: 'Failure-Transparent Agents: Benchmarking Post-Failure Reporting in Tool-Using Language
+      Models'
+    title: 'Failure-Transparent Agents: Benchmarking Post-Failure Reporting in Tool-Using Language Models'
     authors:
-      - Junru Zhu
-      - Shiming Xie
-      - Aime Lu Fan Chen
-      - Xiaoqing Ding
-      - Chunxin Tang
-      - Ruoyu Qi
-      - Yulang Fei
+    - Junru Zhu
+    - Shiming Xie
+    - Aime Lu Fan Chen
+    - Xiaoqing Ding
+    - Chunxin Tang
+    - Ruoyu Qi
+    - Yulang Fei
     year: 2026
-    arxiv_id: "2609.35732"
-    doi: "10.48550/arXiv.2609.35732"
+    arxiv_id: '2609.35732'
+    doi: 10.48550/arXiv.2609.35732
     venue_status: null
-    canonical_url: "https://arxiv.org/abs/2609.35732"
+    canonical_url: https://arxiv.org/abs/2609.35732
     recommendation_ids:
-      - REC-002
-    source_demonstrates: "The benchmark fixes failed-tool observations before evaluating subsequent reports; structured evidence reporting is associated with fewer unsupported claims in its blocked-task setting."
-    repository_inference: "Separate execution, observation and reporting evidence. A residual identifies a recorded mismatch, not deceptive motive; report residuals require future public-report telemetry."
-    maturity: "Resolved arXiv preprint; PR-2 implements causal and verifier evidence checks. Report residuals and the paper's model experiment remain unimplemented."
+    - REC-002
+    - REC-007
+    source_demonstrates: The benchmark fixes failed-tool observations before evaluating subsequent reports;
+      structured evidence reporting is associated with fewer unsupported claims in its blocked-task
+      setting.
+    repository_inference: Separate execution, observation and reporting evidence. A residual identifies
+      a recorded mismatch, not deceptive motive; report residuals require future public-report telemetry.
+      PR-8 adds layer-specific diagnostic hypotheses and review paths while retaining existing causal
+      and persistence authority boundaries.
+    maturity: Resolved arXiv preprint; PR-2 implements causal and verifier evidence checks. Report residuals
+      and the paper's model experiment remain unimplemented.
     local_repo_notes:
-      - gepa_mindfulness/verification/epistemic_reconciliation.py
-      - docs/epistemic_state.md
-
+    - gepa_mindfulness/verification/epistemic_reconciliation.py
+    - docs/epistemic_state.md
+    - gepa_mindfulness/verification/failure_layers.py
+    - gepa_mindfulness/skill_bank.py
+    - tests/test_failure_layers.py
+    - tests/test_skill_bank.py
+    - docs/skill_failure_localization.md
   - reference_id: REF-PINNFORGE
     metadata_status: resolved
-    supplied_title: "PINNsForge"
-    title: "PINNForge: Execution-Grounded Evolutionary Design of Physics-Informed Neural Networks"
+    supplied_title: PINNsForge
+    title: 'PINNForge: Execution-Grounded Evolutionary Design of Physics-Informed Neural Networks'
     authors:
-      - Mingyang Yu
-      - Xu Yang
-      - Jun Zhang
-      - Jing Xu
-      - Keqian Li
+    - Mingyang Yu
+    - Xu Yang
+    - Jun Zhang
+    - Jing Xu
+    - Keqian Li
     year: 2026
-    arxiv_id: "2609.23023"
-    doi: "10.48550/arXiv.2609.23023"
+    arxiv_id: '2609.23023'
+    doi: 10.48550/arXiv.2609.23023
     venue_status: null
-    canonical_url: "https://arxiv.org/abs/2609.23023"
+    canonical_url: https://arxiv.org/abs/2609.23023
     recommendation_ids:
-      - REC-002
-    source_demonstrates: "The PDE experiments use recorded training behavior to inform later candidate designs; withholding execution feedback degrades the reported aggregate error measure."
-    repository_inference: "Preserve execution evidence before accepting diagnostic updates. Transferring a PDE design loop to epistemic reconciliation is a repository hypothesis."
-    maturity: "Resolved arXiv preprint, v2 metadata; PR-2 binds diagnostic measurements to execution ancestry. No evolutionary search or PDE experiment is implemented."
+    - REC-002
+    - REC-007
+    source_demonstrates: The PDE experiments use recorded training behavior to inform later candidate
+      designs; withholding execution feedback degrades the reported aggregate error measure.
+    repository_inference: Preserve execution evidence before accepting diagnostic updates. Transferring
+      a PDE design loop to epistemic reconciliation is a repository hypothesis. PR-8 adds layer-specific
+      diagnostic hypotheses and review paths while retaining existing causal and persistence authority
+      boundaries.
+    maturity: Resolved arXiv preprint, v2 metadata; PR-2 binds diagnostic measurements to execution
+      ancestry. No evolutionary search or PDE experiment is implemented.
     local_repo_notes:
-      - gepa_mindfulness/verification/epistemic_reconciliation.py
-      - docs/epistemic_state.md
-
+    - gepa_mindfulness/verification/epistemic_reconciliation.py
+    - docs/epistemic_state.md
+    - gepa_mindfulness/verification/failure_layers.py
+    - gepa_mindfulness/skill_bank.py
+    - tests/test_failure_layers.py
+    - tests/test_skill_bank.py
+    - docs/skill_failure_localization.md
   - reference_id: REF-C3-JEPA
     metadata_status: resolved
     supplied_title: "C3-JEPA"
@@ -1076,49 +1098,60 @@ references:
 
   - reference_id: REF-QWEN-PLANNER
     metadata_status: resolved
-    supplied_title: "Qwen-Planner-Agent"
-    title: "Qwen-Planner-Agent: A Closed-Loop AI-for-AI Framework for Real-World Mobile Planner Agents"
+    supplied_title: Qwen-Planner-Agent
+    title: 'Qwen-Planner-Agent: A Closed-Loop AI-for-AI Framework for Real-World Mobile Planner Agents'
     authors:
-      - Tingyu Qu
-      - Weigao Sun
-      - Yuecheng Liu
-      - Yucheng Zhao
-      - Yi Zhu
-      - Yifeng Ding
-      - Qiyi Wang
-      - Sihan Cao
-      - Pengkun Jiao
-      - Hanlei Xie
-      - Xiongwei Wu
-      - Qichao Wang
-      - Haodong Zhang
-      - Jiajun Liu
-      - Yuhao Wang
-      - Yuqing Xie
-      - Junpeng Zhao
-      - Long Chen
-      - Ming Ma
-      - Sihan Yang
-      - Ziwang Zhao
-      - Yanhao Jia
-      - Liangquan Gong
-      - Feida Zhu
-      - Yiran Zhong
-      - Steven Hoi
+    - Tingyu Qu
+    - Weigao Sun
+    - Yuecheng Liu
+    - Yucheng Zhao
+    - Yi Zhu
+    - Yifeng Ding
+    - Qiyi Wang
+    - Sihan Cao
+    - Pengkun Jiao
+    - Hanlei Xie
+    - Xiongwei Wu
+    - Qichao Wang
+    - Haodong Zhang
+    - Jiajun Liu
+    - Yuhao Wang
+    - Yuqing Xie
+    - Junpeng Zhao
+    - Long Chen
+    - Ming Ma
+    - Sihan Yang
+    - Ziwang Zhao
+    - Yanhao Jia
+    - Liangquan Gong
+    - Feida Zhu
+    - Yiran Zhong
+    - Steven Hoi
     year: 2026
-    arxiv_id: "2609.29892"
-    doi: "10.48550/arXiv.2609.29892"
+    arxiv_id: '2609.29892'
+    doi: 10.48550/arXiv.2609.29892
     venue_status: null
-    canonical_url: "https://arxiv.org/abs/2609.29892"
+    canonical_url: https://arxiv.org/abs/2609.29892
     recommendation_ids:
-      - REC-002
-    source_demonstrates: "The planner framework links data, training and runtime tools, skills and memory through execution feedback and verification, retaining failed and incomplete traces."
-    repository_inference: "Keep original execution evidence distinct from summaries and preserve failed or unusable evidence in reports. No mobile planner or training loop is reproduced."
-    maturity: "Resolved arXiv preprint; PR-5 implements diagnostic evidence/memory eligibility and retained summary views. No published experiment or trained policy is reproduced."
+    - REC-002
+    - REC-007
+    - REC-009
+    source_demonstrates: The planner framework links data, training and runtime tools, skills and memory
+      through execution feedback and verification, retaining failed and incomplete traces.
+    repository_inference: Keep original execution evidence distinct from summaries and preserve failed
+      or unusable evidence in reports. No mobile planner or training loop is reproduced. PR-8 adds layer-specific
+      diagnostic hypotheses and review paths while retaining existing causal and persistence authority
+      boundaries.
+    maturity: Resolved arXiv preprint; PR-5 implements diagnostic evidence/memory eligibility and retained
+      summary views. No published experiment or trained policy is reproduced.
     local_repo_notes:
-      - gepa_mindfulness/verification/evidence_use.py
-      - docs/evidence_memory.md
-
+    - gepa_mindfulness/verification/evidence_use.py
+    - docs/evidence_memory.md
+    - gepa_mindfulness/verification/failure_layers.py
+    - gepa_mindfulness/skill_bank.py
+    - tests/test_failure_layers.py
+    - tests/test_skill_bank.py
+    - docs/skill_failure_localization.md
   - reference_id: REF-SHARE-BORNE
     metadata_status: resolved
     supplied_title: "Share-Borne AI Virus"
@@ -1471,14 +1504,27 @@ references:
     venue_status: null
     canonical_url: https://arxiv.org/abs/2609.29803
     recommendation_ids:
+    - REC-007
     - REC-008
-    source_demonstrates: SEEK routes externalized evaluation skills to a listwise evaluator and diagnoses
-      failure modes. Replay gates updates to the skill bank in industrial search evaluation.
-    repository_inference: Separate routing proposal quality from downstream guarded outcomes. Skill-bank
-      updates and failure localization remain separate implementation stages.
-    maturity: Experimental opt-in routing adapter. Synthetic contract comparisons do not establish learned-backend
-      quality, alignment or source-benchmark reproduction.
-    local_repo_notes: *id001
+    - REC-009
+    source_demonstrates: SEEK separates skill routing descriptions from operational guidance, diagnoses
+      routing, knowledge and execution errors, and replay-gates skill updates in industrial search evaluation.
+    repository_inference: Separate routing proposal quality from guarded outcomes. Preserve WHEN and
+      HOW in immutable skill cards and annotate failure layers as evidence-bound hypotheses; skill changes
+      remain review proposals without persistence authority.
+    maturity: Experimental opt-in routing and failure diagnostics with immutable skill metadata. Contract
+      tests do not establish learned-backend quality or diagnosis accuracy.
+    local_repo_notes:
+    - gepa_mindfulness/factuality_observability/epistemic_routing.py
+    - evaluation/system_one_benchmark.py
+    - tests/test_epistemic_routing.py
+    - tests/test_system_one_benchmark.py
+    - docs/system_one_routing.md
+    - gepa_mindfulness/verification/failure_layers.py
+    - gepa_mindfulness/skill_bank.py
+    - tests/test_failure_layers.py
+    - tests/test_skill_bank.py
+    - docs/skill_failure_localization.md
   - reference_id: REF-LADDER
     metadata_status: resolved
     supplied_title: LADDER
@@ -1532,3 +1578,38 @@ references:
     maturity: Experimental opt-in routing adapter. Synthetic contract comparisons do not establish learned-backend
       quality, alignment or source-benchmark reproduction.
     local_repo_notes: *id001
+  - reference_id: REF-ARISE
+    metadata_status: resolved
+    supplied_title: ARISE
+    title: 'ARISE: Adapting to Evolving Capability Gaps in Agentic Reinforcement Learning'
+    authors:
+    - Kun Feng
+    - Yuchen Fang
+    - Yiyang Tan
+    - Shuqi Gu
+    - Yongxiang Zhao
+    - Yu Liu
+    - Xingyu Lu
+    - Lintao Ma
+    - Kan Ren
+    year: 2026
+    arxiv_id: '2609.35532'
+    doi: 10.48550/arXiv.2609.35532
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2609.35532
+    recommendation_ids:
+    - REC-009
+    source_demonstrates: ARISE uses rollout evidence to evolve rubric-skill pairs and adapt task sampling.
+      Its training procedure activates guidance for capability gaps and retires consistently satisfied
+      criteria.
+    repository_inference: Use observed gaps to motivate bounded skill review proposals. Foundational
+      norms remain protected from autonomous changes or retirement regardless of performance; no adaptive
+      reward or rubric-retirement algorithm is introduced.
+    maturity: Resolved arXiv preprint; experimental skill metadata and proposal contracts are implemented.
+      Contract tests do not reproduce agentic reinforcement-learning results.
+    local_repo_notes:
+    - gepa_mindfulness/verification/failure_layers.py
+    - gepa_mindfulness/skill_bank.py
+    - tests/test_failure_layers.py
+    - tests/test_skill_bank.py
+    - docs/skill_failure_localization.md
