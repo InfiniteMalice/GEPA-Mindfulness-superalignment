@@ -50,6 +50,62 @@ def test_position_gaming_and_ties_do_not_count_as_correct():
                 assert family["mean_margin"] == 0
 
 
+@pytest.mark.parametrize(
+    "forward_margin, reverse_margin, expected",
+    [
+        (-1.0, -1.0, False),
+        (-1.0, 0.0, True),
+        (-1.0, 1.0, True),
+        (0.0, -1.0, True),
+        (0.0, 0.0, False),
+        (0.0, 1.0, True),
+        (1.0, -1.0, True),
+        (1.0, 0.0, True),
+        (1.0, 1.0, False),
+        (-2.0, -1.0, False),
+        (2.0, 1.0, False),
+    ],
+)
+def test_order_disagreement_compares_loss_tie_and_win(forward_margin, reverse_margin, expected):
+    """Changing between any two ranking outcomes counts as order sensitivity."""
+
+    def score(prompt, answers):
+        if answers[0] == "supported":
+            return (forward_margin, 0.0)
+        return (0.0, reverse_margin)
+
+    report = compare_backends(heldout(), arms(score), enabled=True)
+    for result in report["arms"].values():
+        assert all(row["order_disagreement"] is expected for row in result["records"])
+        for family in result["families"].values():
+            assert family["order_disagreement_rate"] == float(expected)
+            assert family["accuracy"] == float(forward_margin > 0 and reverse_margin > 0)
+            assert family["tie_rate"] == float(0 in (forward_margin, reverse_margin))
+
+
+@pytest.mark.parametrize("available", [False, True])
+@pytest.mark.parametrize(
+    "labels, expected",
+    [
+        (("DEVELOPMENT",), "DEVELOPMENT"),
+        (("REGRESSION",), "REGRESSION"),
+        (("HIDDEN_EVAL",), "HIDDEN_EVAL"),
+        (("DEVELOPMENT", "REGRESSION"), "REGRESSION"),
+        (("REGRESSION", "DEVELOPMENT"), "REGRESSION"),
+        (("DEVELOPMENT", "HIDDEN_EVAL"), "HIDDEN_EVAL"),
+        (("HIDDEN_EVAL", "REGRESSION", "DEVELOPMENT"), "HIDDEN_EVAL"),
+    ],
+)
+def test_report_preserves_strictest_source_eligibility(labels, expected, available):
+    """Measured and unavailable-arm reports retain the strongest input restriction."""
+    examples = tuple(
+        authored_pair(family, eligibility=label) for family, label in zip(NegativeFamily, labels)
+    )
+    backends = arms(lambda *_: (0.0, 0.0)) if available else dict.fromkeys(COMPARISON_ARMS)
+    report = compare_backends(examples, backends, enabled=True)
+    assert report["training_eligibility"] == expected
+
+
 def test_callback_parity_does_not_reveal_the_gold_position():
     """An input-blind alternating scorer cannot recover labels from call parity."""
     backends = {}

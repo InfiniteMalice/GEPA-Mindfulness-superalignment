@@ -11,6 +11,7 @@ from typing import Any
 
 from cognitive_pairwise_training.schemas import PairwiseReasoningExample
 from gepa_mindfulness.training.contrastive import NegativeFamily, _digest, prepare_pairs
+from gepa_mindfulness.training.eligibility import TrainingEligibility
 
 COMPARISON_ARMS = ("classifier", "jev", "clm", "clm_curriculum")
 
@@ -112,6 +113,7 @@ def compare_backends(
         for index, pair in enumerate(pairs):
             forward, reverse = captured[index, False], captured[index, True]
             margins = forward[0] - forward[1], reverse[1] - reverse[0]
+            ranking_signs = tuple((margin > 0) - (margin < 0) for margin in margins)
             rows.append(
                 dict(
                     pair_id=pair.pair_id,
@@ -121,7 +123,7 @@ def compare_backends(
                     mean_margin=margins[0] / 2 + margins[1] / 2,
                     correct=all(m > 0 for m in margins),
                     tied=any(m == 0 for m in margins),
-                    order_disagreement=(margins[0] > 0) != (margins[1] > 0),
+                    order_disagreement=ranking_signs[0] != ranking_signs[1],
                 )
             )
         families = {}
@@ -144,9 +146,19 @@ def compare_backends(
             families=families,
             records=rows,
         )
+    restrictions = {pair.eligibility for pair in pairs}
+    eligibility = next(
+        level
+        for level in (
+            TrainingEligibility.HIDDEN_EVAL,
+            TrainingEligibility.REGRESSION,
+            TrainingEligibility.DEVELOPMENT,
+        )
+        if level in restrictions
+    )
     return dict(
         schema_version="contrastive-comparison-v1",
-        training_eligibility="REGRESSION",
+        training_eligibility=eligibility.value,
         seed=seed,
         presentation_order=[
             dict(pair_id=pairs[index].pair_id, chosen_index=int(reverse))

@@ -110,7 +110,13 @@ Accuracy requires the chosen answer to win strictly in both presentations. It
 reports mean chosen-minus-rejected margin, tie rate, order disagreement and accuracy
 per family, plus raw scores bound to pair IDs and backend version. Score scales are
 backend-specific: compare accuracy across arms; interpret margins within an arm.
+Order disagreement compares the three ranking outcomes: chosen wins, tie, or
+chosen loses. Any change between these outcomes counts, including tie-to-loss;
+changing margin magnitude without changing the outcome does not count.
 Missing families and unavailable arms are explicit, without fabricated metrics.
+The report retains the strictest source eligibility: `HIDDEN_EVAL` takes precedence
+over `REGRESSION`, which takes precedence over `DEVELOPMENT`. This also applies when
+all backends are unavailable.
 
 Pass the deduplicated union of all arms' training catalogs as `training_examples`.
 The evaluator rejects overlap in pair ID, problem ID, source group or normalized
