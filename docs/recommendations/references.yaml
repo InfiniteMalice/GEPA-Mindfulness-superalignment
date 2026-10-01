@@ -1137,13 +1137,18 @@ references:
     - REC-005
     - REC-007
     - REC-009
+    - REC-010
     source_demonstrates: The planner framework links data, training and runtime tools, skills and memory
-      through execution feedback and verification, retaining failed and incomplete traces.
+      through execution feedback and verification, retaining failed and incomplete traces. Section 2.4.3
+      describes competence-aware reward-and-advantage engineering (CARE) using observed group pass rates
+      to select shaping, consolidation and efficiency regimes.
     repository_inference: Keep original execution evidence distinct from summaries and preserve failed
       or unusable evidence in reports. No mobile planner or training loop is reproduced. PR-8 adds layer-specific
       diagnostic hypotheses and review paths while retaining existing causal and persistence authority
       boundaries. PR-9 adds simulated action-feedback trajectories with caller-supplied predictions,
-      existing causal PEO validation, and explicit exclusion from training admission.
+      existing causal PEO validation, and explicit exclusion from training admission. PR-10 uses host-observed
+      anchor outcomes to bound curriculum adaptation without implementing CARE rewards or advantage
+      engineering.
     maturity: Resolved arXiv preprint; PR-5 implements diagnostic evidence/memory eligibility and retained
       summary views. No published experiment or trained policy is reproduced.
     local_repo_notes:
@@ -1159,6 +1164,11 @@ references:
     - tests/test_synthetic_worlds.py
     - tests/test_synthetic_world_peo.py
     - docs/synthetic_worlds.md
+    - gepa_mindfulness/training/peo_curriculum.py
+    - gepa_mindfulness/participatory_agency/training/curriculum.py
+    - tests/test_peo_curriculum.py
+    - tests/test_rl_engine_cpu.py
+    - docs/peo_curriculum.md
   - reference_id: REF-SHARE-BORNE
     metadata_status: resolved
     supplied_title: "Share-Borne AI Virus"
@@ -1679,11 +1689,13 @@ references:
     canonical_url: https://arxiv.org/abs/2609.17895
     recommendation_ids:
     - REC-005
+    - REC-010
     source_demonstrates: Section 3.3 describes a more diverse and scalable synthetic prior, including
       high-cardinality, high-feature-count and grouped tabular data with distinct train/test groups.
     repository_inference: Use controlled seeded latent-world generation as an experimental data contract.
       This boolean fixture does not implement the TabPFN prior, train a tabular model, or reproduce
-      its benchmarks.
+      its benchmarks. PR-10 annotates multiple data dimensions and samples persistent anchors, weaknesses,
+      frontier and OOD units; it does not reproduce the synthetic prior.
     maturity: Resolved arXiv preprint; experimental opt-in synthetic-world contracts. Contract tests
       do not establish real-world policy quality or reproduce source results.
     local_repo_notes:
@@ -1692,6 +1704,11 @@ references:
     - tests/test_synthetic_worlds.py
     - tests/test_synthetic_world_peo.py
     - docs/synthetic_worlds.md
+    - gepa_mindfulness/training/peo_curriculum.py
+    - gepa_mindfulness/participatory_agency/training/curriculum.py
+    - tests/test_peo_curriculum.py
+    - tests/test_rl_engine_cpu.py
+    - docs/peo_curriculum.md
   - reference_id: REF-VGCOMPILER
     metadata_status: resolved
     supplied_title: VGCompiler
@@ -1786,3 +1803,98 @@ references:
     - tests/test_synthetic_worlds.py
     - tests/test_synthetic_world_peo.py
     - docs/synthetic_worlds.md
+  - reference_id: REF-CHART
+    metadata_status: resolved
+    supplied_title: CHART / Harness-Rotation
+    title: 'CHART: A Harness-Rotation Curriculum for Harness-Robust Search Agents'
+    authors:
+    - Xinlu Zhang
+    - Ying-Chun Lin
+    - Zhihan Zhang
+    - Besnik Fetahu
+    - Xi Chen
+    year: 2026
+    arxiv_id: '2609.22247'
+    doi: 10.48550/arXiv.2609.22247
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2609.22247
+    recommendation_ids:
+    - REC-010
+    source_demonstrates: Section 3.2 maintains a small active harness window and rotates learned harnesses
+      for still-learnable ones.
+    repository_inference: Use controlled distribution rotation with separate persistent anchor checks.
+      Persistent anchor quotas are a repository design choice; this provider does not implement CHART
+      GRPO or reproduce its training results.
+    maturity: Resolved arXiv preprint; experimental opt-in curriculum contracts. Contract tests do not
+      establish learned retention or reproduce source results.
+    local_repo_notes:
+    - gepa_mindfulness/training/peo_curriculum.py
+    - gepa_mindfulness/participatory_agency/training/curriculum.py
+    - tests/test_peo_curriculum.py
+    - tests/test_rl_engine_cpu.py
+    - docs/peo_curriculum.md
+  - reference_id: REF-SPECTRAL-GROKKING
+    metadata_status: resolved
+    supplied_title: Spectral Theory of Grokking
+    title: 'A Spectral Theory of Grokking: Weight Decay induces Feature Learning'
+    authors:
+    - Lenz Pracher
+    - Pascal de Jong
+    - Oskar Lieshaus
+    - Alan Jeffares
+    - Steffen Rulands
+    year: 2026
+    arxiv_id: '2609.26679'
+    doi: 10.48550/arXiv.2609.26679
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2609.26679
+    recommendation_ids:
+    - REC-010
+    source_demonstrates: For homogeneous networks with squared loss and weight decay, the analysis links
+      residual-driven NTK feature growth after fitting to delayed generalization, with modular-addition
+      experiments.
+    repository_inference: Retain repeated anchor checks after apparent mastery. No NTK telemetry or
+      grokking theory is implemented, and scheduling or PEO residuals do not establish grokking.
+    maturity: Resolved arXiv preprint; experimental opt-in curriculum contracts. Contract tests do not
+      establish learned retention or reproduce source results.
+    local_repo_notes:
+    - gepa_mindfulness/training/peo_curriculum.py
+    - gepa_mindfulness/participatory_agency/training/curriculum.py
+    - tests/test_peo_curriculum.py
+    - tests/test_rl_engine_cpu.py
+    - docs/peo_curriculum.md
+  - reference_id: REF-LOW-BIT-OPD
+    metadata_status: resolved
+    supplied_title: On-Policy Distillation for Low-Bit Reasoning
+    title: 'Train Where the Quantized Model Goes: On-Policy Distillation for Low-Bit Reasoning'
+    authors:
+    - Yuanteng Chen
+    - Zhilei Liu
+    - Peisong Wang
+    - Yuantian Shao
+    - Chuangyi Li
+    - Weining Wang
+    - Shuang Qiu
+    - Gang Li
+    - Jing Liu
+    - Jian Cheng
+    year: 2026
+    arxiv_id: '2609.26708'
+    doi: 10.48550/arXiv.2609.26708
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2609.26708
+    recommendation_ids:
+    - REC-010
+    source_demonstrates: Student rollouts use the deployment quantized forward path; a frozen full-precision
+      teacher scores student prefixes alongside task-verifier rewards.
+    repository_inference: Allow reviewed student-induced weakness and recovery data in a bounded curriculum
+      mixture. No quantization, distillation loss, teacher scoring, or admission of raw failed traces
+      is introduced.
+    maturity: Resolved arXiv preprint; experimental opt-in curriculum contracts. Contract tests do not
+      establish learned retention or reproduce source results.
+    local_repo_notes:
+    - gepa_mindfulness/training/peo_curriculum.py
+    - gepa_mindfulness/participatory_agency/training/curriculum.py
+    - tests/test_peo_curriculum.py
+    - tests/test_rl_engine_cpu.py
+    - docs/peo_curriculum.md

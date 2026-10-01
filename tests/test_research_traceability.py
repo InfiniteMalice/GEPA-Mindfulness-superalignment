@@ -204,10 +204,16 @@ EXPECTED_REFERENCES = (
         "2609.30233",
         "Coding Agents for Generalized Task and Motion Planning Problems",
     ),
+    ("REF-CHART", "2609.22247", "CHART / Harness-Rotation"),
+    ("REF-SPECTRAL-GROKKING", "2609.26679", "Spectral Theory of Grokking"),
+    ("REF-LOW-BIT-OPD", "2609.26708", "On-Policy Distillation for Low-Bit Reasoning"),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
-    "REF-TABPFN-35": ("REC-005",),
+    "REF-CHART": ("REC-010",),
+    "REF-SPECTRAL-GROKKING": ("REC-010",),
+    "REF-LOW-BIT-OPD": ("REC-010",),
+    "REF-TABPFN-35": ("REC-005", "REC-010"),
     "REF-VGCOMPILER": ("REC-005",),
     "REF-PHYSICAL-LANGUAGES": ("REC-005",),
     "REF-GENERALIZED-TAMP": ("REC-005",),
@@ -227,7 +233,7 @@ EXPECTED_RECOMMENDATION_LINKS = {
     "REF-CDR": ("REC-015",),
     "REF-TTSE": ("REC-015",),
     "REF-COMPKV": ("REC-002",),
-    "REF-QWEN-PLANNER": ("REC-002", "REC-005", "REC-007", "REC-009"),
+    "REF-QWEN-PLANNER": ("REC-002", "REC-005", "REC-007", "REC-009", "REC-010"),
     "REF-SHARE-BORNE": ("REC-002",),
     "REF-A2M": ("REC-002",),
     "REF-CI": ("REC-002",),

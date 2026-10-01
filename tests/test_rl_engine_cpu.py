@@ -24,6 +24,7 @@ import pytest
 import torch
 from torch import nn
 
+from gepa_mindfulness.participatory_agency.training.curriculum import DEFAULT_CURRICULUM, PEOStage
 from gepa_mindfulness.training.algorithms import GRPOAlgorithm
 from gepa_mindfulness.training.backends import TorchPolicyBackend, TorchTensorOps
 from gepa_mindfulness.training.engine import (
@@ -32,6 +33,12 @@ from gepa_mindfulness.training.engine import (
     _close_backends_once,
     _config_hash,
     _config_payload,
+)
+from gepa_mindfulness.training.peo_curriculum import (
+    CurriculumBucket,
+    CurriculumMixture,
+    CurriculumUnit,
+    PEOCurriculumDataset,
 )
 from gepa_mindfulness.training.runtime_config import (
     AlgorithmConfig,
@@ -397,6 +404,67 @@ def _engine(
         return backend
 
     return RLTrainingEngine(config, backend_factory=build_backend)
+
+
+def _peo_dataset(eligibility: str) -> PEOCurriculumDataset:
+    return PEOCurriculumDataset(
+        units=tuple(
+            CurriculumUnit(
+                bucket.value,
+                PEOStage.CAUSAL,
+                bucket,
+                (
+                    RolloutRequest(
+                        "practice slowly",
+                        case_id=bucket.value,
+                        metadata={"training_eligibility": eligibility},
+                    ),
+                ),
+            )
+            for bucket in CurriculumBucket
+        ),
+        phase=DEFAULT_CURRICULUM[0],
+        mixture=CurriculumMixture(1, 1, 1, 1),
+        enabled=True,
+    )
+
+
+def test_peo_curriculum_collects_through_existing_engine(tmp_path: Path) -> None:
+    config = _config(tmp_path, "grpo")
+    plan = _peo_dataset("DEVELOPMENT")
+    engine = RLTrainingEngine(
+        config,
+        dataset_factory=lambda _: plan,
+        backend_factory=lambda value: TorchPolicyBackend(
+            policy_model=TinyLocalCausalLM(),
+            tokenizer=TinyLocalTokenizer(),
+            device="cpu",
+            learning_rate=value.algorithm.learning_rate,
+            max_new_tokens=1,
+            model_identifier=value.policy.model_name,
+        ),
+    )
+    result = engine.collect()
+    assert result.trajectory_count == 8
+    assert {t.case_id for t in result.trajectories} == {bucket.value for bucket in CurriculumBucket}
+    assert all(t.prompt == "practice slowly" for t in result.trajectories)
+
+
+@pytest.mark.parametrize("mode", ["train", "resume"])
+def test_peo_curriculum_rejects_before_engine_backend_creation(tmp_path: Path, mode: str) -> None:
+    def forbidden_backend(config: object) -> None:
+        pytest.fail("ineligible curriculum reached a model backend")
+
+    engine = RLTrainingEngine(
+        _config(tmp_path, "grpo"),
+        dataset_factory=lambda _: _peo_dataset("HIDDEN_EVAL"),
+        backend_factory=forbidden_backend,
+    )
+    with pytest.raises(ValueError, match="training_eligibility"):
+        if mode == "train":
+            engine.train(max_steps=1)
+        else:
+            engine.resume(tmp_path / "unused-checkpoint", max_steps=1)
 
 
 @pytest.mark.parametrize(

@@ -844,12 +844,12 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - arXiv: [`2609.29892`](https://arxiv.org/abs/2609.29892)
 - DOI: `10.48550/arXiv.2609.29892`
 - Venue/status: Not supplied by official arXiv metadata.
-- Recommendations influenced: `REC-002`, `REC-005`, `REC-007`, `REC-009`
-- Local repository notes: [evidence_use.py](../../gepa_mindfulness/verification/evidence_use.py), [evidence_memory.md](../evidence_memory.md), [failure_layers.py](../../gepa_mindfulness/verification/failure_layers.py), [skill_bank.py](../../gepa_mindfulness/skill_bank.py), [test_failure_layers.py](../../tests/test_failure_layers.py), [test_skill_bank.py](../../tests/test_skill_bank.py), [skill_failure_localization.md](../skill_failure_localization.md), [worlds.py](../../synthetic_data/worlds.py), [world_peo.py](../../synthetic_data/world_peo.py), [test_synthetic_worlds.py](../../tests/test_synthetic_worlds.py), [test_synthetic_world_peo.py](../../tests/test_synthetic_world_peo.py), [synthetic_worlds.md](../synthetic_worlds.md)
+- Recommendations influenced: `REC-002`, `REC-005`, `REC-007`, `REC-009`, `REC-010`
+- Local repository notes: [evidence_use.py](../../gepa_mindfulness/verification/evidence_use.py), [evidence_memory.md](../evidence_memory.md), [failure_layers.py](../../gepa_mindfulness/verification/failure_layers.py), [skill_bank.py](../../gepa_mindfulness/skill_bank.py), [test_failure_layers.py](../../tests/test_failure_layers.py), [test_skill_bank.py](../../tests/test_skill_bank.py), [skill_failure_localization.md](../skill_failure_localization.md), [worlds.py](../../synthetic_data/worlds.py), [world_peo.py](../../synthetic_data/world_peo.py), [test_synthetic_worlds.py](../../tests/test_synthetic_worlds.py), [test_synthetic_world_peo.py](../../tests/test_synthetic_world_peo.py), [synthetic_worlds.md](../synthetic_worlds.md), [peo_curriculum.py](../../gepa_mindfulness/training/peo_curriculum.py), [curriculum.py](../../gepa_mindfulness/participatory_agency/training/curriculum.py), [test_peo_curriculum.py](../../tests/test_peo_curriculum.py), [test_rl_engine_cpu.py](../../tests/test_rl_engine_cpu.py), [peo_curriculum.md](../peo_curriculum.md)
 
-**Source demonstrates:** The planner framework links data, training and runtime tools, skills and memory through execution feedback and verification, retaining failed and incomplete traces.
+**Source demonstrates:** The planner framework links data, training and runtime tools, skills and memory through execution feedback and verification, retaining failed and incomplete traces. Section 2.4.3 describes competence-aware reward-and-advantage engineering (CARE) using observed group pass rates to select shaping, consolidation and efficiency regimes.
 
-**Repository inference:** Keep original execution evidence distinct from summaries and preserve failed or unusable evidence in reports. No mobile planner or training loop is reproduced. PR-8 adds layer-specific diagnostic hypotheses and review paths while retaining existing causal and persistence authority boundaries. PR-9 adds simulated action-feedback trajectories with caller-supplied predictions, existing causal PEO validation, and explicit exclusion from training admission.
+**Repository inference:** Keep original execution evidence distinct from summaries and preserve failed or unusable evidence in reports. No mobile planner or training loop is reproduced. PR-8 adds layer-specific diagnostic hypotheses and review paths while retaining existing causal and persistence authority boundaries. PR-9 adds simulated action-feedback trajectories with caller-supplied predictions, existing causal PEO validation, and explicit exclusion from training admission. PR-10 uses host-observed anchor outcomes to bound curriculum adaptation without implementing CARE rewards or advantage engineering.
 
 **Maturity:** Resolved arXiv preprint; PR-5 implements diagnostic evidence/memory eligibility and retained summary views. No published experiment or trained policy is reproduced.
 
@@ -1183,12 +1183,12 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - arXiv: [`2609.17895`](https://arxiv.org/abs/2609.17895)
 - DOI: `10.48550/arXiv.2609.17895`
 - Venue/status: Not supplied by official arXiv metadata.
-- Recommendations influenced: `REC-005`
-- Local repository notes: [worlds.py](../../synthetic_data/worlds.py), [world_peo.py](../../synthetic_data/world_peo.py), [test_synthetic_worlds.py](../../tests/test_synthetic_worlds.py), [test_synthetic_world_peo.py](../../tests/test_synthetic_world_peo.py), [synthetic_worlds.md](../synthetic_worlds.md)
+- Recommendations influenced: `REC-005`, `REC-010`
+- Local repository notes: [worlds.py](../../synthetic_data/worlds.py), [world_peo.py](../../synthetic_data/world_peo.py), [test_synthetic_worlds.py](../../tests/test_synthetic_worlds.py), [test_synthetic_world_peo.py](../../tests/test_synthetic_world_peo.py), [synthetic_worlds.md](../synthetic_worlds.md), [peo_curriculum.py](../../gepa_mindfulness/training/peo_curriculum.py), [curriculum.py](../../gepa_mindfulness/participatory_agency/training/curriculum.py), [test_peo_curriculum.py](../../tests/test_peo_curriculum.py), [test_rl_engine_cpu.py](../../tests/test_rl_engine_cpu.py), [peo_curriculum.md](../peo_curriculum.md)
 
 **Source demonstrates:** Section 3.3 describes a more diverse and scalable synthetic prior, including high-cardinality, high-feature-count and grouped tabular data with distinct train/test groups.
 
-**Repository inference:** Use controlled seeded latent-world generation as an experimental data contract. This boolean fixture does not implement the TabPFN prior, train a tabular model, or reproduce its benchmarks.
+**Repository inference:** Use controlled seeded latent-world generation as an experimental data contract. This boolean fixture does not implement the TabPFN prior, train a tabular model, or reproduce its benchmarks. PR-10 annotates multiple data dimensions and samples persistent anchors, weaknesses, frontier and OOD units; it does not reproduce the synthetic prior.
 
 **Maturity:** Resolved arXiv preprint; experimental opt-in synthetic-world contracts. Contract tests do not establish real-world policy quality or reproduce source results.
 
@@ -1251,3 +1251,63 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 **Repository inference:** Use reusable deterministic transition rules across seeded instances and keep evaluator truth separate from actor observations. No robotic planner, motion dynamics, agent synthesis loop, or generalization benchmark is reproduced.
 
 **Maturity:** Resolved arXiv preprint; experimental opt-in synthetic-world contracts. Contract tests do not establish real-world policy quality or reproduce source results.
+
+<a id="ref-chart"></a>
+
+## REF-CHART — CHART: A Harness-Rotation Curriculum for Harness-Robust Search Agents
+
+- Metadata status: `resolved`
+- Supplied title: CHART / Harness-Rotation
+- Authors: Xinlu Zhang, Ying-Chun Lin, Zhihan Zhang, Besnik Fetahu, Xi Chen
+- Year: 2026
+- arXiv: [`2609.22247`](https://arxiv.org/abs/2609.22247)
+- DOI: `10.48550/arXiv.2609.22247`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-010`
+- Local repository notes: [peo_curriculum.py](../../gepa_mindfulness/training/peo_curriculum.py), [curriculum.py](../../gepa_mindfulness/participatory_agency/training/curriculum.py), [test_peo_curriculum.py](../../tests/test_peo_curriculum.py), [test_rl_engine_cpu.py](../../tests/test_rl_engine_cpu.py), [peo_curriculum.md](../peo_curriculum.md)
+
+**Source demonstrates:** Section 3.2 maintains a small active harness window and rotates learned harnesses for still-learnable ones.
+
+**Repository inference:** Use controlled distribution rotation with separate persistent anchor checks. Persistent anchor quotas are a repository design choice; this provider does not implement CHART GRPO or reproduce its training results.
+
+**Maturity:** Resolved arXiv preprint; experimental opt-in curriculum contracts. Contract tests do not establish learned retention or reproduce source results.
+
+<a id="ref-spectral-grokking"></a>
+
+## REF-SPECTRAL-GROKKING — A Spectral Theory of Grokking: Weight Decay induces Feature Learning
+
+- Metadata status: `resolved`
+- Supplied title: Spectral Theory of Grokking
+- Authors: Lenz Pracher, Pascal de Jong, Oskar Lieshaus, Alan Jeffares, Steffen Rulands
+- Year: 2026
+- arXiv: [`2609.26679`](https://arxiv.org/abs/2609.26679)
+- DOI: `10.48550/arXiv.2609.26679`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-010`
+- Local repository notes: [peo_curriculum.py](../../gepa_mindfulness/training/peo_curriculum.py), [curriculum.py](../../gepa_mindfulness/participatory_agency/training/curriculum.py), [test_peo_curriculum.py](../../tests/test_peo_curriculum.py), [test_rl_engine_cpu.py](../../tests/test_rl_engine_cpu.py), [peo_curriculum.md](../peo_curriculum.md)
+
+**Source demonstrates:** For homogeneous networks with squared loss and weight decay, the analysis links residual-driven NTK feature growth after fitting to delayed generalization, with modular-addition experiments.
+
+**Repository inference:** Retain repeated anchor checks after apparent mastery. No NTK telemetry or grokking theory is implemented, and scheduling or PEO residuals do not establish grokking.
+
+**Maturity:** Resolved arXiv preprint; experimental opt-in curriculum contracts. Contract tests do not establish learned retention or reproduce source results.
+
+<a id="ref-low-bit-opd"></a>
+
+## REF-LOW-BIT-OPD — Train Where the Quantized Model Goes: On-Policy Distillation for Low-Bit Reasoning
+
+- Metadata status: `resolved`
+- Supplied title: On-Policy Distillation for Low-Bit Reasoning
+- Authors: Yuanteng Chen, Zhilei Liu, Peisong Wang, Yuantian Shao, Chuangyi Li, Weining Wang, Shuang Qiu, Gang Li, Jing Liu, Jian Cheng
+- Year: 2026
+- arXiv: [`2609.26708`](https://arxiv.org/abs/2609.26708)
+- DOI: `10.48550/arXiv.2609.26708`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-010`
+- Local repository notes: [peo_curriculum.py](../../gepa_mindfulness/training/peo_curriculum.py), [curriculum.py](../../gepa_mindfulness/participatory_agency/training/curriculum.py), [test_peo_curriculum.py](../../tests/test_peo_curriculum.py), [test_rl_engine_cpu.py](../../tests/test_rl_engine_cpu.py), [peo_curriculum.md](../peo_curriculum.md)
+
+**Source demonstrates:** Student rollouts use the deployment quantized forward path; a frozen full-precision teacher scores student prefixes alongside task-verifier rewards.
+
+**Repository inference:** Allow reviewed student-induced weakness and recovery data in a bounded curriculum mixture. No quantization, distillation loss, teacher scoring, or admission of raw failed traces is introduced.
+
+**Maturity:** Resolved arXiv preprint; experimental opt-in curriculum contracts. Contract tests do not establish learned retention or reproduce source results.
