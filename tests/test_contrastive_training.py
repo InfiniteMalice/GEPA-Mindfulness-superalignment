@@ -62,10 +62,12 @@ def authored_pair(family, *, group=None, eligibility="TRAIN"):
 
 
 def catalog():
+    """Supply one authored optimizer-eligible fixture per family."""
     return tuple(authored_pair(family) for family in NegativeFamily)
 
 
 def test_snapshot_and_b_preference():
+    """CPT metadata mutation cannot change a prepared pair or its strict B preference."""
     pair = authored_pair(NegativeFamily.CAUSAL)
     pair = replace(pair, teacher_label=PairwiseLabel.B_MORE_TRUSTWORTHY)
     prepared = prepare_pairs((pair,), for_training=True)
@@ -77,6 +79,7 @@ def test_snapshot_and_b_preference():
 
 @pytest.mark.parametrize("change", ["ambiguous", "same", "prompt", "family", "eligibility"])
 def test_reject_malformed_pair(change):
+    """Ambiguous or inconsistent candidate records cannot reach optimization."""
     pair = authored_pair(NegativeFamily.CAUSAL)
     if change == "ambiguous":
         pair = replace(pair, teacher_label=PairwiseLabel.BOTH_TRUSTWORTHY)
@@ -91,6 +94,7 @@ def test_reject_malformed_pair(change):
 
 
 def test_duplicate_renamed_content_is_rejected():
+    """Renaming a pair cannot give identical public content extra training weight."""
     pair = authored_pair(NegativeFamily.CAUSAL)
     renamed = replace(pair, pair_id="other", problem_id="other")
     with pytest.raises(ValueError):
@@ -98,6 +102,7 @@ def test_duplicate_renamed_content_is_rejected():
 
 
 def test_full_admission_precedes_model_calls():
+    """A late nested holdout restriction blocks every model call in the catalog."""
     pairs = catalog()
     pairs[-1].candidate_b.metadata["source_record"] = {"training_eligibility": "HIDDEN_EVAL"}
     calls = []
@@ -108,11 +113,13 @@ def test_full_admission_precedes_model_calls():
 
 @pytest.mark.parametrize("enabled", [False, "true", 1])
 def test_disabled_path(enabled):
+    """Truthy coercions cannot enable the experimental trainer."""
     with pytest.raises(ValueError, match="enabled=True"):
         train_contrastive(catalog(), None, None, enabled=enabled)
 
 
 def test_real_gradient_and_matched_update_budget():
+    """Both schedules learn through actual gradients with identical exposure counts."""
     torch = pytest.importorskip("torch")
     reports = []
     for schedule in ("curriculum", "pooled"):
@@ -139,6 +146,7 @@ def test_real_gradient_and_matched_update_budget():
 
 @pytest.mark.parametrize("kind", ["nan", "shape", "detached", "gradient"])
 def test_invalid_tensor_does_not_update(kind):
+    """Invalid forward or backward values cannot update the optimizer's parameter."""
     torch = pytest.importorskip("torch")
     weight = torch.nn.Parameter(torch.tensor(0.0))
     optimizer = torch.optim.SGD([weight], lr=0.2)
@@ -158,6 +166,7 @@ def test_invalid_tensor_does_not_update(kind):
 
 
 def test_requires_all_families_and_strict_config():
+    """Incomplete curricula and coercive configuration fail before model work."""
     for kwargs in ({"epochs": True}, {"seed": True}, {"schedule": "unknown"}):
         with pytest.raises(ValueError):
             train_contrastive(catalog(), None, None, enabled=True, **kwargs)
@@ -166,6 +175,7 @@ def test_requires_all_families_and_strict_config():
 
 
 def test_snapshot_digest_binds_provenance():
+    """Changing retained source provenance changes the dataset binding."""
     pair = authored_pair(NegativeFamily.CAUSAL)
     before = prepare_pairs((pair,), for_training=True)[0]
     pair.metadata["source_record"] = {"revision": "updated"}
@@ -175,6 +185,7 @@ def test_snapshot_digest_binds_provenance():
 
 
 def test_optimizer_overflow_cannot_return_success_report():
+    """Overflow inside the optimizer is detected before another scoring call."""
     torch = pytest.importorskip("torch")
     weight = torch.nn.Parameter(torch.tensor(0.0))
     optimizer = torch.optim.SGD([weight], lr=float("inf"))

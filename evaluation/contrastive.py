@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import random
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from numbers import Real
@@ -23,6 +24,7 @@ class RankingBackend:
     score: Callable[[str, tuple[str, str]], Sequence[float]]
 
     def __post_init__(self) -> None:
+        """Reject unversioned or noncallable comparison backends."""
         if self.name not in COMPARISON_ARMS:
             raise ValueError("backend name must identify a comparison arm")
         if type(self.version) is not str or not self.version.strip() or not callable(self.score):
@@ -45,6 +47,7 @@ def compare_backends(
     backends: Mapping[str, RankingBackend | None],
     *,
     training_examples: Iterable[PairwiseReasoningExample] = (),
+    seed: int = 0,
     enabled: bool = False,
 ) -> dict[str, Any]:
     """Measure all available arms on the same public pairs in both answer orders.
@@ -53,9 +56,24 @@ def compare_backends(
     Without that catalog the report explicitly marks split checking unavailable.
     Metadata cannot establish what an external checkpoint actually saw in training.
     Ties and a wrong preference in either presentation count as incorrect.
+
+    Args:
+        examples: Non-TRAIN CPT pairs evaluated by every available arm.
+        backends: All four arm keys, each containing a versioned scorer or None.
+        training_examples: Deduplicated union of the arms' declared training catalogs.
+        seed: Shared presentation-shuffle seed in [0, 2**32).
+        enabled: Explicit opt-in; only literal True enables evaluation.
+
+    Returns:
+        Dataset identity, actual presentation schedule, split-check status and metrics.
+
+    Raises:
+        ValueError: Inputs, declared splits, backend identities or returned scores are invalid.
     """
     if enabled is not True:
         raise ValueError("contrastive experiments require enabled=True")
+    if type(seed) is not int or not 0 <= seed < 2**32:
+        raise ValueError("seed must be an integer in [0, 2**32)")
     if not isinstance(backends, Mapping) or set(backends) != set(COMPARISON_ARMS):
         raise ValueError("declare all four comparison arms, using None for unavailable arms")
     frozen_backends = dict(backends)
@@ -73,16 +91,26 @@ def compare_backends(
             " ".join(p.prompt.split()) for p in train_pairs
         }:
             raise ValueError("training/evaluation overlap in normalized prompt")
+    # Shuffle the complete presentation catalog once, then reuse it for every arm.
+    # Adjacent chosen-first/chosen-second calls would disclose labels through parity.
+    presentations = [(index, reverse) for index in range(len(pairs)) for reverse in (False, True)]
+    random.Random(seed).shuffle(presentations)
     results: dict[str, Any] = {}
     for name in COMPARISON_ARMS:
         backend = frozen_backends[name]
         if backend is None:
             results[name] = {"status": "unavailable"}
             continue
+        captured = {}
+        for index, reversed_order in presentations:
+            pair = pairs[index]
+            answers = (
+                (pair.rejected, pair.chosen) if reversed_order else (pair.chosen, pair.rejected)
+            )
+            captured[index, reversed_order] = _scores(backend.score(pair.prompt, answers))
         rows: list[dict[str, Any]] = []
-        for pair in pairs:
-            forward = _scores(backend.score(pair.prompt, (pair.chosen, pair.rejected)))
-            reverse = _scores(backend.score(pair.prompt, (pair.rejected, pair.chosen)))
+        for index, pair in enumerate(pairs):
+            forward, reverse = captured[index, False], captured[index, True]
             margins = forward[0] - forward[1], reverse[1] - reverse[0]
             rows.append(
                 dict(
@@ -119,6 +147,11 @@ def compare_backends(
     return dict(
         schema_version="contrastive-comparison-v1",
         training_eligibility="REGRESSION",
+        seed=seed,
+        presentation_order=[
+            dict(pair_id=pairs[index].pair_id, chosen_index=int(reverse))
+            for index, reverse in presentations
+        ],
         dataset_digest=_digest([(p.pair_id, p.source_digest) for p in pairs]),
         split_check=(
             "checked_declared_training_catalog" if train else "training_catalog_not_supplied"

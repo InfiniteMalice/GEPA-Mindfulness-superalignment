@@ -21,6 +21,8 @@ negatives through the validated PEO simulator. Retain complete source provenance
 and non-TRAIN restrictions. Require separately admitted training data.
 
 Compare available backends on the same labeled catalog in both answer orders.
+Shuffle presentations across pairs once and reuse that schedule for every arm, so
+callback parity does not disclose the preferred-answer position.
 Report missing arms, missing families, declared split-check status and raw scores.
 Do not translate contrastive margins into runtime authority, reward or a mechanistic
 claim. Raw margin scales remain specific to each backend.

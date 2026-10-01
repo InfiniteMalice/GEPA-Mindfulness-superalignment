@@ -15,6 +15,7 @@ from synthetic_data.worlds import generate_world
 
 @pytest.mark.parametrize("relation", [r for r in Relation if r.decisive])
 def test_relation_negatives_follow_counterfactual_and_keep_provenance(relation):
+    """Labels follow the opposite world while source admission survives outer relabeling."""
     source = make_relation_pair(relation, enabled=True)
     examples = relation_negatives(source, enabled=True)
     assert len(examples) == 4
@@ -36,11 +37,13 @@ def test_relation_negatives_follow_counterfactual_and_keep_provenance(relation):
 
 
 def test_controls_cannot_become_causal_negatives():
+    """An invariant nuisance control cannot create a strict causal preference."""
     with pytest.raises(ValueError, match="decisive"):
         relation_negatives(make_relation_pair(Relation.EVALUATOR, enabled=True), enabled=True)
 
 
 def test_peo_negative_falsifies_one_public_outcome():
+    """A trajectory negative changes one observed outcome without exposing latent snapshots."""
     world = generate_world(seed=0, enabled=True)
     example = peo_negative(
         world,
@@ -66,6 +69,7 @@ def test_peo_negative_falsifies_one_public_outcome():
 
 
 def test_builders_are_opt_in_and_peo_requires_multiple_steps():
+    """Disabled generation and non-longitudinal trajectories fail explicitly."""
     with pytest.raises(ValueError, match="enabled=True"):
         relation_negatives(make_relation_pair(Relation.CONSENT, enabled=True))
     with pytest.raises(ValueError, match="two steps"):

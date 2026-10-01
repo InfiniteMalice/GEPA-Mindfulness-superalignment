@@ -61,6 +61,16 @@ def prepare_pairs(
     Training requires explicit TRAIN and the existing recursive provenance checks.
     Evaluation requires an explicit non-TRAIN split. CPT reasoning/confidence fields
     are retained for admission validation only, never included in model inputs or loss.
+
+    Args:
+        examples: Existing CPT records with family, source-group and admission metadata.
+        for_training: Require TRAIN when true; require a non-TRAIN split when false.
+
+    Returns:
+        A nonempty tuple of immutable public projections and source digests.
+
+    Raises:
+        ValueError: A record is malformed, duplicated, ambiguous or ineligible.
     """
     if type(for_training) is not bool:
         raise ValueError("for_training must be boolean")
@@ -145,6 +155,22 @@ def train_contrastive(
     family before the next; pooled shuffles all families together. The caller owns
     scorer mode, initialization, optimizer, and checkpoint persistence. A failure
     stops training; caller-owned optimizer/model mutations are not rolled back.
+
+    Args:
+        examples: Admitted CPT pairs covering all five negative families.
+        score: Callback returning two differentiable logits for the supplied answers.
+        optimizer: Torch optimizer owning the parameters updated by the callback.
+        epochs: Number of visits to each record, from 1 through 1000.
+        schedule: Ordered family curriculum or pooled shuffle control.
+        seed: Local presentation/shuffle seed in [0, 2**32).
+        enabled: Explicit opt-in; only literal True enables training.
+
+    Returns:
+        Source-bound dataset identity, exposure counts, family order and update losses.
+
+    Raises:
+        ValueError: Admission, configuration, logits, gradients or parameters are invalid.
+        ImportError: The optional torch training dependency is unavailable.
     """
     if enabled is not True:
         raise ValueError("contrastive experiments require enabled=True")

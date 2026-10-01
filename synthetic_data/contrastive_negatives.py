@@ -70,6 +70,16 @@ def relation_negatives(
     All related fixtures share a source group so split checking keeps their arms,
     templates and nuisance variants together. The source's non-TRAIN provenance
     remains intact; no generated example is promoted to optimizer input.
+
+    Args:
+        pair: Validated decisive before/after relation intervention.
+        enabled: Explicit opt-in; only literal True enables generation.
+
+    Returns:
+        Four CPT examples spanning both arms and causal/laundering families.
+
+    Raises:
+        ValueError: Generation is disabled or the source is not a decisive relation pair.
     """
     if enabled is not True:
         raise ValueError("contrastive experiments require enabled=True")
@@ -118,6 +128,20 @@ def peo_negative(
     The simulator supplies actual outcomes through its validated action-bound event
     stream. Predictions are caller-supplied. Hidden snapshots, oracle judgments and
     epistemic residuals remain outside the public text supplied to the scorer.
+
+    Args:
+        world: Existing non-TRAIN synthetic world.
+        steps: At least two actions with caller-supplied prospective predictions.
+        context: Run/repeat and evaluated-system coordinates for the existing PEO stream.
+        episode_id: Nonempty identity for the simulated episode.
+        start_timestamp: RFC 3339 time used by the episode builder.
+        enabled: Explicit opt-in; only literal True enables generation.
+
+    Returns:
+        A CPT pair retaining the full episode as restricted provenance.
+
+    Raises:
+        ValueError: Generation is disabled or episode inputs fail the simulator contract.
     """
     if enabled is not True:
         raise ValueError("contrastive experiments require enabled=True")

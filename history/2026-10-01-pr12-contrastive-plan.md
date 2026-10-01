@@ -99,3 +99,29 @@ Repository rules place this spec/plan in history and prohibit automated beads wo
 - Documentation precision review: API actor, inputs, opt-in conditions, outputs,
   failure behavior and host responsibilities are explicit; no unresolved BLOCK.
   Primary-source mechanisms, repository inference and unmeasured claims are separate.
+
+## Fresh review and single fix pass
+
+The fresh whole-branch reviewer found one Important issue: the original evaluation
+order disclosed preferred-answer position through callback parity. An alternating
+scorer ignored its inputs and achieved 100% accuracy. A regression test reproduced
+the failure before the fix. Evaluation now shuffles the complete two-order catalog
+with a local seeded RNG, reuses that schedule across all arms, and maps captured
+scores back to canonical orientations. It records the seed and actual schedule.
+The same alternating scorer now scores 0% on the five-family fixture at seed 0.
+Schedule reproducibility, completeness, backend matching and seed validation are
+covered; all 47 focused tests pass. There were no Critical or Minor findings and
+no second review was dispatched.
+
+Ruling: real classifier/JEV/CLM effectiveness and curriculum superiority remain
+unmeasured until hosts provide admitted corpora and checkpoints. This matches the
+approved experiment boundary. The limitation is that this PR provides no evidence
+of learned generalization or curriculum superiority.
+
+Final validation after the behavior fix: 4,298 passed, 18 skipped, 16 warnings
+(232.77 seconds). Public API/test docstrings were then completed for the contribution
+template. The 47 focused tests passed again with real torch coverage: trainer 92%,
+evaluator 95%, generator 97%, total 94%. Final Ruff/Black, scoped CI/new-module mypy,
+Python 3.10 syntax, changed-Python 100-column checks, rebuild and exact installed-wheel
+smoke passed. No project dependency was added. No unresolved review findings remain;
+learned effectiveness remains the explicit unmeasured boundary described above.

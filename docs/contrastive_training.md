@@ -101,6 +101,11 @@ contract. The repository's existing tier classifier is not silently substituted
 for a state/action ranker. No external backend or trained checkpoint ships here.
 
 The evaluator presents every pair in both answer orders to every available arm.
+It shuffles the full presentation catalog across pairs using `seed` (default `0`),
+then reuses that identical schedule for every arm. This removes the fixed
+chosen-first/chosen-second call pattern. The report records the seed and actual
+presentation order for audit; neither is passed to the scorer. The seed must be an
+integer in `[0, 2**32)` and cannot be a boolean.
 Accuracy requires the chosen answer to win strictly in both presentations. It
 reports mean chosen-minus-rejected margin, tie rate, order disagreement and accuracy
 per family, plus raw scores bound to pair IDs and backend version. Score scales are
