@@ -80,3 +80,19 @@ outside-checkout installed-wheel smoke passed with the final implementation. The
 suite passed **3917 tests, 18 skipped, 16 warnings** in 211.09 seconds. `git diff --check` passed.
 The chronology regression demonstrated RED before the fix and GREEN afterward. No deferred minor
 findings or unresolved documentation BLOCK/WARN remain. PR 7 System-One routing is next, not started.
+
+## PR review follow-up: superseded retrospective assessments
+
+Codex comment 4151190602 identifies selection of an obsolete retrospective assessment. The
+sequence validator permits valid same-action supersession, but the adapter does not check the
+selected assessment's superseded_by field. Verify with opposing old/current action-reflection
+observations, then reject the explicitly superseded selection. Require callers to select the
+current event rather than silently changing the requested audit input. Update the capture contract
+and validate focused PEO/continuity tests, formatting, lint and types. This follows Superpowers
+review reception/TDD and repo-quality-gate; no event-schema or authority changes are needed.
+
+Both opposing old/current reflection cases failed before the two-line guard and pass after it.
+The current replacement remains selectable. Validation: 185 PEO/reconciliation/continuity tests
+and 152 action-bound event/logging tests passed (337 total); repository Ruff, Black (590 files),
+adapter mypy and `git diff --check` passed. The prior full-suite result above predates this fix;
+this follow-up was validated with the relevant suites.

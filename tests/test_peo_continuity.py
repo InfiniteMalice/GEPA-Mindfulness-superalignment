@@ -400,6 +400,30 @@ def test_public_exports_and_strict_enable_flag():
         audit_peo_continuity(enabled=True)
 
 
+@pytest.mark.parametrize("original_reflected", [True, False])
+def test_superseded_retrospective_assessment_cannot_override_current_observation(
+    original_reflected,
+):
+    req = request(after={"action_reflected": original_reflected})
+    position = next(i for i, event in enumerate(req.events) if event.event_id == "post")
+    original = req.events[position]
+    payload = original.to_dict()["payload"]
+    payload["continuity_evidence"]["k"]["action_reflected"] = not original_reflected
+    current = replace(
+        original, event_id="post-current", timestamp="2026-09-30T12:00:06.5Z", payload=payload
+    )
+    req = replace(
+        req,
+        events=req.events[:position]
+        + (replace(original, superseded_by=current.event_id), current)
+        + req.events[position + 1 :],
+    )
+    result = audit_peo_continuity(replace(req, assessment_event_id=current.event_id), enabled=True)
+    assert result.classification == ("influence_failure" if original_reflected else "consistent")
+    with pytest.raises(ValueError, match="superseded"):
+        audit_peo_continuity(req, enabled=True)
+
+
 @pytest.mark.parametrize(
     "timestamp,conversation",
     [

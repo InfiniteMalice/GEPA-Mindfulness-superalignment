@@ -278,6 +278,8 @@ def audit_peo_continuity(
     post = (
         by_id.get(request.assessment_event_id) if request.assessment_event_id is not None else None
     )
+    if post is not None and post.superseded_by is not None:
+        raise ValueError("selected assessment is superseded; select its current replacement")
     if request.assessment_event_id is not None and (
         post is None
         or post.event_type != "epistemic_assessment"

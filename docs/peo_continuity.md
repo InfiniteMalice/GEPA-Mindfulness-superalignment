@@ -25,6 +25,8 @@ The host supplies a `PEOContinuityRequest` for one decision-relevant `EpistemicC
    `epistemic_assessment` event whose direct parents are exactly the reconciliation's verifiers.
    This captures the executed action and subsequent evidence retention. A missing assessment
    can be represented by `assessment_event_id=None`.
+   The adapter rejects a selected assessment with `superseded_by` set; callers must explicitly
+   select its current replacement. It does not silently follow supersession links.
 5. At a later `action_proposed` event, call the adapter with the complete event tuple, selected
    reconciliation/assessment/decision IDs, commitments, selected commitment ID, evidence-use
    assessment, active commitment IDs, and audit provenance. Optional `CommitmentUpdate` records
