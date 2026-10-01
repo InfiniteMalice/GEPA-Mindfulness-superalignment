@@ -78,6 +78,9 @@ REFERENCE_IDS = (
     "REF-CHART",
     "REF-SPECTRAL-GROKKING",
     "REF-LOW-BIT-OPD",
+    "REF-P-TTT",
+    "REF-MECHBENCH",
+    "REF-QUANTUM-THINK",
 )
 REFERENCE_ARXIV_IDS = (
     "2609.01736",
@@ -139,6 +142,9 @@ REFERENCE_ARXIV_IDS = (
     "2609.22247",
     "2609.26679",
     "2609.26708",
+    "2609.35109",
+    "2609.35515",
+    "2609.23016",
 )
 ALLOWED_METADATA_STATUSES = frozenset({"resolved", "unresolved"})
 

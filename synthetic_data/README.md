@@ -3,6 +3,8 @@
 For opt-in latent worlds, surface variants, permission counterfactuals, and longitudinal
 PEO exports, see [experimental synthetic worlds](../docs/synthetic_worlds.md). These
 fixtures are excluded from training admission and do not add canonical cases.
+For single-variable paired interventions and behavioral sensitivity diagnostics, see
+[relation-flip benchmarks](../docs/relation_flips.md).
 
 This top-level `synthetic_data/` area adds lightweight scaffolding for reality
 contact, proxy-vs-purpose reasoning, faithful rationales, and evaluation
