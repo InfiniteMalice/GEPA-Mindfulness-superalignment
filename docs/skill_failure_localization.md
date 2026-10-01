@@ -4,6 +4,7 @@ PR-8 adds an opt-in diagnostic adapter and immutable skill metadata. The adapter
 annotates the existing `FailureGraph`; the existing `SkillLifecycleStore` remains
 responsible for durable artifacts, execution receipts and held-out validation.
 Importing either module changes no runtime route, reward, recovery policy or case.
+PEO means prediction, execution and outcome.
 
 ## Localize a recorded failure
 
@@ -20,7 +21,9 @@ audit_payload = report.to_dict()
 `localize_failure_layers()` validates the full action-bound sequence, numeric PEO
 residuals, chronology and evaluation-unit identity. Each graph node must reference
 an event in the selected reconciliation's ancestry, use that event's timestamp and
-cite its recorded observable evidence. Typed evidence retains its source kind.
+cite its recorded observable evidence. The adapter rejects conflicting typed source
+kinds for the same evidence ID anywhere in that ancestry, including declarations
+in reconciliation inputs. Graph nodes also preserve those recorded source kinds.
 For legacy events with untyped reference IDs, the host remains responsible for the
 node's evidence-kind declaration. The host must also authenticate event producers,
 verifier identities and source contents; matching references cannot establish truth.
@@ -128,6 +131,12 @@ neither interface exposed this nine-layer sidecar or separate WHEN/HOW metadata.
 The expected benefit is more specific repair review. Contract tests establish scoping,
 norm protection and deterministic behavior; they do not establish diagnosis accuracy,
 calibration quality or improved task performance on real agents.
+
+For host integration review, trace event producers and evidence IDs through the host's
+authentication and source-resolution controls. Check that an agent-supplied replacement
+bank cannot overwrite host configuration, and that saved reports can be matched to their
+retained input window and graph by digest. These are manual host review checks; the pure
+record adapters do not implement authentication, configuration installation or archival.
 
 Validation: `python -m pytest -q tests/test_failure_layers.py tests/test_skill_bank.py`
 covers all nine reported layers, typed execution/authority/evidence/reporting findings,

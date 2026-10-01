@@ -70,3 +70,33 @@ integration fixture exposed the mismatch.
 Task 3 validation: 89 research registry and documentation consistency tests pass.
 ARISE is source 52. Its performance-based rubric retirement is explicitly excluded
 from foundational governance; source behavior and repository inference are separate.
+
+Whole-branch review: one fresh gpt-6-astra reviewer found an Important provenance gap:
+checking only a node's immediate event allowed reconciliation to relabel a private
+reference from a typed verifier input. Independently reproduced with a failing test;
+the adapter now rejects source-kind conflicts across the selected ancestry and compares
+node declarations to that shared provenance. No other actionable findings were raised.
+
+Ruling: Host producer authentication, replacement of trusted configuration, deployment
+and empirical source-benchmark reproduction remain outside this pure adapter's scope —
+the docs make these limits explicit — accepting those review exclusions adds no authority.
+
+Final validation after the review fix:
+
+- Full offline suite: 4048 passed, 18 skipped, 16 warnings (213.19 seconds).
+- Focused graph/lifecycle/reconciliation compatibility: 194 passed.
+- New tests: 58 passed; combined statement coverage 93%.
+- Research/documentation consistency: 89 passed, also covered by the final full suite.
+- Whole-repository Ruff and Black pass (598 Python files); CI-selected typing and
+  new-module typing pass. Changed Python lines are at most 100 characters.
+- Source distribution and wheel build pass. Installed-wheel smoke outside the checkout
+  verifies source hashes, updated guide, 52 references and exactly 17 cases; CLI help passes.
+- Documentation precision gate: PASS. Host-only obligations have explicit manual
+  integration review checks; source results and repository hypotheses are separate.
+- git diff --check passes. Remote main remains 2945b34.
+
+A lint run during the second package build observed its temporary source copy; rerunning
+after packaging completed passed. No temporary package files were edited or committed.
+
+The completed deliverable is a draft PR on codex/skill-failure-localization. No merge,
+automatic skill deployment, adaptive reward or PR-9 implementation is included.

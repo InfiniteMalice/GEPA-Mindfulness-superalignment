@@ -6,6 +6,10 @@ import pytest
 from test_epistemic_reconciliation import EVIDENCE, metadata, reconciliation, sequence
 
 from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
+from gepa_mindfulness.verification.epistemic_reconciliation import (
+    EpistemicReconciliation,
+    make_epistemic_reconciliation_event,
+)
 from gepa_mindfulness.verification.epistemic_state import MismatchStatus
 from gepa_mindfulness.verification.failure_graph import (
     FailureGraph,
@@ -219,6 +223,41 @@ def test_graph_cannot_relabel_typed_private_verifier_evidence_as_observable():
     with pytest.raises(ValueError, match="evidence"):
         diagnose(
             events, graph(event), (LayerClaim("failure", FailureLayer.EXECUTION, (EVIDENCE,)),)
+        )
+
+
+def test_reconciliation_cannot_launder_private_evidence_from_its_ancestry():
+    private = EvidenceReference("private-only", EvidenceSourceKind.PRIVATE_REASONING)
+    observable = replace(private, source_kind=EvidenceSourceKind.EXTERNAL_RECORD)
+    events, _ = negative_verifier("executed", evidence=private)
+    record = EpistemicReconciliation.from_dict(events[-1].payload)
+    record = replace(
+        record,
+        update=replace(
+            record.update,
+            evidence_refs=record.update.evidence_refs + (observable,),
+        ),
+    )
+    events[-1] = make_epistemic_reconciliation_event(
+        record,
+        event_id="r",
+        timestamp=events[-1].timestamp,
+    )
+    failure_graph = graph()
+    failure_graph = replace(
+        failure_graph,
+        nodes=(
+            replace(
+                failure_graph.nodes[0],
+                evidence_refs=(observable,),
+            ),
+        ),
+    )
+    with pytest.raises(ValueError, match="source kind"):
+        diagnose(
+            events,
+            failure_graph,
+            (LayerClaim("failure", FailureLayer.KNOWLEDGE_SKILL, (observable,)),),
         )
 
 

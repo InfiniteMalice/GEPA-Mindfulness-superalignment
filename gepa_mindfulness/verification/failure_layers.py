@@ -229,6 +229,15 @@ def localize_failure_layers(
         ancestry.add(identifier)
         pending.extend(by_id[identifier].parent_event_ids)
     record = EpistemicReconciliation.from_dict(selected.payload)
+    typed_sources = {
+        event.event_id: _typed_evidence(event) for event in events if event.event_id in ancestry
+    }
+    source_kinds: dict[str, str] = {}
+    for references in typed_sources.values():
+        for ref in references or ():
+            previous = source_kinds.setdefault(ref.reference_id, ref.source_kind.value)
+            if previous != ref.source_kind.value:
+                raise ValueError("evidence source kind conflicts across reconciliation ancestry")
     nodes = {node.failure_id: node for node in graph.nodes}
     for node in graph.nodes:
         if node.event_id not in ancestry:
@@ -243,13 +252,10 @@ def localize_failure_layers(
             for ref in node.evidence_refs
         ):
             raise ValueError("failure node evidence must be observable and recorded on its event")
-        typed_refs = _typed_evidence(event)
-        if typed_refs is not None and any(
-            ref not in typed_refs
-            or any(
-                other.reference_id == ref.reference_id and other.source_kind != ref.source_kind
-                for other in typed_refs
-            )
+        typed_refs = typed_sources[event.event_id]
+        if any(
+            (typed_refs is not None and ref not in typed_refs)
+            or source_kinds.get(ref.reference_id, ref.source_kind.value) != ref.source_kind.value
             for ref in node.evidence_refs
         ):
             raise ValueError("failure node evidence must preserve recorded source kinds")
