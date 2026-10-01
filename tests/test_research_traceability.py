@@ -211,9 +211,13 @@ EXPECTED_REFERENCES = (
     ("REF-MECHBENCH", "2609.35515", "MechBench"),
     ("REF-QUANTUM-THINK", "2609.23016", "Watching Quantum Models Think"),
     ("REF-CAT-SEARCH", "2609.25575", "Compute-Aligned Training for Search"),
+    ("REF-PAWS", "2609.28547", "PAWS"),
+    ("REF-4BIT-QUANTIZERS", "2609.25014", "Not All 4-bit Quantizers Are Equal"),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
+    "REF-4BIT-QUANTIZERS": ("REC-010",),
+    "REF-PAWS": ("REC-010",),
     "REF-CAT-SEARCH": ("REC-010",),
     "REF-P-TTT": ("REC-010", "REC-014"),
     "REF-MECHBENCH": ("REC-010", "REC-014"),
@@ -252,7 +256,7 @@ EXPECTED_RECOMMENDATION_LINKS = {
     "REF-DEEPO": ("REC-002", "REC-010"),
     "REF-FTA": ("REC-002", "REC-007", "REC-010"),
     "REF-PINNFORGE": ("REC-002", "REC-007"),
-    "REF-C3-JEPA": ("REC-002", "REC-014"),
+    "REF-C3-JEPA": ("REC-002", "REC-010", "REC-014"),
     "REF-AI-NEUROSCIENTIST": ("REC-002",),
     "REF-KALMAN": ("REC-002", "REC-010"),
     "REF-SOT": ("REC-010", "REC-015"),

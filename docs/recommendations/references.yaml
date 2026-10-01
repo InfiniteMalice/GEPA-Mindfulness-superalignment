@@ -789,10 +789,13 @@ references:
       a recorded mismatch, not deceptive motive; report residuals require future public-report telemetry.
       PR-8 adds layer-specific diagnostic hypotheses and review paths while retaining existing causal
       and persistence authority boundaries. PR-13 retains verified observations of failed actions for
-      next-decision assessment; offline proposals do not establish successful execution.
+      next-decision assessment; offline proposals do not establish successful execution. PR-14 reports
+      false success and fabricated details separately from action quality, with explicit failed-action
+      opportunities.
     maturity: Resolved arXiv preprint; PR-2 implements causal and verifier evidence checks. Report residuals
       and the paper's model experiment remain unimplemented. PR-13 implements opt-in decision learning
-      and contract tests; real-model effectiveness remains unmeasured.
+      and contract tests; real-model effectiveness remains unmeasured. PR-14 implements diagnostic report
+      contracts; empirical model effectiveness is unmeasured.
     local_repo_notes:
     - gepa_mindfulness/verification/epistemic_reconciliation.py
     - docs/epistemic_state.md
@@ -805,6 +808,9 @@ references:
     - evaluation/dynamic_uncertainty.py
     - tests/test_dynamic_uncertainty.py
     - docs/dynamic_uncertainty.md
+    - evaluation/ladder.py
+    - tests/test_evaluation_ladder.py
+    - docs/evaluation_ladder.md
   - reference_id: REF-PINNFORGE
     metadata_status: resolved
     supplied_title: PINNsForge
@@ -858,15 +864,18 @@ references:
     canonical_url: https://arxiv.org/abs/2609.30214
     recommendation_ids:
     - REC-002
+    - REC-010
     - REC-014
     source_demonstrates: The underwater world model uses binding guidance for identifiable task-object
       representations and reports representation and prediction evaluations.
     repository_inference: Make measurement correspondence explicit before comparing predicted and observed
       values. JSON path bindings do not validate learned representations or their semantic units. PR-11
       binds each behavioral intervention to one typed world variable without claiming a learned object
-      representation.
+      representation. PR-14 reports representation and prediction as independent stages without inferring
+      downstream competence.
     maturity: Resolved arXiv preprint; PR-2 implements explicit numeric outcome bindings. No JEPA backend,
-      rollout learner or robotics result is reproduced.
+      rollout learner or robotics result is reproduced. PR-14 implements diagnostic report contracts;
+      empirical model effectiveness is unmeasured.
     local_repo_notes:
     - gepa_mindfulness/verification/epistemic_reconciliation.py
     - docs/epistemic_state.md
@@ -875,6 +884,9 @@ references:
     - tests/test_relation_flip_worlds.py
     - tests/test_relation_flip_evaluation.py
     - docs/relation_flips.md
+    - evaluation/ladder.py
+    - tests/test_evaluation_ladder.py
+    - docs/evaluation_ladder.md
   - reference_id: REF-AI-NEUROSCIENTIST
     metadata_status: resolved
     supplied_title: "AI Neuroscientist"
@@ -920,10 +932,12 @@ references:
     repository_inference: Retain uncertainty as trajectory diagnostics. Scalar numeric residuals do
       not reproduce graph-based reasoning uncertainty or establish semantic calibration. PR-13 stratifies
       longitudinal decision evaluation without extracting private reasoning graphs or using uncertainty
-      as reward.
+      as reward. PR-14 reports temporal and calibration diagnostics separately without collecting private
+      reasoning graphs.
     maturity: Resolved arXiv preprint; PR-3 implements opt-in scalar diagnostics. No reasoning-graph
       extraction, private-chain-of-thought reward or GRUET experiment is implemented. PR-13 implements
-      opt-in decision learning and contract tests; real-model effectiveness remains unmeasured.
+      opt-in decision learning and contract tests; real-model effectiveness remains unmeasured. PR-14
+      implements diagnostic report contracts; empirical model effectiveness is unmeasured.
     local_repo_notes:
     - gepa_mindfulness/verification/temporal_estimator.py
     - docs/temporal_estimator.md
@@ -931,6 +945,9 @@ references:
     - evaluation/dynamic_uncertainty.py
     - tests/test_dynamic_uncertainty.py
     - docs/dynamic_uncertainty.md
+    - evaluation/ladder.py
+    - tests/test_evaluation_ladder.py
+    - docs/evaluation_ladder.md
   - reference_id: REF-DUAL-FRONTIER
     metadata_status: "resolved"
     supplied_title: "Dual-Frontier"
@@ -2072,10 +2089,12 @@ references:
       interventions and reject uninformative pairs. Behavioral sensitivity does not establish internal
       mechanism recovery; no symbolic scientific discovery system is reproduced. PR-12 admits only decisive
       relation changes as causal negatives; observable ranking margins do not establish internal mechanism
+      recovery. PR-14 keeps behavioral counterfactual results separate and never promotes them to mechanism
       recovery.
     maturity: Resolved arXiv preprint; experimental opt-in behavioral counterfactual diagnostics. Contract
       tests do not establish internal mechanism recovery or reproduce source results. PR-12 contract
-      and CPU wiring tests are implemented; learned comparative effectiveness remains unmeasured.
+      and CPU wiring tests are implemented; learned comparative effectiveness remains unmeasured. PR-14
+      implements diagnostic report contracts; empirical model effectiveness is unmeasured.
     local_repo_notes:
     - synthetic_data/relation_flips.py
     - evaluation/relation_flips.py
@@ -2089,6 +2108,9 @@ references:
     - tests/test_contrastive_negatives.py
     - tests/test_contrastive_evaluation.py
     - docs/contrastive_training.md
+    - evaluation/ladder.py
+    - tests/test_evaluation_ladder.py
+    - docs/evaluation_ladder.md
   - reference_id: REF-QUANTUM-THINK
     metadata_status: resolved
     supplied_title: Watching Quantum Models Think
@@ -2145,3 +2167,64 @@ references:
     - evaluation/dynamic_uncertainty.py
     - tests/test_dynamic_uncertainty.py
     - docs/dynamic_uncertainty.md
+
+  - reference_id: REF-PAWS
+    metadata_status: resolved
+    supplied_title: PAWS
+    title: 'PAWS: Policy-driven Agentic World Simulation'
+    authors:
+    - Tiviatis Sim
+    - Jia Hui Woon
+    - Xinming Gao
+    - Chen Gao
+    - Fengbin Zhu
+    - Zheng Huanhuan
+    - Chua Tat Seng
+    - Kenji Kawaguchi
+    year: 2026
+    arxiv_id: '2609.28547'
+    doi: 10.48550/arXiv.2609.28547
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2609.28547
+    recommendation_ids:
+    - REC-010
+    source_demonstrates: Policy replay compares predictions with source-grounded stakeholder actions.
+      Majority predictions can achieve high accuracy while missing active events; the study reports
+      active-event recall and timing diagnostics.
+    repository_inference: PR-14 uses declared opportunity denominators and separate severe-event inventories
+      so ordinary successes do not obscure rare failures. This is a reporting contract, not a financial
+      simulation reproduction.
+    maturity: Resolved arXiv preprint; experimental offline reporting contracts are implemented. Domain
+      replay and model effectiveness remain unmeasured.
+    local_repo_notes:
+    - evaluation/ladder.py
+    - tests/test_evaluation_ladder.py
+    - docs/evaluation_ladder.md
+
+  - reference_id: REF-4BIT-QUANTIZERS
+    metadata_status: resolved
+    supplied_title: Not All 4-bit Quantizers Are Equal
+    title: 'Not All 4-bit Quantizers Are Equal: Deployment-Time Mitigation of PII Leakage in Fine-Tuned
+      Small Language Models'
+    authors:
+    - Cristhian Kapelinski
+    - Diego Kreutz
+    year: 2026
+    arxiv_id: '2609.25014'
+    doi: 10.48550/arXiv.2609.25014
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2609.25014
+    recommendation_ids:
+    - REC-010
+    source_demonstrates: The evaluated quantization methods differ in planted-record extraction under
+      the tested deployment settings despite limited changes in general accuracy. Controlled analyses
+      associate these differences with calibration-induced rounding error in rare-token channels.
+    repository_inference: PR-14 preserves severe-event strata and individual captures alongside ordinary
+      metrics. Similar aggregate utility does not establish equal rare-event behavior or deployment
+      privacy.
+    maturity: Resolved arXiv preprint; experimental reporting contracts are implemented. No quantizer,
+      extraction attack or privacy protection is implemented or reproduced.
+    local_repo_notes:
+    - evaluation/ladder.py
+    - tests/test_evaluation_ladder.py
+    - docs/evaluation_ladder.md
