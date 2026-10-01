@@ -312,12 +312,20 @@ recommendations:
     research_refs:
       - REF-COEVOLVE
       - REF-HOH
+      - REF-QWEN-PLANNER
+      - REF-TABPFN-35
+      - REF-CHART
+      - REF-SPECTRAL-GROKKING
+      - REF-LOW-BIT-OPD
     repo_refs:
       - gepa_mindfulness/training/eligibility.py
       - gepa_mindfulness/learning_surfaces.py
       - gepa_mindfulness/skill_lifecycle.py
       - gepa_mindfulness/coevolution.py
       - docs/controlled_evolution.md
+      - gepa_mindfulness/training/peo_curriculum.py
+      - gepa_mindfulness/participatory_agency/training/curriculum.py
+      - docs/peo_curriculum.md
     acceptance_tests:
       - tests/test_training_eligibility.py
       - tests/test_synthetic_v5_provenance.py
@@ -326,11 +334,15 @@ recommendations:
       - tests/test_verified_skill_lifecycle.py
       - tests/test_verified_skill_lifecycle_review.py
       - tests/test_model_harness_coevolution.py
+      - tests/test_peo_curriculum.py
+      - tests/test_rl_engine_cpu.py
     implementation_refs:
       - gepa_mindfulness/training/eligibility.py
       - gepa_mindfulness/learning_surfaces.py
       - gepa_mindfulness/skill_lifecycle.py
       - gepa_mindfulness/coevolution.py
+      - gepa_mindfulness/training/peo_curriculum.py
+      - gepa_mindfulness/participatory_agency/training/curriculum.py
 
   - id: REC-011
     title: "Multiple competing hypotheses + information-gain inquiry."

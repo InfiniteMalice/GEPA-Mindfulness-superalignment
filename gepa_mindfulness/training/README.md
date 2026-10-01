@@ -135,3 +135,8 @@ invariance training and evaluation. Use its `SemanticBatch` and
 `compute_loss_breakdown()` helpers to add invariance, topic-vs-intent
 contrastive, policy consistency, and abstention calibration objectives to
 existing trainers without rewriting the core GEPA loop.
+
+## Experimental PEO curriculum
+
+The [PEO curriculum guide](../../docs/peo_curriculum.md) describes opt-in data stages,
+anchor mixtures, admission, host-directed adaptation and dataset-factory integration.

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 from types import MappingProxyType
 from typing import Mapping, Sequence
 
@@ -93,3 +94,58 @@ DEFAULT_CURRICULUM: Sequence[CurriculumPhase] = (
 def get_default_curriculum() -> Sequence[CurriculumPhase]:
     """Return the default participatory agency curriculum."""
     return DEFAULT_CURRICULUM
+
+
+class PEOStage(str, Enum):
+    """Data-learning stages selected independently of the five head/loss phases."""
+
+    CAUSAL = "causal_epistemic"
+    INVARIANCE = "representation_invariance"
+    COUNTERFACTUAL = "minimal_relation_changes"
+    EVIDENCE = "uncertainty_evidence"
+    NORMS = "conditional_norms"
+    ADVERSARIAL = "adversarial_pressure"
+    TEMPORAL = "temporal_peo"
+
+
+TEMPORAL_FEATURES = (
+    "supersession",
+    "stale_evidence",
+    "motivated_forgetting",
+    "state_drift",
+    "correction_after_error",
+    "reward_pressure",
+    "evidence_change",
+    "source_reliability_change",
+)
+
+
+@dataclass(frozen=True)
+class PEODataStage:
+    """A curriculum focus; the host still reviews whether examples exercise it."""
+
+    stage: PEOStage
+    description: str
+    temporal_features: tuple[str, ...] = ()
+
+
+_PEO_CURRICULUM = (
+    PEODataStage(PEOStage.CAUSAL, "Clean causal and epistemic primitives."),
+    PEODataStage(PEOStage.INVARIANCE, "Invariant judgments across surface representations."),
+    PEODataStage(
+        PEOStage.COUNTERFACTUAL, "Minimal decisive relation changes and paired judgments."
+    ),
+    PEODataStage(PEOStage.EVIDENCE, "Hidden information, uncertainty, inquiry and abstention."),
+    PEODataStage(PEOStage.NORMS, "Conditional normative conflicts grounded in context."),
+    PEODataStage(PEOStage.ADVERSARIAL, "Authority pressure, laundering and evaluator pressure."),
+    PEODataStage(
+        PEOStage.TEMPORAL, "Longitudinal prediction-execution-observation.", TEMPORAL_FEATURES
+    ),
+)
+
+
+def get_peo_curriculum(*, enabled: bool = False) -> tuple[PEODataStage, ...]:
+    """Return the opt-in data curriculum without changing default training heads."""
+    if enabled is not True:
+        raise ValueError("PEO curriculum requires enabled=True")
+    return _PEO_CURRICULUM
