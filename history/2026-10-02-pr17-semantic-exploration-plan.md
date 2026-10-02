@@ -67,3 +67,28 @@ Cost: behavioral usefulness remains unmeasured and defaults need empirical tunin
   retained, one Night Science entry added. 69 references, 19 recommendations, 17 canonical cases.
 - Wheel/sdist build and installed-wheel exact module/guide/registry/example/CLI/no-Torch smoke pass.
 - Full Torch-enabled suite: 4625 passed, 18 skipped, 16 warnings in 227.68 seconds.
+
+## Independent review
+
+Fresh gpt-6-astra/high read-only review of 2c89b34..634fa0f found no Critical, Important or Minor
+code findings. It independently ran 117 tests, Unicode/control-character/numeric-subclass/admission
+probes, and diff checks. It reviewed all 14 files and four primary research sources.
+
+Final: Ruling (declined to judge): Empirical usefulness/calibration remains unmeasured; host gains,
+diversity and thresholds are experimental declarations. Cost: contract success does not imply better inquiry.
+Final: Ruling (declined to judge): Provenance truth and semantic action conformance remain host-owned.
+Cost: structurally valid false claims or mislabeled actions can yield a misleading proposal.
+Final: Ruling (declined to judge): Execution-time staleness and repeated-call spending remain host-owned;
+the API neither executes nor reserves budget. Cost: hosts must revalidate and account for real spending.
+Final: Ruling (declined to judge): Preserve the complete result's eligibility envelope for admission.
+The existing closed legacy diagnostic schema omits eligibility and existing admission accepts untagged
+records; keep compatibility and admission defaults unchanged. The guide now explicitly prohibits
+sending extracted diagnostics to an optimizer. Cost: discarding the envelope also discards the restriction.
+Final: Ruling (declined to judge): Legacy record_id is a fixed compatibility label, while request/candidate
+IDs identify decisions in the enclosing result. Cost: hosts must retain those IDs for cross-call storage.
+Final: Ruling (declined to judge): PR-18 self-improvement remains outside PR-17. Cost: this stage supplies
+no automatic execution, learning or persistence mechanism.
+Final: minor (deferred): none.
+Documentation clarification only after review; no code or test changes. No unresolved documentation blocks.
+Existing cleanup policy restriction retains ignored review scratch; tracked product files are unaffected.
+Final guide clarification: wheel/sdist rebuilt; installed-wheel example, exact resource/module inventory, CLI and no-Torch import smoke pass. Implementation verification remains 4625 passing tests; no code changed after review.

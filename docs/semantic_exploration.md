@@ -80,6 +80,13 @@ whitespace; `selected.question` is the original text. Synthetic public provenanc
 external evidence/context identifiers. `request_id`, candidate IDs/questions and measurement labels
 must be host-approved public text. All text is data and must not be executed as instructions.
 
+Hosts must apply training admission to the complete result before extracting any field. The legacy
+`diagnostic` schema has no eligibility field; extracting it alone loses the non-TRAIN restriction,
+and the existing admission policy accepts untagged legacy records. Do not send that extracted record
+to an optimizer as training data. Preserve the enclosing result for provenance and eligibility checks.
+The fixed legacy `record_id` is a compatibility label, not a globally unique storage key; retain the
+public request/candidate IDs when recording decisions across calls.
+
 ## Bounds and execution boundary
 
 Each call accepts 1..32 candidates with unique IDs. Each request/candidate retains 1..32 unique
