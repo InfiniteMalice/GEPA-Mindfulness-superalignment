@@ -406,6 +406,9 @@ recommendations:
       - REF-SRHARNESS
       - REF-DOATLAS-2
       - REF-ABGAZE
+      - REF-LADDER
+      - REF-REASONING-TOPOLOGY
+      - REF-NIGHT-SCIENCE
     repo_refs:
       - evaluation/experimental_overlays.py
       - evaluation/experimental_records.py
@@ -413,17 +416,21 @@ recommendations:
       - gepa_mindfulness/verification/hypothesis_records.py
       - gepa_mindfulness/verification/hypothesis_state.py
       - docs/hypothesis_state.md
+      - gepa_mindfulness/verification/semantic_exploration.py
+      - docs/semantic_exploration.md
     acceptance_tests:
       - tests/test_experimental_overlay_registry.py
       - tests/test_experimental_overlay_flags.py
       - tests/test_experimental_overlay_records.py
       - tests/test_hypothesis_state.py
+      - tests/test_semantic_exploration.py
     implementation_refs:
       - evaluation/experimental_overlays.py
       - evaluation/experimental_records.py
       - docs/experimental_v5_overlays.md
       - gepa_mindfulness/verification/hypothesis_records.py
       - gepa_mindfulness/verification/hypothesis_state.py
+      - gepa_mindfulness/verification/semantic_exploration.py
 
   - id: REC-012
     title: "Small adaptive multi-agent topology codebook."

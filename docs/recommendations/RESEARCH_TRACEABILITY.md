@@ -1120,14 +1120,14 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - arXiv: [`2609.24346`](https://arxiv.org/abs/2609.24346)
 - DOI: `10.48550/arXiv.2609.24346`
 - Venue/status: Not supplied by official arXiv metadata.
-- Recommendations influenced: `REC-008`
-- Local repository notes: [epistemic_routing.py](../../gepa_mindfulness/factuality_observability/epistemic_routing.py), [system_one_benchmark.py](../../evaluation/system_one_benchmark.py), [test_epistemic_routing.py](../../tests/test_epistemic_routing.py), [test_system_one_benchmark.py](../../tests/test_system_one_benchmark.py), [system_one_routing.md](../system_one_routing.md)
+- Recommendations influenced: `REC-008`, `REC-011`
+- Local repository notes: [epistemic_routing.py](../../gepa_mindfulness/factuality_observability/epistemic_routing.py), [system_one_benchmark.py](../../evaluation/system_one_benchmark.py), [test_epistemic_routing.py](../../tests/test_epistemic_routing.py), [test_system_one_benchmark.py](../../tests/test_system_one_benchmark.py), [system_one_routing.md](../system_one_routing.md), [semantic_exploration.py](../../gepa_mindfulness/verification/semantic_exploration.py), [test_semantic_exploration.py](../../tests/test_semantic_exploration.py), [semantic_exploration.md](../semantic_exploration.md)
 
 **Source demonstrates:** LADDER triggers graph retrieval when graph-linkable entities expand during diffusion decoding and propagates incomplete queries through a graph model. The retrieval trigger bypasses learned gates and heuristic thresholds.
 
-**Repository inference:** Reconsider routing when recorded uncertainty or mismatch requires more evidence. These host thresholds are a distinct hypothesis, not a reproduction of diffusion decoding or self-clocking retrieval.
+**Repository inference:** Reconsider routing when recorded uncertainty or mismatch requires more evidence. These host thresholds are a distinct hypothesis, not a reproduction of diffusion decoding or self-clocking retrieval. PR-17 defers inquiry when the host reports unchanged relevant evidence. This boolean declaration is not a diffusion-state entity detector.
 
-**Maturity:** Experimental opt-in routing adapter. Synthetic contract comparisons do not establish learned-backend quality, alignment or source-benchmark reproduction.
+**Maturity:** Experimental opt-in routing adapter. Synthetic contract comparisons do not establish learned-backend quality, alignment or source-benchmark reproduction. PR-17 adds experimental inquiry proposals; behavioral usefulness is unmeasured.
 
 <a id="ref-reasoning-topology"></a>
 
@@ -1140,14 +1140,14 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - arXiv: [`2609.24710`](https://arxiv.org/abs/2609.24710)
 - DOI: `10.48550/arXiv.2609.24710`
 - Venue/status: Accepted at AIAIS 2027.
-- Recommendations influenced: `REC-008`
-- Local repository notes: [epistemic_routing.py](../../gepa_mindfulness/factuality_observability/epistemic_routing.py), [system_one_benchmark.py](../../evaluation/system_one_benchmark.py), [test_epistemic_routing.py](../../tests/test_epistemic_routing.py), [test_system_one_benchmark.py](../../tests/test_system_one_benchmark.py), [system_one_routing.md](../system_one_routing.md)
+- Recommendations influenced: `REC-008`, `REC-011`
+- Local repository notes: [epistemic_routing.py](../../gepa_mindfulness/factuality_observability/epistemic_routing.py), [system_one_benchmark.py](../../evaluation/system_one_benchmark.py), [test_epistemic_routing.py](../../tests/test_epistemic_routing.py), [test_system_one_benchmark.py](../../tests/test_system_one_benchmark.py), [system_one_routing.md](../system_one_routing.md), [semantic_exploration.py](../../gepa_mindfulness/verification/semantic_exploration.py), [test_semantic_exploration.py](../../tests/test_semantic_exploration.py), [semantic_exploration.md](../semantic_exploration.md)
 
 **Source demonstrates:** The source compares linear, branching and graph reasoning prompts across three cybersecurity datasets and several model families. Reported gains are conditional on the evaluated tasks and prompting setup.
 
-**Repository inference:** A mismatch requests hypothesis reconsideration through the existing decompose-and-verify route. This adapter does not select or claim to execute a universally superior reasoning topology.
+**Repository inference:** A mismatch requests hypothesis reconsideration through the existing decompose-and-verify route. This adapter does not select or claim to execute a universally superior reasoning topology. PR-17 compares explicit semantic exploration candidates within host constraints without assuming a universally best reasoning structure.
 
-**Maturity:** Experimental opt-in routing adapter. Synthetic contract comparisons do not establish learned-backend quality, alignment or source-benchmark reproduction.
+**Maturity:** Experimental opt-in routing adapter. Synthetic contract comparisons do not establish learned-backend quality, alignment or source-benchmark reproduction. PR-17 adds experimental inquiry proposals; behavioral usefulness is unmeasured.
 
 <a id="ref-arise"></a>
 
@@ -1461,13 +1461,13 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - DOI: `10.48550/arXiv.2609.35107`
 - Venue/status: Technical report
 - Recommendations influenced: `REC-011`
-- Local repository notes: [hypothesis_records.py](../../gepa_mindfulness/verification/hypothesis_records.py), [hypothesis_state.py](../../gepa_mindfulness/verification/hypothesis_state.py), [test_hypothesis_state.py](../../tests/test_hypothesis_state.py), [hypothesis_state.md](../hypothesis_state.md)
+- Local repository notes: [hypothesis_records.py](../../gepa_mindfulness/verification/hypothesis_records.py), [hypothesis_state.py](../../gepa_mindfulness/verification/hypothesis_state.py), [test_hypothesis_state.py](../../tests/test_hypothesis_state.py), [hypothesis_state.md](../hypothesis_state.md), [semantic_exploration.py](../../gepa_mindfulness/verification/semantic_exploration.py), [test_semantic_exploration.py](../../tests/test_semantic_exploration.py), [semantic_exploration.md](../semantic_exploration.md)
 
 **Source demonstrates:** External population evidence supports, challenges or leaves unresolved causal hypotheses, revising mechanistic interpretations, evidence state and the discovery frontier.
 
-**Repository inference:** PR-16 records evidence-linked assessment statuses and explicit supersession while retaining disagreement. No biomedical inference or clinical result is transferred.
+**Repository inference:** PR-16 records evidence-linked assessment statuses and explicit supersession while retaining disagreement. No biomedical inference or clinical result is transferred. PR-17 requires evidence-linked host declarations for inquiry gain, evidence gap and hypothesis diversity; no biomedical analysis is transferred.
 
-**Maturity:** Resolved arXiv source; experimental opt-in history, Pareto and projection contracts are implemented. Behavioral effectiveness remains unmeasured.
+**Maturity:** Resolved arXiv source; experimental opt-in history, Pareto and projection contracts are implemented. Behavioral effectiveness remains unmeasured. PR-17 adds experimental inquiry proposals; behavioral usefulness is unmeasured.
 
 <a id="ref-abgaze"></a>
 
@@ -1488,3 +1488,23 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 **Repository inference:** PR-16 uses only the domain analogy that distinct dimensions can matter: seven diagnostic axes remain separate. No antibody-design algorithm, geometry or effectiveness result is reproduced.
 
 **Maturity:** Resolved arXiv source; experimental opt-in history, Pareto and projection contracts are implemented. Behavioral effectiveness remains unmeasured.
+
+<a id="ref-night-science"></a>
+
+## REF-NIGHT-SCIENCE — Reinforcing Agentic Creativity in Scientific Ideation with Night Science
+
+- Metadata status: `resolved`
+- Supplied title: Reinforcing Agentic Creativity in Scientific Ideation with Night Science
+- Authors: Priyanka Kargupta, Silviu Cucerzan, Shweti Mahajan, Allen Herring, Jiawei Han, Ryen W. White, Sujay Kumar Jauhar
+- Year: 2026
+- arXiv: [`2609.35706`](https://arxiv.org/abs/2609.35706)
+- DOI: `10.48550/arXiv.2609.35706`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-011`
+- Local repository notes: [semantic_exploration.py](../../gepa_mindfulness/verification/semantic_exploration.py), [test_semantic_exploration.py](../../tests/test_semantic_exploration.py), [semantic_exploration.md](../semantic_exploration.md)
+
+**Source demonstrates:** Sections 3.1/3.2 define action-specific semantic creativity levels for search, debate and spark. Section 4.4.5 compares semantic guidance with temperature-based exploration in scientific ideation.
+
+**Repository inference:** PR-17 exposes bounded semantic action scopes and uses host-declared gain, stakes, reversibility and compute constraints. No RL, process reward or novelty reward is transferred.
+
+**Maturity:** Experimental opt-in proposal selector with matched contract tests. Calibration and behavioral effectiveness remain unmeasured.

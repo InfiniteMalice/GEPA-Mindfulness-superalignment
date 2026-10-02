@@ -1667,15 +1667,27 @@ references:
     canonical_url: https://arxiv.org/abs/2609.24346
     recommendation_ids:
     - REC-008
-    source_demonstrates: LADDER triggers graph retrieval when graph-linkable entities expand during diffusion
-      decoding and propagates incomplete queries through a graph model. The retrieval trigger bypasses learned
-      gates and heuristic thresholds.
+    - REC-011
+    source_demonstrates: LADDER triggers graph retrieval when graph-linkable entities expand during
+      diffusion decoding and propagates incomplete queries through a graph model. The retrieval trigger
+      bypasses learned gates and heuristic thresholds.
     repository_inference: Reconsider routing when recorded uncertainty or mismatch requires more evidence.
       These host thresholds are a distinct hypothesis, not a reproduction of diffusion decoding or self-clocking
-      retrieval.
+      retrieval. PR-17 defers inquiry when the host reports unchanged relevant evidence. This boolean
+      declaration is not a diffusion-state entity detector.
     maturity: Experimental opt-in routing adapter. Synthetic contract comparisons do not establish learned-backend
-      quality, alignment or source-benchmark reproduction.
-    local_repo_notes: *id001
+      quality, alignment or source-benchmark reproduction. PR-17 adds experimental inquiry proposals;
+      behavioral usefulness is unmeasured.
+    local_repo_notes:
+    - gepa_mindfulness/factuality_observability/epistemic_routing.py
+    - evaluation/system_one_benchmark.py
+    - tests/test_epistemic_routing.py
+    - tests/test_system_one_benchmark.py
+    - docs/system_one_routing.md
+    - gepa_mindfulness/verification/semantic_exploration.py
+    - tests/test_semantic_exploration.py
+    - docs/semantic_exploration.md
+
   - reference_id: REF-REASONING-TOPOLOGY
     metadata_status: resolved
     supplied_title: Reasoning Topology Matters
@@ -1693,14 +1705,27 @@ references:
     canonical_url: https://arxiv.org/abs/2609.24710
     recommendation_ids:
     - REC-008
+    - REC-011
     source_demonstrates: The source compares linear, branching and graph reasoning prompts across three
       cybersecurity datasets and several model families. Reported gains are conditional on the evaluated
       tasks and prompting setup.
     repository_inference: A mismatch requests hypothesis reconsideration through the existing decompose-and-verify
       route. This adapter does not select or claim to execute a universally superior reasoning topology.
+      PR-17 compares explicit semantic exploration candidates within host constraints without assuming
+      a universally best reasoning structure.
     maturity: Experimental opt-in routing adapter. Synthetic contract comparisons do not establish learned-backend
-      quality, alignment or source-benchmark reproduction.
-    local_repo_notes: *id001
+      quality, alignment or source-benchmark reproduction. PR-17 adds experimental inquiry proposals;
+      behavioral usefulness is unmeasured.
+    local_repo_notes:
+    - gepa_mindfulness/factuality_observability/epistemic_routing.py
+    - evaluation/system_one_benchmark.py
+    - tests/test_epistemic_routing.py
+    - tests/test_system_one_benchmark.py
+    - docs/system_one_routing.md
+    - gepa_mindfulness/verification/semantic_exploration.py
+    - tests/test_semantic_exploration.py
+    - docs/semantic_exploration.md
+
   - reference_id: REF-ARISE
     metadata_status: resolved
     supplied_title: ARISE
@@ -2348,14 +2373,20 @@ references:
     source_demonstrates: External population evidence supports, challenges or leaves unresolved causal
       hypotheses, revising mechanistic interpretations, evidence state and the discovery frontier.
     repository_inference: PR-16 records evidence-linked assessment statuses and explicit supersession
-      while retaining disagreement. No biomedical inference or clinical result is transferred.
+      while retaining disagreement. No biomedical inference or clinical result is transferred. PR-17
+      requires evidence-linked host declarations for inquiry gain, evidence gap and hypothesis diversity;
+      no biomedical analysis is transferred.
     maturity: Resolved arXiv source; experimental opt-in history, Pareto and projection contracts are
-      implemented. Behavioral effectiveness remains unmeasured.
+      implemented. Behavioral effectiveness remains unmeasured. PR-17 adds experimental inquiry proposals;
+      behavioral usefulness is unmeasured.
     local_repo_notes:
     - gepa_mindfulness/verification/hypothesis_records.py
     - gepa_mindfulness/verification/hypothesis_state.py
     - tests/test_hypothesis_state.py
     - docs/hypothesis_state.md
+    - gepa_mindfulness/verification/semantic_exploration.py
+    - tests/test_semantic_exploration.py
+    - docs/semantic_exploration.md
 
   - reference_id: REF-ABGAZE
     metadata_status: resolved
@@ -2385,3 +2416,34 @@ references:
     - gepa_mindfulness/verification/hypothesis_state.py
     - tests/test_hypothesis_state.py
     - docs/hypothesis_state.md
+
+  - reference_id: REF-NIGHT-SCIENCE
+    metadata_status: resolved
+    supplied_title: Reinforcing Agentic Creativity in Scientific Ideation with Night Science
+    title: Reinforcing Agentic Creativity in Scientific Ideation with Night Science
+    authors:
+    - Priyanka Kargupta
+    - Silviu Cucerzan
+    - Shweti Mahajan
+    - Allen Herring
+    - Jiawei Han
+    - Ryen W. White
+    - Sujay Kumar Jauhar
+    year: 2026
+    arxiv_id: '2609.35706'
+    doi: 10.48550/arXiv.2609.35706
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2609.35706
+    recommendation_ids:
+    - REC-011
+    source_demonstrates: Sections 3.1/3.2 define action-specific semantic creativity levels for search,
+      debate and spark. Section 4.4.5 compares semantic guidance with temperature-based exploration
+      in scientific ideation.
+    repository_inference: PR-17 exposes bounded semantic action scopes and uses host-declared gain,
+      stakes, reversibility and compute constraints. No RL, process reward or novelty reward is transferred.
+    maturity: Experimental opt-in proposal selector with matched contract tests. Calibration and behavioral
+      effectiveness remain unmeasured.
+    local_repo_notes:
+    - gepa_mindfulness/verification/semantic_exploration.py
+    - tests/test_semantic_exploration.py
+    - docs/semantic_exploration.md
