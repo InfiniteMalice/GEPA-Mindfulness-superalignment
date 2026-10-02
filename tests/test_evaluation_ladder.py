@@ -334,6 +334,39 @@ def test_largest_finite_measurements_have_a_finite_accurate_mean():
     assert group(report(probes, captures), metric)["mean"] == pytest.approx(1 / 3)
 
 
+@pytest.mark.parametrize(
+    "metric",
+    [
+        Metric.RESIDUAL,
+        Metric.UPDATE_MAGNITUDE,
+        Metric.INTERVENTION_LATENCY,
+        Metric.UPDATE_LATENCY,
+    ],
+)
+@pytest.mark.parametrize("value", [2**53 + 1, 2**54 + 2])
+def test_numeric_summaries_reject_inexact_integer_conversion(metric, value):
+    """Do not report rounded statistics for an integer retained exactly in the capture."""
+    with pytest.raises(ValueError, match="exactly representable"):
+        report([probe(metric=metric)], [observation(value=value)])
+
+
+def test_numeric_summaries_reject_inexact_negative_integer_conversion():
+    """Negative residuals obey the same exact-conversion requirement."""
+    with pytest.raises(ValueError, match="exactly representable"):
+        report([probe(metric=Metric.RESIDUAL)], [observation(value=-(2**53 + 1))])
+
+
+@pytest.mark.parametrize("value", [2**53, 2**53 + 2, 2**60, -(2**53 + 2)])
+def test_numeric_summaries_accept_exact_large_integers(value):
+    """Exact integer-to-float conversion keeps all distribution statistics consistent."""
+    result = report([probe(metric=Metric.RESIDUAL)], [observation(value=value)])
+    summary = group(result, Metric.RESIDUAL)
+    assert result["rows"][0]["value"] == value
+    for name in ("mean", "min", "max", "p95"):
+        assert summary[name] == value
+    assert summary["max_absolute"] == abs(value)
+
+
 def test_evidence_serialization_never_invokes_instance_overrides():
     """Mutable legacy instance dictionaries cannot inject callbacks or private evidence."""
     capture = observation(value=True)

@@ -100,6 +100,9 @@ the high-confidence opportunities declared by the host; its denominator is diffe
 
 Scalars are finite; magnitudes and latencies are nonnegative. Numeric groups return count
 (`completed`), mean, minimum, maximum, nearest-rank p95, and maximum absolute value.
+The evaluator rejects integer measurements when conversion to a Python float would change
+their value. For example, `2**53 + 1` is rejected, while `2**60` is accepted because its
+conversion is exact. Summary statistics use floating-point arithmetic.
 Every group is separated by metric, cohort, severity and unit. The API does not pool units
 or treat small residuals, large uncertainty changes, or short latencies as automatic success.
 Probability and binary units must be `fraction`; latency units must be `seconds`.

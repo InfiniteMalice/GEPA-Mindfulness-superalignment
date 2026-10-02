@@ -178,6 +178,8 @@ def _validate_value(probe: Probe, capture: Observation) -> None:
         finite = False
     if not finite:
         raise ValueError("numeric measurements must be finite")
+    if type(value) is int and int(float(value)) != value:
+        raise ValueError("integer measurements must be exactly representable as a float")
     if kind == "probability" and not 0 <= value <= 1:
         raise ValueError("probabilities must be within [0, 1]")
     if kind in ("magnitude", "latency") and value < 0:
