@@ -672,15 +672,15 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - arXiv: [`2609.26293`](https://arxiv.org/abs/2609.26293)
 - DOI: `10.48550/arXiv.2609.26293`
 - Venue/status: Not supplied by official arXiv metadata.
-- Recommendations influenced: `REC-002`
-- Local repository notes: [scalar estimator](../../gepa_mindfulness/verification/temporal_estimator.py), [guide](../temporal_estimator.md)
+- Recommendations influenced: `REC-002`, `REC-011`
+- Local repository notes: [temporal_estimator.py](../../gepa_mindfulness/verification/temporal_estimator.py), [temporal_estimator.md](../temporal_estimator.md), [hypothesis_records.py](../../gepa_mindfulness/verification/hypothesis_records.py), [hypothesis_state.py](../../gepa_mindfulness/verification/hypothesis_state.py), [test_hypothesis_state.py](../../tests/test_hypothesis_state.py), [hypothesis_state.md](../hypothesis_state.md)
 - Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.26293v1), 2026-09-30.
 
 **Source demonstrates:** The paper analyzes policy-versus-world-model error ambiguity and proposes conditional decision admission using predicted advantage and calibrated model-error bounds.
 
-**Repository inference:** Keep model mismatch explicit and separate numerical confidence from decision authority. A small scalar variance cannot certify an agent decision.
+**Repository inference:** Keep model mismatch explicit and separate numerical confidence from decision authority. A small scalar variance cannot certify an agent decision. PR-16 preserves competing policy/model explanations and diagnostic trade-offs without allowing Pareto status to grant decision authority.
 
-**Maturity:** Resolved arXiv preprint; PR-3 implements mismatch statuses and a latched insufficient-model state. No decision-admission certificate or published agent-performance result is reproduced.
+**Maturity:** Resolved arXiv preprint; PR-3 implements mismatch statuses and a latched insufficient-model state. No decision-admission certificate or published agent-performance result is reproduced. PR-16 adds experimental multi-hypothesis history and projection contracts; model effectiveness remains unmeasured.
 
 <a id="ref-deepo"></a>
 
@@ -1220,14 +1220,14 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - arXiv: [`2609.23381`](https://arxiv.org/abs/2609.23381)
 - DOI: `10.48550/arXiv.2609.23381`
 - Venue/status: Not supplied by official arXiv metadata.
-- Recommendations influenced: `REC-005`, `REC-010`
-- Local repository notes: [worlds.py](../../synthetic_data/worlds.py), [world_peo.py](../../synthetic_data/world_peo.py), [test_synthetic_worlds.py](../../tests/test_synthetic_worlds.py), [test_synthetic_world_peo.py](../../tests/test_synthetic_world_peo.py), [synthetic_worlds.md](../synthetic_worlds.md), [contrastive.py](../../gepa_mindfulness/training/contrastive.py), [contrastive_negatives.py](../../synthetic_data/contrastive_negatives.py), [contrastive.py](../../evaluation/contrastive.py), [test_contrastive_training.py](../../tests/test_contrastive_training.py), [test_contrastive_negatives.py](../../tests/test_contrastive_negatives.py), [test_contrastive_evaluation.py](../../tests/test_contrastive_evaluation.py), [contrastive_training.md](../contrastive_training.md)
+- Recommendations influenced: `REC-005`, `REC-010`, `REC-011`
+- Local repository notes: [worlds.py](../../synthetic_data/worlds.py), [world_peo.py](../../synthetic_data/world_peo.py), [test_synthetic_worlds.py](../../tests/test_synthetic_worlds.py), [test_synthetic_world_peo.py](../../tests/test_synthetic_world_peo.py), [synthetic_worlds.md](../synthetic_worlds.md), [contrastive.py](../../gepa_mindfulness/training/contrastive.py), [contrastive_negatives.py](../../synthetic_data/contrastive_negatives.py), [contrastive.py](../../evaluation/contrastive.py), [test_contrastive_training.py](../../tests/test_contrastive_training.py), [test_contrastive_negatives.py](../../tests/test_contrastive_negatives.py), [test_contrastive_evaluation.py](../../tests/test_contrastive_evaluation.py), [contrastive_training.md](../contrastive_training.md), [hypothesis_records.py](../../gepa_mindfulness/verification/hypothesis_records.py), [hypothesis_state.py](../../gepa_mindfulness/verification/hypothesis_state.py), [test_hypothesis_state.py](../../tests/test_hypothesis_state.py), [hypothesis_state.md](../hypothesis_state.md)
 
 **Source demonstrates:** Controlled anonymous physical experiments recover representation structure and measurement types while exposing residual observational equivalences and identifiability limits.
 
-**Repository inference:** Keep unavailable latent facts distinct from observable evidence and avoid resolving hidden truth from surface text. This simulator does not reproduce the physical experiments or establish identifiability results. PR-12 retains typed source provenance for world-derived negatives and limits claims to observable outcomes; it does not recover physical representations.
+**Repository inference:** Keep unavailable latent facts distinct from observable evidence and avoid resolving hidden truth from surface text. This simulator does not reproduce the physical experiments or establish identifiability results. PR-12 retains typed source provenance for world-derived negatives and limits claims to observable outcomes; it does not recover physical representations. PR-16 keeps unavailable or conflicting assessments incomparable and retains every alternative; it does not establish physical or semantic identifiability.
 
-**Maturity:** Resolved arXiv preprint; experimental opt-in synthetic-world contracts. Contract tests do not establish real-world policy quality or reproduce source results. PR-12 contract and CPU wiring tests are implemented; learned comparative effectiveness remains unmeasured.
+**Maturity:** Resolved arXiv preprint; experimental opt-in synthetic-world contracts. Contract tests do not establish real-world policy quality or reproduce source results. PR-12 contract and CPU wiring tests are implemented; learned comparative effectiveness remains unmeasured. PR-16 adds experimental multi-hypothesis history and projection contracts; model effectiveness remains unmeasured.
 
 <a id="ref-generalized-tamp"></a>
 
@@ -1428,3 +1428,63 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 **Repository inference:** PR-14 preserves severe-event strata and individual captures alongside ordinary metrics. Similar aggregate utility does not establish equal rare-event behavior or deployment privacy.
 
 **Maturity:** Resolved arXiv preprint; experimental reporting contracts are implemented. No quantizer, extraction attack or privacy protection is implemented or reproduced.
+
+<a id="ref-srharness"></a>
+
+## REF-SRHARNESS — SRHarness: A Harness for Agentic Symbolic Regression
+
+- Metadata status: `resolved`
+- Supplied title: SRHarness
+- Authors: Zihan Yu, Shixuan Zhou, Hao Huang, Jingtao Ding, Yong Li
+- Year: 2026
+- arXiv: [`2609.35501`](https://arxiv.org/abs/2609.35501)
+- DOI: `10.48550/arXiv.2609.35501`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-011`
+- Local repository notes: [hypothesis_records.py](../../gepa_mindfulness/verification/hypothesis_records.py), [hypothesis_state.py](../../gepa_mindfulness/verification/hypothesis_state.py), [test_hypothesis_state.py](../../tests/test_hypothesis_state.py), [hypothesis_state.md](../hypothesis_state.md)
+
+**Source demonstrates:** Section 3.3 separates persistent candidate/evidence state from bounded fit-complexity Pareto views. Section 4.5 compares that view with a single-best candidate view in symbolic regression.
+
+**Repository inference:** PR-16 retains all hypotheses and provenance externally while paging public diagnostics. The seven local axes and conservative conflict policy are repository choices, not a symbolic-regression reproduction.
+
+**Maturity:** Resolved arXiv source; experimental opt-in history, Pareto and projection contracts are implemented. Behavioral effectiveness remains unmeasured.
+
+<a id="ref-doatlas-2"></a>
+
+## REF-DOATLAS-2 — DoAtlas-2: A Foundation for Self-Evolving Causal Biomedical Discovery
+
+- Metadata status: `resolved`
+- Supplied title: DoAtlas-2
+- Authors: Yulong Li, Rong Xia, Yuxuan Zhang, Jianxu Chen, Xiwei Liu, Haochen Xue, Maosheng Li, Yuhang Liu, Yibo Yuan, Yutong Xie, Chong Li, Jionglong Su, Hagai Rossman, Eran Segal, Imran Razzak
+- Year: 2026
+- arXiv: [`2609.35107`](https://arxiv.org/abs/2609.35107)
+- DOI: `10.48550/arXiv.2609.35107`
+- Venue/status: Technical report
+- Recommendations influenced: `REC-011`
+- Local repository notes: [hypothesis_records.py](../../gepa_mindfulness/verification/hypothesis_records.py), [hypothesis_state.py](../../gepa_mindfulness/verification/hypothesis_state.py), [test_hypothesis_state.py](../../tests/test_hypothesis_state.py), [hypothesis_state.md](../hypothesis_state.md)
+
+**Source demonstrates:** External population evidence supports, challenges or leaves unresolved causal hypotheses, revising mechanistic interpretations, evidence state and the discovery frontier.
+
+**Repository inference:** PR-16 records evidence-linked assessment statuses and explicit supersession while retaining disagreement. No biomedical inference or clinical result is transferred.
+
+**Maturity:** Resolved arXiv source; experimental opt-in history, Pareto and projection contracts are implemented. Behavioral effectiveness remains unmeasured.
+
+<a id="ref-abgaze"></a>
+
+## REF-ABGAZE — AbGaze: Attentive Geometric Representation Learning for End-to-End Antibody Design
+
+- Metadata status: `resolved`
+- Supplied title: AbGaze
+- Authors: Jiashuo Wang, Siqi Fan, Yizhen Luo, Zaiqing Nie
+- Year: 2026
+- arXiv: [`2609.35296`](https://arxiv.org/abs/2609.35296)
+- DOI: `10.48550/arXiv.2609.35296`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-011`
+- Local repository notes: [hypothesis_records.py](../../gepa_mindfulness/verification/hypothesis_records.py), [hypothesis_state.py](../../gepa_mindfulness/verification/hypothesis_state.py), [test_hypothesis_state.py](../../tests/test_hypothesis_state.py), [hypothesis_state.md](../hypothesis_state.md)
+
+**Source demonstrates:** The antibody-design representation encodes cross-molecular distance, direction and surface-normal orientation rather than relying on scalar distance alone.
+
+**Repository inference:** PR-16 uses only the domain analogy that distinct dimensions can matter: seven diagnostic axes remain separate. No antibody-design algorithm, geometry or effectiveness result is reproduced.
+
+**Maturity:** Resolved arXiv source; experimental opt-in history, Pareto and projection contracts are implemented. Behavioral effectiveness remains unmeasured.
