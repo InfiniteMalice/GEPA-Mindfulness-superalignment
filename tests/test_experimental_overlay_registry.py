@@ -177,10 +177,22 @@ def test_experimental_recommendations_name_current_code_docs_and_tests() -> None
             if recommendation_id == "REC-014"
             else ()
         )
-        assert (
-            recommendation.implementation_refs == expected_implementation + relation_implementation
+        hypothesis_implementation = (
+            (
+                "gepa_mindfulness/verification/hypothesis_records.py",
+                "gepa_mindfulness/verification/hypothesis_state.py",
+            )
+            if recommendation_id == "REC-011"
+            else ()
         )
-        assert recommendation.acceptance_tests == expected_tests + relation_tests
+        hypothesis_tests = (
+            ("tests/test_hypothesis_state.py",) if recommendation_id == "REC-011" else ()
+        )
+        assert (
+            recommendation.implementation_refs
+            == expected_implementation + relation_implementation + hypothesis_implementation
+        )
+        assert recommendation.acceptance_tests == expected_tests + relation_tests + hypothesis_tests
 
 
 def test_overlay_records_are_frozen_and_resource_is_packaged() -> None:

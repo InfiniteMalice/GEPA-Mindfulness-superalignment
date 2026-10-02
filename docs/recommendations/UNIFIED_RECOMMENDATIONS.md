@@ -165,9 +165,11 @@ PR-15 adds the experimental [world_model_ablation.md](../world_model_ablation.md
 
 #### REC-011 — Multiple competing hypotheses + information-gain inquiry.
 
-- Repository evidence: [`experimental_overlays.py`](../../evaluation/experimental_overlays.py), [`experimental_records.py`](../../evaluation/experimental_records.py), [`experimental_v5_overlays.md`](../experimental_v5_overlays.md).
+- Repository evidence: [experimental_overlays.py](../../evaluation/experimental_overlays.py), [experimental_records.py](../../evaluation/experimental_records.py), [experimental_v5_overlays.md](../experimental_v5_overlays.md), [hypothesis_records.py](../../gepa_mindfulness/verification/hypothesis_records.py), [hypothesis_state.py](../../gepa_mindfulness/verification/hypothesis_state.py), [hypothesis_state.md](../hypothesis_state.md).
 - Acceptance checks: [`test_experimental_overlay_registry.py`](../../tests/test_experimental_overlay_registry.py), [`test_experimental_overlay_flags.py`](../../tests/test_experimental_overlay_flags.py), [`test_experimental_overlay_records.py`](../../tests/test_experimental_overlay_records.py).
-- Research: [`REF-PEARL`](RESEARCH_TRACEABILITY.md#ref-pearl).
+- Research: [`REF-PEARL`](RESEARCH_TRACEABILITY.md#ref-pearl), [`REF-DUAL-FRONTIER`](RESEARCH_TRACEABILITY.md#ref-dual-frontier), [`REF-PHYSICAL-LANGUAGES`](RESEARCH_TRACEABILITY.md#ref-physical-languages), [`REF-SRHARNESS`](RESEARCH_TRACEABILITY.md#ref-srharness), [`REF-DOATLAS-2`](RESEARCH_TRACEABILITY.md#ref-doatlas-2), [`REF-ABGAZE`](RESEARCH_TRACEABILITY.md#ref-abgaze).
+
+PR-16 adds experimental [hypothesis_state.md](../hypothesis_state.md): external immutable history, same-assessor supersession, conservative Pareto diagnostics and bounded actor pages retain all alternatives. Host authentication and atomic storage remain external. Behavioral effectiveness is unmeasured. Acceptance coverage: [test_hypothesis_state.py](../../tests/test_hypothesis_state.py).
 
 #### REC-012 — Small adaptive multi-agent topology codebook.
 

@@ -956,31 +956,43 @@ references:
     - tests/test_evaluation_ladder.py
     - docs/evaluation_ladder.md
   - reference_id: REF-DUAL-FRONTIER
-    metadata_status: "resolved"
-    supplied_title: "Dual-Frontier"
-    title: "Dual-Frontier: When Can an Agent Trust Its World Model?"
+    metadata_status: resolved
+    supplied_title: Dual-Frontier
+    title: 'Dual-Frontier: When Can an Agent Trust Its World Model?'
     authors:
-      - "Huatai Zhu"
-      - "Qiang Chen"
-      - "Ziqian Kou"
-      - "Wenhao Li"
-      - "Fei Wang"
-      - "Yichao Cao"
-      - "Xiu Su"
-      - "Yi Chen"
+    - Huatai Zhu
+    - Qiang Chen
+    - Ziqian Kou
+    - Wenhao Li
+    - Fei Wang
+    - Yichao Cao
+    - Xiu Su
+    - Yi Chen
     year: 2026
-    arxiv_id: "2609.26293"
-    doi: "10.48550/arXiv.2609.26293"
+    arxiv_id: '2609.26293'
+    doi: 10.48550/arXiv.2609.26293
     venue_status: null
-    canonical_url: "https://arxiv.org/abs/2609.26293"
+    canonical_url: https://arxiv.org/abs/2609.26293
     recommendation_ids:
-      - "REC-002"
-    source_demonstrates: "The paper analyzes policy-versus-world-model error ambiguity and proposes conditional decision admission using predicted advantage and calibrated model-error bounds."
-    repository_inference: "Keep model mismatch explicit and separate numerical confidence from decision authority. A small scalar variance cannot certify an agent decision."
-    maturity: "Resolved arXiv preprint; PR-3 implements mismatch statuses and a latched insufficient-model state. No decision-admission certificate or published agent-performance result is reproduced."
+    - REC-002
+    - REC-011
+    source_demonstrates: The paper analyzes policy-versus-world-model error ambiguity and proposes conditional
+      decision admission using predicted advantage and calibrated model-error bounds.
+    repository_inference: Keep model mismatch explicit and separate numerical confidence from decision
+      authority. A small scalar variance cannot certify an agent decision. PR-16 preserves competing
+      policy/model explanations and diagnostic trade-offs without allowing Pareto status to grant decision
+      authority.
+    maturity: Resolved arXiv preprint; PR-3 implements mismatch statuses and a latched insufficient-model
+      state. No decision-admission certificate or published agent-performance result is reproduced.
+      PR-16 adds experimental multi-hypothesis history and projection contracts; model effectiveness
+      remains unmeasured.
     local_repo_notes:
-      - "gepa_mindfulness/verification/temporal_estimator.py"
-      - "docs/temporal_estimator.md"
+    - gepa_mindfulness/verification/temporal_estimator.py
+    - docs/temporal_estimator.md
+    - gepa_mindfulness/verification/hypothesis_records.py
+    - gepa_mindfulness/verification/hypothesis_state.py
+    - tests/test_hypothesis_state.py
+    - docs/hypothesis_state.md
 
   - reference_id: REF-DEEPO
     metadata_status: resolved
@@ -1872,15 +1884,19 @@ references:
     recommendation_ids:
     - REC-005
     - REC-010
+    - REC-011
     source_demonstrates: Controlled anonymous physical experiments recover representation structure
       and measurement types while exposing residual observational equivalences and identifiability limits.
     repository_inference: Keep unavailable latent facts distinct from observable evidence and avoid
       resolving hidden truth from surface text. This simulator does not reproduce the physical experiments
       or establish identifiability results. PR-12 retains typed source provenance for world-derived
       negatives and limits claims to observable outcomes; it does not recover physical representations.
+      PR-16 keeps unavailable or conflicting assessments incomparable and retains every alternative;
+      it does not establish physical or semantic identifiability.
     maturity: Resolved arXiv preprint; experimental opt-in synthetic-world contracts. Contract tests
       do not establish real-world policy quality or reproduce source results. PR-12 contract and CPU
-      wiring tests are implemented; learned comparative effectiveness remains unmeasured.
+      wiring tests are implemented; learned comparative effectiveness remains unmeasured. PR-16 adds
+      experimental multi-hypothesis history and projection contracts; model effectiveness remains unmeasured.
     local_repo_notes:
     - synthetic_data/worlds.py
     - synthetic_data/world_peo.py
@@ -1894,6 +1910,11 @@ references:
     - tests/test_contrastive_negatives.py
     - tests/test_contrastive_evaluation.py
     - docs/contrastive_training.md
+    - gepa_mindfulness/verification/hypothesis_records.py
+    - gepa_mindfulness/verification/hypothesis_state.py
+    - tests/test_hypothesis_state.py
+    - docs/hypothesis_state.md
+
   - reference_id: REF-GENERALIZED-TAMP
     metadata_status: resolved
     supplied_title: Coding Agents for Generalized Task and Motion Planning Problems
@@ -2266,3 +2287,101 @@ references:
     - evaluation/ladder.py
     - tests/test_evaluation_ladder.py
     - docs/evaluation_ladder.md
+
+  - reference_id: REF-SRHARNESS
+    metadata_status: resolved
+    supplied_title: SRHarness
+    title: 'SRHarness: A Harness for Agentic Symbolic Regression'
+    authors:
+    - Zihan Yu
+    - Shixuan Zhou
+    - Hao Huang
+    - Jingtao Ding
+    - Yong Li
+    year: 2026
+    arxiv_id: '2609.35501'
+    doi: 10.48550/arXiv.2609.35501
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2609.35501
+    recommendation_ids:
+    - REC-011
+    source_demonstrates: Section 3.3 separates persistent candidate/evidence state from bounded fit-complexity
+      Pareto views. Section 4.5 compares that view with a single-best candidate view in symbolic regression.
+    repository_inference: PR-16 retains all hypotheses and provenance externally while paging public
+      diagnostics. The seven local axes and conservative conflict policy are repository choices, not
+      a symbolic-regression reproduction.
+    maturity: Resolved arXiv source; experimental opt-in history, Pareto and projection contracts are
+      implemented. Behavioral effectiveness remains unmeasured.
+    local_repo_notes:
+    - gepa_mindfulness/verification/hypothesis_records.py
+    - gepa_mindfulness/verification/hypothesis_state.py
+    - tests/test_hypothesis_state.py
+    - docs/hypothesis_state.md
+
+  - reference_id: REF-DOATLAS-2
+    metadata_status: resolved
+    supplied_title: DoAtlas-2
+    title: 'DoAtlas-2: A Foundation for Self-Evolving Causal Biomedical Discovery'
+    authors:
+    - Yulong Li
+    - Rong Xia
+    - Yuxuan Zhang
+    - Jianxu Chen
+    - Xiwei Liu
+    - Haochen Xue
+    - Maosheng Li
+    - Yuhang Liu
+    - Yibo Yuan
+    - Yutong Xie
+    - Chong Li
+    - Jionglong Su
+    - Hagai Rossman
+    - Eran Segal
+    - Imran Razzak
+    year: 2026
+    arxiv_id: '2609.35107'
+    doi: 10.48550/arXiv.2609.35107
+    venue_status: Technical report
+    canonical_url: https://arxiv.org/abs/2609.35107
+    recommendation_ids:
+    - REC-011
+    source_demonstrates: External population evidence supports, challenges or leaves unresolved causal
+      hypotheses, revising mechanistic interpretations, evidence state and the discovery frontier.
+    repository_inference: PR-16 records evidence-linked assessment statuses and explicit supersession
+      while retaining disagreement. No biomedical inference or clinical result is transferred.
+    maturity: Resolved arXiv source; experimental opt-in history, Pareto and projection contracts are
+      implemented. Behavioral effectiveness remains unmeasured.
+    local_repo_notes:
+    - gepa_mindfulness/verification/hypothesis_records.py
+    - gepa_mindfulness/verification/hypothesis_state.py
+    - tests/test_hypothesis_state.py
+    - docs/hypothesis_state.md
+
+  - reference_id: REF-ABGAZE
+    metadata_status: resolved
+    supplied_title: AbGaze
+    title: 'AbGaze: Attentive Geometric Representation Learning for End-to-End Antibody Design'
+    authors:
+    - Jiashuo Wang
+    - Siqi Fan
+    - Yizhen Luo
+    - Zaiqing Nie
+    year: 2026
+    arxiv_id: '2609.35296'
+    doi: 10.48550/arXiv.2609.35296
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2609.35296
+    recommendation_ids:
+    - REC-011
+    source_demonstrates: The antibody-design representation encodes cross-molecular distance, direction
+      and surface-normal orientation rather than relying on scalar distance alone.
+    repository_inference: 'PR-16 uses only the domain analogy that distinct dimensions can matter: seven
+      diagnostic axes remain separate. No antibody-design algorithm, geometry or effectiveness result
+      is reproduced.'
+    maturity: Resolved arXiv source; experimental opt-in history, Pareto and projection contracts are
+      implemented. Behavioral effectiveness remains unmeasured.
+    local_repo_notes:
+    - gepa_mindfulness/verification/hypothesis_records.py
+    - gepa_mindfulness/verification/hypothesis_state.py
+    - tests/test_hypothesis_state.py
+    - docs/hypothesis_state.md
