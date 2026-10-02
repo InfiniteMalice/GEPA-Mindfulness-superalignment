@@ -48,10 +48,12 @@ Return JSON report with all three arms, raw rows, severe/failure inventories and
   Run focused plus traceability and documentation-consistency tests. Expected: PASS, 65 references.
 - [x] Run Ruff/Black, scoped mypy, Python3.10 syntax/line checks, build then installed-wheel
   smoke and full Torch-enabled suite. Expected: all checks pass, 17 canonical cases unchanged.
-- [ ] Commit feature, run task-done with focused tests, create review package from base
+- [x] Commit feature, run task-done with focused tests, create review package from base
   `6b0d11c642303bdb737719a96f36d01acc8c643b`, dispatch gpt-6-astra/high reviewer once.
-- [ ] Regrade findings, one Important/Critical fix pass with RED/GREEN regressions and final suite.
-  Record every declined-to-judge ruling and cost, then push feature branch and open/attach draft PR.
+- [x] Regrade findings; one Important/Critical fix pass if needed, with RED/GREEN regressions
+  and final suite. Record every declined-to-judge ruling and cost.
+
+Integration: push the feature branch and open/attach a draft PR under existing user authorization.
 
 ## Execution rulings and evidence
 
@@ -71,3 +73,28 @@ Wheel/sdist and installed-wheel module/guide/registry bytes, executable example 
 found a registry/reader venue punctuation mismatch; corrected and verified with all 8 reader checks.
 No outstanding documentation BLOCK. Deterministic controls cover positive/negative/zero gains;
 the documented two-world policy yields success in all arms and zero paired behavioral gain.
+
+## Independent review and final quality gate
+
+One fresh gpt-6-astra/high reviewer inspected 6b0d11c..5947185, the spec, plan and ledger.
+No Critical, Important, Minor or documentation BLOCK findings. Independently ran 98 ablation and
+research tests, a three-step privacy probe and whitespace checks. The probe preserved actor inputs
+and remaining budgets when hidden truth, another actor's visibility, world/case IDs, provenance,
+parent digest, evidence IDs/source kinds and eligibility changed. No fix pass was necessary.
+
+Rulings on every declined-to-judge item:
+
+1. Model/checkpoint/training identity and compute receipt authenticity: retain the explicit host
+   audit boundary; no real adapter/provider evidence was supplied. Cost: dishonest declarations
+   invalidate a model study even though local validation passes.
+2. Provider quotas, callback timeouts and session isolation: retain host enforcement. Cost:
+   callbacks can overspend, hang or share state unless the host applies controls outside this API.
+3. Learned effectiveness, mechanism recovery and external dataset contamination: retain unmeasured
+   status and external split audit. Cost: deterministic controls provide no empirical generalization
+   or causal mechanism claim; real model studies remain separate work.
+4. General planning with effectful auxiliary actions: retain the reveal-only target-decision scope.
+   Cost: the experiment cannot establish value for general state-changing planning.
+
+Deferred minor findings: none. No default training/reward/authority change, new dependency or
+canonical case was introduced. Full suite and installed-wheel results above apply to the reviewed
+implementation; this final update records the review only.
