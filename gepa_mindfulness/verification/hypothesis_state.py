@@ -191,8 +191,8 @@ def project_hypotheses(
         config: Existing overlay configuration with competing_hypotheses enabled.
 
     Returns:
-        Detached JSON: existing HypothesisSet diagnostic, selected public candidates, revision,
-        complete/omission counts and next_offset. No external provenance or assessor IDs.
+        Detached JSON: existing HypothesisSet diagnostic, selected public candidates, measurement
+        protocol/units, revision, omission counts and next_offset. No evidence/assessor IDs.
 
     Raises:
         ValueError: Disabled, invalid state, numeric diagnostic or page coordinates.
@@ -214,7 +214,7 @@ def project_hypotheses(
     diagnostic = HypothesisSet(
         record_id="hypothesis-projection",
         source_case_id=state.source_case_id,
-        uncertainty=diagnostic_uncertainty,
+        uncertainty=float(diagnostic_uncertainty),
         provenance_refs=(
             EvidenceReference("public-hypothesis-projection", EvidenceSourceKind.EXTERNAL_RECORD),
         ),
@@ -222,13 +222,19 @@ def project_hypotheses(
         maturity=ExperimentalMaturity.EXPERIMENTAL,
         diagnostic_status=DiagnosticStatus.DIAGNOSTIC,
         hypotheses=tuple(
-            f"{json.dumps(h.id, ensure_ascii=False)}: {h.statement}" for h in selected
+            ": ".join(json.dumps(value, ensure_ascii=False) for value in (h.id, h.statement))
+            for h in selected
         ),
     )
     return dict(
         schema_version="hypothesis-projection-v1",
         revision=state.revision,
         training_eligibility=state.training_eligibility.value,
+        measurement=dict(
+            protocol_id=state.protocol_id,
+            complexity_unit=state.complexity_unit,
+            compute_unit=state.compute_unit,
+        ),
         diagnostic=diagnostic.to_dict(),
         authority_granted=False,
         candidates=[

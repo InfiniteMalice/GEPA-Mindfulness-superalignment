@@ -206,6 +206,51 @@ def test_actor_projection_excludes_external_provenance_and_marks_unknowns():
     assert page["diagnostic"]["uncertainty"] == 0.8
 
 
+@pytest.mark.parametrize(
+    "statement", ["Explanation ", "Explanation\n", "Explanation\u00a0", "\u754c" * 170 + "\u00a0"]
+)
+def test_projection_preserves_valid_statement_whitespace(statement):
+    """Every valid statement remains pageable and survives the legacy diagnostic wrapper."""
+    original = replace(state(), hypotheses=(Hypothesis("a", statement, refs()), candidate("b")))
+    restored = HypothesisState.from_dict(original.to_dict())
+    page = project_hypotheses(restored, diagnostic_uncertainty=0.8, config=ON)
+    assert page["candidates"][0]["statement"] == statement
+    legacy = experimental_record_from_dict(page["diagnostic"])
+    assert legacy.hypotheses[0] == f'{json.dumps("a")}: {json.dumps(statement, ensure_ascii=False)}'
+
+
+def test_projection_retains_public_measurement_semantics():
+    """Different units/protocols cannot produce indistinguishable numeric actor diagnostics."""
+    original = state(assessments=(assessment("a1"),))
+    changed = replace(
+        original,
+        protocol_id="different-protocol",
+        complexity_unit="parameters",
+        compute_unit="GPU-hours",
+    )
+    first = project_hypotheses(original, diagnostic_uncertainty=0.8, config=ON)
+    second = project_hypotheses(changed, diagnostic_uncertainty=0.8, config=ON)
+    assert first != second
+    assert first["measurement"] == {
+        "protocol_id": "measurement-protocol-v1",
+        "complexity_unit": "nodes",
+        "compute_unit": "tokens",
+    }
+    assert second["measurement"]["compute_unit"] == "GPU-hours"
+    first["measurement"]["compute_unit"] = "changed"
+    assert original.compute_unit == "tokens"
+
+
+@pytest.mark.parametrize("uncertainty", [0, 1])
+def test_projection_normalizes_valid_integer_uncertainty(uncertainty):
+    """Exact numeric endpoints survive the legacy float-only representation."""
+    page = project_hypotheses(state(), diagnostic_uncertainty=uncertainty, config=ON)
+    assert type(page["diagnostic"]["uncertainty"]) is float
+    assert page["diagnostic"]["uncertainty"] == uncertainty
+    with pytest.raises(ValueError):
+        project_hypotheses(state(), diagnostic_uncertainty=bool(uncertainty), config=ON)
+
+
 def test_roundtrip_detaches_nested_records_and_preserves_nontrain():
     """External state survives JSON exactly and remains optimizer-ineligible."""
     original = replace(

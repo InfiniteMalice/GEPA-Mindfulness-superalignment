@@ -52,10 +52,10 @@ project_hypotheses(state, *, diagnostic_uncertainty, offset=0, limit=4, config=d
 - [x] Run Ruff/Black/scoped mypy/Python3.10/100-column checks. Build wheel/sdist before running
   full Torch-enabled suite; installed-wheel exact module/guide/registry/example/CLI smoke.
   Expected: all pass, import does not require Torch.
-- [ ] Commit and run task-done with focused tests; review-package base
+- [x] Commit and run task-done with focused tests; review-package base
   `07ee9d7f034b62f50c0250dd81e40ac959af5a36`. Dispatch one gpt-6-astra/high fresh reviewer.
-- [ ] Regrade, one Important/Critical fix pass with RED/GREEN and full suite if needed. Record every
-  declined-to-judge ruling/cost, then push feature branch and open/attach draft PR.
+- [x] Regrade, one Important/Critical fix pass with RED/GREEN and full suite if needed. Record every
+  declined-to-judge ruling/cost. Publication follows on the feature branch as a draft PR.
 
 ## Rulings and evidence
 
@@ -82,3 +82,33 @@ Pre-flight: one cohesive task; no cross-task interfaces.
   Import smoke confirms 17 canonical cases, 68 sources and no Torch dependency.
 
 - Full Torch-enabled suite: 4569 passed, 18 skipped, 16 warnings in 234.72 seconds.
+
+## Independent review and fixes
+
+Reviewer: gpt-6-astra/high, fresh context, read-only whole branch 07ee9d7..41dafd0.
+Three Important findings confirmed against current code; no Critical or Minor findings.
+- Trailing whitespace accepted by Hypothesis was rejected by the legacy projection wrapper.
+  Four regressions (space, newline, NBSP, maximum-length Unicode) failed before the fix and pass
+  after JSON-quoting both the ID and statement; original candidate statements remain unchanged.
+- Numeric projections omitted units and measurement protocol. A regression proved distinct units
+  produced identical pages, then passed after adding bounded public measurement metadata.
+- Valid integer uncertainty endpoints failed the legacy float-only validator. Both endpoint tests
+  failed before conversion and pass afterward; booleans remain rejected.
+Final focused validation: 60 tests pass; combined new-module coverage remains 94%.
+
+Final: Ruling: Expose protocol and unit labels as public measurement metadata; require hosts to
+supply protocol definitions to actors. Numeric diagnostics otherwise lose meaning. Cost: hosts must
+review these labels for visibility and keep definitions available to prevent misinterpretation.
+Final: Ruling (reviewer declined to judge): Host authentication, durable persistence and atomic
+storage remain external responsibilities, as the API supplies pure records/operations only.
+Cost: a host that fails to authenticate or compare-and-store atomically can accept forged or stale history.
+Final: Ruling (reviewer declined to judge): Empirical calibration and behavioral effectiveness remain
+unmeasured; this draft provides contract validation and explicit experimental maturity.
+Cost: passing contracts do not establish useful or calibrated hypothesis scores in deployment.
+Final: minor (deferred): none.
+
+Final: fixed all three Important findings in one RED/GREEN pass; full suite 4576 passed,
+18 skipped, 16 warnings in 223.31 seconds. Final Ruff/Black/mypy/Python3.10/100-column checks,
+wheel/sdist rebuild and installed-wheel executable guide/resource/CLI/no-Torch smoke pass.
+No unresolved documentation blocks or deferred minors. Existing cleanup policy restriction leaves
+ignored review scratch in place; no tracked product files are affected. Draft publication only.

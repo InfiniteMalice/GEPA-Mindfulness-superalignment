@@ -20,7 +20,8 @@ A state requires at least two distinct candidate IDs and one trigger. Assessment
 are unique within their histories. All evidence references must identify observable evidence; private
 reasoning and latent-state references are rejected. Identifiers are nonblank exact strings of at most
 128 UTF-8 bytes; statements allow 512 bytes. The host chooses public statements and IDs suitable
-for actor exposure. Text remains untrusted data and must not be executed as instructions.
+for actor exposure, including the measurement protocol ID and unit declarations. Text remains
+untrusted data and must not be executed as instructions.
 
 The host defines score measurement/normalization in `protocol_id`, shared by every assessment:
 
@@ -90,10 +91,15 @@ every alternative; the final page may overlap one entry to preserve the existing
 The host controls paging; omission from a page never changes external state.
 
 Each candidate exposes its public ID/statement, current agreed scores (or `null`), distinct status
-labels and conflict/incomparability/dominance flags. The nested `diagnostic` reuses the existing
-`HypothesisSet` serialization with synthetic public provenance. Its labels JSON-quote IDs to avoid
-separator collisions. External evidence/assessor/context/trigger IDs are excluded. The caller supplies
-the legacy `diagnostic_uncertainty` explicitly; the library never derives a scalar posterior from the
+labels and conflict/incomparability/dominance flags. The page's `measurement` object exposes the
+shared `protocol_id`, `complexity_unit` and `compute_unit` so numeric scores retain their meaning.
+The host must make that public protocol's measurement definitions available to the actor; its ID
+alone does not define normalization. The nested `diagnostic` reuses the existing `HypothesisSet`
+serialization with synthetic public provenance. Its labels JSON-quote both IDs and statements to
+avoid separator collisions and preserve whitespace; `candidates` retains the original statement.
+External evidence/assessor/context/trigger IDs are excluded. The caller supplies the legacy
+`diagnostic_uncertainty` explicitly as a finite numeric value in [0,1]; validated integers are converted
+to floats for the legacy wrapper, and booleans are rejected. The library never derives a scalar posterior from the
 candidate set. Keep per-hypothesis scores and conflict flags alongside that legacy field.
 
 Page size and text lengths bound payload growth. Full external history remains unbounded; hosts

@@ -19,7 +19,8 @@ Use strict seven-dimensional Pareto comparison only for complete, agreed vectors
 conflicting candidates remain incomparable. Dominance is a diagnostic and never deletion. Bound actor
 payloads with insertion-order pages, text limits and omission counts. Reuse the disabled
 competing_hypotheses flag and HypothesisSet output, with its scalar uncertainty supplied explicitly by
-the host rather than inferred from the candidate set.
+the host rather than inferred from the candidate set. Actor pages carry bounded public measurement
+protocol/unit labels so numeric scores retain their meaning; hosts provide the protocol definitions.
 
 ## Consequences
 

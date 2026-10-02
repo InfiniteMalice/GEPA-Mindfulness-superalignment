@@ -53,6 +53,10 @@ an explicit host-supplied diagnostic_uncertainty for that legacy field; it never
 posterior from candidates. Include totals, omissions and next_offset. The last page may overlap one
 entry to satisfy the existing two-alternative contract. All alternatives must be reachable by paging.
 No external evidence IDs, assessor IDs, triggers or context provenance enter actor payloads.
+Public measurement protocol ID and unit declarations accompany numeric scores. Hosts supply the
+protocol definitions to the actor and choose these bounded labels for public exposure. JSON-quote
+both IDs and statements in legacy labels to preserve valid whitespace, and normalize validated
+numeric uncertainty to a float at the legacy boundary.
 
 Use `ExperimentalOverlayConfig.competing_hypotheses`, disabled by default, for mutation proposals,
 analysis and projections. Record construction/serialization is inert. Strict JSON import/export
