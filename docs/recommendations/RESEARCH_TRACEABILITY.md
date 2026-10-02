@@ -569,13 +569,13 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - DOI: `10.48550/arXiv.2609.35732`
 - Venue/status: Not supplied by official arXiv metadata.
 - Recommendations influenced: `REC-002`, `REC-007`, `REC-010`
-- Local repository notes: [epistemic_reconciliation.py](../../gepa_mindfulness/verification/epistemic_reconciliation.py), [epistemic_state.md](../epistemic_state.md), [failure_layers.py](../../gepa_mindfulness/verification/failure_layers.py), [skill_bank.py](../../gepa_mindfulness/skill_bank.py), [test_failure_layers.py](../../tests/test_failure_layers.py), [test_skill_bank.py](../../tests/test_skill_bank.py), [skill_failure_localization.md](../skill_failure_localization.md), [dynamic_uncertainty.py](../../gepa_mindfulness/training/dynamic_uncertainty.py), [dynamic_uncertainty.py](../../evaluation/dynamic_uncertainty.py), [test_dynamic_uncertainty.py](../../tests/test_dynamic_uncertainty.py), [dynamic_uncertainty.md](../dynamic_uncertainty.md)
+- Local repository notes: [epistemic_reconciliation.py](../../gepa_mindfulness/verification/epistemic_reconciliation.py), [epistemic_state.md](../epistemic_state.md), [failure_layers.py](../../gepa_mindfulness/verification/failure_layers.py), [skill_bank.py](../../gepa_mindfulness/skill_bank.py), [test_failure_layers.py](../../tests/test_failure_layers.py), [test_skill_bank.py](../../tests/test_skill_bank.py), [skill_failure_localization.md](../skill_failure_localization.md), [dynamic_uncertainty.py](../../gepa_mindfulness/training/dynamic_uncertainty.py), [dynamic_uncertainty.py](../../evaluation/dynamic_uncertainty.py), [test_dynamic_uncertainty.py](../../tests/test_dynamic_uncertainty.py), [dynamic_uncertainty.md](../dynamic_uncertainty.md), [ladder.py](../../evaluation/ladder.py), [test_evaluation_ladder.py](../../tests/test_evaluation_ladder.py), [evaluation_ladder.md](../evaluation_ladder.md)
 
 **Source demonstrates:** The benchmark fixes failed-tool observations before evaluating subsequent reports; structured evidence reporting is associated with fewer unsupported claims in its blocked-task setting.
 
-**Repository inference:** Separate execution, observation and reporting evidence. A residual identifies a recorded mismatch, not deceptive motive; report residuals require future public-report telemetry. PR-8 adds layer-specific diagnostic hypotheses and review paths while retaining existing causal and persistence authority boundaries. PR-13 retains verified observations of failed actions for next-decision assessment; offline proposals do not establish successful execution.
+**Repository inference:** Separate execution, observation and reporting evidence. A residual identifies a recorded mismatch, not deceptive motive; report residuals require future public-report telemetry. PR-8 adds layer-specific diagnostic hypotheses and review paths while retaining existing causal and persistence authority boundaries. PR-13 retains verified observations of failed actions for next-decision assessment; offline proposals do not establish successful execution. PR-14 reports false success and fabricated details separately from action quality, with explicit failed-action opportunities.
 
-**Maturity:** Resolved arXiv preprint; PR-2 implements causal and verifier evidence checks. Report residuals and the paper's model experiment remain unimplemented. PR-13 implements opt-in decision learning and contract tests; real-model effectiveness remains unmeasured.
+**Maturity:** Resolved arXiv preprint; PR-2 implements causal and verifier evidence checks. Report residuals and the paper's model experiment remain unimplemented. PR-13 implements opt-in decision learning and contract tests; real-model effectiveness remains unmeasured. PR-14 implements diagnostic report contracts; empirical model effectiveness is unmeasured.
 
 <a id="ref-pinnforge"></a>
 
@@ -608,14 +608,14 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - arXiv: [`2609.30214`](https://arxiv.org/abs/2609.30214)
 - DOI: `10.48550/arXiv.2609.30214`
 - Venue/status: Not supplied by official arXiv metadata.
-- Recommendations influenced: `REC-002`, `REC-014`
-- Local repository notes: [epistemic_reconciliation.py](../../gepa_mindfulness/verification/epistemic_reconciliation.py), [epistemic_state.md](../epistemic_state.md), [relation_flips.py](../../synthetic_data/relation_flips.py), [relation_flips.py](../../evaluation/relation_flips.py), [test_relation_flip_worlds.py](../../tests/test_relation_flip_worlds.py), [test_relation_flip_evaluation.py](../../tests/test_relation_flip_evaluation.py), [relation_flips.md](../relation_flips.md)
+- Recommendations influenced: `REC-002`, `REC-010`, `REC-014`
+- Local repository notes: [epistemic_reconciliation.py](../../gepa_mindfulness/verification/epistemic_reconciliation.py), [epistemic_state.md](../epistemic_state.md), [relation_flips.py](../../synthetic_data/relation_flips.py), [relation_flips.py](../../evaluation/relation_flips.py), [test_relation_flip_worlds.py](../../tests/test_relation_flip_worlds.py), [test_relation_flip_evaluation.py](../../tests/test_relation_flip_evaluation.py), [relation_flips.md](../relation_flips.md), [ladder.py](../../evaluation/ladder.py), [test_evaluation_ladder.py](../../tests/test_evaluation_ladder.py), [evaluation_ladder.md](../evaluation_ladder.md)
 
 **Source demonstrates:** The underwater world model uses binding guidance for identifiable task-object representations and reports representation and prediction evaluations.
 
-**Repository inference:** Make measurement correspondence explicit before comparing predicted and observed values. JSON path bindings do not validate learned representations or their semantic units. PR-11 binds each behavioral intervention to one typed world variable without claiming a learned object representation.
+**Repository inference:** Make measurement correspondence explicit before comparing predicted and observed values. JSON path bindings do not validate learned representations or their semantic units. PR-11 binds each behavioral intervention to one typed world variable without claiming a learned object representation. PR-14 reports representation and prediction as independent stages without inferring downstream competence.
 
-**Maturity:** Resolved arXiv preprint; PR-2 implements explicit numeric outcome bindings. No JEPA backend, rollout learner or robotics result is reproduced.
+**Maturity:** Resolved arXiv preprint; PR-2 implements explicit numeric outcome bindings. No JEPA backend, rollout learner or robotics result is reproduced. PR-14 implements diagnostic report contracts; empirical model effectiveness is unmeasured.
 
 <a id="ref-ai-neuroscientist"></a>
 
@@ -652,14 +652,14 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - DOI: `10.48550/arXiv.2609.24831`
 - Venue/status: Not supplied by official arXiv metadata.
 - Recommendations influenced: `REC-002`, `REC-010`
-- Local repository notes: [temporal_estimator.py](../../gepa_mindfulness/verification/temporal_estimator.py), [temporal_estimator.md](../temporal_estimator.md), [dynamic_uncertainty.py](../../gepa_mindfulness/training/dynamic_uncertainty.py), [dynamic_uncertainty.py](../../evaluation/dynamic_uncertainty.py), [test_dynamic_uncertainty.py](../../tests/test_dynamic_uncertainty.py), [dynamic_uncertainty.md](../dynamic_uncertainty.md)
+- Local repository notes: [temporal_estimator.py](../../gepa_mindfulness/verification/temporal_estimator.py), [temporal_estimator.md](../temporal_estimator.md), [dynamic_uncertainty.py](../../gepa_mindfulness/training/dynamic_uncertainty.py), [dynamic_uncertainty.py](../../evaluation/dynamic_uncertainty.py), [test_dynamic_uncertainty.py](../../tests/test_dynamic_uncertainty.py), [dynamic_uncertainty.md](../dynamic_uncertainty.md), [ladder.py](../../evaluation/ladder.py), [test_evaluation_ladder.py](../../tests/test_evaluation_ladder.py), [evaluation_ladder.md](../evaluation_ladder.md)
 - Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.24831v1), 2026-09-30.
 
 **Source demonstrates:** The paper models reasoning-and-acting trajectories as graphs and evaluates turn-level and trajectory uncertainty for selective generation.
 
-**Repository inference:** Retain uncertainty as trajectory diagnostics. Scalar numeric residuals do not reproduce graph-based reasoning uncertainty or establish semantic calibration. PR-13 stratifies longitudinal decision evaluation without extracting private reasoning graphs or using uncertainty as reward.
+**Repository inference:** Retain uncertainty as trajectory diagnostics. Scalar numeric residuals do not reproduce graph-based reasoning uncertainty or establish semantic calibration. PR-13 stratifies longitudinal decision evaluation without extracting private reasoning graphs or using uncertainty as reward. PR-14 reports temporal and calibration diagnostics separately without collecting private reasoning graphs.
 
-**Maturity:** Resolved arXiv preprint; PR-3 implements opt-in scalar diagnostics. No reasoning-graph extraction, private-chain-of-thought reward or GRUET experiment is implemented. PR-13 implements opt-in decision learning and contract tests; real-model effectiveness remains unmeasured.
+**Maturity:** Resolved arXiv preprint; PR-3 implements opt-in scalar diagnostics. No reasoning-graph extraction, private-chain-of-thought reward or GRUET experiment is implemented. PR-13 implements opt-in decision learning and contract tests; real-model effectiveness remains unmeasured. PR-14 implements diagnostic report contracts; empirical model effectiveness is unmeasured.
 
 <a id="ref-dual-frontier"></a>
 
@@ -1341,13 +1341,13 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - DOI: `10.48550/arXiv.2609.35515`
 - Venue/status: Not supplied by official arXiv metadata.
 - Recommendations influenced: `REC-010`, `REC-014`
-- Local repository notes: [relation_flips.py](../../synthetic_data/relation_flips.py), [relation_flips.py](../../evaluation/relation_flips.py), [test_relation_flip_worlds.py](../../tests/test_relation_flip_worlds.py), [test_relation_flip_evaluation.py](../../tests/test_relation_flip_evaluation.py), [relation_flips.md](../relation_flips.md), [contrastive.py](../../gepa_mindfulness/training/contrastive.py), [contrastive_negatives.py](../../synthetic_data/contrastive_negatives.py), [contrastive.py](../../evaluation/contrastive.py), [test_contrastive_training.py](../../tests/test_contrastive_training.py), [test_contrastive_negatives.py](../../tests/test_contrastive_negatives.py), [test_contrastive_evaluation.py](../../tests/test_contrastive_evaluation.py), [contrastive_training.md](../contrastive_training.md)
+- Local repository notes: [relation_flips.py](../../synthetic_data/relation_flips.py), [relation_flips.py](../../evaluation/relation_flips.py), [test_relation_flip_worlds.py](../../tests/test_relation_flip_worlds.py), [test_relation_flip_evaluation.py](../../tests/test_relation_flip_evaluation.py), [relation_flips.md](../relation_flips.md), [contrastive.py](../../gepa_mindfulness/training/contrastive.py), [contrastive_negatives.py](../../synthetic_data/contrastive_negatives.py), [contrastive.py](../../evaluation/contrastive.py), [test_contrastive_training.py](../../tests/test_contrastive_training.py), [test_contrastive_negatives.py](../../tests/test_contrastive_negatives.py), [test_contrastive_evaluation.py](../../tests/test_contrastive_evaluation.py), [contrastive_training.md](../contrastive_training.md), [ladder.py](../../evaluation/ladder.py), [test_evaluation_ladder.py](../../tests/test_evaluation_ladder.py), [evaluation_ladder.md](../evaluation_ladder.md)
 
 **Source demonstrates:** Sections 3 and 4 separate phenomenal-law recovery from internal scientific mechanism probes, construct meaningful mechanism mutations, and screen for competing mechanisms with indistinguishable phenomenal laws.
 
-**Repository inference:** Report visible correctness separately from correct behavior under decisive interventions and reject uninformative pairs. Behavioral sensitivity does not establish internal mechanism recovery; no symbolic scientific discovery system is reproduced. PR-12 admits only decisive relation changes as causal negatives; observable ranking margins do not establish internal mechanism recovery.
+**Repository inference:** Report visible correctness separately from correct behavior under decisive interventions and reject uninformative pairs. Behavioral sensitivity does not establish internal mechanism recovery; no symbolic scientific discovery system is reproduced. PR-12 admits only decisive relation changes as causal negatives; observable ranking margins do not establish internal mechanism recovery. PR-14 keeps behavioral counterfactual results separate and never promotes them to mechanism recovery.
 
-**Maturity:** Resolved arXiv preprint; experimental opt-in behavioral counterfactual diagnostics. Contract tests do not establish internal mechanism recovery or reproduce source results. PR-12 contract and CPU wiring tests are implemented; learned comparative effectiveness remains unmeasured.
+**Maturity:** Resolved arXiv preprint; experimental opt-in behavioral counterfactual diagnostics. Contract tests do not establish internal mechanism recovery or reproduce source results. PR-12 contract and CPU wiring tests are implemented; learned comparative effectiveness remains unmeasured. PR-14 implements diagnostic report contracts; empirical model effectiveness is unmeasured.
 
 <a id="ref-quantum-think"></a>
 
@@ -1388,3 +1388,43 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 **Repository inference:** The supplied shorthand is mapped by mechanism and timing to this September search extension of Compute Aligned Training. PR-13 trains and evaluates the same next-decision interface; it does not implement search-aware losses, theorem proving or compute-budget accounting.
 
 **Maturity:** Resolved arXiv preprint with an explicitly inferred shorthand mapping. Opt-in decision-training contracts are implemented; source search objectives and real-model experiments remain unimplemented.
+
+<a id="ref-paws"></a>
+
+## REF-PAWS — PAWS: Policy-driven Agentic World Simulation
+
+- Metadata status: `resolved`
+- Supplied title: PAWS
+- Authors: Tiviatis Sim, Jia Hui Woon, Xinming Gao, Chen Gao, Fengbin Zhu, Zheng Huanhuan, Chua Tat Seng, Kenji Kawaguchi
+- Year: 2026
+- arXiv: [`2609.28547`](https://arxiv.org/abs/2609.28547)
+- DOI: `10.48550/arXiv.2609.28547`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-010`
+- Local repository notes: [ladder.py](../../evaluation/ladder.py), [test_evaluation_ladder.py](../../tests/test_evaluation_ladder.py), [evaluation_ladder.md](../evaluation_ladder.md)
+
+**Source demonstrates:** Policy replay compares predictions with source-grounded stakeholder actions. Majority predictions can achieve high accuracy while missing active events; the study reports active-event recall and timing diagnostics.
+
+**Repository inference:** PR-14 uses declared opportunity denominators and separate severe-event inventories so ordinary successes do not obscure rare failures. This is a reporting contract, not a financial simulation reproduction.
+
+**Maturity:** Resolved arXiv preprint; experimental offline reporting contracts are implemented. Domain replay and model effectiveness remain unmeasured.
+
+<a id="ref-4bit-quantizers"></a>
+
+## REF-4BIT-QUANTIZERS — Not All 4-bit Quantizers Are Equal: Deployment-Time Mitigation of PII Leakage in Fine-Tuned Small Language Models
+
+- Metadata status: `resolved`
+- Supplied title: Not All 4-bit Quantizers Are Equal
+- Authors: Cristhian Kapelinski, Diego Kreutz
+- Year: 2026
+- arXiv: [`2609.25014`](https://arxiv.org/abs/2609.25014)
+- DOI: `10.48550/arXiv.2609.25014`
+- Venue/status: Accepted for publication at SBSeg 2026
+- Recommendations influenced: `REC-010`
+- Local repository notes: [ladder.py](../../evaluation/ladder.py), [test_evaluation_ladder.py](../../tests/test_evaluation_ladder.py), [evaluation_ladder.md](../evaluation_ladder.md)
+
+**Source demonstrates:** The evaluated quantization methods differ in planted-record extraction under the tested deployment settings despite limited changes in general accuracy. Controlled analyses associate these differences with calibration-induced rounding error in rare-token channels.
+
+**Repository inference:** PR-14 preserves severe-event strata and individual captures alongside ordinary metrics. Similar aggregate utility does not establish equal rare-event behavior or deployment privacy.
+
+**Maturity:** Resolved arXiv preprint; experimental reporting contracts are implemented. No quantizer, extraction attack or privacy protection is implemented or reproduced.

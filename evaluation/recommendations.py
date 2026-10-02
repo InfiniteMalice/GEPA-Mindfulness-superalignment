@@ -82,6 +82,8 @@ REFERENCE_IDS = (
     "REF-MECHBENCH",
     "REF-QUANTUM-THINK",
     "REF-CAT-SEARCH",
+    "REF-PAWS",
+    "REF-4BIT-QUANTIZERS",
 )
 REFERENCE_ARXIV_IDS = (
     "2609.01736",
@@ -147,6 +149,8 @@ REFERENCE_ARXIV_IDS = (
     "2609.35515",
     "2609.23016",
     "2609.25575",
+    "2609.28547",
+    "2609.25014",
 )
 ALLOWED_METADATA_STATUSES = frozenset({"resolved", "unresolved"})
 
