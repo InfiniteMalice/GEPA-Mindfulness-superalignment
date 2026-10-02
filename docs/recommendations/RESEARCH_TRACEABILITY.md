@@ -607,15 +607,15 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - Year: 2026
 - arXiv: [`2609.30214`](https://arxiv.org/abs/2609.30214)
 - DOI: `10.48550/arXiv.2609.30214`
-- Venue/status: Not supplied by official arXiv metadata.
+- Venue/status: Submitted to the IEEE for possible publication
 - Recommendations influenced: `REC-002`, `REC-010`, `REC-014`
-- Local repository notes: [epistemic_reconciliation.py](../../gepa_mindfulness/verification/epistemic_reconciliation.py), [epistemic_state.md](../epistemic_state.md), [relation_flips.py](../../synthetic_data/relation_flips.py), [relation_flips.py](../../evaluation/relation_flips.py), [test_relation_flip_worlds.py](../../tests/test_relation_flip_worlds.py), [test_relation_flip_evaluation.py](../../tests/test_relation_flip_evaluation.py), [relation_flips.md](../relation_flips.md), [ladder.py](../../evaluation/ladder.py), [test_evaluation_ladder.py](../../tests/test_evaluation_ladder.py), [evaluation_ladder.md](../evaluation_ladder.md)
+- Local repository notes: [epistemic_reconciliation.py](../../gepa_mindfulness/verification/epistemic_reconciliation.py), [epistemic_state.md](../epistemic_state.md), [relation_flips.py](../../synthetic_data/relation_flips.py), [relation_flips.py](../../evaluation/relation_flips.py), [test_relation_flip_worlds.py](../../tests/test_relation_flip_worlds.py), [test_relation_flip_evaluation.py](../../tests/test_relation_flip_evaluation.py), [relation_flips.md](../relation_flips.md), [ladder.py](../../evaluation/ladder.py), [test_evaluation_ladder.py](../../tests/test_evaluation_ladder.py), [evaluation_ladder.md](../evaluation_ladder.md), [world_model_ablation.py](../../evaluation/world_model_ablation.py), [world_model_contracts.py](../../evaluation/world_model_contracts.py), [test_world_model_ablation.py](../../tests/test_world_model_ablation.py), [world_model_ablation.md](../world_model_ablation.md)
 
 **Source demonstrates:** The underwater world model uses binding guidance for identifiable task-object representations and reports representation and prediction evaluations.
 
-**Repository inference:** Make measurement correspondence explicit before comparing predicted and observed values. JSON path bindings do not validate learned representations or their semantic units. PR-11 binds each behavioral intervention to one typed world variable without claiming a learned object representation. PR-14 reports representation and prediction as independent stages without inferring downstream competence.
+**Repository inference:** Make measurement correspondence explicit before comparing predicted and observed values. JSON path bindings do not validate learned representations or their semantic units. PR-11 binds each behavioral intervention to one typed world variable without claiming a learned object representation. PR-14 reports representation and prediction as independent stages without inferring downstream competence. PR-15 measures downstream task outcomes and representation costs separately under matched host declarations; it does not implement a learned JEPA model.
 
-**Maturity:** Resolved arXiv preprint; PR-2 implements explicit numeric outcome bindings. No JEPA backend, rollout learner or robotics result is reproduced. PR-14 implements diagnostic report contracts; empirical model effectiveness is unmeasured.
+**Maturity:** Resolved arXiv preprint; PR-2 implements explicit numeric outcome bindings. No JEPA backend, rollout learner or robotics result is reproduced. PR-14 implements diagnostic report contracts; empirical model effectiveness is unmeasured. PR-15 supplies an experimental matched rollout harness; real-model effectiveness remains unmeasured.
 
 <a id="ref-ai-neuroscientist"></a>
 
@@ -1199,15 +1199,15 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - Year: 2026
 - arXiv: [`2609.22327`](https://arxiv.org/abs/2609.22327)
 - DOI: `10.48550/arXiv.2609.22327`
-- Venue/status: Not supplied by official arXiv metadata.
+- Venue/status: Accepted at the 34th ACM International Conference on Multimedia (MM '26)
 - Recommendations influenced: `REC-005`, `REC-010`
-- Local repository notes: [worlds.py](../../synthetic_data/worlds.py), [world_peo.py](../../synthetic_data/world_peo.py), [test_synthetic_worlds.py](../../tests/test_synthetic_worlds.py), [test_synthetic_world_peo.py](../../tests/test_synthetic_world_peo.py), [synthetic_worlds.md](../synthetic_worlds.md), [contrastive.py](../../gepa_mindfulness/training/contrastive.py), [contrastive_negatives.py](../../synthetic_data/contrastive_negatives.py), [contrastive.py](../../evaluation/contrastive.py), [test_contrastive_training.py](../../tests/test_contrastive_training.py), [test_contrastive_negatives.py](../../tests/test_contrastive_negatives.py), [test_contrastive_evaluation.py](../../tests/test_contrastive_evaluation.py), [contrastive_training.md](../contrastive_training.md)
+- Local repository notes: [worlds.py](../../synthetic_data/worlds.py), [world_peo.py](../../synthetic_data/world_peo.py), [test_synthetic_worlds.py](../../tests/test_synthetic_worlds.py), [test_synthetic_world_peo.py](../../tests/test_synthetic_world_peo.py), [synthetic_worlds.md](../synthetic_worlds.md), [contrastive.py](../../gepa_mindfulness/training/contrastive.py), [contrastive_negatives.py](../../synthetic_data/contrastive_negatives.py), [contrastive.py](../../evaluation/contrastive.py), [test_contrastive_training.py](../../tests/test_contrastive_training.py), [test_contrastive_negatives.py](../../tests/test_contrastive_negatives.py), [test_contrastive_evaluation.py](../../tests/test_contrastive_evaluation.py), [contrastive_training.md](../contrastive_training.md), [world_model_ablation.py](../../evaluation/world_model_ablation.py), [world_model_contracts.py](../../evaluation/world_model_contracts.py), [test_world_model_ablation.py](../../tests/test_world_model_ablation.py), [world_model_ablation.md](../world_model_ablation.md)
 
 **Source demonstrates:** A representation compiler maps visual input to an explicit attributed graph, and an operation compiler maps a query and graph to an executable operation. Sections 3.1–3.2 and Figure 3 distinguish style changes with fixed graph state from graph-state changes with fixed style.
 
-**Repository inference:** Separate typed latent world truth from surface rendering and compare invariant surfaces with decisive permission counterfactuals. No visual parser, learned compiler, or model-generated executable code is introduced. PR-12 derives causal and PEO negatives from the existing deterministic world structure, keeping latent snapshots outside public scoring inputs.
+**Repository inference:** Separate typed latent world truth from surface rendering and compare invariant surfaces with decisive permission counterfactuals. No visual parser, learned compiler, or model-generated executable code is introduced. PR-12 derives causal and PEO negatives from the existing deterministic world structure, keeping latent snapshots outside public scoring inputs. PR-15 tests public structured evidence against direct observation under shared conditions; no visual graph compiler or learned representation is implemented.
 
-**Maturity:** Resolved arXiv preprint; experimental opt-in synthetic-world contracts. Contract tests do not establish real-world policy quality or reproduce source results. PR-12 contract and CPU wiring tests are implemented; learned comparative effectiveness remains unmeasured.
+**Maturity:** Resolved arXiv preprint; experimental opt-in synthetic-world contracts. Contract tests do not establish real-world policy quality or reproduce source results. PR-12 contract and CPU wiring tests are implemented; learned comparative effectiveness remains unmeasured. PR-15 supplies an experimental matched rollout harness; real-model effectiveness remains unmeasured.
 
 <a id="ref-physical-languages"></a>
 
@@ -1240,14 +1240,14 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - arXiv: [`2609.30233`](https://arxiv.org/abs/2609.30233)
 - DOI: `10.48550/arXiv.2609.30233`
 - Venue/status: Not supplied by official arXiv metadata.
-- Recommendations influenced: `REC-005`
-- Local repository notes: [worlds.py](../../synthetic_data/worlds.py), [world_peo.py](../../synthetic_data/world_peo.py), [test_synthetic_worlds.py](../../tests/test_synthetic_worlds.py), [test_synthetic_world_peo.py](../../tests/test_synthetic_world_peo.py), [synthetic_worlds.md](../synthetic_worlds.md)
+- Recommendations influenced: `REC-005`, `REC-010`
+- Local repository notes: [worlds.py](../../synthetic_data/worlds.py), [world_peo.py](../../synthetic_data/world_peo.py), [test_synthetic_worlds.py](../../tests/test_synthetic_worlds.py), [test_synthetic_world_peo.py](../../tests/test_synthetic_world_peo.py), [synthetic_worlds.md](../synthetic_worlds.md), [world_model_ablation.py](../../evaluation/world_model_ablation.py), [world_model_contracts.py](../../evaluation/world_model_contracts.py), [test_world_model_ablation.py](../../tests/test_world_model_ablation.py), [world_model_ablation.md](../world_model_ablation.md)
 
 **Source demonstrates:** Coding agents receive a task description, simulator and fixed synthesis budget to produce a program, which is frozen before evaluation on unseen problem instances.
 
-**Repository inference:** Use reusable deterministic transition rules across seeded instances and keep evaluator truth separate from actor observations. No robotic planner, motion dynamics, agent synthesis loop, or generalization benchmark is reproduced.
+**Repository inference:** Use reusable deterministic transition rules across seeded instances and keep evaluator truth separate from actor observations. No robotic planner, motion dynamics, agent synthesis loop, or generalization benchmark is reproduced. PR-15 freezes one declared model and training contract, shares evaluation worlds and caps, and records actual resource usage; the bounded target-decision task is not a generalized TAMP reproduction.
 
-**Maturity:** Resolved arXiv preprint; experimental opt-in synthetic-world contracts. Contract tests do not establish real-world policy quality or reproduce source results.
+**Maturity:** Resolved arXiv preprint; experimental opt-in synthetic-world contracts. Contract tests do not establish real-world policy quality or reproduce source results. PR-15 supplies an experimental matched rollout harness; real-model effectiveness remains unmeasured.
 
 <a id="ref-chart"></a>
 
@@ -1341,13 +1341,13 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - DOI: `10.48550/arXiv.2609.35515`
 - Venue/status: Not supplied by official arXiv metadata.
 - Recommendations influenced: `REC-010`, `REC-014`
-- Local repository notes: [relation_flips.py](../../synthetic_data/relation_flips.py), [relation_flips.py](../../evaluation/relation_flips.py), [test_relation_flip_worlds.py](../../tests/test_relation_flip_worlds.py), [test_relation_flip_evaluation.py](../../tests/test_relation_flip_evaluation.py), [relation_flips.md](../relation_flips.md), [contrastive.py](../../gepa_mindfulness/training/contrastive.py), [contrastive_negatives.py](../../synthetic_data/contrastive_negatives.py), [contrastive.py](../../evaluation/contrastive.py), [test_contrastive_training.py](../../tests/test_contrastive_training.py), [test_contrastive_negatives.py](../../tests/test_contrastive_negatives.py), [test_contrastive_evaluation.py](../../tests/test_contrastive_evaluation.py), [contrastive_training.md](../contrastive_training.md), [ladder.py](../../evaluation/ladder.py), [test_evaluation_ladder.py](../../tests/test_evaluation_ladder.py), [evaluation_ladder.md](../evaluation_ladder.md)
+- Local repository notes: [relation_flips.py](../../synthetic_data/relation_flips.py), [relation_flips.py](../../evaluation/relation_flips.py), [test_relation_flip_worlds.py](../../tests/test_relation_flip_worlds.py), [test_relation_flip_evaluation.py](../../tests/test_relation_flip_evaluation.py), [relation_flips.md](../relation_flips.md), [contrastive.py](../../gepa_mindfulness/training/contrastive.py), [contrastive_negatives.py](../../synthetic_data/contrastive_negatives.py), [contrastive.py](../../evaluation/contrastive.py), [test_contrastive_training.py](../../tests/test_contrastive_training.py), [test_contrastive_negatives.py](../../tests/test_contrastive_negatives.py), [test_contrastive_evaluation.py](../../tests/test_contrastive_evaluation.py), [contrastive_training.md](../contrastive_training.md), [ladder.py](../../evaluation/ladder.py), [test_evaluation_ladder.py](../../tests/test_evaluation_ladder.py), [evaluation_ladder.md](../evaluation_ladder.md), [world_model_ablation.py](../../evaluation/world_model_ablation.py), [world_model_contracts.py](../../evaluation/world_model_contracts.py), [test_world_model_ablation.py](../../tests/test_world_model_ablation.py), [world_model_ablation.md](../world_model_ablation.md)
 
 **Source demonstrates:** Sections 3 and 4 separate phenomenal-law recovery from internal scientific mechanism probes, construct meaningful mechanism mutations, and screen for competing mechanisms with indistinguishable phenomenal laws.
 
-**Repository inference:** Report visible correctness separately from correct behavior under decisive interventions and reject uninformative pairs. Behavioral sensitivity does not establish internal mechanism recovery; no symbolic scientific discovery system is reproduced. PR-12 admits only decisive relation changes as causal negatives; observable ranking margins do not establish internal mechanism recovery. PR-14 keeps behavioral counterfactual results separate and never promotes them to mechanism recovery.
+**Repository inference:** Report visible correctness separately from correct behavior under decisive interventions and reject uninformative pairs. Behavioral sensitivity does not establish internal mechanism recovery; no symbolic scientific discovery system is reproduced. PR-12 admits only decisive relation changes as causal negatives; observable ranking margins do not establish internal mechanism recovery. PR-14 keeps behavioral counterfactual results separate and never promotes them to mechanism recovery. PR-15 reports paired behavioral gains, ties and regressions without inferring mechanism recovery.
 
-**Maturity:** Resolved arXiv preprint; experimental opt-in behavioral counterfactual diagnostics. Contract tests do not establish internal mechanism recovery or reproduce source results. PR-12 contract and CPU wiring tests are implemented; learned comparative effectiveness remains unmeasured. PR-14 implements diagnostic report contracts; empirical model effectiveness is unmeasured.
+**Maturity:** Resolved arXiv preprint; experimental opt-in behavioral counterfactual diagnostics. Contract tests do not establish internal mechanism recovery or reproduce source results. PR-12 contract and CPU wiring tests are implemented; learned comparative effectiveness remains unmeasured. PR-14 implements diagnostic report contracts; empirical model effectiveness is unmeasured. PR-15 supplies an experimental matched rollout harness; real-model effectiveness remains unmeasured.
 
 <a id="ref-quantum-think"></a>
 
@@ -1381,13 +1381,13 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - DOI: `10.48550/arXiv.2609.25575`
 - Venue/status: Not supplied by official arXiv metadata.
 - Recommendations influenced: `REC-010`
-- Local repository notes: [dynamic_uncertainty.py](../../gepa_mindfulness/training/dynamic_uncertainty.py), [dynamic_uncertainty.py](../../evaluation/dynamic_uncertainty.py), [test_dynamic_uncertainty.py](../../tests/test_dynamic_uncertainty.py), [dynamic_uncertainty.md](../dynamic_uncertainty.md)
+- Local repository notes: [dynamic_uncertainty.py](../../gepa_mindfulness/training/dynamic_uncertainty.py), [dynamic_uncertainty.py](../../evaluation/dynamic_uncertainty.py), [test_dynamic_uncertainty.py](../../tests/test_dynamic_uncertainty.py), [dynamic_uncertainty.md](../dynamic_uncertainty.md), [world_model_ablation.py](../../evaluation/world_model_ablation.py), [world_model_contracts.py](../../evaluation/world_model_contracts.py), [test_world_model_ablation.py](../../tests/test_world_model_ablation.py), [world_model_ablation.md](../world_model_ablation.md)
 
 **Source demonstrates:** Search-aware and uniform-allocation objectives weight per-tactic cross-entropy gradients according to modeled search success and compute allocation. The trace-supported approximation omits off-trace alternatives and exploration costs.
 
-**Repository inference:** The supplied shorthand is mapped by mechanism and timing to this September search extension of Compute Aligned Training. PR-13 trains and evaluates the same next-decision interface; it does not implement search-aware losses, theorem proving or compute-budget accounting.
+**Repository inference:** The supplied shorthand is mapped by mechanism and timing to this September search extension of Compute Aligned Training. PR-13 trains and evaluates the same next-decision interface; it does not implement search-aware losses, theorem proving or compute-budget accounting. PR-15 adds host-metered compute accounting under common caps and paired cost/outcome deltas; it does not implement the source training objective or authenticate provider receipts.
 
-**Maturity:** Resolved arXiv preprint with an explicitly inferred shorthand mapping. Opt-in decision-training contracts are implemented; source search objectives and real-model experiments remain unimplemented.
+**Maturity:** Resolved arXiv preprint with an explicitly inferred shorthand mapping. Opt-in decision-training contracts are implemented; source search objectives and real-model experiments remain unimplemented. PR-15 supplies an experimental matched rollout harness; real-model effectiveness remains unmeasured.
 
 <a id="ref-paws"></a>
 
