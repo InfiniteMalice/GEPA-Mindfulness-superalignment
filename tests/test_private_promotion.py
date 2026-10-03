@@ -4,8 +4,10 @@ import json
 import os
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
+from threading import Event
 
 import pytest
 from test_model_harness_coevolution import (
@@ -204,10 +206,10 @@ def test_private_flow_restarts_and_only_returns_allowlisted_status(tmp_path, tot
     assert flow.dispatch(Op.READ_PROMOTION_STATUS) == result
     assert flow.dispatch(Op.REQUEST_REVIEW)["status"] == "review_requested"
     events = flow.store.audit_events()
-    assert len(events) == 5  # protocol, submission, request, completion, review
+    assert len(events) == 6  # protocol, submission, request, attempt, completion, review
     assert events[-2]["payload"]["decision_id"]
     events.clear()
-    assert len(flow.store.audit_events()) == 5
+    assert len(flow.store.audit_events()) == 6
 
 
 def test_disabled_before_database_creation(tmp_path):
@@ -476,7 +478,9 @@ def test_crash_after_decision_before_audit_can_retry(tmp_path, monkeypatch):
     append = PrivatePromotionStore._append
 
     def fail_append(*args):
-        raise RuntimeError("simulated process failure")
+        if args[2] == "complete_evaluation":
+            raise RuntimeError("simulated process failure")
+        return append(*args)
 
     monkeypatch.setattr(PrivatePromotionStore, "_append", staticmethod(fail_append))
     with pytest.raises(RuntimeError):
@@ -497,7 +501,7 @@ def test_boundary_usage_is_accepted_and_completion_is_not_repeated(tmp_path):
         flow.store.complete_evaluation("candidate:1", bundle, usage)
     with pytest.raises(ValueError, match="pending"):
         flow.store.record_failure("candidate:1")
-    assert len(flow.store.audit_events()) == 4
+    assert len(flow.store.audit_events()) == 5
 
 
 @pytest.mark.parametrize(
@@ -549,3 +553,149 @@ def test_authority_database_aliases_rejected_before_schema_writes(
             == before
         )
     assert len(flow.store.audit_events()) == 1
+
+
+@pytest.mark.parametrize("change", ["metric", "held", "protected", "usage"])
+def test_crash_retry_rejects_changed_attempt_and_recovers_original(tmp_path, monkeypatch, change):
+    flow = Flow(tmp_path)
+    flow.request()
+    bundle = flow.bundle()
+    append = PrivatePromotionStore._append
+
+    def crash_after_decision(*args):
+        if args[2] == "complete_evaluation":
+            raise RuntimeError("crash after decision commit")
+        return append(*args)
+
+    monkeypatch.setattr(PrivatePromotionStore, "_append", staticmethod(crash_after_decision))
+    with pytest.raises(RuntimeError):
+        flow.store.complete_evaluation("candidate:1", bundle, USAGE)
+    with sqlite3.connect(tmp_path / "coevolution.sqlite") as db:
+        original = db.execute("SELECT decision_id FROM decisions").fetchall()
+    assert len(original) == 1
+    monkeypatch.setattr(PrivatePromotionStore, "_append", staticmethod(append))
+    flow.store = flow.reopen()
+    with pytest.raises(ValueError, match="attempt"):
+        flow.store.record_failure("candidate:1")
+    changed = bundle
+    usage = USAGE
+    if change == "usage":
+        usage = (replace(USAGE[0], tokens=89), USAGE[1])
+    elif change == "protected":
+        receipt = flow.coevolution.issue_candidate_validation_receipt(
+            candidate_id="candidate:1",
+            split=ValidationSplit.PROTECTED,
+            records=_records("model:v2")[2:],
+        )
+        changed = replace(bundle, protected_receipt=receipt)
+    else:
+        held = bundle.held_out_receipt
+        if change == "held":
+            held = flow.coevolution.issue_candidate_validation_receipt(
+                candidate_id="candidate:1",
+                split=ValidationSplit.HELD_OUT,
+                records=_records("model:v2")[:2],
+            )
+        metric = flow.coevolution.issue_metric_comparison(
+            candidate_id="candidate:1",
+            policy_id="metrics:v1",
+            source_receipt=flow.baseline,
+            candidate_receipt=held,
+        )
+        changed = replace(bundle, held_out_receipt=held, metric_receipt=metric)
+    with pytest.raises(ValueError, match="attempt"):
+        flow.store.complete_evaluation("candidate:1", changed, usage)
+    with sqlite3.connect(tmp_path / "coevolution.sqlite") as db:
+        assert db.execute("SELECT decision_id FROM decisions").fetchall() == original
+    assert flow.store.complete_evaluation("candidate:1", bundle, USAGE)["status"] == "accepted"
+    events = flow.store.audit_events()
+    assert events[-1]["payload"]["decision_id"] == original[0][0]
+    assert events[-2]["operation"] == "evaluation_attempt"
+    assert events[-2]["payload"]["bundle"] == bundle.to_dict()
+
+
+def test_attempt_survives_crash_before_decision_and_cannot_be_failed(tmp_path, monkeypatch):
+    flow = Flow(tmp_path)
+    flow.request()
+    bundle = flow.bundle()
+    decide = CoevolutionStore.decide
+
+    def crash_before_decision(*args):
+        raise RuntimeError("crash before decision")
+
+    monkeypatch.setattr(CoevolutionStore, "decide", crash_before_decision)
+    with pytest.raises(RuntimeError):
+        flow.store.complete_evaluation("candidate:1", bundle, USAGE)
+    flow.store = flow.reopen()
+    assert flow.store.audit_events()[-1]["operation"] == "evaluation_attempt"
+    with pytest.raises(ValueError, match="attempt"):
+        flow.store.record_failure("candidate:1")
+    monkeypatch.setattr(CoevolutionStore, "decide", decide)
+    assert flow.store.complete_evaluation("candidate:1", bundle, USAGE)["status"] == "accepted"
+
+
+def test_bundle_preflight_is_read_only_and_matches_decision_digest(tmp_path):
+    flow = Flow(tmp_path)
+    bundle = flow.bundle()
+    digest = flow.coevolution.validate_bundle(bundle)
+    with sqlite3.connect(tmp_path / "coevolution.sqlite") as db:
+        assert db.execute("SELECT count(*) FROM decisions").fetchone()[0] == 0
+    assert flow.coevolution.decide(bundle).input_digest == digest
+
+
+def test_noncanonical_metric_is_rejected_before_pinning_attempt(tmp_path):
+    flow = Flow(tmp_path)
+    flow.request()
+    bundle = flow.bundle()
+    payload = bundle.metric_receipt.to_dict()
+    payload["receipt_id"] = "unregistered-metric"
+    changed = replace(bundle, metric_receipt=type(bundle.metric_receipt).from_dict(payload))
+    with pytest.raises(ValueError):
+        flow.store.complete_evaluation("candidate:1", changed, USAGE)
+    assert len(flow.store.audit_events()) == 3
+    assert flow.store.complete_evaluation("candidate:1", bundle, USAGE)["status"] == "accepted"
+
+
+def test_concurrent_completion_rechecks_state_after_attempt_commit(tmp_path, monkeypatch):
+    flow = Flow(tmp_path)
+    flow.request()
+    bundle = flow.bundle()
+    contender = flow.reopen()
+    committed = Event()
+    resume = Event()
+    connection = flow.store._connection
+
+    class PausedCommit:
+        def __init__(self, db):
+            self.db = db
+
+        def execute(self, *args):
+            return self.db.execute(*args)
+
+        def commit(self):
+            self.db.commit()
+            committed.set()
+            assert resume.wait(30)
+
+    @contextmanager
+    def paused_connection():
+        with connection() as db:
+            yield PausedCommit(db)
+
+    monkeypatch.setattr(flow.store, "_connection", paused_connection)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        first = pool.submit(flow.store.complete_evaluation, "candidate:1", bundle, USAGE)
+        try:
+            assert committed.wait(30)
+            assert (
+                contender.complete_evaluation("candidate:1", bundle, USAGE)["status"] == "accepted"
+            )
+        finally:
+            resume.set()
+        with pytest.raises(ValueError, match="pending"):
+            first.result(timeout=30)
+    events = contender.audit_events()
+    assert [e["operation"] for e in events].count("evaluation_attempt") == 1
+    assert [e["operation"] for e in events].count("complete_evaluation") == 1
+    with sqlite3.connect(tmp_path / "coevolution.sqlite") as db:
+        assert db.execute("SELECT count(*) FROM decisions").fetchone()[0] == 1

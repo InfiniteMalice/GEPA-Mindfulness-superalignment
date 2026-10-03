@@ -422,7 +422,7 @@ class PrivatePromotionStore:
         bundle: ValidationBundle,
         usage: tuple[SeedUsage, ...],
     ) -> dict[str, Any]:
-        """Host-only: validate private evidence, persist a decision and append its provenance.
+        """Host-only: pin a validated attempt, persist its decision and append completion.
 
         Args:
             candidate_id: Candidate with a pending private request.
@@ -433,7 +433,7 @@ class PrivatePromotionStore:
             An allowlisted accepted/rejected status without evaluation evidence.
 
         Raises:
-            ValueError: Invalid state, substituted evidence, budget or seed mismatch.
+            ValueError: Invalid state, changed attempt, evidence, budget or seed mismatch.
         """
         _token(candidate_id, "candidate_id")
         measured = self._usage(usage)
@@ -461,6 +461,25 @@ class PrivatePromotionStore:
                 snapshot.protected_receipt.record_ids
             ):
                 raise ValueError("held-out and protected records must be disjoint")
+            attempt = {
+                "input_digest": self._coevolution.validate_bundle(snapshot),
+                "bundle": snapshot.to_dict(),
+                "usage": measured,
+            }
+            existing = next((e for e in prior if e["operation"] == "evaluation_attempt"), None)
+            if existing is None:
+                self._append(db, events, "evaluation_attempt", candidate_id, attempt, "pending")
+                # Keep the first attempt even if the separate decision transaction commits
+                # and this process dies before recording completion.
+                db.commit()
+                db.execute("BEGIN IMMEDIATE")
+                events = self._check(db)
+                prior = [e for e in events if e["candidate_id"] == candidate_id]
+                if prior[-1]["status"] != "pending":
+                    raise ValueError("completion requires a pending private request")
+                existing = next(e for e in prior if e["operation"] == "evaluation_attempt")
+            if existing["payload"] != attempt:
+                raise ValueError("completion differs from the first persisted evaluation attempt")
             decision = self._coevolution.decide(snapshot)
             status = "accepted" if decision.accepted else "rejected"
             self._append(
@@ -487,7 +506,7 @@ class PrivatePromotionStore:
             The allowlisted failed status. No private error text is accepted or emitted.
 
         Raises:
-            ValueError: Candidate has no pending request or has already completed otherwise.
+            ValueError: Candidate has no pending request, has a pinned attempt or has completed.
         """
         _token(candidate_id, "candidate_id")
         with self._connection() as db:
@@ -498,6 +517,10 @@ class PrivatePromotionStore:
                 return _response(candidate_id, "failed")
             if not prior or prior[-1]["status"] != "pending":
                 raise ValueError("failure requires a pending private request")
+            if any(e["operation"] == "evaluation_attempt" for e in prior):
+                raise ValueError(
+                    "a persisted evaluation attempt must recover its original decision"
+                )
             self._append(db, events, "record_failure", candidate_id, {}, "failed")
             return _response(candidate_id, "failed")
 

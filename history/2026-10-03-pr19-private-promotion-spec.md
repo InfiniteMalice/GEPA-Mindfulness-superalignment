@@ -31,12 +31,14 @@ execute_candidate=False. It contains no case, policy, receipt, score, reason or 
 
 Host-only complete_evaluation consumes a requested candidate and a canonical ValidationBundle,
 checks the pinned candidate/digest/source receipt/policy/manifest, exact seed coverage in both
-splits, disjoint held-out/protected records and per-seed measured usage. It calls the existing
-CoevolutionStore.decide and retains its decision ID only in the private audit. An accepted or
-rejected status does not deploy or consume that decision. Invalid completion is fail-closed and
-leaves the request pending; retry after a crash reuses the idempotent existing decision. Status
-reads revalidate completed decisions. A host-only record_failure terminates a requested evaluation
-without evidence disclosure when evaluation fails or cannot produce passing validation receipts.
+splits, disjoint held-out/protected records and per-seed measured usage. After canonical read-only
+validation, it durably pins the exact bundle, input digest and usage before calling
+CoevolutionStore.decide. It rechecks state after committing the attempt and retains the decision
+ID only in the private audit. An accepted or rejected status does not deploy or consume that
+decision. Invalid evidence leaves the request pending without an attempt. Once pinned, crash
+recovery requires the original bundle and usage and reuses the idempotent decision. Status reads
+revalidate completed decisions. A host-only record_failure terminates a requested evaluation
+without evidence disclosure only before an attempt has been pinned.
 
 Every successful state-changing operation appends a private event with its previous event hash,
 sequence, typed operation, candidate identity, input payload and resulting status. SQLite

@@ -1405,8 +1405,22 @@ class CoevolutionStore:
             connection.commit()
         return MetricComparisonReceipt.from_dict(receipt.to_dict())
 
-    def decide(self, bundle: ValidationBundle) -> AcceptanceDecision:
-        """Persist one audit-only decision after reloading every canonical dependency."""
+    def validate_bundle(self, bundle: ValidationBundle) -> str:
+        """Validate canonical decision inputs without creating an acceptance decision.
+
+        Args:
+            bundle: Candidate, validation receipts and registered acceptance policy.
+
+        Returns:
+            The same canonical input digest used by decide() for idempotency.
+
+        Raises:
+            ValueError: A bundle or its durable dependencies fail validation.
+        """
+        return cast(str, self._decision_values(bundle)["input_digest"])
+
+    def _decision_values(self, bundle: ValidationBundle) -> dict[str, Any]:
+        """Prepare the shared canonical decision payload without catalog writes."""
 
         snapshot = ValidationBundle.from_dict(bundle.to_dict())
         candidate = self.read_candidate(snapshot.candidate.candidate_id)
@@ -1455,6 +1469,35 @@ class CoevolutionStore:
             protected,
             metric_receipt,
         )
+        return {
+            "catalog_id": authority.catalog_id,
+            "authority_domain": self._domain,
+            "input_digest": input_digest,
+            "accepted": accepted,
+            "candidate": candidate,
+            "proposal_id": candidate.correction.proposal_id,
+            "trajectory_id": candidate.correction.source_trajectory_id,
+            "trajectory_digest": candidate.correction.trajectory_digest,
+            "held_out_receipt_id": held.receipt_id,
+            "held_out_record_ids": held.record_ids,
+            "held_out_cell_digests": held_cells,
+            "protected_receipt_id": protected.receipt_id,
+            "protected_record_ids": protected.record_ids,
+            "protected_cell_digests": protected_cells,
+            "rollback_target_epoch_id": candidate.source_epoch_id,
+            "protected_suite_id": manifest.suite_id,
+            "protected_suite_digest": manifest.suite_digest,
+            "metric_receipt": metric_receipt,
+            "reason": reason,
+            "execute_candidate": False,
+        }
+
+    def decide(self, bundle: ValidationBundle) -> AcceptanceDecision:
+        """Persist one audit-only decision after reloading every canonical dependency."""
+
+        values = self._decision_values(bundle)
+        candidate = values["candidate"]
+        input_digest = values["input_digest"]
         with _connect(self._database_path) as connection:
             connection.execute("BEGIN IMMEDIATE")
             self._check_connection(connection)
@@ -1467,30 +1510,7 @@ class CoevolutionStore:
                 connection.commit()
                 return _mark_authoritative(decision)
             revision = _next_revision(connection, self._domain)
-            values: dict[str, Any] = {
-                "decision_id": str(uuid4()),
-                "catalog_id": authority.catalog_id,
-                "authority_domain": self._domain,
-                "revision": revision,
-                "input_digest": input_digest,
-                "accepted": accepted,
-                "candidate": candidate,
-                "proposal_id": candidate.correction.proposal_id,
-                "trajectory_id": candidate.correction.source_trajectory_id,
-                "trajectory_digest": candidate.correction.trajectory_digest,
-                "held_out_receipt_id": held.receipt_id,
-                "held_out_record_ids": held.record_ids,
-                "held_out_cell_digests": held_cells,
-                "protected_receipt_id": protected.receipt_id,
-                "protected_record_ids": protected.record_ids,
-                "protected_cell_digests": protected_cells,
-                "rollback_target_epoch_id": candidate.source_epoch_id,
-                "protected_suite_id": manifest.suite_id,
-                "protected_suite_digest": manifest.suite_digest,
-                "metric_receipt": metric_receipt,
-                "reason": reason,
-                "execute_candidate": False,
-            }
+            values.update(decision_id=str(uuid4()), revision=revision)
             digest = _digest(_decision_values_payload(values))
             decision = AcceptanceDecision(**values, decision_digest=digest)
             connection.execute(
