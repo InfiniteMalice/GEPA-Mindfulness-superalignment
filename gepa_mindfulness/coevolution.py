@@ -1584,6 +1584,23 @@ class CoevolutionStore:
             raise ValueError("trajectory binding digest does not match canonical events")
         return binding, events
 
+    def read_metric_policy(self, policy_id: str) -> MetricPolicy:
+        """Return the registered metric policy for host-side protocol pinning."""
+
+        return self._read_policy(_require_token(policy_id, "policy_id"))
+
+    def read_protected_suite(self, suite_id: str) -> ProtectedSuiteManifest:
+        """Return a validated protected manifest for host-side protocol pinning."""
+
+        return self._read_manifest(_require_token(suite_id, "suite_id"))
+
+    def read_source_validation_receipt(self, receipt_id: str) -> ValidationReceipt:
+        """Resolve a canonical baseline receipt and validate its source target."""
+
+        receipt = self._receipt_by_id(_require_token(receipt_id, "receipt_id"))
+        self._validate_source_receipt(receipt)
+        return receipt
+
     def _read_policy(self, policy_id: str) -> MetricPolicy:
         with _connect(self._database_path) as connection:
             self._check_connection(connection)

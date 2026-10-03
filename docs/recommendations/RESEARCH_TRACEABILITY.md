@@ -8,7 +8,7 @@ PR-4 adds CI metadata from the author publication list and the Unanimity/WSQEM p
 also checked on 2026-09-30. PR-5 adds primary-text checks for MemCalib, JitMem, CompKV,
 Qwen-Planner-Agent, Share-Borne AI Virus and A2M on the same date. PR-6 adds CDR and TTSE primary-text checks on 2026-09-30. PR-7 adds the six System-One sources checked on 2026-10-01. A research connection
 can motivate or support one repository decision; no entry establishes the unified architecture as
-an empirical result. PR18 checked the ten controlled-improvement sources against official arXiv metadata and primary texts on 2026-10-03.
+an empirical result. PR19 checked AIDE2 and RSI-Master against official arXiv metadata and primary texts on 2026-10-03. PR18 checked the ten controlled-improvement sources against official arXiv metadata and primary texts on 2026-10-03.
 
 <a id="ref-heart"></a>
 
@@ -303,15 +303,15 @@ implemented. It does not authenticate human identities, grant issuers, or eviden
 - DOI: `10.48550/arXiv.2609.01481`
 - Venue/status: Not supplied by official arXiv metadata.
 - Recommendations influenced: `REC-010`
-- Local repository notes: [2026-09-10-gepa-v5-unified-architecture-design.md](../../history/2026-09-10-gepa-v5-unified-architecture-design.md), [controlled_evolution.md](../controlled_evolution.md), [learning_surfaces.py](../../gepa_mindfulness/learning_surfaces.py), [coevolution.py](../../gepa_mindfulness/coevolution.py), [controlled_improvement.py](../../gepa_mindfulness/controlled_improvement.py), [test_controlled_improvement.py](../../tests/test_controlled_improvement.py)
+- Local repository notes: [2026-09-10-gepa-v5-unified-architecture-design.md](../../history/2026-09-10-gepa-v5-unified-architecture-design.md), [controlled_evolution.md](../controlled_evolution.md), [learning_surfaces.py](../../gepa_mindfulness/learning_surfaces.py), [coevolution.py](../../gepa_mindfulness/coevolution.py), [controlled_improvement.py](../../gepa_mindfulness/controlled_improvement.py), [test_controlled_improvement.py](../../tests/test_controlled_improvement.py), [private_promotion.py](../../gepa_mindfulness/private_promotion.py), [test_private_promotion.py](../../tests/test_private_promotion.py)
 
 **Source demonstrates:** The source reports iterative planning, coding, and testing loops with
 small verifiable increments and separation between implementation-time tests and independent
 evaluation.
 
-**Repository inference:** The process motivates controlled between-episode harness evolution and held-out validation rather than changing a scored episode in place. PR18 integrates one reviewable correction with existing evaluation catalogs; it does not add an autonomous execution loop.
+**Repository inference:** The process motivates controlled between-episode harness evolution and held-out validation rather than changing a scored episode in place. PR18 integrates one reviewable correction with existing evaluation catalogs; it does not add an autonomous execution loop. PR19 provides typed promotion requests and private audit provenance, without an autonomous harness-search scheduler.
 
-**Maturity:** Resolved arXiv preprint; the bounded offline-evolution record contract for REC-010 is implemented. The repository does not execute or deploy harness changes. PR18 adds experimental intake; benefit is unmeasured.
+**Maturity:** Resolved arXiv preprint; the bounded offline-evolution record contract for REC-010 is implemented. The repository does not execute or deploy harness changes. PR18 adds experimental intake; benefit is unmeasured. PR19 adds experimental private promotion integration; benefit is unmeasured.
 
 <a id="ref-agentscope"></a>
 
@@ -1519,14 +1519,13 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - DOI: `10.48550/arXiv.2609.24972`
 - Venue/status: Not supplied by official arXiv metadata.
 - Recommendations influenced: `REC-010`
-- Local repository notes: [controlled_improvement.py](../../gepa_mindfulness/controlled_improvement.py), [test_controlled_improvement.py](../../tests/test_controlled_improvement.py), [controlled_evolution.md](../controlled_evolution.md)
+- Local repository notes: [controlled_improvement.py](../../gepa_mindfulness/controlled_improvement.py), [test_controlled_improvement.py](../../tests/test_controlled_improvement.py), [controlled_evolution.md](../controlled_evolution.md), [private_promotion.py](../../gepa_mindfulness/private_promotion.py), [test_private_promotion.py](../../tests/test_private_promotion.py)
 
 **Source demonstrates:** RRSI constrains bundled edits, uses evolution history, screens leakage and prunes costly or unproductive mechanisms in frozen-model harness evolution.
 
-**Repository inference:** Limit sandbox review to one localized failure and one changed component. Actual edit counting, historical negative evidence and noise-floor testing remain host responsibilities.
+**Repository inference:** Limit sandbox review to one localized failure and one changed component. Actual edit counting, historical negative evidence and noise-floor testing remain host responsibilities. PR19 pins private evaluation requests and audit history; edit regularization and contamination detection remain separate host responsibilities.
 
-**Maturity:** PR18 intake is experimental and opt-in. Contract tests validate routing and authority boundaries; behavioral effectiveness remains unmeasured.
-
+**Maturity:** PR18 intake is experimental and opt-in. Contract tests validate routing and authority boundaries; behavioral effectiveness remains unmeasured. PR19 adds experimental private promotion integration; benefit is unmeasured.
 
 <a id="ref-medrsi"></a>
 
@@ -1540,14 +1539,13 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - DOI: `10.48550/arXiv.2609.24838`
 - Venue/status: Not supplied by official arXiv metadata.
 - Recommendations influenced: `REC-010`
-- Local repository notes: [controlled_improvement.py](../../gepa_mindfulness/controlled_improvement.py), [test_controlled_improvement.py](../../tests/test_controlled_improvement.py), [controlled_evolution.md](../controlled_evolution.md)
+- Local repository notes: [controlled_improvement.py](../../gepa_mindfulness/controlled_improvement.py), [test_controlled_improvement.py](../../tests/test_controlled_improvement.py), [controlled_evolution.md](../controlled_evolution.md), [private_promotion.py](../../gepa_mindfulness/private_promotion.py), [test_private_promotion.py](../../tests/test_private_promotion.py)
 
 **Source demonstrates:** MedRSI prioritizes failures by clinical consequences and separates tool discovery from registration through subsequent cohort trials.
 
-**Repository inference:** Retain consequence diagnostics separately and require later validation. This adapter does not implement clinical decisions or prospective patient-cohort evaluation.
+**Repository inference:** Retain consequence diagnostics separately and require later validation. This adapter does not implement clinical decisions or prospective patient-cohort evaluation. PR19 separates private promotion results from development diagnostics; future cohort selection and clinical validation remain external.
 
-**Maturity:** PR18 intake is experimental and opt-in. Contract tests validate routing and authority boundaries; behavioral effectiveness remains unmeasured.
-
+**Maturity:** PR18 intake is experimental and opt-in. Contract tests validate routing and authority boundaries; behavioral effectiveness remains unmeasured. PR19 adds experimental private promotion integration; benefit is unmeasured.
 
 <a id="ref-self-healing"></a>
 
@@ -1561,14 +1559,13 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - DOI: `10.48550/arXiv.2609.24130`
 - Venue/status: Not supplied by official arXiv metadata.
 - Recommendations influenced: `REC-010`
-- Local repository notes: [controlled_improvement.py](../../gepa_mindfulness/controlled_improvement.py), [test_controlled_improvement.py](../../tests/test_controlled_improvement.py), [controlled_evolution.md](../controlled_evolution.md)
+- Local repository notes: [controlled_improvement.py](../../gepa_mindfulness/controlled_improvement.py), [test_controlled_improvement.py](../../tests/test_controlled_improvement.py), [controlled_evolution.md](../controlled_evolution.md), [private_promotion.py](../../gepa_mindfulness/private_promotion.py), [test_private_promotion.py](../../tests/test_private_promotion.py)
 
 **Source demonstrates:** An external gate evaluates proposed rules against triggering and protected cases; corpus-level replay checks accumulated rules. The study reports locally beneficial proposals that regress protected cases.
 
-**Repository inference:** Keep proposal diagnostics separate from persistence authority. Reuse protected evaluation gates; deployment, accumulated-rule replay and retirement remain host operations.
+**Repository inference:** Keep proposal diagnostics separate from persistence authority. Reuse protected evaluation gates; deployment, accumulated-rule replay and retirement remain host operations. PR19 reuses protected-suite admission and records evaluation failures without disclosing cases; it does not implement runtime replay.
 
-**Maturity:** PR18 intake is experimental and opt-in. Contract tests validate routing and authority boundaries; behavioral effectiveness remains unmeasured.
-
+**Maturity:** PR18 intake is experimental and opt-in. Contract tests validate routing and authority boundaries; behavioral effectiveness remains unmeasured. PR19 adds experimental private promotion integration; benefit is unmeasured.
 
 <a id="ref-evoin"></a>
 
@@ -1631,3 +1628,44 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 **Repository inference:** Retain diagnostic dimensions without translating them into effort rewards. This CARE is distinct from Qwen-Planner's competence-aware reward-and-advantage engineering; reward changes are outside PR18.
 
 **Maturity:** PR18 intake is experimental and opt-in. Contract tests validate routing and authority boundaries; behavioral effectiveness remains unmeasured.
+
+<a id="ref-aide2"></a>
+
+## REF-AIDE2 — Recursive self-improvement of AI research agents
+
+- Metadata status: `resolved`
+- Supplied title: AIDE2 / Recursive Self-Improvement of AI Research Agents
+- Authors: Dhruv Srikanth, Bingchen Zhao, Dixing Xu, Yuxiang Wu, Zhengyao Jiang
+- Year: 2026
+- arXiv: [`2609.26457`](https://arxiv.org/abs/2609.26457)
+- DOI: `10.48550/arXiv.2609.26457`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-010`
+- Local repository notes: [private_promotion.py](../../gepa_mindfulness/private_promotion.py), [test_private_promotion.py](../../tests/test_private_promotion.py), [controlled_evolution.md](../controlled_evolution.md)
+
+**Source demonstrates:** AIDE2 separates task-facing optimization feedback from private selection scores, compares agents under fixed budgets and averages repeated runs. Its outer-loop ignition test is inconclusive.
+
+**Repository inference:** Pin a private promotion protocol and keep detailed evaluation evidence outside improver responses; this adapter does not reproduce recursive search or establish local improvement.
+
+**Maturity:** PR19 promotion integration is experimental and opt-in. Contract tests validate local boundaries; secrecy requires host isolation and improvement remains unmeasured.
+
+
+<a id="ref-rsi-master"></a>
+
+## REF-RSI-MASTER — RSI-Master: Structuring Experiments to Guide Autonomous Model Improvement
+
+- Metadata status: `resolved`
+- Supplied title: RSI-Master: Structuring Experiments to Guide Autonomous Model Improvement
+- Authors: Yaxin Du, Xiyuan Yang, Zhifan Zhou, Yujie Ge, Cheng Wang, Jiajun Wang, Sijie Chen, Zehui Liu, Yuxin Zhang, Weicheng Gu, Julian Zhang, Zixing Lei, Siheng Chen
+- Year: 2026
+- arXiv: [`2609.35561`](https://arxiv.org/abs/2609.35561)
+- DOI: `10.48550/arXiv.2609.35561`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-010`
+- Local repository notes: [private_promotion.py](../../gepa_mindfulness/private_promotion.py), [test_private_promotion.py](../../tests/test_private_promotion.py), [controlled_evolution.md](../controlled_evolution.md)
+
+**Source demonstrates:** RSI-Master constrains experimental actions, records linked provenance in an append-only artifact graph and separates Worker, Reviewer and Main Agent access to evidence.
+
+**Repository inference:** Implement a bounded promotion request vocabulary and private audit trail; host isolation and independent review remain required, and the full Experiment OS and research DAG are not reproduced.
+
+**Maturity:** PR19 promotion integration is experimental and opt-in. Contract tests validate local boundaries; secrecy requires host isolation and improvement remains unmeasured.
