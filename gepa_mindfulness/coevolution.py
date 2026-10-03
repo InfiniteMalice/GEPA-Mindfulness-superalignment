@@ -8,7 +8,7 @@ import math
 import os
 import sqlite3
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from enum import Enum
 from typing import Any, TypeVar, cast
 from uuid import uuid4
@@ -238,8 +238,17 @@ class CorrectionProposal:
     def to_dict(self) -> dict[str, object]:
         """Return a revalidated proposal snapshot."""
 
-        _check_binding(self, _proposal_payload(self), self._binding, "CorrectionProposal")
-        return _proposal_payload(self)
+        # Nested evidence records can carry instance methods; copy raw fields before serialization.
+        snapshot = CorrectionProposal(
+            **{
+                item.name: getattr(self, item.name)
+                for item in fields(CorrectionProposal)
+                if item.init
+            }
+        )
+        payload = _proposal_payload(snapshot)
+        _check_binding(self, payload, self._binding, "CorrectionProposal")
+        return payload
 
     @classmethod
     def from_dict(cls, value: object) -> CorrectionProposal:
@@ -1056,6 +1065,38 @@ class CoevolutionStore:
                 connection.rollback()
                 raise ValueError("trajectory identity or digest is already registered") from exc
         return TrajectoryBinding.from_dict(binding.to_dict())
+
+    def correction_source_events(self, correction: CorrectionProposal) -> tuple[EventEnvelope, ...]:
+        """Read and validate the recorded source for a detached correction.
+
+        Args:
+            correction: Exact proposal bound to a registered localized failure.
+
+        Returns:
+            Detached canonical events from the closed source epoch. This snapshot
+            grants no authority and does not reserve a candidate epoch.
+
+        Raises:
+            ValueError: Proposal, trajectory, localization or source versions disagree.
+            KeyError: The source epoch no longer exists in the pinned evaluation catalog.
+        """
+        if type(correction) is not CorrectionProposal:
+            raise ValueError("correction must be an exact CorrectionProposal")
+        proposal = CorrectionProposal.from_dict(CorrectionProposal.to_dict(correction))
+        trajectory, events = self._read_trajectory(proposal.source_trajectory_id)
+        _validate_proposal_trajectory(proposal, trajectory, events)
+        _revision, epoch, _records = self._evaluation_store.resolve_epoch(
+            self._lineage_id, proposal.source_epoch_id
+        )
+        if not epoch.closed:
+            raise ValueError("correction source epoch must be closed")
+        if any(
+            (event.model_version, event.harness_version)
+            != (epoch.model_version, epoch.harness_version)
+            for event in events
+        ):
+            raise ValueError("correction source versions differ from the closed epoch")
+        return events
 
     def register_candidate(
         self,

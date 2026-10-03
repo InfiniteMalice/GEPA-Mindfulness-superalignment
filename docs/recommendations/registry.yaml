@@ -332,6 +332,15 @@ recommendations:
       - REF-PAWS
       - REF-4BIT-QUANTIZERS
       - REF-GENERALIZED-TAMP
+      - REF-DUAL-FRONTIER
+      - REF-ARISE
+      - REF-PINNFORGE
+      - REF-RRSI
+      - REF-MEDRSI
+      - REF-SELF-HEALING
+      - REF-EVOIN
+      - REF-HELIX
+      - REF-CARE
     repo_refs:
       - gepa_mindfulness/training/eligibility.py
       - gepa_mindfulness/learning_surfaces.py
@@ -353,6 +362,7 @@ recommendations:
       - evaluation/world_model_ablation.py
       - evaluation/world_model_contracts.py
       - docs/world_model_ablation.md
+      - gepa_mindfulness/controlled_improvement.py
     acceptance_tests:
       - tests/test_training_eligibility.py
       - tests/test_synthetic_v5_provenance.py
@@ -370,6 +380,7 @@ recommendations:
       - tests/test_dynamic_uncertainty_review.py
       - tests/test_evaluation_ladder.py
       - tests/test_world_model_ablation.py
+      - tests/test_controlled_improvement.py
     implementation_refs:
       - gepa_mindfulness/training/eligibility.py
       - gepa_mindfulness/learning_surfaces.py
@@ -385,6 +396,7 @@ recommendations:
       - evaluation/ladder.py
       - evaluation/world_model_ablation.py
       - evaluation/world_model_contracts.py
+      - gepa_mindfulness/controlled_improvement.py
 
   - id: REC-011
     title: "Multiple competing hypotheses + information-gain inquiry."
