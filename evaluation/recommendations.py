@@ -94,6 +94,8 @@ REFERENCE_IDS = (
     "REF-EVOIN",
     "REF-HELIX",
     "REF-CARE",
+    "REF-AIDE2",
+    "REF-RSI-MASTER",
 )
 REFERENCE_ARXIV_IDS = (
     "2609.01736",
@@ -171,6 +173,8 @@ REFERENCE_ARXIV_IDS = (
     "2609.35290",
     "2608.13951",
     "2606.19927",
+    "2609.26457",
+    "2609.35561",
 )
 ALLOWED_METADATA_STATUSES = frozenset({"resolved", "unresolved"})
 

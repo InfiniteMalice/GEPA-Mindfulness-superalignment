@@ -235,9 +235,17 @@ EXPECTED_REFERENCES = (
     ("REF-EVOIN", "2609.35290", "EvoIn"),
     ("REF-HELIX", "2608.13951", "HELIX"),
     ("REF-CARE", "2606.19927", "CARE"),
+    ("REF-AIDE2", "2609.26457", "AIDE2 / Recursive Self-Improvement of AI Research Agents"),
+    (
+        "REF-RSI-MASTER",
+        "2609.35561",
+        "RSI-Master: Structuring Experiments to Guide Autonomous Model Improvement",
+    ),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
+    "REF-AIDE2": ("REC-010",),
+    "REF-RSI-MASTER": ("REC-010",),
     "REF-RRSI": ("REC-010",),
     "REF-MEDRSI": ("REC-010",),
     "REF-SELF-HEALING": ("REC-010",),

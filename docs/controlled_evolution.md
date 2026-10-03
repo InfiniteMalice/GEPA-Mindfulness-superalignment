@@ -235,9 +235,160 @@ of this optional adapter; the review route is guidance, not a new authorization 
 | Consequence triage and root-cause qualification | `assess_improvement()` and existing `FailureGraph` classification |
 | Sparse attributable proposal | Existing one-node `CorrectionProposal`; adapter limits sandbox review to one component; host inspects edit size |
 | Sandbox, local evidence, experimental candidate | Host executes sandbox; existing epoch and candidate stores record version-bound evidence |
-| Prospective hidden evaluation | Host supplies disjoint future evaluation; existing held-out receipts do not prove prospective secrecy; PR19 covers private promotion integration |
+| Prospective hidden evaluation | PR19 private promotion adapter below; host supplies disjoint future evaluation and protects evaluator access |
 | Protected regressions and qualification | Existing protected suite, component metrics, acceptance and single-use decision validation |
 | Active deployment, global replay, retirement | Host-owned runtime operations; this PR adds no such states or execution authority |
+
+## Private promotion and experimental provenance
+
+PR19 adds the opt-in `gepa_mindfulness.private_promotion` adapter. The host creates a
+`PrivatePromotionStore` with `enabled=True`; any other value fails before catalog access.
+The adapter separates the improver's request/response interface from private promotion evidence.
+Existing development diagnostics, including PR18 intake, remain the optimization signal. The
+adapter never turns private scores or failures into explanatory optimization feedback.
+
+### Pin the private protocol
+
+The host provides the existing `CoevolutionStore`, its matching `EvaluationEpochStore`, a source
+held-out `ValidationReceipt`, measured source usage and a `PrivateProtocol`. The new SQLite
+catalog must have its own path. The adapter normalizes path casing and resolves aliases; an
+existing file that is the same file as either authority catalog is rejected before promotion
+schema creation, including hard links. Its first audit event pins:
+
+- The coevolution authority, evaluation authority and lineage, with canonical catalog identities.
+- The source held-out receipt, protected manifest and complete metric policy. Source held-out and
+  protected records must be disjoint and belong to the same closed source epoch.
+- Two to 128 distinct nonnegative seeds. Each split must cover exactly this set. Existing matched
+  logical-cell checks still apply during candidate acceptance; seed checks alone do not establish
+  balanced coverage across every world or family.
+- Positive per-seed token, tool-call and wall-time-in-milliseconds caps (`ComputeBudget`). Both
+  source and candidate `SeedUsage` must cover each seed exactly once and fit the same caps. Usage
+  covers the combined held-out and protected work, including failed attempts. Integer fields are
+  exact built-in integers at most `2**53-1`; booleans and floats are rejected.
+- SHA256 commitments for the hidden generator, withheld world templates and withheld rendering
+  families. Digests use `sha256:` plus 64 lowercase hexadecimal characters.
+
+The host generates the private cases, verifies the committed artifact contents, keeps the withheld
+families disjoint from optimizer data, measures usage and stops workers at the limits. This adapter
+checks the supplied commitments and measurements; it does not inspect generator files, run a
+generator, prove disjointness, or meter a process. Reopening the catalog with a different protocol,
+baseline, authority, policy, manifest or source usage fails. Live operations recheck those bindings.
+Create a new host-governed protocol/catalog for a planned protocol change; do not use new catalogs
+to grant retries against the same private evidence.
+
+### Typed experimental operations
+
+The improver-facing entry point is `store.dispatch(ExperimentRequest(...))`. The complete operation
+allowlist is `ExperimentOperation`; requests carry only an existing candidate ID and artifact
+digest. No operation accepts evaluator edits, reward edits, benchmark code, paths, commands,
+replacement checkpoints or hidden-case data.
+
+| Operation | Required state | Result |
+| --- | --- | --- |
+| `SUBMIT_CANDIDATE` | Registered candidate from the pinned source; candidate epoch open and empty | `submitted` |
+| `REQUEST_PRIVATE_EVALUATION` | Submitted candidate; epoch still open and empty | `pending` |
+| `READ_PROMOTION_STATUS` | Known candidate and matching digest | Latest status, or `unsubmitted` |
+| `REQUEST_REVIEW` | Completed `accepted`, `rejected` or `failed` evaluation | `review_requested` |
+
+The first three existing candidate/epoch registration steps above happen on the host before
+submission. For an already initialized private store, a host transport can construct a request:
+
+```python
+from gepa_mindfulness.private_promotion import ExperimentOperation, ExperimentRequest
+
+response = store.dispatch(ExperimentRequest(
+    ExperimentOperation.SUBMIT_CANDIDATE, candidate_id, artifact_digest,
+))
+```
+
+Only serialized response dictionaries cross the process boundary. Each has exactly
+`schema_version="private-promotion-v1"`, the caller's `candidate_id`, `status`,
+`training_eligibility="HIDDEN_EVAL"` and `execute_candidate=False`. Invalid requests or catalog
+errors return `invalid_request` without exception details. A malformed request whose identity
+cannot be validated uses an empty candidate ID. No score, case, explanation, receipt, policy,
+decision or catalog identifier is disclosed. Complete responses are rejected by
+`require_training_eligible()`; stripping the label still loses this protection under legacy
+untagged admission. Hosts must preserve it. Binary promotion status still supplies limited
+feedback, so the host must bound total requests across candidates and protocol catalogs.
+
+An identical repeated state-changing request returns the status originally recorded for that
+operation and adds no event; `READ_PROMOTION_STATUS` returns the latest status. For example,
+repeating a private evaluation request after completion returns `pending`, while a status read
+returns the completion status. There is one evaluation request per candidate per catalog.
+This PR supplies the promotion subset of Experiment OS; dataset registration, training proposals,
+training launch, checkpoint comparison and Worker/Reviewer orchestration remain host integrations.
+
+### Host evaluation, failures and review
+
+The host runs the fixed private protocol after the request is recorded, appends candidate records,
+closes its epoch and constructs the existing `ValidationBundle`. Host-only
+`complete_evaluation(candidate_id, bundle, usage)` requires a pending request, the exact candidate,
+pinned source receipt, metric policy and protected suite, exact seed coverage in both splits,
+disjoint record IDs and measured usage within budget. `CoevolutionStore.validate_bundle()` applies
+the same canonical checks as `decide()` without writing a decision. The promotion store then
+durably records an `evaluation_attempt` containing the exact bundle, canonical input digest and
+measured usage before calling `CoevolutionStore.decide()`. Completion appends the returned decision
+ID and digest only to the private audit. The returned public status is `accepted` or `rejected`;
+neither consumes the decision nor executes the candidate.
+
+Invalid evidence or usage raises a host-only exception before pinning an attempt and leaves the
+request pending. Existing validation receipts require passing canonical records. Before an attempt
+is pinned, a host whose worker fails, exceeds budget or cannot supply passing records can call
+`record_failure(candidate_id)` to append a terminal `failed` result without private error text.
+A repeated failure call is idempotent. Once an attempt is pinned, failure replacement and changed
+retries are rejected, including different receipt identities with identical scores.
+
+If a process fails after pinning an attempt, the request remains pending until the host retries
+that exact bundle and usage. Recover them from the private `evaluation_attempt` payload using
+`ValidationBundle.from_dict(payload["bundle"])` and `SeedUsage(**entry)` for each entry in
+`payload["usage"]`. The retry creates the original decision if needed or reuses it if already
+persisted. A completed evaluation cannot be replaced by another completion. The two catalogs do
+not share one transaction; the durable attempt binds recovery across them.
+
+`REQUEST_REVIEW` records a request; it does not launch a reviewer or grant approval. An authorized
+reviewer reads host-only `audit_events()` and resolves its decision ID with
+`CoevolutionStore.read_decision()` to inspect canonical evidence. Public operations revalidate
+completed decisions before returning status. The existing single-use decision consumption and
+deployment boundary remain unchanged.
+
+### Provenance and deployment boundary
+
+Successful state changes append an event with a sequence, previous-event hash, operation,
+candidate identity, private input payload and status. Submission/request events link the source
+epoch, candidate epoch, correction proposal and immutable artifact digest. The evaluation attempt
+pins the bundle and per-seed usage; completion links the decision. SQLite transactions serialize
+promotion transitions, with a state recheck after committing the attempt. Every operation
+checks the hash chain and pinned configuration; update/delete triggers reject ordinary SQL changes
+to audit rows. The host-only audit returns detached data. Invalid public requests and status reads
+do not append events; the transport owns abuse logging and rate limits.
+
+The host must isolate the evaluator and its catalogs from the improver using separate process and
+filesystem permissions, authenticate callers, check candidate ownership, and serialize evaluation
+epoch writers around request admission. The open/empty check and promotion append span distinct
+databases. Do not give an improver the Python store object, database files, detailed host errors,
+audit events, or host-only completion/failure methods. This library supplies no authentication,
+network service or Python sandbox. A database owner can remove triggers or rewrite the hash chain;
+use host backups or external audit anchoring if protection from that owner is required. Host code
+can also call existing coevolution APIs directly, so this optional adapter is not a global gate.
+
+Before exposing a host transport, its operator verifies the external controls: run a request as
+the improver identity and confirm that private-file reads and another owner's candidate requests
+are denied; place a canary string in private evidence and confirm it is absent from responses and
+public logs; compare measured usage with a separately instrumented worker; and verify that the
+withheld manifests have no optimization-family overlap. Record these deployment checks outside
+improver-visible evidence. This repository's contract tests do not perform those host checks.
+
+[`test_private_promotion.py`](../tests/test_private_promotion.py) covers the flow, response
+allowlist, training rejection, budgets/seeds, substitutions, overlap, restarts, replay, concurrency,
+fixed-input crash retries, concurrent completion and audit mutation. Those are contract tests;
+empirical improvement, private-family
+quality, process isolation and metering accuracy remain unmeasured here.
+
+The design draws on [AIDE2](https://arxiv.org/abs/2609.26457) for distinct public optimization and
+private selection signals under fixed budgets, and [RSI-Master](https://arxiv.org/abs/2609.35561)
+for typed experimental actions, provenance and role-scoped evidence. Existing MedRSI,
+Harness-of-Harness, Self-Healing Harness and RRSI references remain linked through REC-010.
+The research registry distinguishes reported mechanisms from this repository's limited transfer.
 
 Verification: [`test_controlled_improvement.py`](../tests/test_controlled_improvement.py) covers
 matched routing changes, identity mismatches, private evidence, numeric validation, catalog
