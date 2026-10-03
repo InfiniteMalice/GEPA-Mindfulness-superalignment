@@ -1,9 +1,11 @@
 """Private promotion integration contracts using real durable evaluation catalogs."""
 
 import json
+import os
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 from test_model_harness_coevolution import (
@@ -510,3 +512,40 @@ def test_boundary_usage_is_accepted_and_completion_is_not_repeated(tmp_path):
 def test_usage_validates_exact_values(field, value):
     with pytest.raises(ValueError):
         replace(USAGE[0], **{field: value})
+
+
+@pytest.mark.parametrize("catalog", ["coevolution.sqlite", "epochs.sqlite"])
+@pytest.mark.parametrize("alias_kind", ["direct", "case", "hardlink"])
+def test_authority_database_aliases_rejected_before_schema_writes(
+    tmp_path: Path,
+    catalog: str,
+    alias_kind: str,
+) -> None:
+    flow = Flow(tmp_path)
+    authority_path = tmp_path / catalog
+    promotion_path = authority_path
+    if alias_kind == "case":
+        if os.name != "nt":
+            pytest.skip("Windows case-insensitive path alias")
+        promotion_path = Path(str(authority_path).swapcase())
+    elif alias_kind == "hardlink":
+        promotion_path = tmp_path / "alias.sqlite"
+        os.link(authority_path, promotion_path)
+    with sqlite3.connect(authority_path) as db:
+        before = db.execute("SELECT name, type, sql FROM sqlite_master ORDER BY name").fetchall()
+    with pytest.raises(ValueError, match="separate"):
+        PrivatePromotionStore(
+            promotion_path,
+            flow.coevolution,
+            flow.evaluation,
+            _protocol(),
+            flow.baseline,
+            USAGE,
+            enabled=True,
+        )
+    with sqlite3.connect(authority_path) as db:
+        assert (
+            db.execute("SELECT name, type, sql FROM sqlite_master ORDER BY name").fetchall()
+            == before
+        )
+    assert len(flow.store.audit_events()) == 1

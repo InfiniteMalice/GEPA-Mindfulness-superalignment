@@ -251,7 +251,9 @@ adapter never turns private scores or failures into explanatory optimization fee
 
 The host provides the existing `CoevolutionStore`, its matching `EvaluationEpochStore`, a source
 held-out `ValidationReceipt`, measured source usage and a `PrivateProtocol`. The new SQLite
-catalog must have its own path. Its first audit event pins:
+catalog must have its own path. The adapter normalizes path casing and resolves aliases; an
+existing file that is the same file as either authority catalog is rejected before promotion
+schema creation, including hard links. Its first audit event pins:
 
 - The coevolution authority, evaluation authority and lineage, with canonical catalog identities.
 - The source held-out receipt, protected manifest and complete metric policy. Source held-out and

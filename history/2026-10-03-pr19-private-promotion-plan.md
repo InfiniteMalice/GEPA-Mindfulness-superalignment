@@ -78,3 +78,45 @@ Pre-flight: one task; no shared inter-task interfaces. The adapter consumes cano
   16 warnings in 319.01 seconds.
 - Final wheel/sdist rebuilt after guide edits; installed-wheel module/resource equality,
   disabled default, no-Torch import and CLI smoke all passed.
+
+## Independent review and single fix pass
+
+The independent reviewer read all 13 changed files and relevant validators, ran 50 focused tests,
+and found one Important issue with no Critical or Minor findings. On Windows, Path.resolve()
+preserved casing while authority paths used normcase; using an authority path admitted promotion
+tables into that catalog and completion then locked against its own transaction. The finding
+remains Important after regrading: ordinary valid host paths could contaminate authority schemas
+and prevent completion.
+
+Six regression cases reproduced the failure before the fix: each authority catalog through a
+direct path, a Windows case variant and a hard link. Normalize casing consistently and reject
+os.path.samefile aliases before creating tables. The tests also compare authority schemas before
+and after rejection. No second review is requested.
+
+Final: Ruling: Secrecy, caller authentication and candidate ownership stay host-enforced —
+this is a serialized API boundary — cost if wrong: an improperly isolated host exposes evidence
+or permits another owner's requests.
+Final: Ruling: Generator commitments and withheld-family separation are host-verified — hashes
+are declarations, not content inspection — cost if wrong: contaminated private evaluation.
+Final: Ruling: Resource metering and total retry limits stay host-enforced — local checks only
+validate supplied usage against caps — cost if wrong: understated cost or adaptive overfitting.
+Final: Ruling: The host serializes epoch writes around admission — stores use separate database
+transactions — cost if wrong: evaluation may race the open/empty check.
+Final: Ruling: Privileged database rewriting and rollback require external anchoring — local
+hashes and SQL triggers cannot constrain the database owner — cost if wrong: lost audit integrity.
+Final: Ruling: Training, evaluator execution, reviewer scheduling and deployment remain host
+operations — typed requests add no execution authority — cost if wrong: integration work remains.
+Final: Ruling: Empirical improvement and private-evaluation quality remain unmeasured — contract
+tests establish wiring only — cost if wrong: a protocol may select ineffective candidates.
+Final: Ruling: Direct coevolution APIs remain callable by trusted hosts — this adapter is optional —
+cost if wrong: a host may omit its extra promotion restrictions.
+
+Deferred minors: none.
+
+Final: fixed catalog path aliases — six regressions RED to GREEN; private promotion plus
+coevolution 84 passed; 95% module statement coverage (269 statements). Full offline CPU suite
+4764 passed, 18 skipped, 16 warnings in 287.66 seconds. Ruff/Black, adapter/coevolution mypy,
+Python 3.10/100-column checks and whitespace checks pass. Final wheel/sdist rebuilt and installed
+smoke confirms matching code/docs/registries, disabled default, 17 cases, 77 sources and no Torch.
+The earlier unrelated transport timeout passed in its module rerun and both later full runs.
+One independent review and one fix pass complete; no deferred minors.

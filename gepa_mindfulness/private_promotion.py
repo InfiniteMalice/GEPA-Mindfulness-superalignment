@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import sqlite3
 from contextlib import contextmanager
@@ -183,9 +184,15 @@ class PrivatePromotionStore:
         self._evaluation = evaluation
         self._baseline = evaluation.validate_validation_receipt(baseline_receipt)
         self._source_usage = self._usage(source_usage)
-        self._path = str(Path(database_path).resolve())
+        self._path = os.path.normcase(str(Path(database_path).resolve()))
         authority = coevolution.authority()
-        if self._path in (authority.catalog_path, authority.evaluation_authority.catalog_path):
+        authority_paths = (authority.catalog_path, authority.evaluation_authority.catalog_path)
+        # Canonical strings handle case/symlink aliases; samefile also catches hard links.
+        if any(
+            self._path == path
+            or (os.path.exists(self._path) and os.path.samefile(self._path, path))
+            for path in authority_paths
+        ):
             raise ValueError("promotion catalog must be separate from evaluation catalogs")
         configuration = self._configuration()
         with self._connection() as db:
