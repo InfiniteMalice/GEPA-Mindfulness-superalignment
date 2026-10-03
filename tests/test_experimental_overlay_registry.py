@@ -181,12 +181,15 @@ def test_experimental_recommendations_name_current_code_docs_and_tests() -> None
             (
                 "gepa_mindfulness/verification/hypothesis_records.py",
                 "gepa_mindfulness/verification/hypothesis_state.py",
+                "gepa_mindfulness/verification/semantic_exploration.py",
             )
             if recommendation_id == "REC-011"
             else ()
         )
         hypothesis_tests = (
-            ("tests/test_hypothesis_state.py",) if recommendation_id == "REC-011" else ()
+            ("tests/test_hypothesis_state.py", "tests/test_semantic_exploration.py")
+            if recommendation_id == "REC-011"
+            else ()
         )
         assert (
             recommendation.implementation_refs

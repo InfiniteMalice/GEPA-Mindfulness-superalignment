@@ -224,9 +224,15 @@ EXPECTED_REFERENCES = (
     ("REF-SRHARNESS", "2609.35501", "SRHarness"),
     ("REF-DOATLAS-2", "2609.35107", "DoAtlas-2"),
     ("REF-ABGAZE", "2609.35296", "AbGaze"),
+    (
+        "REF-NIGHT-SCIENCE",
+        "2609.35706",
+        "Reinforcing Agentic Creativity in Scientific Ideation with Night Science",
+    ),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
+    "REF-NIGHT-SCIENCE": ("REC-011",),
     "REF-SRHARNESS": ("REC-011",),
     "REF-DOATLAS-2": ("REC-011",),
     "REF-ABGAZE": ("REC-011",),
@@ -248,8 +254,8 @@ EXPECTED_RECOMMENDATION_LINKS = {
     "REF-CLM": ("REC-008", "REC-010"),
     "REF-TOOLLERY": ("REC-008",),
     "REF-SEEK": ("REC-007", "REC-008", "REC-009"),
-    "REF-LADDER": ("REC-008",),
-    "REF-REASONING-TOPOLOGY": ("REC-008",),
+    "REF-LADDER": ("REC-008", "REC-011"),
+    "REF-REASONING-TOPOLOGY": ("REC-008", "REC-011"),
     "REF-EVOFLINT": ("REC-016",),
     "REF-COMM-BOTTLENECK": ("REC-017",),
     "REF-LOGICTRACK": ("REC-018",),
