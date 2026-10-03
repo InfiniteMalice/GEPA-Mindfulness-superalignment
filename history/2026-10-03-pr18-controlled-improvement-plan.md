@@ -81,3 +81,48 @@ Self-review: All spec contracts map to Task 1; no inter-task dependencies or new
   disambiguated from the existing Qwen-Planner source. No claims of empirical local benefit.
 - Documentation precision pass: explicit actors, routing thresholds, snapshot semantics,
   complete-envelope eligibility and host lifecycle responsibilities; no unresolved BLOCK.
+
+## Independent review and single fix pass
+
+Ruling: New reviewer creation hit the agent-thread limit; reuse the independent PR17 reviewer
+for a new PR18 review — it had not seen PR18 implementation and remains separate from the author —
+cost if wrong: prior-PR context may bias review.
+
+The reviewer inspected all 13 files, source metadata and reused validators, independently ran
+148 tests, and reported one Important finding and no Critical or Minor findings. Nested
+CorrectionProposal evidence serializers could disguise private provenance and mutate triage
+before snapshotting. Regraded Important: a misleading sandbox recommendation is possible,
+although existing acceptance gates still prevent deployment authority.
+
+Eleven regression cases failed before the fix: source/teacher evidence mutation across intake,
+source-event inspection and direct serialization; callback mutation of triage; and substituted
+nested evidence/graphs. The fix reconstructs raw CorrectionProposal fields through its existing
+validators, serializes the detached canonical snapshot, and compares against the ORIGINAL
+binding. Valid proposal serialization remains compatible. No second review is requested.
+
+Final: Ruling: Calibration and empirical improvement remain unmeasured — this is opt-in
+investigation guidance — cost if wrong: diagnostic recommendations may be unhelpful.
+Final: Ruling: Evidence authenticity and causal sufficiency remain host-verified — declared
+linkage is not truth — cost if wrong: a false diagnosis may reach sandbox review.
+Final: Ruling: Auxiliary evidence beyond the required localized intersection is allowed —
+hosts interpret its relevance — cost if wrong: unrelated auxiliary evidence can distract review.
+Final: Ruling: Actual edit size and attribution remain host-reviewed — a component label does
+not count edits — cost if wrong: a bundled change may be hard to attribute or regress.
+Final: Ruling: Direct registration remains callable outside optional intake — durable gates
+still own acceptance — cost if wrong: a host can omit these additional diagnostic checks.
+Final: Ruling: Legacy extraction loses DEVELOPMENT metadata — retain the complete envelope
+at admission — cost if wrong: stripped diagnostics can enter legacy training admission.
+Final: Ruling: Catalog concurrency/ACLs and deployment/replay/retirement remain external —
+registration revalidates snapshots and runtime owners control execution — cost if wrong:
+compromised storage or missing runtime controls can invalidate the assurance boundary.
+Final: Ruling: Arbitrary process-wide monkeypatching is outside the typed-record contract —
+this API is not a Python sandbox — cost if wrong: same-process code can replace validators.
+
+Deferred minors: none.
+
+Final: fixed caller-controlled correction serializers — 11 regression cases RED to GREEN;
+intake plus coevolution 111 passed. Final full offline suite: 4708 passed, 18 skipped,
+16 warnings in 240.22 seconds. Ruff/Black clean; intake and coevolution mypy clean;
+Python 3.10 syntax/100-column and whitespace checks clean. Rebuilt wheel and sdist;
+installed-wheel smoke matches final modules/docs/registries and imports no Torch.
+Task 1 complete; one independent review and one fix pass complete. No deferred minors.

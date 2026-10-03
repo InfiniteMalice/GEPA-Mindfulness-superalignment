@@ -8,7 +8,7 @@ import math
 import os
 import sqlite3
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from enum import Enum
 from typing import Any, TypeVar, cast
 from uuid import uuid4
@@ -238,8 +238,17 @@ class CorrectionProposal:
     def to_dict(self) -> dict[str, object]:
         """Return a revalidated proposal snapshot."""
 
-        _check_binding(self, _proposal_payload(self), self._binding, "CorrectionProposal")
-        return _proposal_payload(self)
+        # Nested evidence records can carry instance methods; copy raw fields before serialization.
+        snapshot = CorrectionProposal(
+            **{
+                item.name: getattr(self, item.name)
+                for item in fields(CorrectionProposal)
+                if item.init
+            }
+        )
+        payload = _proposal_payload(snapshot)
+        _check_binding(self, payload, self._binding, "CorrectionProposal")
+        return payload
 
     @classmethod
     def from_dict(cls, value: object) -> CorrectionProposal:

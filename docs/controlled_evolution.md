@@ -164,6 +164,10 @@ The host supplies an existing `CorrectionProposal`, `EpistemicStateEstimate`, li
 4. Applies the routing table below and returns detached JSON. The function performs catalog reads
    but never registers, executes or accepts a candidate.
 
+`CorrectionProposal.to_dict()` reconstructs canonical fields before serialization and compares
+the resulting payload with the original content binding. Nested evidence serializers cannot
+replace raw provenance or run callbacks while an intake snapshot is being prepared.
+
 `TriageDiagnostics` contains `protocol_id`, `evidence_refs`, and seven separate optional unit
 values: `severity`, `irreversibility`, `recurrence`, `ood_novelty`, `systemic_effect`,
 `autonomy_impact`, and `reward_hacking_signal`. OOD means out of distribution. Uncertainty stays

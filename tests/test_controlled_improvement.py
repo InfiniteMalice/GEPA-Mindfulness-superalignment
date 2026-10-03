@@ -399,3 +399,72 @@ def test_malformed_protocol_and_numeric_subclass_fail_closed():
     with pytest.raises(ValueError):
         _triage(severity=PretendNumber(0.1))
     assert _triage(severity=0, recurrence=1).severity == 0.0
+
+
+@pytest.mark.parametrize("ingress", ["assessment", "source_events", "serialization"])
+@pytest.mark.parametrize("field", ["source_evidence_refs", "teacher_evidence_refs"])
+def test_correction_rejects_mutated_evidence_without_calling_serializer(source, ingress, field):
+    proposal = source[2]
+    ref = getattr(proposal, field)[0]
+    original = ref.to_dict()
+    calls = []
+
+    def forged():
+        calls.append(True)
+        return original
+
+    object.__setattr__(ref, "source_kind", EvidenceSourceKind.LATENT_STATE)
+    object.__setattr__(ref, "to_dict", forged)
+    with pytest.raises(ValueError):
+        if ingress == "assessment":
+            _assess(source)
+        elif ingress == "source_events":
+            source[0].correction_source_events(proposal)
+        else:
+            proposal.to_dict()
+    assert calls == []
+
+
+def test_correction_serializer_cannot_change_triage_before_snapshot(source):
+    triage = _triage(severity=0.9)
+    ref = source[2].source_evidence_refs[0]
+    original = ref.to_dict()
+    calls = []
+
+    def mutate_triage():
+        calls.append(True)
+        object.__setattr__(triage, "severity", 0.1)
+        return original
+
+    object.__setattr__(ref, "to_dict", mutate_triage)
+    result = _assess(source, triage=triage)
+    assert result["route"] == "human_review"
+    assert result["triage"]["severity"] == 0.9
+    assert calls == []
+
+
+@pytest.mark.parametrize("field", ["source_evidence_refs", "failure_graph"])
+@pytest.mark.parametrize("ingress", ["assessment", "source_events"])
+def test_correction_rejects_nested_substitutions_without_serializer(source, field, ingress):
+    proposal = source[2]
+    original = proposal.to_dict()
+    calls = []
+
+    class Substitute:
+        def to_dict(self):
+            calls.append(True)
+            return original[field][0] if field == "source_evidence_refs" else original[field]
+
+    replacement = Substitute()
+    value = (
+        (replacement,) + proposal.source_evidence_refs[1:]
+        if field.endswith("refs")
+        else replacement
+    )
+    object.__setattr__(proposal, field, value)
+    with pytest.raises(ValueError):
+        if ingress == "assessment":
+            _assess(source)
+        else:
+            source[0].correction_source_events(proposal)
+    assert calls == []
