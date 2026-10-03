@@ -88,6 +88,12 @@ REFERENCE_IDS = (
     "REF-DOATLAS-2",
     "REF-ABGAZE",
     "REF-NIGHT-SCIENCE",
+    "REF-RRSI",
+    "REF-MEDRSI",
+    "REF-SELF-HEALING",
+    "REF-EVOIN",
+    "REF-HELIX",
+    "REF-CARE",
 )
 REFERENCE_ARXIV_IDS = (
     "2609.01736",
@@ -159,6 +165,12 @@ REFERENCE_ARXIV_IDS = (
     "2609.35107",
     "2609.35296",
     "2609.35706",
+    "2609.24972",
+    "2609.24838",
+    "2609.24130",
+    "2609.35290",
+    "2608.13951",
+    "2606.19927",
 )
 ALLOWED_METADATA_STATUSES = frozenset({"resolved", "unresolved"})
 

@@ -144,6 +144,102 @@ The trajectory, failure-localization, candidate, protected-manifest, record-deri
 single-use decision, and restart checks are covered by
 [`test_model_harness_coevolution.py`](../tests/test_model_harness_coevolution.py).
 
+## PEO improvement intake
+
+PR18 adds `gepa_mindfulness.controlled_improvement.assess_improvement()` for failures in the
+prediction/execution/outcome (PEO) process. The function requires `enabled=True`; its default
+raises `ValueError` before reading a catalog. It does not run during ordinary evaluation.
+
+The host supplies an existing `CorrectionProposal`, `EpistemicStateEstimate`, live
+`CoevolutionStore`, and `TriageDiagnostics`. The function:
+
+1. Calls `CoevolutionStore.correction_source_events()` to validate the proposal against its
+   recorded trajectory, localization, evidence, digest and closed source epoch. Source event
+   model/harness versions must equal the epoch versions.
+2. Matches the estimate's run, repeat, model and harness to the source events. The estimate's
+   action and prediction IDs must match the executed action named by the correction.
+3. Requires observable estimate and triage evidence intersecting the localized failure evidence.
+   An unavailable estimate may have empty evidence and leads to investigation. Evidence identity
+   checks do not authenticate the issuer or establish causal truth.
+4. Applies the routing table below and returns detached JSON. The function performs catalog reads
+   but never registers, executes or accepts a candidate.
+
+`TriageDiagnostics` contains `protocol_id`, `evidence_refs`, and seven separate optional unit
+values: `severity`, `irreversibility`, `recurrence`, `ood_novelty`, `systemic_effect`,
+`autonomy_impact`, and `reward_hacking_signal`. OOD means out of distribution. Uncertainty stays
+in the estimate's separate world/model/monitor fields. `None` means unavailable. Numeric inputs
+must be finite built-in numbers in [0, 1]; booleans and numeric subclasses are rejected.
+Triage evidence requires 1..32 unique observable references. The protocol and evidence IDs are
+nonblank exact strings of at most 128 UTF-8 bytes; estimate evidence IDs have the same bound.
+The host defines and retains each measurement protocol. A reward-hacking signal is a declared
+investigation signal, not an inference that an actor intended deception.
+
+### Routing rules
+
+The function accumulates all applicable reasons, then applies this precedence:
+
+| Condition | Route | Correction in result |
+| --- | --- | --- |
+| Severity or systemic effect >= 0.8; or irreversibility, autonomy impact or reward-hacking signal >= 0.5 | `human_review` | `null` |
+| Otherwise: any missing triage or uncertainty value; any uncertainty >= 0.5; graph root not `supported`; or more than one changed component | `investigate` | `null` |
+| Otherwise | `sandbox_review` | Detached `CorrectionProposal` JSON |
+
+Human review has `urgent` priority. Other results have `elevated` priority if any diagnostic is
+missing or >= 0.5, and `routine` priority otherwise. Recurrence and OOD novelty can elevate priority
+without blocking sandbox review. A root classified `hypothesized` or absent remains unqualified;
+the adapter never upgrades it from summary text. A supported root reflects the graph's declared
+causal path and verifier references, not independently established causation.
+
+These thresholds are local experimental heuristics. Contract tests establish routing behavior;
+they do not establish calibration, beneficial self-improvement or deployment safety. The
+single-component rule bounds declared component scope, not the number of edits inside a model
+or harness. The host reviews the actual diff and proposal attribution before sandbox execution.
+
+The result includes `schema_version="controlled-improvement-v1"`, source identifiers, the
+estimate, triage, root-cause status, route, priority, reasons, and correction. Every result has
+`training_eligibility="DEVELOPMENT"` and `authority_granted=False`. The host retains the complete
+result at optimizer admission: `require_training_eligible(result)` rejects it. The extracted
+legacy correction and estimate schemas have no eligibility field; untagged legacy admission
+still accepts those objects. Hosts must not submit stripped intake diagnostics to optimization.
+The explicit admission/extraction tests cover this boundary.
+
+### Host handoff and lifecycle coverage
+
+With already recorded inputs, a host can inspect a result as follows:
+
+```python
+from gepa_mindfulness.controlled_improvement import assess_improvement
+
+assessment = assess_improvement(
+    store, correction, estimate, triage, enabled=True,
+)
+print(assessment["route"], assessment["reasons"])
+```
+
+After the host reviews a `sandbox_review` result, the host can restore
+`CorrectionProposal.from_dict(assessment["correction"])` and pass it to
+`store.register_candidate(...)` with a candidate ID and artifact digest. Registration still
+requires a compatible empty candidate epoch and revalidates trajectory binding. Intake does
+not reserve an epoch; a later closed or changed epoch can prevent registration. The host keeps
+the assessment with the candidate's provenance. An assessment cannot replace an acceptance
+decision or validation receipt. The existing registration API remains callable independently
+of this optional adapter; the review route is guidance, not a new authorization boundary.
+
+| Stage in the proposed program | Implemented owner or integration boundary |
+| --- | --- |
+| Failure/opportunity | Existing recorded failure graph; opportunities without a localized failure need host investigation |
+| Consequence triage and root-cause qualification | `assess_improvement()` and existing `FailureGraph` classification |
+| Sparse attributable proposal | Existing one-node `CorrectionProposal`; adapter limits sandbox review to one component; host inspects edit size |
+| Sandbox, local evidence, experimental candidate | Host executes sandbox; existing epoch and candidate stores record version-bound evidence |
+| Prospective hidden evaluation | Host supplies disjoint future evaluation; existing held-out receipts do not prove prospective secrecy; PR19 covers private promotion integration |
+| Protected regressions and qualification | Existing protected suite, component metrics, acceptance and single-use decision validation |
+| Active deployment, global replay, retirement | Host-owned runtime operations; this PR adds no such states or execution authority |
+
+Verification: [`test_controlled_improvement.py`](../tests/test_controlled_improvement.py) covers
+matched routing changes, identity mismatches, private evidence, numeric validation, catalog
+immutability and explicit later registration. Existing coevolution and lifecycle tests continue
+to cover receipt, protected-regression, consumption and rollback rules.
+
 ## Authority and trust limits
 
 The durable guarantees above are scoped to each canonical SQLite path, catalog ID, authority

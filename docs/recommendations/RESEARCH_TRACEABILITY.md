@@ -8,7 +8,7 @@ PR-4 adds CI metadata from the author publication list and the Unanimity/WSQEM p
 also checked on 2026-09-30. PR-5 adds primary-text checks for MemCalib, JitMem, CompKV,
 Qwen-Planner-Agent, Share-Borne AI Virus and A2M on the same date. PR-6 adds CDR and TTSE primary-text checks on 2026-09-30. PR-7 adds the six System-One sources checked on 2026-10-01. A research connection
 can motivate or support one repository decision; no entry establishes the unified architecture as
-an empirical result.
+an empirical result. PR18 checked the ten controlled-improvement sources against official arXiv metadata and primary texts on 2026-10-03.
 
 <a id="ref-heart"></a>
 
@@ -303,17 +303,15 @@ implemented. It does not authenticate human identities, grant issuers, or eviden
 - DOI: `10.48550/arXiv.2609.01481`
 - Venue/status: Not supplied by official arXiv metadata.
 - Recommendations influenced: `REC-010`
-- Local repository notes: [V5 architecture design](../../history/2026-09-10-gepa-v5-unified-architecture-design.md), [controlled evolution](../controlled_evolution.md), [learning surfaces](../../gepa_mindfulness/learning_surfaces.py), [coevolution](../../gepa_mindfulness/coevolution.py)
+- Local repository notes: [2026-09-10-gepa-v5-unified-architecture-design.md](../../history/2026-09-10-gepa-v5-unified-architecture-design.md), [controlled_evolution.md](../controlled_evolution.md), [learning_surfaces.py](../../gepa_mindfulness/learning_surfaces.py), [coevolution.py](../../gepa_mindfulness/coevolution.py), [controlled_improvement.py](../../gepa_mindfulness/controlled_improvement.py), [test_controlled_improvement.py](../../tests/test_controlled_improvement.py)
 
 **Source demonstrates:** The source reports iterative planning, coding, and testing loops with
 small verifiable increments and separation between implementation-time tests and independent
 evaluation.
 
-**Repository inference:** The process motivates controlled between-episode harness evolution and
-held-out validation rather than changing a scored episode in place.
+**Repository inference:** The process motivates controlled between-episode harness evolution and held-out validation rather than changing a scored episode in place. PR18 integrates one reviewable correction with existing evaluation catalogs; it does not add an autonomous execution loop.
 
-**Maturity:** Resolved arXiv preprint; the bounded offline-evolution record contract for REC-010
-is implemented. The repository does not execute or deploy harness changes.
+**Maturity:** Resolved arXiv preprint; the bounded offline-evolution record contract for REC-010 is implemented. The repository does not execute or deploy harness changes. PR18 adds experimental intake; benefit is unmeasured.
 
 <a id="ref-agentscope"></a>
 
@@ -588,14 +586,14 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - arXiv: [`2609.23023`](https://arxiv.org/abs/2609.23023)
 - DOI: `10.48550/arXiv.2609.23023`
 - Venue/status: Not supplied by official arXiv metadata.
-- Recommendations influenced: `REC-002`, `REC-007`
-- Local repository notes: [epistemic_reconciliation.py](../../gepa_mindfulness/verification/epistemic_reconciliation.py), [epistemic_state.md](../epistemic_state.md), [failure_layers.py](../../gepa_mindfulness/verification/failure_layers.py), [skill_bank.py](../../gepa_mindfulness/skill_bank.py), [test_failure_layers.py](../../tests/test_failure_layers.py), [test_skill_bank.py](../../tests/test_skill_bank.py), [skill_failure_localization.md](../skill_failure_localization.md)
+- Recommendations influenced: `REC-002`, `REC-007`, `REC-010`
+- Local repository notes: [epistemic_reconciliation.py](../../gepa_mindfulness/verification/epistemic_reconciliation.py), [epistemic_state.md](../epistemic_state.md), [failure_layers.py](../../gepa_mindfulness/verification/failure_layers.py), [skill_bank.py](../../gepa_mindfulness/skill_bank.py), [test_failure_layers.py](../../tests/test_failure_layers.py), [test_skill_bank.py](../../tests/test_skill_bank.py), [skill_failure_localization.md](../skill_failure_localization.md), [controlled_improvement.py](../../gepa_mindfulness/controlled_improvement.py), [test_controlled_improvement.py](../../tests/test_controlled_improvement.py), [controlled_evolution.md](../controlled_evolution.md)
 
 **Source demonstrates:** The PDE experiments use recorded training behavior to inform later candidate designs; withholding execution feedback degrades the reported aggregate error measure.
 
-**Repository inference:** Preserve execution evidence before accepting diagnostic updates. Transferring a PDE design loop to epistemic reconciliation is a repository hypothesis. PR-8 adds layer-specific diagnostic hypotheses and review paths while retaining existing causal and persistence authority boundaries.
+**Repository inference:** Preserve execution evidence before accepting diagnostic updates. Transferring a PDE design loop to epistemic reconciliation is a repository hypothesis. PR-8 adds layer-specific diagnostic hypotheses and review paths while retaining existing causal and persistence authority boundaries. PR18 requires a source-bound correction before sandbox review; numerical PDE optimization is not transferred.
 
-**Maturity:** Resolved arXiv preprint, v2 metadata; PR-2 binds diagnostic measurements to execution ancestry. No evolutionary search or PDE experiment is implemented.
+**Maturity:** Resolved arXiv preprint, v2 metadata; PR-2 binds diagnostic measurements to execution ancestry. No evolutionary search or PDE experiment is implemented. PR18 adds experimental intake; benefit is unmeasured.
 
 <a id="ref-c3-jepa"></a>
 
@@ -672,15 +670,15 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - arXiv: [`2609.26293`](https://arxiv.org/abs/2609.26293)
 - DOI: `10.48550/arXiv.2609.26293`
 - Venue/status: Not supplied by official arXiv metadata.
-- Recommendations influenced: `REC-002`, `REC-011`
-- Local repository notes: [temporal_estimator.py](../../gepa_mindfulness/verification/temporal_estimator.py), [temporal_estimator.md](../temporal_estimator.md), [hypothesis_records.py](../../gepa_mindfulness/verification/hypothesis_records.py), [hypothesis_state.py](../../gepa_mindfulness/verification/hypothesis_state.py), [test_hypothesis_state.py](../../tests/test_hypothesis_state.py), [hypothesis_state.md](../hypothesis_state.md)
+- Recommendations influenced: `REC-002`, `REC-010`, `REC-011`
+- Local repository notes: [temporal_estimator.py](../../gepa_mindfulness/verification/temporal_estimator.py), [temporal_estimator.md](../temporal_estimator.md), [hypothesis_records.py](../../gepa_mindfulness/verification/hypothesis_records.py), [hypothesis_state.py](../../gepa_mindfulness/verification/hypothesis_state.py), [test_hypothesis_state.py](../../tests/test_hypothesis_state.py), [hypothesis_state.md](../hypothesis_state.md), [controlled_improvement.py](../../gepa_mindfulness/controlled_improvement.py), [test_controlled_improvement.py](../../tests/test_controlled_improvement.py), [controlled_evolution.md](../controlled_evolution.md)
 - Primary text inspected: [v1 HTML](https://arxiv.org/html/2609.26293v1), 2026-09-30.
 
 **Source demonstrates:** The paper analyzes policy-versus-world-model error ambiguity and proposes conditional decision admission using predicted advantage and calibrated model-error bounds.
 
-**Repository inference:** Keep model mismatch explicit and separate numerical confidence from decision authority. A small scalar variance cannot certify an agent decision. PR-16 preserves competing policy/model explanations and diagnostic trade-offs without allowing Pareto status to grant decision authority.
+**Repository inference:** Keep model mismatch explicit and separate numerical confidence from decision authority. A small scalar variance cannot certify an agent decision. PR-16 preserves competing policy/model explanations and diagnostic trade-offs without allowing Pareto status to grant decision authority. PR18 retains world, model and monitor uncertainty separately and defers uncertain corrections for investigation; it does not reproduce a learned competence frontier.
 
-**Maturity:** Resolved arXiv preprint; PR-3 implements mismatch statuses and a latched insufficient-model state. No decision-admission certificate or published agent-performance result is reproduced. PR-16 adds experimental multi-hypothesis history and projection contracts; model effectiveness remains unmeasured.
+**Maturity:** Resolved arXiv preprint; PR-3 implements mismatch statuses and a latched insufficient-model state. No decision-admission certificate or published agent-performance result is reproduced. PR-16 adds experimental multi-hypothesis history and projection contracts; model effectiveness remains unmeasured. PR18 adds experimental intake; benefit is unmeasured.
 
 <a id="ref-deepo"></a>
 
@@ -1160,14 +1158,14 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 - arXiv: [`2609.35532`](https://arxiv.org/abs/2609.35532)
 - DOI: `10.48550/arXiv.2609.35532`
 - Venue/status: Not supplied by official arXiv metadata.
-- Recommendations influenced: `REC-009`
-- Local repository notes: [failure_layers.py](../../gepa_mindfulness/verification/failure_layers.py), [skill_bank.py](../../gepa_mindfulness/skill_bank.py), [test_failure_layers.py](../../tests/test_failure_layers.py), [test_skill_bank.py](../../tests/test_skill_bank.py), [skill_failure_localization.md](../skill_failure_localization.md)
+- Recommendations influenced: `REC-009`, `REC-010`
+- Local repository notes: [failure_layers.py](../../gepa_mindfulness/verification/failure_layers.py), [skill_bank.py](../../gepa_mindfulness/skill_bank.py), [test_failure_layers.py](../../tests/test_failure_layers.py), [test_skill_bank.py](../../tests/test_skill_bank.py), [skill_failure_localization.md](../skill_failure_localization.md), [controlled_improvement.py](../../gepa_mindfulness/controlled_improvement.py), [test_controlled_improvement.py](../../tests/test_controlled_improvement.py), [controlled_evolution.md](../controlled_evolution.md)
 
 **Source demonstrates:** ARISE uses rollout evidence to evolve rubric-skill pairs and adapt task sampling. Its training procedure activates guidance for capability gaps and retires consistently satisfied criteria.
 
-**Repository inference:** Use observed gaps to motivate bounded skill review proposals. Foundational norms remain protected from autonomous changes or retirement regardless of performance; no adaptive reward or rubric-retirement algorithm is introduced.
+**Repository inference:** Use observed gaps to motivate bounded skill review proposals. Foundational norms remain protected from autonomous changes or retirement regardless of performance; no adaptive reward or rubric-retirement algorithm is introduced. PR18 consumes diagnosed failure evidence without evolving rubrics or retiring norms; recurring failure is investigation telemetry only.
 
-**Maturity:** Resolved arXiv preprint; experimental skill metadata and proposal contracts are implemented. Contract tests do not reproduce agentic reinforcement-learning results.
+**Maturity:** Resolved arXiv preprint; experimental skill metadata and proposal contracts are implemented. Contract tests do not reproduce agentic reinforcement-learning results. PR18 adds experimental intake; benefit is unmeasured.
 
 <a id="ref-tabpfn-35"></a>
 
@@ -1508,3 +1506,128 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 **Repository inference:** PR-17 exposes bounded semantic action scopes and uses host-declared gain, stakes, reversibility and compute constraints. No RL, process reward or novelty reward is transferred.
 
 **Maturity:** Experimental opt-in proposal selector with matched contract tests. Calibration and behavioral effectiveness remain unmeasured.
+
+<a id="ref-rrsi"></a>
+
+## REF-RRSI — RRSI: Regularized Recursive Self-Improvement of Agent Harnesses
+
+- Metadata status: `resolved`
+- Supplied title: RRSI
+- Authors: Peng Xia, Rujun Han, Zifeng Wang, Yanfei Chen, Yufan Zhuang, Yoonho Lee, Chengsong Huang, Han Yu, Zhongying CuiZhu, Yifei Ming, Huaxiu Yao, Burak Gokturk, Tomas Pfister, Chen-Yu Lee
+- Year: 2026
+- arXiv: [`2609.24972`](https://arxiv.org/abs/2609.24972)
+- DOI: `10.48550/arXiv.2609.24972`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-010`
+- Local repository notes: [controlled_improvement.py](../../gepa_mindfulness/controlled_improvement.py), [test_controlled_improvement.py](../../tests/test_controlled_improvement.py), [controlled_evolution.md](../controlled_evolution.md)
+
+**Source demonstrates:** RRSI constrains bundled edits, uses evolution history, screens leakage and prunes costly or unproductive mechanisms in frozen-model harness evolution.
+
+**Repository inference:** Limit sandbox review to one localized failure and one changed component. Actual edit counting, historical negative evidence and noise-floor testing remain host responsibilities.
+
+**Maturity:** PR18 intake is experimental and opt-in. Contract tests validate routing and authority boundaries; behavioral effectiveness remains unmeasured.
+
+
+<a id="ref-medrsi"></a>
+
+## REF-MEDRSI — MedRSI: Recursive Self-Improvement for Medical Agents via Clinically Aligned Self-Evolution
+
+- Metadata status: `resolved`
+- Supplied title: MedRSI
+- Authors: Junde Wu, Jiayuan Zhu, Minghao Hu, Fenglin Liu, Jiazhen Pan
+- Year: 2026
+- arXiv: [`2609.24838`](https://arxiv.org/abs/2609.24838)
+- DOI: `10.48550/arXiv.2609.24838`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-010`
+- Local repository notes: [controlled_improvement.py](../../gepa_mindfulness/controlled_improvement.py), [test_controlled_improvement.py](../../tests/test_controlled_improvement.py), [controlled_evolution.md](../controlled_evolution.md)
+
+**Source demonstrates:** MedRSI prioritizes failures by clinical consequences and separates tool discovery from registration through subsequent cohort trials.
+
+**Repository inference:** Retain consequence diagnostics separately and require later validation. This adapter does not implement clinical decisions or prospective patient-cohort evaluation.
+
+**Maturity:** PR18 intake is experimental and opt-in. Contract tests validate routing and authority boundaries; behavioral effectiveness remains unmeasured.
+
+
+<a id="ref-self-healing"></a>
+
+## REF-SELF-HEALING — Self-Healing Harness for Runtime Oversight of Agent Self-Modification
+
+- Metadata status: `resolved`
+- Supplied title: Self-Healing Harness
+- Authors: Sina Tayebati, Divake Kumar, Nastaran Darabi, Ranganath Krishnan, Amit Ranjan Trivedi
+- Year: 2026
+- arXiv: [`2609.24130`](https://arxiv.org/abs/2609.24130)
+- DOI: `10.48550/arXiv.2609.24130`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-010`
+- Local repository notes: [controlled_improvement.py](../../gepa_mindfulness/controlled_improvement.py), [test_controlled_improvement.py](../../tests/test_controlled_improvement.py), [controlled_evolution.md](../controlled_evolution.md)
+
+**Source demonstrates:** An external gate evaluates proposed rules against triggering and protected cases; corpus-level replay checks accumulated rules. The study reports locally beneficial proposals that regress protected cases.
+
+**Repository inference:** Keep proposal diagnostics separate from persistence authority. Reuse protected evaluation gates; deployment, accumulated-rule replay and retirement remain host operations.
+
+**Maturity:** PR18 intake is experimental and opt-in. Contract tests validate routing and authority boundaries; behavioral effectiveness remains unmeasured.
+
+
+<a id="ref-evoin"></a>
+
+## REF-EVOIN — EvoIn: Bridging Evolution and Internalization for Agent Fine-Tuning
+
+- Metadata status: `resolved`
+- Supplied title: EvoIn
+- Authors: Shihan Dou, Shaofan Liu, Zhonghang Lu, Jiahang Lin, Shichun Liu, Binghai Wang, Jiajie Jin, Guanting Dong, Tao Gui, Qi Zhang, Xuanjing Huang
+- Year: 2026
+- arXiv: [`2609.35290`](https://arxiv.org/abs/2609.35290)
+- DOI: `10.48550/arXiv.2609.35290`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-010`
+- Local repository notes: [controlled_improvement.py](../../gepa_mindfulness/controlled_improvement.py), [test_controlled_improvement.py](../../tests/test_controlled_improvement.py), [controlled_evolution.md](../controlled_evolution.md)
+
+**Source demonstrates:** EvoIn validates procedures in a temporary harness, rewrites generated traces and fine-tunes with the original harness to study procedure transfer.
+
+**Repository inference:** Keep model and harness intervention identities explicit. No trace rewriting, private-reasoning reward or automatic fine-tuning is transferred; original-harness comparisons remain an experiment requirement.
+
+**Maturity:** PR18 intake is experimental and opt-in. Contract tests validate routing and authority boundaries; behavioral effectiveness remains unmeasured.
+
+
+<a id="ref-helix"></a>
+
+## REF-HELIX — HELIX: Model-Harness Co-evolution for Recursive Self-Improvement
+
+- Metadata status: `resolved`
+- Supplied title: HELIX
+- Authors: Tianyu Fan, Chao Huang
+- Year: 2026
+- arXiv: [`2608.13951`](https://arxiv.org/abs/2608.13951)
+- DOI: `10.48550/arXiv.2608.13951`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-010`
+- Local repository notes: [controlled_improvement.py](../../gepa_mindfulness/controlled_improvement.py), [test_controlled_improvement.py](../../tests/test_controlled_improvement.py), [controlled_evolution.md](../controlled_evolution.md)
+
+**Source demonstrates:** HELIX supplies source-traceable harness interventions and verified sibling trajectories for studying model-harness evolution; reported evaluation covers one evolution round.
+
+**Repository inference:** Reuse versioned candidate identity and observable evidence. Unlike EvoIn's original-harness internalization, HELIX motivates auditable intervention history; neither establishes this adapter's effectiveness.
+
+**Maturity:** PR18 intake is experimental and opt-in. Contract tests validate routing and authority boundaries; behavioral effectiveness remains unmeasured.
+
+
+<a id="ref-care"></a>
+
+## REF-CARE — CARE: Competence-Aware Reward Shaping for Adaptive Reasoning Length in Video-MLLMs
+
+- Metadata status: `resolved`
+- Supplied title: CARE
+- Authors: Chengwen Liu, Hao Peng, Jisheng Dang, Hong Peng, Bin Hu, Tat-Seng Chua
+- Year: 2026
+- arXiv: [`2606.19927`](https://arxiv.org/abs/2606.19927)
+- DOI: `10.48550/arXiv.2606.19927`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-010`
+- Local repository notes: [controlled_improvement.py](../../gepa_mindfulness/controlled_improvement.py), [test_controlled_improvement.py](../../tests/test_controlled_improvement.py), [controlled_evolution.md](../controlled_evolution.md)
+
+**Source demonstrates:** CARE uses smoothed pass rates to move reasoning-effort reward preferences through competence stages in video-model reinforcement learning.
+
+**Repository inference:** Retain diagnostic dimensions without translating them into effort rewards. This CARE is distinct from Qwen-Planner's competence-aware reward-and-advantage engineering; reward changes are outside PR18.
+
+**Maturity:** PR18 intake is experimental and opt-in. Contract tests validate routing and authority boundaries; behavioral effectiveness remains unmeasured.
