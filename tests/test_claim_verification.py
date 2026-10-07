@@ -44,7 +44,7 @@ def test_consensus_falsifier_and_fresh_adjudication() -> None:
         dependencies_satisfied=True,
         provenance_intact=True,
         authorization_scope_valid=True,
-        claimed_outcome_supported=True,
+        claimed_outcome_supported=False,
         contradiction_status="contradicted",
         evidence_refs=(ref,),
     )
@@ -91,7 +91,7 @@ def test_consensus_falsifier_and_fresh_adjudication() -> None:
         check,
         result,
         local,
-        replace(relational, claimed_outcome_supported=False),
+        replace(relational, task_fit=False),
         authorized_evidence=(ref,),
         producer_contexts=("actor",),
         adjudicator_context="fresh",
@@ -99,6 +99,18 @@ def test_consensus_falsifier_and_fresh_adjudication() -> None:
     )
     assert unresolved.verdict == "unresolved"
     assert unresolved.revision_claim_id is None
+    unsupported = adjudicate_check(
+        state,
+        check,
+        replace(result, verdict="supported"),
+        local,
+        replace(relational, contradiction_status="none"),
+        authorized_evidence=(ref,),
+        producer_contexts=("actor",),
+        adjudicator_context="fresh",
+        enabled=True,
+    )
+    assert unsupported.verdict == "unresolved"
 
 
 def test_check_ranking_is_disabled_and_consensus_never_proof() -> None:
@@ -122,6 +134,10 @@ def test_counterevidence_joins_existing_failure_node_without_causal_claim() -> N
     node = check_failure_node(result, observation)
     assert node.event_id == observation.event_id
     assert node.evidence_refs == (ref,)
+    with pytest.raises(ValueError, match="action"):
+        check_failure_node(result, replace(observation, action_id="other-action"))
+    with pytest.raises(ValueError, match="evidence"):
+        check_failure_node(result, replace(observation, evidence_refs=("other-evidence",)))
     with pytest.raises(ValueError, match="evidence"):
         check_failure_node(
             replace(result, evidence_refs=(EvidenceReference("fake", ref.source_kind),)),
