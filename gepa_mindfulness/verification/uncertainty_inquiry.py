@@ -70,9 +70,8 @@ def plan_inquiry(
         "information_gain_proxy": gain,
         "unresolved_claims": unresolved,
         "premature_stop": requested_stop and bool(selected) and bool(unresolved),
-        "budget_exhausted": bool(unresolved) and any(
-            check.priority > 0 and check.check_id not in selected_ids for check in calibrated
-        ),
+        "budget_exhausted": bool(unresolved)
+        and any(check.priority > 0 and check.check_id not in selected_ids for check in calibrated),
         "predicted_cost": sum(c.verification_cost for c in selected),
         "mechanistic_understanding": "unassessed",
         "hypothesis_prior": "uniform_heuristic",
