@@ -2735,3 +2735,151 @@ references:
     - gepa_mindfulness/private_promotion.py
     - tests/test_private_promotion.py
     - docs/controlled_evolution.md
+
+  - reference_id: REF-PLURPO
+    metadata_status: resolved
+    supplied_title: Mitigating Social Sycophancy via Pluralistic Preference Optimization
+    title: Mitigating Social Sycophancy via Pluralistic Preference Optimization
+    authors:
+    - Stephane Hatgis-Kessell
+    - Myra Cheng
+    - Xiaoxuan Hou
+    - Qian Hu
+    - Rahul Gupta
+    - Natasha Jaques
+    - Emma Brunskill
+    year: 2026
+    arxiv_id: '2610.02568'
+    doi: 10.48550/arXiv.2610.02568
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.02568
+    recommendation_ids:
+    - REC-005
+    source_demonstrates: The paper evaluates pluralistic simulated preferences as a way to reduce social
+      sycophancy in its studied setting.
+    repository_inference: Use bounded stakeholder and perspective diagnostics; simulated preferences are
+      not independent evidence or authority.
+    maturity: Experimental diagnostic integration; behavior is opt-in and no combined model benchmark has
+      been run. Existing recommendation maturity does not promote these additions.
+    local_repo_notes:
+    - gepa_mindfulness/verification/perspective_robustness.py
+    - tests/test_sensitive_perspectives.py
+
+  - reference_id: REF-SENSITIVE-DEBATE
+    metadata_status: resolved
+    supplied_title: 'How to Have a Sensitive Debate: An Instance-Optimal Protocol for AI Debate'
+    title: 'How to Have a Sensitive Debate: An Instance-Optimal Protocol for AI Debate'
+    authors:
+    - Jiawei Li
+    - Zhiyang Xun
+    - Lijie Chen
+    - Jonah Brown-Cohen
+    year: 2026
+    arxiv_id: '2610.02557'
+    doi: 10.48550/arXiv.2610.02557
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.02557
+    recommendation_ids:
+    - REC-011
+    source_demonstrates: The paper relates debate efficiency to sensitivity under its formal decomposition
+      assumptions.
+    repository_inference: Prioritize unresolved premises using empirical ablations; natural-language graphs
+      do not inherit the formal result.
+    maturity: Experimental diagnostic integration; behavior is opt-in and no combined model benchmark has
+      been run. Existing recommendation maturity does not promote these additions.
+    local_repo_notes:
+    - gepa_mindfulness/verification/sensitive_debate.py
+    - tests/test_sensitive_perspectives.py
+
+  - reference_id: REF-EUREKABENCH
+    metadata_status: resolved
+    supplied_title: 'EurekaBench: Measuring Agentic Ability to Discover New Scientific Insights'
+    title: 'EurekaBench: Measuring Agentic Ability to Discover New Scientific Insights'
+    authors:
+    - Jiayi Geng
+    - Zhengxuan Wu
+    - Kevin S. Chen
+    - Seungone Kim
+    - Joseph Janssen
+    - Zora Zhiruo Wang
+    - Bhupalee Kalita
+    - Runtian Gao
+    - Aaron Ho
+    - Andrew Oakleigh Nelson
+    - Olexandr Isayev
+    - Francisco Villaescusa-Navarro
+    - Ching-Yao Lai
+    - Howard Chen
+    - Graham Neubig
+    year: 2026
+    arxiv_id: '2610.00492'
+    doi: 10.48550/arXiv.2610.00492
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.00492
+    recommendation_ids:
+    - REC-011
+    source_demonstrates: EurekaBench evaluates scientific discovery and distinguishes predictive performance
+      from explanatory insight.
+    repository_inference: Add uncertainty-closing fixtures with competing hypotheses and discriminating
+      checks, keeping mechanistic understanding separate.
+    maturity: Experimental diagnostic integration; behavior is opt-in and no combined model benchmark has
+      been run. Existing recommendation maturity does not promote these additions.
+    local_repo_notes:
+    - gepa_mindfulness/verification/uncertainty_inquiry.py
+    - tests/test_uncertainty_inquiry.py
+
+  - reference_id: REF-VERIHARNESS
+    metadata_status: resolved
+    supplied_title: 'VeriHarness: Scaling Agentic Verification for Long-Horizon Tasks'
+    title: 'VeriHarness: Scaling Agentic Verification for Long-Horizon Tasks'
+    authors:
+    - Caiqi Zhang
+    - Rujun Han
+    - Zifeng Wang
+    - Zoey CuiZhu
+    - Nigel Collier
+    - Tomas Pfister
+    - Chen-Yu Lee
+    year: 2026
+    arxiv_id: '2610.00972'
+    doi: 10.48550/arXiv.2610.00972
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.00972
+    recommendation_ids:
+    - REC-006
+    source_demonstrates: VeriHarness separates disagreement resolution, consensus challenge and fresh adjudication
+      using environmental evidence.
+    repository_inference: Bind public claim checks to existing evidence and verifier contracts and retain
+      observable revisions beside V5 assessments.
+    maturity: Experimental diagnostic integration; behavior is opt-in and no combined model benchmark has
+      been run. Existing recommendation maturity does not promote these additions.
+    local_repo_notes:
+    - gepa_mindfulness/verification/claim_verification.py
+    - evaluation/epistemic_revision.py
+    - tests/test_claim_verification.py
+
+  - reference_id: REF-SIFT
+    metadata_status: resolved
+    supplied_title: Self Improvement via Fast Tree-search
+    title: Self Improvement via Fast Tree-search
+    authors:
+    - Xinghong Fu
+    - Aravinth Kulanthaivelu
+    - Yutaro Yamada
+    year: 2026
+    arxiv_id: '2609.19526'
+    doi: 10.48550/arXiv.2609.19526
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2609.19526
+    recommendation_ids:
+    - REC-010
+    source_demonstrates: SIFT combines pairwise comparisons, regularized Bradley-Terry ranking and tree
+      search to allocate expensive evaluation.
+    repository_inference: Search bounded verifier and synthetic-generation procedures; judge ranking is
+      search-only and promotion uses existing catalog decisions.
+    maturity: Experimental diagnostic integration; behavior is opt-in and no combined model benchmark has
+      been run. Existing recommendation maturity does not promote these additions.
+    local_repo_notes:
+    - gepa_mindfulness/sift_search.py
+    - gepa_mindfulness/sift_ranking.py
+    - tests/test_sift_search.py

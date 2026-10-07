@@ -13,6 +13,9 @@ is the project orientation; detailed semantics live here and in subsystem README
 
 ## Architecture and contracts
 
+- [Unified epistemic verification](unified_epistemic_verification.md): claim checking,
+  perspective robustness, uncertainty inquiry, revision and bounded procedure search.
+
 - [GEPA Mindfulness Constitution](GEPA_Mindfulness_Constitution.md): virtue-oriented normative
   reference. Stricter system, safety, deployment, and legal rules override it.
 - [17-Case Framework V5](17_CASE_FRAMEWORK.md): canonical cases, robustness stripes, repeats,
@@ -37,6 +40,9 @@ is the project orientation; detailed semantics live here and in subsystem README
   topology, orchestration-scope, and mechanistic-audit records.
 
 ## Evaluation and analysis
+
+- [Epistemic ablations](epistemic_ablations.md): A–K configurations, family splits,
+  separate diagnostic metrics, reproducible fixture commands and cost accounting.
 
 - [Alignment evaluation battery](ALIGNMENT_EVAL_BATTERY.md): benchmark adapters, run tiers,
   V5 planning, record validation, and legacy result schema.

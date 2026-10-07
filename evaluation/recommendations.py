@@ -96,6 +96,11 @@ REFERENCE_IDS = (
     "REF-CARE",
     "REF-AIDE2",
     "REF-RSI-MASTER",
+    "REF-PLURPO",
+    "REF-SENSITIVE-DEBATE",
+    "REF-EUREKABENCH",
+    "REF-VERIHARNESS",
+    "REF-SIFT",
 )
 REFERENCE_ARXIV_IDS = (
     "2609.01736",
@@ -175,6 +180,11 @@ REFERENCE_ARXIV_IDS = (
     "2606.19927",
     "2609.26457",
     "2609.35561",
+    "2610.02568",
+    "2610.02557",
+    "2610.00492",
+    "2610.00972",
+    "2609.19526",
 )
 ALLOWED_METADATA_STATUSES = frozenset({"resolved", "unresolved"})
 

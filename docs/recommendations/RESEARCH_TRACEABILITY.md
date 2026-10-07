@@ -1669,3 +1669,103 @@ are implemented with synthetic validation tests. PR-4 adds scalar correlation-aw
 **Repository inference:** Implement a bounded promotion request vocabulary and private audit trail; host isolation and independent review remain required, and the full Experiment OS and research DAG are not reproduced.
 
 **Maturity:** PR19 promotion integration is experimental and opt-in. Contract tests validate local boundaries; secrecy requires host isolation and improvement remains unmeasured.
+
+<a id="ref-plurpo"></a>
+
+## REF-PLURPO — Mitigating Social Sycophancy via Pluralistic Preference Optimization
+
+- Metadata status: `resolved`
+- Supplied title: Mitigating Social Sycophancy via Pluralistic Preference Optimization
+- Authors: Stephane Hatgis-Kessell, Myra Cheng, Xiaoxuan Hou, Qian Hu, Rahul Gupta, Natasha Jaques, Emma Brunskill
+- Year: 2026
+- arXiv: [`2610.02568`](https://arxiv.org/abs/2610.02568)
+- DOI: `10.48550/arXiv.2610.02568`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-005`
+- Local repository notes: [perspective_robustness.py](../../gepa_mindfulness/verification/perspective_robustness.py), [test_sensitive_perspectives.py](../../tests/test_sensitive_perspectives.py)
+
+**Source demonstrates:** The paper evaluates pluralistic simulated preferences as a way to reduce social sycophancy in its studied setting.
+
+**Repository inference:** Use bounded stakeholder and perspective diagnostics; simulated preferences are not independent evidence or authority.
+
+**Maturity:** Experimental diagnostic integration; behavior is opt-in and no combined model benchmark has been run. Existing recommendation maturity does not promote these additions.
+
+<a id="ref-sensitive-debate"></a>
+
+## REF-SENSITIVE-DEBATE — How to Have a Sensitive Debate: An Instance-Optimal Protocol for AI Debate
+
+- Metadata status: `resolved`
+- Supplied title: How to Have a Sensitive Debate: An Instance-Optimal Protocol for AI Debate
+- Authors: Jiawei Li, Zhiyang Xun, Lijie Chen, Jonah Brown-Cohen
+- Year: 2026
+- arXiv: [`2610.02557`](https://arxiv.org/abs/2610.02557)
+- DOI: `10.48550/arXiv.2610.02557`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-011`
+- Local repository notes: [sensitive_debate.py](../../gepa_mindfulness/verification/sensitive_debate.py), [test_sensitive_perspectives.py](../../tests/test_sensitive_perspectives.py)
+
+**Source demonstrates:** The paper relates debate efficiency to sensitivity under its formal decomposition assumptions.
+
+**Repository inference:** Prioritize unresolved premises using empirical ablations; natural-language graphs do not inherit the formal result.
+
+**Maturity:** Experimental diagnostic integration; behavior is opt-in and no combined model benchmark has been run. Existing recommendation maturity does not promote these additions.
+
+<a id="ref-eurekabench"></a>
+
+## REF-EUREKABENCH — EurekaBench: Measuring Agentic Ability to Discover New Scientific Insights
+
+- Metadata status: `resolved`
+- Supplied title: EurekaBench: Measuring Agentic Ability to Discover New Scientific Insights
+- Authors: Jiayi Geng, Zhengxuan Wu, Kevin S. Chen, Seungone Kim, Joseph Janssen, Zora Zhiruo Wang, Bhupalee Kalita, Runtian Gao, Aaron Ho, Andrew Oakleigh Nelson, Olexandr Isayev, Francisco Villaescusa-Navarro, Ching-Yao Lai, Howard Chen, Graham Neubig
+- Year: 2026
+- arXiv: [`2610.00492`](https://arxiv.org/abs/2610.00492)
+- DOI: `10.48550/arXiv.2610.00492`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-011`
+- Local repository notes: [uncertainty_inquiry.py](../../gepa_mindfulness/verification/uncertainty_inquiry.py), [test_uncertainty_inquiry.py](../../tests/test_uncertainty_inquiry.py)
+
+**Source demonstrates:** EurekaBench evaluates scientific discovery and distinguishes predictive performance from explanatory insight.
+
+**Repository inference:** Add uncertainty-closing fixtures with competing hypotheses and discriminating checks, keeping mechanistic understanding separate.
+
+**Maturity:** Experimental diagnostic integration; behavior is opt-in and no combined model benchmark has been run. Existing recommendation maturity does not promote these additions.
+
+<a id="ref-veriharness"></a>
+
+## REF-VERIHARNESS — VeriHarness: Scaling Agentic Verification for Long-Horizon Tasks
+
+- Metadata status: `resolved`
+- Supplied title: VeriHarness: Scaling Agentic Verification for Long-Horizon Tasks
+- Authors: Caiqi Zhang, Rujun Han, Zifeng Wang, Zoey CuiZhu, Nigel Collier, Tomas Pfister, Chen-Yu Lee
+- Year: 2026
+- arXiv: [`2610.00972`](https://arxiv.org/abs/2610.00972)
+- DOI: `10.48550/arXiv.2610.00972`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-006`
+- Local repository notes: [claim_verification.py](../../gepa_mindfulness/verification/claim_verification.py), [epistemic_revision.py](../../evaluation/epistemic_revision.py), [test_claim_verification.py](../../tests/test_claim_verification.py)
+
+**Source demonstrates:** VeriHarness separates disagreement resolution, consensus challenge and fresh adjudication using environmental evidence.
+
+**Repository inference:** Bind public claim checks to existing evidence and verifier contracts and retain observable revisions beside V5 assessments.
+
+**Maturity:** Experimental diagnostic integration; behavior is opt-in and no combined model benchmark has been run. Existing recommendation maturity does not promote these additions.
+
+<a id="ref-sift"></a>
+
+## REF-SIFT — Self Improvement via Fast Tree-search
+
+- Metadata status: `resolved`
+- Supplied title: Self Improvement via Fast Tree-search
+- Authors: Xinghong Fu, Aravinth Kulanthaivelu, Yutaro Yamada
+- Year: 2026
+- arXiv: [`2609.19526`](https://arxiv.org/abs/2609.19526)
+- DOI: `10.48550/arXiv.2609.19526`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-010`
+- Local repository notes: [sift_search.py](../../gepa_mindfulness/sift_search.py), [sift_ranking.py](../../gepa_mindfulness/sift_ranking.py), [test_sift_search.py](../../tests/test_sift_search.py)
+
+**Source demonstrates:** SIFT combines pairwise comparisons, regularized Bradley-Terry ranking and tree search to allocate expensive evaluation.
+
+**Repository inference:** Search bounded verifier and synthetic-generation procedures; judge ranking is search-only and promotion uses existing catalog decisions.
+
+**Maturity:** Experimental diagnostic integration; behavior is opt-in and no combined model benchmark has been run. Existing recommendation maturity does not promote these additions.

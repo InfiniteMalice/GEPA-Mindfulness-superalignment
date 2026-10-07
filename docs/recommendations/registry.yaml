@@ -139,6 +139,7 @@ recommendations:
       - REC-002
       - REC-003
     research_refs:
+      - REF-PLURPO
       - REF-CONSISTENCY
       - REF-LEXICAL-PERTURB
       - REF-TOKENIZER-BETRAYAL
@@ -155,6 +156,7 @@ recommendations:
       - synthetic_data/world_peo.py
       - docs/synthetic_worlds.md
     acceptance_tests:
+      - tests/test_sensitive_perspectives.py
       - tests/test_v5_consolidation.py
       - tests/test_evaluator_matched_errors.py
       - tests/test_v5_cell_planner.py
@@ -163,6 +165,7 @@ recommendations:
       - tests/test_synthetic_worlds.py
       - tests/test_synthetic_world_peo.py
     implementation_refs:
+      - gepa_mindfulness/verification/perspective_robustness.py
       - evaluation/suites/common.py
       - evaluation/v5_runner.py
       - evaluation/v5_records.py
@@ -182,14 +185,18 @@ recommendations:
     dependencies:
       - REC-002
     research_refs:
+      - REF-VERIHARNESS
       - REF-EDGEMEM
       - REF-GRAPHMEM
     repo_refs:
       - gepa_mindfulness/verification/state.py
     acceptance_tests:
+      - tests/test_claim_verification.py
       - tests/test_governed_evidence_commit.py
       - tests/test_world_evidence_state.py
     implementation_refs:
+      - evaluation/epistemic_revision.py
+      - gepa_mindfulness/verification/claim_verification.py
       - gepa_mindfulness/verification/state.py
 
   - id: REC-007
@@ -310,6 +317,7 @@ recommendations:
       - REC-005
       - REC-009
     research_refs:
+      - REF-SIFT
       - REF-COEVOLVE
       - REF-HOH
       - REF-QWEN-PLANNER
@@ -367,6 +375,7 @@ recommendations:
       - gepa_mindfulness/controlled_improvement.py
       - gepa_mindfulness/private_promotion.py
     acceptance_tests:
+      - tests/test_sift_search.py
       - tests/test_training_eligibility.py
       - tests/test_synthetic_v5_provenance.py
       - tests/test_learning_surfaces.py
@@ -386,6 +395,8 @@ recommendations:
       - tests/test_controlled_improvement.py
       - tests/test_private_promotion.py
     implementation_refs:
+      - gepa_mindfulness/sift_ranking.py
+      - gepa_mindfulness/sift_search.py
       - gepa_mindfulness/training/eligibility.py
       - gepa_mindfulness/learning_surfaces.py
       - gepa_mindfulness/skill_lifecycle.py
@@ -417,6 +428,8 @@ recommendations:
     dependencies:
       - REC-006
     research_refs:
+      - REF-EUREKABENCH
+      - REF-SENSITIVE-DEBATE
       - REF-PEARL
       - REF-DUAL-FRONTIER
       - REF-PHYSICAL-LANGUAGES
@@ -436,12 +449,16 @@ recommendations:
       - gepa_mindfulness/verification/semantic_exploration.py
       - docs/semantic_exploration.md
     acceptance_tests:
+      - tests/test_uncertainty_inquiry.py
+      - tests/test_sensitive_perspectives.py
       - tests/test_experimental_overlay_registry.py
       - tests/test_experimental_overlay_flags.py
       - tests/test_experimental_overlay_records.py
       - tests/test_hypothesis_state.py
       - tests/test_semantic_exploration.py
     implementation_refs:
+      - gepa_mindfulness/verification/uncertainty_inquiry.py
+      - gepa_mindfulness/verification/sensitive_debate.py
       - evaluation/experimental_overlays.py
       - evaluation/experimental_records.py
       - docs/experimental_v5_overlays.md
