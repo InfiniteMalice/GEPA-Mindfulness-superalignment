@@ -196,6 +196,31 @@ compute an RL reward, or update a policy.
 
 ## Extending the dataset
 
+### Experimental argument families
+
+Rich rows may include `argument_family`. The optional object records semantic core, source and
+variant IDs, one changed parameter and its numeric sweep coordinate, material-fact changes,
+canonical case target, public response/confidence, evidence sufficiency, unresolved claims,
+critical premises, empirical decision sensitivity, perspective, transition label and difficulty
+band. Existing rows remain valid. The packaged schema and source schema remain identical.
+
+Family labels carry `training_eligibility: DEVELOPMENT`; they do not authorize optimizer reward.
+Perspective transformation specifications come from `verification.perspective_robustness`.
+The host remains responsible for rendering text and checking that material facts are unchanged.
+`compare_perspectives` reports hard-constraint drift even when material facts change; it leaves
+justification unresolved instead of treating narrator preferences as authorization.
+
+`verification.sensitive_debate` consumes public decompositions and host-observed ablations.
+Its premise-flip rate is an empirical diagnostic, not formal fractional block sensitivity.
+Challenge selection is disabled by default and bounded by explicit depth and check budgets.
+
+Research: *Mitigating Social Sycophancy via Pluralistic Preference Optimization*
+([arXiv:2610.02568](https://arxiv.org/abs/2610.02568)) motivates perspective coverage;
+*How to Have a Sensitive Debate: An Instance-Optimal Protocol for AI Debate*
+([arXiv:2610.02557](https://arxiv.org/abs/2610.02557)) motivates decomposition scrutiny.
+The family metadata, authorization separation and empirical proxies are repository design
+inferences. Tests: `tests/test_sensitive_perspectives.py`.
+
 1. Scaffold a new case template.
 2. Author strong and weak arguments with explicit uncertainty.
 3. Add adversarial dialogue, reflective synthesis, and failure diagnosis.

@@ -835,21 +835,29 @@
         "provenance"
       ],
       "properties": {
-        "central_diagnostic": {"type": "string"},
+        "central_diagnostic": {
+          "type": "string"
+        },
         "supporting_diagnostics": {
           "type": "array",
           "minItems": 7,
-          "items": {"type": "string"}
+          "items": {
+            "type": "string"
+          }
         },
         "healthy_reinforcement_path": {
           "type": "array",
           "minItems": 5,
-          "items": {"type": "string"}
+          "items": {
+            "type": "string"
+          }
         },
         "corrupted_reinforcement_path": {
           "type": "array",
           "minItems": 5,
-          "items": {"type": "string"}
+          "items": {
+            "type": "string"
+          }
         },
         "response_classes": {
           "type": "object",
@@ -864,14 +872,30 @@
             "rationalized_failure"
           ],
           "properties": {
-            "grounded_success": {"$ref": "#/$defs/reward_integrity_response"},
-            "benign_shortcut": {"$ref": "#/$defs/reward_integrity_response"},
-            "exploit_disclosure": {"$ref": "#/$defs/reward_integrity_response"},
-            "proxy_exploitation": {"$ref": "#/$defs/reward_integrity_response"},
-            "evaluator_manipulation": {"$ref": "#/$defs/reward_integrity_response"},
-            "reward_tampering": {"$ref": "#/$defs/reward_integrity_response"},
-            "honest_failure": {"$ref": "#/$defs/reward_integrity_response"},
-            "rationalized_failure": {"$ref": "#/$defs/reward_integrity_response"}
+            "grounded_success": {
+              "$ref": "#/$defs/reward_integrity_response"
+            },
+            "benign_shortcut": {
+              "$ref": "#/$defs/reward_integrity_response"
+            },
+            "exploit_disclosure": {
+              "$ref": "#/$defs/reward_integrity_response"
+            },
+            "proxy_exploitation": {
+              "$ref": "#/$defs/reward_integrity_response"
+            },
+            "evaluator_manipulation": {
+              "$ref": "#/$defs/reward_integrity_response"
+            },
+            "reward_tampering": {
+              "$ref": "#/$defs/reward_integrity_response"
+            },
+            "honest_failure": {
+              "$ref": "#/$defs/reward_integrity_response"
+            },
+            "rationalized_failure": {
+              "$ref": "#/$defs/reward_integrity_response"
+            }
           },
           "additionalProperties": false
         },
@@ -880,12 +904,25 @@
           "minItems": 6,
           "items": {
             "type": "object",
-            "required": ["chosen_class", "rejected_class", "pair_rule", "rationale"],
+            "required": [
+              "chosen_class",
+              "rejected_class",
+              "pair_rule",
+              "rationale"
+            ],
             "properties": {
-              "chosen_class": {"type": "string"},
-              "rejected_class": {"type": "string"},
-              "pair_rule": {"type": "string"},
-              "rationale": {"type": "string"}
+              "chosen_class": {
+                "type": "string"
+              },
+              "rejected_class": {
+                "type": "string"
+              },
+              "pair_rule": {
+                "type": "string"
+              },
+              "rationale": {
+                "type": "string"
+              }
             },
             "additionalProperties": false
           }
@@ -893,25 +930,40 @@
         "observable_outcomes": {
           "type": "array",
           "minItems": 1,
-          "items": {"type": "string"}
+          "items": {
+            "type": "string"
+          }
         },
-        "component_targets": {"$ref": "#/$defs/reward_integrity_component_map"},
+        "component_targets": {
+          "$ref": "#/$defs/reward_integrity_component_map"
+        },
         "repair_protocol": {
           "type": "array",
           "minItems": 8,
-          "items": {"type": "string"}
+          "items": {
+            "type": "string"
+          }
         },
         "scientific_and_ethical_notes": {
           "type": "array",
           "minItems": 1,
-          "items": {"type": "string"}
+          "items": {
+            "type": "string"
+          }
         },
         "provenance": {
           "type": "object",
-          "required": ["extends_case_id", "extension_summary"],
+          "required": [
+            "extends_case_id",
+            "extension_summary"
+          ],
           "properties": {
-            "extends_case_id": {"type": "string"},
-            "extension_summary": {"type": "string"}
+            "extends_case_id": {
+              "type": "string"
+            },
+            "extension_summary": {
+              "type": "string"
+            }
           },
           "additionalProperties": false
         }
@@ -951,42 +1003,293 @@
         }
       },
       "additionalProperties": false
+    },
+    "argument_family": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scenario_family_id",
+        "semantic_core_id",
+        "variant_id",
+        "source_variant_id",
+        "changed_parameter",
+        "parameter_value",
+        "material_facts_changed",
+        "canonical_case_target",
+        "response_mode",
+        "confidence",
+        "evidence_sufficiency",
+        "unresolved_claims",
+        "critical_premises",
+        "decision_sensitivity",
+        "perspective",
+        "expected_transition",
+        "distance_band",
+        "training_eligibility"
+      ],
+      "properties": {
+        "scenario_family_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "semantic_core_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "variant_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_variant_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "changed_parameter": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parameter_value": {
+          "type": "number"
+        },
+        "material_facts_changed": {
+          "type": "boolean"
+        },
+        "canonical_case_target": {
+          "type": "integer",
+          "enum": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17
+          ]
+        },
+        "response_mode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "evidence_sufficiency": {
+          "enum": [
+            "sufficient",
+            "insufficient",
+            "conflicting",
+            "unresolved"
+          ]
+        },
+        "unresolved_claims": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "critical_premises": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "decision_sensitivity": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "perspective": {
+          "enum": [
+            "actor",
+            "affected_party",
+            "neutral_observer",
+            "institutional",
+            "role_reversal"
+          ]
+        },
+        "expected_transition": {
+          "enum": [
+            "JUSTIFIED_TRANSITION",
+            "PREMATURE_TRANSITION",
+            "DELAYED_TRANSITION",
+            "MISSED_TRANSITION",
+            "SPURIOUS_FRAMING_TRANSITION",
+            "NO_TRANSITION_EXPECTED",
+            "HYSTERESIS_OR_COMMITMENT_LOCK"
+          ]
+        },
+        "distance_band": {
+          "enum": [
+            "FAR_FROM_BOUNDARY",
+            "NEAR_BOUNDARY",
+            "CRITICAL_BOUNDARY",
+            "ADVERSARIAL_CRITICAL_BOUNDARY"
+          ]
+        },
+        "training_eligibility": {
+          "enum": [
+            "DEVELOPMENT"
+          ]
+        }
+      }
     }
   },
   "$defs": {
     "reward_integrity_component_map": {
       "type": "object",
-      "required": ["objective_fidelity", "feedback_integrity", "skill_transfer", "reality_contact", "exploit_disclosure", "long_horizon_agency", "benign_creativity", "repair_quality"],
+      "required": [
+        "objective_fidelity",
+        "feedback_integrity",
+        "skill_transfer",
+        "reality_contact",
+        "exploit_disclosure",
+        "long_horizon_agency",
+        "benign_creativity",
+        "repair_quality"
+      ],
       "properties": {
-        "objective_fidelity": {"type": "number", "minimum": -1.0, "maximum": 1.0},
-        "feedback_integrity": {"type": "number", "minimum": -1.0, "maximum": 1.0},
-        "skill_transfer": {"type": "number", "minimum": -1.0, "maximum": 1.0},
-        "reality_contact": {"type": "number", "minimum": -1.0, "maximum": 1.0},
-        "exploit_disclosure": {"type": "number", "minimum": -1.0, "maximum": 1.0},
-        "long_horizon_agency": {"type": "number", "minimum": -1.0, "maximum": 1.0},
-        "benign_creativity": {"type": "number", "minimum": -1.0, "maximum": 1.0},
-        "repair_quality": {"type": "number", "minimum": -1.0, "maximum": 1.0}
+        "objective_fidelity": {
+          "type": "number",
+          "minimum": -1.0,
+          "maximum": 1.0
+        },
+        "feedback_integrity": {
+          "type": "number",
+          "minimum": -1.0,
+          "maximum": 1.0
+        },
+        "skill_transfer": {
+          "type": "number",
+          "minimum": -1.0,
+          "maximum": 1.0
+        },
+        "reality_contact": {
+          "type": "number",
+          "minimum": -1.0,
+          "maximum": 1.0
+        },
+        "exploit_disclosure": {
+          "type": "number",
+          "minimum": -1.0,
+          "maximum": 1.0
+        },
+        "long_horizon_agency": {
+          "type": "number",
+          "minimum": -1.0,
+          "maximum": 1.0
+        },
+        "benign_creativity": {
+          "type": "number",
+          "minimum": -1.0,
+          "maximum": 1.0
+        },
+        "repair_quality": {
+          "type": "number",
+          "minimum": -1.0,
+          "maximum": 1.0
+        }
       },
       "additionalProperties": false
     },
     "reward_integrity_response": {
       "type": "object",
-      "required": ["response", "observable_outcomes", "reward_components", "negative_evidence"],
+      "required": [
+        "response",
+        "observable_outcomes",
+        "reward_components",
+        "negative_evidence"
+      ],
       "properties": {
-        "response": {"type": "string", "minLength": 1},
-        "observable_outcomes": {"type": "array", "minItems": 1, "items": {"type": "string"}},
-        "reward_components": {"$ref": "#/$defs/reward_integrity_component_map"},
+        "response": {
+          "type": "string",
+          "minLength": 1
+        },
+        "observable_outcomes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "reward_components": {
+          "$ref": "#/$defs/reward_integrity_component_map"
+        },
         "negative_evidence": {
           "type": "object",
           "properties": {
-            "objective_fidelity": {"type": "array", "minItems": 1, "items": {"type": "string"}},
-            "feedback_integrity": {"type": "array", "minItems": 1, "items": {"type": "string"}},
-            "skill_transfer": {"type": "array", "minItems": 1, "items": {"type": "string"}},
-            "reality_contact": {"type": "array", "minItems": 1, "items": {"type": "string"}},
-            "exploit_disclosure": {"type": "array", "minItems": 1, "items": {"type": "string"}},
-            "long_horizon_agency": {"type": "array", "minItems": 1, "items": {"type": "string"}},
-            "benign_creativity": {"type": "array", "minItems": 1, "items": {"type": "string"}},
-            "repair_quality": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+            "objective_fidelity": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            },
+            "feedback_integrity": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            },
+            "skill_transfer": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            },
+            "reality_contact": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            },
+            "exploit_disclosure": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            },
+            "long_horizon_agency": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            },
+            "benign_creativity": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            },
+            "repair_quality": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            }
           },
           "additionalProperties": false
         }
