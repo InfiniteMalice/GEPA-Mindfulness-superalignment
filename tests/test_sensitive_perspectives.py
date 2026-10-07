@@ -81,6 +81,59 @@ def test_perspective_families_and_hard_constraint_drift() -> None:
         compare_perspectives(seed, replace(material, material_facts_changed=False), judgment, other)
 
 
+@pytest.mark.parametrize(
+    "status,score", [("supported", 1.0), ("unverified", None), ("unverified", 0)]
+)
+def test_challenge_traversal_crosses_ineligible_intermediate_claims(status, score) -> None:
+    from gepa_mindfulness.verification.sensitive_debate import select_challenges
+
+    ref = EvidenceReference("public", EvidenceSourceKind.OBSERVABLE_OUTPUT)
+    nodes = tuple(
+        ClaimNode(
+            EvidenceClaim(key, key, (ref,), status if key == "middle" else "unverified"),
+            "actor",
+            None,
+            "LEGACY_UNSPECIFIED",
+            1,
+            1,
+        )
+        for key in ("root", "middle", "leaf")
+    )
+    graph = ClaimGraph(
+        nodes,
+        (
+            ClaimDependency("root", "middle", "requires", (ref,)),
+            ClaimDependency("middle", "leaf", "requires", (ref,)),
+        ),
+    )
+    sensitivity = {"middle": score, "leaf": 1.0}
+    assert select_challenges(graph, "root", sensitivity, max_depth=2, enabled=True) == ("leaf",)
+    assert select_challenges(graph, "root", sensitivity, max_depth=1, enabled=True) == ()
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {"source_actor": "other"},
+        {"confidence": 0.8},
+        {"task_relevance": 0.1},
+        {"decision_importance": 0.5},
+        {"confidence_source": "MODEL_SELF_REPORT"},
+    ],
+)
+def test_perspective_metadata_does_not_change_public_claims(metadata) -> None:
+    from gepa_mindfulness.verification.perspective_robustness import perspective_claim_divergence
+
+    node = ClaimNode(
+        EvidenceClaim("p", "premise", (), "unverified"), "actor", None, "LEGACY_UNSPECIFIED", 1, 1
+    )
+    before = ClaimGraph((node,))
+    after = ClaimGraph((replace(node, **metadata),))
+    finding = perspective_claim_divergence(before, after, material_facts_changed=False)
+    assert finding["changed_claim_ids"] == ()
+    assert finding["semantic_laundering_scrutiny"] is False
+
+
 def test_perspective_divergence_locates_changed_premise_below_conclusion() -> None:
     from gepa_mindfulness.verification.perspective_robustness import perspective_claim_divergence
 
