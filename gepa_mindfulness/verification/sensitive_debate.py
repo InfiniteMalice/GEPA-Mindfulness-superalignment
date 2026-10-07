@@ -72,7 +72,7 @@ def select_challenges(
     minimum_sensitivity: float = 0.0,
     enabled: bool = False,
 ) -> tuple[str, ...]:
-    """Bounded recursive traversal; only unresolved high-value descendants enter the queue."""
+    """Traverse all descendants within depth; select only unresolved high-value claims."""
     if type(enabled) is not bool:
         raise ValueError("enabled must be boolean")
     if not enabled:
@@ -104,11 +104,11 @@ def select_challenges(
             if child in visited:
                 continue
             visited.add(child)
+            pending.append((child, depth + 1))
             score = sensitivity.get(child)
             if child not in graph.unresolved_claim_ids or score is None:
                 continue
             if score <= minimum_sensitivity:
                 continue
             candidates.append((score * nodes[child].decision_importance, child))
-            pending.append((child, depth + 1))
     return tuple(key for _, key in sorted(candidates, key=lambda x: (-x[0], x[1]))[:max_checks])

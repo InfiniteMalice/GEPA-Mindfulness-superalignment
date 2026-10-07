@@ -87,8 +87,13 @@ def check_failure_node(result: CheckResult, observation: EventEnvelope) -> Failu
     result = CheckResult.from_dict(result.to_dict())
     if result.verdict != "contradicted" or observation.event_type != "outcome_observed":
         raise ValueError("failure attachment requires observed counterevidence")
-    if observation.payload.get("action_id") != result.action_id:
+    if (
+        observation.action_id != result.action_id
+        or observation.payload.get("action_id") != result.action_id
+    ):
         raise ValueError("failure observation action mismatch")
+    if set(observation.evidence_refs) != set(observation.payload.get("evidence_refs", ())):
+        raise ValueError("failure observation envelope/payload evidence mismatch")
     if not {ref.reference_id for ref in result.evidence_refs}.issubset(
         observation.payload.get("evidence_refs", ())
     ):
@@ -219,8 +224,9 @@ def adjudicate_check(
         "dependencies_satisfied",
         "provenance_intact",
         "authorization_scope_valid",
-        "claimed_outcome_supported",
     )
+    if result.verdict == "supported":
+        relational_fields += ("claimed_outcome_supported",)
     for verification, names in ((local, local_fields), (relational, relational_fields)):
         bindings = {b.field_name: set(b.evidence_refs) for b in verification.evidence_bindings}
         for name in names:
