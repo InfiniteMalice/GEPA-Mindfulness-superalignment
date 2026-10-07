@@ -95,7 +95,7 @@ class ClaimDecomposition(DiagnosticRecord):
 
 @dataclass(frozen=True, slots=True)
 class ClaimGraph(DiagnosticRecord):
-    """Closed acyclic public decomposition graph, bounded to 1024 claims."""
+    """Closed graph with acyclic dependency and supersession links, bounded to 1024 claims."""
 
     nodes: tuple[ClaimNode, ...]
     dependencies: tuple[ClaimDependency, ...] = ()
@@ -132,6 +132,12 @@ class ClaimGraph(DiagnosticRecord):
                 adjacency[decomposition.parent_claim_id]
             ):
                 raise ValueError("decomposition children require matching dependency edges")
+        for node in self.nodes:
+            successor = node.claim.superseded_by
+            if successor is not None:
+                if successor not in ids:
+                    raise ValueError("supersession references unknown claim")
+                adjacency[node.claim.claim_id].add(successor)
         # Kahn traversal avoids recursion failures on long adversarial graphs.
         incoming = {key: 0 for key in ids}
         for children in adjacency.values():
