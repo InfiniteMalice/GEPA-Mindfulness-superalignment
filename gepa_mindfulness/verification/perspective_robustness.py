@@ -133,7 +133,7 @@ def perspective_claim_divergence(
     changed = {
         key
         for key in left.keys() | right.keys()
-        if left.get(key) != right.get(key)
+        if (key not in left or key not in right or left[key].claim != right[key].claim)
         and any(
             node is not None and node.decision_importance > 0
             for node in (left.get(key), right.get(key))
