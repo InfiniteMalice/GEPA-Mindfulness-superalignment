@@ -39,6 +39,31 @@ def test_identical_public_values_cannot_have_conflicting_targets(cases, modes) -
     assert not validate_family(generate_family(source_row(), values=("low", "low"), **kwargs))
 
 
+@pytest.mark.parametrize(
+    "cases,modes",
+    [
+        ((1, 3, 3), ("ANSWER", "ANSWER", "ANSWER")),
+        ((1, 1, 1), ("ANSWER", "IDK", "IDK")),
+    ],
+)
+def test_nonadjacent_repeated_inputs_cannot_change_targets(cases, modes) -> None:
+    from synthetic_data.argument_families import generate_family
+
+    with pytest.raises(ValueError, match="identical"):
+        generate_family(
+            source_row(),
+            family_id="repeat",
+            semantic_core_id="core",
+            parameter_path=("scenario", "urgency"),
+            values=("low", "high", "low"),
+            coordinates=(0, 1, 2),
+            case_targets=cases,
+            response_modes=modes,
+            confidence=(0.8, 0.8, 0.8),
+            material_changes=(False, True, True),
+        )
+
+
 def test_sweep_changes_one_parameter_and_preserves_source() -> None:
     from synthetic_data.argument_families import generate_family, validate_family
 

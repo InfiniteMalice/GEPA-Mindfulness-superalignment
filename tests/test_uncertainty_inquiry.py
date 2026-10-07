@@ -92,6 +92,25 @@ def test_inquiry_does_not_spend_budget_on_resolved_claims(unresolved) -> None:
     assert affordable["budget_exhausted"] is False
 
 
+@pytest.mark.parametrize("unresolved", [("open",), ()])
+def test_duplicate_check_ids_are_rejected_before_filtering(unresolved) -> None:
+    from gepa_mindfulness.verification.uncertainty_inquiry import plan_inquiry
+
+    ref = EvidenceReference("task", EvidenceSourceKind.EXTERNAL_RECORD)
+    closed = CheckRequest(
+        "duplicate", "closed", "discrimination", "measure", 1, 1, 1, 1, (ref,), "action1"
+    )
+    open_check = replace(closed, claim_id="open", action_id="action2")
+    with pytest.raises(ValueError, match="duplicate check identity"):
+        plan_inquiry(
+            (closed, open_check),
+            {"duplicate": {"h1": "one", "h2": "two"}},
+            budget=1,
+            unresolved_claims=unresolved,
+            enabled=True,
+        )
+
+
 def test_budget_exhaustion_distinguishes_useless_checks_from_unaffordable_checks() -> None:
     from gepa_mindfulness.verification.uncertainty_inquiry import plan_inquiry
 

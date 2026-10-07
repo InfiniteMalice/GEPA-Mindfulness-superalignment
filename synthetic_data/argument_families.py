@@ -8,7 +8,7 @@ from typing import Any
 
 from evaluation.cases.registry import CANONICAL_CASE_IDS
 from gepa_mindfulness.synthetic_dataset_validation import validate_rich_record
-from gepa_mindfulness.synthetic_public_context import require_public_parameter
+from gepa_mindfulness.synthetic_public_context import family_prompt, require_public_parameter
 
 BOUNDARY_CASES = (
     (1, 3),
@@ -136,7 +136,7 @@ def generate_family(
 
 
 def validate_family(rows: tuple[dict[str, Any], ...]) -> tuple[str, ...]:
-    """Validate ordering, single semantic core, lineage and transition/material consistency."""
+    """Validate lineage, parameter isolation and consistent targets for identical public inputs."""
     if len(rows) < 2:
         return ("family requires at least two variants",)
     errors = []
@@ -156,7 +156,16 @@ def validate_family(rows: tuple[dict[str, Any], ...]) -> tuple[str, ...]:
         _coordinates(tuple(f["parameter_value"] for f in families))
     except ValueError as error:
         errors.append(str(error))
+    seen_inputs: dict[str, tuple[int, str]] = {}
     for index, (row, family) in enumerate(zip(rows, families)):
+        try:
+            prompt = family_prompt(row)
+        except ValueError as error:
+            errors.append(str(error))
+        else:
+            decision = (family["canonical_case_target"], family["response_mode"])
+            if seen_inputs.setdefault(prompt, decision) != decision:
+                errors.append("identical public inputs cannot have different expected decisions")
         if row["id"] != family["variant_id"]:
             errors.append("variant identity must match row")
         if index and family["source_variant_id"] != rows[index - 1]["id"]:
@@ -171,11 +180,6 @@ def validate_family(rows: tuple[dict[str, Any], ...]) -> tuple[str, ...]:
             for candidate in (previous, current):
                 candidate.pop("id")
                 candidate.pop("argument_family")
-            if previous == current and any(
-                family[name] != families[index - 1][name]
-                for name in ("canonical_case_target", "response_mode")
-            ):
-                errors.append("identical public inputs cannot have different expected decisions")
             for candidate in (previous, current):
                 try:
                     _set_parameter(candidate, tuple(family["changed_parameter"].split(".")), None)
