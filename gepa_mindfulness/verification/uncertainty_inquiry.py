@@ -61,7 +61,11 @@ def plan_inquiry(
             (n / count) * log2(n / count) for n in Counter(predictions.values()).values()
         )
         gain[check.check_id] = entropy / log2(count)
-    calibrated = tuple(replace(c, expected_information_gain=gain[c.check_id]) for c in checks)
+    calibrated = tuple(
+        replace(c, expected_information_gain=gain[c.check_id])
+        for c in checks
+        if c.claim_id in unresolved
+    )
     selected = prioritize_checks(calibrated, budget=budget, enabled=True)
     selected_ids = {check.check_id for check in selected}
     return {

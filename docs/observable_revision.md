@@ -12,6 +12,8 @@ prediction. This validates joins, not the semantic truth of the public answer. A
 and confidence-source declarations remain sidecar diagnostics because historical prediction
 payloads did not encode them. Leveled verifier-only streams without the legacy observation/verifier
 join currently fail closed in this adapter and need an explicit compatible integration.
+Any changed commitment content requires a later prediction event, even if confidence is unchanged.
+An unchanged commitment may reuse the initial prediction with a different commitment ID.
 
 `revision_diagnostics` reports answer/mode/confidence changes, unsupported replacement premises,
 counterevidence retention, unresolved-claim preservation, clarification proportionality and resume
@@ -19,6 +21,9 @@ behavior separately. Host-supplied decisive-premise findings distinguish underre
 appropriate stability. Unsupported replacement premises after a decisive falsification flag
 rationale migration. An unchanged answer alone never implies deception. Unknown decisiveness
 or unknown alternative support leaves the evaluator uncertain.
+Rationale migration also applies when the answer changes but new premises remain unsupported.
+Initially unresolved claims must remain explicit unless a check supports or contradicts them;
+an unresolved check result always keeps its claim in the preservation requirement.
 
 APPROPRIATE_REVISION means a response reacted to designated decisive evidence; it does not
 certify the revised answer. Correctness, calibration, abstention and action validity remain in

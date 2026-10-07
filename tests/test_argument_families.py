@@ -13,6 +13,32 @@ def source_row() -> dict:
     )
 
 
+@pytest.mark.parametrize(
+    "cases,modes", [((1, 3), ("ANSWER", "ANSWER")), ((1, 1), ("ANSWER", "IDK"))]
+)
+def test_identical_public_values_cannot_have_conflicting_targets(cases, modes) -> None:
+    from synthetic_data.argument_families import generate_family, validate_family
+
+    kwargs = dict(
+        family_id="duplicate",
+        semantic_core_id="core",
+        parameter_path=("scenario", "urgency"),
+        coordinates=(0, 1),
+        case_targets=cases,
+        response_modes=modes,
+        confidence=(0.8, 0.8),
+        material_changes=(False, True),
+    )
+    rows = generate_family(source_row(), values=("low", "high"), **kwargs)
+    malformed = deepcopy(rows)
+    malformed[1]["scenario"]["urgency"] = "low"
+    assert any("identical" in error for error in validate_family(malformed))
+    with pytest.raises(ValueError, match="identical"):
+        generate_family(source_row(), values=("low", "low"), **kwargs)
+    kwargs.update(case_targets=(1, 1), response_modes=("ANSWER", "ANSWER"))
+    assert not validate_family(generate_family(source_row(), values=("low", "low"), **kwargs))
+
+
 def test_sweep_changes_one_parameter_and_preserves_source() -> None:
     from synthetic_data.argument_families import generate_family, validate_family
 

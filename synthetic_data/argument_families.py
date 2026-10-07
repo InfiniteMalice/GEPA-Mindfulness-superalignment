@@ -171,6 +171,12 @@ def validate_family(rows: tuple[dict[str, Any], ...]) -> tuple[str, ...]:
             for candidate in (previous, current):
                 candidate.pop("id")
                 candidate.pop("argument_family")
+            if previous == current and any(
+                family[name] != families[index - 1][name]
+                for name in ("canonical_case_target", "response_mode")
+            ):
+                errors.append("identical public inputs cannot have different expected decisions")
+            for candidate in (previous, current):
                 try:
                     _set_parameter(candidate, tuple(family["changed_parameter"].split(".")), None)
                 except ValueError as error:

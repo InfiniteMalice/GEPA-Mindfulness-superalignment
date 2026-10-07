@@ -43,6 +43,22 @@ def test_forced_revision_and_rationale_migration() -> None:
     )
     assert stable["revision_label"] == "APPROPRIATE_STABILITY"
     assert revision_diagnostics(before, before, (result,))["revision_label"] == "UNRESOLVED"
+    migrated_answer = replace(migrated, answer="no")
+    assert (
+        revision_diagnostics(before, migrated_answer, (result,), decisive_premises=("p",))[
+            "revision_label"
+        ]
+        == "RATIONALE_MIGRATION"
+    )
+    verified_replacement = replace(
+        result, check_id="replacement-check", claim_id="replacement", verdict="supported"
+    )
+    assert (
+        revision_diagnostics(
+            before, migrated_answer, (result, verified_replacement), decisive_premises=("p",)
+        )["revision_label"]
+        == "APPROPRIATE_REVISION"
+    )
     with pytest.raises(ValueError):
         EpistemicProcessAssessment((revised,))
 
@@ -56,6 +72,22 @@ def test_case_adapters_use_all_and_only_canonical_cases() -> None:
     assert all(case_diagnostic_focus(i) for i in range(1, 18))
     with pytest.raises(ValueError):
         case_diagnostic_focus(18)
+
+
+def test_prior_unresolved_claims_require_preservation_until_checked() -> None:
+    from evaluation.epistemic_revision import PublicCommitment, revision_diagnostics
+
+    before = PublicCommitment(
+        "before", "prediction", "IDK", "unknown", 0.2, "MODEL_SELF_REPORT", (), ("p",), ()
+    )
+    dropped = replace(before, commitment_id="after", unresolved_claim_ids=())
+    assert revision_diagnostics(before, dropped, ())["unresolved_preserved"] is False
+    assert revision_diagnostics(before, before, ())["unresolved_preserved"] is True
+    ref = EvidenceReference("external", EvidenceSourceKind.EXTERNAL_RECORD)
+    check = CheckResult("check", "p", "action", "supported", (ref,), "verifier", None)
+    assert revision_diagnostics(before, dropped, (check,))["unresolved_preserved"] is True
+    unresolved = replace(check, verdict="unresolved")
+    assert revision_diagnostics(before, dropped, (unresolved,))["unresolved_preserved"] is False
 
 
 def test_episode_round_trip_keeps_canonical_assessment_and_requires_real_events() -> None:
@@ -201,6 +233,19 @@ def test_real_revision_joins_initial_and_later_prediction_and_check_evidence() -
     )
     sequence = events + (final_event,)
     assert validate_episode_events(episode, sequence)["training_eligibility"] == "DEVELOPMENT"
+    unchanged = replace(episode, final=replace(initial, commitment_id="after"), checks=())
+    assert validate_episode_events(unchanged, events)["training_eligibility"] == "DEVELOPMENT"
+    for change in (
+        {"answer": "new answer"},
+        {"response_mode": "IDK"},
+        {"supporting_claim_ids": ("p",), "unresolved_claim_ids": ()},
+        {"unresolved_claim_ids": ()},
+        {"confidence_source": "MODEL_SELF_REPORT"},
+    ):
+        with pytest.raises(ValueError, match="later prediction"):
+            validate_episode_events(
+                replace(unchanged, final=replace(unchanged.final, **change)), events
+            )
     from evaluation.epistemic_revision import compose_revision_example
     from gepa_mindfulness.training.eligibility import require_training_eligible
     from gepa_mindfulness.verification.check_records import CheckRequest

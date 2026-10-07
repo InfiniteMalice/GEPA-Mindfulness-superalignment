@@ -14,7 +14,9 @@ The estimator preserves prior and new evidence references; fitting a scalar does
 mechanism. Its innovation/mismatch outputs identify surprises for a subsequent bounded inquiry.
 
 `plan_inquiry` retains unresolved claims and reports a premature stop when a requested stop leaves
-an affordable discriminating check. Budget exhaustion is recorded separately. A host may answer,
+an affordable discriminating check for one of those unresolved claims. Checks for other claims
+cannot consume the budget. Budget exhaustion means a useful check for an unresolved claim
+remains unaffordable after allocation; zero-gain checks do not exhaust the budget. A host may answer,
 abstain or clarify under the existing response policy; this diagnostic does not override it.
 
 Fixtures: `data/synthetic/gold/uncertainty_closing_v1.jsonl` contrasts useful and irrelevant checks
