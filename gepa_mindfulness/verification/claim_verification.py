@@ -219,7 +219,7 @@ def adjudicate_check(
         "authorization_valid",
         "intended_operation_observed",
     )
-    relational_fields = (
+    relational_fields: tuple[str, ...] = (
         "task_fit",
         "dependencies_satisfied",
         "provenance_intact",
