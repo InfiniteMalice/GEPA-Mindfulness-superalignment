@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from gepa_mindfulness.core.evidence import EvidenceReference
@@ -156,7 +156,7 @@ def revision_diagnostics(
     unsupported = replacements - supported
     label = "UNRESOLVED"
     if failed:
-        if not changed and unsupported:
+        if unsupported:
             label = "RATIONALE_MIGRATION"
         elif changed and not (failed & set(after.supporting_claim_ids)):
             label = "APPROPRIATE_REVISION"
@@ -168,6 +168,7 @@ def revision_diagnostics(
         label = "OVER_REACTION" if changed else "APPROPRIATE_STABILITY"
     counterevidence = {r for c in checks if c.verdict == "contradicted" for r in c.evidence_refs}
     unresolved = {c.claim_id for c in checks if c.verdict == "unresolved"}
+    unresolved.update(set(before.unresolved_claim_ids) - (supported | contradicted))
     return {
         "training_eligibility": "DEVELOPMENT",
         "revision_label": label,
@@ -237,6 +238,11 @@ def validate_episode_events(
     final_position = positions[episode.final.prediction_ref]
     if final_position < positions[episode.initial.prediction_ref]:
         raise ValueError("final prediction cannot precede initial prediction")
+    if (
+        final_position == positions[episode.initial.prediction_ref]
+        and replace(episode.final, commitment_id=episode.initial.commitment_id) != episode.initial
+    ):
+        raise ValueError("changed final commitment requires a later prediction")
     for check in episode.checks:
         observations = [
             event
