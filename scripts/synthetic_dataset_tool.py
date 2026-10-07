@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from gepa_mindfulness.synthetic_dataset_validation import validate_rich_record
+from synthetic_data.argument_families import summarize_families
 
 SUBSCORE_KEYS = [
     "conceptual_clarity",
@@ -396,6 +397,9 @@ def cmd_summary(args: argparse.Namespace) -> int:
         return 1
 
     print(f"records: {len(records)}")
+    families = summarize_families(records)
+    if families:
+        print("argument_families: " + json.dumps(families, sort_keys=True))
     by_domain: dict[str, int] = {}
     by_family: dict[str, int] = {}
     pressure_counts: dict[str, int] = {}

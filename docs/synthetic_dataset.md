@@ -221,6 +221,24 @@ Research: *Mitigating Social Sycophancy via Pluralistic Preference Optimization*
 The family metadata, authorization separation and empirical proxies are repository design
 inferences. Tests: `tests/test_sensitive_perspectives.py`.
 
+`synthetic_data.argument_families.generate_family` applies an explicitly supplied sweep to one
+existing scenario or argument field. `validate_family` checks the complete family, including
+ordered coordinates, one semantic core, predecessor IDs and changes outside the declared field.
+`generate_boundary_family` supports the authored V5 boundary pairs listed in `BOUNDARY_CASES`.
+Callers supply the actual values and target responses; these are provisional author labels.
+Changing evidence can invalidate retained template arguments, so human review is still required.
+
+`response_curve` reports all observed and expected boundaries, confidence slopes, reversals and
+possible commitment lock. Labels distinguish early, late, missed and framing-induced changes.
+Difficulty bands describe authored proximity; they are not calibrated distances.
+`hard_negative` changes exactly one selected field. `argument_pairs.build_argument_pair` binds
+the pair to the physical rich-source line, source hash, case version and decisive difference.
+Pairs remain DEVELOPMENT and cannot enter the existing optimizer admission path.
+
+The existing `summary` command also reports argument-family counts, targets and validation errors.
+`SyntheticCaseAdapter` accepts family rows without a reward-integrity section and retains the
+complete source row. Tests: `tests/test_argument_families.py`, `tests/test_rl_adapters.py`.
+
 1. Scaffold a new case template.
 2. Author strong and weak arguments with explicit uncertainty.
 3. Add adversarial dialogue, reflective synthesis, and failure diagnosis.
@@ -230,3 +248,15 @@ inferences. Tests: `tests/test_sensitive_perspectives.py`.
 The prompt template intentionally requests diverse outcomes: cooperation success,
 cooperation failure, locally rational defection, integrity-preserving honest
 failure, and maintenance-rational pauses. This prevents one-note moralization.
+
+Family annotations may explicitly set evidence sufficiency, unresolved claims, critical premises,
+perspective, expected transition, distance band and measured decision sensitivity. Unmeasured
+sensitivity is null. Case or mode changes identify a default boundary; hosts author confidence-only
+boundaries explicitly. Rollout prompts expose only approved public fields, excluding hidden facts,
+flaw annotations and targets. Canonical/weak arguments under test are presented without truth labels.
+Hard-negative pairs require exactly one public-field difference and a stable source-file hash.
+
+For paired forward/reverse sweeps, pass `reverse_actual` aligned to the same ascending coordinates
+to `response_curve`. Differing decisions identify history-dependent coordinates and the diagnostic
+label HYSTERESIS_OR_COMMITMENT_LOCK; this does not infer intent. Perspective claim comparison
+locates changed leaf premises below changed conclusions and triggers scrutiny when facts are unchanged.
