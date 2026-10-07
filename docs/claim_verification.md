@@ -20,12 +20,15 @@ mismatches, or host-reported evidence hazards produce unresolved output. Unautho
 raises ValueError. The original EvidenceState remains unchanged, and superseded claims cannot
 be adjudicated as current. Context identifiers and evidence labels do not authenticate principals.
 Hosts must perform identity authentication and evidence capture outside this diagnostic module.
+Supported verdicts require `claimed_outcome_supported=True`; contradicted verdicts instead
+require evidence-bound `contradiction_status="contradicted"`, without requiring claim support.
 
 To persist a revision, the caller must use the existing `commit_verified_claim` authority gate.
 Failures may be attached to existing FailureNode records only after the host supplies the actual
 observation event, time and evidence. No failure-cause inference is made from disagreement alone.
 `check_failure_node` enforces the local action/evidence join for counterevidence; the host still
 validates the full causal event sequence before persisting a failure graph.
+The observation envelope and payload must agree on both action and evidence links.
 
 Source-supported motivation: *VeriHarness: Scaling Agentic Verification for Long-Horizon Tasks*
 ([arXiv:2610.00972](https://arxiv.org/abs/2610.00972)) separates disagreement resolution from

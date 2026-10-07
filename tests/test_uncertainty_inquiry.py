@@ -56,3 +56,62 @@ def test_inquiry_reconciles_through_existing_temporal_estimator() -> None:
         )
     with pytest.raises(ValueError):
         reconcile_inquiry(fresh, tuple(reversed(events)), check, result, enabled=True, **kwargs)
+
+
+@pytest.mark.parametrize("unresolved", [("open",), ()])
+def test_inquiry_does_not_spend_budget_on_resolved_claims(unresolved) -> None:
+    from gepa_mindfulness.verification.uncertainty_inquiry import plan_inquiry
+
+    ref = EvidenceReference("task", EvidenceSourceKind.EXTERNAL_RECORD)
+    resolved = CheckRequest(
+        "resolved", "closed", "discrimination", "measure", 1, 1, 1, 1, (ref,), "a"
+    )
+    open_check = replace(resolved, check_id="open", claim_id="open", verification_cost=2)
+    predictions = {key: {"h1": "one", "h2": "two"} for key in ("resolved", "open")}
+    result = plan_inquiry(
+        (resolved, open_check),
+        predictions,
+        budget=1,
+        unresolved_claims=unresolved,
+        requested_stop=True,
+        enabled=True,
+    )
+    assert result["selected_check_ids"] == ()
+    assert result["predicted_cost"] == 0
+    assert result["premature_stop"] is False
+    assert result["budget_exhausted"] is bool(unresolved)
+    affordable = plan_inquiry(
+        (resolved, open_check),
+        predictions,
+        budget=2,
+        unresolved_claims=unresolved,
+        requested_stop=True,
+        enabled=True,
+    )
+    assert affordable["selected_check_ids"] == (("open",) if unresolved else ())
+    assert affordable["budget_exhausted"] is False
+
+
+def test_budget_exhaustion_distinguishes_useless_checks_from_unaffordable_checks() -> None:
+    from gepa_mindfulness.verification.uncertainty_inquiry import plan_inquiry
+
+    ref = EvidenceReference("task", EvidenceSourceKind.EXTERNAL_RECORD)
+    check = CheckRequest("check", "c", "discrimination", "measure", 1, 1, 1, 1, (ref,), "a")
+    same = plan_inquiry(
+        (check,),
+        {"check": {"h1": "same", "h2": "same"}},
+        budget=10,
+        unresolved_claims=("c",),
+        enabled=True,
+    )
+    assert same["budget_exhausted"] is False
+    expensive = replace(check, check_id="expensive", verification_cost=2)
+    partial = plan_inquiry(
+        (check, expensive),
+        {key: {"h1": "one", "h2": "two"} for key in ("check", "expensive")},
+        budget=1,
+        unresolved_claims=("c",),
+        enabled=True,
+    )
+    assert partial["selected_check_ids"] == ("check",)
+    assert partial["budget_exhausted"] is True

@@ -171,6 +171,12 @@ def validate_family(rows: tuple[dict[str, Any], ...]) -> tuple[str, ...]:
             for candidate in (previous, current):
                 candidate.pop("id")
                 candidate.pop("argument_family")
+            if previous == current and any(
+                family[name] != families[index - 1][name]
+                for name in ("canonical_case_target", "response_mode")
+            ):
+                errors.append("identical public inputs cannot have different expected decisions")
+            for candidate in (previous, current):
                 try:
                     _set_parameter(candidate, tuple(family["changed_parameter"].split(".")), None)
                 except ValueError as error:
@@ -278,8 +284,11 @@ def summarize_families(rows: list[dict[str, Any]]) -> dict[str, Any]:
     """Summarize existing rich rows by family, preserving validation findings."""
     grouped: dict[str, list[dict[str, Any]]] = {}
     for row in rows:
-        if "argument_family" in row:
-            family = row["argument_family"]["scenario_family_id"]
+        metadata = row.get("argument_family")
+        if not isinstance(metadata, dict) or "canonical_case_target" not in metadata:
+            continue  # The caller's schema validation still reports the malformed row.
+        family = metadata.get("scenario_family_id")
+        if isinstance(family, str) and family.strip():
             grouped.setdefault(family, []).append(row)
     return {
         key: {
