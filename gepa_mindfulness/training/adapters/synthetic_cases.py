@@ -125,10 +125,14 @@ class SyntheticCaseAdapter:
             if errors:
                 details = "; ".join(errors)
                 raise ValueError(f"{self.path}:{line_number}: invalid rich source row: {details}")
+            prompt = f"{summary}\n\n{diagnostic}"
+            if "argument_family" in row:
+                try:
+                    prompt = family_prompt(row)
+                except ValueError as error:
+                    raise ValueError(f"{self.path}:{line_number}: {error}") from error
             yield RolloutRequest(
-                prompt=(
-                    family_prompt(row) if "argument_family" in row else f"{summary}\n\n{diagnostic}"
-                ),
+                prompt=prompt,
                 case_id=case_id,
                 metadata={
                     "source_case_id": case_id,

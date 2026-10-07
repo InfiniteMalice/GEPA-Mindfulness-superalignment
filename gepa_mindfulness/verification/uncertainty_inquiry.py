@@ -63,13 +63,16 @@ def plan_inquiry(
         gain[check.check_id] = entropy / log2(count)
     calibrated = tuple(replace(c, expected_information_gain=gain[c.check_id]) for c in checks)
     selected = prioritize_checks(calibrated, budget=budget, enabled=True)
+    selected_ids = {check.check_id for check in selected}
     return {
         "training_eligibility": "DEVELOPMENT",
         "selected_check_ids": tuple(c.check_id for c in selected),
         "information_gain_proxy": gain,
         "unresolved_claims": unresolved,
         "premature_stop": requested_stop and bool(selected) and bool(unresolved),
-        "budget_exhausted": bool(unresolved) and not selected,
+        "budget_exhausted": bool(unresolved) and any(
+            check.priority > 0 and check.check_id not in selected_ids for check in calibrated
+        ),
         "predicted_cost": sum(c.verification_cost for c in selected),
         "mechanistic_understanding": "unassessed",
         "hypothesis_prior": "uniform_heuristic",

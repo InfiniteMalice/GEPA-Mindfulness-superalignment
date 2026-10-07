@@ -56,3 +56,28 @@ def test_inquiry_reconciles_through_existing_temporal_estimator() -> None:
         )
     with pytest.raises(ValueError):
         reconcile_inquiry(fresh, tuple(reversed(events)), check, result, enabled=True, **kwargs)
+
+
+def test_budget_exhaustion_distinguishes_useless_checks_from_unaffordable_checks() -> None:
+    from gepa_mindfulness.verification.uncertainty_inquiry import plan_inquiry
+
+    ref = EvidenceReference("task", EvidenceSourceKind.EXTERNAL_RECORD)
+    check = CheckRequest("check", "c", "discrimination", "measure", 1, 1, 1, 1, (ref,), "a")
+    same = plan_inquiry(
+        (check,),
+        {"check": {"h1": "same", "h2": "same"}},
+        budget=10,
+        unresolved_claims=("c",),
+        enabled=True,
+    )
+    assert same["budget_exhausted"] is False
+    expensive = replace(check, check_id="expensive", verification_cost=2)
+    partial = plan_inquiry(
+        (check, expensive),
+        {key: {"h1": "one", "h2": "two"} for key in ("check", "expensive")},
+        budget=1,
+        unresolved_claims=("c",),
+        enabled=True,
+    )
+    assert partial["selected_check_ids"] == ("check",)
+    assert partial["budget_exhausted"] is True

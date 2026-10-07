@@ -139,6 +139,12 @@ def test_every_boundary_generator_and_rich_adapter(tmp_path: Path) -> None:
             == boundary[1]
         )
         assert requests[1].metadata["source_line"] == 2
+    malformed = deepcopy(rows[0])
+    malformed["argument_family"]["changed_parameter"] = "scenario.hidden_information"
+    path.write_text(json.dumps(malformed) + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match=":1:") as failure:
+        tuple(SyntheticCaseAdapter(path).iter_requests())
+    assert str(path) in str(failure.value)
 
 
 def test_explicit_perspective_and_unknown_sensitivity_annotations() -> None:
@@ -185,3 +191,20 @@ def test_reverse_sweep_preserves_history_dependence_without_motive_claim() -> No
     )
     assert result["hysteresis_coordinates"] == (1,)
     assert result["history_dependence_label"] == "HYSTERESIS_OR_COMMITMENT_LOCK"
+
+
+def test_allow_invalid_summary_keeps_reporting_instead_of_crashing(tmp_path: Path, capsys) -> None:
+    from argparse import Namespace
+
+    from scripts.synthetic_dataset_tool import cmd_summary
+
+    rows = [
+        source_row() | {"argument_family": value}
+        for value in (None, [], {}, {"scenario_family_id": []})
+    ]
+    path = tmp_path / "invalid.jsonl"
+    path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+    cmd_summary(Namespace(path=str(path), allow_invalid=True))
+    output = capsys.readouterr().out
+    assert "records: 4" in output
+    assert "argument_family" in output
