@@ -78,6 +78,29 @@ def test_private_decomposition_is_not_public_provenance() -> None:
         ClaimDependency("c", "p", "requires", (ref,))
 
 
+def test_graph_validates_supersession_closure_and_combined_cycles() -> None:
+    from gepa_mindfulness.verification.claim_graph import ClaimDependency, ClaimGraph, ClaimNode
+
+    ref = EvidenceReference("public", EvidenceSourceKind.OBSERVABLE_OUTPUT)
+
+    def node(key: str, successor: str | None = None) -> ClaimNode:
+        claim = EvidenceClaim(key, key, (), "superseded" if successor else "unverified", successor)
+        return ClaimNode(claim, "actor", None, "LEGACY_UNSPECIFIED", 1, 1)
+
+    with pytest.raises(ValueError, match="unknown"):
+        ClaimGraph((node("old", "missing"),))
+    with pytest.raises(ValueError, match="cycle"):
+        ClaimGraph((node("old", "new"), node("new", "old")))
+    with pytest.raises(ValueError, match="cycle"):
+        ClaimGraph(
+            (node("old", "new"), node("new")),
+            (ClaimDependency("new", "old", "requires", (ref,)),),
+        )
+    graph = ClaimGraph((node("old", "new"), node("new")))
+    assert ClaimGraph.from_dict(graph.to_dict()) == graph
+    assert graph.unresolved_claim_ids == ("new",)
+
+
 def test_stakeholder_inference_preserves_uncertainty_and_constraints() -> None:
     from gepa_mindfulness.verification.perspective_records import Perspective, Stakeholder
 
