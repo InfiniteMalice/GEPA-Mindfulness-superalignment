@@ -41,6 +41,8 @@ def plan_inquiry(
             "disabled": True,
         }
     checks = records(checks, CheckRequest)
+    if len({check.check_id for check in checks}) != len(checks):
+        raise ValueError("duplicate check identity")
     if set(hypothesis_predictions) != {c.check_id for c in checks}:
         raise ValueError("each candidate check requires hypothesis predictions")
     hypothesis_ids: set[str] | None = None
