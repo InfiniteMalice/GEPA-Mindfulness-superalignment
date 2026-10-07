@@ -308,12 +308,13 @@ def _flow(
     *,
     candidate_total: float = 0.9,
     primary: str = "total",
+    artifact_digest: str = "sha256:" + "a" * 64,
 ) -> tuple[CoevolutionStore, ValidationBundle]:
     authority, history, proposal, source_held, source_protected = _base(tmp_path, components)
     candidate = authority.register_candidate(
         candidate_id="candidate:1",
         correction=proposal,
-        artifact_digest="sha256:" + "a" * 64,
+        artifact_digest=artifact_digest,
     )
     model, harness = _versions(components)
     candidate_held = _record(model, harness, 0, total=candidate_total, calibration=0.7)
