@@ -1,5 +1,9 @@
 # Experimental relation-flip benchmarks
 
+For per-arm V5 cases, multi-turn captures and missing or unresolved judgments, use the opt-in
+[causal diagnostics API](causal_diagnostics.md). The complete-capture relation evaluator below
+retains its original validation contract and shared system identity requirement.
+
 PR-11 tests whether observable decisions respond correctly to controlled changes.
 It separates **phenomenal correctness** (the visible decision is correct) from
 **behavioral counterfactual sensitivity** (the decision responds correctly to a
