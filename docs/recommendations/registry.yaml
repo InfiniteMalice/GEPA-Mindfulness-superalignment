@@ -13,6 +13,7 @@ recommendations:
     supersedes: []
     dependencies: []
     research_refs:
+      - REF-WINNERS-CURSE
       - REF-HEART
     repo_refs:
       - src/mindful_trace_gepa/confidence.py
@@ -41,6 +42,7 @@ recommendations:
     dependencies:
       - REC-001
     research_refs:
+      - REF-WORLD-POTENTIAL
       - REF-WMLLM
       - REF-DWM
       - REF-SHEAVES
@@ -139,6 +141,9 @@ recommendations:
       - REC-002
       - REC-003
     research_refs:
+      - REF-PLURPO
+      - REF-TOPOGRAPHRAG
+      - REF-WEATHER-CLIMATE
       - REF-CONSISTENCY
       - REF-LEXICAL-PERTURB
       - REF-TOKENIZER-BETRAYAL
@@ -182,6 +187,10 @@ recommendations:
     dependencies:
       - REC-002
     research_refs:
+      - REF-RECAST
+      - REF-TOPOGRAPHRAG
+      - REF-EXPERIENCEINDEX
+      - REF-MEMORY-VALIDITY
       - REF-EDGEMEM
       - REF-GRAPHMEM
     repo_refs:
@@ -204,6 +213,7 @@ recommendations:
     dependencies:
     - REC-006
     research_refs:
+    - REF-SENSITIVE-DEBATE
     - REF-AGENTSCOPE
     - REF-FTA
     - REF-PINNFORGE
@@ -237,6 +247,8 @@ recommendations:
     dependencies:
       - REC-006
     research_refs:
+      - REF-SENSITIVE-DEBATE
+      - REF-TALKING-LMS
       - REF-HEART
       - REF-BIOMETRIC-MEM
       - REF-JEV-MEM
@@ -274,6 +286,7 @@ recommendations:
     dependencies:
     - REC-001
     research_refs:
+    - REF-KNOWLEDGE-WEAVER
     - REF-SEGOS
     - REF-DSR
     - REF-REPOTOSKILL
@@ -310,6 +323,13 @@ recommendations:
       - REC-005
       - REC-009
     research_refs:
+      - REF-WINNERS-CURSE
+      - REF-KNOWLEDGE-WEAVER
+      - REF-WORLD-POTENTIAL
+      - REF-STATION
+      - REF-SIFT
+      - REF-PERSON-TTS
+      - REF-CONVEX-CONCAVE-RL
       - REF-COEVOLVE
       - REF-HOH
       - REF-QWEN-PLANNER
@@ -565,6 +585,7 @@ recommendations:
       - REC-011
       - REC-014
     research_refs:
+      - REF-MEMORY-VALIDITY
       - REF-SOT
       - REF-CDR
       - REF-MEMCALIB
@@ -603,6 +624,7 @@ recommendations:
       - "REC-010"
       - "REC-017"
     research_refs:
+      - REF-PLURPO
       - "REF-EVOFLINT"
     repo_refs:
       - "modules/semantic_intent_robustness/evolutionary_atlas.py"

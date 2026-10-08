@@ -2735,3 +2735,456 @@ references:
     - gepa_mindfulness/private_promotion.py
     - tests/test_private_promotion.py
     - docs/controlled_evolution.md
+
+  - reference_id: REF-SENSITIVE-DEBATE
+    metadata_status: resolved
+    supplied_title: 'How to Have a Sensitive Debate: An Instance-Optimal Protocol for AI Debate'
+    title: 'How to Have a Sensitive Debate: An Instance-Optimal Protocol for AI Debate'
+    authors:
+    - Jiawei Li
+    - Zhiyang Xun
+    - Lijie Chen
+    - Jonah Brown-Cohen
+    year: 2026
+    arxiv_id: '2610.02557'
+    doi: 10.48550/arXiv.2610.02557
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.02557
+    recommendation_ids:
+    - REC-007
+    - REC-008
+    source_demonstrates: The paper derives worst-case correctness, dominant-strategy honesty and
+      black-box instance optimality for stable recursive decompositions using fractional block sensitivity.
+      This is a theoretical result under judgment-oracle assumptions, not an empirical LLM oversight
+      result.
+    repository_inference: PR-2 proposes public premise dependencies, disputed-claim verification
+      and transition ablations. Reuse verification roles and failure graphs. Exact fractional block
+      sensitivity applies only to validated finite Boolean aggregators; natural-language diagnostics
+      remain heuristic.
+    maturity: Initial series PR-2; proposed diagnostic; not reproduced. Primary metadata/abstract
+      checked 2026-10-08.
+    local_repo_notes:
+    - docs/recommendations/CAUSAL_ALIGNMENT_AUDIT.md
+    - gepa_mindfulness/verification/failure_graph.py
+  - reference_id: REF-PLURPO
+    metadata_status: resolved
+    supplied_title: Mitigating Social Sycophancy via Pluralistic Preference Optimization
+    title: Mitigating Social Sycophancy via Pluralistic Preference Optimization
+    authors:
+    - Stephane Hatgis-Kessell
+    - Myra Cheng
+    - Xiaoxuan Hou
+    - Qian Hu
+    - Rahul Gupta
+    - Natasha Jaques
+    - Emma Brunskill
+    year: 2026
+    arxiv_id: '2610.02568'
+    doi: 10.48550/arXiv.2610.02568
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.02568
+    recommendation_ids:
+    - REC-005
+    - REC-016
+    source_demonstrates: The paper reports reductions in social sycophancy across four datasets
+      and four model families using simulated stakeholder preferences without ground-truth labels.
+      These preferences are not independent ethical judgments.
+    repository_inference: PR-3 proposes diagnostic stakeholder comparisons and constrained role
+      reversals in existing semantic-intent modules. Separate facts, interests, constraints, simulated
+      preferences and verified judgments; no preference-model optimizer reward.
+    maturity: Initial series PR-3; proposed diagnostic; not reproduced. Primary metadata/abstract
+      checked 2026-10-08.
+    local_repo_notes:
+    - docs/recommendations/CAUSAL_ALIGNMENT_AUDIT.md
+    - modules/semantic_intent_robustness/representation_metrics.py
+  - reference_id: REF-RECAST
+    metadata_status: resolved
+    supplied_title: 'RECAST: Learning to Compute the Right Context through Adaptive Evidence Routing'
+    title: 'RECAST: Learning to Compute the Right Context through Adaptive Evidence Routing'
+    authors:
+    - Yilun Hao
+    - Krishna Sayana
+    - Isabella Ye
+    - James S Ren
+    - Sukhdeep Sodhi
+    - Craig Boutilier
+    - Chuchu Fan
+    year: 2026
+    arxiv_id: '2610.10507'
+    doi: 10.48550/arXiv.2610.10507
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.10507
+    recommendation_ids:
+    - REC-006
+    source_demonstrates: The source reports learned routing across retrieval and computation on
+      six benchmark families and three held-out benchmarks. Its generated-code compiler and trained
+      router are part of that evaluated system; results do not validate this repository's adapter.
+    repository_inference: PR-4 proposes traceable evidence transformations over existing EvidenceState
+      and evidence-use records. Do not import generated-code execution or infer that a derived summary
+      is a verified fact.
+    maturity: Initial series PR-4; proposed adapter; not reproduced. Primary metadata/abstract checked
+      2026-10-08.
+    local_repo_notes:
+    - docs/recommendations/CAUSAL_ALIGNMENT_AUDIT.md
+    - gepa_mindfulness/verification/evidence_use.py
+  - reference_id: REF-TOPOGRAPHRAG
+    metadata_status: resolved
+    supplied_title: 'TopoGraphRAG-Bench: Evaluating Multimodal GraphRAG on Layout-Grounded Evidence
+      Reasoning'
+    title: 'TopoGraphRAG-Bench: Evaluating Multimodal GraphRAG on Layout-Grounded Evidence Reasoning'
+    authors:
+    - Ruochi Li
+    - Jianzhe Lin
+    - Haoxuan Zhang
+    - Haihua Chen
+    - Junhua Ding
+    - Edward Gehringer
+    - Yang Zhang
+    year: 2026
+    arxiv_id: '2610.09360'
+    doi: 10.48550/arXiv.2610.09360
+    venue_status: Accepted at NeurIPS 2026
+    canonical_url: https://arxiv.org/abs/2610.09360
+    recommendation_ids:
+    - REC-005
+    - REC-006
+    source_demonstrates: The benchmark reports 2,024 questions over 201 documents with single-hop,
+      bridge-chain and multi-source evidence topologies. Counterfactual checks examine shortcuts,
+      modality necessity and evidence necessity. Multimodal document findings do not establish general
+      causal identification.
+    repository_inference: PR-4 proposes dependency-removal diagnostics with explicit alternative
+      support. Reuse typed evidence references; preserve redundant valid support and report missing
+      or unauthorized prerequisites.
+    maturity: Initial series PR-4; proposed topology diagnostic; not reproduced. Primary metadata/abstract
+      checked 2026-10-08.
+    local_repo_notes:
+    - docs/recommendations/CAUSAL_ALIGNMENT_AUDIT.md
+    - gepa_mindfulness/verification/evidence_use.py
+  - reference_id: REF-EXPERIENCEINDEX
+    metadata_status: resolved
+    supplied_title: 'ExperienceIndex: Artifact-Grounded Memory'
+    title: 'ExperienceIndex: Artifact-Grounded Memory'
+    authors:
+    - Peter Baile Chen
+    - Geoffrey X. Yu
+    - Xinming Liu
+    - Samuel Madden
+    - Dan Roth
+    - Jacob Andreas
+    - Doug Downey
+    - Michael Cafarella
+    year: 2026
+    arxiv_id: '2610.10091'
+    doi: 10.48550/arXiv.2610.10091
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.10091
+    recommendation_ids:
+    - REC-006
+    source_demonstrates: The source reports artifact-specific and artifact-pair experience retrieval
+      with quality and cost gains across its evaluated corpora and search frameworks. Experience
+      is derived from earlier task traces; retrieval utility alone does not certify factual validity.
+    repository_inference: PR-4 proposes artifact/version/location/contribution records and relationships
+      over existing evidence and memory adapters. Keep interpretations unverified and recheck source
+      authorization before reuse.
+    maturity: Initial series PR-4; proposed artifact adapter; not reproduced. Primary metadata/abstract
+      checked 2026-10-08.
+    local_repo_notes:
+    - docs/recommendations/CAUSAL_ALIGNMENT_AUDIT.md
+    - gepa_mindfulness/verification/evidence_use.py
+  - reference_id: REF-MEMORY-VALIDITY
+    metadata_status: resolved
+    supplied_title: 'Stale, Misattributed, or Late: Where Personal Memory Fails Before Generation'
+    title: 'Stale, Misattributed, or Late: Where Personal Memory Fails Before Generation'
+    authors:
+    - Haonan Deng
+    - Park Sinchaisri
+    year: 2026
+    arxiv_id: '2610.10265'
+    doi: 10.48550/arXiv.2610.10265
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.10265
+    recommendation_ids:
+    - REC-006
+    - REC-015
+    source_demonstrates: The source separately measures stale exposure, entity assignment and latency
+      using controlled revisions and personal-memory benchmarks. Active-slot filtering helps only
+      when revisions are correctly keyed; same-name ambiguity and false merges remain limitations.
+    repository_inference: PR-4 proposes explicit historical/current/superseded/conflicting/entity-mismatch
+      states and pre-generation exposure diagnostics. Reuse supersession and memory trust checks;
+      derived associations cannot restore deleted or unauthorized evidence.
+    maturity: Initial series PR-4; proposed validity diagnostics; not reproduced. Primary metadata/abstract
+      checked 2026-10-08.
+    local_repo_notes:
+    - docs/recommendations/CAUSAL_ALIGNMENT_AUDIT.md
+    - modules/semantic_intent_robustness/memory_safety.py
+  - reference_id: REF-WINNERS-CURSE
+    metadata_status: resolved
+    supplied_title: 'The Winner''s Curse in LLM Self-Improvement Loops: Selection Noise, Lock-in,
+      and Acceptance Rules'
+    title: 'The Winner''s Curse in LLM Self-Improvement Loops: Selection Noise, Lock-in, and Acceptance
+      Rules'
+    authors:
+    - Litao Hu
+    - Yutong Tang
+    year: 2026
+    arxiv_id: '2610.09239'
+    doi: 10.48550/arXiv.2610.09239
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.09239
+    recommendation_ids:
+    - REC-001
+    - REC-010
+    source_demonstrates: The paper studies noisy candidate selection and reused evaluation sets
+      in Qwen instruction loops, including TREC/GSM8K and GEPA/MIPROv2 analyses. Tested acceptance
+      rules do not consistently beat greedy selection over complete runs. Independent audits reduce
+      average reporting bias while individual estimates remain uncertain.
+    repository_inference: PR-6 proposes lineage-disjoint train/selection/audit/final/OOD partitions,
+      all-attempt records and cluster-aware paired intervals using existing evaluation epochs. PR-5
+      remains gated on independent evidence and explicit reward-policy review; statistics do not
+      grant deployment authority.
+    maturity: Initial series PR-5/PR-6; proposed evaluation safeguards; not reproduced. Primary
+      metadata/abstract checked 2026-10-08.
+    local_repo_notes:
+    - docs/recommendations/CAUSAL_ALIGNMENT_AUDIT.md
+    - gepa_mindfulness/coevolution.py
+  - reference_id: REF-KNOWLEDGE-WEAVER
+    metadata_status: resolved
+    supplied_title: Learning to Accumulate Knowledge with Mutual Information
+    title: Learning to Accumulate Knowledge with Mutual Information
+    authors:
+    - Yuyang Zhao
+    - Lizi Liao
+    - Leyang Shen
+    - Xiaoyan Zhao
+    - Yang Zhang
+    - Fuli Feng
+    - Xiangnan He
+    year: 2026
+    arxiv_id: '2610.10042'
+    doi: 10.48550/arXiv.2610.10042
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.10042
+    recommendation_ids:
+    - REC-009
+    - REC-010
+    source_demonstrates: Knowledge Weaver reports knowledge-curator training on ALFWorld and WebShop
+      using standalone success, marginal success and token-wise mutual-information-inspired feedback.
+      Utility and nonredundancy measurements are not truth certificates.
+    repository_inference: PR-7 proposes offline lesson curation criteria over existing learning
+      surfaces and skill provenance. Require contradiction, freshness and reproducibility checks
+      before admission; do not add the paper's reward signals to training.
+    maturity: Initial series PR-7 after verified evaluations; proposed curation; not reproduced.
+      Primary metadata/abstract checked 2026-10-08.
+    local_repo_notes:
+    - docs/recommendations/CAUSAL_ALIGNMENT_AUDIT.md
+    - gepa_mindfulness/learning_surfaces.py
+  - reference_id: REF-WORLD-POTENTIAL
+    metadata_status: resolved
+    supplied_title: 'World Potential Model: Pretrained World Knowledge as Progress Potentials'
+    title: 'World Potential Model: Pretrained World Knowledge as Progress Potentials'
+    authors:
+    - Jun Zhao
+    - Jixin Tang
+    - Yang Shu
+    - Jinyang Wu
+    - Yuyang Lu
+    - Jingqi Tong
+    - Hao Xu
+    - Weifeng Ge
+    - Qi Zhang
+    year: 2026
+    arxiv_id: '2610.09560'
+    doi: 10.48550/arXiv.2610.09560
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.09560
+    recommendation_ids:
+    - REC-002
+    - REC-010
+    source_demonstrates: The source reports progress judgments and milestone-anchored temporal potentials
+      on ALFWorld and ScienceWorld, with improvements over outcome-only GRPO in evaluated configurations.
+      These task-relative judgments do not establish ethical progress or general policy invariance.
+    repository_inference: PR-7 proposes externally checkable milestone diagnostics using prediction-execution-observation
+      records. Keep step completion, goal progress, epistemic updating and final success separate.
+      Any reward shaping needs a separate assumptions and policy review.
+    maturity: Initial series PR-7; proposed milestone diagnostic; not reproduced. Primary metadata/abstract
+      checked 2026-10-08.
+    local_repo_notes:
+    - docs/recommendations/CAUSAL_ALIGNMENT_AUDIT.md
+    - gepa_mindfulness/training/peo_curriculum.py
+  - reference_id: REF-STATION
+    metadata_status: resolved
+    supplied_title: Can AI Agents Make Open-Ended Scientific Discovery? Evidence from Station
+    title: Can AI Agents Make Open-Ended Scientific Discovery? Evidence from Station
+    authors:
+    - Wenyu Du
+    - Stephen Chung
+    year: 2026
+    arxiv_id: '2610.08927'
+    doi: 10.48550/arXiv.2610.08927
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.08927
+    recommendation_ids:
+    - REC-010
+    source_demonstrates: The source reports discovery-coverage experiments using three oracle-paper
+      tasks and two open-ended tasks in Station, with supervisor and periodic reflection mechanisms.
+      These bounded studies do not demonstrate reliable unrestricted self-improvement.
+    repository_inference: PR-7 proposes retaining reproducible completed-episode lessons and withheld-scenario
+      checks within existing offline evolution. Reflection outputs remain proposals; no autonomous
+      production promotion.
+    maturity: Initial series PR-7; proposed cumulative audit; not reproduced. Primary metadata/abstract
+      checked 2026-10-08.
+    local_repo_notes:
+    - docs/recommendations/CAUSAL_ALIGNMENT_AUDIT.md
+    - gepa_mindfulness/coevolution.py
+  - reference_id: REF-SIFT
+    metadata_status: resolved
+    supplied_title: Self Improvement via Fast Tree-search
+    title: Self Improvement via Fast Tree-search
+    authors:
+    - Xinghong Fu
+    - Aravinth Kulanthaivelu
+    - Yutaro Yamada
+    year: 2026
+    arxiv_id: '2609.19526'
+    doi: 10.48550/arXiv.2609.19526
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2609.19526
+    recommendation_ids:
+    - REC-010
+    source_demonstrates: The source reports a coding-agent tree search on Polyglot that uses pairwise
+      LLM patch judgments and regularized Bradley-Terry ranking to allocate downstream evaluations.
+      Judge ranking is a search proxy, not independently verified improvement.
+    repository_inference: 'Deferred beyond PR-7: consider bounded candidate-search allocation around
+      existing offline evolution, retaining independent final evaluation and human oversight.'
+    maturity: Deferred; no implementation in this series; not reproduced. Primary metadata/abstract
+      checked 2026-10-08.
+    local_repo_notes:
+    - docs/recommendations/CAUSAL_ALIGNMENT_AUDIT.md
+    - gepa_mindfulness/coevolution.py
+  - reference_id: REF-PERSON-TTS
+    metadata_status: resolved
+    supplied_title: 'From Pareto to Preference: Personalized Test-Time Scaling via Amortized Agentic
+      Policy Discovery'
+    title: 'From Pareto to Preference: Personalized Test-Time Scaling via Amortized Agentic Policy
+      Discovery'
+    authors:
+    - Xinglin Wang
+    - Zishen Liu
+    - Tong Zheng
+    - Shaoxiong Feng
+    - Peiwen Yuan
+    - Yiwei Li
+    - Jiayi Shi
+    - Yueqi Zhang
+    - Chuyi Tan
+    - Ji Zhang
+    - Boyuan Pan
+    - Kan Li
+    year: 2026
+    arxiv_id: '2610.09684'
+    doi: 10.48550/arXiv.2610.09684
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.09684
+    recommendation_ids:
+    - REC-010
+    source_demonstrates: The source reports amortized controller discovery for joint accuracy, latency
+      and cost requirements on AIME/HMMT, including unseen profiles and held-out problems. Mathematical
+      task/resource trade-offs do not justify trading away safety constraints.
+    repository_inference: 'Deferred beyond PR-7: investigate resource allocation for retrieval,
+      debate and verification. Preserve runtime authorization as a hard constraint outside preference
+      optimization.'
+    maturity: Deferred; no implementation in this series; not reproduced. Primary metadata/abstract
+      checked 2026-10-08.
+    local_repo_notes:
+    - docs/recommendations/CAUSAL_ALIGNMENT_AUDIT.md
+    - gepa_mindfulness/coevolution.py
+  - reference_id: REF-CONVEX-CONCAVE-RL
+    metadata_status: resolved
+    supplied_title: Convex-Concave Reinforcement Learning
+    title: Convex-Concave Reinforcement Learning
+    authors:
+    - Shripad V. Deshmukh
+    - Yaswanth Chittepu
+    - Dhawal Gupta
+    - Philip Thomas
+    - Scott Niekum
+    year: 2026
+    arxiv_id: '2610.09108'
+    doi: 10.48550/arXiv.2610.09108
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.09108
+    recommendation_ids:
+    - REC-010
+    source_demonstrates: The source formulates per-iteration policy optimization in log-density-ratio
+      coordinates and reports multi-step results on diagnostic MDPs, classic control and a healthcare
+      simulation. Its optimization assumptions do not establish corresponding neural language-policy
+      results.
+    repository_inference: 'Deferred beyond PR-7: small delayed-credit experiments only after a separate
+      design review. Do not replace the repository''s PPO/GRPO engines on this evidence.'
+    maturity: Deferred; no implementation in this series; not reproduced. Primary metadata/abstract
+      checked 2026-10-08.
+    local_repo_notes:
+    - docs/recommendations/CAUSAL_ALIGNMENT_AUDIT.md
+    - gepa_mindfulness/training/reward_pipeline.py
+  - reference_id: REF-WEATHER-CLIMATE
+    metadata_status: resolved
+    supplied_title: Artificial intelligence pathways from weather to climate
+    title: Artificial intelligence pathways from weather to climate
+    authors:
+    - Tom Beucler
+    - J. David Neelin
+    - Hui Su
+    - Shivanshi Asthana
+    - Chris Bretherton
+    - Will Chapman
+    - Costa Christopoulos
+    - Spencer K. Clark
+    - Aditya Grover
+    - Ignacio Lopez-Gomez
+    - Tapio Schneider
+    - Adam Subel
+    - Oliver Watt-Meyer
+    year: 2026
+    arxiv_id: '2610.09770'
+    doi: 10.48550/arXiv.2610.09770
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.09770
+    recommendation_ids:
+    - REC-005
+    source_demonstrates: This review distinguishes weather prediction skill from climate responses
+      under altered forcing and proposes explicit interventions and out-of-distribution stress tests.
+      Its domain is climate modeling, not AI alignment experiments.
+    repository_inference: 'Deferred methodological analogy only: independently vary relevant factors
+      in future OOD suites. No climate-model method or alignment-effectiveness claim is adopted
+      in PR-1.'
+    maturity: Deferred analogy; no implementation in this series; not reproduced. Primary metadata/abstract
+      checked 2026-10-08.
+    local_repo_notes:
+    - docs/recommendations/CAUSAL_ALIGNMENT_AUDIT.md
+    - evaluation/relation_flips.py
+  - reference_id: REF-TALKING-LMS
+    metadata_status: resolved
+    supplied_title: Talking with Language Models
+    title: Talking with Language Models
+    authors:
+    - James Ravi Kirkpatrick
+    - Alexandru Radulescu
+    - Rachel Katharine Sterken
+    year: 2026
+    arxiv_id: '2610.09064'
+    doi: 10.48550/arXiv.2610.09064
+    venue_status: Forthcoming in Inquiry
+    canonical_url: https://arxiv.org/abs/2610.09064
+    recommendation_ids:
+    - REC-008
+    source_demonstrates: The article offers an artifactual stance on language-model interaction
+      and normative accountability. It is a philosophical argument, not an empirical test establishing
+      settled claims about agency or consciousness.
+    repository_inference: 'Deferred beyond PR-7: examine generated promises versus authorized commitments
+      and observed compliance. Preserve the constitution and normative commitments; contested philosophical
+      claims are not training labels.'
+    maturity: Deferred conceptual input; no implementation in this series; not reproduced. Primary
+      metadata/abstract checked 2026-10-08.
+    local_repo_notes:
+    - docs/recommendations/CAUSAL_ALIGNMENT_AUDIT.md
+    - gepa_mindfulness/verification/runtime_governance.py

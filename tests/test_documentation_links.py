@@ -25,6 +25,8 @@ DOCUMENTS = (
     ROOT / "docs" / "FOUNDATIONAL_REPRESENTATION_ARCHITECTURE.md",
     ROOT / "docs" / "experimental_v5_overlays.md",
     ROOT / "docs" / "adr" / "0001-17-case-v5-unified-architecture.md",
+    ROOT / "docs" / "adr" / "0021-causal-alignment-diagnostic-extension.md",
+    ROOT / "docs" / "recommendations" / "CAUSAL_ALIGNMENT_AUDIT.md",
     ROOT / "docs" / "recommendations" / "UNIFIED_RECOMMENDATIONS.md",
     ROOT / "docs" / "recommendations" / "RESEARCH_TRACEABILITY.md",
     ROOT / "gepa_mindfulness" / "core" / "README.md",

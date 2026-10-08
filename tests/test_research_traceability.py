@@ -241,9 +241,85 @@ EXPECTED_REFERENCES = (
         "2609.35561",
         "RSI-Master: Structuring Experiments to Guide Autonomous Model Improvement",
     ),
+    (
+        "REF-SENSITIVE-DEBATE",
+        "2610.02557",
+        "How to Have a Sensitive Debate: An Instance-Optimal Protocol for AI Debate",
+    ),
+    (
+        "REF-PLURPO",
+        "2610.02568",
+        "Mitigating Social Sycophancy via Pluralistic Preference Optimization",
+    ),
+    (
+        "REF-RECAST",
+        "2610.10507",
+        "RECAST: Learning to Compute the Right Context through Adaptive Evidence Routing",
+    ),
+    (
+        "REF-TOPOGRAPHRAG",
+        "2610.09360",
+        "TopoGraphRAG-Bench: Evaluating Multimodal GraphRAG on Layout-Grounded Evidence Reasoning",
+    ),
+    ("REF-EXPERIENCEINDEX", "2610.10091", "ExperienceIndex: Artifact-Grounded Memory"),
+    (
+        "REF-MEMORY-VALIDITY",
+        "2610.10265",
+        "Stale, Misattributed, or Late: Where Personal Memory Fails Before Generation",
+    ),
+    (
+        "REF-WINNERS-CURSE",
+        "2610.09239",
+        "The Winner's Curse in LLM Self-Improvement Loops: "
+        "Selection Noise, Lock-in, and Acceptance Rules",
+    ),
+    (
+        "REF-KNOWLEDGE-WEAVER",
+        "2610.10042",
+        "Learning to Accumulate Knowledge with Mutual Information",
+    ),
+    (
+        "REF-WORLD-POTENTIAL",
+        "2610.09560",
+        "World Potential Model: Pretrained World Knowledge as Progress Potentials",
+    ),
+    (
+        "REF-STATION",
+        "2610.08927",
+        "Can AI Agents Make Open-Ended Scientific Discovery? Evidence from Station",
+    ),
+    ("REF-SIFT", "2609.19526", "Self Improvement via Fast Tree-search"),
+    (
+        "REF-PERSON-TTS",
+        "2610.09684",
+        "From Pareto to Preference: Personalized Test-Time Scaling via "
+        "Amortized Agentic Policy Discovery",
+    ),
+    ("REF-CONVEX-CONCAVE-RL", "2610.09108", "Convex-Concave Reinforcement Learning"),
+    (
+        "REF-WEATHER-CLIMATE",
+        "2610.09770",
+        "Artificial intelligence pathways from weather to climate",
+    ),
+    ("REF-TALKING-LMS", "2610.09064", "Talking with Language Models"),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
+    "REF-SENSITIVE-DEBATE": ("REC-007", "REC-008"),
+    "REF-PLURPO": ("REC-005", "REC-016"),
+    "REF-RECAST": ("REC-006",),
+    "REF-TOPOGRAPHRAG": ("REC-005", "REC-006"),
+    "REF-EXPERIENCEINDEX": ("REC-006",),
+    "REF-MEMORY-VALIDITY": ("REC-006", "REC-015"),
+    "REF-WINNERS-CURSE": ("REC-001", "REC-010"),
+    "REF-KNOWLEDGE-WEAVER": ("REC-009", "REC-010"),
+    "REF-WORLD-POTENTIAL": ("REC-002", "REC-010"),
+    "REF-STATION": ("REC-010",),
+    "REF-SIFT": ("REC-010",),
+    "REF-PERSON-TTS": ("REC-010",),
+    "REF-CONVEX-CONCAVE-RL": ("REC-010",),
+    "REF-WEATHER-CLIMATE": ("REC-005",),
+    "REF-TALKING-LMS": ("REC-008",),
     "REF-AIDE2": ("REC-010",),
     "REF-RSI-MASTER": ("REC-010",),
     "REF-RRSI": ("REC-010",),
