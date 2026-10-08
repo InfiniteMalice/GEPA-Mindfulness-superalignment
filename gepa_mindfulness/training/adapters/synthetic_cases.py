@@ -9,6 +9,7 @@ from pathlib import Path
 
 # Local
 from ...synthetic_dataset_validation import validate_rich_record
+from ...synthetic_public_context import family_prompt
 from ..trajectory import RolloutRequest
 
 
@@ -107,15 +108,31 @@ class SyntheticCaseAdapter:
             case_id = _required_string(row, self.path, line_number, "id")
             version = _required_string(row, self.path, line_number, "version")
             scenario = _required_object(row, self.path, line_number, "scenario")
-            integrity = _required_object(row, self.path, line_number, "reward_integrity")
             summary = _required_string(scenario, self.path, line_number, "summary")
-            diagnostic = _required_string(integrity, self.path, line_number, "central_diagnostic")
+            if "reward_integrity" in row:
+                integrity = _required_object(row, self.path, line_number, "reward_integrity")
+                diagnostic = _required_string(
+                    integrity, self.path, line_number, "central_diagnostic"
+                )
+            elif "argument_family" in row:
+                argument = _required_object(row, self.path, line_number, "canonical_argument")
+                diagnostic = _required_string(argument, self.path, line_number, "central_claim")
+            else:
+                raise ValueError(
+                    f"{self.path}:{line_number}: missing reward_integrity or argument_family"
+                )
             errors = validate_rich_record(row)
             if errors:
                 details = "; ".join(errors)
                 raise ValueError(f"{self.path}:{line_number}: invalid rich source row: {details}")
+            prompt = f"{summary}\n\n{diagnostic}"
+            if "argument_family" in row:
+                try:
+                    prompt = family_prompt(row)
+                except ValueError as error:
+                    raise ValueError(f"{self.path}:{line_number}: {error}") from error
             yield RolloutRequest(
-                prompt=f"{summary}\n\n{diagnostic}",
+                prompt=prompt,
                 case_id=case_id,
                 metadata={
                     "source_case_id": case_id,
