@@ -1,5 +1,39 @@
 # Controlled Learning and Offline Evolution
 
+## Experimental SIFT search before grounded evaluation
+
+`gepa_mindfulness.sift_search` is disabled by default. `SiftSearch` records bounded text-procedure
+mutations for verifier skills, check selection and synthetic generation. It never executes
+generated code, edits a Constitution, changes a canonical case, installs a skill or updates weights.
+`MutationSpec.from_skill` rejects foundational SkillCards. Candidate content digests bind search
+proposals independently of their seed artifact digests.
+
+Pairwise comparisons accept DEVELOPMENT inputs only. `sift_ranking.rank_candidates` fits a
+regularized Bradley–Terry model; ranks remain SEARCH_ONLY and serialized DEVELOPMENT records.
+They cannot be supplied as VerifiedProcessComponent values or admitted through training eligibility.
+Node, comparison, grounded-evaluation and total-cost budgets limit explicit host calls. Visit
+penalties allocate branch exploration; reserved evaluations still require separate host execution.
+
+Hosts supply leakage markers for task IDs, hidden filenames, answer values, reference outputs and
+memorized examples before candidates enter search. The lexical filter rejects declared markers and
+common hidden-eval markers. It cannot prove absence of paraphrased or encoded leakage. Isolated
+evaluation workers and family-disjoint holdouts remain required by the existing evaluation process.
+
+`screen_grounded_metrics` checks each supplied metric against its explicit direction and tolerance,
+requires strict primary improvement, and returns a diagnostic prefilter. A successful screen is
+not an acceptance receipt. The host policy must cover canonical behavior, calibration, abstention,
+ambiguity, perspective and semantic robustness, provenance, authority, reward integrity and cost.
+Missing measurements prevent a meaningful promotion decision; callers must not replace them with
+judge scores. `catalog_search_outcome` revalidates an existing CoevolutionStore decision and requires
+the exact candidate content digest. It neither creates nor consumes a decision and retains rollback
+epoch provenance. Existing held-out and protected-suite gates remain the only acceptance path.
+
+Source-supported motivation: *Self Improvement via Fast Tree-search*
+([arXiv:2609.19526](https://arxiv.org/abs/2609.19526)) uses cheap pairwise comparisons and regularized
+Bradley–Terry strengths to allocate tree search and expensive evaluations. Applying this to bounded
+verification procedures is a repository inference. Judge preference is not proof of alignment,
+honesty or generalization. Tests: `tests/test_sift_search.py` plus existing coevolution and epoch tests.
+
 This document defines the implemented boundary for learning proposals, evaluation epochs,
 verified skill artifacts, and model-harness candidates. The implementation creates records,
 validates transitions, and persists authority decisions. It does not update model weights, edit a
