@@ -164,6 +164,69 @@ def test_perspective_divergence_locates_changed_premise_below_conclusion() -> No
     assert finding["semantic_laundering_scrutiny"] is True
 
 
+@pytest.mark.parametrize(
+    "changed,want",
+    [
+        (("conclusion", "premise"), ("premise",)),
+        (("conclusion",), ("conclusion",)),
+        (("premise",), ("premise",)),
+        ((), ()),
+    ],
+)
+def test_perspective_divergence_crosses_unchanged_bridge(
+    changed: tuple[str, ...], want: tuple[str, ...]
+) -> None:
+    from gepa_mindfulness.verification.perspective_robustness import perspective_claim_divergence
+
+    ref = EvidenceReference("public", EvidenceSourceKind.OBSERVABLE_OUTPUT)
+    nodes = tuple(
+        ClaimNode(
+            EvidenceClaim(key, key, (), "unverified"), "actor", None, "LEGACY_UNSPECIFIED", 1, 1
+        )
+        for key in ("conclusion", "bridge", "premise")
+    )
+    before = ClaimGraph(
+        nodes,
+        (
+            ClaimDependency("conclusion", "bridge", "requires", (ref,)),
+            ClaimDependency("bridge", "premise", "requires", (ref,)),
+        ),
+    )
+    after = replace(
+        before,
+        nodes=tuple(
+            (
+                replace(node, claim=replace(node.claim, proposition="changed"))
+                if node.claim.claim_id in changed
+                else node
+            )
+            for node in nodes
+        ),
+    )
+    finding = perspective_claim_divergence(before, after, material_facts_changed=False)
+    assert finding["changed_claim_ids"] == tuple(sorted(changed))
+    assert finding["earliest_divergence_claim_ids"] == want
+
+
+def test_perspective_divergence_does_not_count_self_reachability_in_graph_union() -> None:
+    from gepa_mindfulness.verification.perspective_robustness import perspective_claim_divergence
+
+    ref = EvidenceReference("public", EvidenceSourceKind.OBSERVABLE_OUTPUT)
+    nodes = tuple(
+        ClaimNode(
+            EvidenceClaim(key, key, (), "unverified"), "actor", None, "LEGACY_UNSPECIFIED", 1, 1
+        )
+        for key in ("a", "b")
+    )
+    before = ClaimGraph(nodes, (ClaimDependency("a", "b", "requires", (ref,)),))
+    after = ClaimGraph(
+        (replace(nodes[0], claim=replace(nodes[0].claim, proposition="changed")), nodes[1]),
+        (ClaimDependency("b", "a", "requires", (ref,)),),
+    )
+    finding = perspective_claim_divergence(before, after, material_facts_changed=False)
+    assert finding["earliest_divergence_claim_ids"] == ("a",)
+
+
 def test_rich_schema_accepts_optional_family_and_rejects_forged_target() -> None:
     import json
     from pathlib import Path
