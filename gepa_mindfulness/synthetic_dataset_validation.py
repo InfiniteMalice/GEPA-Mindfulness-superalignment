@@ -81,6 +81,7 @@ def _matches_type(value: object, schema_type: str) -> bool:
         "number": (int, float),
         "object": dict,
         "string": str,
+        "null": type(None),
     }
     if schema_type == "integer":
         return type(value) is int
@@ -121,6 +122,11 @@ def _validate_value(
             _validate_value(value, consequence, root, path, errors)
 
     schema_type = resolved.get("type")
+    if isinstance(schema_type, list) and not any(
+        _matches_type(value, option) for option in schema_type
+    ):
+        errors.append(f"{path} must match one of {schema_type}")
+        return
     if isinstance(schema_type, str) and not _matches_type(value, schema_type):
         errors.append(f"{path} must be {schema_type}")
         return
