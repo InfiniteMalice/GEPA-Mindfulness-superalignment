@@ -1,6 +1,6 @@
 # ADR 0021: Extend causal diagnostics through existing V5 contracts
 
-Status: Proposed for written-spec review; no behavioral implementation in PR-0.
+Status: PR-1 design and native implementation plan approved on 2026-10-08.
 Date: 2026-10-08.
 
 ## Context
@@ -10,7 +10,7 @@ stakeholder records, evidence memory, diagnostic reporting and separately govern
 The requested causal/debate series needs richer observations without duplicating these systems.
 The [PR-0 audit](../recommendations/CAUSAL_ALIGNMENT_AUDIT.md) maps current interfaces and gaps.
 
-## Proposed decision
+## Decision for PR-1
 
 Compose new opt-in diagnostic records with existing V5 and evidence identities. Preserve the
 strict relation-pair evaluator as a complete-capture API. Use a separate, explicitly named
@@ -40,8 +40,9 @@ Composition adds explicit joins, but preserves backward compatibility and separa
 PR-0's existing registry, documentation, V5 and reward tests verify metadata consistency and
 unchanged behavior. The audit specifies PR-1's positive, negative and incomplete-observation
 fixtures and metric denominators. Each later PR needs its own tests and review before acceptance.
-The maintainer reviews the PR-1 written design before implementation planning. This ADR remains
-proposed until that review; a successful test run does not accept an architectural decision.
+The maintainer approved the PR-1 written design, then its implementation plan and native execution.
+The [causal diagnostics guide](../causal_diagnostics.md) specifies the opt-in API and host contract.
+This approval covers PR-1 diagnostics only; later architectural stages retain their review gates.
 
 The optional causal reward adapter additionally requires explicit reward-policy review,
 authenticated evidence, a duplicate-accounting policy and exact baseline equality when disabled
