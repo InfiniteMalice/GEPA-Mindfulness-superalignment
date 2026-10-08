@@ -19,7 +19,7 @@ and keeps trace appearance outside optimizer targets.
 
 - Repository evidence: [`confidence.py`](../../src/mindful_trace_gepa/confidence.py), [`epistemic_process.py`](../../gepa_mindfulness/core/epistemic_process.py), [`rewards.py`](../../gepa_mindfulness/core/rewards.py).
 - Acceptance tests: [`test_epistemic_process_rewards.py`](../../tests/test_epistemic_process_rewards.py), [`test_reward_integrity_rewards.py`](../../tests/test_reward_integrity_rewards.py).
-- Research: [`REF-HEART`](RESEARCH_TRACEABILITY.md#ref-heart).
+- Research: [`REF-HEART`](RESEARCH_TRACEABILITY.md#ref-heart), [`REF-WINNERS-CURSE`](RESEARCH_TRACEABILITY.md#ref-winners-curse).
 
 #### REC-002 — Action-bound epistemic commitments.
 
@@ -42,7 +42,7 @@ Routing and training integration remain deferred.
 
 - Repository evidence: [`logging_schema.py`](../../src/mindful_trace_gepa/logging_schema.py), [`v5_records.py`](../../evaluation/v5_records.py), [`epistemic_state.py`](../../gepa_mindfulness/verification/epistemic_state.py), [`epistemic_reconciliation.py`](../../gepa_mindfulness/verification/epistemic_reconciliation.py), [`evidence_use.py`](../../gepa_mindfulness/verification/evidence_use.py).
 - Acceptance tests: [`test_action_bound_logging.py`](../../tests/test_action_bound_logging.py), [`test_v5_provenance.py`](../../tests/test_v5_provenance.py).
-- Research: [`REF-WMLLM`](RESEARCH_TRACEABILITY.md#ref-wmllm), [`REF-DWM`](RESEARCH_TRACEABILITY.md#ref-dwm), [`REF-SHEAVES`](RESEARCH_TRACEABILITY.md#ref-sheaves), [`REF-HERO`](RESEARCH_TRACEABILITY.md#ref-hero).
+- Research: [`REF-WMLLM`](RESEARCH_TRACEABILITY.md#ref-wmllm), [`REF-DWM`](RESEARCH_TRACEABILITY.md#ref-dwm), [`REF-SHEAVES`](RESEARCH_TRACEABILITY.md#ref-sheaves), [`REF-HERO`](RESEARCH_TRACEABILITY.md#ref-hero), [`REF-WORLD-POTENTIAL`](RESEARCH_TRACEABILITY.md#ref-world-potential).
 
 #### REC-003 — One canonical 17-case V5 manifest.
 
@@ -68,7 +68,7 @@ enforcement scope. No manifest changes or additional canonical cases were introd
 - Repository evidence: [common.py](../../evaluation/suites/common.py), [v5_runner.py](../../evaluation/v5_runner.py), [v5_records.py](../../evaluation/v5_records.py), [worlds.py](../../synthetic_data/worlds.py), [world_peo.py](../../synthetic_data/world_peo.py).
 - Canonical inputs: [`robustness_stripes.yaml`](../../evaluation/cases/robustness_stripes.yaml), [`registry.py`](../../evaluation/cases/registry.py).
 - Acceptance tests: [`test_v5_cell_planner.py`](../../tests/test_v5_cell_planner.py), [`test_v5_evaluation_record.py`](../../tests/test_v5_evaluation_record.py), [`test_v5_repeat_metrics.py`](../../tests/test_v5_repeat_metrics.py).
-- Research: [`REF-CONSISTENCY`](RESEARCH_TRACEABILITY.md#ref-consistency), [`REF-LEXICAL-PERTURB`](RESEARCH_TRACEABILITY.md#ref-lexical-perturb), [`REF-TOKENIZER-BETRAYAL`](RESEARCH_TRACEABILITY.md#ref-tokenizer-betrayal), [`REF-QWEN-PLANNER`](RESEARCH_TRACEABILITY.md#ref-qwen-planner), [`REF-TABPFN-35`](RESEARCH_TRACEABILITY.md#ref-tabpfn-35), [`REF-VGCOMPILER`](RESEARCH_TRACEABILITY.md#ref-vgcompiler), [`REF-PHYSICAL-LANGUAGES`](RESEARCH_TRACEABILITY.md#ref-physical-languages), [`REF-GENERALIZED-TAMP`](RESEARCH_TRACEABILITY.md#ref-generalized-tamp).
+- Research: [`REF-CONSISTENCY`](RESEARCH_TRACEABILITY.md#ref-consistency), [`REF-LEXICAL-PERTURB`](RESEARCH_TRACEABILITY.md#ref-lexical-perturb), [`REF-TOKENIZER-BETRAYAL`](RESEARCH_TRACEABILITY.md#ref-tokenizer-betrayal), [`REF-QWEN-PLANNER`](RESEARCH_TRACEABILITY.md#ref-qwen-planner), [`REF-TABPFN-35`](RESEARCH_TRACEABILITY.md#ref-tabpfn-35), [`REF-VGCOMPILER`](RESEARCH_TRACEABILITY.md#ref-vgcompiler), [`REF-PHYSICAL-LANGUAGES`](RESEARCH_TRACEABILITY.md#ref-physical-languages), [`REF-GENERALIZED-TAMP`](RESEARCH_TRACEABILITY.md#ref-generalized-tamp), [`REF-PLURPO`](RESEARCH_TRACEABILITY.md#ref-plurpo), [`REF-TOPOGRAPHRAG`](RESEARCH_TRACEABILITY.md#ref-topographrag), [`REF-WEATHER-CLIMATE`](RESEARCH_TRACEABILITY.md#ref-weather-climate).
 
 ## P1
 
@@ -87,7 +87,7 @@ claim candidates retain separate sources and remain provisional before host comm
 - Repository evidence: [`state.py`](../../gepa_mindfulness/verification/state.py).
 - Limit: evidence identifiers are not dereferenced or issuer-authenticated by this record layer.
 - Acceptance checks: [`test_world_evidence_state.py`](../../tests/test_world_evidence_state.py).
-- Research: [`REF-EDGEMEM`](RESEARCH_TRACEABILITY.md#ref-edgemem), [`REF-GRAPHMEM`](RESEARCH_TRACEABILITY.md#ref-graphmem).
+- Research: [`REF-EDGEMEM`](RESEARCH_TRACEABILITY.md#ref-edgemem), [`REF-GRAPHMEM`](RESEARCH_TRACEABILITY.md#ref-graphmem), [`REF-RECAST`](RESEARCH_TRACEABILITY.md#ref-recast), [`REF-TOPOGRAPHRAG`](RESEARCH_TRACEABILITY.md#ref-topographrag), [`REF-EXPERIENCEINDEX`](RESEARCH_TRACEABILITY.md#ref-experienceindex), [`REF-MEMORY-VALIDITY`](RESEARCH_TRACEABILITY.md#ref-memory-validity).
 
 #### REC-007 — Structured failure graph.
 
@@ -101,7 +101,7 @@ provenance and family-balanced repair candidates exclude hidden evaluation.
 - Repository evidence: [failure_atlas.py](../../evaluation/failure_atlas.py), [failure_graph.py](../../gepa_mindfulness/verification/failure_graph.py), [failure_layers.py](../../gepa_mindfulness/verification/failure_layers.py).
 - Limit: verifier identifiers are preserved but are not authenticated by the graph layer.
 - Acceptance checks: [`test_failure_graph.py`](../../tests/test_failure_graph.py).
-- Research: [`REF-AGENTSCOPE`](RESEARCH_TRACEABILITY.md#ref-agentscope), [`REF-FTA`](RESEARCH_TRACEABILITY.md#ref-fta), [`REF-PINNFORGE`](RESEARCH_TRACEABILITY.md#ref-pinnforge), [`REF-QWEN-PLANNER`](RESEARCH_TRACEABILITY.md#ref-qwen-planner), [`REF-SEEK`](RESEARCH_TRACEABILITY.md#ref-seek).
+- Research: [`REF-AGENTSCOPE`](RESEARCH_TRACEABILITY.md#ref-agentscope), [`REF-FTA`](RESEARCH_TRACEABILITY.md#ref-fta), [`REF-PINNFORGE`](RESEARCH_TRACEABILITY.md#ref-pinnforge), [`REF-QWEN-PLANNER`](RESEARCH_TRACEABILITY.md#ref-qwen-planner), [`REF-SEEK`](RESEARCH_TRACEABILITY.md#ref-seek), [`REF-SENSITIVE-DEBATE`](RESEARCH_TRACEABILITY.md#ref-sensitive-debate).
 
 PR-8 adds [skill_failure_localization.md](../skill_failure_localization.md). Additional acceptance coverage: [test_failure_layers.py](../../tests/test_failure_layers.py).
 
@@ -112,7 +112,7 @@ PR-8 adds [skill_failure_localization.md](../skill_failure_localization.md). Add
   issuers.
 - Acceptance checks: [`test_runtime_authority.py`](../../tests/test_runtime_authority.py),
   [`test_verifier_interfaces.py`](../../tests/test_verifier_interfaces.py), [`test_epistemic_routing.py`](../../tests/test_epistemic_routing.py), [`test_system_one_benchmark.py`](../../tests/test_system_one_benchmark.py).
-- Research: [`REF-HEART`](RESEARCH_TRACEABILITY.md#ref-heart), [`REF-BIOMETRIC-MEM`](RESEARCH_TRACEABILITY.md#ref-biometric-mem), [`REF-JEV-MEM`](RESEARCH_TRACEABILITY.md#ref-jev-mem), [`REF-CLM`](RESEARCH_TRACEABILITY.md#ref-clm), [`REF-TOOLLERY`](RESEARCH_TRACEABILITY.md#ref-toollery), [`REF-SEEK`](RESEARCH_TRACEABILITY.md#ref-seek), [`REF-LADDER`](RESEARCH_TRACEABILITY.md#ref-ladder), [`REF-REASONING-TOPOLOGY`](RESEARCH_TRACEABILITY.md#ref-reasoning-topology).
+- Research: [`REF-HEART`](RESEARCH_TRACEABILITY.md#ref-heart), [`REF-BIOMETRIC-MEM`](RESEARCH_TRACEABILITY.md#ref-biometric-mem), [`REF-JEV-MEM`](RESEARCH_TRACEABILITY.md#ref-jev-mem), [`REF-CLM`](RESEARCH_TRACEABILITY.md#ref-clm), [`REF-TOOLLERY`](RESEARCH_TRACEABILITY.md#ref-toollery), [`REF-SEEK`](RESEARCH_TRACEABILITY.md#ref-seek), [`REF-LADDER`](RESEARCH_TRACEABILITY.md#ref-ladder), [`REF-REASONING-TOPOLOGY`](RESEARCH_TRACEABILITY.md#ref-reasoning-topology), [`REF-SENSITIVE-DEBATE`](RESEARCH_TRACEABILITY.md#ref-sensitive-debate), [`REF-TALKING-LMS`](RESEARCH_TRACEABILITY.md#ref-talking-lms).
 
 - Experimental routing: [System-One guide](../system_one_routing.md); opt-in proposals retain host authority gates.
 
@@ -124,7 +124,7 @@ PR-8 adds [skill_failure_localization.md](../skill_failure_localization.md). Add
   pinned evaluation authority. A committed record does not install or deploy a skill.
 - Acceptance checks: [`test_verified_skill_lifecycle.py`](../../tests/test_verified_skill_lifecycle.py),
   [`test_verified_skill_lifecycle_review.py`](../../tests/test_verified_skill_lifecycle_review.py).
-- Research: [`REF-SEGOS`](RESEARCH_TRACEABILITY.md#ref-segos), [`REF-DSR`](RESEARCH_TRACEABILITY.md#ref-dsr), [`REF-REPOTOSKILL`](RESEARCH_TRACEABILITY.md#ref-repotoskill), [`REF-SKILLGLOW`](RESEARCH_TRACEABILITY.md#ref-skillglow), [`REF-QWEN-PLANNER`](RESEARCH_TRACEABILITY.md#ref-qwen-planner), [`REF-SEEK`](RESEARCH_TRACEABILITY.md#ref-seek), [`REF-ARISE`](RESEARCH_TRACEABILITY.md#ref-arise).
+- Research: [`REF-SEGOS`](RESEARCH_TRACEABILITY.md#ref-segos), [`REF-DSR`](RESEARCH_TRACEABILITY.md#ref-dsr), [`REF-REPOTOSKILL`](RESEARCH_TRACEABILITY.md#ref-repotoskill), [`REF-SKILLGLOW`](RESEARCH_TRACEABILITY.md#ref-skillglow), [`REF-QWEN-PLANNER`](RESEARCH_TRACEABILITY.md#ref-qwen-planner), [`REF-SEEK`](RESEARCH_TRACEABILITY.md#ref-seek), [`REF-ARISE`](RESEARCH_TRACEABILITY.md#ref-arise), [`REF-KNOWLEDGE-WEAVER`](RESEARCH_TRACEABILITY.md#ref-knowledge-weaver).
 
 PR-8 adds [skill_failure_localization.md](../skill_failure_localization.md). Additional acceptance coverage: [test_skill_bank.py](../../tests/test_skill_bank.py).
 
@@ -147,7 +147,7 @@ externally leaked holdout content; private catalog integration remains a host re
   [`test_verified_skill_lifecycle.py`](../../tests/test_verified_skill_lifecycle.py),
   [`test_verified_skill_lifecycle_review.py`](../../tests/test_verified_skill_lifecycle_review.py),
   [`test_model_harness_coevolution.py`](../../tests/test_model_harness_coevolution.py).
-- Research: [`REF-COEVOLVE`](RESEARCH_TRACEABILITY.md#ref-coevolve), [`REF-HOH`](RESEARCH_TRACEABILITY.md#ref-hoh), [`REF-QWEN-PLANNER`](RESEARCH_TRACEABILITY.md#ref-qwen-planner), [`REF-TABPFN-35`](RESEARCH_TRACEABILITY.md#ref-tabpfn-35), [`REF-CHART`](RESEARCH_TRACEABILITY.md#ref-chart), [`REF-SPECTRAL-GROKKING`](RESEARCH_TRACEABILITY.md#ref-spectral-grokking), [`REF-LOW-BIT-OPD`](RESEARCH_TRACEABILITY.md#ref-low-bit-opd), [`REF-CLM`](RESEARCH_TRACEABILITY.md#ref-clm), [`REF-P-TTT`](RESEARCH_TRACEABILITY.md#ref-p-ttt), [`REF-VGCOMPILER`](RESEARCH_TRACEABILITY.md#ref-vgcompiler), [`REF-MECHBENCH`](RESEARCH_TRACEABILITY.md#ref-mechbench), [`REF-PHYSICAL-LANGUAGES`](RESEARCH_TRACEABILITY.md#ref-physical-languages), [`REF-KALMAN`](RESEARCH_TRACEABILITY.md#ref-kalman), [`REF-SOT`](RESEARCH_TRACEABILITY.md#ref-sot), [`REF-GRUET`](RESEARCH_TRACEABILITY.md#ref-gruet), [`REF-DEEPO`](RESEARCH_TRACEABILITY.md#ref-deepo), [`REF-FTA`](RESEARCH_TRACEABILITY.md#ref-fta), [`REF-CAT-SEARCH`](RESEARCH_TRACEABILITY.md#ref-cat-search), [`REF-C3-JEPA`](RESEARCH_TRACEABILITY.md#ref-c3-jepa), [`REF-PAWS`](RESEARCH_TRACEABILITY.md#ref-paws), [`REF-4BIT-QUANTIZERS`](RESEARCH_TRACEABILITY.md#ref-4bit-quantizers), [`REF-GENERALIZED-TAMP`](RESEARCH_TRACEABILITY.md#ref-generalized-tamp), [`REF-DUAL-FRONTIER`](RESEARCH_TRACEABILITY.md#ref-dual-frontier), [`REF-ARISE`](RESEARCH_TRACEABILITY.md#ref-arise), [`REF-PINNFORGE`](RESEARCH_TRACEABILITY.md#ref-pinnforge), [`REF-RRSI`](RESEARCH_TRACEABILITY.md#ref-rrsi), [`REF-MEDRSI`](RESEARCH_TRACEABILITY.md#ref-medrsi), [`REF-SELF-HEALING`](RESEARCH_TRACEABILITY.md#ref-self-healing), [`REF-EVOIN`](RESEARCH_TRACEABILITY.md#ref-evoin), [`REF-HELIX`](RESEARCH_TRACEABILITY.md#ref-helix), [`REF-CARE`](RESEARCH_TRACEABILITY.md#ref-care), [`REF-AIDE2`](RESEARCH_TRACEABILITY.md#ref-aide2), [`REF-RSI-MASTER`](RESEARCH_TRACEABILITY.md#ref-rsi-master).
+- Research: [`REF-COEVOLVE`](RESEARCH_TRACEABILITY.md#ref-coevolve), [`REF-HOH`](RESEARCH_TRACEABILITY.md#ref-hoh), [`REF-QWEN-PLANNER`](RESEARCH_TRACEABILITY.md#ref-qwen-planner), [`REF-TABPFN-35`](RESEARCH_TRACEABILITY.md#ref-tabpfn-35), [`REF-CHART`](RESEARCH_TRACEABILITY.md#ref-chart), [`REF-SPECTRAL-GROKKING`](RESEARCH_TRACEABILITY.md#ref-spectral-grokking), [`REF-LOW-BIT-OPD`](RESEARCH_TRACEABILITY.md#ref-low-bit-opd), [`REF-CLM`](RESEARCH_TRACEABILITY.md#ref-clm), [`REF-P-TTT`](RESEARCH_TRACEABILITY.md#ref-p-ttt), [`REF-VGCOMPILER`](RESEARCH_TRACEABILITY.md#ref-vgcompiler), [`REF-MECHBENCH`](RESEARCH_TRACEABILITY.md#ref-mechbench), [`REF-PHYSICAL-LANGUAGES`](RESEARCH_TRACEABILITY.md#ref-physical-languages), [`REF-KALMAN`](RESEARCH_TRACEABILITY.md#ref-kalman), [`REF-SOT`](RESEARCH_TRACEABILITY.md#ref-sot), [`REF-GRUET`](RESEARCH_TRACEABILITY.md#ref-gruet), [`REF-DEEPO`](RESEARCH_TRACEABILITY.md#ref-deepo), [`REF-FTA`](RESEARCH_TRACEABILITY.md#ref-fta), [`REF-CAT-SEARCH`](RESEARCH_TRACEABILITY.md#ref-cat-search), [`REF-C3-JEPA`](RESEARCH_TRACEABILITY.md#ref-c3-jepa), [`REF-PAWS`](RESEARCH_TRACEABILITY.md#ref-paws), [`REF-4BIT-QUANTIZERS`](RESEARCH_TRACEABILITY.md#ref-4bit-quantizers), [`REF-GENERALIZED-TAMP`](RESEARCH_TRACEABILITY.md#ref-generalized-tamp), [`REF-DUAL-FRONTIER`](RESEARCH_TRACEABILITY.md#ref-dual-frontier), [`REF-ARISE`](RESEARCH_TRACEABILITY.md#ref-arise), [`REF-PINNFORGE`](RESEARCH_TRACEABILITY.md#ref-pinnforge), [`REF-RRSI`](RESEARCH_TRACEABILITY.md#ref-rrsi), [`REF-MEDRSI`](RESEARCH_TRACEABILITY.md#ref-medrsi), [`REF-SELF-HEALING`](RESEARCH_TRACEABILITY.md#ref-self-healing), [`REF-EVOIN`](RESEARCH_TRACEABILITY.md#ref-evoin), [`REF-HELIX`](RESEARCH_TRACEABILITY.md#ref-helix), [`REF-CARE`](RESEARCH_TRACEABILITY.md#ref-care), [`REF-AIDE2`](RESEARCH_TRACEABILITY.md#ref-aide2), [`REF-RSI-MASTER`](RESEARCH_TRACEABILITY.md#ref-rsi-master), [`REF-WINNERS-CURSE`](RESEARCH_TRACEABILITY.md#ref-winners-curse), [`REF-KNOWLEDGE-WEAVER`](RESEARCH_TRACEABILITY.md#ref-knowledge-weaver), [`REF-WORLD-POTENTIAL`](RESEARCH_TRACEABILITY.md#ref-world-potential), [`REF-STATION`](RESEARCH_TRACEABILITY.md#ref-station), [`REF-SIFT`](RESEARCH_TRACEABILITY.md#ref-sift), [`REF-PERSON-TTS`](RESEARCH_TRACEABILITY.md#ref-person-tts), [`REF-CONVEX-CONCAVE-RL`](RESEARCH_TRACEABILITY.md#ref-convex-concave-rl).
 
 PR-10 adds an experimental [peo_curriculum.md](../peo_curriculum.md). Seven data stages preserve anchors and source admission while host-observed retention checks bound adaptation. Existing head phases and rewards remain unchanged. Acceptance coverage: [test_peo_curriculum.py](../../tests/test_peo_curriculum.py), [test_rl_engine_cpu.py](../../tests/test_rl_engine_cpu.py).
 
@@ -205,7 +205,7 @@ Synthetic matched controls verify record behavior; empirical effectiveness remai
 
 - Repository evidence: [`internal_state_trajectory.py`](../../modules/semantic_intent_robustness/internal_state_trajectory.py), [`continuity_audit.py`](../../modules/semantic_intent_robustness/continuity_audit.py), [`README.md`](../../modules/semantic_intent_robustness/README.md), [`peo_continuity.md`](../peo_continuity.md).
 - Acceptance checks: [`test_sot_state_continuity.py`](../../tests/test_sot_state_continuity.py), [`test_epistemic_continuity.py`](../../tests/test_epistemic_continuity.py), [`test_motivated_forgetting.py`](../../tests/test_motivated_forgetting.py), [`test_continuity_evaluation.py`](../../tests/test_continuity_evaluation.py), [`test_peo_continuity.py`](../../tests/test_peo_continuity.py).
-- Research: [`REF-SOT`](RESEARCH_TRACEABILITY.md#ref-sot), [`REF-CDR`](RESEARCH_TRACEABILITY.md#ref-cdr), [`REF-MEMCALIB`](RESEARCH_TRACEABILITY.md#ref-memcalib), [`REF-TTSE`](RESEARCH_TRACEABILITY.md#ref-ttse), [`REF-JITMEM`](RESEARCH_TRACEABILITY.md#ref-jitmem).
+- Research: [`REF-SOT`](RESEARCH_TRACEABILITY.md#ref-sot), [`REF-CDR`](RESEARCH_TRACEABILITY.md#ref-cdr), [`REF-MEMCALIB`](RESEARCH_TRACEABILITY.md#ref-memcalib), [`REF-TTSE`](RESEARCH_TRACEABILITY.md#ref-ttse), [`REF-JITMEM`](RESEARCH_TRACEABILITY.md#ref-jitmem), [`REF-MEMORY-VALIDITY`](RESEARCH_TRACEABILITY.md#ref-memory-validity).
 
 REC-016 through REC-019 remain experimental research overlays. They retain exactly 17 canonical
 cases (IDs 1-17). Diagnostic signals do not independently authorize external actions, training,
@@ -220,7 +220,7 @@ Apply bounded quality-diversity search to semantic-laundering transformations wi
 
 - Repository evidence: [`evolutionary_atlas.py`](../../modules/semantic_intent_robustness/evolutionary_atlas.py), [`research_overlays.md`](../research_overlays.md).
 - Acceptance checks: [`test_evolutionary_semantic_atlas.py`](../../tests/test_evolutionary_semantic_atlas.py).
-- Research: [`REF-EVOFLINT`](RESEARCH_TRACEABILITY.md#ref-evoflint).
+- Research: [`REF-EVOFLINT`](RESEARCH_TRACEABILITY.md#ref-evoflint), [`REF-PLURPO`](RESEARCH_TRACEABILITY.md#ref-plurpo).
 - Limitations: The paper does not study GEPA or this repository's semantic-laundering curriculum. The implementation uses harmless synthetic transformations and structured feature novelty; it does not reproduce the paper's attack generator or empirical results.
 
 #### REC-017 — Round-trip structural communication audit.
