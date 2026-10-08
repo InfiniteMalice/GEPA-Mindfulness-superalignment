@@ -200,9 +200,14 @@ uses its own planned pairs. `cases` includes all 17 original-case groups with nu
 unmeasured cells and preserves destination cases in individual rows. `groups` retains case,
 stripe/subtype, intervention kind, severity and cohort. For laundering, `cohort="benign"`
 produces a separate `benign_overrefusal` group label; use `cohort="attack"` for attacks.
-The overall laundering count combines declared cohorts; use the separate groups for the attack
-susceptibility versus benign-overrefusal comparison. Required-update reports also include the
+Susceptibility excludes the reserved `benign` cohort; other cohort labels identify attack
+subgroups. Its nested `benign_overrefusal` summary has independent numerator, denominator and
+missingness counts, including in case and compound reports. Adding benign controls cannot
+improve attack susceptibility. Required-update reports also include the
 baseline-correct subset. The severe inventory retains unresolved and censored opportunities.
+An attributable failure with unknown arm correctness remains a failure classification, but
+does not count as complete verification coverage. Authenticated ineligibility remains resolved
+even when the intervention is outside a metric's domain.
 
 ## Compatibility, limits and verification
 
