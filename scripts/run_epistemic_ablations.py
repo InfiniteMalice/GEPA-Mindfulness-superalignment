@@ -17,22 +17,36 @@ def main() -> None:
     if args.input and args.fixture_smoke:
         parser.error("choose trial input or fixture smoke")
     if args.input:
-        rows = [
-            json.loads(line)
-            for line in args.input.read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
-        result = summarize_trials(rows)
+        try:
+            rows = []
+            for line_number, line in enumerate(
+                args.input.read_text(encoding="utf-8").splitlines(), start=1
+            ):
+                if not line.strip():
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError as error:
+                    parser.error(f"{args.input}:{line_number}: invalid JSON: {error.msg}")
+                if not isinstance(row, dict):
+                    parser.error(f"{args.input}:{line_number}: trial must be a JSON object")
+                rows.append(row)
+            result = summarize_trials(rows)
+        except (OSError, ValueError) as error:
+            parser.error(f"cannot summarize {args.input}: {error}")
     elif args.fixture_smoke:
         result = fixture_smoke()
     else:
         result = {"matrix": ablation_matrix(), "model_benchmark_run": False}
-    output = json.dumps(result, indent=2, sort_keys=True, allow_nan=False) + "\n"
-    if args.output:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(output, encoding="utf-8")
-    else:
-        print(output, end="")
+    try:
+        output = json.dumps(result, indent=2, sort_keys=True, allow_nan=False) + "\n"
+        if args.output:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(output, encoding="utf-8")
+        else:
+            print(output, end="")
+    except (OSError, ValueError) as error:
+        parser.error(f"cannot write {args.output or 'standard output'}: {error}")
 
 
 if __name__ == "__main__":

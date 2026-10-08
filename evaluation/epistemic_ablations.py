@@ -79,9 +79,9 @@ def summarize_trials(rows: list[dict[str, Any]]) -> dict[str, Any]:
         if row["run_id"] in seen:
             raise ValueError("duplicate run identity")
         seen.add(row["run_id"])
-        if row["ablation"] not in ablation_matrix():
+        if type(row["ablation"]) is not str or row["ablation"] not in ablation_matrix():
             raise ValueError("unknown ablation")
-        if row["split"] not in {"DEVELOPMENT", "HELD_OUT"}:
+        if type(row["split"]) is not str or row["split"] not in {"DEVELOPMENT", "HELD_OUT"}:
             raise ValueError("split cannot expose hidden evaluation")
         family = row["family_id"]
         if family in splits and splits[family] != row["split"]:

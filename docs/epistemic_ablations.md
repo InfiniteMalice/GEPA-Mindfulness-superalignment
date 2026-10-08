@@ -12,6 +12,8 @@ python scripts/run_epistemic_ablations.py --input trials.jsonl --output summary.
 The first command prints the configurations; the second exercises the actual discriminating-check
 selector on an authored fixture. The third summarizes host-measured trials. It does not execute
 the eleven configurations or generate measurements.
+Input read, JSON parsing, trial-validation and output-write errors are reported on standard error
+with exit status 2. Malformed JSON and non-object rows include the physical input line number.
 
 | ID | Components enabled in the host experiment |
 | --- | --- |
@@ -50,8 +52,9 @@ regressions behind aggregate capability.
 The host must assign one family ID to all semantically equivalent variants and derivatives before
 splitting, including perspective variants, hard negatives and near-duplicate source templates.
 Never tune on the held-out split. Hidden promotion data stays in the existing private evaluator;
-the summarizer rejects hidden split names. Host-provided split assignments may use a different
-pre-registered split; the summarizer enforces disjointness, not random assignment quality.
+the summarizer accepts only the literal split labels `DEVELOPMENT` and `HELD_OUT`.
+The host may pre-register a different assignment of families to these two labels. The summarizer
+enforces family disjointness; it does not assess the quality of the assignment.
 
 Summaries average repeats within a family, then resample family means with 1,000 seeded bootstrap
 draws for a 95% interval. With fewer than two families the interval is null. Per-family bootstrap
