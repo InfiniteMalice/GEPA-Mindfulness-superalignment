@@ -29,6 +29,9 @@ observation event, time and evidence. No failure-cause inference is made from di
 `check_failure_node` enforces the local action/evidence join for counterevidence; the host still
 validates the full causal event sequence before persisting a failure graph.
 The observation envelope and payload must agree on both action and evidence links.
+`check_failure_node` accepts payload `evidence_refs` only as a list or tuple of strings.
+Malformed values raise `ValueError` before evidence comparison; valid references are compared
+as complete identifiers. Regression coverage is in `tests/test_claim_verification.py`.
 
 Source-supported motivation: *VeriHarness: Scaling Agentic Verification for Long-Horizon Tasks*
 ([arXiv:2610.00972](https://arxiv.org/abs/2610.00972)) separates disagreement resolution from
