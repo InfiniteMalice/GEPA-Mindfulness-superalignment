@@ -123,7 +123,8 @@ def perspective_claim_divergence(
 ) -> dict[str, Any]:
     """Locate changed public premises beneath conclusions, without inferring hidden reasoning.
 
-    Earliest means a changed decision-relevant node without a changed dependency below it.
+    Earliest means a changed decision-relevant node without another changed node reachable
+    through the union of before/after dependency links, including unchanged intermediate nodes.
     This is a graph diagnostic, not a temporal claim or a causal attribution.
     """
     if type(material_facts_changed) is not bool:
@@ -139,11 +140,24 @@ def perspective_claim_divergence(
             for node in (left.get(key), right.get(key))
         )
     }
-    parents = {
-        edge.parent_claim_id
-        for edge in before.dependencies + after.dependencies
-        if edge.child_claim_id in changed
-    }
+    children: dict[str, set[str]] = {}
+    for edge in before.dependencies + after.dependencies:
+        children.setdefault(edge.parent_claim_id, set()).add(edge.child_claim_id)
+
+    parents = set()
+    for start in changed:
+        pending = list(children.get(start, ()))
+        # The union of two acyclic graphs can cycle; a node is not its own descendant.
+        visited = {start}
+        while pending:
+            child = pending.pop()
+            if child in visited:
+                continue
+            visited.add(child)
+            if child in changed:
+                parents.add(start)
+                break
+            pending.extend(children.get(child, ()))
     return {
         "training_eligibility": "DEVELOPMENT",
         "changed_claim_ids": tuple(sorted(changed)),
