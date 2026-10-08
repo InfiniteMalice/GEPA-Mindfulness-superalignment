@@ -107,7 +107,7 @@ def test_recommendation_reader_groups_records_by_priority_and_status() -> None:
 
 def _recommendation_section(reader: str, recommendation_id: str) -> str:
     match = re.search(
-        rf"^#### {re.escape(recommendation_id)}\b.*?(?=^#### |\Z)",
+        rf"^#### {re.escape(recommendation_id)}\b.*?(?=^#{{1,4}} |\Z)",
         reader,
         flags=re.MULTILINE | re.DOTALL,
     )

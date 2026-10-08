@@ -241,9 +241,35 @@ EXPECTED_REFERENCES = (
         "2609.35561",
         "RSI-Master: Structuring Experiments to Guide Autonomous Model Improvement",
     ),
+    (
+        "REF-PLURPO",
+        "2610.02568",
+        "Mitigating Social Sycophancy via Pluralistic Preference Optimization",
+    ),
+    (
+        "REF-SENSITIVE-DEBATE",
+        "2610.02557",
+        "How to Have a Sensitive Debate: An Instance-Optimal Protocol for AI Debate",
+    ),
+    (
+        "REF-EUREKABENCH",
+        "2610.00492",
+        "EurekaBench: Measuring Agentic Ability to Discover New Scientific Insights",
+    ),
+    (
+        "REF-VERIHARNESS",
+        "2610.00972",
+        "VeriHarness: Scaling Agentic Verification for Long-Horizon Tasks",
+    ),
+    ("REF-SIFT", "2609.19526", "Self Improvement via Fast Tree-search"),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
+    "REF-PLURPO": ("REC-005",),
+    "REF-SENSITIVE-DEBATE": ("REC-011",),
+    "REF-EUREKABENCH": ("REC-011",),
+    "REF-VERIHARNESS": ("REC-006",),
+    "REF-SIFT": ("REC-010",),
     "REF-AIDE2": ("REC-010",),
     "REF-RSI-MASTER": ("REC-010",),
     "REF-RRSI": ("REC-010",),

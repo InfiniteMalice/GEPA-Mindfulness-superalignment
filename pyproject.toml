@@ -107,7 +107,7 @@ exclude = [
 ]
 
 [tool.setuptools.package-data]
-docs = ["controlled_evolution.md", "experimental_v5_overlays.md", "research_overlays.md", "epistemic_state.md", "temporal_estimator.md", "scalar_fusion.md", "evidence_memory.md", "peo_continuity.md", "system_one_routing.md", "skill_failure_localization.md", "synthetic_worlds.md", "peo_curriculum.md", "relation_flips.md", "contrastive_training.md", "dynamic_uncertainty.md", "evaluation_ladder.md", "world_model_ablation.md", "hypothesis_state.md", "semantic_exploration.md"]
+docs = ["unified_epistemic_verification.md", "epistemic_ablations.md", "claim_verification.md", "uncertainty_inquiry.md", "observable_revision.md", "controlled_evolution.md", "experimental_v5_overlays.md", "research_overlays.md", "epistemic_state.md", "temporal_estimator.md", "scalar_fusion.md", "evidence_memory.md", "peo_continuity.md", "system_one_routing.md", "skill_failure_localization.md", "synthetic_worlds.md", "peo_curriculum.md", "relation_flips.md", "contrastive_training.md", "dynamic_uncertainty.md", "evaluation_ladder.md", "world_model_ablation.md", "hypothesis_state.md", "semantic_exploration.md"]
 "docs.recommendations" = [
     "RESEARCH_TRACEABILITY.md",
     "UNIFIED_RECOMMENDATIONS.md",
