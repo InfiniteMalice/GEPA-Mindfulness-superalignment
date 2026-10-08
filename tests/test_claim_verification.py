@@ -143,3 +143,50 @@ def test_counterevidence_joins_existing_failure_node_without_causal_claim() -> N
             replace(result, evidence_refs=(EvidenceReference("fake", ref.source_kind),)),
             observation,
         )
+
+
+@pytest.mark.parametrize(
+    "payload_refs",
+    [
+        "evidence:x",
+        {"e": "not a reference list"},
+        None,
+        42,
+        ["e", 1],
+        ["e", []],
+        ("e", None),
+    ],
+)
+def test_failure_join_rejects_malformed_payload_evidence(payload_refs: object) -> None:
+    from test_v5_provenance import _verified_sequence
+
+    from gepa_mindfulness.verification.claim_verification import check_failure_node
+
+    observation = _verified_sequence()[3]
+    ref = EvidenceReference("e", EvidenceSourceKind.EXTERNAL_RECORD)
+    envelope_refs = tuple(dict.fromkeys(payload_refs)) if isinstance(payload_refs, str) else ("e",)
+    observation = replace(
+        observation,
+        evidence_refs=envelope_refs,
+        payload=observation.payload | {"evidence_refs": payload_refs},
+    )
+    result = CheckResult("units", "c", "action-14-2", "contradicted", (ref,), "v", None)
+    with pytest.raises(ValueError, match="list or tuple of strings"):
+        check_failure_node(result, observation)
+
+
+@pytest.mark.parametrize("payload_refs", [["evidence:x"], ("evidence:x",)])
+def test_failure_join_accepts_string_sequences(payload_refs: list[str] | tuple[str, ...]) -> None:
+    from test_v5_provenance import _verified_sequence
+
+    from gepa_mindfulness.verification.claim_verification import check_failure_node
+
+    observation = _verified_sequence()[3]
+    observation = replace(
+        observation,
+        evidence_refs=("evidence:x",),
+        payload=observation.payload | {"evidence_refs": payload_refs},
+    )
+    ref = EvidenceReference("evidence:x", EvidenceSourceKind.EXTERNAL_RECORD)
+    result = CheckResult("units", "c", "action-14-2", "contradicted", (ref,), "v", None)
+    assert check_failure_node(result, observation).evidence_refs == (ref,)

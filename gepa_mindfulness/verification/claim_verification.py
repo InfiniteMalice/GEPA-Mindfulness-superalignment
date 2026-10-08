@@ -92,11 +92,19 @@ def check_failure_node(result: CheckResult, observation: EventEnvelope) -> Failu
         or observation.payload.get("action_id") != result.action_id
     ):
         raise ValueError("failure observation action mismatch")
-    if set(observation.evidence_refs) != set(observation.payload.get("evidence_refs", ())):
+    raw_refs = observation.payload.get("evidence_refs", ())
+    if not isinstance(raw_refs, (list, tuple)):
+        raise ValueError(
+            "failure observation payload evidence_refs must be a list or tuple of strings"
+        )
+    payload_refs = tuple(raw_refs)
+    if any(type(ref) is not str for ref in payload_refs):
+        raise ValueError(
+            "failure observation payload evidence_refs must be a list or tuple of strings"
+        )
+    if set(observation.evidence_refs) != set(payload_refs):
         raise ValueError("failure observation envelope/payload evidence mismatch")
-    if not {ref.reference_id for ref in result.evidence_refs}.issubset(
-        observation.payload.get("evidence_refs", ())
-    ):
+    if not {ref.reference_id for ref in result.evidence_refs}.issubset(payload_refs):
         raise ValueError("failure evidence must be retained in observation")
     return FailureNode(
         f"check:{result.check_id}",
