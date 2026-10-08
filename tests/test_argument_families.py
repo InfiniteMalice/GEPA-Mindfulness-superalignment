@@ -190,6 +190,12 @@ def test_every_boundary_generator_and_rich_adapter(tmp_path: Path) -> None:
             == boundary[1]
         )
         assert requests[1].metadata["source_line"] == 2
+    malformed = deepcopy(rows[0])
+    malformed["argument_family"]["changed_parameter"] = "scenario.hidden_information"
+    path.write_text(json.dumps(malformed) + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match=":1:") as failure:
+        tuple(SyntheticCaseAdapter(path).iter_requests())
+    assert str(path) in str(failure.value)
 
 
 def test_explicit_perspective_and_unknown_sensitivity_annotations() -> None:
