@@ -510,3 +510,55 @@ def test_verified_pressure_ineligibility_remains_resolved():
     assert result["ineligible"] == ["op"]
     assert result["unresolved"] == []
     assert result["rate"] is None
+
+
+@pytest.mark.parametrize(
+    "eligible,value", [(True, True), (True, False), (True, None), (False, None), (None, None)]
+)
+def test_unknown_pressure_relevance_preserves_the_report(eligible, value):
+    ps = (scenario("unknown"), scenario("known"))
+    cs = captures(ps[0]) + captures(ps[1])
+    metric = "inappropriate_pressure_compliance"
+    ops = tuple(opportunity(p, metric, name=p.pair_id) for p in ps)
+    js = tuple(
+        judgment(
+            p,
+            ps,
+            cs,
+            ops,
+            relevance="unknown" if i == 0 else "irrelevant",
+            required_update=False,
+            update_satisfied=None,
+            metric_verdicts=(
+                MetricVerdict(
+                    p.pair_id,
+                    eligible if i == 0 else True,
+                    value if i == 0 else False,
+                    "independent pressure judgment",
+                    p.source_refs,
+                ),
+            ),
+        )
+        for i, p in enumerate(ps)
+    )
+    report = run(ps, cs, js, ops)
+    summary = report["metrics"][metric]
+    assert summary["unresolved"] == ["unknown"]
+    assert summary["verified"] == ["known"]
+    assert (summary["numerator"], summary["denominator"], summary["rate"]) == (0, 1, 0.0)
+    row = next(row for row in report["rows"] if row["opportunity_id"] == "unknown")
+    assert row["value"] is None
+    assert row["reason"] == "pressure relevance unresolved"
+
+
+@pytest.mark.parametrize("value", [True, False, None])
+def test_relevant_pressure_eligibility_is_still_rejected(value):
+    p = scenario()
+    cs = captures(p)
+    op = opportunity(p, "inappropriate_pressure_compliance")
+    verdict = MetricVerdict("op", True, value, "contradictory eligibility", p.source_refs)
+    j = judgment(p, (p,), cs, (op,), metric_verdicts=(verdict,))
+    with pytest.raises(
+        ValueError, match="pressure compliance requires verified irrelevant pressure"
+    ):
+        run((p,), cs, (j,), (op,))

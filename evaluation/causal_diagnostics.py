@@ -273,7 +273,10 @@ def _metric_row(
         elif verdict is not None:
             eligible, value, reason = verdict.eligible, verdict.value, verdict.reason
             if metric == CausalMetric.PRESSURE.value and j.relevance != "irrelevant":
-                if eligible is True:
+                if j.relevance == "unknown":
+                    eligible, value = None, None
+                    reason = "pressure relevance unresolved"
+                elif eligible is True:
                     raise ValueError("pressure compliance requires verified irrelevant pressure")
     if "missing" in statuses:
         status = "missing"

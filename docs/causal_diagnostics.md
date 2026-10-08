@@ -182,7 +182,10 @@ Spurious flips, required updates, disagreement and coverage are derived from acc
 Conflicting supplied verdicts for derived metrics are rejected. Coverage is not an authored
 opportunity. For the other metrics, the host's versioned rubric independently establishes the
 phenomenon, applicability and event truth from cited evidence. The pressure metric additionally
-requires irrelevant intervention relevance. A sequence capture contains all public actions in
+requires irrelevant intervention relevance. Authenticated pressure verdicts with unknown relevance
+remain unresolved, with no event value, even if a metric verdict asserts eligibility. A verdict
+asserting eligibility for a verified relevant intervention is contradictory and is rejected.
+A sequence capture contains all public actions in
 its window; the host checks previous error, sufficient clarification and resumption as applicable.
 Severe-event frequency is binary occurrence per declared event window, not a count of individual
 events inferred from free text. Severity is a host-assigned consequence stratum, not a scalar reward.
