@@ -67,7 +67,7 @@ def test_eight_round_cap_is_censored():
     assert session.stop_reason == "budget_exhausted"
 
 
-@pytest.mark.parametrize("kind", ["actor", "digest", "request", "verifier", "revision"])
+@pytest.mark.parametrize("kind", ["actor", "digest", "request", "verifier"])
 def test_role_spoofing_and_stale_bindings_rejected(kind):
     overrides = {}
     if kind == "actor":
@@ -80,12 +80,7 @@ def test_role_spoofing_and_stale_bindings_rejected(kind):
 
         def verify(ctx, s, ch):
             r = result(s, ch)
-            changes = (
-                {"verifier_id": "defender"}
-                if kind == "verifier"
-                else {"revision_claim_id": "absent"}
-            )
-            return (replace(r, result=replace(r.result, **changes)),)
+            return (replace(r, result=replace(r.result, verifier_id="defender")),)
 
         overrides["verify"] = verify
     with pytest.raises(ValueError):
@@ -166,3 +161,19 @@ def test_missing_and_stop_exception_keep_phase_evidence():
     session = run_fixture(stop=stop)
     assert session.stop_reason == "callback_error"
     assert session.rounds[0].after is not None
+
+
+@pytest.mark.parametrize("accepted", [False, True])
+def test_revision_claim_does_not_prevent_undecomposable_capture(accepted):
+    def verify(ctx, before, ch):
+        bound = result(before, ch)
+        return (replace(bound, result=replace(bound.result, revision_claim_id="absent")),)
+
+    after = replace(
+        snapshot(), graph=None, conclusion_claim_id=None, decomposition_status="undecomposable"
+    )
+    session = run_fixture(
+        verify=verify, authenticate=lambda e: accepted, revise=lambda *args: after
+    )
+    assert session.stop_reason == "undecomposable"
+    assert session.rounds[0].after == after

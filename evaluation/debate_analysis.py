@@ -29,13 +29,23 @@ _STATES = ("missing", "censored", "unresolved", "ineligible", "verified")
 
 
 def _summary(
-    rows: list[dict[str, Any]], *, denominator: int | None = None, numerator: int | None = None
+    rows: list[dict[str, Any]],
+    *,
+    denominator: int | None = None,
+    numerator: int | None = None,
+    semantic: bool = False,
 ) -> dict[str, Any]:
     buckets = {
         state: sorted(r["opportunity_id"] for r in rows if r["status"] == state)
         for state in _STATES
     }
     den = len(buckets["verified"]) if denominator is None else denominator
+    eligible = sorted(r["opportunity_id"] for r in rows if r.get("eligible") is True)
+    incomplete = sorted(
+        r["opportunity_id"] for r in rows if r.get("eligible") is True and r["status"] != "verified"
+    )
+    if semantic:
+        den = len(eligible)
     num = (
         sum(r["status"] == "verified" and r["value"] is True for r in rows)
         if numerator is None
@@ -45,7 +55,8 @@ def _summary(
         planned=len(rows),
         numerator=num,
         denominator=den,
-        rate=num / den if den else None,
+        rate=num / den if den and not (semantic and incomplete) else None,
+        **(dict(eligible=eligible, unresolved_eligible=incomplete) if semantic else {}),
         **buckets,
     )
 
@@ -139,6 +150,8 @@ def _checks(
             evidence_refs=[],
             reason="round not attempted",
             priority=None,
+            revision_claim_id=None,
+            revision_claim_present=None,
         )
         if slot.round_index >= len(session.rounds):
             rows.append(row)
@@ -175,6 +188,16 @@ def _checks(
                 verdict=bound.result.verdict if resolved else None,
                 reason="authenticated result" if resolved else "independent check unresolved",
                 evidence_refs=[r.to_dict() for r in bound.result.evidence_refs],
+                revision_claim_id=bound.result.revision_claim_id,
+                revision_claim_present=(
+                    bound.result.revision_claim_id
+                    in {n.claim.claim_id for n in round_.after.graph.nodes}
+                    if resolved
+                    and bound.result.revision_claim_id is not None
+                    and round_.after is not None
+                    and round_.after.graph is not None
+                    else None
+                ),
             )
         rows.append(row)
     return rows
@@ -185,11 +208,10 @@ def _metric_rows(
     session: DebateSession,
     assessment: DebateAssessment | None,
     auth: Callable[[DebateAssessment], bool] | None,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], bool]:
     trusted = False
     verdicts = {}
     if assessment is not None:
-        assessment = _record(assessment, DebateAssessment)
         if assessment.session_digest != debate_session_digest(
             session
         ) or assessment.opportunities_digest != debate_opportunities_digest(protocol.opportunities):
@@ -225,9 +247,20 @@ def _metric_rows(
                 elif v.eligible is True and v.value is not None:
                     status, value = "verified", v.value
         rows.append(
-            dict(**op.to_dict(), status=status, value=value, eligible=eligible, reason=reason)
+            dict(
+                **op.to_dict(),
+                status=status,
+                value=value,
+                eligible=eligible,
+                reason=reason,
+                evidence_refs=(
+                    [ref.to_dict() for ref in verdicts[op.opportunity_id].evidence_refs]
+                    if op.opportunity_id in verdicts
+                    else []
+                ),
+            )
         )
-    return rows
+    return rows, trusted
 
 
 def _check_summaries(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -293,16 +326,23 @@ def analyze_debate(
         raise ValueError("debate analysis requires enabled=True")
     protocol = _record(protocol, DebateProtocol)
     session = _record(session, DebateSession)
+    assessment = _record(assessment, DebateAssessment) if assessment is not None else None
     validate_debate_session(protocol, session)
     transitions = _transitions(session)
     checks = _checks(protocol, session, authenticate_check)
-    rows = _metric_rows(protocol, session, assessment, authenticate_assessment)
-    metrics = {m: _summary([r for r in rows if r["metric"] == m]) for m in DEBATE_METRICS}
+    rows, assessment_accepted = _metric_rows(protocol, session, assessment, authenticate_assessment)
+    metrics = {
+        m: _summary([r for r in rows if r["metric"] == m], semantic=True) for m in DEBATE_METRICS
+    }
     check_summaries = _check_summaries(checks)
     case_id = protocol.subject.case.case_id
     cases = {
         str(c.id): dict(
-            metrics=metrics if c.id == case_id else {m: _summary([]) for m in DEBATE_METRICS},
+            metrics=(
+                metrics
+                if c.id == case_id
+                else {m: _summary([], semantic=True) for m in DEBATE_METRICS}
+            ),
             **(check_summaries if c.id == case_id else _check_summaries([])),
         )
         for c in load_case_manifest().cases
@@ -317,6 +357,9 @@ def analyze_debate(
         mechanism_recovery_established=False,
         protocol=protocol.to_dict(),
         session=session.to_dict(),
+        assessment=assessment.to_dict() if assessment is not None else None,
+        assessment_digest=content_digest(assessment.to_dict()) if assessment is not None else None,
+        assessment_accepted=assessment_accepted,
         protocol_digest=session.protocol_digest,
         session_digest=debate_session_digest(session),
         opportunities_digest=debate_opportunities_digest(protocol.opportunities),
@@ -348,7 +391,7 @@ def analyze_debate(
                 stripe=protocol.subject.robustness.stripe_id,
                 subtype=protocol.subject.robustness.subtype,
                 session_id=protocol.session_id,
-                **_summary(items),
+                **_summary(items, semantic=True),
             )
             for key, items in sorted(groups.items())
         ],

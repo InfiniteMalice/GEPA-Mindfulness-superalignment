@@ -210,9 +210,14 @@ Requests/results absent from an attempted challenge/verification phase are missi
 challenges preserve the preregistered slots and cannot improve coverage by dropping hard checks.
 
 Invalid returned structures, unknown claims, stale digests, foreign check IDs, mismatched
-claim/action/verifier joins, duplicate IDs or nonexistent revision claims raise ValueError.
+claim/action/verifier joins or duplicate IDs raise ValueError.
 They are not silently counted as model mistakes. A callback exception differs from returning
 malformed data. A stop callback exception retains that round's captured after snapshot.
+Revision claims are suggestions; the defender need not adopt them. A rejected result or an
+undecomposable revision still retains its transcript. Check rows retain `revision_claim_id`;
+`revision_claim_present` reports structural membership in the after graph only for authenticated,
+resolved results. It is null without a revision claim, a usable receipt, or an after graph.
+Membership does not establish that the revision is correct.
 
 ## Transitions and measurements
 
@@ -230,6 +235,12 @@ Verified claims remain indexed by the exact snapshot digest. They cannot migrate
 graph under a reused claim ID. Conflicting authenticated verdicts on one claim remain unresolved
 in the snapshot-level claim view; individual checks remain visible.
 
+Reports retain the complete supplied `assessment`, its `assessment_digest`, and each metric
+verdict's evidence references, including rejected assessments for audit. `assessment_accepted`
+records whether the host authenticated that exact assessment during this analysis and its
+status was verified without pending human review. This saved observation is not a credential;
+reanalysis requires fresh host authentication. The report digest binds this provenance.
+
 | Metric | Numerator | Denominator |
 | --- | --- | --- |
 | evidence_coverage | Authenticated supported/contradicted checks | Every predeclared check slot |
@@ -246,6 +257,11 @@ For semantic metrics the host rubric independently establishes eligibility and e
 with MetricVerdict records. Missing, censored, unresolved, ineligible and verified rows have
 explicit ID lists and planned counts; rate is null when its denominator is zero. Missing or
 censored slots remain in coverage/planned-dispute denominators, not false-challenge denominators.
+For semantic metrics, the denominator counts independently authenticated opportunities with
+`eligible=True`. Eligible opportunities with unresolved outcomes remain in that denominator,
+the unresolved ID list and `unresolved_eligible`. The rate is null while any known eligible
+outcome is unresolved; unknown outcomes are not negative judgments. The `eligible` ID list
+records all known eligible opportunities. These rules also apply to case and cohort summaries.
 No semantic label can fabricate absent before/after captures. Human-pending or disputed
 assessments remain unresolved; human escalation before revision censors that revision window.
 Detection recall does not measure correctness of the action or prevalence in a population.

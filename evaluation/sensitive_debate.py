@@ -95,10 +95,6 @@ def validate_debate_round(protocol: DebateProtocol, round_: DebateRound) -> None
             or r.verifier_id != roles["verifier"]
         ):
             raise ValueError("result claim/action/verifier mismatch")
-        if r.revision_claim_id is not None and round_.after is not None:
-            graph = round_.after.graph
-            if graph is None or r.revision_claim_id not in {n.claim.claim_id for n in graph.nodes}:
-                raise ValueError("revision claim absent from after snapshot")
     if any(r.human_required for r in round_.results) and round_.after is not None:
         raise ValueError("pending human review cannot have a revision")
 

@@ -6,7 +6,7 @@ import pytest
 from test_debate_records import challenge, protocol, result, snapshot
 from test_sensitive_debate import run_fixture
 
-from evaluation.causal_records import MetricVerdict
+from evaluation.causal_records import MetricVerdict, content_digest
 from evaluation.debate_analysis import analyze_debate
 from evaluation.debate_records import (
     DebateAssessment,
@@ -198,3 +198,76 @@ def test_capture_and_authentication_remain_distinct():
     assert r["evidence_coverage"]["rate"] == 0
     with pytest.raises(ValueError, match="enabled"):
         analyze_debate(p, session)
+
+
+@pytest.mark.parametrize("changed", ["assessment_evidence", "verdict_evidence", "evaluator"])
+def test_semantic_assessment_provenance_changes_report_digest(changed):
+    p = protocol(1)
+    session = run_fixture(p)
+    refs = snapshot().evidence_refs
+    a = assessment(p, session, (MetricVerdict("transition-0", True, True, "oracle", refs),))
+    other_refs = (replace(refs[0], reference_id="other-source"),)
+    if changed == "assessment_evidence":
+        other = replace(a, evidence_refs=other_refs)
+    elif changed == "verdict_evidence":
+        other = replace(a, verdicts=(replace(a.verdicts[0], evidence_refs=other_refs),))
+    else:
+        other = replace(a, evaluator=replace(a.evaluator, evaluator_version="2"))
+    first = report(p, session, assessment=a, authenticate_assessment=lambda c: c == a)
+    second = report(p, session, assessment=other, authenticate_assessment=lambda c: c == other)
+    assert first["result_digest"] != second["result_digest"]
+    assert second["assessment"] == other.to_dict()
+    assert second["assessment_digest"] == content_digest(other.to_dict())
+    assert second["assessment_accepted"] is True
+    assert second["metric_rows"][0]["evidence_refs"] == [
+        ref.to_dict() for ref in other.verdicts[0].evidence_refs
+    ]
+    rejected = report(p, session, assessment=other)
+    assert rejected["assessment"] == other.to_dict()
+    assert rejected["assessment_accepted"] is False
+    assert rejected["metric_rows"][0]["eligible"] is None
+
+
+def test_known_eligible_unresolved_outcomes_remain_in_semantic_denominators():
+    p = protocol(2)
+    session = run_fixture(p, stop=None)
+    refs = snapshot().evidence_refs
+    a = assessment(
+        p,
+        session,
+        (
+            MetricVerdict("transition-0", True, True, "detected", refs),
+            MetricVerdict("transition-1", True, None, "detection unknown", refs),
+        ),
+    )
+    r = report(p, session, assessment=a, authenticate_assessment=lambda c: c == a)
+    for summary in (
+        r["metrics"]["transition_detection"],
+        r["cases"]["1"]["metrics"]["transition_detection"],
+        r["groups"][0],
+    ):
+        assert summary["denominator"] == 2
+        assert summary["numerator"] == 1
+        assert summary["rate"] is None
+        assert summary["unresolved"] == ["transition-1"]
+        assert summary["unresolved_eligible"] == ["transition-1"]
+    resolved = replace(a, verdicts=(a.verdicts[0], replace(a.verdicts[1], value=False)))
+    r = report(p, session, assessment=resolved, authenticate_assessment=lambda c: c == resolved)
+    assert r["metrics"]["transition_detection"]["rate"] == 0.5
+
+
+@pytest.mark.parametrize("accepted", [False, True])
+@pytest.mark.parametrize("revision_id", ["q", "absent"])
+def test_revision_claim_presence_is_observed_without_forcing_adoption(accepted, revision_id):
+    p = protocol(1)
+
+    def verify(ctx, before, ch):
+        bound = result(before, ch)
+        return (replace(bound, result=replace(bound.result, revision_claim_id=revision_id)),)
+
+    session = run_fixture(p, verify=verify, authenticate=lambda e: accepted)
+    r = analyze_debate(p, session, enabled=True, authenticate_check=lambda e: accepted)
+    assert r["check_rows"][0]["revision_claim_id"] == revision_id
+    assert r["check_rows"][0]["revision_claim_present"] is (
+        (revision_id == "q") if accepted else None
+    )
