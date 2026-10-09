@@ -236,7 +236,16 @@ def make_assessment(p, c):
         "verified",
         False,
         tuple(MetricVerdict(o.opportunity_id, True, True, "oracle", refs) for o in p.opportunities),
-        (ClaimSupportVerdict("goal", True, True, refs, "oracle"),),
+        (
+            ClaimSupportVerdict(
+                "goal",
+                True,
+                True,
+                refs,
+                "oracle",
+                tuple(r.route_id for r in p.topology.routes if r.conclusion_claim_id == "goal"),
+            ),
+        ),
         refs,
         "independent judgment",
     )

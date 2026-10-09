@@ -113,6 +113,31 @@ def _validate_bindings(
         raise ValueError("assessment references foreign opportunities")
     if not {v.claim_id for v in a.claim_verdicts} <= {x.claim_id for x in p.snapshot.state.claims}:
         raise ValueError("assessment references foreign claims")
+    routes = {r.route_id: r for r in p.topology.routes}
+    for verdict in a.claim_verdicts:
+        if any(
+            key not in routes or routes[key].conclusion_claim_id != verdict.claim_id
+            for key in verdict.sufficient_route_ids
+        ):
+            raise ValueError("sufficient route must belong to the assessed claim")
+
+
+def _current_claims(p: TopologyProtocol, item_rows: tuple[dict[str, Any], ...]) -> set[str]:
+    """Retain intrinsic claim/item restrictions even when another structural route survives."""
+    current = {
+        c.claim_id
+        for c in p.snapshot.state.claims
+        if c.status not in {"stale", "contradicted", "superseded", "unavailable"}
+    }
+    items = {i.item_id: i for i in p.snapshot.sources + p.snapshot.interpretations}
+    for row in item_rows:
+        # Topology-only pruning is not an intrinsic access or validity restriction.
+        usable = row["channel"] in {"candidate_evidence", "unverified"} or (
+            row["channel"] == "withheld" and row["reasons"] == ["no_available_support_route"]
+        )
+        if not usable:
+            current.discard(items[row["item_id"]].claim.claim_id)
+    return current
 
 
 def analyze_evidence_topology(
@@ -176,6 +201,13 @@ def analyze_evidence_topology(
         p.snapshot, p.topology, available_item_ids=current, enabled=True
     )
     claims = {v.claim_id: v for v in a.claim_verdicts} if accepted and a is not None else {}
+    current_claims = _current_claims(p, retrieval.item_rows)
+    available_routes = {
+        r.route_id
+        for r in p.topology.routes
+        if r.route_id in structure["available_route_ids"]
+        and {r.conclusion_claim_id, *r.prerequisite_claim_ids} <= current_claims
+    }
     support = {}
     for claim in p.snapshot.state.claims:
         claim_verdict = claims.get(claim.claim_id)
@@ -184,9 +216,9 @@ def analyze_evidence_topology(
             if claim_verdict.supported is False or claim_verdict.contradictions_resolved is False:
                 status, reason = "unsupported", "independent support or resolution rejected"
             elif claim_verdict.supported is True and claim_verdict.contradictions_resolved is True:
-                status, reason = "blocked", "no currently available support route"
-                if claim.claim_id in structure["available_conclusion_ids"]:
-                    status, reason = "supported", "independent judgment and current route available"
+                status, reason = "blocked", "no independently sufficient current route"
+                if set(claim_verdict.sufficient_route_ids) & available_routes:
+                    status, reason = "supported", "independently sufficient current route available"
         support[claim.claim_id] = dict(status=status, reason=reason)
     access = {tuple(r["artifact_key"]): r["decision"] for r in retrieval.access_rows}
     sources = {s.item_id: s for s in p.snapshot.sources}

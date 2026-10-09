@@ -169,18 +169,24 @@ class TopologyCapture(ArtifactDiagnosticRecord):
 
 @dataclass(frozen=True)
 class ClaimSupportVerdict(ArtifactDiagnosticRecord):
-    """Independent claim sufficiency and contradiction judgments, not graph reachability."""
+    """Independent sufficiency of named routes, bound to the full protocol and claim."""
 
     claim_id: str
     supported: bool | None
     contradictions_resolved: bool | None
     evidence_refs: tuple[EvidenceReference, ...]
     reason: str
+    sufficient_route_ids: tuple[str, ...] = ()
     schema_version = "claim-support-verdict-v1"
     restorers = {"evidence_refs": restore_refs}
 
     def __post_init__(self) -> None:
         _text(self.claim_id, "claim_id")
+        object.__setattr__(
+            self, "sufficient_route_ids", strings(self.sufficient_route_ids, "sufficient routes")
+        )
+        if len(self.sufficient_route_ids) > 64:
+            raise ValueError("too many sufficient routes")
         for v in (self.supported, self.contradictions_resolved):
             if v is not None and type(v) is not bool:
                 raise ValueError("claim judgments require boolean or None")

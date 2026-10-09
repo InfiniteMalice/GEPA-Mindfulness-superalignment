@@ -126,7 +126,8 @@ def judge(p, c):
         "verified", False, tuple(MetricVerdict(o.opportunity_id, True,
             o.metric in ("correctness", "source_attribution"), "fixture judgment", refs)
             for o in p.opportunities),
-        (ClaimSupportVerdict("goal", True, True, refs, "fixture support judgment"),), refs,
+        (ClaimSupportVerdict("goal", True, True, refs, "fixture support judgment",
+            tuple(r.route_id for r in p.topology.routes if r.conclusion_claim_id == "goal")),), refs,
         "independent authored fixture")
     allowed_receipts.add(payload_digest(a))
     return a
@@ -208,7 +209,7 @@ revalidate records. A serialized digest or status is an integrity declaration, n
 | TopologyOpportunity | opportunity_id, metric, severity, cohort |
 | TopologyProtocol | protocol_id, rubric_id, subject, snapshot, topology, query, opportunities, evaluator |
 | TopologyCapture | protocol_digest, condition, status, retrieved_item_ids, attributed_item_ids, response, actions, latency_seconds, retrieval_cost, cost_unit, evidence_refs, reason |
-| ClaimSupportVerdict | claim_id, supported, contradictions_resolved, evidence_refs, reason |
+| ClaimSupportVerdict | claim_id, supported, contradictions_resolved, evidence_refs, reason, sufficient_route_ids |
 | TopologyAssessment | protocol_digest, capture_digest, evaluator, status, human_required, verdicts, claim_verdicts, evidence_refs, reason |
 | RemovalSlot / RemovalPlan | slot_id, removed_artifact, protocol / plan_id, baseline, slots |
 | RemovalObservation | slot_id, capture, assessment |
@@ -286,9 +287,17 @@ has an evidence item. A contradicts edge is preserved in diagnostics and never s
 
 `assess_support_routes` reports structural availability only, without a truth judgment.
 `analyze_evidence_topology` returns original `source_claims` unchanged and a separate
-`supported_claims` view. A supported claim needs a freshly authenticated positive support verdict,
-positive contradiction-resolution verdict and a currently available route. Otherwise the view
+`supported_claims` view. A supported claim needs a freshly authenticated positive support verdict
+and positive contradiction-resolution verdict. The host explicitly lists independently sufficient
+`sufficient_route_ids` in that verdict; an empty tuple establishes no current support.
+Every named route must conclude that claim. At least one judged route must remain available,
+and its conclusion and prerequisites must retain current validity. Bound items also retain their
+intrinsic access, entity, memory and ancestry restrictions; topology-only pruning is not such a
+restriction. Stale, contradicted, superseded and unavailable claims cannot become supported.
+Unverified claims may receive independent support in this separate view. Otherwise the view
 reports unresolved, unsupported or blocked with a reason. The view never changes EvidenceState.
+The final-review regression tests cover conclusion validity, denied derived ancestry, unavailable
+bridge premises, and the distinction between structural alternatives and independently judged routes.
 
 The host supplies `authenticate(TopologyAssessment) -> bool`. The adapter binds the complete
 protocol, raw capture digest and exact evaluator contract before calling the callback.
