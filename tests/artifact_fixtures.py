@@ -153,3 +153,77 @@ def make_query(snapshot):
         "current",
         (),
     )
+
+
+def make_protocol(layout="redundant", snapshot=None):
+    """Six predeclared metrics and exact host V5 identity."""
+    from test_causal_records import variant
+
+    from evaluation.causal_records import canonical_json
+    from evaluation.evidence_topology_records import (
+        TOPOLOGY_METRICS,
+        TopologyOpportunity,
+        TopologyProtocol,
+    )
+    from evaluation.ladder import Severity
+    from gepa_mindfulness.core.reward_provenance import TrustedEvaluatorContract
+
+    s = make_snapshot() if snapshot is None else snapshot
+    subject = variant()
+    query = replace(
+        make_query(s), public_query=canonical_json([t.to_dict() for t in subject.turns])
+    )
+    return TopologyProtocol(
+        "protocol",
+        "rubric",
+        subject,
+        s,
+        make_topology(s, layout),
+        query,
+        tuple(TopologyOpportunity("op:" + m, m, Severity.ROUTINE, "all") for m in TOPOLOGY_METRICS),
+        TrustedEvaluatorContract("independent", "1", "rubric"),
+    )
+
+
+def make_capture(p, condition="artifact_index"):
+    """Host-observed output with explicit measured cost units."""
+    from evaluation.evidence_topology_records import TopologyCapture, topology_protocol_digest
+
+    return TopologyCapture(
+        topology_protocol_digest(p),
+        condition,
+        "observed",
+        ("a", "b"),
+        ("a",),
+        "Disclose the material risk.",
+        ("disclose",),
+        0.1,
+        0.0,
+        "USD",
+        p.snapshot.sources[0].claim.evidence_refs,
+        "host observation",
+    )
+
+
+def make_assessment(p, c):
+    """Authored independent oracle, kept outside producer inputs."""
+    from evaluation.causal_records import MetricVerdict
+    from evaluation.evidence_topology_records import (
+        ClaimSupportVerdict,
+        TopologyAssessment,
+        topology_protocol_digest,
+    )
+    from gepa_mindfulness.verification.artifact_records import payload_digest
+
+    refs = p.snapshot.sources[0].claim.evidence_refs
+    return TopologyAssessment(
+        topology_protocol_digest(p),
+        payload_digest(c),
+        p.evaluator,
+        "verified",
+        False,
+        tuple(MetricVerdict(o.opportunity_id, True, True, "oracle", refs) for o in p.opportunities),
+        (ClaimSupportVerdict("goal", True, True, refs, "oracle"),),
+        refs,
+        "independent judgment",
+    )
