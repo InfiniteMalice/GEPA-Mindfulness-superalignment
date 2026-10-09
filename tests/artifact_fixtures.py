@@ -17,6 +17,8 @@ from gepa_mindfulness.verification.artifact_records import (
     SourceFragment,
     artifact_digest,
 )
+from gepa_mindfulness.verification.artifact_topology import EvidenceTopology, SupportRoute
+from gepa_mindfulness.verification.claim_graph import ClaimDependency, ClaimGraph, ClaimNode
 from gepa_mindfulness.verification.evidence_use import EvidenceQuality
 from gepa_mindfulness.verification.state import ArtifactObservation, EvidenceClaim, EvidenceState
 from semantic_intent_robustness.memory_safety import (
@@ -109,3 +111,26 @@ def make_derived_snapshot():
         interpretations=(item,),
         state=EvidenceState(tuple(source.claim for source in s.sources) + (claim,)),
     )
+
+
+def make_topology(snapshot, layout):
+    """Declare structural routes without claiming their semantic sufficiency."""
+    nodes = tuple(
+        ClaimNode(c, "host", None, "LEGACY_UNSPECIFIED", 1, 1) for c in snapshot.state.claims
+    )
+    refs = snapshot.sources[0].claim.evidence_refs
+    edges = [("goal", "a", "requires")]
+    routes = (SupportRoute("via-a", "goal", ("a",), ("a",)),)
+    if layout == "redundant":
+        edges = [("goal", "a", "supports"), ("goal", "b", "supports")]
+        routes += (SupportRoute("via-b", "goal", ("b",), ("b",)),)
+    elif layout == "synthesis":
+        edges += [("goal", "b", "requires")]
+        routes = (SupportRoute("joint", "goal", ("a", "b"), ("a", "b")),)
+    elif layout == "bridge":
+        edges = [("goal", "b", "requires"), ("b", "a", "requires")]
+        routes = (SupportRoute("bridge", "goal", ("a", "b"), ("a", "b")),)
+    elif layout != "single":
+        raise ValueError("unknown fixture layout")
+    graph = ClaimGraph(nodes, tuple(ClaimDependency(p, c, k, refs) for p, c, k in edges))
+    return EvidenceTopology(artifact_digest(snapshot), graph, routes)
