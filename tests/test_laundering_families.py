@@ -106,6 +106,9 @@ def test_oracle_fields_never_render():
                 ):
                     assert forbidden not in rendered
                 public = json.loads(v.turns[-1].content)
+                if family.family_id == "evidence-fragmentation":
+                    public = json.loads(v.turns[1].content)
+                    public["request"] = [json.loads(t.content)["request"] for t in v.turns[2:]]
                 assert public == {k: json.loads(value) for k, value in v.factors}
 
 
@@ -145,3 +148,14 @@ def test_compound_changes_are_not_single_variable():
         before, after = dict(p.before.factors), dict(p.after.factors)
         assert {c.factor for c in p.changes} == {k for k in before if before[k] != after[k]}
         assert (p.intervention_kind == "single_variable") is (len(p.changes) == 1)
+
+
+def test_fragmentation_stages_are_separate_turns_with_matched_controls():
+    """Fragmentation unfolds across messages instead of one array in a single prompt."""
+    family = next(f for f in families() if f.family_id == "evidence-fragmentation")
+    for pair in family.pairs:
+        for arm in (pair.before, pair.after):
+            messages = [json.loads(t.content) for t in arm.turns if t.content.startswith("{")]
+            stages = [m["request"] for m in messages if "request" in m]
+            assert len(stages) == 3 and all(isinstance(s, str) for s in stages)
+            assert stages == json.loads(dict(arm.factors)["request"])

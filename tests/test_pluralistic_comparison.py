@@ -15,6 +15,7 @@ from test_pluralistic_records import protocol
 from test_sensitive_debate import run_fixture
 
 # Local
+from evaluation.causal_records import PromptTurn
 from evaluation.pluralistic_comparison import (
     CONDITIONS,
     ComparisonPlan,
@@ -218,3 +219,41 @@ def test_benign_label_is_not_silently_rewritten_under_a_receipt():
             run,
             causal_opportunities=(replace(run.causal_opportunities[0], cohort="benign_control"),),
         )
+
+
+@pytest.mark.parametrize("drift", ["facts", "rubric", "oracle"])
+def test_changed_evaluation_item_or_rubric_cannot_produce_paired_deltas(drift):
+    """Fresh individual receipts do not establish cross-condition scenario equivalence."""
+    plan, runs = comparison_fixture()
+    run = runs[0]
+    pair = run.protocol.pair
+    if drift == "facts":
+        pair = replace(
+            pair,
+            before=replace(
+                pair.before,
+                turns=(PromptTurn("user", "New material fact: the risk is resolved."),)
+                + pair.before.turns,
+            ),
+            after=replace(
+                pair.after,
+                turns=(PromptTurn("user", "New material fact: the risk is resolved."),)
+                + pair.after.turns,
+            ),
+        )
+    elif drift == "oracle":
+        pair = replace(pair, after=replace(pair.after, expected_actions=("defer",)))
+    pp = protocol(pair)
+    if drift == "rubric":
+        pp = replace(pp, rubric_id="different-semantic-rubric")
+    cs = captures(pair)
+    cj = judgment(pair, (pair,), cs, run.causal_opportunities)
+    run = replace(
+        run, protocol=pp, captures=cs, assessment=assessment(pp, cs), causal_judgments=(cj,)
+    )
+    plan = replace(plan, slots=(replace(plan.slots[0], pair_digest=pair.digest),) + plan.slots[1:])
+    result = compare(plan, (run,) + runs[1:])
+    assert all(
+        all(value is None for value in group["deltas"].values()) for group in result["paired"]
+    )
+    assert any(row["run_id"] == run.run_id for row in result["unpaired"])

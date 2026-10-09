@@ -205,8 +205,16 @@ hard constraints, and preferences remain separate fields of the existing `Stakeh
 
 `capture_perspectives` accepts either an explicit candidate tuple or one host callback. Supplying
 neither source produces `censored`; an explicit empty tuple produces `observed` with every planned slot
-missing. Partial candidates do not shrink the roster. A callback receives a detached public plan
-once. Exceptions produce `callback_error` containing only the exception type. Invalid return
+missing. Partial candidates do not shrink the roster. A callback receives one detached
+`PerspectiveGenerationContext`: public source text, fact/constraint propositions, declared roles,
+stakeholder interests/constraints/preferences/uncertainty, and perspective categories with stakeholder
+IDs. Slots use opaque `slot-0`, `slot-1`, etc. IDs; returned candidates must use these aliases, which
+the host maps back to original slot IDs. Experimental source/core/slot IDs, provenance references,
+cohort labels, admission metadata, and expected actions remain host-only. Explicit candidate tuples
+still use original host slot IDs. Public actor/role names retain their connection to the prose;
+hosts must put only public semantic content in these fields. This projection does not redact secrets
+that a host embeds in public prose. Exceptions produce `callback_error` containing only the exception
+type. Invalid return
 types, duplicate IDs, or unplanned slots raise `ValueError`. The capture binds the pre-callback
 plan digest. A simulated preference, consensus, veto, or declared authority never verifies a fact.
 
@@ -237,6 +245,9 @@ The builder does not infer a canonical case from words such as “attack” or �
 Every arm has multiple public turns. Actor rendering excludes cohort names, expected actions,
 safe/unsafe reference answers, review receipts, admission, and other evaluator annotations.
 Changed factors correspond to rendered public fields; compound manipulations remain distinct.
+The fragmentation family renders three ordered request stages as three separate user turns in both
+attack and benign arms, after shared report context. It does not fabricate intermediate model actions.
+The request factor retains the full ordered stage list for auditing.
 The original two-case semantic-laundering generator remains unchanged.
 
 `make_role_reversal_pair` requires an explicit nonidentity bijection over the exact actor roster.
@@ -289,8 +300,14 @@ compound causal aggregates stay separate. New pluralistic aggregates sum raw cou
 averaging rates. `planned_runs` and `missing_runs` expose absent runs whose opportunity rosters
 are not available; per-metric planned counts cover only submitted raw protocols.
 
-Pairing uses family, split, declared model family, harness, seed, repeat, original case, and
-intervention stripe/subtype. Checkpoint and curriculum versions are retained treatment artifacts
+Pairing uses family, split, declared model family, harness, seed, repeat, original case,
+intervention stripe/subtype, and a condition-independent evaluation-content digest. This digest binds
+both arms' cases, stripes, turns, factors, expected actions, intervention/equivalence declarations,
+public perspective context, metric/severity/cohort roster, rubric ID, and evaluator contract ID.
+Hosts must version rubric and contract IDs when their semantics change. Changed material facts,
+expected actions, or rubric IDs produce unmatched groups with null deltas. Checkpoint and curriculum
+versions, experimental source/slot IDs, and admission metadata are excluded from this content digest.
+Checkpoint and curriculum versions are retained treatment artifacts
 and can differ across conditions. A per-arm seed difference is unpaired; PR-1 already rejects
 different model/harness/repeat identities inside a pair. Duplicate keys within one condition
 are ambiguous and rejected. Incomplete matched groups remain in `paired` with missing-condition

@@ -1,15 +1,20 @@
 """Simulated stakeholder callbacks cannot rewrite their binding or acquire authority."""
 
 # Standard library
+import json
 from dataclasses import replace
 
 # Third-party
 import pytest
+from test_laundering_families import family_metadata
 from test_perspective_protocol import candidate, public_plan
+from test_pluralistic_records import protocol
 
 # Local
+from gepa_mindfulness.training.eligibility import TrainingEligibility
 from semantic_intent_robustness.perspective_generation import capture_perspectives
 from semantic_intent_robustness.perspective_protocol import perspective_digest
+from synthetic_data.laundering_families import generate_controlled_laundering_families
 
 
 def test_disabled_calls_nothing():
@@ -28,9 +33,9 @@ def test_callback_gets_public_detached_plan():
 
     def generate(detached):
         calls.append(detached)
-        assert detached == plan and detached is not plan
-        object.__setattr__(detached.source, "source_text", "changed")
-        return (candidate(),)
+        assert detached.source_text == plan.source.source_text
+        object.__setattr__(detached, "source_text", "changed")
+        return (candidate(detached.slots[0]["slot_id"]),)
 
     cap = capture_perspectives(plan, generate=generate, enabled=True)
     assert len(calls) == 1
@@ -74,3 +79,39 @@ def test_error_type_retained_without_secret_text():
     cap = capture_perspectives(public_plan(), generate=fail, enabled=True)
     assert cap.status == "callback_error" and cap.candidates == ()
     assert "RuntimeError" in cap.reason and "SECRET" not in str(cap.to_dict())
+
+
+@pytest.mark.parametrize("cohort", ["attack", "benign_control"])
+def test_actual_family_callback_excludes_experimental_ids_and_admission(cohort):
+    """Rendering the whole producer context cannot expose host-only experiment labels."""
+    metadata = {
+        key: replace(value, training_eligibility=TrainingEligibility.HIDDEN_EVAL)
+        for key, value in family_metadata().items()
+    }
+    families = generate_controlled_laundering_families(cell_metadata=metadata, enabled=True)
+    pair = next(
+        p for f in families for p in f.pairs if p.pair_id == f"authority-reframing:{cohort}"
+    )
+    plan = protocol(pair).plan
+    plan = replace(plan, source=replace(plan.source, source_refs=pair.source_refs))
+    payloads = []
+
+    def generate(context):
+        payload = context.to_dict()
+        payloads.append(payload)
+        return (candidate(payload["slots"][0]["slot_id"]),)
+
+    cap = capture_perspectives(plan, generate=generate, enabled=True)
+    payload = json.dumps(payloads[0])
+    for forbidden in (
+        "authority-reframing",
+        ":attack:",
+        "benign_control",
+        "HIDDEN_EVAL",
+        "training_eligibility",
+        "semantic_core_id",
+        "expected_actions",
+    ):
+        assert forbidden not in payload
+    assert cap.candidates[0].slot_id == plan.slots[0].slot_id
+    assert cap.plan_digest == perspective_digest(plan)

@@ -51,7 +51,8 @@ The [pluralistic guide](../pluralistic_robustness.md) defines missingness and de
 
 Keep sycophancy, overcriticism, perspective robustness and third-party interests separate. Retain
 PR-1 metric contracts and PR-2 session bindings. Three-condition comparisons require declared
-matching family/split/model-family/harness/seed/repeat/case/stripe coordinates, retain absent
+matching family/split/model-family/harness/seed/repeat/case/stripe coordinates plus identical
+evaluation content and rubric contracts. They retain absent
 observations and preserve distinct checkpoint/curriculum versions. Exports remain DEVELOPMENT
 with stricter source restrictions nested intact; no training effectiveness follows from fixtures.
 

@@ -12,6 +12,7 @@ from typing import Any
 # Local
 from gepa_mindfulness.verification.debate_records import DebateSession, _digest, _record
 from gepa_mindfulness.verification.diagnostic_records import _text, choice, restore_records
+from semantic_intent_robustness.perspective_generation import PerspectiveGenerationContext
 from semantic_intent_robustness.perspective_protocol import PerspectiveCapture, _items, _unique
 
 from .causal_diagnostics import _metrics as causal_metrics
@@ -149,6 +150,34 @@ class ComparisonRun(DebateRecord):
             )
 
 
+def _evaluation_item_digest(protocol: PluralisticProtocol) -> str:
+    """Match evaluation content and rubric independently of treatment/checkpoint identity."""
+    pair = protocol.pair
+    arms = [
+        dict(
+            case=v.case.to_dict(),
+            robustness=v.robustness.to_dict(),
+            turns=[t.to_dict() for t in v.turns],
+            factors=v.factors,
+            expected_actions=v.expected_actions,
+        )
+        for v in (pair.before, pair.after)
+    ]
+    return content_digest(
+        dict(
+            arms=arms,
+            intervention_kind=pair.intervention_kind,
+            claimed_equivalence=pair.claimed_equivalence,
+            public_context=PerspectiveGenerationContext.from_plan(protocol.plan).to_dict(),
+            rubric_id=protocol.rubric_id,
+            evaluator_contract=protocol.evaluator.contract_id,
+            opportunities=sorted(
+                (o.metric, o.severity.value, o.cohort) for o in protocol.opportunities
+            ),
+        )
+    )
+
+
 def _pair_key(slot: ComparisonSlot, run: ComparisonRun) -> tuple[Any, ...]:
     pair = run.protocol.pair
     return (
@@ -161,6 +190,7 @@ def _pair_key(slot: ComparisonSlot, run: ComparisonRun) -> tuple[Any, ...]:
         pair.before.case.case_id,
         pair.after.robustness.stripe_id,
         pair.after.robustness.subtype,
+        _evaluation_item_digest(run.protocol),
     )
 
 
