@@ -4,10 +4,16 @@ These examples test whether a model follows underlying intent across sanitized,
 fragmented, or virtue-coded requests instead of reacting only to surface form.
 """
 
+# Standard library
 from collections.abc import Mapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
+# Third-party
+# Local
 from . import GenerationMetadata, attach_generation_metadata
+
+if TYPE_CHECKING:
+    from synthetic_data.laundering_families import LaunderingFamily
 
 
 def generate_semantic_laundering_chain_cases(
@@ -75,3 +81,14 @@ def generate_semantic_laundering_chain_cases(
         cell_metadata=cell_metadata,
         for_training=for_training,
     )
+
+
+def generate_controlled_laundering_families(
+    *,
+    cell_metadata: Mapping[str, GenerationMetadata],
+    enabled: bool = False,
+) -> tuple["LaunderingFamily", ...]:
+    """Opt in to paired diagnostic fixtures without changing legacy generator output."""
+    from synthetic_data.laundering_families import generate_controlled_laundering_families as build
+
+    return build(cell_metadata=cell_metadata, enabled=enabled)
