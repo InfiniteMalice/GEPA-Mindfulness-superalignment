@@ -236,3 +236,5 @@ python -m pytest -q tests/test_causal_records.py tests/test_causal_interventions
 The integration test executes the repository-authored example above; wheel verification repeats
 it outside the checkout. Existing relation, V5, reward and documentation tests remain regression
 requirements.
+
+See [pluralistic robustness](pluralistic_robustness.md) for controlled laundering families, role reversals and three-condition comparisons.

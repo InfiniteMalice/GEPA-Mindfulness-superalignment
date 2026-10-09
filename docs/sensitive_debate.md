@@ -313,3 +313,5 @@ are not established by this empirical adapter. The public callback protocol is n
 implement or inherit the paper's instance-optimal recursive protocol. Natural-language scores
 remain explicitly heuristic; no debate victory becomes ground truth, training admission,
 verified improvement, deployment eligibility or action authorization.
+
+See [pluralistic robustness](pluralistic_robustness.md) for provenance-bound stakeholder captures and combined-condition diagnostics.
