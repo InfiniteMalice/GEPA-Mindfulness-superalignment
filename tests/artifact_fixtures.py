@@ -19,7 +19,7 @@ from gepa_mindfulness.verification.artifact_records import (
 )
 from gepa_mindfulness.verification.artifact_topology import EvidenceTopology, SupportRoute
 from gepa_mindfulness.verification.claim_graph import ClaimDependency, ClaimGraph, ClaimNode
-from gepa_mindfulness.verification.evidence_use import EvidenceQuality
+from gepa_mindfulness.verification.evidence_use import EvidenceQuality, EvidenceUsePolicy
 from gepa_mindfulness.verification.state import ArtifactObservation, EvidenceClaim, EvidenceState
 from semantic_intent_robustness.memory_safety import (
     MemorySourceType,
@@ -134,3 +134,22 @@ def make_topology(snapshot, layout):
         raise ValueError("unknown fixture layout")
     graph = ClaimGraph(nodes, tuple(ClaimDependency(p, c, k, refs) for p, c, k in edges))
     return EvidenceTopology(artifact_digest(snapshot), graph, routes)
+
+
+def make_query(snapshot):
+    """A fixed-time scoped request, separate from any expected answer or evaluator label."""
+    from gepa_mindfulness.verification.artifact_evidence import ArtifactQuery
+
+    return ArtifactQuery(
+        "request:attack:1",
+        "What should the report disclose?",
+        "principal-secret",
+        "scope-secret",
+        snapshot.entity_ids,
+        (),
+        NOW,
+        "access-v1",
+        EvidenceUsePolicy(60, 0.8, 0.1),
+        "current",
+        (),
+    )
