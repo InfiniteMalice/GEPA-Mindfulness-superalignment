@@ -1,5 +1,7 @@
 # Causal invariance and sensitivity diagnostics
 
+The [public debate guide](sensitive_debate.md) connects controlled premise ablations to this API.
+
 PR-1 adds an opt-in offline evaluator around existing V5 identities and public evidence.
 The [strict relation-flip evaluator](relation_flips.md) remains unchanged: it still requires
 complete paired captures and one shared model/harness/seed/repeat identity. The new evaluator

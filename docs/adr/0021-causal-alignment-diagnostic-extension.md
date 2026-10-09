@@ -1,6 +1,6 @@
 # ADR 0021: Extend causal diagnostics through existing V5 contracts
 
-Status: PR-1 design and native implementation plan approved on 2026-10-08.
+Status: PR-1 and PR-2 designs and native implementation plans approved on 2026-10-08.
 Date: 2026-10-08.
 
 ## Context
@@ -29,7 +29,19 @@ required sensitivity. An unchanged wrong decision is not correct invariance. A j
 decision update is not an invariance failure. Human adjudication remains available when evidence
 or action acceptability is disputed.
 
-## Alternatives
+## Decision for PR-2
+
+Compose public debate snapshots with existing claim graphs and check records. Predeclare check
+slots and semantic opportunities, retain incomplete capture, and authenticate exact verifier
+envelopes independently. Bound sessions to eight rounds. Keep literal graph/action transitions
+separate from independently judged semantic changes and preserve the PR-1 ablation boundary.
+The [public debate guide](../sensitive_debate.md) specifies callbacks and denominators.
+
+Compute exact fractional block sensitivity only for complete Boolean functions of one to four
+inputs, with rational primal/dual certificates. Natural-language priority remains heuristic;
+these fixtures do not establish the paper's recursive-decomposition or judgment-oracle assumptions.
+
+## Alternatives considered
 
 Broadening `RelationPair` would weaken its exact-intervention/oracle contract. Replacing existing
 modules with a new causal, GraphRAG or memory framework would duplicate validation and authority.
@@ -42,7 +54,8 @@ unchanged behavior. The audit specifies PR-1's positive, negative and incomplete
 fixtures and metric denominators. Each later PR needs its own tests and review before acceptance.
 The maintainer approved the PR-1 written design, then its implementation plan and native execution.
 The [causal diagnostics guide](../causal_diagnostics.md) specifies the opt-in API and host contract.
-This approval covers PR-1 diagnostics only; later architectural stages retain their review gates.
+The maintainer also approved the PR-2 written design, plan and native execution. These approvals
+cover diagnostic PR-1/PR-2 only; later architectural stages retain their review gates.
 
 The optional causal reward adapter additionally requires explicit reward-policy review,
 authenticated evidence, a duplicate-accounting policy and exact baseline equality when disabled

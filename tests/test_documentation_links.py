@@ -1,11 +1,14 @@
 """Resolve repository-local links in the V5 documentation surface."""
 
+# Standard library
 from __future__ import annotations
 
 import re
 from pathlib import Path
 from urllib.parse import unquote
 
+# Third-party
+# Local
 from evaluation.recommendations import (
     load_recommendation_registry,
     load_research_reference_registry,
@@ -22,6 +25,7 @@ DOCUMENTS = (
     ROOT / "docs" / "epistemic_process_rewards.md",
     ROOT / "docs" / "controlled_evolution.md",
     ROOT / "docs" / "causal_diagnostics.md",
+    ROOT / "docs" / "sensitive_debate.md",
     ROOT / "docs" / "VERIFICATION_AND_RUNTIME_AUTHORITY.md",
     ROOT / "docs" / "FOUNDATIONAL_REPRESENTATION_ARCHITECTURE.md",
     ROOT / "docs" / "experimental_v5_overlays.md",
