@@ -1,6 +1,6 @@
 # ADR 0021: Extend causal diagnostics through existing V5 contracts
 
-Status: PR-1/PR-2 approved on 2026-10-08; PR-3 design and native plan approved on 2026-10-09.
+Status: PR-1/PR-2 approved on 2026-10-08; PR-3 design and native plan approved on 2026-10-09; PR-4 design, implementation plan and native execution approved on 2026-10-09.
 Date: 2026-10-08.
 
 ## Context
