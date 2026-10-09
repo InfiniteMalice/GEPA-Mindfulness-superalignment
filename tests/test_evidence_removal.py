@@ -1,10 +1,13 @@
 """Whole-version removal distinguishes necessity, redundant support and unknown outcomes."""
 
+# Standard library
 from dataclasses import replace
 
+# Third-party
 import pytest
 from artifact_fixtures import make_assessment, make_capture, make_derived_snapshot, make_protocol
 
+# Local
 from evaluation.evidence_removal import (
     RemovalObservation,
     RemovalPlan,

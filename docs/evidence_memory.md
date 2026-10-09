@@ -5,6 +5,13 @@ PR-5 adds an experimental, explicitly called diagnostic adapter in
 The adapter connects the existing `EvidenceState`, `EpistemicMeasurement` and `RetrievedMemory`.
 It neither writes memory nor changes confidence fusion, rewards, routing or execution permission.
 
+## Related artifact adapter
+
+The opt-in [artifact evidence and topology adapter](evidence_topology.md) binds versions,
+locations, entities and transformation ancestry around these existing records. It rechecks host
+access before each retrieval and keeps semantic judgments separate from structural availability.
+It does not change numeric eligibility, fusion, source trust, continuity recall or action authority.
+
 ## Evidence status
 
 `EvidenceClaim.status` accepts these labels. Existing JSON fields and labels remain unchanged.

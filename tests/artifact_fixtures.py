@@ -157,19 +157,32 @@ def make_query(snapshot):
 
 def make_protocol(layout="redundant", snapshot=None):
     """Six predeclared metrics and exact host V5 identity."""
-    from test_causal_records import variant
-
-    from evaluation.causal_records import canonical_json
+    from evaluation.causal_records import PromptTurn, canonical_json
     from evaluation.evidence_topology_records import (
         TOPOLOGY_METRICS,
         TopologyOpportunity,
         TopologyProtocol,
     )
     from evaluation.ladder import Severity
+    from evaluation.v5_runner import plan_v5_cells
     from gepa_mindfulness.core.reward_provenance import TrustedEvaluatorContract
+    from synthetic_data.causal_interventions import variant_from_cell
 
     s = make_snapshot() if snapshot is None else snapshot
-    subject = variant()
+    cell = plan_v5_cells(
+        case_ids=(1,),
+        stripe_ids=("NONE",),
+        repeats=1,
+        model_version="model",
+        harness_version="harness",
+    )[0]
+    subject = variant_from_cell(
+        "subject",
+        cell,
+        turns=(PromptTurn("user", "What should the report disclose?"),),
+        factors=(("scope", '"site"'),),
+        expected_actions=("disclose",),
+    )
     query = replace(
         make_query(s), public_query=canonical_json([t.to_dict() for t in subject.turns])
     )

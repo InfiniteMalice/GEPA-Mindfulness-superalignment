@@ -1,10 +1,13 @@
 """Content-matched three-condition comparisons retain missing opportunities and measured units."""
 
+# Standard library
 from dataclasses import replace
 
+# Third-party
 import pytest
 from artifact_fixtures import make_assessment, make_capture, make_protocol, make_topology
 
+# Local
 from evaluation.evidence_topology_comparison import (
     TopologyComparisonPlan,
     TopologyComparisonRun,

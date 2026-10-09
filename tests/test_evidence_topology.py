@@ -1,10 +1,13 @@
 """Fresh independent judgments cannot launder observations or inaccessible support."""
 
+# Standard library
 from dataclasses import replace
 
+# Third-party
 import pytest
 from artifact_fixtures import make_assessment, make_capture, make_protocol
 
+# Local
 from evaluation.evidence_topology import analyze_evidence_topology
 
 

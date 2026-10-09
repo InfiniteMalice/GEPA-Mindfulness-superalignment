@@ -56,6 +56,20 @@ evaluation content and rubric contracts. They retain absent
 observations and preserve distinct checkpoint/curriculum versions. Exports remain DEVELOPMENT
 with stricter source restrictions nested intact; no training effectiveness follows from fixtures.
 
+## Decision for PR-4
+
+Compose exact artifact/version records, source fragments and digest-bound interpretations with
+the existing evidence state, memory gate and claim graph. Recheck current host access for every
+retrieval and withhold any derived content with an unavailable ancestor. Preserve original source
+times, identities, statuses and training restrictions. Supply only an allowlisted producer view.
+
+Keep structural support routes separate from freshly authenticated semantic verdicts. Retain
+planned-but-missing observations in source-removal and three-condition retrieval comparisons.
+Match exact evaluation content and scope, and preserve explicit measured cost units. The
+[artifact topology guide](../evidence_topology.md) specifies these contracts and the offline example.
+The maintainer approved the PR-4 written design, implementation plan and native execution through
+a separate draft PR. PR-5 reward-policy and PR-7 independent empirical-evidence gates remain.
+
 ## Alternatives considered
 
 Broadening `RelationPair` would weaken its exact-intervention/oracle contract. Replacing existing
