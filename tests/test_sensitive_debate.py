@@ -1,8 +1,12 @@
 """Bounded orchestration and authentication failure paths over real public records."""
 
+# Standard library
 from dataclasses import replace
 
+# Third-party
 import pytest
+
+# Local
 from test_debate_records import challenge, protocol, result, snapshot
 
 from evaluation.sensitive_debate import run_sensitive_debate

@@ -1,11 +1,14 @@
 """Exact values, malformed domains and independently checked LP certificates."""
 
+# Standard library
 from dataclasses import replace
 from fractions import Fraction
 from itertools import product
 
+# Third-party
 import pytest
 
+# Local
 from evaluation.fractional_sensitivity import (
     FractionalSensitivity,
     fractional_block_sensitivity,

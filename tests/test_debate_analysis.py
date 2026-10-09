@@ -1,8 +1,12 @@
 """Observed graph transitions are distinct from independently established semantic events."""
 
+# Standard library
 from dataclasses import replace
 
+# Third-party
 import pytest
+
+# Local
 from test_debate_records import challenge, protocol, result, snapshot
 from test_sensitive_debate import run_fixture
 

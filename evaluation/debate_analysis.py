@@ -1,11 +1,14 @@
 """Public graph changes and independently adjudicated debate metrics with explicit denominators."""
 
+# Standard library
 from __future__ import annotations
 
 import json
 from collections.abc import Callable
 from typing import Any
 
+# Third-party
+# Local
 from gepa_mindfulness.verification.debate_records import (
     ArgumentSnapshot,
     DebateSession,

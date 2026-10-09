@@ -4,6 +4,7 @@ Packing and covering follow Li et al. (2026), arXiv:2610.02557, Definitions 3.3â
 Equal feasible primal/dual objectives prove optimality; no language-model guarantee follows.
 """
 
+# Standard library
 from __future__ import annotations
 
 from dataclasses import dataclass, fields
@@ -11,6 +12,8 @@ from fractions import Fraction
 from itertools import combinations
 from typing import Any
 
+# Third-party
+# Local
 from .causal_records import content_digest
 
 

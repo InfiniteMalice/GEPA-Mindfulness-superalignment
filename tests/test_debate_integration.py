@@ -1,10 +1,14 @@
 """Executable offline guide and end-to-end negative controls preserve authority boundaries."""
 
+# Standard library
 import re
 from dataclasses import replace
 from pathlib import Path
 
+# Third-party
 import pytest
+
+# Local
 from test_debate_records import protocol, snapshot
 from test_sensitive_debate import run_fixture
 

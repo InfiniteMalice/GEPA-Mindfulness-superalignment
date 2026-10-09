@@ -1,9 +1,13 @@
 """Controlled public premise edits reuse existing paired causal evaluation."""
 
+# Standard library
 import json
 from dataclasses import replace
 
+# Third-party
 import pytest
+
+# Local
 from test_causal_diagnostics import captures, judgment, run
 from test_debate_records import snapshot
 

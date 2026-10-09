@@ -1,10 +1,13 @@
 """V5-bound debate protocols and independent authentication envelopes."""
 
+# Standard library
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, fields
 from typing import Any, cast
 
+# Third-party
+# Local
 from gepa_mindfulness.core.evidence import EvidenceReference
 from gepa_mindfulness.core.reward_provenance import TrustedEvaluatorContract
 from gepa_mindfulness.verification.debate_records import (

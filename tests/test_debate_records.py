@@ -1,9 +1,12 @@
 """Public debate fixtures and exact trust-boundary record tests."""
 
+# Standard library
 from dataclasses import replace
 
+# Third-party
 import pytest
 
+# Local
 from evaluation.causal_records import PromptTurn, content_digest
 from evaluation.debate_records import (
     CheckSlot,

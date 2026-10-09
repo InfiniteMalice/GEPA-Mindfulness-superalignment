@@ -1,5 +1,6 @@
 """Bounded public debate through trusted application callbacks, disabled by default."""
 
+# Standard library
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -7,6 +8,8 @@ from copy import deepcopy
 from dataclasses import replace
 from typing import Any
 
+# Third-party
+# Local
 from gepa_mindfulness.verification.check_records import CheckResult
 from gepa_mindfulness.verification.debate_records import (
     ArgumentSnapshot,

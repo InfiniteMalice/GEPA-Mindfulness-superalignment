@@ -1,10 +1,13 @@
 """Deterministic public premise ablations retaining graph lineage and existing V5 identities."""
 
+# Standard library
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
 
+# Third-party
+# Local
 from evaluation.causal_records import (
     CausalPair,
     FactorChange,

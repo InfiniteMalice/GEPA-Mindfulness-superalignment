@@ -1,10 +1,13 @@
 """Inert public debate transcripts; authored assertions carry no verification authority."""
 
+# Standard library
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
+# Third-party
+# Local
 from ..core.evidence import EvidenceReference
 from .check_records import CheckRequest, CheckResult
 from .claim_graph import ClaimGraph

@@ -1,11 +1,14 @@
 """Resolve repository-local links in the V5 documentation surface."""
 
+# Standard library
 from __future__ import annotations
 
 import re
 from pathlib import Path
 from urllib.parse import unquote
 
+# Third-party
+# Local
 from evaluation.recommendations import (
     load_recommendation_registry,
     load_research_reference_registry,
