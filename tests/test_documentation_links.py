@@ -26,6 +26,7 @@ DOCUMENTS = (
     ROOT / "docs" / "controlled_evolution.md",
     ROOT / "docs" / "causal_diagnostics.md",
     ROOT / "docs" / "sensitive_debate.md",
+    ROOT / "docs" / "pluralistic_robustness.md",
     ROOT / "docs" / "VERIFICATION_AND_RUNTIME_AUTHORITY.md",
     ROOT / "docs" / "FOUNDATIONAL_REPRESENTATION_ARCHITECTURE.md",
     ROOT / "docs" / "experimental_v5_overlays.md",
