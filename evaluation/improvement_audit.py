@@ -103,6 +103,8 @@ def _source_row(evidence, slot, metric, candidate, evaluator):
     expected_contract = {
         k: getattr(evaluator, k) for k in ("evaluator_id", "evaluator_version", "contract_id")
     }
+    if contract is None and _numeric(row, metric) is not None:
+        raise ValueError("numeric source requires evaluator/rubric contract")
     if contract is not None and (
         contract != expected_contract or content_digest(contract) != metric.rubric_digest
     ):
@@ -269,7 +271,6 @@ def _join_captures(
         source, row = _source_row(
             ev, slot, metric, candidates[slot.candidate_id], protocol.evaluator
         )
-        output["source_digest"] = content_digest(source)
         start = journal_report["starts"].get(sid)
         allowed = case.purpose != "final_test"
         if not allowed and start:
@@ -289,6 +290,7 @@ def _join_captures(
             _retain_severe(severe, source, row, slot, case.purpose, False, unauthorized=True)
             rows.append(output)
             continue
+        output["source_digest"] = content_digest(source)
         accepted = auth(
             "evidence",
             dict(
@@ -366,12 +368,13 @@ def _retain_severe(severe, source, row, slot, purpose, authenticated, *, unautho
             candidate_id=slot.candidate_id,
             arm=slot.arm,
             purpose=purpose,
-            source_digest=source["result_digest"],
             event=event,
             authentication=authenticated,
             training_eligibility=source["training_eligibility"],
             status="unauthorized" if unauthorized else event.get("status", "unresolved"),
         )
+        if not unauthorized:
+            severe[key]["source_digest"] = source["result_digest"]
 
 
 def _compare_captures(protocol, manifest, journal, exposures, clusters, rows, trusted):

@@ -380,13 +380,52 @@ def test_unauthorized_final_preserves_public_severe_metadata_without_numeric_val
     spec, manifest, journal, evidence = fixture()
     result = run((spec, manifest, journal, evidence[-2:]))
     assert len(result["severe_events"]) == 2
+    for row in result["evaluated_behavior"]["rows"]:
+        if row["status"] == "unauthorized":
+            assert "source_digest" not in row
     for event in result["severe_events"]:
+        assert "source_digest" not in event
         assert event["status"] == "unauthorized"
         assert event["event"]["evidence_refs"]
         assert "value" not in event["event"]
         assert "outcome" not in event["event"]
         assert event["authentication"] is False
     assert result["evaluated_behavior"]["sources"] == []
+
+
+@pytest.mark.parametrize("status", ["verified", "observed", None])
+def test_causal_source_without_adjudication_cannot_supply_numeric_claims(status):
+    """Host authentication cannot substitute for a missing source evaluator contract."""
+    from dataclasses import asdict
+
+    from test_causal_diagnostics import captures, opportunity
+    from test_causal_diagnostics import run as causal_run
+    from test_causal_records import pair
+
+    p = pair()
+    op = opportunity(p, "spurious_decision_flip_rate")
+    source = causal_run((p,), captures(p), (), (op,))
+    assert source["pairs"][0]["adjudication"] is None
+    if status is not None:
+        source["rows"][0].update(status=status, value=True)
+        source["result_digest"] = content_digest(
+            {k: v for k, v in source.items() if k != "result_digest"}
+        )
+    metric = MetricSpec(
+        "causal",
+        source["schema_version"],
+        "spurious_decision_flip_rate",
+        content_digest(asdict(EVALUATOR)),
+        direction="lower",
+    )
+    inputs = wrap_source(source, metric, EVALUATOR, "model", "harness", "op")
+    if status is None:
+        result = run(inputs)
+        assert result["evaluated_behavior"]["rows"][0]["value"] is None
+        assert not result["verified_improvement_evidence"]
+    else:
+        with pytest.raises(ValueError, match="requires evaluator/rubric contract"):
+            run(inputs)
 
 
 def test_partial_audit_keeps_descriptive_overstatement_without_verified_claim():

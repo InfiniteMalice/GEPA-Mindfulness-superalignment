@@ -75,7 +75,8 @@ and attempts with no cost measurement remain explicit.
 
 Absent, censored, unverified, incomplete and ineligible observations never become successes or
 zero failures. Absent final evidence is `not_run`; provided final evidence without authorization
-is `unauthorized`, with no numeric values or full source payload exported. Only public severe-event
+is `unauthorized`, with no numeric values, outcome-dependent source digests or full source payload
+exported. Only public severe-event
 identifiers, metric, severity, adjudication status and evidence references survive, marked
 unauthorized and unauthenticated. Other unverified source
 payloads are retained for audit with authentication status; they do not enter numerical effects.
@@ -88,6 +89,8 @@ The supported source schemas are `evaluation-ladder-v1` (`rows`, `probe_id`),
 (`metric_rows`, `opportunity_id`). Selectors are identifiers, never expressions or file paths.
 Source digests, evaluator contracts, systems and row metrics are checked. Sources are produced
 by existing ladder, causal and debate APIs; PR-6 does not redefine their judgments.
+Numeric claims without a source evaluator contract are rejected even when host authentication
+succeeds. Unadjudicated causal sources without numeric claims remain visible as missing evidence.
 
 Baseline/candidate pairs need matching case, condition, repeat, metric, rubric, units, budget
 and seed policy. A shared policy requires equal known seeds. `per_arm` and `unknown` permit
