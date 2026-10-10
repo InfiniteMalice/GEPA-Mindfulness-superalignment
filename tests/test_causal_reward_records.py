@@ -282,3 +282,29 @@ def test_full_use_envelope_bound_and_observable_route():
             event_key="b" * 64,
             integrity_snapshot=json.dumps({"large": "a" * (2 * 1024 * 1024)}),
         )
+
+
+@pytest.mark.parametrize("arm,change_field", [("before", "before"), ("target", "after")])
+def test_encoded_change_depth_is_bounded_before_inherited_parser(arm, change_field):
+    """Even small encoded factor strings must not reach an unbounded recursive parser."""
+    data = make_context().to_dict()
+    encoded = "[" * 20_000 + "0" + "]" * 20_000
+    data[arm + "_factors"][0][1] = encoded
+    data["change"][change_field] = encoded
+    with pytest.raises(ValueError, match="nesting"):
+        CausalRewardContext.from_dict(data)
+
+
+@pytest.mark.parametrize("arm,change_field", [("before", "before"), ("target", "after")])
+def test_encoded_factor_depth_boundary_is_exact(arm, change_field):
+    """Depth 32 is accepted while depth 33 is rejected for both encoded change values."""
+    data = make_context().to_dict()
+    for depth in (32, 33):
+        encoded = "[" * (depth - 1) + "0" + "]" * (depth - 1)
+        data[arm + "_factors"][0][1] = encoded
+        data["change"][change_field] = encoded
+        if depth == 32:
+            assert CausalRewardContext.from_dict(data).to_dict() == data
+        else:
+            with pytest.raises(ValueError, match="nesting"):
+                CausalRewardContext.from_dict(data)

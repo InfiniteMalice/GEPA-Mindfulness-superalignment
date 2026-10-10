@@ -144,9 +144,9 @@ def _read_refs(value: object) -> tuple[EvidenceReference, ...]:
     return tuple(EvidenceReference.from_dict(item) for item in _array(value))
 
 
-def _json_object(value: str) -> dict[str, Any]:
+def _json_value(value: str) -> Any:
     if type(value) is not str or len(value) > _MAX_BYTES:
-        raise ValueError("expected bounded JSON object string")
+        raise ValueError("expected bounded JSON string")
     # Check encoded nesting before the JSON parser can recurse through hostile text.
     depth, quoted, escaped = 0, False, False
     for char in value:
@@ -177,11 +177,29 @@ def _json_object(value: str) -> dict[str, Any]:
     try:
         result = json.loads(value, object_pairs_hook=unique_pairs)
     except (ValueError, RecursionError) as error:
-        raise ValueError("invalid JSON object") from error
+        raise ValueError("invalid JSON value") from error
     validate_input_envelope(result)
+    return result
+
+
+def _json_object(value: str) -> dict[str, Any]:
+    result = _json_value(value)
     if type(result) is not dict:
         raise ValueError("expected JSON object")
     return result
+
+
+def _factor_value(value: str) -> None:
+    if canonical_json(_json_value(value)) != value:
+        raise ValueError("factor value must be canonical JSON")
+
+
+def _read_change(value: object) -> FactorChange:
+    data = _object(value, "factor before after")
+    # The inherited FactorChange parser is recursive; bound encoded values first.
+    _factor_value(data["before"])
+    _factor_value(data["after"])
+    return FactorChange.from_dict(data)
 
 
 def _request_wire(request: RewardRequest) -> JsonObject:
@@ -459,17 +477,7 @@ class CausalRewardContext:
                 if len(_tuple(pair, 2)) != 2:
                     raise ValueError("factor entry must have two fields")
                 _text(pair[0], "factor")
-                # FactorChange validates JSON values, but permits only changed values.
-                if type(pair[1]) is not str:
-                    raise ValueError("factor value must be canonical JSON text")
-                validate_input_envelope(pair[1])
-                try:
-                    parsed = json.loads(pair[1])
-                    validate_input_envelope(parsed)
-                    if canonical_json(parsed) != pair[1]:
-                        raise ValueError("noncanonical factor JSON")
-                except (ValueError, RecursionError) as error:
-                    raise ValueError("factor value must be canonical JSON") from error
+                _factor_value(pair[1])
             if len(dict(factors)) != len(factors):
                 raise ValueError("duplicate factor key")
         if before.trajectory_id == target.trajectory_id:
@@ -580,7 +588,7 @@ class CausalRewardContext:
             target_eligibility=d["target_eligibility"],
             before_factors=tuple(tuple(_array(p)) for p in _array(d["before_factors"])),
             target_factors=tuple(tuple(_array(p)) for p in _array(d["target_factors"])),
-            change=FactorChange.from_dict(d["change"]),
+            change=_read_change(d["change"]),
             seed_policy=d["seed_policy"],
             sources=tuple(sources),
             target_event_refs=_read_refs(d["target_event_refs"]),
