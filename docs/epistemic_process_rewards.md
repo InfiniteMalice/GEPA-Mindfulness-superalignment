@@ -216,3 +216,10 @@ are diagnostic records. They do not implement `VerifiedProcessComponent` or auth
 credit. Only a separately verified component under this existing contract may be supplied to
 reward calculation. The integration does not modify this contract or add a reward component.
 The reward-boundary regression is in `tests/test_continuity_evaluation.py`.
+
+## Optional verified causal adjustment
+
+The explicitly invoked [causal reward adapter](causal_reward_adapter.md) preserves existing
+rewards and provenance routes. It is disabled by default. Its independent causal accounting
+distinguishes an incorrect-answer deduction from a deduction for the same causal failure.
+No trainer or CLI default activates the adapter.

@@ -352,3 +352,23 @@ def test_adapter_policy_is_read_only_between_calls():
     adapter = CausalRewardAdapter(RewardPipeline(CorrectnessProvider()), policy=enabled_policy())
     with pytest.raises(AttributeError):
         adapter.policy = make_policy()
+
+
+def test_offline_guide_example(capsys):
+    """The installed-guide example is executable and reports all four explicit outcomes."""
+    import json
+    import re
+    from pathlib import Path
+
+    guide = Path(__file__).resolve().parents[1] / "docs" / "causal_reward_adapter.md"
+    blocks = re.findall(r"```python\n(.*?)```", guide.read_text(encoding="utf-8"), re.S)
+    assert len(blocks) == 1
+    exec(compile(blocks[0], str(guide), "exec"), {})
+    output = json.loads(capsys.readouterr().out)
+    assert output["disabled"] == {"same_object": True, "total": 0.8}
+    assert output["adjusted"]["diagnostic_total"] == pytest.approx(0.7)
+    assert output["unchanged"]["diagnostic_total"] == 0.8
+    assert output["withheld"]["disposition"] == "withheld"
+    assert output["severe"]["severe_status"] == "verified_violation"
+    assert output["severe"]["diagnostic_total"] == 0.8
+    assert output["severe_accessor_blocked"] is True

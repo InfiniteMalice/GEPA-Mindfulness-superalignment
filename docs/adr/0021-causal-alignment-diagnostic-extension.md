@@ -1,6 +1,6 @@
 # ADR 0021: Extend causal diagnostics through existing V5 contracts
 
-Status: PR-1/PR-2 approved on 2026-10-08; PR-3 design and native plan approved on 2026-10-09; PR-4 design, implementation plan and native execution approved on 2026-10-09; PR-6 design and PR-5 deferral approved on 2026-10-10, with PR-6 implementation plan and native execution also approved on 2026-10-10.
+Status: PR-1/PR-2 approved on 2026-10-08; PR-3 design and native plan approved on 2026-10-09; PR-4 design, implementation plan and native execution approved on 2026-10-09; PR-6 design and PR-5 deferral approved on 2026-10-10, with PR-6 implementation plan and native execution also approved on 2026-10-10; PR-5 design/plan approved on 2026-10-09 and corrected native implementation approved on 2026-10-10.
 Date: 2026-10-08.
 
 Amendment: On 2026-10-10 the maintainer corrected the PR-5/PR-7 gates as specified below.
@@ -114,6 +114,16 @@ The corrected [PR-5 design](../../history/2026-10-09-verified-causal-reward-desi
 [implementation plan](../../history/2026-10-09-verified-causal-reward-plan.md) specify the runtime
 conditions and the regression cases for incorrectness-only versus duplicate causal accounting.
 Authored tests demonstrate software behavior; they do not certify a live failure or training gain.
+
+## Implemented PR-5 boundary
+
+The approved native implementation adds a separately invoked, default-disabled reward adapter.
+The [adapter guide](../causal_reward_adapter.md) defines exact evidence records, fresh host
+verification, semantic overlap accounting and an explicit optimizer accessor. Existing provider
+and integrity formulas remain intact; an incorrectness-only reduction does not suppress a
+separately verified causal failure. Severe or unresolved gates block enabled optimizer access.
+Authored integration fixtures validate software behavior, not empirical gains or live permission.
+No live activation, paid experiment, training run or deployment has been approved here.
 
 ## Alternatives considered
 
