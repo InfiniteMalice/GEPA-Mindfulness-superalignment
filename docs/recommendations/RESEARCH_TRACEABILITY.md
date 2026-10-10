@@ -1822,7 +1822,7 @@ Hu, L., & Tang, Y. (2026). *The Winner's Curse in LLM Self-Improvement Loops: Se
 
 **Source demonstrates:** The paper studies noisy candidate selection and reused evaluation sets in Qwen instruction loops, including TREC/GSM8K and GEPA/MIPROv2 analyses. Tested acceptance rules do not consistently beat greedy selection over complete runs. Independent audits reduce average reporting bias while individual estimates remain uncertain.
 
-**Repository inference:** PR-6 proposes lineage-disjoint train/selection/audit/final/OOD partitions, all-attempt records and cluster-aware paired intervals using existing evaluation epochs. PR-5 remains gated on independent evidence and explicit reward-policy review; statistics do not grant deployment authority.
+**Repository inference:** PR-6 proposes lineage-disjoint train/selection/audit/final/OOD partitions, all-attempt records and cluster-aware paired intervals using existing evaluation epochs. PR-5 live deductions require independent causal evidence and activation review; software implementation follows its approved plan; statistics do not grant deployment authority.
 
 **Maturity:** Initial series PR-5/PR-6; proposed evaluation safeguards; not reproduced. Primary metadata/abstract checked 2026-10-08.
 
@@ -1846,7 +1846,7 @@ Zhao, Y., Liao, L., Shen, L., Zhao, X., Zhang, Y., Feng, F., & He, X. (2026). *L
 
 **Repository inference:** PR-7 proposes offline lesson curation criteria over existing learning surfaces and skill provenance. Require contradiction, freshness and reproducibility checks before admission; do not add the paper's reward signals to training.
 
-**Maturity:** Initial series PR-7 after verified evaluations; proposed curation; not reproduced. Primary metadata/abstract checked 2026-10-08.
+**Maturity:** Initial series PR-7 offline curation; training admission and empirical usefulness require separate verification; not reproduced. Primary metadata/abstract checked 2026-10-08.
 
 <a id="ref-world-potential"></a>
 

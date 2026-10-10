@@ -12,10 +12,15 @@ on 2026-10-10. Proceed with a separate implementation plan. Implementation begin
 after that plan and its execution method receive approval.
 
 The original assignment specifies PR order, although PR-6 depends on the earlier diagnostic
-PRs. Those diagnostic PRs are complete. This exception changes the order only: PR-5's
-independent-evidence and nonduplicated-reward prerequisites remain in force. Repository reward
-defaults govern the completed pilot, and the additional causal penalty remains withheld.
-PR-7 remains dependent on the earlier work; this proposal does not release PR-7.
+PRs. Those diagnostic PRs are complete. The initial PR-6 approval deferred PR-5. On 2026-10-10,
+the maintainer subsequently corrected that blanket hold: PR-5 implementation and authored tests
+may proceed under its approved plan without a qualifying live failure example. Independent
+evidence, admission and distinct-failure accounting remain prerequisites for a real deduction.
+Repository reward defaults govern the completed pilot, and the additional penalty stays withheld.
+PR-7 design and offline curation may proceed through normal reviews; implementation follows
+prerequisite software work and does not require an active PR-5 penalty. Training admission and
+empirical improvement claims retain their independent evidence requirements. ADR 0021 records
+this later correction; it does not retroactively change pilot observations or earlier approvals.
 
 ## Problem and outcome
 

@@ -2940,8 +2940,8 @@ references:
       average reporting bias while individual estimates remain uncertain.
     repository_inference: PR-6 proposes lineage-disjoint train/selection/audit/final/OOD partitions,
       all-attempt records and cluster-aware paired intervals using existing evaluation epochs. PR-5
-      remains gated on independent evidence and explicit reward-policy review; statistics do not
-      grant deployment authority.
+      live deductions require independent causal evidence and activation review; software implementation
+      follows its approved plan; statistics do not grant deployment authority.
     maturity: Initial series PR-5/PR-6; proposed evaluation safeguards; not reproduced. Primary
       metadata/abstract checked 2026-10-08.
     local_repo_notes:
@@ -2973,8 +2973,8 @@ references:
     repository_inference: PR-7 proposes offline lesson curation criteria over existing learning
       surfaces and skill provenance. Require contradiction, freshness and reproducibility checks
       before admission; do not add the paper's reward signals to training.
-    maturity: Initial series PR-7 after verified evaluations; proposed curation; not reproduced.
-      Primary metadata/abstract checked 2026-10-08.
+    maturity: Initial series PR-7 offline curation; training admission and empirical usefulness
+      require separate verification; not reproduced. Primary metadata/abstract checked 2026-10-08.
     local_repo_notes:
     - docs/recommendations/CAUSAL_ALIGNMENT_AUDIT.md
     - gepa_mindfulness/learning_surfaces.py

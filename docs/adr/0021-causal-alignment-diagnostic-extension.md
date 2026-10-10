@@ -3,6 +3,9 @@
 Status: PR-1/PR-2 approved on 2026-10-08; PR-3 design and native plan approved on 2026-10-09; PR-4 design, implementation plan and native execution approved on 2026-10-09; PR-6 design and PR-5 deferral approved on 2026-10-10, with PR-6 implementation plan and native execution also approved on 2026-10-10.
 Date: 2026-10-08.
 
+Amendment: On 2026-10-10 the maintainer corrected the PR-5/PR-7 gates as specified below.
+Earlier approvals remain recorded; the amendment supersedes the blanket implementation hold.
+
 ## Context
 
 V5 already has canonical results, strict single-variable relation pairs, public claim graphs,
@@ -68,7 +71,8 @@ planned-but-missing observations in source-removal and three-condition retrieval
 Match exact evaluation content and scope, and preserve explicit measured cost units. The
 [artifact topology guide](../evidence_topology.md) specifies these contracts and the offline example.
 The maintainer approved the PR-4 written design, implementation plan and native execution through
-a separate draft PR. PR-5 reward-policy and PR-7 independent empirical-evidence gates remain.
+a separate draft PR. PR-5 live reward use and PR-7 training/empirical claims retain their
+evidence requirements, distinct from software implementation approval.
 
 ## Decision for PR-6
 
@@ -81,9 +85,35 @@ eligibility remain separate. The reporting module will issue no training or depl
 
 The maintainer subsequently approved the PR-6 implementation plan and native execution on
 2026-10-10. The [evaluation guide](../reliable_improvement_evaluation.md) defines the implemented
-opt-in contracts, host authentication obligations and offline example. The sequencing exception does not waive PR-5's independent evidence or reward
-accounting requirements. Repository defaults govern the completed PR-5 pilot and the additional
-causal penalty remains withheld. PR-7 retains its earlier-stage and independent-evidence gates.
+opt-in contracts, host authentication obligations and offline example. Repository defaults govern
+the completed PR-5 pilot and the additional causal penalty remains withheld. The subsequent
+amendment below distinguishes implementation readiness from live evidence and activation.
+
+## Correction for PR-5 and PR-7
+
+The maintainer clarified that the incorrect-answer penalty and the additional causal penalty
+address distinct properties. The former penalizes an incorrect outcome; the latter requires an
+independently verified unjustified decision change or missed required update under the approved
+causal predicates. An incorrect-answer penalty alone does not establish duplicate causal
+accounting. An active provider or overlay already penalizing the same causal failure does;
+unknown causal accounting still withholds the additional deduction. Component renaming cannot
+authorize a second deduction for the same causal failure.
+
+The maintainer explicitly requested correction of the overly broad gates on 2026-10-10:
+
+- PR-5 may implement and test its default-disabled adapter under the existing approved plan and
+  native execution method. A new admissible live failure example is not required before coding.
+- A real nonzero deduction still requires independently authenticated causal evidence, unchanged
+  training admission, complete semantic accounting and separately authorized experiment settings.
+  The pilot's stochastic flip does not establish those facts. No live penalty is activated.
+- PR-7 design and offline curation may proceed through their normal review stages. Implementation
+  follows prerequisite software work, not activation of PR-5's penalty. Curriculum admission,
+  live training, withheld-scenario usefulness and deployment retain their separate requirements.
+
+The corrected [PR-5 design](../../history/2026-10-09-verified-causal-reward-design.md) and
+[implementation plan](../../history/2026-10-09-verified-causal-reward-plan.md) specify the runtime
+conditions and the regression cases for incorrectness-only versus duplicate causal accounting.
+Authored tests demonstrate software behavior; they do not certify a live failure or training gain.
 
 ## Alternatives considered
 
@@ -103,7 +133,8 @@ cover diagnostic PR-1/PR-2. The maintainer also approved the PR-3 written design
 plan and native execution through a separate draft PR. Later architectural stages retain their
 review gates.
 
-The optional causal reward adapter additionally requires explicit reward-policy review,
-authenticated evidence, a duplicate-accounting policy and exact baseline equality when disabled
-or unverified. PR-7 additionally requires independent withheld-scenario results. No benchmark
-result, debate victory or diagnostic record establishes training or deployment eligibility.
+The optional causal reward adapter preserves exact baseline equality when disabled or unverified.
+Applying a live deduction requires reviewed policy, authenticated evidence and accounting for
+the distinct causal failure. PR-7's empirical acceptance requires independent withheld-scenario
+results; their absence does not block design or offline software work. No benchmark result,
+debate victory or diagnostic record establishes training or deployment eligibility.
