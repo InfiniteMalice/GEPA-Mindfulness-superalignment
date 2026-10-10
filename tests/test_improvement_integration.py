@@ -3,6 +3,7 @@
 # Standard library
 import json
 from dataclasses import replace
+from pathlib import Path
 
 # Third-party
 import pytest
@@ -361,3 +362,15 @@ def test_absent_final_result_is_explicitly_not_run():
         for r in result["evaluated_behavior"]["rows"]
         if r["purpose"] == "final_test"
     )
+
+
+def test_documented_offline_example_exposes_overstatement_without_granting_authority():
+    guide = Path(__file__).parents[1] / "docs" / "reliable_improvement_evaluation.md"
+    program = guide.read_text(encoding="utf-8").split("```python\n", 1)[1].split("```", 1)[0]
+    namespace = {}
+    exec(compile(program, str(guide), "exec"), namespace)
+    result = namespace["report"]
+    assert result["overstatement"][0]["audit"]["overstatement"] == 1
+    assert result["severe_events"]
+    assert result["deployment_eligibility"] == "not_assessed"
+    assert namespace["contamination_rejected"] is True

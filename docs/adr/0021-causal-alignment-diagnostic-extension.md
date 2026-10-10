@@ -1,6 +1,6 @@
 # ADR 0021: Extend causal diagnostics through existing V5 contracts
 
-Status: PR-1/PR-2 approved on 2026-10-08; PR-3 design and native plan approved on 2026-10-09; PR-4 design, implementation plan and native execution approved on 2026-10-09; PR-6 design and PR-5 deferral approved on 2026-10-10, with PR-6 implementation plan and execution pending approval.
+Status: PR-1/PR-2 approved on 2026-10-08; PR-3 design and native plan approved on 2026-10-09; PR-4 design, implementation plan and native execution approved on 2026-10-09; PR-6 design and PR-5 deferral approved on 2026-10-10, with PR-6 implementation plan and native execution also approved on 2026-10-10.
 Date: 2026-10-08.
 
 ## Context
@@ -79,8 +79,9 @@ retain every attempted candidate, and report paired cluster-aware uncertainty, c
 Selection progress, evaluated behavior, independent improvement evidence and deployment
 eligibility remain separate. The reporting module will issue no training or deployment authority.
 
-This approval permits implementation planning; PR-6 implementation plan and execution approval
-remain pending. The sequencing exception does not waive PR-5's independent evidence or reward
+The maintainer subsequently approved the PR-6 implementation plan and native execution on
+2026-10-10. The [evaluation guide](../reliable_improvement_evaluation.md) defines the implemented
+opt-in contracts, host authentication obligations and offline example. The sequencing exception does not waive PR-5's independent evidence or reward
 accounting requirements. Repository defaults govern the completed PR-5 pilot and the additional
 causal penalty remains withheld. PR-7 retains its earlier-stage and independent-evidence gates.
 

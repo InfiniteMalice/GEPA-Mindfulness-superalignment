@@ -1,6 +1,6 @@
 # PR-6 design: reliable self-improvement evaluation
 
-Status: Written design and PR-5 deferral approved on 2026-10-10; implementation plan and execution await approval.
+Status: Written design and PR-5 deferral approved on 2026-10-10; implementation plan and native execution also approved on 2026-10-10.
 Date: 2026-10-10.
 Reviewed code: `9002bbbb0afa877d18485362942c32fd37ac6149`.
 Workflow: superpowers brainstorming (architectural), with repo-quality-gate.

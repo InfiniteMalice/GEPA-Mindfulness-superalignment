@@ -13,8 +13,8 @@ report; existing diagnostics keep their semantics and existing lifecycle catalog
 
 **Spec:** [Approved design](2026-10-10-reliable-improvement-evaluation-design.md).
 
-**Status:** Proposed implementation plan; not approved for execution. The maintainer approved
-the design and PR-5 deferral on 2026-10-10. Recommended execution method: native, with one fresh
+**Status:** Implementation plan and native execution approved on 2026-10-10. The maintainer approved
+the design and PR-5 deferral on 2026-10-10. Approved execution method: native, with one fresh
 whole-branch reviewer after implementation. The tasks share contracts and run sequentially.
 
 ## Global constraints
@@ -324,6 +324,6 @@ cluster dependence, overstatement, eight failure families, cost, and authority p
 The review-focus cases have owning tests. No new reward policy or automatic acceptance rule is added.
 
 Planning validation is limited to current-source/API checks, plan consistency and documentation
-checks; proposed feature tests do not exist yet. Review this plan before authorizing implementation.
+checks; proposed feature tests do not exist yet. The maintainer subsequently approved this plan for native execution on 2026-10-10.
 Native execution is recommended because tasks share interfaces and can be completed sequentially
 in this session, followed by one independent whole-branch review.
