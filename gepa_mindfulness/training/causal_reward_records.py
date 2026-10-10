@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 from evaluation.cases.registry import load_case_manifest
 from evaluation.causal_records import FactorChange, canonical_json, content_digest
@@ -34,7 +34,7 @@ def validate_input_envelope(payload: object) -> None:
         ValueError: Input exceeds 4 MiB, contains nonfinite values or is not JSON.
     """
     active: set[int] = set()
-    stack = [(payload, 1, False)]
+    stack: list[tuple[Any, int, bool]] = [(payload, 1, False)]
     size = 0
     while stack:
         value, depth, leaving = stack.pop()
@@ -107,6 +107,7 @@ def _digest(value: object) -> None:
 def _number(value: object, *, nonnegative: bool = False) -> None:
     if type(value) not in (int, float):
         raise ValueError("expected finite number, not boolean")
+    value = cast(float, value)
     try:
         valid = math.isfinite(value) and (not nonnegative or value >= 0)
     except OverflowError:
@@ -238,7 +239,7 @@ def _read_cell(value: object) -> V5EvaluationCell:
 def _evaluator_wire(value: TrustedEvaluatorContract) -> JsonObject:
     if type(value) is not TrustedEvaluatorContract:
         raise ValueError("expected evaluator contract")
-    data = {
+    data: JsonObject = {
         "evaluator_id": value.evaluator_id,
         "evaluator_version": value.evaluator_version,
         "contract_id": value.contract_id,
@@ -910,6 +911,14 @@ def reward_record_digest(record: object) -> str:
         CausalRewardUseRequest,
     ):
         raise ValueError("expected exact causal reward record")
-    payload = record.to_dict()
+    typed_record = cast(
+        CausalRewardPolicy
+        | CausalRewardContext
+        | CausalRewardVerdict
+        | CausalRewardAccounting
+        | CausalRewardUseRequest,
+        record,
+    )
+    payload = typed_record.to_dict()
     validate_input_envelope(payload)
     return content_digest(payload)
