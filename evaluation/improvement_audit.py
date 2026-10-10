@@ -4,19 +4,508 @@
 from __future__ import annotations
 
 import json
+import math
 from collections import defaultdict, deque
+from collections.abc import Callable
+from hashlib import sha256
 from typing import Any
 
 # Third-party
 # Local
-from .causal_records import content_digest
+from .causal_records import canonical_json, content_digest
 from .improvement_records import (
+    PURPOSES,
     AttemptJournal,
+    AuthenticationRequest,
     DatasetManifest,
+    DiagnosticEvidence,
     ExposureRecord,
+    FinalTestAuthorization,
     ImprovementProtocol,
     record_digest,
 )
+from .improvement_statistics import PairedObservation, estimate_overstatement, estimate_paired
+
+FAILURE_METRICS = {
+    "causal_invariance": ("spurious_decision_flip_rate", False),
+    "required_update": ("required_update_success_rate", True),
+    "laundering": ("semantic_laundering_susceptibility", False),
+    "debate_fault_localization": ("premise_fault_localization", True),
+    "unjustified_abstention": ("unjustified_abstention_stability", False),
+    "clarification_resumption": ("clarification_resumption_correctness", True),
+    "calibration": ("prediction_calibration", False),
+    "severe_safety_authorization": ("severe_event_frequency", False),
+}
+
+
+def _authenticate(purpose, subject, refs, protocol, callback, statuses) -> bool:
+    request = AuthenticationRequest(purpose, content_digest(subject), protocol.evaluator, refs)
+    request = AuthenticationRequest.from_dict(request.to_dict())
+    before = request.to_dict()
+    status = "unverified"
+    if callback is not None and refs:
+        try:
+            accepted = callback(request)
+            status = (
+                "verified" if accepted is True and request.to_dict() == before else "unverified"
+            )
+        except Exception:
+            status = "authentication_error"
+    statuses.append(dict(purpose=purpose, subject_digest=before["subject_digest"], status=status))
+    return status == "verified"
+
+
+def _source_row(evidence, slot, metric, candidate, evaluator):
+    source = json.loads(evidence.source_json)
+    schema = source.get("schema_version")
+    schemas = {
+        "evaluation-ladder-v1": ("rows", "probe_id"),
+        "causal-diagnostics-v1": ("rows", "opportunity_id"),
+        "sensitive-debate-report-v1": ("metric_rows", "opportunity_id"),
+    }
+    if schema not in schemas or schema != metric.source_schema:
+        raise ValueError("unsupported or mismatched diagnostic schema")
+    if (evidence.row_list, evidence.row_id_key) != schemas[schema]:
+        raise ValueError("source selector/schema mismatch")
+    body = {k: v for k, v in source.items() if k != "result_digest"}
+    digest = sha256(
+        json.dumps(
+            body,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+            ensure_ascii=schema == "evaluation-ladder-v1",
+        ).encode()
+    ).hexdigest()
+    if source.get("result_digest") != digest:
+        raise ValueError("source result digest mismatch")
+    rows = source.get(evidence.row_list)
+    if type(rows) is not list or any(type(r) is not dict for r in rows):
+        raise ValueError("invalid source rows")
+    selected = [r for r in rows if r.get(evidence.row_id_key) == evidence.row_id]
+    if len(selected) != 1 or selected[0].get("metric") != metric.source_metric:
+        raise ValueError("source row or metric mismatch")
+    row = selected[0]
+    if row.get("unit", metric.unit) != metric.unit:
+        raise ValueError("source metric unit mismatch")
+    if schema == "evaluation-ladder-v1":
+        systems, contract = [source["system"]], source["evaluator"]
+    elif schema == "causal-diagnostics-v1":
+        pairs = [p for p in source["pairs"] if p["pair_id"] == row["pair_id"]]
+        if len(pairs) != 1:
+            raise ValueError("source pair mismatch")
+        pair = pairs[0]
+        systems = [pair["source_record"][arm]["system"] for arm in ("before", "after")]
+        contract = pair["adjudication"]["evaluator"] if pair["adjudication"] else None
+    else:
+        systems = [source["protocol"]["subject"]["system"]]
+        contract = source["protocol"]["evaluator"]
+    expected_contract = {
+        k: getattr(evaluator, k) for k in ("evaluator_id", "evaluator_version", "contract_id")
+    }
+    if contract is not None and (
+        contract != expected_contract or content_digest(contract) != metric.rubric_digest
+    ):
+        raise ValueError("source evaluator/rubric mismatch")
+    config = getattr(candidate, slot.arm)
+    for system in systems:
+        if (
+            system.get("model_version"),
+            system.get("harness_version"),
+            system.get("repeat_id"),
+        ) != (config.model_version, config.harness_version, slot.repeat_id) or (
+            slot.seed is not None and system.get("seed") != slot.seed
+        ):
+            raise ValueError("source system/repeat/seed mismatch")
+    if source.get("confers_authority") is not False:
+        raise ValueError("source must preserve diagnostic authority boundary")
+    return source, row
+
+
+def _numeric(row, metric):
+    if row.get("status") not in ("verified", "observed") or row.get("eligible") is False:
+        return None
+    value = row.get("value")
+    if value is None:
+        return None
+    if "calibration" in metric.source_metric and type(value) is not bool:
+        if metric.calibration_digest is None or type(row.get("outcome")) is not bool:
+            return None
+        if type(value) not in (int, float) or not math.isfinite(value) or not 0 <= value <= 1:
+            raise ValueError("invalid calibration probability")
+        value = (value - int(row["outcome"])) ** 2
+    elif type(value) not in (bool, int, float) or not math.isfinite(value):
+        raise ValueError("invalid diagnostic number")
+    if metric.transform == "one_minus":
+        successes = {m for m, success in FAILURE_METRICS.values() if success}
+        if metric.source_metric not in successes or type(value) is not bool:
+            raise ValueError("one_minus requires registered success semantics")
+        value = 1 - value
+    return float(value)
+
+
+def audit_improvement(
+    protocol: ImprovementProtocol,
+    manifest: DatasetManifest,
+    journal: AttemptJournal,
+    evidence: tuple[DiagnosticEvidence, ...],
+    *,
+    exposures: tuple[ExposureRecord, ...] = (),
+    final_authorizations: tuple[FinalTestAuthorization, ...] = (),
+    authenticate: Callable[[AuthenticationRequest], bool] | None = None,
+    enabled: bool = False,
+) -> dict[str, Any]:
+    """Audit host captures without loading cases, calling models, or mutating catalogs.
+
+    Authentication must independently establish exact protocol, source-to-slot binding,
+    complete provenance/journal/exposure history, and event-specific final-test permission.
+    Returning a serialized verification flag does not meet this host contract.
+    """
+    if enabled is not True:
+        raise ValueError("improvement audit requires enabled=True")
+    if authenticate is not None and not callable(authenticate):
+        raise ValueError("authenticate must be a host callable")
+    protocol = ImprovementProtocol.from_dict(protocol.to_dict())
+    manifest = DatasetManifest.from_dict(manifest.to_dict())
+    journal = AttemptJournal.from_dict(journal.to_dict())
+    for values, cls in (
+        (evidence, DiagnosticEvidence),
+        (exposures, ExposureRecord),
+        (final_authorizations, FinalTestAuthorization),
+    ):
+        if type(values) is not tuple or any(type(v) is not cls for v in values):
+            raise ValueError("expected exact record tuple")
+    evidence = tuple(DiagnosticEvidence.from_dict(e.to_dict()) for e in evidence)
+    exposures = tuple(ExposureRecord.from_dict(e.to_dict()) for e in exposures)
+    final_authorizations = tuple(
+        FinalTestAuthorization.from_dict(a.to_dict()) for a in final_authorizations
+    )
+    if protocol.manifest_digest != record_digest(manifest):
+        raise ValueError("manifest protocol binding mismatch")
+    clusters = validate_manifest(manifest)
+    candidates, metrics, slots = _protocol_indexes(protocol)
+    cases = _index(manifest.cases, "case_id")
+    journal_report = summarize_journal(protocol, journal)
+    by_slot = _index(evidence, "slot_id")
+    if set(by_slot) - set(slots):
+        raise ValueError("unexpected evidence slot")
+    for slot in slots.values():
+        case = cases.get(slot.case_id)
+        if case is None or not case.evaluated or case.purpose == "synthetic_training":
+            raise ValueError("slot requires declared non-training evaluated case")
+    for exposure in exposures:
+        if exposure.partition_digest != partition_digest(manifest, exposure.purpose):
+            raise ValueError("exposure partition binding mismatch")
+    statuses = []
+
+    def auth(purpose, subject, refs):
+        return _authenticate(purpose, subject, refs, protocol, authenticate, statuses)
+
+    # Evaluate every attestation; short-circuiting would hide which evidence is missing.
+    trust = [
+        auth("protocol", protocol.to_dict(), protocol.evidence_refs),
+        auth("provenance", manifest.to_dict(), manifest.evidence_refs),
+        auth("journal", journal.to_dict(), journal.evidence_refs),
+        auth(
+            "exposure_history",
+            dict(
+                protocol_digest=record_digest(protocol), exposures=[e.to_dict() for e in exposures]
+            ),
+            protocol.evidence_refs,
+        ),
+    ]
+    trusted = all(trust)
+    rows, sources, severe, calibration = _join_captures(
+        protocol, manifest, journal_report, by_slot, final_authorizations, auth, trusted
+    )
+    comparisons, verified, overstatements = _compare_captures(
+        protocol, manifest, journal, exposures, clusters, rows, trusted
+    )
+    failures = _failure_inventory(rows)
+    result = dict(
+        schema_version="improvement-audit-v1",
+        training_eligibility="DEVELOPMENT",
+        confers_authority=False,
+        deployment_eligibility="not_assessed",
+        protocol=protocol.to_dict(),
+        manifest=manifest.to_dict(),
+        authentication=statuses,
+        optimization_progress=journal_report,
+        evaluated_behavior=dict(rows=rows, comparisons=comparisons, sources=sources),
+        verified_improvement_evidence=verified,
+        overstatement=overstatements,
+        failures=failures,
+        severe_events=list(severe.values()),
+        calibration_aggregates=calibration,
+        interval_scope="Fixed configurations; no simultaneous or post-selection guarantee.",
+    )
+    result["result_digest"] = content_digest(result)
+    return json.loads(canonical_json(result))
+
+
+def _join_captures(
+    protocol, manifest, journal_report, by_slot, final_authorizations, auth, trusted
+):
+    candidates, metrics, slots = _protocol_indexes(protocol)
+    cases = _index(manifest.cases, "case_id")
+    rows, sources, severe, calibration = [], [], {}, []
+    for sid, slot in sorted(slots.items()):
+        case, metric = cases[slot.case_id], metrics[slot.metric_id]
+        ev = by_slot.get(sid)
+        output = dict(
+            slot=slot.to_dict(),
+            purpose=case.purpose,
+            status="missing",
+            value=None,
+            source_value=None,
+            source_metric=metric.source_metric,
+            source_row=None,
+        )
+        if ev is None:
+            if case.purpose == "final_test":
+                output["status"] = "not_run"
+            rows.append(output)
+            continue
+        source, row = _source_row(
+            ev, slot, metric, candidates[slot.candidate_id], protocol.evaluator
+        )
+        output["source_digest"] = content_digest(source)
+        start = journal_report["starts"].get(sid)
+        allowed = case.purpose != "final_test"
+        if not allowed and start:
+            valid = [
+                a
+                for a in final_authorizations
+                if a.candidate_id == slot.candidate_id
+                and a.candidate_digest == record_digest(candidates[slot.candidate_id])
+                and a.protocol_digest == record_digest(protocol)
+                and a.partition_digest == partition_digest(manifest, "final_test")
+                and a.evaluation_event_id == start["event_id"]
+            ]
+            allowed = any(auth("final_authorization", a.to_dict(), a.evidence_refs) for a in valid)
+        if not allowed:
+            output["status"] = "unauthorized"
+            output["training_eligibility"] = source["training_eligibility"]
+            rows.append(output)
+            continue
+        accepted = auth(
+            "evidence",
+            dict(
+                protocol_digest=record_digest(protocol), evidence=ev.to_dict(), slot=slot.to_dict()
+            ),
+            ev.evidence_refs,
+        )
+        status = row.get("status", "unresolved")
+        complete_event = start is not None and sid in journal_report["finished"]
+        if not trusted or not accepted:
+            status = "unverified"
+        elif not complete_event:
+            status = "missing_attempt_completion"
+        value = _numeric(row, metric) if trusted and accepted and complete_event else None
+        output.update(
+            status=status,
+            value=value,
+            source_value=row.get("value"),
+            source_row=row,
+            training_eligibility=source["training_eligibility"],
+            seed_policy=slot.seed_policy,
+        )
+        sources.append(dict(slot_id=sid, source=source, authentication=accepted))
+        if "calibration" in metric.source_metric and metric.calibration_digest is not None:
+            calibration.append(
+                dict(
+                    slot_id=sid,
+                    candidate_id=slot.candidate_id,
+                    arm=slot.arm,
+                    purpose=case.purpose,
+                    authentication=trusted and accepted,
+                    calibration_digest=metric.calibration_digest,
+                    groups=source.get("metrics", {})
+                    .get(metric.source_metric, {})
+                    .get("groups", []),
+                )
+            )
+        inventory = source.get("severe_observations", source.get("severe_events", []))
+        inventory = list(inventory)
+        if row.get("severity") not in (None, "routine"):
+            inventory.append(row)
+        for event in inventory:
+            key = content_digest(
+                dict(
+                    candidate=slot.candidate_id,
+                    arm=slot.arm,
+                    purpose=case.purpose,
+                    source=source["result_digest"],
+                    event=event,
+                )
+            )
+            severe[key] = dict(
+                candidate_id=slot.candidate_id,
+                arm=slot.arm,
+                purpose=case.purpose,
+                source_digest=source["result_digest"],
+                event=event,
+                authentication=accepted and trusted,
+                training_eligibility=source["training_eligibility"],
+            )
+        rows.append(output)
+    return rows, sources, severe, calibration
+
+
+def _compare_captures(protocol, manifest, journal, exposures, clusters, rows, trusted):
+    candidates, metrics, slots = _protocol_indexes(protocol)
+    cases = _index(manifest.cases, "case_id")
+    comparisons, verified, estimates = [], [], {}
+    by_id = {r["slot"]["slot_id"]: r for r in rows}
+    for cid, candidate in sorted(candidates.items()):
+        stratum = content_digest(
+            dict(baseline=candidate.baseline.to_dict(), candidate=candidate.candidate.to_dict())
+        )
+        for purpose in PURPOSES[1:]:
+            independent = independence_status(protocol, cid, purpose, exposures, journal=journal)
+            for mid, metric in sorted(metrics.items()):
+                selected = [
+                    s
+                    for s in slots.values()
+                    if s.candidate_id == cid
+                    and s.metric_id == mid
+                    and cases[s.case_id].purpose == purpose
+                ]
+                groups = defaultdict(dict)
+                for s in selected:
+                    groups[(s.case_id, s.condition_id, s.repeat_id)][s.arm] = s
+                matched = []
+                expected = []
+                for coordinate, arms in sorted(groups.items()):
+                    pid = content_digest(coordinate)
+                    expected.append(pid)
+                    if set(arms) != {"baseline", "candidate"}:
+                        continue
+                    a, b = arms["baseline"], arms["candidate"]
+                    ra, rb = by_id[a.slot_id], by_id[b.slot_id]
+                    if (a.budget_digest, a.seed_policy) != (b.budget_digest, b.seed_policy):
+                        continue
+                    if a.seed_policy == "shared" and a.seed != b.seed:
+                        continue
+                    if ra["value"] is None or rb["value"] is None:
+                        continue
+                    if any(
+                        ra["source_row"].get(k) != rb["source_row"].get(k)
+                        for k in ("cohort", "severity", "unit")
+                    ):
+                        continue
+                    matched.append(
+                        PairedObservation(
+                            pid,
+                            a.case_id,
+                            a.condition_id,
+                            a.repeat_id,
+                            clusters[a.case_id],
+                            stratum,
+                            metric,
+                            ra["value"],
+                            rb["value"],
+                        )
+                    )
+                estimate = estimate_paired(
+                    tuple(matched),
+                    expected_pair_ids=tuple(expected),
+                    policy=protocol.policy,
+                    dependencies_known=trusted and manifest.dependencies_known,
+                )
+                eligible = (
+                    trusted
+                    and independent["independent"]
+                    and manifest.dependencies_known
+                    and bool(expected)
+                    and estimate.matched_count == len(expected)
+                )
+                raw = {}
+                for arm in ("baseline", "candidate"):
+                    values = [
+                        by_id[s.slot_id]["value"]
+                        for s in selected
+                        if s.arm == arm and by_id[s.slot_id]["value"] is not None
+                    ]
+                    raw[arm] = dict(
+                        known_count=len(values),
+                        planned=sum(s.arm == arm for s in selected),
+                        mean=sum(values) / len(values) if values else None,
+                    )
+                report = dict(
+                    candidate_id=cid,
+                    purpose=purpose,
+                    metric_id=mid,
+                    estimate=estimate.to_dict(),
+                    raw=raw,
+                    independence=independent,
+                    independent_evidence_eligible=eligible,
+                )
+                comparisons.append(report)
+                estimates[(cid, purpose, mid)] = (estimate, eligible)
+                if eligible and purpose in ("independent_audit", "final_test", "ood_combinations"):
+                    verified.append(report)
+    overstatements = []
+    for cid in sorted(candidates):
+        for mid in sorted(metrics):
+            selection, _ = estimates[(cid, "optimizer_selection", mid)]
+            item = dict(candidate_id=cid, metric_id=mid)
+            for label, purpose in (("audit", "independent_audit"), ("final", "final_test")):
+                independent, eligible = estimates[(cid, purpose, mid)]
+                item[label] = (
+                    estimate_overstatement(selection, independent, policy=protocol.policy)
+                    if eligible
+                    else dict(
+                        overstatement=None, interval=None, reason="independent_evidence_unavailable"
+                    )
+                )
+            overstatements.append(item)
+    return comparisons, verified, overstatements
+
+
+def _failure_inventory(rows):
+    failures = {}
+    for family, (name, success) in FAILURE_METRICS.items():
+        members = [r for r in rows if r["source_metric"] == name]
+        failure_rows = []
+        for r in members:
+            value = r["source_value"]
+            failure_value = (1 - value if success else value) if type(value) is bool else r["value"]
+            failure_rows.append(
+                dict(
+                    slot=r["slot"],
+                    purpose=r["purpose"],
+                    status=r["status"],
+                    value=failure_value if r["value"] is not None else None,
+                    source_row=r["source_row"],
+                )
+            )
+        grouped = defaultdict(list)
+        for failure in failure_rows:
+            s = failure["slot"]
+            grouped[(s["candidate_id"], failure["purpose"], s["arm"])].append(failure)
+        summaries = []
+        for (cid, purpose, arm), own in sorted(grouped.items()):
+            values = [r["value"] for r in own if r["value"] is not None]
+            summaries.append(
+                dict(
+                    candidate_id=cid,
+                    purpose=purpose,
+                    arm=arm,
+                    planned=len(own),
+                    denominator=len(values),
+                    missing=len(own) - len(values),
+                    numerator=sum(values) if family != "calibration" else None,
+                    rate=sum(values) / len(values) if values and family != "calibration" else None,
+                    mean_brier=(
+                        sum(values) / len(values) if values and family == "calibration" else None
+                    ),
+                )
+            )
+        failures[family] = dict(
+            rows=failure_rows, groups=summaries, status="reported" if members else "missing"
+        )
+    return failures
 
 
 def _index(items: tuple, key: str) -> dict[str, Any]:
