@@ -253,9 +253,14 @@ class CausalRewardAdapter:
         if type(policy) is not CausalRewardPolicy:
             raise ValueError("expected CausalRewardPolicy")
         self.pipeline = pipeline
-        self.policy = CausalRewardPolicy.from_dict(policy.to_dict())
+        self._policy = CausalRewardPolicy.from_dict(policy.to_dict())
         self.authenticate_verdict = authenticate_verdict
         self.authorize_use = authorize_use
+
+    @property
+    def policy(self) -> CausalRewardPolicy:
+        """Return the immutable policy selected when this adapter was constructed."""
+        return self._policy
 
     def score(
         self,

@@ -187,7 +187,7 @@ def _json_object(value: str) -> dict[str, Any]:
 def _request_wire(request: RewardRequest) -> JsonObject:
     if type(request) is not RewardRequest or type(request.trajectory) is not Trajectory:
         raise ValueError("expected RewardRequest with Trajectory")
-    _refs(request.observable_references)
+    _refs(request.observable_references, nonempty=False)
     data = {
         "trajectory": request.trajectory.to_dict(),
         "observable_references": [r.to_dict() for r in request.observable_references],
