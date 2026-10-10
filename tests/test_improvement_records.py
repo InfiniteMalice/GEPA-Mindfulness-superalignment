@@ -35,7 +35,13 @@ DIGEST = "a" * 64
 
 
 def case(case_id="case", purpose="optimizer_selection", **kwargs):
-    return DatasetCase(case_id, content_digest(case_id), case_id, purpose, **kwargs)
+    return DatasetCase(
+        case_id,
+        kwargs.pop("content_digest", content_digest(case_id)),
+        kwargs.pop("family_id", case_id),
+        purpose,
+        **kwargs,
+    )
 
 
 def candidate(candidate_id="candidate", **kwargs):
