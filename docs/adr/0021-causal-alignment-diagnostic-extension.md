@@ -1,6 +1,6 @@
 # ADR 0021: Extend causal diagnostics through existing V5 contracts
 
-Status: PR-1/PR-2 approved on 2026-10-08; PR-3 design and native plan approved on 2026-10-09; PR-4 design, implementation plan and native execution approved on 2026-10-09.
+Status: PR-1/PR-2 approved on 2026-10-08; PR-3 design and native plan approved on 2026-10-09; PR-4 design, implementation plan and native execution approved on 2026-10-09; PR-6 design and PR-5 deferral approved on 2026-10-10, with PR-6 implementation plan and native execution also approved on 2026-10-10.
 Date: 2026-10-08.
 
 ## Context
@@ -69,6 +69,21 @@ Match exact evaluation content and scope, and preserve explicit measured cost un
 [artifact topology guide](../evidence_topology.md) specifies these contracts and the offline example.
 The maintainer approved the PR-4 written design, implementation plan and native execution through
 a separate draft PR. PR-5 reward-policy and PR-7 independent empirical-evidence gates remain.
+
+## Decision for PR-6
+
+The maintainer approved the PR-6 written design and explicit deferral of PR-5 on 2026-10-10.
+PR-6 will compose an opt-in offline evaluation report with existing diagnostic contracts.
+The report will separate five data partitions by scenario family and transformation ancestry,
+retain every attempted candidate, and report paired cluster-aware uncertainty, cost and failures.
+Selection progress, evaluated behavior, independent improvement evidence and deployment
+eligibility remain separate. The reporting module will issue no training or deployment authority.
+
+The maintainer subsequently approved the PR-6 implementation plan and native execution on
+2026-10-10. The [evaluation guide](../reliable_improvement_evaluation.md) defines the implemented
+opt-in contracts, host authentication obligations and offline example. The sequencing exception does not waive PR-5's independent evidence or reward
+accounting requirements. Repository defaults govern the completed PR-5 pilot and the additional
+causal penalty remains withheld. PR-7 retains its earlier-stage and independent-evidence gates.
 
 ## Alternatives considered
 
