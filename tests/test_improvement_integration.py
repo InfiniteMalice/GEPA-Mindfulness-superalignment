@@ -374,3 +374,90 @@ def test_documented_offline_example_exposes_overstatement_without_granting_autho
     assert result["severe_events"]
     assert result["deployment_eligibility"] == "not_assessed"
     assert namespace["contamination_rejected"] is True
+
+
+def test_unauthorized_final_preserves_public_severe_metadata_without_numeric_values():
+    spec, manifest, journal, evidence = fixture()
+    result = run((spec, manifest, journal, evidence[-2:]))
+    assert len(result["severe_events"]) == 2
+    for event in result["severe_events"]:
+        assert event["status"] == "unauthorized"
+        assert event["event"]["evidence_refs"]
+        assert "value" not in event["event"]
+        assert "outcome" not in event["event"]
+        assert event["authentication"] is False
+    assert result["evaluated_behavior"]["sources"] == []
+
+
+def test_partial_audit_keeps_descriptive_overstatement_without_verified_claim():
+    spec, manifest, journal, evidence = fixture()
+    added = tuple(
+        replace(s, slot_id=s.slot_id + "-again", repeat_id=1)
+        for s in spec.slots
+        if s.case_id == "audit"
+    )
+    spec = replace(spec, slots=spec.slots + added)
+    journal = replace(journal, protocol_digest=record_digest(spec))
+    result = run((spec, manifest, journal, evidence))
+    delta = result["overstatement"][0]["audit"]
+    assert delta["overstatement"] == 0
+    assert delta["interval"] is None
+    assert "incomplete_pairs" in delta["independent_reasons"]
+    assert not result["verified_improvement_evidence"]
+
+
+def test_unresolved_eligible_debate_outcome_prevents_complete_failure_rate():
+    from dataclasses import asdict
+
+    from test_debate_analysis import assessment
+    from test_debate_analysis import report as debate_report
+    from test_debate_records import protocol as debate_protocol
+    from test_sensitive_debate import run_fixture
+
+    from evaluation.causal_records import MetricVerdict
+    from evaluation.debate_records import DebateOpportunity
+
+    p = debate_protocol(1)
+    p = replace(
+        p,
+        opportunities=(
+            DebateOpportunity("fault", 0, "premise_fault_localization", Severity.ROUTINE, "all"),
+        ),
+    )
+    session = run_fixture(p)
+    reports = []
+    for value in (True, None):
+        a = assessment(p, session, (MetricVerdict("fault", True, value, "oracle", (REF,)),))
+        reports.append(
+            debate_report(p, session, assessment=a, authenticate_assessment=lambda a: True)
+        )
+    metric = MetricSpec(
+        "fault",
+        reports[0]["schema_version"],
+        "premise_fault_localization",
+        content_digest(asdict(p.evaluator)),
+        direction="lower",
+        transform="one_minus",
+    )
+    spec, manifest, journal, evidence = wrap_source(
+        reports[0], metric, p.evaluator, "fixture", "v1", "fault", "metric_rows"
+    )
+    manifest = replace(manifest, cases=manifest.cases + (case("second"),))
+    spec = replace(
+        spec,
+        manifest_digest=record_digest(manifest),
+        slots=spec.slots + (replace(spec.slots[0], slot_id="two", case_id="second"),),
+    )
+    events = journal.events + (
+        AttemptEvent("start2", 3, "candidate", "r", "evaluation_started", "two"),
+        AttemptEvent("finish2", 4, "candidate", "r", "evaluation_finished", "two"),
+    )
+    journal = replace(journal, protocol_digest=record_digest(spec), events=events)
+    evidence += (replace(evidence[0], slot_id="two", source_json=canonical_json(reports[1])),)
+    result = run((spec, manifest, journal, evidence))
+    group = result["failures"]["debate_fault_localization"]["groups"][0]
+    assert group["denominator"] == 2
+    assert group["known_count"] == 1
+    assert group["unresolved_eligible"] == 1
+    assert group["rate"] is None
+    assert group["observed_rate"] == 0

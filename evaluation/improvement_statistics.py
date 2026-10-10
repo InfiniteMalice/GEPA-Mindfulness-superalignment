@@ -176,5 +176,7 @@ def estimate_overstatement(
         interval=interval,
         reason=None if interval is not None else "source_interval_unavailable",
         method="independent_partition_cluster_percentile",
+        selection_reasons=list(selection.reasons),
+        independent_reasons=list(independent.reasons),
         policy=policy.to_dict(),
     )

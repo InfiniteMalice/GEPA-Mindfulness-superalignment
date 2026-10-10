@@ -152,3 +152,18 @@ def test_source_json_is_canonical_detached_and_retains_restrictions():
     assert '"HIDDEN_EVAL"' in evidence.source_json
     with pytest.raises(ValueError):
         DiagnosticEvidence("slot", canonical_json(source), "rows", "probe_id", "probe")
+
+
+@pytest.mark.parametrize(
+    "kind", ["latent_state", "private_reasoning", "attention_data", "cache_data"]
+)
+def test_nested_source_private_evidence_is_rejected_before_authentication(kind):
+    from evaluation.causal_records import canonical_json
+
+    source = {
+        "schema_version": "evaluation-ladder-v1",
+        "training_eligibility": "HIDDEN_EVAL",
+        "rows": [{"evidence_refs": [{"reference_id": "private", "source_kind": kind}]}],
+    }
+    with pytest.raises(ValueError, match="private"):
+        DiagnosticEvidence("slot", canonical_json(source), "rows", "probe_id", "probe")

@@ -337,6 +337,19 @@ class DiagnosticEvidence(ImprovementRecord):
             raise ValueError("source requires a canonical JSON object")
         if source.get("training_eligibility") not in ("DEVELOPMENT", "HIDDEN_EVAL", "REGRESSION"):
             raise ValueError("source requires non-training eligibility")
+        pending = [source]
+        while pending:
+            node = pending.pop()
+            if type(node) is dict:
+                if "source_kind" in node:
+                    reference = EvidenceReference.from_dict(
+                        {k: node.get(k) for k in ("reference_id", "source_kind")}
+                    )
+                    if not reference.is_observable:
+                        raise ValueError("private evidence is not permitted")
+                pending.extend(node.values())
+            elif type(node) is list:
+                pending.extend(node)
         _choice(self.row_list, ("rows", "metric_rows"))
         _choice(self.row_id_key, ("probe_id", "opportunity_id"))
 

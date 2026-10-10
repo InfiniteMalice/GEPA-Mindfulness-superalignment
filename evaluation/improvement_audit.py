@@ -286,6 +286,7 @@ def _join_captures(
         if not allowed:
             output["status"] = "unauthorized"
             output["training_eligibility"] = source["training_eligibility"]
+            _retain_severe(severe, source, row, slot, case.purpose, False, unauthorized=True)
             rows.append(output)
             continue
         accepted = auth(
@@ -325,31 +326,52 @@ def _join_captures(
                     .get("groups", []),
                 )
             )
-        inventory = source.get("severe_observations", source.get("severe_events", []))
-        inventory = list(inventory)
-        if row.get("severity") not in (None, "routine"):
-            inventory.append(row)
-        for event in inventory:
-            key = content_digest(
-                dict(
-                    candidate=slot.candidate_id,
-                    arm=slot.arm,
-                    purpose=case.purpose,
-                    source=source["result_digest"],
-                    event=event,
-                )
-            )
-            severe[key] = dict(
-                candidate_id=slot.candidate_id,
-                arm=slot.arm,
-                purpose=case.purpose,
-                source_digest=source["result_digest"],
-                event=event,
-                authentication=accepted and trusted,
-                training_eligibility=source["training_eligibility"],
-            )
+        _retain_severe(severe, source, row, slot, case.purpose, accepted and trusted)
         rows.append(output)
     return rows, sources, severe, calibration
+
+
+def _retain_severe(severe, source, row, slot, purpose, authenticated, *, unauthorized=False):
+    inventory = list(source.get("severe_observations", source.get("severe_events", [])))
+    if row.get("severity") not in (None, "routine"):
+        inventory.append(row)
+    for event in inventory:
+        key = content_digest(
+            dict(
+                candidate=slot.candidate_id,
+                arm=slot.arm,
+                purpose=purpose,
+                source=source["result_digest"],
+                event=event,
+            )
+        )
+        # Retain public incident provenance without releasing unauthorized test outcomes.
+        if unauthorized:
+            event = {
+                k: v
+                for k, v in event.items()
+                if k
+                in (
+                    "probe_id",
+                    "opportunity_id",
+                    "pair_id",
+                    "event_id",
+                    "metric",
+                    "severity",
+                    "status",
+                    "evidence_refs",
+                )
+            }
+        severe[key] = dict(
+            candidate_id=slot.candidate_id,
+            arm=slot.arm,
+            purpose=purpose,
+            source_digest=source["result_digest"],
+            event=event,
+            authentication=authenticated,
+            training_eligibility=source["training_eligibility"],
+            status="unauthorized" if unauthorized else event.get("status", "unresolved"),
+        )
 
 
 def _compare_captures(protocol, manifest, journal, exposures, clusters, rows, trusted):
@@ -442,7 +464,7 @@ def _compare_captures(protocol, manifest, journal, exposures, clusters, rows, tr
                     independent_evidence_eligible=eligible,
                 )
                 comparisons.append(report)
-                estimates[(cid, purpose, mid)] = (estimate, eligible)
+                estimates[(cid, purpose, mid)] = (estimate, trusted and independent["independent"])
                 if eligible and purpose in ("independent_audit", "final_test", "ood_combinations"):
                     verified.append(report)
     overstatements = []
@@ -487,19 +509,25 @@ def _failure_inventory(rows):
         summaries = []
         for (cid, purpose, arm), own in sorted(grouped.items()):
             values = [r["value"] for r in own if r["value"] is not None]
+            unresolved = sum(
+                r["value"] is None and (r["source_row"] or {}).get("eligible") is True for r in own
+            )
+            observed = sum(values) / len(values) if values else None
             summaries.append(
                 dict(
                     candidate_id=cid,
                     purpose=purpose,
                     arm=arm,
                     planned=len(own),
-                    denominator=len(values),
+                    denominator=len(values) + unresolved,
+                    known_count=len(values),
+                    unresolved_eligible=unresolved,
                     missing=len(own) - len(values),
                     numerator=sum(values) if family != "calibration" else None,
-                    rate=sum(values) / len(values) if values and family != "calibration" else None,
-                    mean_brier=(
-                        sum(values) / len(values) if values and family == "calibration" else None
-                    ),
+                    rate=observed if not unresolved and family != "calibration" else None,
+                    observed_rate=observed if family != "calibration" else None,
+                    mean_brier=(observed if not unresolved and family == "calibration" else None),
+                    observed_mean_brier=observed if family == "calibration" else None,
                 )
             )
         failures[family] = dict(

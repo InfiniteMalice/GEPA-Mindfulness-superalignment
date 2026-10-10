@@ -15,6 +15,8 @@ Construct frozen records from `evaluation.improvement_records`. Each has strict 
 and detached `to_dict()` methods. Unknown fields, invalid finite numbers, duplicate identities,
 ambiguous event histories and conflicting bindings are errors. `record_digest()` hashes exact
 canonical contents; hashes alone do not establish authenticity, completeness or independence.
+Private or unknown evidence-reference kinds anywhere in a diagnostic source, including unselected
+rows, fail record validation before authentication or report export.
 
 | Input | Host responsibility |
 | --- | --- |
@@ -73,7 +75,9 @@ and attempts with no cost measurement remain explicit.
 
 Absent, censored, unverified, incomplete and ineligible observations never become successes or
 zero failures. Absent final evidence is `not_run`; provided final evidence without authorization
-is `unauthorized`, with no numeric values or source payload exported. Other unverified source
+is `unauthorized`, with no numeric values or full source payload exported. Only public severe-event
+identifiers, metric, severity, adjudication status and evidence references survive, marked
+unauthorized and unauthenticated. Other unverified source
 payloads are retained for audit with authentication status; they do not enter numerical effects.
 Severe events on otherwise excluded comparisons remain visible with their source status.
 
@@ -106,10 +110,16 @@ or post-selection coverage. Their validity depends on actual independence betwee
 Overstatement is selection improvement minus independent-audit improvement. Authorized final-test
 overstatement is separate. Independent partition clusters are resampled separately; a reused or
 unauthenticated audit is not substituted for independent evidence. Missing effects stay null.
+When both effects are known but pairs are incomplete, the descriptive overstatement remains
+visible without an interval or verified-improvement claim; source reasons explain the missingness.
 
 Eight failure families are always present: causal invariance, required update, laundering,
 debate fault localization, unjustified abstention, clarification resumption, calibration and
-severe safety/authorization. Known eligible source outcomes supply denominators. Registered
+severe safety/authorization. Explicitly eligible unresolved source outcomes remain in denominators;
+they suppress the complete rate. `known_count` and `unresolved_eligible` expose coverage, while
+`observed_rate` describes only known outcomes. Sources without explicit eligibility use known
+verified outcomes as their denominator. Calibration uses the corresponding complete/observed
+mean Brier fields. Registered
 success metrics can use `one_minus`; arbitrary metrics cannot. Brier contributions require
 observed probability/outcome and a host-bound calibration definition digest. ECE remains a
 separate source aggregate with its bin-definition binding, never an average of per-case ECEs.
