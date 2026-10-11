@@ -3,6 +3,9 @@
 Audit date: 2026-10-08. Baseline: `main`, commit
 `5788319239f75340f9b346d8434634230447db75`.
 
+Gate amendment, 2026-10-10: the maintainer separated software implementation from live penalty
+activation. The amended PR-5/PR-7 boundaries below and ADR 0021 supersede the original blanket hold.
+
 ## Task specification and scope
 
 The requested series extends V5 with causal invariance/sensitivity diagnostics, public argument
@@ -35,8 +38,8 @@ unchanged. New reference entries do not mark proposed extensions as implemented.
 | Semantic laundering | `synthetic_data/generators/semantic_laundering_chain_generator.py` supplies a harmful multi-turn example and a benign negative control. `evals/semantic_laundering_eval.py` delegates to typed `SemanticLaunderingAssessment`. `representation_metrics.py`, `evolutionary_atlas.py`, `evaluation/serialization_roundtrip.py` already measure representation/transport failures. | PR-3 extends these generators and diagnostics with paired controls and comparisons over existing `verification/perspective_records.py` `Stakeholder` and `Perspective` records. Interests, hard constraints, preferences, uncertainty and role-reversal identities already exist. Existing boolean risk projections are not authenticated natural-language judges. |
 | Self-serving justification | `core/reward_integrity.SelfServingJustificationCheck` retains literal act, beneficiary, constraints, role reversal, authority and unresolved findings. It increases scrutiny without changing numeric reward. | PR-3 reuses its distinction between reviewer findings and model rationales. A simulated stakeholder objection remains a diagnostic claim. |
 | Evidence memory | `verification/evidence_use.py` preserves original claims, source identity, quality, age, trust and unverified summary views. `semantic_intent_robustness/memory_safety.py` checks retrieval trust. `epistemic_continuity.py` binds support to earlier public events; `peo_continuity.py` compares declared and observed use. | PR-4 adds artifact/version/location/contribution and dependency topology around these records, with entity checks and removal tests. Do not create a parallel memory store or use a summary to clear taint, refresh age or regain access. |
-| Existing rewards | `core/abstention_rewards.py` handles preserved cases 1–13 and fallback; `core/clarifying_abstention.py` handles appended ambiguity cases. `core/rewards.py` uses verified epistemic-process components; `trace_summary` is not inspected for process credit. | PR-5 only after diagnostic verification and explicit reward-policy review. Keep current rewards exactly unchanged when disabled or unverified. Do not infer a uniform numeric “17-case reward” from the manifest: the current reward adapters retain their own contracts. |
-| Optional reward composition | `training/reward_pipeline.RewardPipeline` already defaults `overlay_weight` to zero and constrains observable references. `core/reward_integrity.py` requires provenance for every nonzero integrity component. | Review whether a causal failure is already counted before adding any adapter. Neither debate wins nor self-declared evidence may enter the optimizer. Severe-event/action gates stay outside the scalar. |
+| Existing rewards | `core/abstention_rewards.py` handles preserved cases 1–13 and fallback; `core/clarifying_abstention.py` handles appended ambiguity cases. `core/rewards.py` uses verified epistemic-process components; `trace_summary` is not inspected for process credit. | PR-5 software follows its approved policy/design/plan; live deductions require independent causal verification and activation authorization. Keep current rewards exactly unchanged when disabled or unverified. Do not infer a uniform numeric “17-case reward” from the manifest: the current reward adapters retain their own contracts. |
+| Optional reward composition | `training/reward_pipeline.RewardPipeline` already defaults `overlay_weight` to zero and constrains observable references. `core/reward_integrity.py` requires provenance for every nonzero integrity component. | Before applying a live causal deduction, authenticate whether that causal failure is already counted; an incorrect-answer-only penalty is distinct. Neither debate wins nor self-declared evidence may enter the optimizer. Severe-event/action gates stay outside the scalar. |
 | Offline improvement | `coevolution.py`, `learning_surfaces.py`, `private_promotion.py`, `controlled_improvement.py` already separate frozen evaluation epochs, candidates, protected/held-out receipts, private protocols and proposals. | PR-6 extends those records with scenario-family/transformation split separation, every attempted candidate, selection/audit gap, cluster-aware uncertainty and costs. Existing version/receipt lineage is not a complete scenario-descendant leakage detector. |
 | Cumulative lessons | `learning_surfaces.py`, `skill_lifecycle.py` already route lessons and gate lifecycle transitions through execution/held-out evidence. `training/peo_curriculum.py` supplies seven data stages, persistent anchors, quotas and strict full-catalog admission. | PR-7 adds offline utility/nonredundancy diagnostics and verified lessons to these interfaces. Generator validity is not a measured learning benefit; admission is separate from curriculum selection. |
 
@@ -131,13 +134,14 @@ No optimizer adapter is included. This design is proposed, not an accepted imple
 | 2 | Public argument dependencies and transition analysis after PR-1 | Separate challenger/defender/verifier roles; incorrect challenges, late evidence, justified updates, inconclusive and undecomposable cases; formal sensitivity only where independently testable |
 | 3 | Existing laundering generators plus pluralistic diagnostics after PR-1/2 | Separate sycophancy, overcriticism, perspective robustness, decision-update and laundering metrics; benign and unequal-authority controls |
 | 4 | Opt-in artifact evidence/topology adapter after PR-1 | Access/freshness/entity checks, traceable derivations, removal and redundant-support tests; retrieval correctness/cost comparisons |
-| 5 | Optional verified causal penalty after PR-1–4 | Explicit reward-policy approval, authenticated evidence, duplicate-accounting policy, disabled/unverified exact equality, justified-update exemptions and severe-event visibility |
+| 5 | Default-disabled causal adapter after PR-1–4 | Approved software plan, authored contract tests, disabled/unverified exact equality and severe-event visibility; live use separately requires authenticated causal evidence, semantic accounting and activation authorization |
 | 6 | Independent candidate audit after earlier diagnostics | Frozen family/lineage-disjoint partitions, all attempted candidates, paired cluster-aware uncertainty, protected regressions and visible severe failures |
-| 7 | Offline lessons and experimental curriculum after verified evaluations | Matched compute/data ablations, withheld-scenario usefulness, independently validated generated examples, original-case retention; no automatic training promotion |
+| 7 | Offline lessons/curation through normal reviews; implementation after prerequisite software | No active PR-5 penalty required. Training admission and empirical acceptance separately require validated examples, matched-budget ablations, withheld-scenario usefulness and original-case retention; no automatic promotion |
 
-PR-5 is blocked by evidence and policy conditions, not merely by whether code compiles. If those
-conditions are unsatisfied, retain the diagnostic report and continue only independently
-authorized evaluation work. PR-7 cannot claim readiness from synthetic contract tests alone.
+Missing live causal evidence withholds PR-5 live deductions, not default-disabled software
+implementation or authored tests under the approved plan. PR-7 design/offline curation does not
+require an active causal penalty. Synthetic contract tests cannot establish curriculum admission,
+withheld-scenario usefulness or deployment readiness.
 No stage automatically merges a pull request or deploys a candidate.
 
 ## Research traceability and bounded claims
