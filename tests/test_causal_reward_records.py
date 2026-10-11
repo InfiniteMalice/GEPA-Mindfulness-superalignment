@@ -1,11 +1,14 @@
 """Exact bounded evidence records cannot silently normalize or retain mutable input."""
 
+# Standard library
 import json
 from dataclasses import replace
 
+# Third-party
 import pytest
-from causal_reward_fixtures import make_accounting, make_context, make_policy, make_verdict
 
+# Local
+from causal_reward_fixtures import make_accounting, make_context, make_policy, make_verdict
 from gepa_mindfulness.training.causal_reward_records import (
     CausalRewardContext,
     CausalRewardUseRequest,
@@ -35,6 +38,16 @@ def records():
             event_key="b" * 64,
         ),
     )
+
+
+@pytest.mark.parametrize("actual,accounted", [(-0.0, 0.0), (0.0, -0.0), (1, 1.0), (1.0, 1)])
+def test_use_request_rejects_mismatched_baseline_encoding(actual, accounted):
+    """Restoring a use request must reject numerically equal but differently bound scalars."""
+    wire = records()[-1].to_dict()
+    wire["baseline_total"] = actual
+    wire["accounting"]["baseline_total"] = accounted
+    with pytest.raises(ValueError, match="accounting baseline mismatch"):
+        CausalRewardUseRequest.from_dict(wire)
 
 
 @pytest.mark.parametrize("index", range(5))
@@ -278,7 +291,7 @@ def test_full_use_envelope_bound_and_observable_route():
             policy=policy,
             verdict=verdict,
             accounting=accounting,
-            baseline_total=1,
+            baseline_total=1.0,
             event_key="b" * 64,
             integrity_snapshot=json.dumps({"large": "a" * (2 * 1024 * 1024)}),
         )

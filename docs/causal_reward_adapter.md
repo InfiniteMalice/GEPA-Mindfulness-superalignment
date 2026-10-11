@@ -146,6 +146,12 @@ other than built-in `True` reject that gate. The adapter retains original facts.
 required record prevents invoking a callback with an incomplete payload. Structurally valid
 semantic authentication runs even if a separate admission gate fails.
 
+When an accounting record is present, the adapter checks its baseline's canonical JSON encoding
+against the actual pipeline total before invoking either callback. Numerically equal but
+differently encoded values, such as `0.0` and `-0.0` or `1` and `1.0`, raise `ValueError` for an
+accounting baseline mismatch. Hosts must retain the pipeline total's scalar type and signed zero
+when constructing accounting records.
+
 Both arms and each source need explicit TRAIN declarations. The existing recursive admission
 checker also inspects complete retained request/source data: nested DEVELOPMENT, REGRESSION,
 HIDDEN_EVAL, failed V5 records and incomplete generated-data review remain excluded. An outer

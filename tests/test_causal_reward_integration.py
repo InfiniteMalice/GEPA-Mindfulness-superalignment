@@ -1,10 +1,13 @@
 """Real reward composition and host trust-boundary regression controls."""
 
+# Standard library
 from dataclasses import replace
 
+# Third-party
 import pytest
-from causal_reward_fixtures import make_accounting, make_context, make_policy, make_verdict
 
+# Local
+from causal_reward_fixtures import make_accounting, make_context, make_policy, make_verdict
 from gepa_mindfulness.core.evidence import EvidenceSourceKind
 from gepa_mindfulness.core.reward_integrity import RewardIntegrityCalculator, RewardObservation
 from gepa_mindfulness.core.reward_provenance import RewardProvenance, VerificationRoute
@@ -283,7 +286,7 @@ def test_decision_table_both_routes(route, facts, overlap, auth, use, expected, 
         evaluator=evaluator if route is VerificationRoute.TRUSTED_EVALUATOR else None,
     )
     verdict = make_verdict(context, policy, provenance=provenance, **facts)
-    accounting = make_accounting(context, policy, verdict, 1, layers=(("provider", overlap),))
+    accounting = make_accounting(context, policy, verdict, 1.0, layers=(("provider", overlap),))
 
     class PositiveProvider:
         def score(self, request):

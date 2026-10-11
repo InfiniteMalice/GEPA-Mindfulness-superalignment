@@ -1,11 +1,14 @@
 """Admission and attribution stay distinct from provenance declarations."""
 
+# Standard library
 import json
 from dataclasses import fields, replace
 
+# Third-party
 import pytest
-from causal_reward_fixtures import make_context, make_policy, make_verdict
 
+# Local
+from causal_reward_fixtures import make_context, make_policy, make_verdict
 from gepa_mindfulness.core.reward_integrity import (
     RewardIntegrityCalculator,
     RewardObservation,

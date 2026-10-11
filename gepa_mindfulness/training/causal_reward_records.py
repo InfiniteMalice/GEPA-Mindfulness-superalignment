@@ -436,6 +436,7 @@ class CausalRewardContext:
 
     def _validate(self) -> None:
         before, target = self.before.trajectory, self.target.trajectory
+        cases = load_case_manifest().cases
         for arm in ("before", "target"):
             request = getattr(self, arm)
             cell = getattr(self, arm + "_cell")
@@ -445,7 +446,7 @@ class CausalRewardContext:
             for value in (cell.model_version, cell.harness_version):
                 _text(value, "cell identity")
             mapping = _tuple(getattr(self, arm + "_case_mapping"), 2)
-            case = next(c for c in load_case_manifest().cases if c.id == cell.case_id)
+            case = next(c for c in cases if c.id == cell.case_id)
             if mapping != (request.trajectory.case_id, case.key):
                 raise ValueError("case mapping must match literal trajectory ID and manifest key")
             for value in mapping:
@@ -831,7 +832,9 @@ def _bindings(
             accounting.provider_config_digest,
         ) != (policy.provider_id, policy.provider_version, policy.provider_config_digest):
             raise ValueError("provider configuration binding mismatch")
-        if baseline_total is not None and accounting.baseline_total != baseline_total:
+        if baseline_total is not None and canonical_json(
+            accounting.baseline_total
+        ) != canonical_json(baseline_total):
             raise ValueError("accounting baseline mismatch")
         if not set(accounting.evidence_refs).issubset(allowed):
             raise ValueError("accounting evidence outside context sources")

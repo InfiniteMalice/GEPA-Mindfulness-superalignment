@@ -1,11 +1,14 @@
 """Public adapter compatibility, callback trust and explicit optimizer admission."""
 
+# Standard library
 import json
 import math
 
+# Third-party
 import pytest
-from causal_reward_fixtures import make_accounting, make_context, make_policy, make_verdict
 
+# Local
+from causal_reward_fixtures import make_accounting, make_context, make_policy, make_verdict
 from gepa_mindfulness.training.causal_reward import CausalRewardAdapter, CausalRewardDecision
 from gepa_mindfulness.training.causal_reward_records import CausalRewardContext
 from gepa_mindfulness.training.reward_pipeline import RewardPipeline, RewardResult
@@ -157,6 +160,35 @@ def test_baseline_accounting_uses_actual_pipeline_result(field, value):
     )
     with pytest.raises(ValueError, match="mismatch"):
         adapter.score(values["context"].target, **values)
+
+
+@pytest.mark.parametrize("actual,accounted", [(-0.0, 0.0), (0.0, -0.0), (1, 1.0), (1.0, 1)])
+def test_baseline_encoding_mismatch_rejected_before_callbacks(actual, accounted):
+    """Numeric equality cannot authenticate accounting for a different encoded scalar."""
+    policy, values = inputs(accounted)
+    calls, pipeline = [], RecordingPipeline(actual)
+    adapter = CausalRewardAdapter(
+        pipeline,
+        policy=policy,
+        authenticate_verdict=lambda p: calls.append("authenticate") or True,
+        authorize_use=lambda p: calls.append("authorize") or True,
+    )
+    with pytest.raises(ValueError, match="accounting baseline mismatch"):
+        adapter.score(values["context"].target, **values)
+    assert len(pipeline.calls) == 1
+    assert calls == []
+
+
+@pytest.mark.parametrize("total,encoded", [(-0.0, "-0.0"), (0.0, "0.0"), (1, "1"), (1.0, "1.0")])
+def test_matching_baseline_encoding_reaches_authorization(total, encoded):
+    """Exact accounting preserves scalar encodings in the complete use request."""
+    requests = []
+    result = run_score(total=total, use=lambda p: requests.append(p) or True)
+    assert result.disposition == "applied"
+    assert result.optimizer_reward() == pytest.approx(total - 0.1)
+    assert len(requests) == 1
+    assert json.dumps(requests[0]["baseline_total"]) == encoded
+    assert json.dumps(requests[0]["accounting"]["baseline_total"]) == encoded
 
 
 @pytest.mark.parametrize(

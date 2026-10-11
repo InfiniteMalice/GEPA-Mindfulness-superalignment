@@ -1,7 +1,9 @@
 """Authored software fixtures only; these are not independent live-use gate evidence."""
 
+# Standard library
 from dataclasses import replace
 
+# Local
 from evaluation.cases.registry import load_case_manifest
 from evaluation.causal_records import FactorChange, canonical_json
 from evaluation.v5_runner import V5EvaluationCell
