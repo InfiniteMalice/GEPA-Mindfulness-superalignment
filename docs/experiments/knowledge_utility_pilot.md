@@ -43,7 +43,10 @@ and no authentication callback; `curation_preview` withholds additions.
 
 The manifest gives the two source families the planned `synthetic_training` role and the six
 task families the planned `independent_audit` role. All records remain `DEVELOPMENT`, and
-no training eligibility follows from a partition name. `dependencies_known=False` explicitly
+no training eligibility follows from a partition name. The six audit cases have `evaluated=True`
+to declare membership in the evaluation roster; the flag does not claim that a model ran.
+The two source cases have `evaluated=False` because they supply lineage only.
+`dependencies_known=False` explicitly
 withholds semantic independence. Local manifest validation checks declared identities and
 lineage only. An independent reviewer must assess overlap between source and audit concepts;
 the shared author and public repository mean this packet is not a secret holdout.
@@ -111,6 +114,11 @@ of `canonical_json(packet_without_packet_digest)`. The digest binds the complete
 including public requests, evaluator labels, source records, limits, and empty previews.
 It establishes content integrity, not review authority or a signature. Retain the repository
 commit alongside the packet to identify the implementation that produced it.
+
+For other file-opening or writing errors, the CLI prints `cannot write` and exits with code 2.
+If writing or closing fails after exclusive creation, the CLI removes its partial file.
+If cleanup also fails, the error reports `cleanup failed`; inspect that path before retrying.
+These behaviors are covered by the missing-parent and injected write/close failure tests.
 
 The tests check deterministic output, exact condition counts, pending knowledge, withheld
 comparisons, source/audit partitioning, public-message separation, and overwrite refusal.

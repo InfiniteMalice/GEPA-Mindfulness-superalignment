@@ -94,6 +94,8 @@ def test_source_and_audit_lineage_remain_separate_and_unverified() -> None:
     audit_families = {c.family_id for c in manifest.cases if c.purpose == "independent_audit"}
     assert source_families.isdisjoint(audit_families)
     assert len(source_families) == 2 and len(audit_families) == 6
+    assert all(c.evaluated for c in manifest.cases if c.purpose == "independent_audit")
+    assert all(not c.evaluated for c in manifest.cases if c.purpose == "synthetic_training")
 
 
 def test_authored_rubric_answers_are_hand_checked() -> None:
@@ -136,3 +138,53 @@ def test_changed_evaluator_answers_never_enter_actor_requests(
     before = original["utility_study"]["expected_slots"]
     after = changed["utility_study"]["expected_slots"]
     assert all(a["rubric_digest"] != b["rubric_digest"] for a, b in zip(before, after))
+
+
+@pytest.mark.parametrize("failure", ["write", "close"])
+def test_failed_write_removes_only_new_partial_packet(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    failure: str,
+) -> None:
+    """Write and final-flush failures leave the output path available for a retry."""
+    output = tmp_path / "partial.json"
+    original_open = Path.open
+
+    class FailingStream:
+        """Inject a disk failure after exclusive creation of a real file."""
+
+        def __init__(self, path, *args, **kwargs):
+            self.stream = original_open(path, *args, **kwargs)
+
+        def __enter__(self):
+            return self
+
+        def write(self, text):
+            self.stream.write(text[:16])
+            if failure == "write":
+                raise OSError("simulated disk failure")
+
+        def __exit__(self, *args):
+            self.stream.close()
+            if failure == "close":
+                raise OSError("simulated flush failure")
+
+    monkeypatch.setattr(Path, "open", lambda path, *a, **kw: FailingStream(path, *a, **kw))
+    with pytest.raises(SystemExit) as error:
+        main(["--output", str(output)])
+    assert error.value.code == 2
+    assert not output.exists()
+    assert "cannot write" in capsys.readouterr().err
+
+
+def test_missing_parent_is_a_clear_cli_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Opening a missing parent reports a usage error without creating directories."""
+    output = tmp_path / "missing" / "packet.json"
+    with pytest.raises(SystemExit) as error:
+        main(["--output", str(output)])
+    assert error.value.code == 2
+    assert "cannot write" in capsys.readouterr().err
+    assert not output.parent.exists()

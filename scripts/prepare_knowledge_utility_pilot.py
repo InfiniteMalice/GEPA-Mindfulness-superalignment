@@ -258,7 +258,7 @@ def prepare_pilot() -> dict[str, Any]:
                 content_digest(c["prompt"]),
                 c["family_id"],
                 "independent_audit",
-                evaluated=False,
+                evaluated=True,
             )
             for c in cases
         ),
@@ -311,8 +311,22 @@ def main(argv: list[str] | None = None) -> None:
     )
     args = parser.parse_args(argv)
     text = canonical_json(prepare_pilot()) + "\n"
-    with args.output.open("x", encoding="utf-8") as stream:
-        stream.write(text)
+    try:
+        stream = args.output.open("x", encoding="utf-8")
+    except FileExistsError:
+        raise
+    except OSError as error:
+        parser.error(f"cannot write {args.output}: {error}")
+    try:
+        with stream:
+            stream.write(text)
+    except OSError as error:
+        # Only clean up after this invocation successfully created the output.
+        try:
+            args.output.unlink(missing_ok=True)
+        except OSError as cleanup_error:
+            parser.error(f"cannot write {args.output}: {error}; cleanup failed: {cleanup_error}")
+        parser.error(f"cannot write {args.output}: {error}")
 
 
 if __name__ == "__main__":
