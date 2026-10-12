@@ -1,6 +1,6 @@
 # ADR 0021: Extend causal diagnostics through existing V5 contracts
 
-Status: PR-1/PR-2 approved on 2026-10-08; PR-3 design and native plan approved on 2026-10-09; PR-4 design, implementation plan and native execution approved on 2026-10-09; PR-6 design and PR-5 deferral approved on 2026-10-10, with PR-6 implementation plan and native execution also approved on 2026-10-10; PR-5 design/plan approved on 2026-10-09 and corrected native implementation approved on 2026-10-10.
+Status: PR-1/PR-2 approved on 2026-10-08; PR-3 design and native plan approved on 2026-10-09; PR-4 design, implementation plan and native execution approved on 2026-10-09; PR-6 design and PR-5 deferral approved on 2026-10-10, with PR-6 implementation plan and native execution also approved on 2026-10-10; PR-5 design/plan approved on 2026-10-09 and corrected native implementation approved on 2026-10-10; PR-7 design approved on 2026-10-11, with implementation plan and native execution approved on 2026-10-12.
 Date: 2026-10-08.
 
 Amendment: On 2026-10-10 the maintainer corrected the PR-5/PR-7 gates as specified below.
@@ -148,3 +148,22 @@ Applying a live deduction requires reviewed policy, authenticated evidence and a
 the distinct causal failure. PR-7's empirical acceptance requires independent withheld-scenario
 results; their absence does not block design or offline software work. No benchmark result,
 debate victory or diagnostic record establishes training or deployment eligibility.
+
+
+## Decision for PR-7
+
+Implement the opt-in [offline cumulative curriculum](../cumulative_curriculum.md) with bounded
+immutable episode/review/bank records, separate lesson utility and milestone judgments,
+independently reviewed boundary exports, and seven-arm specifications composed with PR-6.
+Curation preserves complete provenance and requires current authenticated review bindings.
+Curation and bank inspection count as exposures for consuming candidates; actual compute/data
+matching remains separate from matched planned budgets. Original answer penalties and the
+independently governed causal penalty keep their existing behavior.
+
+All reports remain DEVELOPMENT with no optimizer or admission authority. Software completion
+is independent of a live PR-5 penalty. Withheld-scenario usefulness, any live run, training
+admission and deployment require separate evidence and authorization. No study is reproduced
+by authored integration fixtures. The implementation and example contracts are verified by
+`tests/test_curriculum_records.py`, `tests/test_lesson_curation.py`,
+`tests/test_curriculum_milestones.py`, `tests/test_cumulative_curriculum.py`,
+`tests/test_curriculum_comparison.py`, and `tests/test_cumulative_curriculum_integration.py`.

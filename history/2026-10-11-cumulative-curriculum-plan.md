@@ -408,6 +408,6 @@ packaging and documentation (Task 6). Every review-focus item has a named owning
 
 Planning checks verify source APIs, schema/signature consistency, reference paths and spec
 coverage. Proposed feature tests do not exist yet and have not been reported as passing.
-No implementation execution method is newly approved by design approval alone. Recommend native
-execution because these six tasks share contracts, followed by one fresh whole-branch reviewer.
-The alternative is subagent-driven execution with a fresh implementer and reviewer for each task.
+The maintainer approved this plan and native execution on 2026-10-12. The six tasks share
+contracts and are followed by one fresh whole-branch reviewer. Live execution and publication
+remain separate decisions.
