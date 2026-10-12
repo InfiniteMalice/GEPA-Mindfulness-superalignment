@@ -5,6 +5,9 @@ experiments. The functions do not execute models, train, alter rewards, modify a
 or admit data. Every report carries `training_eligibility="DEVELOPMENT"`,
 `optimizer_input=False`, and `confers_authority=False`.
 
+The [knowledge-utility pilot protocol](experiments/knowledge_utility_pilot.md) prepares a
+fixed 72-request study packet offline, with pending knowledge reviews and no live execution.
+
 ## Operations and results
 
 All five operations require built-in `enabled=True` and a caller-supplied `as_of` timestamp.
