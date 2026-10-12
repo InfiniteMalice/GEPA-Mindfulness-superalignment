@@ -2970,12 +2970,11 @@ references:
     source_demonstrates: Knowledge Weaver reports knowledge-curator training on ALFWorld and WebShop
       using standalone success, marginal success and token-wise mutual-information-inspired feedback.
       Utility and nonredundancy measurements are not truth certificates.
-    repository_inference: PR-7 proposes offline lesson curation criteria over existing learning
-      surfaces and skill provenance. Require contradiction, freshness and reproducibility checks
-      before admission; do not add the paper's reward signals to training.
+    repository_inference: PR-7 implements offline lesson curation over existing learning surfaces. Contradiction, freshness and reproducibility checks govern diagnostic curation only; curation does not grant training admission or add reward signals.
     maturity: Initial series PR-7 offline curation; training admission and empirical usefulness
       require separate verification; not reproduced. Primary metadata/abstract checked 2026-10-08.
     local_repo_notes:
+    - docs/cumulative_curriculum.md
     - docs/recommendations/CAUSAL_ALIGNMENT_AUDIT.md
     - gepa_mindfulness/learning_surfaces.py
   - reference_id: REF-WORLD-POTENTIAL
@@ -3003,12 +3002,11 @@ references:
     source_demonstrates: The source reports progress judgments and milestone-anchored temporal potentials
       on ALFWorld and ScienceWorld, with improvements over outcome-only GRPO in evaluated configurations.
       These task-relative judgments do not establish ethical progress or general policy invariance.
-    repository_inference: PR-7 proposes externally checkable milestone diagnostics using prediction-execution-observation
-      records. Keep step completion, goal progress, epistemic updating and final success separate.
-      Any reward shaping needs a separate assumptions and policy review.
-    maturity: Initial series PR-7; proposed milestone diagnostic; not reproduced. Primary metadata/abstract
+    repository_inference: PR-7 implements externally reviewed milestone diagnostics using prediction-execution-observation records. Step completion, legitimate goal progress, epistemic updating and final success remain separate nullable judgments. Reward shaping remains a separate proposal.
+    maturity: Initial series PR-7; implemented offline milestone diagnostic; empirical results not reproduced. Primary metadata/abstract
       checked 2026-10-08.
     local_repo_notes:
+    - docs/cumulative_curriculum.md
     - docs/recommendations/CAUSAL_ALIGNMENT_AUDIT.md
     - gepa_mindfulness/training/peo_curriculum.py
   - reference_id: REF-STATION
@@ -3028,12 +3026,11 @@ references:
     source_demonstrates: The source reports discovery-coverage experiments using three oracle-paper
       tasks and two open-ended tasks in Station, with supervisor and periodic reflection mechanisms.
       These bounded studies do not demonstrate reliable unrestricted self-improvement.
-    repository_inference: PR-7 proposes retaining reproducible completed-episode lessons and withheld-scenario
-      checks within existing offline evolution. Reflection outputs remain proposals; no autonomous
-      production promotion.
-    maturity: Initial series PR-7; proposed cumulative audit; not reproduced. Primary metadata/abstract
+    repository_inference: PR-7 retains completed-episode evidence and source ancestry in offline curation and comparison reports. Curation and bank inspection count as exposures under the existing improvement audit. Reflection outputs remain proposals; no autonomous production promotion.
+    maturity: Initial series PR-7; implemented offline cumulative audit; empirical results not reproduced. Primary metadata/abstract
       checked 2026-10-08.
     local_repo_notes:
+    - docs/cumulative_curriculum.md
     - docs/recommendations/CAUSAL_ALIGNMENT_AUDIT.md
     - gepa_mindfulness/coevolution.py
   - reference_id: REF-SIFT

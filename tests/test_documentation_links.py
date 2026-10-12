@@ -26,6 +26,7 @@ DOCUMENTS = (
     ROOT / "docs" / "controlled_evolution.md",
     ROOT / "docs" / "causal_diagnostics.md",
     ROOT / "docs" / "causal_reward_adapter.md",
+    ROOT / "docs" / "cumulative_curriculum.md",
     ROOT / "docs" / "sensitive_debate.md",
     ROOT / "docs" / "pluralistic_robustness.md",
     ROOT / "docs" / "evidence_topology.md",

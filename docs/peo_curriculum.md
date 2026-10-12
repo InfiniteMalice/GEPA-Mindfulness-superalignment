@@ -165,3 +165,12 @@ python -m pytest tests/test_peo_curriculum.py tests/participatory_agency/test_cu
 
 These are contract and integration checks. They do not measure learning quality,
 semantic coverage, fairness of curator labels, or behavioral retention in a trained model.
+
+
+## Offline cumulative curriculum
+
+[PR-7 curation and boundary exports](cumulative_curriculum.md) retain DEVELOPMENT and all nested
+source restrictions. PEO collect/evaluate can inspect those exports with public actor prompts;
+train/resume reject the exports through existing admission checks. Curation, positive utility,
+and complete coverage do not grant admission. The integration test in
+`tests/test_cumulative_curriculum_integration.py` checks all four modes with the actual export.
