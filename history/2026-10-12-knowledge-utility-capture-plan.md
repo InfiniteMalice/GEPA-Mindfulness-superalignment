@@ -17,9 +17,9 @@ pytest, Ruff, Black, and mypy. No new runtime dependencies.
 
 **Spec:** [Approved capture design](2026-10-12-knowledge-utility-capture-design.md).
 
-Status: proposed implementation plan; implementation and paid execution have not started.
-Native execution is recommended because these tasks share one sequential run state.
-The maintainer reviews this plan and selects the execution method before implementation.
+Status: implementation plan and native execution approved by the maintainer on 2026-10-12.
+Paid execution is not authorized. Native execution implements the tasks in this session
+and ends with independent whole-branch review.
 
 ## Global constraints
 

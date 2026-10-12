@@ -3,22 +3,36 @@
 # Standard library
 from __future__ import annotations
 
+import argparse
 import base64
 import math
-from dataclasses import fields
+import subprocess
+from dataclasses import asdict, fields
+from decimal import localcontext
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 # Third-party
 # Local
 from scripts.knowledge_utility_capture_records import (
     MODEL,
+    ExecutionRecord,
     JsonObject,
+    RunStore,
     build_manifest,
+    parse_prices,
+    publish_json,
     read_bounded_json,
+    reservation_micro_usd,
+    utc_now,
     validate_execution,
 )
-from scripts.knowledge_utility_capture_transport import MAX_BODY, TransportResult
+from scripts.knowledge_utility_capture_transport import (
+    MAX_BODY,
+    Transport,
+    TransportResult,
+    make_live_transport,
+)
 from scripts.score_knowledge_utility_pilot import CAPTURE_SCHEMA, score_pilot
 from synthetic_data.curriculum_records import decode_curriculum_json
 
@@ -107,8 +121,10 @@ def normalize_result(result: TransportResult) -> JsonObject:
         if value.get("incomplete_details") is not None:
             return _failed("inconsistent_completion")
         return _outcome("completed", text if text is not None else "")
-    except (ValueError, TypeError, UnicodeError):
+    except (ValueError, TypeError, UnicodeError) as error:
         # The raw bytes preserve details; only controlled reasons enter exported rows.
+        if str(error) == "response_text_too_large":
+            return _failed("response_text_too_large")
         return _failed("invalid_provider_record")
 
 
@@ -226,3 +242,219 @@ def export_run(packet: JsonObject, run_dir: Path) -> JsonObject:
     )
     score_pilot(packet, envelope)
     return envelope
+
+
+def _slot_identity(request: JsonObject) -> JsonObject:
+    return {key: request[key] for key in ("sequence", "slot_id", "request_digest")}
+
+
+def _retained_result(result: TransportResult, execution: ExecutionRecord) -> JsonObject:
+    transport = asdict(result)
+    transport["body"] = base64.b64encode(result.body).decode("ascii")
+    try:
+        provider = decode_curriculum_json(result.body.decode("utf-8"))
+    except (UnicodeError, ValueError):
+        provider = None
+    usage = provider.get("usage") if type(provider) is dict else None
+    estimate = None
+    if isinstance(usage, dict) and _usage_valid(usage):
+        with localcontext() as ctx:
+            ctx.prec = 50
+            estimate = str(
+                (
+                    usage["input_tokens"] * execution.prices.input_usd_per_million
+                    + usage["output_tokens"] * execution.prices.output_usd_per_million
+                )
+                / 1_000_000
+            )
+    return dict(
+        transport=transport,
+        provider=provider,
+        usage=usage,
+        requested_model=MODEL,
+        returned_model=provider.get("model") if type(provider) is dict else None,
+        estimated_cost_usd=estimate,
+        billed_cost_usd=None,
+    )
+
+
+def run_live(
+    packet: JsonObject,
+    execution: ExecutionRecord,
+    run_dir: Path,
+    transport_factory: Callable[[], Transport],
+) -> JsonObject:
+    """Execute a single approved roster; never recover uncertainty by dispatching again."""
+    manifest = build_manifest(packet)
+    execution = validate_execution(
+        execution.raw, manifest, run_dir, execution.raw["implementation_commit"]
+    )
+    store = RunStore.create(run_dir, execution, manifest)
+    summary: JsonObject = dict(
+        state="stopped",
+        reason="setup_failed",
+        count_requests=0,
+        generation_attempts=0,
+        reserved_micro_usd=0,
+    )
+    pending_generation = False
+    try:
+        transport = transport_factory()
+        for request in manifest["requests"]:
+            seq = request["sequence"]
+            identity = _slot_identity(request)
+            store.write_record(
+                f"counts/{seq:03}-intent.json",
+                dict(
+                    identity,
+                    utc=utc_now(),
+                    payload=request["count_payload"],
+                ),
+            )
+            summary["count_requests"] += 1
+            result = transport.post("responses/input_tokens", request["count_payload"])
+            store.write_record(
+                f"counts/{seq:03}-result.json",
+                dict(
+                    identity,
+                    **_retained_result(result, execution),
+                ),
+            )
+            try:
+                count = _provider_object(result)
+                tokens = count.get("input_tokens")
+                valid = (
+                    count.get("object") == "response.input_tokens"
+                    and type(tokens) is int
+                    and 0 <= tokens <= 2048
+                )
+            except (ValueError, UnicodeError):
+                valid = False
+            if not valid:
+                summary["reason"] = "count_failed"
+                break
+        else:
+            for request in manifest["requests"]:
+                reserved = summary["reserved_micro_usd"] + execution.reservation_micro_usd
+                if execution.budget_micro_usd == 0 or reserved > execution.budget_micro_usd:
+                    summary["reason"] = "budget_exhausted"
+                    break
+                seq = request["sequence"]
+                identity = _slot_identity(request)
+                # Once intent creation starts, a partial write is conservatively reserved.
+                summary["reserved_micro_usd"] = reserved
+                pending_generation = True
+                store.write_record(
+                    f"attempts/{seq:03}.json",
+                    dict(
+                        identity,
+                        utc=utc_now(),
+                        attempt_number=1,
+                        reservation_micro_usd=execution.reservation_micro_usd,
+                        cumulative_micro_usd=reserved,
+                    ),
+                )
+                summary["generation_attempts"] += 1
+                result = transport.post("responses", request["payload"])
+                store.write_record(
+                    f"results/{seq:03}.json",
+                    dict(
+                        identity,
+                        **_retained_result(result, execution),
+                    ),
+                )
+                pending_generation = False
+                if normalize_result(result)["status"] == "failed":
+                    summary["reason"] = "generation_failed"
+                    break
+            else:
+                summary.update(state="finished", reason="roster_finished")
+    except (Exception, KeyboardInterrupt):
+        # Retained intents, not an exception string, are the evidence of uncertain dispatch.
+        summary.update(
+            state="uncertain" if pending_generation else "stopped",
+            reason="interrupted_or_io_failure",
+        )
+    summary["utc"] = utc_now()
+    store.write_record("terminal.json", summary)
+    return summary
+
+
+def implementation_commit() -> str:
+    """Reject tracked code changes before binding a live run to this checkout's HEAD."""
+    root = Path(__file__).resolve().parents[1]
+    options: dict[str, Any] = dict(
+        cwd=root, text=True, encoding="utf-8", timeout=10, stderr=subprocess.DEVNULL
+    )
+    dirty = subprocess.check_output(
+        ["git", "status", "--porcelain", "--untracked-files=no"], **options
+    )
+    if dirty.strip():
+        raise ValueError("live execution requires a clean tracked checkout")
+    return subprocess.check_output(["git", "rev-parse", "HEAD"], **options).strip()
+
+
+def main(argv: list[str] | None = None) -> None:
+    """Default to offline preparation; require explicit live or recovery-export modes."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--live", action="store_true")
+    modes.add_argument("--export", action="store_true")
+    parser.add_argument("--packet", type=Path, required=True)
+    for name in ("output", "prices", "execution", "run-dir", "credential-file"):
+        parser.add_argument("--" + name, type=Path)
+    args = parser.parse_args(argv)
+    if args.live:
+        valid = (
+            args.execution
+            and args.run_dir
+            and args.credential_file
+            and not args.output
+            and not args.prices
+        )
+    elif args.export:
+        valid = (
+            args.run_dir
+            and args.output
+            and not args.execution
+            and not args.credential_file
+            and not args.prices
+        )
+    else:
+        valid = args.output and not args.execution and not args.run_dir and not args.credential_file
+    if not valid:
+        parser.error("missing or irrelevant options for selected mode")
+    try:
+        packet = read_bounded_json(args.packet)
+        manifest = build_manifest(packet)
+        if args.live:
+            execution = validate_execution(
+                read_bounded_json(args.execution), manifest, args.run_dir, implementation_commit()
+            )
+            summary = run_live(
+                packet, execution, args.run_dir, lambda: make_live_transport(args.credential_file)
+            )
+            if summary["state"] != "finished":
+                parser.error(f"capture stopped; retained run at {args.run_dir}")
+        elif args.export:
+            publish_json(args.output, export_run(packet, args.run_dir))
+        else:
+            estimate = None
+            if args.prices:
+                prices = parse_prices(read_bounded_json(args.prices))
+                reserve = reservation_micro_usd(prices)
+                estimate = dict(per_request_micro_usd=reserve, roster_micro_usd=72 * reserve)
+            publish_json(
+                args.output,
+                dict(
+                    manifest=manifest,
+                    reservation_estimate=estimate,
+                    token_counts="unknown",
+                ),
+            )
+    except (OSError, ValueError, TypeError, subprocess.SubprocessError):
+        parser.error("cannot capture pilot: invalid input, checkout, or file operation")
+
+
+if __name__ == "__main__":
+    main()

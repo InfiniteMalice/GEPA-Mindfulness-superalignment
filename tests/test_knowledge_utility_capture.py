@@ -447,3 +447,241 @@ def test_export_rejects_corrupt_identity(records, runner, tmp_path, fault):
     with pytest.raises(ValueError):
         runner.export_run(packet, store.root)
 
+
+class FakeTransport:
+    def __init__(self, directory, *, count_value=100, generation_fault=None):
+        self.directory = directory
+        self.count_value = count_value
+        self.generation_fault = generation_fault
+        self.endpoints = []
+        self.packet = prepare_pilot()
+
+    def post(self, endpoint, payload):
+        self.endpoints.append(endpoint)
+        if endpoint == "responses/input_tokens":
+            seq = self.endpoints.count(endpoint) - 1
+            assert (self.directory / f"counts/{seq:03}-intent.json").is_file()
+            return result_for({"object": "response.input_tokens", "input_tokens": self.count_value})
+        seq = self.endpoints.count("responses") - 1
+        assert self.endpoints.count("responses/input_tokens") == 72
+        assert (self.directory / f"attempts/{seq:03}.json").is_file()
+        if self.generation_fault == "failed":
+            return result_for({}, error_code="transport_error")
+        if self.generation_fault == "truncated":
+            return result_for(provider_response(status="incomplete"))
+        if self.generation_fault == "refused":
+            return result_for(provider_response(content=[{"type": "refusal", "refusal": "no"}]))
+        packet = self.packet
+        actor = packet["actor_requests"][seq]
+        assert payload["input"] == actor["messages"]
+        answers = {row["case_id"]: row["expected_answer"] for row in packet["evaluator_cases"]}
+        return result_for(provider_response(json.dumps({"answer": answers[actor["case_id"]]})))
+
+
+def live_fixture(records, tmp_path, budget="5"):
+    packet = prepare_pilot()
+    manifest = records.build_manifest(packet)
+    directory = tmp_path / "live-run"
+    raw = execution(manifest, directory, budget)
+    checked = records.validate_execution(raw, manifest, directory, "a" * 40)
+    return packet, checked, directory
+
+
+def test_all_counts_precede_generation_and_full_scorer_roundtrip(records, runner, tmp_path):
+    from scripts.score_knowledge_utility_pilot import score_pilot
+
+    packet, checked, directory = live_fixture(records, tmp_path)
+    fake = FakeTransport(directory)
+    summary = runner.run_live(packet, checked, directory, lambda: fake)
+    assert summary["state"] == "finished"
+    assert fake.endpoints == ["responses/input_tokens"] * 72 + ["responses"] * 72
+    report = score_pilot(packet, runner.export_run(packet, directory))
+    assert all(row["successes"] == 18 for row in report["conditions"].values())
+    assert all(not row["verified"] for row in report["comparisons"].values())
+    assert report["training_eligibility"] == "DEVELOPMENT"
+    assert report["confers_authority"] is False and report["optimizer_input"] is False
+    result = json.loads((directory / "results/000.json").read_text(encoding="utf-8"))
+    assert result["usage"] == {"input_tokens": 100, "output_tokens": 20, "total_tokens": 120}
+    assert result["estimated_cost_usd"] == "0.000165"
+    assert result["billed_cost_usd"] is None
+    with pytest.raises(FileExistsError):
+        runner.run_live(packet, checked, directory, lambda: pytest.fail("must not construct"))
+
+
+@pytest.mark.parametrize("value", [2049, True, None, -1])
+def test_count_failure_never_generates(records, runner, tmp_path, value):
+    packet, checked, directory = live_fixture(records, tmp_path)
+    fake = FakeTransport(directory, count_value=value)
+    summary = runner.run_live(packet, checked, directory, lambda: fake)
+    assert summary["state"] == "stopped"
+    assert fake.endpoints == ["responses/input_tokens"]
+    assert all(
+        row["status"] == "missing" for row in runner.export_run(packet, directory)["captures"]
+    )
+
+
+@pytest.mark.parametrize("budget,requests", [("0.002688", 1), ("0.002687", 0), ("0", 0)])
+def test_budget_failure_retains_full_roster(records, runner, tmp_path, budget, requests):
+    packet, checked, directory = live_fixture(records, tmp_path, budget)
+    fake = FakeTransport(directory)
+    summary = runner.run_live(packet, checked, directory, lambda: fake)
+    assert summary["state"] == "stopped"
+    assert fake.endpoints.count("responses") == requests
+    assert summary["reserved_micro_usd"] == requests * 2688
+    rows = runner.export_run(packet, directory)["captures"]
+    assert len(rows) == 72
+    assert sum(row["status"] == "missing" for row in rows) == 72 - requests
+
+
+@pytest.mark.parametrize("fault,count", [("failed", 1), ("refused", 72), ("truncated", 72)])
+def test_generation_failure_stops_but_censoring_continues(records, runner, tmp_path, fault, count):
+    packet, checked, directory = live_fixture(records, tmp_path)
+    fake = FakeTransport(directory, generation_fault=fault)
+    summary = runner.run_live(packet, checked, directory, lambda: fake)
+    assert fake.endpoints.count("responses") == count
+    assert summary["reserved_micro_usd"] == count * 2688
+    assert runner.export_run(packet, directory)["captures"][0]["status"] == fault
+
+
+def test_result_write_failure_keeps_reservation_and_stops(records, runner, tmp_path, monkeypatch):
+    packet, checked, directory = live_fixture(records, tmp_path)
+    fake = FakeTransport(directory)
+    original = records.RunStore.write_record
+
+    def fail_result(self, relative, data):
+        if relative == "results/000.json":
+            raise OSError("simulated write failure")
+        return original(self, relative, data)
+
+    monkeypatch.setattr(records.RunStore, "write_record", fail_result)
+    summary = runner.run_live(packet, checked, directory, lambda: fake)
+    assert summary["state"] == "uncertain"
+    assert summary["reserved_micro_usd"] == 2688
+    assert fake.endpoints.count("responses") == 1
+    assert runner.export_run(packet, directory)["captures"][0]["status"] == "failed"
+
+
+def test_offline_modes_never_construct_transport_or_read_key(
+    records, runner, tmp_path, monkeypatch
+):
+    packet, manifest, store = captured_run(records, tmp_path / "run", count=0)
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+    monkeypatch.setattr(runner, "make_live_transport", lambda *args: pytest.fail("credential read"))
+    output = tmp_path / "dry.json"
+    runner.main(["--packet", str(packet_path), "--output", str(output)])
+    assert json.loads(output.read_text(encoding="utf-8"))["manifest"] == manifest
+    exported = tmp_path / "export.json"
+    runner.main(
+        [
+            "--export",
+            "--packet",
+            str(packet_path),
+            "--run-dir",
+            str(store.root),
+            "--output",
+            str(exported),
+        ]
+    )
+    assert len(json.loads(exported.read_text(encoding="utf-8"))["captures"]) == 72
+    with pytest.raises(SystemExit) as error:
+        runner.main(["--export", "--live", "--packet", str(packet_path)])
+    assert error.value.code == 2
+
+
+def test_live_cli_rejects_binding_or_dirty_code(records, runner, tmp_path, monkeypatch):
+    packet, checked, directory = live_fixture(records, tmp_path)
+    packet_path, record_path = tmp_path / "packet.json", tmp_path / "execution.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+    record_path.write_text(json.dumps(checked.raw), encoding="utf-8")
+    monkeypatch.setattr(runner, "make_live_transport", lambda *args: pytest.fail("credential read"))
+    monkeypatch.setattr(runner, "implementation_commit", lambda: "b" * 40)
+    with pytest.raises(SystemExit) as error:
+        runner.main(
+            [
+                "--live",
+                "--packet",
+                str(packet_path),
+                "--execution",
+                str(record_path),
+                "--run-dir",
+                str(directory),
+                "--credential-file",
+                str(tmp_path / "no-key"),
+            ]
+        )
+    assert error.value.code == 2
+    assert not directory.exists()
+
+
+def test_zero_budget_with_zero_rates_never_generates(records, runner, tmp_path):
+    packet = prepare_pilot()
+    manifest = records.build_manifest(packet)
+    directory = tmp_path / "run"
+    raw = execution(manifest, directory, "0")
+    raw["prices"] = prices("0", "0")
+    checked = records.validate_execution(raw, manifest, directory, "a" * 40)
+    fake = FakeTransport(directory)
+    runner.run_live(packet, checked, directory, lambda: fake)
+    assert "responses" not in fake.endpoints
+
+
+def test_text_size_failure_has_explicit_reason(runner):
+    normalized = runner.normalize_result(result_for(provider_response("x" * 8193)))
+    assert normalized["status"] == "failed"
+    assert normalized["reason"] == "response_text_too_large"
+
+
+@pytest.mark.parametrize("phase", ["write", "flush", "close"])
+def test_intent_io_failure_prevents_dispatch_and_preserves_evidence(
+    records, runner, tmp_path, monkeypatch, phase
+):
+    packet, checked, directory = live_fixture(records, tmp_path)
+    fake = FakeTransport(directory)
+    original_open = Path.open
+
+    class BrokenFile:
+        def __init__(self, stream):
+            self.stream = stream
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            self.stream.close()
+            if phase == "close":
+                raise OSError("authored close failure")
+
+        def write(self, data):
+            self.stream.write(data)
+            if phase == "write":
+                raise OSError("authored write failure")
+
+        def flush(self):
+            if phase == "flush":
+                raise OSError("authored flush failure")
+            self.stream.flush()
+
+        def fileno(self):
+            return self.stream.fileno()
+
+    def patched_open(path, mode="r", *args, **kwargs):
+        stream = original_open(path, mode, *args, **kwargs)
+        if path == directory / "attempts/000.json" and mode == "xb":
+            return BrokenFile(stream)
+        return stream
+
+    monkeypatch.setattr(Path, "open", patched_open)
+    summary = runner.run_live(packet, checked, directory, lambda: fake)
+    assert "responses" not in fake.endpoints
+    assert (directory / "attempts/000.json").exists()
+    assert summary["reserved_micro_usd"] == 2688
+    assert runner.export_run(packet, directory)["captures"][0]["status"] == "failed"
+
+
+@pytest.mark.parametrize("tokens", [0, 2048])
+def test_count_boundary_permits_one_budgeted_generation(records, runner, tmp_path, tokens):
+    packet, checked, directory = live_fixture(records, tmp_path, "0.002688")
+    fake = FakeTransport(directory, count_value=tokens)
+    runner.run_live(packet, checked, directory, lambda: fake)
+    assert fake.endpoints.count("responses") == 1
