@@ -13,8 +13,8 @@ compose existing generators and PR-6 audit functions. Existing training and life
 
 **Spec:** [Approved PR-7 design](2026-10-11-cumulative-curriculum-design.md).
 
-**Status:** Design approved on 2026-10-11; this implementation plan awaits review. Native execution
-is recommended, consistent with the earlier PRs, but this plan does not record an execution approval.
+**Status:** Design approved on 2026-10-11; implementation plan and native execution approved
+by the maintainer on 2026-10-12. Live studies and publication remain separate decisions.
 Base: `6d14ca0d4289207c6d2da3e2a05b1b90d320c88f`; branch: `codex/cumulative-curriculum-pr7`.
 
 ## Global constraints
