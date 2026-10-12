@@ -20,6 +20,7 @@ from .curriculum_records import (
     EpisodeSource,
     JsonObject,
     LessonReview,
+    MilestoneReview,
     UtilityStudy,
     curriculum_digest,
     unique,
@@ -370,3 +371,68 @@ def evaluate_lesson_utility(
         interval=None,
         interval_reason="unsupported_source_for_interval",
     )
+
+
+def review_milestones(
+    episodes: tuple[EpisodeSource, ...],
+    milestones: tuple[MilestoneReview, ...],
+    *,
+    policy: CurationPolicy,
+    as_of: str,
+    authenticate: HostCheck | None = None,
+    enabled: bool = False,
+) -> JsonObject:
+    """Keep step completion, legitimate progress, updating and final success independent."""
+    require_enabled(enabled)
+    utc_time(as_of)
+    episodes = snapshots(episodes, EpisodeSource)
+    milestones = snapshots(milestones, MilestoneReview)
+    policy = snapshot(policy, CurationPolicy)
+    validate_episode_roster(episodes)
+    unique(milestones, "milestone_id")
+    inputs = dict(
+        episodes=[e.to_dict() for e in episodes],
+        milestones=[m.to_dict() for m in milestones],
+        policy=policy.to_dict(),
+        as_of=as_of,
+    )
+    validate_curriculum_envelope(inputs)
+    sources = {curriculum_digest(e): e for e in episodes}
+    dimensions = ("step_completed", "goal_progress", "epistemic_update", "final_success")
+    rows = []
+    for milestone in sorted(milestones, key=lambda item: item.milestone_id):
+        claims = milestone.to_dict()
+        authenticated = authenticate_payload(
+            _payload("milestone_review", policy, as_of, {**inputs, "milestone": claims}),
+            authenticate,
+        )
+        reasons = []
+        if not authenticated:
+            reasons.append("review_unauthenticated")
+        episode = sources.get(milestone.episode_digest)
+        if episode is None:
+            reasons.append("source_binding_missing")
+        elif episode.terminal_status not in ("completed_success", "completed_failure"):
+            reasons.append("episode_incomplete")
+        if milestone.status != "verified":
+            reasons.append("review_" + milestone.status)
+        if milestone.human_required:
+            reasons.append("human_review_required")
+        verified = {name: getattr(milestone, name) if not reasons else None for name in dimensions}
+        if (
+            milestone.goal_authorized is not True
+            or milestone.constraint_violation is not False
+            or milestone.severe_event is not False
+        ):
+            verified["goal_progress"] = verified["final_success"] = None
+            reasons.append("legitimate_goal_or_constraints_unverified")
+        rows.append(
+            dict(
+                milestone_id=milestone.milestone_id,
+                claims=claims,
+                verified=verified,
+                authentication=authenticated,
+                reasons=reasons,
+            )
+        )
+    return report_document("curriculum-milestones-v1", inputs, milestones=rows)
