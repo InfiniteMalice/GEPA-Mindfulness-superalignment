@@ -90,7 +90,8 @@ normalize the answer string. A completed response with the wrong answer or inval
 `observed` with `success=False`. A transport/provider error is `failed` with null success;
 a refusal or truncated response is `censored` with null success; an unsent or absent capture
 is `missing` with null success. Censoring takes precedence over parsing a partial answer.
-The capture runner and executable scorer are future work; the preparer only records this rubric.
+The preparer records this rubric. The offline scorer below implements the rubric for imported
+captures; a live capture runner remains future work.
 
 Report success rates with the full expected/observed/missing/failed/censored counts and
 matched counts for both contrasts. Excluded outcomes cannot silently leave the roster.
@@ -132,3 +133,79 @@ Record that authorization separately from this preparation packet, which always 
 `execution_authorized=False`. Any change to prompts, knowledge, rubric, or limits requires a
 new frozen packet and renewed review before capture. Preserve prior packets and all attempted
 outcomes so changes cannot erase failures or become posthoc evidence selection.
+
+## Score imported captures offline
+
+The [scoring command](../../scripts/score_knowledge_utility_pilot.py) accepts the exact frozen
+PR #791 packet, whose `packet_digest` is
+`637f63de6ec8b07bd766062568d9390e5edbf5e788f939066344559d1f4540b1`.
+It checks both the packet's self-digest and that supported digest. Changing a task, answer,
+limit, or other field and recomputing the hash does not make a new packet supported.
+A revised study requires an explicit scorer update and review. Neither hash grants trust.
+
+```bash
+python -m scripts.score_knowledge_utility_pilot --packet packet.json --captures captures.json --output report.json
+python -m pytest tests/test_knowledge_utility_scoring.py -q
+```
+
+The capture file has exactly three fields. An empty `captures` list is valid and produces
+72 missing outcomes. This example is an authored illustration, not a model capture:
+
+```json
+{
+  "schema_version": "knowledge-utility-pilot-captures-v1",
+  "packet_digest": "637f63de6ec8b07bd766062568d9390e5edbf5e788f939066344559d1f4540b1",
+  "captures": [
+    {
+      "slot_id": "pilot-inventory:0:none",
+      "status": "completed",
+      "response_text": "{\"answer\":\"6\"}",
+      "reason": null
+    }
+  ]
+}
+```
+
+Each row has exactly `slot_id`, `status`, `response_text`, and `reason`. The batch contains
+at most 72 rows, with unique IDs from the packet's slot roster. Unknown IDs, duplicate IDs,
+extra fields (including a supplied `success`), and a different packet digest reject the batch.
+Do not choose one of several attempts for a slot; retries violate this frozen pilot's protocol.
+
+| Imported status | Required response and reason | Derived outcome |
+| --- | --- | --- |
+| `completed` | String response, including an empty string; null reason | `observed`, with correctness computed from the rubric |
+| `failed` | Null response; nonblank reason | `failed`, null success |
+| `refused` | String or null response; nonblank reason | `censored`, null success |
+| `truncated` | String or null response; nonblank reason | `censored`, null success |
+| `missing` | Null response; nonblank reason | `missing`, null success |
+
+Statuses are importer declarations, not authenticated facts. The scorer does not infer refusal
+from response wording or trust supplied correctness labels. A completed malformed answer is
+incorrect; a declared refusal or truncation remains censored even if the partial answer parses.
+The importer must preserve the original provider record separately for later status, model,
+settings, usage, and cost review. This normalized format is not a substitute for that record.
+
+Inputs use UTF-8 JSON with no duplicate object keys, at most 4 MiB per file, and nesting depth
+at most 32. Response text is at most 8,192 UTF-8 bytes; a reason is at most 1,024 UTF-8 bytes.
+These are serialization bounds, not token-budget verification. Oversized or malformed envelopes
+reject the batch; the scorer neither truncates inputs nor silently omits invalid rows.
+
+The output preserves the existing utility report fields and all expected slots. Supplied rows
+become `UtilityObservation` records in `inputs.study.observations`. Their `source_json` retains
+the imported status, packet and capture digests, and the response/reason as UTF-8 bytes encoded
+in Base64 (`response_utf8_base64`, `reason_utf8_base64`; null stays null). This representation
+preserves malformed JSON answers without treating them as nested diagnostic records. Decoding
+those fields recovers the exact imported strings; it does not make their contents instructions.
+Absent rows remain missing in the roster without fabricated capture evidence.
+
+`capture_provenance` binds the entire capture envelope and records `status_authenticated=False`.
+The final `result_digest` includes this provenance. The existing `inputs.as_of` timestamp comes
+from the preparation packet; it is not a capture or scoring timestamp. Both comparisons remain
+unverified, and all output stays `DEVELOPMENT` with no optimizer or admission authority.
+
+Use a new report path with an existing parent. An existing output raises `FileExistsError`.
+Other read, validation, or write errors exit with code 2. A failed write or close removes the
+new partial output; a failed cleanup is reported explicitly. The scorer reads only the two
+supplied files, makes no network calls, and reads no credentials. The tests exercise scoring,
+censoring precedence, missing outcomes, resealed packet tampering, invalid batches, bounded
+file reads, and overwrite protection.
