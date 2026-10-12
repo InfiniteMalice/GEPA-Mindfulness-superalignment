@@ -1,8 +1,11 @@
 """Frozen pilot capture cannot replace attempts or grant evidence authority."""
 
 # Standard library
+import base64
+import json
 import multiprocessing
 from copy import deepcopy
+from dataclasses import asdict
 from pathlib import Path
 
 # Third-party
@@ -239,3 +242,208 @@ def test_publication_preserves_competing_destination(records, tmp_path, monkeypa
         records.publish_json(destination, {"captures": []})
     assert destination.read_text(encoding="utf-8") == "other writer"
     assert list(tmp_path.iterdir()) == [destination]
+
+
+@pytest.fixture
+def runner():
+    from scripts import capture_knowledge_utility_pilot
+
+    return capture_knowledge_utility_pilot
+
+
+def provider_response(text='{"answer":"6"}', status="completed", content=None):
+    return dict(
+        object="response",
+        id="resp_authored",
+        status=status,
+        model="gpt-5.4-mini-2026-03-17",
+        error=None,
+        incomplete_details={"reason": "max_output_tokens"} if status == "incomplete" else None,
+        usage={"input_tokens": 100, "output_tokens": 20, "total_tokens": 120},
+        output=[
+            dict(
+                type="message",
+                id="msg_authored",
+                role="assistant",
+                status=status,
+                content=(
+                    content
+                    if content is not None
+                    else [{"type": "output_text", "text": text, "annotations": []}]
+                ),
+            )
+        ],
+    )
+
+
+def result_for(response, **changes):
+    from scripts.knowledge_utility_capture_transport import TransportResult
+
+    fields = dict(
+        status=200,
+        request_id="req_authored",
+        body=json.dumps(response).encode(),
+        error_code=None,
+        redacted=False,
+        incomplete=False,
+        started_at="2026-10-12T00:00:00Z",
+        ended_at="2026-10-12T00:00:01Z",
+        elapsed_seconds=1.0,
+    )
+    fields.update(changes)
+    return TransportResult(**fields)
+
+
+@pytest.mark.parametrize(
+    "response,want,text",
+    [
+        (provider_response(), "completed", '{"answer":"6"}'),
+        (provider_response("bad JSON"), "completed", "bad JSON"),
+        (provider_response("I refuse"), "completed", "I refuse"),
+        (provider_response(content=[]), "completed", ""),
+        (provider_response(status="incomplete"), "truncated", '{"answer":"6"}'),
+        (
+            provider_response(
+                status="incomplete",
+                content=[
+                    {"type": "refusal", "refusal": "refused"},
+                    {"type": "output_text", "text": '{"answer":"6"}', "annotations": []},
+                ],
+            ),
+            "refused",
+            '{"answer":"6"}',
+        ),
+        (
+            provider_response(
+                content=[{"type": "output_text", "text": "a"}, {"type": "output_text", "text": "b"}]
+            ),
+            "failed",
+            None,
+        ),
+    ],
+    ids=[
+        "correct",
+        "malformed-answer",
+        "refusal-wording",
+        "empty",
+        "truncated",
+        "refusal-precedence",
+        "multiple-text",
+    ],
+)
+def test_normalization_precedence(runner, response, want, text):
+    normalized = runner.normalize_result(result_for(response))
+    assert normalized["status"] == want
+    assert normalized["response_text"] == text
+    assert (normalized["reason"] is None) == (want == "completed")
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "model",
+        "usage",
+        "boolean",
+        "input-limit",
+        "output-limit",
+        "tool",
+        "unknown",
+        "redacted",
+        "http",
+        "envelope",
+    ],
+)
+def test_normalization_rejects_protocol_violations(runner, fault):
+    response = provider_response()
+    changes = {}
+    if fault == "model":
+        response["model"] = "different"
+    elif fault == "usage":
+        response["usage"] = None
+    elif fault in ("boolean", "input-limit", "output-limit"):
+        key = "output_tokens" if fault == "output-limit" else "input_tokens"
+        response["usage"][key] = {"boolean": True, "input-limit": 2049, "output-limit": 257}[fault]
+    elif fault in ("tool", "unknown"):
+        response["output"].append({"type": "function_call" if fault == "tool" else "surprise"})
+    elif fault == "redacted":
+        changes["redacted"] = True
+    elif fault == "http":
+        changes.update(status=500, error_code="http_error")
+    else:
+        changes["body"] = b'{"status":"completed","status":"incomplete"}'
+    assert runner.normalize_result(result_for(response, **changes))["status"] == "failed"
+
+
+@pytest.mark.parametrize("chars,want", [(2048, "completed"), (2049, "failed")])
+def test_export_counts_unicode_bytes(runner, chars, want):
+    assert (
+        runner.normalize_result(result_for(provider_response("\U0001f600" * chars)))["status"]
+        == want
+    )
+
+
+def captured_run(records, directory, count=1):
+    packet = prepare_pilot()
+    manifest = records.build_manifest(packet)
+    checked = records.validate_execution(
+        execution(manifest, directory), manifest, directory, "a" * 40
+    )
+    store = records.RunStore.create(directory, checked, manifest)
+    for req in manifest["requests"][:count]:
+        seq = req["sequence"]
+        store.write_record(
+            f"attempts/{seq:03}.json",
+            dict(
+                sequence=seq,
+                slot_id=req["slot_id"],
+                request_digest=req["request_digest"],
+                attempt_number=1,
+                reservation_micro_usd=2688,
+                cumulative_micro_usd=(seq + 1) * 2688,
+                utc="2026-10-12T00:00:00Z",
+            ),
+        )
+    return packet, manifest, store
+
+
+def test_export_preserves_uncertain_attempt(records, runner, tmp_path):
+    packet, manifest, store = captured_run(records, tmp_path / "run")
+    envelope = runner.export_run(packet, store.root)
+    assert len(envelope["captures"]) == 72
+    assert envelope["captures"][0]["status"] == "failed"
+    assert envelope["captures"][1]["status"] == "missing"
+    (store.root / "attempts/000.json").write_bytes(b'{"sequence":')
+    envelope = runner.export_run(packet, store.root)
+    assert envelope["captures"][0]["status"] == "failed"
+    assert envelope["captures"][0]["reason"] == "uncertain_attempt"
+
+
+@pytest.mark.parametrize("fault", ["identity", "orphan", "sequence", "metadata"])
+def test_export_rejects_corrupt_identity(records, runner, tmp_path, fault):
+    packet, manifest, store = captured_run(records, tmp_path / "run")
+    value = asdict(result_for(provider_response()))
+    value["body"] = base64.b64encode(value["body"]).decode()
+    request = manifest["requests"][0]
+    store.write_record(
+        "results/000.json",
+        dict(
+            sequence=0,
+            slot_id=request["slot_id"],
+            request_digest=request["request_digest"],
+            transport=value,
+        ),
+    )
+    if fault == "identity":
+        path = store.root / "results/000.json"
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw["run_id"] = "foreign"
+        path.write_text(json.dumps(raw), encoding="utf-8")
+    elif fault == "orphan":
+        (store.root / "attempts/000.json").unlink()
+    elif fault == "sequence":
+        (store.root / "attempts/099.json").write_text("{}", encoding="utf-8")
+    else:
+        (store.root / "requests.json").write_text("{}", encoding="utf-8")
+    with pytest.raises(ValueError):
+        runner.export_run(packet, store.root)
+
