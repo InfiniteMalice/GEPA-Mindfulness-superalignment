@@ -1,6 +1,6 @@
 # PR-7 design: synthetic curriculum and cumulative knowledge
 
-Status: Proposed written design; awaiting maintainer review. No PR-7 implementation or live run is approved by this document.
+Status: Written design approved by the maintainer on 2026-10-11. Implementation plan review and execution-method confirmation remain pending. This design does not authorize a live run.
 Date: 2026-10-11.
 Base: merged PR-5, commit `6d14ca0d4289207c6d2da3e2a05b1b90d320c88f`.
 Workflow: superpowers brainstorming (architectural), with repo-quality-gate.
