@@ -1,7 +1,7 @@
 # Knowledge-utility pilot capture runner
 
-Status: proposed written specification; conversational direction approved on 2026-10-12.
-Written-spec review, implementation planning, and live execution remain separate stages.
+Status: written specification approved by the maintainer on 2026-10-12.
+Implementation-plan review and live execution remain separate stages.
 
 ## Purpose and boundaries
 
