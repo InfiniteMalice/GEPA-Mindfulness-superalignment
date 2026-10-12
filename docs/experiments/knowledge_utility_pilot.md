@@ -319,6 +319,9 @@ or select a replacement answer. Keep old run directories after any newly authori
 Local records are not signatures; the scorer continues to mark statuses unauthenticated.
 
 Dry-run/export/complete roster success exits 0. Invalid options, validation or filesystem
-errors, and stopped/uncertain runs exit 2. A crash can leave no terminal summary; preserve
-all artifacts and use offline export. Output publication requires filesystem hard-link
+errors, and stopped/uncertain runs exit 2. Live failure diagnostics include the bound run
+path and warn that dispatch may be uncertain. A crash can leave an absent or partially
+written terminal summary; export recovers from the durable slot records in either case.
+A complete summary with conflicting identity still rejects export. Preserve all artifacts.
+Output publication requires filesystem hard-link
 support and never overwrites or deletes a competing destination.

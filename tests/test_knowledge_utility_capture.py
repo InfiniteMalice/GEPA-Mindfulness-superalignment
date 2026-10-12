@@ -685,3 +685,60 @@ def test_count_boundary_permits_one_budgeted_generation(records, runner, tmp_pat
     fake = FakeTransport(directory, count_value=tokens)
     runner.run_live(packet, checked, directory, lambda: fake)
     assert fake.endpoints.count("responses") == 1
+
+
+def test_incomplete_terminal_does_not_block_recovery(records, runner, tmp_path):
+    packet, manifest, store = captured_run(records, tmp_path / "run")
+    (store.root / "terminal.json").write_bytes(b'{"run_id":')
+    rows = runner.export_run(packet, store.root)["captures"]
+    assert len(rows) == 72
+    assert rows[0]["status"] == "failed" and rows[0]["reason"] == "uncertain_attempt"
+    assert rows[1]["status"] == "missing"
+    (store.root / "terminal.json").write_text('{"run_id":"foreign"}', encoding="utf-8")
+    with pytest.raises(ValueError, match="identity"):
+        runner.export_run(packet, store.root)
+
+
+@pytest.mark.parametrize("failed_file", ["execution.json", "terminal.json"])
+def test_live_io_diagnostic_preserves_run_location_and_uncertainty(
+    records, runner, tmp_path, monkeypatch, capsys, failed_file
+):
+    packet, checked, directory = live_fixture(records, tmp_path)
+    packet_path, record_path = tmp_path / "packet.json", tmp_path / "execution.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+    record_path.write_text(json.dumps(checked.raw), encoding="utf-8")
+    monkeypatch.setattr(runner, "implementation_commit", lambda: "a" * 40)
+
+    # A transport setup failure reaches terminal persistence without a real provider.
+    def no_transport(path):
+        raise OSError("sk-test-sentinel")
+
+    monkeypatch.setattr(runner, "make_live_transport", no_transport)
+    original = records.RunStore.write_record
+
+    def partial_write(self, relative, data):
+        if relative == failed_file:
+            (self.root / relative).write_bytes(b'{"partial":')
+            raise OSError("sk-test-sentinel")
+        return original(self, relative, data)
+
+    monkeypatch.setattr(records.RunStore, "write_record", partial_write)
+    with pytest.raises(SystemExit) as error:
+        runner.main(
+            [
+                "--live",
+                "--packet",
+                str(packet_path),
+                "--execution",
+                str(record_path),
+                "--run-dir",
+                str(directory),
+                "--credential-file",
+                str(tmp_path / "no-key"),
+            ]
+        )
+    assert error.value.code == 2
+    diagnostic = capsys.readouterr().err
+    assert str(directory) in diagnostic and "uncertain" in diagnostic
+    assert "sk-test-sentinel" not in diagnostic
+    assert (directory / failed_file).exists()

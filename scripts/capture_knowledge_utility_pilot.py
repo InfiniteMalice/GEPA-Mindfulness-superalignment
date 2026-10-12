@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import json
 import math
 import subprocess
 from dataclasses import asdict, fields
@@ -200,10 +201,15 @@ def export_run(packet: JsonObject, run_dir: Path) -> JsonObject:
     unsent_reason = "not_attempted"
     terminal_path = run_dir / "terminal.json"
     if terminal_path.exists():
-        terminal = read_bounded_json(terminal_path)
-        _check_identity(terminal, identity)
-        if terminal.get("reason") in ("budget_exhausted", "count_failed", "generation_failed"):
-            unsent_reason = terminal["reason"]
+        try:
+            terminal = read_bounded_json(terminal_path)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            # The optional summary may be interrupted; durable slot records still govern.
+            terminal = None
+        if terminal is not None:
+            _check_identity(terminal, identity)
+            if terminal.get("reason") in ("budget_exhausted", "count_failed", "generation_failed"):
+                unsent_reason = terminal["reason"]
     for request in manifest["requests"]:
         seq = request["sequence"]
         attempt_path = run_dir / f"attempts/{seq:03}.json"
@@ -453,6 +459,11 @@ def main(argv: list[str] | None = None) -> None:
                 ),
             )
     except (OSError, ValueError, TypeError, subprocess.SubprocessError):
+        if args.live:
+            parser.error(
+                f"live capture failed; dispatch may be uncertain; preserve run at {args.run_dir} "
+                "and inspect intents before another run"
+            )
         parser.error("cannot capture pilot: invalid input, checkout, or file operation")
 
 
