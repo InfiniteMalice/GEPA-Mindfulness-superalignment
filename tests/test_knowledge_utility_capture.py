@@ -158,6 +158,38 @@ def test_bounded_json_rejects_bad_input(records, tmp_path, data):
         records.read_bounded_json(path)
 
 
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("temperature", True),
+        ("temperature", 1.0),
+        ("max_output_tokens", 256.0),
+        ("store", 0),
+        ("stream", 0),
+    ],
+)
+def test_execution_rejects_profile_type_substitutions(records, tmp_path, field, value):
+    """Equal Python values cannot replace the approved JSON profile types."""
+    manifest = records.build_manifest(prepare_pilot())
+    run_dir = tmp_path / "run"
+    raw = deepcopy(execution(manifest, run_dir))
+    raw["profile"][field] = value
+    with pytest.raises(ValueError, match="execution binding mismatch"):
+        records.validate_execution(raw, manifest, run_dir, "a" * 40)
+    assert not run_dir.exists()
+
+
+def test_execution_accepts_reordered_profile_keys(records, tmp_path):
+    """JSON object key order does not change an otherwise exact approval."""
+    manifest = records.build_manifest(prepare_pilot())
+    run_dir = tmp_path / "run"
+    raw = deepcopy(execution(manifest, run_dir))
+    raw["profile"] = dict(reversed(list(raw["profile"].items())))
+    checked = records.validate_execution(raw, manifest, run_dir, "a" * 40)
+    assert checked.raw["profile"] == manifest["profile"]
+    assert not run_dir.exists()
+
+
 def _create_run_worker(directory, manifest, raw, queue):
     from scripts import knowledge_utility_capture_records as records
 

@@ -243,7 +243,7 @@ The live command requires a separately approved execution record with these exac
 | `manifest_digest` | Digest from the dry-run manifest |
 | `implementation_commit` | Current clean tracked checkout's 40-character Git HEAD |
 | `run_directory` | Absolute path to the new run directory |
-| `profile` | Exact profile from the dry-run manifest |
+| `profile` | Canonical JSON must match the dry-run manifest, including value types and numeric representations; object key order is ignored |
 | `prices` | Price record described below |
 | `approved_budget_usd` | Unsigned USD decimal string with at most six fractional digits |
 | `approval_reference` | Nonblank reference to retained maintainer approval, at most 1,024 characters |

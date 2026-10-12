@@ -190,7 +190,8 @@ def validate_execution(
         if type(raw[key]) is not str or not raw[key].strip() or len(raw[key]) > 1024:
             raise ValueError("execution reference required")
     for key in ("packet_digest", "manifest_digest", "profile"):
-        if raw[key] != manifest[key]:
+        # Python equality conflates booleans and numbers; bind the approved JSON instead.
+        if canonical_json(raw[key]) != canonical_json(manifest[key]):
             raise ValueError("execution binding mismatch")
     if not re.fullmatch(r"[a-f0-9]{40}", implementation_commit):
         raise ValueError("invalid implementation commit")
