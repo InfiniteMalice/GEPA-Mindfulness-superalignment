@@ -239,3 +239,75 @@ def test_cli_cleans_partial_report(
     assert error.value.code == 2
     assert "cannot write" in capsys.readouterr().err
     assert not output.exists()
+
+
+def test_close_failure_preserves_concurrent_replacement(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Cleanup cannot delete a completed report published by another writer."""
+    output = tmp_path / "report.json"
+    replacement = tmp_path / "replacement.json"
+    original_open = Path.open
+    monkeypatch.setattr(scorer, "_read_json", lambda path: {})
+    monkeypatch.setattr(scorer, "score_pilot", lambda *args: {"result": "test-only"})
+
+    class RacingStream:
+        """Replace the destination before surfacing a delayed close failure."""
+
+        def __init__(self, path: Path, *args: Any, **kwargs: Any) -> None:
+            """Retain the actual open file until the simulated race."""
+            self.stream = original_open(path, *args, **kwargs)
+
+        def __enter__(self) -> "RacingStream":
+            """Expose the wrapper's file operations."""
+            return self
+
+        def write(self, data: bytes) -> None:
+            """Write to the original file before replacement."""
+            self.stream.write(data)
+
+        def __exit__(self, *args: Any) -> None:
+            """Replace the closed file before surfacing its delayed error."""
+            self.stream.close()
+            with original_open(replacement, "wb") as other:
+                other.write(b"another completed report")
+            replacement.replace(output)
+            raise OSError("simulated final-flush error after replacement")
+
+    monkeypatch.setattr(Path, "open", lambda path, *a, **kw: RacingStream(path, *a, **kw))
+    with pytest.raises(SystemExit) as error:
+        main(["--packet", "unused", "--captures", "unused", "--output", str(output)])
+    assert error.value.code == 2
+    with original_open(output, "rb") as stream:
+        assert stream.read() == b"another completed report"
+    assert list(tmp_path.iterdir()) == [output]
+
+
+@pytest.mark.parametrize("concurrent_output", [False, True])
+def test_publication_failure_preserves_destination_and_cleans_staging(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, concurrent_output: bool
+) -> None:
+    """Publishing cannot replace a competing result or leave an unsupported-link partial."""
+    output = tmp_path / "report.json"
+    original_link = scorer.os.link
+    monkeypatch.setattr(scorer, "_read_json", lambda path: {})
+    monkeypatch.setattr(scorer, "score_pilot", lambda *args: {"result": "test-only"})
+
+    def racing_link(source: Path, destination: Path) -> None:
+        """Inject a competing publication or a filesystem without hard-link support."""
+        assert not output.exists()
+        assert source.read_bytes() == b'{"result":"test-only"}\n'
+        if concurrent_output:
+            output.write_bytes(b"another completed report")
+            original_link(source, destination)
+        else:
+            raise OSError("hard links unsupported")
+
+    monkeypatch.setattr(scorer.os, "link", racing_link)
+    with pytest.raises(FileExistsError if concurrent_output else SystemExit):
+        main(["--packet", "unused", "--captures", "unused", "--output", str(output)])
+    if concurrent_output:
+        assert output.read_bytes() == b"another completed report"
+    else:
+        assert not output.exists()
+    assert list(tmp_path.iterdir()) == ([output] if concurrent_output else [])

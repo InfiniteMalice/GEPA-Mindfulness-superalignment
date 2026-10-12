@@ -5,8 +5,10 @@ from __future__ import annotations
 
 import argparse
 import base64
+import os
 from dataclasses import replace
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any
 
 # Third-party
@@ -195,19 +197,16 @@ def main(argv: list[str] | None = None) -> None:
     except (OSError, ValueError) as error:
         parser.error(f"cannot score pilot: {error}")
     try:
-        stream = args.output.open("xb")
+        # Keep cleanup inside a private directory, never at the shared destination.
+        with TemporaryDirectory(prefix=".pilot-report-", dir=args.output.parent) as staging:
+            staged = Path(staging) / "report.json"
+            with staged.open("xb") as stream:
+                stream.write(payload)
+            # A hard link publishes the closed file atomically and refuses an existing name.
+            os.link(staged, args.output)
     except FileExistsError:
         raise
     except OSError as error:
-        parser.error(f"cannot write {args.output}: {error}")
-    try:
-        with stream:
-            stream.write(payload)
-    except OSError as error:
-        try:
-            args.output.unlink(missing_ok=True)
-        except OSError as cleanup_error:
-            parser.error(f"cannot write {args.output}: {error}; cleanup failed: {cleanup_error}")
         parser.error(f"cannot write {args.output}: {error}")
 
 

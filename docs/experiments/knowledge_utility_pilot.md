@@ -204,8 +204,13 @@ from the preparation packet; it is not a capture or scoring timestamp. Both comp
 unverified, and all output stays `DEVELOPMENT` with no optimizer or admission authority.
 
 Use a new report path with an existing parent. An existing output raises `FileExistsError`.
-Other read, validation, or write errors exit with code 2. A failed write or close removes the
-new partial output; a failed cleanup is reported explicitly. The scorer reads only the two
+The scorer writes and closes the report in a private temporary directory beside the output,
+then atomically creates the output as a hard link. The output filesystem must support hard
+links; an unsupported operation fails without a fallback that could overwrite a report.
+Another writer creating the destination first also causes `FileExistsError`. Cleanup removes
+only staging files and never unlinks the shared output pathname. If temporary-directory cleanup
+fails, the CLI reports the error; a successfully published output remains intact.
+Other read, validation, write, or publication errors exit with code 2. The scorer reads only the two
 supplied files, makes no network calls, and reads no credentials. The tests exercise scoring,
 censoring precedence, missing outcomes, resealed packet tampering, invalid batches, bounded
-file reads, and overwrite protection.
+file reads, overwrite protection, and concurrent replacement during a failed write or publication.
