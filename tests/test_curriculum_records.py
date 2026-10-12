@@ -66,6 +66,20 @@ def test_duplicate_ids_and_ancestry_rejected():
             validate_episode_roster(episodes)
 
 
+@pytest.mark.parametrize(
+    "embedded",
+    [
+        '{"training_eligibility":"HIDDEN_EVAL","training_eligibility":"DEVELOPMENT"}',
+        '{"n":NaN}',
+        '{"n":9007199254740992}',
+    ],
+)
+def test_invalid_embedded_json_is_not_treated_as_prose(embedded):
+    episode = curation_inputs()["episodes"][0]
+    with pytest.raises(ValueError):
+        replace(episode, source_json=canonical_json({"nested": embedded}))
+
+
 def test_review_time_interval_is_exact():
     review = curation_inputs()["reviews"][0]
     for value in (review.valid_from, "2026-10-11", "2026-10-11T00:00:00+00:00"):

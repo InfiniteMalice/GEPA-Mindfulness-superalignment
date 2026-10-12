@@ -11,6 +11,7 @@ from curriculum_fixtures import curation_inputs
 from evaluation.causal_records import canonical_json, content_digest
 from gepa_mindfulness.learning_surfaces import LessonReviewStatus
 from synthetic_data.curriculum_records import (
+    BankEntry,
     UtilityObservation,
     UtilitySlot,
     UtilityStudy,
@@ -53,6 +54,71 @@ def test_changed_bank_or_source_withholds(field):
     else:
         inputs["episodes"] = (replace(inputs["episodes"][0], source_json='{"changed":true}'),)
     assert run(inputs)["lessons"][0]["disposition"] == "withheld"
+
+
+@pytest.mark.parametrize("previously_bound", [False, True])
+def test_entire_source_ancestry_requires_current_review_binding(previously_bound):
+    inputs = curation_inputs()
+    parent = replace(inputs["episodes"][0], episode_id="parent")
+    child = replace(inputs["episodes"][0], parent_episode_ids=("parent",))
+    inputs["episodes"] = (child, parent)
+    bind(inputs)
+    assert run(inputs)["lessons"][0]["disposition"] == "curated"
+    if previously_bound:
+        parent = replace(parent, source_json='{"changed":true}')
+        inputs["episodes"] = (child, parent)
+    else:
+        inputs["reviews"] = (
+            replace(inputs["reviews"][0], source_digests=(curriculum_digest(child),)),
+        )
+    report = run(inputs)
+    assert report["lessons"][0]["disposition"] == "withheld"
+    assert "source_binding_missing" in report["lessons"][0]["reasons"]
+    assert report["proposed_bank_additions"] == []
+
+
+@pytest.mark.parametrize("ancestor", [False, True])
+def test_hidden_bank_source_and_ancestry_withhold(ancestor):
+    inputs = curation_inputs()
+    hidden = replace(
+        inputs["episodes"][0],
+        episode_id="hidden-bank-source",
+        source_json='{"training_eligibility":"HIDDEN_EVAL"}',
+    )
+    bank_source = replace(
+        inputs["episodes"][0], episode_id="bank-only", parent_episode_ids=(hidden.episode_id,)
+    )
+    entry = BankEntry(
+        lesson=replace(inputs["lessons"][0], lesson_id="bank-lesson", summary="Existing lesson"),
+        version="1",
+        source_episode_ids=((bank_source if ancestor else hidden).episode_id,),
+        source_json="{}",
+    )
+    inputs["episodes"] += (hidden, bank_source)
+    inputs["bank"] = replace(inputs["bank"], entries=(entry,))
+    inputs["reviews"] = (
+        replace(inputs["reviews"][0], bank_digest=curriculum_digest(inputs["bank"])),
+    )
+    report = run(inputs)
+    assert report["lessons"][0]["disposition"] == "withheld"
+    assert "held_out_source" in report["lessons"][0]["reasons"]
+    assert report["proposed_bank_additions"] == []
+
+
+def test_incoming_lesson_id_cannot_collide_with_bank():
+    inputs = curation_inputs()
+    entry = BankEntry(
+        lesson=replace(inputs["lessons"][0], summary="Different existing content"),
+        version="3",
+        source_episode_ids=(inputs["episodes"][0].episode_id,),
+        source_json="{}",
+    )
+    inputs["bank"] = replace(inputs["bank"], entries=(entry,))
+    inputs["reviews"] = (
+        replace(inputs["reviews"][0], bank_digest=curriculum_digest(inputs["bank"])),
+    )
+    with pytest.raises(ValueError, match="duplicate lesson_id"):
+        run(inputs)
 
 
 @pytest.mark.parametrize(

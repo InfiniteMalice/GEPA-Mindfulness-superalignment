@@ -55,7 +55,9 @@ The complete input envelope is bounded to 4 MiB and depth 32, including decoded 
 Arrays contain at most 1,024 entries. IDs are bounded to 256 characters; reasons and goals to
 16,384. JSON objects in `*_json` fields use `canonical_json`; duplicate keys, nonfinite values,
 unknown fields and schemas, cycles, invalid Unicode and unsafe integers reject. Counts and
-ordinals are nonnegative. Review and replay references include an external record.
+ordinals are nonnegative. Embedded JSON receives the same checks before nested legacy decoders
+run; malformed non-JSON prose remains source text. Review and replay references include an
+external record.
 
 Episode terminal states are `completed_success`, `completed_failure`, `pending`, `cancelled`,
 and `incomplete`. Completed failures may support negative lessons without becoming successes.
@@ -76,7 +78,8 @@ and the complete comparison `subject`. Its separate `authenticate_audit` callbac
 existing PR-6 `AuthenticationRequest` and retains that API's authentication obligations.
 
 Curation requires an existing approved `LessonProposal`, completed source episodes, exact lesson,
-bank, source and policy bindings, an undisputed authenticated review, no outstanding human review,
+bank, source and policy bindings (including every source ancestor), an undisputed authenticated
+review, no outstanding human review,
 and passing `support`, `contradiction_clear`, `freshness`, `reproducible`, `information_preserved`,
 and `nonredundant` checks. Replay evidence retains specification, configuration, recorded seeds,
 and externally captured results; the curator never runs the replay. Validity is inclusive at
@@ -86,8 +89,10 @@ and externally captured results; the curator never runs the replay. Validity is 
 produces `withheld`. An already rejected proposal, exact duplicate content, or an authenticated
 failed check produces `rejected`. Every applicable reason remains visible. Bank inputs are
 immutable; `proposed_bank_additions` do not update any active store or learning destination.
+Incoming lesson IDs must be distinct from existing bank lesson IDs; collisions reject the input.
 Hidden-evaluation and held-out origins remain in audit inputs but cannot supply curated additions
-or included boundary examples. Future training admission requires its own source process.
+or included boundary examples. This includes resolved bank source episodes and their ancestry.
+Future training admission requires its own source process.
 
 ## Utility and milestones
 

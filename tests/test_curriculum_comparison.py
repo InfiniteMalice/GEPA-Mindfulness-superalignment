@@ -67,6 +67,25 @@ def test_unintended_component_change():
     assert "reward_digest_mismatch" in row(run(inputs))["reasons"]
 
 
+@pytest.mark.parametrize("control_seeds", [(), (None,)])
+def test_independent_comparison_requires_known_control_seeds(control_seeds):
+    inputs = comparison_inputs()
+    inputs["arms"] = tuple(
+        replace(
+            arm,
+            seed_policy="independent",
+            seeds=control_seeds if arm.arm_id == "baseline" else (7,),
+            actual_budget_json=arm.planned_budget_json,
+        )
+        for arm in inputs["arms"]
+    )
+    result = row(run(inputs))
+    assert result["isolated"] is False
+    assert result["ready"] is False
+    assert result["matched_execution"] is False
+    assert "seed_policy_unverified" in result["reasons"]
+
+
 def test_inherited_undeclared_component_prevents_isolation():
     inputs = comparison_inputs()
     arms = list(inputs["arms"])

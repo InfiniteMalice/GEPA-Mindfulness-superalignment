@@ -115,3 +115,37 @@ def test_input_order_preserves_sorted_examples():
     inputs["candidates"] = inputs["candidates"][::-1]
     inputs["reviews"] = inputs["reviews"][::-1]
     assert run(inputs)["examples"] == baseline["examples"]
+
+
+@pytest.mark.parametrize("altered_record", [False, True])
+def test_embedded_depth_checked_before_legacy_decoders(monkeypatch, altered_record):
+    inputs = boundary_inputs()
+    candidate = inputs["candidates"][0]
+    pair = candidate.pair
+    depth = 20000 if altered_record else 40
+    embedded = "[" * depth + "0" + "]" * depth
+    factor = pair.changes[0].factor
+    factors = tuple(
+        (name, embedded if name == factor else value) for name, value in pair.before.factors
+    )
+    if altered_record:
+        object.__setattr__(pair.before, "factors", factors)
+        object.__setattr__(pair.changes[0], "before", embedded)
+    else:
+        pair = replace(
+            pair,
+            before=replace(pair.before, factors=factors),
+            changes=(replace(pair.changes[0], before=embedded),) + pair.changes[1:],
+        )
+    original = json.loads
+
+    def guarded_loads(value, *args, **kwargs):
+        assert value != embedded, "unsafe embedded text reached the legacy JSON decoder"
+        return original(value, *args, **kwargs)
+
+    monkeypatch.setattr(json, "loads", guarded_loads)
+    with pytest.raises(ValueError, match="nesting"):
+        if altered_record:
+            run(inputs)
+        else:
+            replace(candidate, pair=pair)

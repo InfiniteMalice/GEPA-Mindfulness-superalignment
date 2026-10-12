@@ -255,7 +255,10 @@ def audit_curriculum_comparison(
             for field in ("starting_system", "optimizer_digest", "reward_digest", "seed_policy"):
                 if getattr(arm, field) != getattr(control, field):
                     reasons.append(field + "_mismatch")
-            if arm.seed_policy == "unknown" or not arm.seeds or None in arm.seeds:
+            if any(
+                item.seed_policy == "unknown" or not item.seeds or None in item.seeds
+                for item in (arm, control)
+            ):
                 reasons.append("seed_policy_unverified")
             if arm.seed_policy == "shared" and arm.seeds != control.seeds:
                 reasons.append("seeds_mismatch")

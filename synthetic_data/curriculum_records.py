@@ -35,7 +35,8 @@ def _pairs(items: list[tuple[str, Any]]) -> JsonObject:
     return result
 
 
-def _decode(text: str) -> Any:
+def decode_curriculum_json(text: str) -> Any:
+    """Decode bounded JSON, preserving syntax errors separately from invalid values."""
     if type(text) is not str or len(text) > _MAX_BYTES:
         raise ValueError("invalid JSON text size")
     depth, quoted, escaped = 0, False, False
@@ -57,9 +58,9 @@ def _decode(text: str) -> Any:
             depth -= 1
     try:
         value = json.loads(text, object_pairs_hook=_pairs)
-        validate_input_envelope(value)
-    except (ValueError, RecursionError, UnicodeError) as error:
+    except (RecursionError, UnicodeError) as error:
         raise ValueError("invalid bounded JSON") from error
+    validate_input_envelope(value)
     return value
 
 
@@ -89,9 +90,9 @@ def validate_curriculum_envelope(value: object) -> None:
             if type(item) is str and item.lstrip().startswith(("{", "[", '"')):
                 # Bracket-prefixed source text must be bounded even when it is not JSON.
                 try:
-                    decoded = _decode(item)
-                except ValueError as error:
-                    if len(item) > 16384 or "nesting" in str(error):
+                    decoded = decode_curriculum_json(item)
+                except json.JSONDecodeError:
+                    if len(item) > 16384:
                         raise
                 else:
                     pending.append((decoded, depth))
@@ -101,7 +102,7 @@ def validate_curriculum_envelope(value: object) -> None:
 
 def read_curriculum_object(value: str) -> JsonObject:
     """Decode an exact canonical object after lexical depth and decoded size checks."""
-    decoded = _decode(value)
+    decoded = decode_curriculum_json(value)
     validate_curriculum_envelope(decoded)
     if type(decoded) is not dict or canonical_json(decoded) != value:
         raise ValueError("source requires a canonical JSON object")
@@ -182,7 +183,9 @@ def _typed(value: Any, kind: Any, restore: bool = False) -> Any:
         if kind is TrustedEvaluatorContract:
             value.__post_init__()
         else:
-            kind.from_dict(value.to_dict())
+            wire = value.to_dict()
+            validate_curriculum_envelope(wire)
+            kind.from_dict(wire)
     return value
 
 

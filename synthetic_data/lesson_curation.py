@@ -23,6 +23,7 @@ from .curriculum_records import (
     MilestoneReview,
     UtilityStudy,
     curriculum_digest,
+    decode_curriculum_json,
     unique,
     utc_time,
     validate_curriculum_envelope,
@@ -99,8 +100,8 @@ def restricted_origin(payload: object) -> bool:
             pending.extend(value)
         elif type(value) is str and value.lstrip().startswith(("{", "[", '"')):
             try:
-                decoded = json.loads(value)
-            except ValueError:
+                decoded = decode_curriculum_json(value)
+            except json.JSONDecodeError:
                 continue
             pending.append(decoded)
     return False
@@ -128,6 +129,19 @@ def _content(lesson: LessonProposal) -> str:
     return content_digest([lesson.summary, lesson.characteristics.to_dict()])
 
 
+def _episode_closure(
+    sources: tuple[str, ...], episodes: dict[str, EpisodeSource]
+) -> dict[str, EpisodeSource]:
+    selected: dict[str, EpisodeSource] = {}
+    pending = list(sources)
+    while pending:
+        source = pending.pop()
+        if source not in selected:
+            selected[source] = episodes[source]
+            pending.extend(episodes[source].parent_episode_ids)
+    return selected
+
+
 def curate_lessons(
     *,
     episodes: tuple[EpisodeSource, ...],
@@ -147,13 +161,16 @@ def curate_lessons(
     reviews = snapshots(reviews, LessonReview)
     bank, policy = snapshot(bank, BankSnapshot), snapshot(policy, CurationPolicy)
     validate_episode_roster(episodes)
-    unique(lessons, "lesson_id")
+    unique(lessons + tuple(entry.lesson for entry in bank.entries), "lesson_id")
     unique(reviews, "lesson_digest")
     episode_ids = {e.episode_id: e for e in episodes}
     if any(
         source not in episode_ids for entry in bank.entries for source in entry.source_episode_ids
     ):
         raise ValueError("unknown bank source episode")
+    bank_sources = _episode_closure(
+        tuple(source for entry in bank.entries for source in entry.source_episode_ids), episode_ids
+    )
     inputs = dict(
         episodes=[e.to_dict() for e in episodes],
         lessons=[item.to_dict() for item in lessons],
@@ -206,23 +223,21 @@ def curate_lessons(
                 reasons.append("review_outside_validity")
             if not review.source_digests or any(d not in by_digest for d in review.source_digests):
                 reasons.append("source_binding_missing")
-            selected = {
-                by_digest[d].episode_id: by_digest[d]
-                for d in review.source_digests
-                if d in by_digest
-            }
-            pending = list(selected.values())
-            while pending:
-                for parent in pending.pop().parent_episode_ids:
-                    if parent not in selected:
-                        selected[parent] = episode_ids[parent]
-                        pending.append(episode_ids[parent])
+            selected = _episode_closure(
+                tuple(by_digest[d].episode_id for d in review.source_digests if d in by_digest),
+                episode_ids,
+            )
+            if any(curriculum_digest(e) not in review.source_digests for e in selected.values()):
+                reasons.append("source_binding_missing")
             if any(
                 e.terminal_status not in ("completed_success", "completed_failure")
                 for e in selected.values()
             ):
                 reasons.append("episode_incomplete")
-            if restricted_origin([e.to_dict() for e in selected.values()] + [bank.to_dict()]):
+            if restricted_origin(
+                [e.to_dict() for e in (*selected.values(), *bank_sources.values())]
+                + [bank.to_dict()]
+            ):
                 reasons.append("held_out_source")
             if review.replay is None:
                 reasons.append("replay_missing")
