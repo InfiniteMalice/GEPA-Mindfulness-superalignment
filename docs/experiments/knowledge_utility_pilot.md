@@ -91,7 +91,7 @@ normalize the answer string. A completed response with the wrong answer or inval
 a refusal or truncated response is `censored` with null success; an unsent or absent capture
 is `missing` with null success. Censoring takes precedence over parsing a partial answer.
 The preparer records this rubric. The offline scorer below implements the rubric for imported
-captures; a live capture runner remains future work.
+captures; the bounded capture command described below can produce those imports.
 
 Report success rates with the full expected/observed/missing/failed/censored counts and
 matched counts for both contrasts. Excluded outcomes cannot silently leave the roster.
@@ -214,3 +214,114 @@ Other read, validation, write, or publication errors exit with code 2. The score
 supplied files, makes no network calls, and reads no credentials. The tests exercise scoring,
 censoring precedence, missing outcomes, resealed packet tampering, invalid batches, bounded
 file reads, overwrite protection, and concurrent replacement during a failed write or publication.
+
+## Capture command
+
+The [capture command](../../scripts/capture_knowledge_utility_pilot.py) implements the
+[bounded-run decision](../adr/0022-knowledge-utility-capture.md). Its default mode makes
+no network calls and does not read credentials:
+
+```bash
+python -m scripts.capture_knowledge_utility_pilot --packet packet.json --output requests.json
+```
+
+The output has `manifest`, `reservation_estimate` (null unless `--prices prices.json`
+was supplied), and `token_counts="unknown"`. The manifest includes the frozen profile,
+72 public request payloads and count projections, slot sequence, request digests, and
+`manifest_digest`. Optional price estimates sit outside the manifest and do not alter
+request identity. Reuse of any output destination fails with exit code 2.
+
+### Execution and price records
+
+The live command requires a separately approved execution record with these exact fields:
+
+| Field | Required value |
+| --- | --- |
+| `schema_version` | `knowledge-utility-pilot-execution-v1` |
+| `run_id` | Nonblank identifier for this one run, at most 1,024 characters |
+| `packet_digest` | Supported frozen digest above |
+| `manifest_digest` | Digest from the dry-run manifest |
+| `implementation_commit` | Current clean tracked checkout's 40-character Git HEAD |
+| `run_directory` | Absolute path to the new run directory |
+| `profile` | Canonical JSON must match the dry-run manifest, including value types and numeric representations; object key order is ignored |
+| `prices` | Price record described below |
+| `approved_budget_usd` | Unsigned USD decimal string with at most six fractional digits |
+| `approval_reference` | Nonblank reference to retained maintainer approval, at most 1,024 characters |
+
+The price object has exactly `model`, `service_tier`, `currency`, `verified_at`,
+`source_urls`, `input_usd_per_million`, `output_usd_per_million`, and `counting_policy`.
+Model matches the frozen snapshot, service tier is `default`, currency is `USD`, and
+`verified_at` is a UTC ISO timestamp ending in `Z`. Sources are 1–10 HTTPS URLs on
+`openai.com`, `developers.openai.com`, or `platform.openai.com`. Each rate is an unsigned
+decimal string, at most six fractional digits; rates and budget are at most 32 characters.
+The only supported `counting_policy` is `no_charge`. These fields are operator assertions;
+valid syntax and source domains do not prove current prices or approval.
+
+Before live execution, independently review the packet and implementation, verify current
+model/settings and counting charges, and obtain maintainer approval of the exact execution
+record and budget. No price file or approval is manufactured by the command. The original
+packet remains `execution_authorized=False`. Unknown/nonzero counting charges block this
+version; a new accounting design is required to support charged counting.
+
+The following command is a syntax example, not authorization:
+
+```bash
+python -m scripts.capture_knowledge_utility_pilot --live --packet packet.json --execution execution.json --run-dir new-run --credential-file selected-key-file
+```
+
+Live mode rejects changed bindings and tracked checkout changes before reading the selected
+credential. It exclusively creates the bound run directory, then counts all 72 inputs before
+any generation. A count failure or value outside 0–2,048 stops the run. Generations are
+sequential, with one attempt per slot and no retries. Requests contain only the frozen actor
+messages and model profile; no evaluator labels or supplied success flags are sent.
+
+The effective budget is the smaller of the approved amount and US$5. Each generation
+reserves `ceil(2048 * input_rate + 256 * output_rate)` micro-USD before sending. Rates are
+USD per million tokens. For the authored arithmetic example `0.75` and `4.5`, one reservation
+is 2,688 micro-USD. That example is not a current pricing assertion. Reservations never
+refund after errors or lower usage. A zero budget sends no generations even at zero rates.
+
+The transport allows only the fixed provider responses/counting endpoints, validates TLS,
+ignores proxy environment variables, and rejects redirects. A spawned worker permits the
+parent to stop the operation after 45 seconds, including DNS and body reads; process cleanup
+can take additional time. Responses are bounded to 1 MiB and credentials are redacted before
+retention. A timeout does not prove that the provider did not process or bill the request.
+Retain the reservation and run directory; do not rerun that slot.
+
+### Retained records and recovery
+
+The run directory retains execution/manifest identity, an execution-started marker,
+numbered counting intents/results, generation intents/results, and a terminal summary
+when persistence succeeds. Intents are flushed and synchronized before dispatch. Results
+retain Base64 response bytes, decoded provider JSON when valid, request ID, timestamps,
+usage, requested/returned model, errors, and redaction flags. Cost derived from usage is
+labeled `estimated_cost_usd`; `billed_cost_usd` remains null because this integration has
+no attributable billing feed. Requested payloads are retained in the manifest.
+
+Completed responses with wrong or malformed answers continue to the existing scorer.
+Provider refusals and output-token truncation are censored; both may continue the roster
+when model and usage are valid. Transport/protocol violations stop subsequent generations.
+Response text above 8,192 UTF-8 bytes fails export normalization without text truncation.
+Provider errors and raw text are evidence, never instructions.
+
+An existing run directory always blocks live execution, including after a crash. There is
+no resume flag. Export is a separate offline operation and always needs a new output path:
+
+```bash
+python -m scripts.capture_knowledge_utility_pilot --export --packet packet.json --run-dir new-run --output captures.json
+python -m scripts.score_knowledge_utility_pilot --packet packet.json --captures captures.json --output report.json
+```
+
+Export includes all 72 slots. An existing incomplete intent becomes a failed uncertain
+attempt, while a slot with no intent remains missing. Corrupt identity metadata, foreign
+results, unknown sequences, and results without intent reject export. Never combine runs
+or select a replacement answer. Keep old run directories after any newly authorized study.
+Local records are not signatures; the scorer continues to mark statuses unauthenticated.
+
+Dry-run/export/complete roster success exits 0. Invalid options, validation or filesystem
+errors, and stopped/uncertain runs exit 2. Live failure diagnostics include the bound run
+path and warn that dispatch may be uncertain. A crash can leave an absent or partially
+written terminal summary; export recovers from the durable slot records in either case.
+A complete summary with conflicting identity still rejects export. Preserve all artifacts.
+Output publication requires filesystem hard-link
+support and never overwrites or deletes a competing destination.
