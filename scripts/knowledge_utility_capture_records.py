@@ -10,12 +10,13 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import ROUND_CEILING, Decimal, localcontext
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any
 from urllib.parse import urlsplit
 
 # Third-party
 # Local
-from evaluation.causal_records import content_digest
+from evaluation.causal_records import canonical_json, content_digest
 from gepa_mindfulness.training.causal_reward_records import validate_input_envelope
 from scripts.score_knowledge_utility_pilot import SUPPORTED_PACKET_DIGEST
 from synthetic_data.curriculum_records import decode_curriculum_json
@@ -212,3 +213,56 @@ def validate_execution(
 def utc_now() -> str:
     """Use explicit UTC for audit records regardless of host timezone."""
     return datetime.now(timezone.utc).isoformat()
+
+
+def _write_new(path: Path, data: JsonObject) -> None:
+    # Preserve a partial intent on failure: its existence blocks an unsafe resend.
+    with path.open("xb") as stream:
+        stream.write((canonical_json(data) + "\n").encode("utf-8"))
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
+def publish_json(path: Path, data: JsonObject) -> None:
+    """Publish a complete artifact without ever unlinking a shared destination."""
+    with TemporaryDirectory(prefix=".pilot-capture-", dir=path.parent) as staging:
+        staged = Path(staging) / "artifact.json"
+        _write_new(staged, data)
+        os.link(staged, path)
+
+
+@dataclass(frozen=True)
+class RunStore:
+    """Single-owner, single-use run directory containing immutable evidence."""
+
+    root: Path
+    identity: JsonObject
+
+    @classmethod
+    def create(cls, run_dir: Path, execution: ExecutionRecord, manifest: JsonObject) -> RunStore:
+        """Claim a fresh directory before reading any credential or making a call."""
+        run_dir.mkdir()
+        identity = {
+            key: execution.raw[key] for key in ("run_id", "packet_digest", "manifest_digest")
+        }
+        store = cls(run_dir, identity)
+        for child in ("counts", "attempts", "results"):
+            (run_dir / child).mkdir()
+        store.write_record("execution.json", {"execution": execution.raw})
+        store.write_record("requests.json", {"manifest": manifest})
+        store.write_record("execution-started.json", {"utc": utc_now()})
+        return store
+
+    def write_record(self, relative: str, data: JsonObject) -> None:
+        """Persist only fixed metadata names or one of the 72 numbered slots."""
+        metadata = {"execution.json", "requests.json", "execution-started.json", "terminal.json"}
+        match = re.fullmatch(
+            r"(?:counts/(\d{3})-(?:intent|result)|(?:attempts|results)/(\d{3}))\.json", relative
+        )
+        if relative not in metadata and (
+            match is None or int(match.group(1) or match.group(2)) >= 72
+        ):
+            raise ValueError("uncontrolled run filename")
+        if set(data) & set(self.identity):
+            raise ValueError("record cannot replace run identity")
+        _write_new(self.root / relative, dict(data, **self.identity))
