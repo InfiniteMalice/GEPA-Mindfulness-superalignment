@@ -254,7 +254,9 @@ def _slot_identity(request: JsonObject) -> JsonObject:
     return {key: request[key] for key in ("sequence", "slot_id", "request_digest")}
 
 
-def _retained_result(result: TransportResult, execution: ExecutionRecord) -> JsonObject:
+def _retained_result(
+    result: TransportResult, execution: ExecutionRecord, *, generation: bool = True
+) -> JsonObject:
     transport = asdict(result)
     transport["body"] = base64.b64encode(result.body).decode("ascii")
     try:
@@ -263,7 +265,7 @@ def _retained_result(result: TransportResult, execution: ExecutionRecord) -> Jso
         provider = None
     usage = provider.get("usage") if type(provider) is dict else None
     estimate = None
-    if isinstance(usage, dict) and _usage_valid(usage):
+    if generation and isinstance(usage, dict) and _usage_valid(usage):
         with localcontext() as ctx:
             ctx.prec = 50
             estimate = str(
@@ -279,6 +281,7 @@ def _retained_result(result: TransportResult, execution: ExecutionRecord) -> Jso
         usage=usage,
         requested_model=MODEL,
         returned_model=provider.get("model") if type(provider) is dict else None,
+        cost_scope="generation" if generation else "counting",
         estimated_cost_usd=estimate,
         billed_cost_usd=None,
     )
@@ -302,6 +305,10 @@ def run_live(
         count_requests=0,
         generation_attempts=0,
         reserved_micro_usd=0,
+        budget_scope="generation_only",
+        counting_policy=execution.prices.counting_policy,
+        counting_cost_usd="0" if execution.prices.counting_policy == "no_charge" else None,
+        total_billed_cost_usd=None,
     )
     pending_generation = False
     try:
@@ -323,7 +330,7 @@ def run_live(
                 f"counts/{seq:03}-result.json",
                 dict(
                     identity,
-                    **_retained_result(result, execution),
+                    **_retained_result(result, execution, generation=False),
                 ),
             )
             try:
@@ -449,7 +456,13 @@ def main(argv: list[str] | None = None) -> None:
             if args.prices:
                 prices = parse_prices(read_bounded_json(args.prices))
                 reserve = reservation_micro_usd(prices)
-                estimate = dict(per_request_micro_usd=reserve, roster_micro_usd=72 * reserve)
+                estimate = dict(
+                    per_request_micro_usd=reserve,
+                    roster_micro_usd=72 * reserve,
+                    budget_scope="generation_only",
+                    counting_policy=prices.counting_policy,
+                    counting_cost_usd="0" if prices.counting_policy == "no_charge" else None,
+                )
             publish_json(
                 args.output,
                 dict(
