@@ -144,10 +144,14 @@ an experiment ran. `matched_execution` additionally requires actual matched budg
 No field authorizes training or establishes improvement. Deployment remains `not_assessed`.
 
 Knowledge readiness rechecks a complete curation report at the comparison's current `as_of`.
+The report must have the exact curation-report fields and fixed non-authority values; its lesson
+results and proposed additions must match the fresh curation result for readiness.
 The manifest host freshly attests current bank/source bindings. Exposures bind the full knowledge
 report, case IDs and consuming candidates/rounds; missing exposure correspondence withholds readiness.
-Case ancestry is resolved through the existing partition manifest. Curation exposures become PR-6
-`use="proposal"` exposures, so a consumed held-out case cannot count as an independent audit.
+Case ancestry is resolved through the existing partition manifest. Curation exposures and each
+arm's declared data cases become PR-6 `use="proposal"` exposures, so a consumed held-out case
+cannot count as an independent audit. Arm data exposures include all ancestors, apply only to the
+consuming candidate (and its protocol descendants), and conservatively use ordinal zero.
 
 ## Executable authored example
 

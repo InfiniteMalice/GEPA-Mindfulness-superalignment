@@ -66,14 +66,24 @@ _CONTROLS = {
 def _derive_exposures(
     records: tuple[CurationExposure, ...],
     manifest: DatasetManifest,
+    arms: tuple[AblationArm, ...],
 ) -> tuple[ExposureRecord, ...]:
     cases = {case.case_id: case for case in manifest.cases}
+    if any(not record.case_ids for record in records):
+        raise ValueError("curation exposure requires case identities")
+    sources = [
+        (r.case_ids, r.ordinal, r.candidate_ids, r.round_ids, r.evidence_refs) for r in records
+    ]
+    # Arm data are declared candidate inputs; conservatively account them from ordinal zero.
+    sources.extend(
+        (arm.data_case_ids, 0, (arm.candidate_id,), (), manifest.evidence_refs)
+        for arm in arms
+        if arm.data_case_ids
+    )
     derived = []
-    for record in records:
+    for case_ids, ordinal, candidate_ids, round_ids, refs in sources:
         visited: set[str] = set()
-        pending = list(record.case_ids)
-        if not pending:
-            raise ValueError("curation exposure requires case identities")
+        pending = list(case_ids)
         while pending:
             identity = pending.pop()
             if identity not in cases:
@@ -84,13 +94,13 @@ def _derive_exposures(
         for purpose in sorted({cases[name].purpose for name in visited}):
             derived.append(
                 ExposureRecord(
-                    record.ordinal,
+                    ordinal,
                     partition_digest(manifest, purpose),
                     purpose,
-                    record.candidate_ids,
-                    record.round_ids,
+                    candidate_ids,
+                    round_ids,
                     "proposal",
-                    record.evidence_refs,
+                    refs,
                 )
             )
     return tuple(derived)
@@ -106,6 +116,23 @@ def _knowledge_reasons(
     if arm.knowledge_report_json is None:
         return ["knowledge_report_missing"]
     report = read_curriculum_object(arm.knowledge_report_json)
+    if (
+        set(report)
+        != {
+            "schema_version",
+            "training_eligibility",
+            "optimizer_input",
+            "confers_authority",
+            "inputs",
+            "lessons",
+            "proposed_bank_additions",
+            "result_digest",
+        }
+        or report["training_eligibility"] != "DEVELOPMENT"
+        or report["optimizer_input"] is not False
+        or report["confers_authority"] is not False
+    ):
+        raise ValueError("invalid knowledge report schema or authority fields")
     if report.get("schema_version") != "lesson-curation-v1" or report.get(
         "result_digest"
     ) != content_digest({k: v for k, v in report.items() if k != "result_digest"}):
@@ -128,6 +155,8 @@ def _knowledge_reasons(
     reasons = []
     if not fresh["proposed_bank_additions"]:
         reasons.append("knowledge_not_currently_curated")
+    if canonical_json(fresh["lessons"]) != canonical_json(report["lessons"]):
+        reasons.append("knowledge_lessons_mismatch")
     if canonical_json(fresh["proposed_bank_additions"]) != canonical_json(
         report.get("proposed_bank_additions")
     ):
@@ -205,7 +234,7 @@ def audit_curriculum_comparison(
             raise ValueError("arm requires its declared control")
         if arm.arm_id == "knowledge" and arm.control_arm_id not in (None, *ARM_IDS[:-1]):
             raise ValueError("knowledge control must be a preceding arm")
-    derived = _derive_exposures(curation_exposures, manifest)
+    derived = _derive_exposures(curation_exposures, manifest, arms)
     inputs = dict(
         arms=[a.to_dict() for a in arms],
         protocol=protocol.to_dict(),

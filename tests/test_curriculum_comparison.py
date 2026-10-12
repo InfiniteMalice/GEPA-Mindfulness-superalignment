@@ -12,7 +12,7 @@ from test_improvement_integration import fixture as audit_fixture
 from curriculum_fixtures import comparison_inputs, curation_inputs
 from evaluation.causal_records import canonical_json, content_digest
 from evaluation.curriculum_comparison import audit_curriculum_comparison
-from evaluation.improvement_audit import audit_improvement, independence_status
+from evaluation.improvement_audit import audit_improvement, independence_status, partition_digest
 from evaluation.improvement_records import AttemptEvent, ExposureRecord, record_digest
 from synthetic_data.curriculum_records import CurationExposure
 from synthetic_data.lesson_curation import curate_lessons
@@ -126,6 +126,42 @@ def test_knowledge_bank_ancestor_exposes_holdout():
     assert report["inputs"]["curation_exposures"][0]["source_json"] == exposure.source_json
 
 
+@pytest.mark.parametrize("purpose", ["independent_audit", "final_test"])
+def test_arm_data_roster_records_recipient_scoped_holdout_exposure(purpose):
+    """Declared training data and its parents cannot remain independent evidence."""
+    inputs = comparison_inputs()
+    inputs["manifest"] = replace(
+        inputs["manifest"],
+        cases=tuple(
+            replace(case, purpose=purpose) if case.case_id.startswith("audit-") else case
+            for case in inputs["manifest"].cases
+        ),
+    )
+    inputs["protocol"] = replace(
+        inputs["protocol"], manifest_digest=record_digest(inputs["manifest"])
+    )
+    inputs["journal"] = replace(
+        inputs["journal"], protocol_digest=record_digest(inputs["protocol"])
+    )
+    inputs["arms"] = tuple(
+        replace(arm, data_case_ids=("audit-child",)) if arm.arm_id == "synthetic" else arm
+        for arm in inputs["arms"]
+    )
+    report = run(inputs)
+    derived = tuple(ExposureRecord.from_dict(item) for item in report["derived_exposures"])
+    assert not independence_status(inputs["protocol"], "synthetic", purpose, derived)["independent"]
+    assert independence_status(inputs["protocol"], "baseline", purpose, derived)["independent"]
+    assert report["improvement_audit"] == audit_improvement(
+        inputs["protocol"],
+        inputs["manifest"],
+        inputs["journal"],
+        inputs["evidence"],
+        exposures=derived,
+        authenticate=lambda request: True,
+        enabled=True,
+    )
+
+
 def knowledge_inputs():
     inputs = comparison_inputs()
     curation = curation_inputs()
@@ -160,6 +196,50 @@ def test_knowledge_missing_exposure_withholds():
     assert row(run(inputs), "knowledge")["ready"] is False
 
 
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("lessons", None),
+        ("training_eligibility", "TRAIN"),
+        ("confers_authority", True),
+        ("optimizer_input", True),
+        ("extra", "unrecognized"),
+    ],
+)
+def test_knowledge_report_rejects_rehashed_schema_or_authority_changes(field, value):
+    """A self-computed digest cannot authenticate a malformed curation report."""
+    inputs = knowledge_inputs()
+    report = json.loads(inputs["arms"][-1].knowledge_report_json)
+    if value is None:
+        report.pop(field)
+    else:
+        report[field] = value
+    report.pop("result_digest")
+    report["result_digest"] = content_digest(report)
+    source = canonical_json(report)
+    inputs["arms"] = inputs["arms"][:-1] + (
+        replace(inputs["arms"][-1], knowledge_report_json=source),
+    )
+    inputs["curation_exposures"] = (replace(inputs["curation_exposures"][0], source_json=source),)
+    with pytest.raises(ValueError, match="knowledge report"):
+        run(inputs)
+
+
+def test_knowledge_report_changed_lesson_results_withhold_readiness():
+    """Matching additions do not hide tampered per-lesson results."""
+    inputs = knowledge_inputs()
+    report = json.loads(inputs["arms"][-1].knowledge_report_json)
+    report["lessons"] = []
+    report.pop("result_digest")
+    report["result_digest"] = content_digest(report)
+    source = canonical_json(report)
+    inputs["arms"] = inputs["arms"][:-1] + (
+        replace(inputs["arms"][-1], knowledge_report_json=source),
+    )
+    inputs["curation_exposures"] = (replace(inputs["curation_exposures"][0], source_json=source),)
+    assert row(run(inputs), "knowledge")["ready"] is False
+
+
 @pytest.mark.parametrize("callback", [None, lambda p: 1, lambda p: p.clear() or True])
 def test_untrusted_manifest_cannot_endorse_comparison(callback):
     assert row(run(callback=callback))["isolated"] is False
@@ -185,6 +265,18 @@ def test_cancelled_attempt_and_severe_event_survive():
         manifest,
         inputs["journal"],
         evidence,
+        exposures=tuple(
+            ExposureRecord(
+                0,
+                partition_digest(manifest, "optimizer_selection"),
+                "optimizer_selection",
+                (arm.candidate_id,),
+                (),
+                "proposal",
+                manifest.evidence_refs,
+            )
+            for arm in inputs["arms"]
+        ),
         authenticate=lambda request: True,
         enabled=True,
     )

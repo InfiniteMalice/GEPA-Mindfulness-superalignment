@@ -363,11 +363,12 @@ modify `docs/peo_curriculum.md`, `docs/adr/0021-causal-alignment-diagnostic-exte
 
 ## Validation commands
 
-Use the existing interpreter from the repository root. `python -m ...` in task steps means
+Activate the repository's Python environment, then run from the repository root.
+`python -m ...` in task steps means
 `& $pr7Python -m ...`. No model/network access is needed for these validations.
 
 ```powershell
-$pr7Python = 'C:/Users/evanh/Documents/Codex/2026-10-07/files-pasted-by-the-user-you/work/venv/Scripts/python.exe'
+$pr7Python = 'python'
 $env:PYTHONPATH="$PWD;$PWD/src;$PWD/modules;$PWD/reasoning-generalization-tracer/src"
 $env:HF_HUB_OFFLINE='1'
 $env:TRANSFORMERS_OFFLINE='1'
