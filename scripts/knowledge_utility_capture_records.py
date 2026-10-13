@@ -112,16 +112,17 @@ class PriceRecord:
 
 
 def parse_prices(raw: JsonObject) -> PriceRecord:
-    """Require exact settings and a declared no-charge counting policy."""
+    """Require exact generation rates and an explicit counting-charge policy."""
     if type(raw) is not dict or set(raw) != set(PriceRecord.__dataclass_fields__):
         raise ValueError("invalid price fields")
-    if (raw["model"], raw["service_tier"], raw["currency"], raw["counting_policy"]) != (
+    if (raw["model"], raw["service_tier"], raw["currency"]) != (
         MODEL,
         "default",
         "USD",
-        "no_charge",
     ):
         raise ValueError("unsupported price profile")
+    if raw["counting_policy"] not in ("no_charge", "unverified_accepted"):
+        raise ValueError("unsupported counting policy")
     stamp = raw["verified_at"]
     if type(stamp) is not str or not stamp.endswith("Z"):
         raise ValueError("price timestamp requires UTC")
@@ -147,7 +148,7 @@ def parse_prices(raw: JsonObject) -> PriceRecord:
         tuple(urls),
         _money(raw["input_usd_per_million"]),
         _money(raw["output_usd_per_million"]),
-        "no_charge",
+        raw["counting_policy"],
     )
 
 
@@ -177,7 +178,11 @@ def normalized_path(path: Path) -> str:
 def validate_execution(
     raw: JsonObject, manifest: JsonObject, run_dir: Path, implementation_commit: str
 ) -> ExecutionRecord:
-    """Reject changed bindings before directory ownership or credential access."""
+    """Reject changed bindings before directory ownership or credential access.
+
+    The approval reference is retained operator evidence, not authenticated approval.
+    The operator must verify maintainer approval before invoking live execution.
+    """
     fields = (
         "schema_version run_id packet_digest manifest_digest implementation_commit "
         "run_directory profile prices approved_budget_usd approval_reference"

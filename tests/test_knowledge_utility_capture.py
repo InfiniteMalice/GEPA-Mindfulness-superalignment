@@ -190,6 +190,66 @@ def test_execution_accepts_reordered_profile_keys(records, tmp_path):
     assert not run_dir.exists()
 
 
+def test_accepted_unknown_counting_keeps_generation_budget(records, runner, tmp_path):
+    """Accepting counting uncertainty does not refund or expand generation reservations."""
+    packet = prepare_pilot()
+    manifest = records.build_manifest(packet)
+    directory = tmp_path / "run"
+    raw = execution(manifest, directory, "0.002688")
+    raw["prices"]["counting_policy"] = "unverified_accepted"
+    checked = records.validate_execution(raw, manifest, directory, "a" * 40)
+    assert checked.prices.counting_policy == "unverified_accepted"
+    fake = FakeTransport(directory)
+    summary = runner.run_live(packet, checked, directory, lambda: fake)
+    assert fake.endpoints == ["responses/input_tokens"] * 72 + ["responses"]
+    assert summary["reason"] == "budget_exhausted"
+    assert summary["reserved_micro_usd"] == 2688
+    assert summary["budget_scope"] == "generation_only"
+    assert summary["counting_policy"] == "unverified_accepted"
+    assert summary["counting_cost_usd"] is None
+    assert summary["total_billed_cost_usd"] is None
+    terminal = json.loads((directory / "terminal.json").read_text(encoding="utf-8"))
+    assert terminal["counting_cost_usd"] is None
+    for seq in range(72):
+        counted = json.loads(
+            (directory / f"counts/{seq:03}-result.json").read_text(encoding="utf-8")
+        )
+        assert counted["usage"] == {"input_tokens": fake.count_value, "output_tokens": 0}
+        assert counted["estimated_cost_usd"] is None
+        assert counted["billed_cost_usd"] is None
+        assert counted["cost_scope"] == "counting"
+    captures = runner.export_run(packet, directory)["captures"]
+    assert captures[0]["status"] == "completed"
+    assert sum(row["status"] == "missing" for row in captures) == 71
+
+
+def test_counting_usage_cannot_be_priced_as_generation(records, runner, tmp_path):
+    """Unexpected counting usage is retained without inventing a counting price."""
+    packet, checked, directory = live_fixture(records, tmp_path)
+    retained = runner._retained_result(result_for(provider_response()), checked, generation=False)
+    assert retained["usage"]["input_tokens"] == 100
+    assert retained["estimated_cost_usd"] is None
+    assert retained["billed_cost_usd"] is None
+    assert retained["cost_scope"] == "counting"
+
+
+def test_unknown_counting_dry_run_labels_generation_estimate(records, runner, tmp_path):
+    """An offline estimate must not imply that the total bill is capped."""
+    packet_path, prices_path = tmp_path / "packet.json", tmp_path / "prices.json"
+    output = tmp_path / "requests.json"
+    packet_path.write_text(json.dumps(prepare_pilot()), encoding="utf-8")
+    raw = prices()
+    raw["counting_policy"] = "unverified_accepted"
+    prices_path.write_text(json.dumps(raw), encoding="utf-8")
+    runner.main(
+        ["--packet", str(packet_path), "--prices", str(prices_path), "--output", str(output)]
+    )
+    estimate = json.loads(output.read_text(encoding="utf-8"))["reservation_estimate"]
+    assert estimate["roster_micro_usd"] == 193536
+    assert estimate["budget_scope"] == "generation_only"
+    assert estimate["counting_cost_usd"] is None
+
+
 def _create_run_worker(directory, manifest, raw, queue):
     from scripts import knowledge_utility_capture_records as records
 
@@ -493,7 +553,13 @@ class FakeTransport:
         if endpoint == "responses/input_tokens":
             seq = self.endpoints.count(endpoint) - 1
             assert (self.directory / f"counts/{seq:03}-intent.json").is_file()
-            return result_for({"object": "response.input_tokens", "input_tokens": self.count_value})
+            return result_for(
+                {
+                    "object": "response.input_tokens",
+                    "input_tokens": self.count_value,
+                    "usage": {"input_tokens": self.count_value, "output_tokens": 0},
+                }
+            )
         seq = self.endpoints.count("responses") - 1
         assert self.endpoints.count("responses/input_tokens") == 72
         assert (self.directory / f"attempts/{seq:03}.json").is_file()

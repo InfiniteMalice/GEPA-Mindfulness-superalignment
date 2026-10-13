@@ -1,6 +1,7 @@
 # ADR 0022: Bounded knowledge-utility pilot capture
 
-Status: design and native implementation approved 2026-10-12; live execution not approved.
+Status: design and native implementation approved 2026-10-12; counting-policy amendment
+and one frozen pilot run with a US$0.20 generation-only budget approved 2026-10-12.
 
 ## Context and decision
 
@@ -11,7 +12,7 @@ expand scope; manual imports alone cannot enforce attempted-request accounting.
 
 Default mode is offline. Live mode binds one run directory, commit, request manifest,
 price assertion and budget to a retained operator execution record. That record does not
-authenticate approval. A live run reserves worst-case charges before dispatch, keeps
+authenticate approval. A live run reserves worst-case generation charges before dispatch, keeps
 uncertain reservations, and never resumes or retries. Export preserves all expected slots.
 
 The transport uses one spawned process per HTTP operation. A parent deadline covers DNS,
@@ -36,9 +37,23 @@ Documentation inspected on 2026-10-12, without credential access or provider req
 
 These observations do not establish account-specific availability or a no-charge counting
 policy. No current price record or live authorization is created by implementation.
-Before live execution, the operator must verify settings and counting charges, supply
-current prices, and retain the maintainer's approval. Unknown/nonzero counting charges
-are outside this version's accounting model and block live execution.
+Before live execution, the operator must verify settings, supply current generation prices,
+and retain the maintainer's approval. Counting charges require either a supported no-charge
+assertion or explicit acceptance of unverified charges as described below.
+
+## Counting-policy amendment (2026-10-12)
+
+The maintainer explicitly accepted unknown counting charges and a US$0.20 limit on generation
+costs only, rather than on the total bill. Support `counting_policy="unverified_accepted"`
+alongside `no_charge`. Merely unknown or unsupported policy values still fail validation.
+The operator must retain approval of this policy in the execution record's approval reference.
+This is an operator assertion, not authentication or evidence that counting is free.
+
+Generation reservations and the 72-request roster remain unchanged. Counting calls remain
+sequential, at most one per slot, with no retries. Under `unverified_accepted`, counting costs
+and the total billed cost remain unknown; no upper bound on the total bill is claimed.
+Dry-run estimates and terminal summaries identify the budget as generation-only. Counting
+responses never receive a generation-rate cost estimate, even if they contain usage fields.
 
 ## Consequences and validation
 

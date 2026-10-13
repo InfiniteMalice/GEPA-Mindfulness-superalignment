@@ -245,7 +245,7 @@ The live command requires a separately approved execution record with these exac
 | `run_directory` | Absolute path to the new run directory |
 | `profile` | Canonical JSON must match the dry-run manifest, including value types and numeric representations; object key order is ignored |
 | `prices` | Price record described below |
-| `approved_budget_usd` | Unsigned USD decimal string with at most six fractional digits |
+| `approved_budget_usd` | Generation-only USD budget, an unsigned decimal string with at most six fractional digits |
 | `approval_reference` | Nonblank reference to retained maintainer approval, at most 1,024 characters |
 
 The price object has exactly `model`, `service_tier`, `currency`, `verified_at`,
@@ -254,14 +254,19 @@ Model matches the frozen snapshot, service tier is `default`, currency is `USD`,
 `verified_at` is a UTC ISO timestamp ending in `Z`. Sources are 1–10 HTTPS URLs on
 `openai.com`, `developers.openai.com`, or `platform.openai.com`. Each rate is an unsigned
 decimal string, at most six fractional digits; rates and budget are at most 32 characters.
-The only supported `counting_policy` is `no_charge`. These fields are operator assertions;
-valid syntax and source domains do not prove current prices or approval.
+Supported `counting_policy` values are `no_charge` and `unverified_accepted`. Use `no_charge`
+only with confirmation that counting is unbilled. Use `unverified_accepted` only when the
+maintainer explicitly accepts unknown counting charges outside the generation budget;
+retain that approval in `approval_reference`. Other values, including `unknown`, fail
+validation. These fields are operator assertions; valid syntax and source domains do not
+prove current prices or approval.
 
 Before live execution, independently review the packet and implementation, verify current
-model/settings and counting charges, and obtain maintainer approval of the exact execution
-record and budget. No price file or approval is manufactured by the command. The original
-packet remains `execution_authorized=False`. Unknown/nonzero counting charges block this
-version; a new accounting design is required to support charged counting.
+model/settings and generation prices, and obtain maintainer approval of the exact execution
+record, counting policy, and generation budget. No price file or approval is manufactured
+by the command. The original packet remains `execution_authorized=False`. Unverified
+counting charges block execution unless the maintainer explicitly accepts them via
+`unverified_accepted`; this policy does not impose or claim a cap on the total bill.
 
 The following command is a syntax example, not authorization:
 
@@ -275,11 +280,16 @@ any generation. A count failure or value outside 0–2,048 stops the run. Genera
 sequential, with one attempt per slot and no retries. Requests contain only the frozen actor
 messages and model profile; no evaluator labels or supplied success flags are sent.
 
-The effective budget is the smaller of the approved amount and US$5. Each generation
+The effective generation budget is the smaller of the approved amount and US$5. Each generation
 reserves `ceil(2048 * input_rate + 256 * output_rate)` micro-USD before sending. Rates are
 USD per million tokens. For the authored arithmetic example `0.75` and `4.5`, one reservation
 is 2,688 micro-USD. That example is not a current pricing assertion. Reservations never
-refund after errors or lower usage. A zero budget sends no generations even at zero rates.
+refund after errors or lower usage. A zero budget sends no generations even at zero rates,
+but the counting phase still sends up to 72 requests under the approved counting policy.
+Dry-run reservation estimates and terminal summaries include `budget_scope="generation_only"`,
+the `counting_policy`, and `counting_cost_usd` (`"0"` for declared no-charge counting, otherwise
+null). Terminal `total_billed_cost_usd` is always null because no billing feed is available.
+Unknown counting costs must not be added to generation estimates as zero.
 
 The transport allows only the fixed provider responses/counting endpoints, validates TLS,
 ignores proxy environment variables, and rejects redirects. A spawned worker permits the
@@ -294,8 +304,9 @@ The run directory retains execution/manifest identity, an execution-started mark
 numbered counting intents/results, generation intents/results, and a terminal summary
 when persistence succeeds. Intents are flushed and synchronized before dispatch. Results
 retain Base64 response bytes, decoded provider JSON when valid, request ID, timestamps,
-usage, requested/returned model, errors, and redaction flags. Cost derived from usage is
-labeled `estimated_cost_usd`; `billed_cost_usd` remains null because this integration has
+usage, requested/returned model, errors, and redaction flags. Generation cost derived from usage
+is labeled `estimated_cost_usd`; counting records leave that estimate null. Each result labels
+its `cost_scope` as `generation` or `counting`. `billed_cost_usd` remains null because this integration has
 no attributable billing feed. Requested payloads are retained in the manifest.
 
 Completed responses with wrong or malformed answers continue to the existing scorer.
