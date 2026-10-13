@@ -1,7 +1,7 @@
 # Knowledge-utility follow-up study design
 
-Date: 2026-10-13. Status: proposed design for maintainer review.
-Preparation is authorized. Implementation, packet freeze, and live execution remain separate stages.
+Date: 2026-10-13. Status: design approved for implementation planning by the maintainer.
+Implementation-plan approval, packet freeze, and live execution remain separate stages.
 
 ## Purpose and evidence
 
