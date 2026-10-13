@@ -257,6 +257,11 @@ def _slot_identity(request: JsonObject) -> JsonObject:
 def _retained_result(
     result: TransportResult, execution: ExecutionRecord, *, generation: bool = True
 ) -> JsonObject:
+    """Retain provider evidence; estimate cost only for valid generation usage.
+
+    Counting responses have no generation-rate estimate, even when usage is present.
+    Billed cost remains unknown for both request types without a billing feed.
+    """
     transport = asdict(result)
     transport["body"] = base64.b64encode(result.body).decode("ascii")
     try:
@@ -293,7 +298,11 @@ def run_live(
     run_dir: Path,
     transport_factory: Callable[[], Transport],
 ) -> JsonObject:
-    """Execute a single approved roster; never recover uncertainty by dispatching again."""
+    """Execute one roster after the operator verifies maintainer approval.
+
+    Record validation does not authenticate approval; callers must verify it separately.
+    Never recover uncertainty by dispatching again.
+    """
     manifest = build_manifest(packet)
     execution = validate_execution(
         execution.raw, manifest, run_dir, execution.raw["implementation_commit"]

@@ -178,7 +178,11 @@ def normalized_path(path: Path) -> str:
 def validate_execution(
     raw: JsonObject, manifest: JsonObject, run_dir: Path, implementation_commit: str
 ) -> ExecutionRecord:
-    """Reject changed bindings before directory ownership or credential access."""
+    """Reject changed bindings before directory ownership or credential access.
+
+    The approval reference is retained operator evidence, not authenticated approval.
+    The operator must verify maintainer approval before invoking live execution.
+    """
     fields = (
         "schema_version run_id packet_digest manifest_digest implementation_commit "
         "run_directory profile prices approved_budget_usd approval_reference"
