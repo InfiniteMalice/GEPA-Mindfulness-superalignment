@@ -210,6 +210,14 @@ def test_accepted_unknown_counting_keeps_generation_budget(records, runner, tmp_
     assert summary["total_billed_cost_usd"] is None
     terminal = json.loads((directory / "terminal.json").read_text(encoding="utf-8"))
     assert terminal["counting_cost_usd"] is None
+    for seq in range(72):
+        counted = json.loads(
+            (directory / f"counts/{seq:03}-result.json").read_text(encoding="utf-8")
+        )
+        assert counted["usage"] == {"input_tokens": fake.count_value, "output_tokens": 0}
+        assert counted["estimated_cost_usd"] is None
+        assert counted["billed_cost_usd"] is None
+        assert counted["cost_scope"] == "counting"
     captures = runner.export_run(packet, directory)["captures"]
     assert captures[0]["status"] == "completed"
     assert sum(row["status"] == "missing" for row in captures) == 71
@@ -545,7 +553,13 @@ class FakeTransport:
         if endpoint == "responses/input_tokens":
             seq = self.endpoints.count(endpoint) - 1
             assert (self.directory / f"counts/{seq:03}-intent.json").is_file()
-            return result_for({"object": "response.input_tokens", "input_tokens": self.count_value})
+            return result_for(
+                {
+                    "object": "response.input_tokens",
+                    "input_tokens": self.count_value,
+                    "usage": {"input_tokens": self.count_value, "output_tokens": 0},
+                }
+            )
         seq = self.endpoints.count("responses") - 1
         assert self.endpoints.count("responses/input_tokens") == 72
         assert (self.directory / f"attempts/{seq:03}.json").is_file()
