@@ -205,7 +205,7 @@ _TASKS = (
         "B then uses 18 litres. How many litres remain at B?",
         "54",
         (
-            ("62", "Splits before removing the upstream leak."),
+            ("62", "Ignores the upstream leak for B: 120*2/3-18=62."),
             ("72", "Omits B's use."),
             ("18", "Uses A's one-third share for B."),
         ),
@@ -406,7 +406,8 @@ _TASKS = (
         "task_precedence",
         1,
         "Two machines are available at time 0. A takes 2 units, B takes 3, C takes 1. "
-        "A must finish before C starts; B is independent and must finish by time 4. "
+        "C may start at or after A finishes, including at the same instant. "
+        "B is independent and must finish by time 4. "
         "Jobs cannot be split. What is the earliest finish time for all jobs?",
         "3",
         (

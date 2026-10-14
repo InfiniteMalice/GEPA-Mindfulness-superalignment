@@ -42,12 +42,19 @@ rounding, route eligibility, time windows, precedence, packing, matching, queues
 rule precedence, quorum, quantification, conditional logic, exception scope, state transitions,
 transaction order, joins, aggregation, sets, and intervals. Each task has four distinct options,
 one authored answer, at least three derivation steps, and an explanation for each distractor.
-The pairs change a decisive rule or constraint rather than merely replacing numbers.
+Most pairs change a decisive rule or constraint; the matching exception is described below.
 
 Each task appears in `none`, `lesson_only`, `bank_only`, and `bank_plus_lesson`, twice each:
 48 × 4 × 2 = 384 slots, 96 per condition. Repeats do not create independent tasks. The proposed
 lesson, bank, and source episodes exactly match the original frozen packet. Both knowledge
 proposals retain their pending review status and authored-demonstration lineage.
+
+The matching pair uses the same unique feasible assignment in both variants. The second
+variant adds cost summation and a locally cheap but infeasible distractor; it does not compare
+multiple feasible assignments. The first access task closely reuses the source and bank's
+badge-and-reservation denial pattern. Treat this as near transfer; success on that task alone
+cannot establish distant transfer. These limitations do not demonstrate answer-key leakage
+or statistical independence. Task review and dependency assessment remain required before freeze.
 
 The schedule key is `knowledge-utility-followup-order-v1`. Sort task IDs by the hexadecimal
 SHA-256 of UTF-8 `key + "|task|" + task_id`, breaking ties by ID. Cycle the correct option
