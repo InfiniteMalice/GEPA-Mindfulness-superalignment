@@ -1,6 +1,8 @@
 """Check the offline follow-up roster, preparation boundaries, and publication contract."""
 
 # Standard library
+import json
+import socket
 from collections import Counter
 from dataclasses import replace
 from decimal import ROUND_HALF_UP, Decimal
@@ -315,3 +317,67 @@ def test_original_interfaces_reject_followup(preparer):
         build_manifest(packet)
     with pytest.raises(ValueError):
         score_pilot(packet, {})
+
+
+def test_cli_round_trip(preparer, tmp_path):
+    output = tmp_path / "packet.json"
+    preparer.main(["--output", str(output)])
+    assert json.loads(output.read_text(encoding="utf-8")) == preparer.prepare_followup()
+
+
+@pytest.mark.parametrize("fault", ["existing", "parent", "publication", "competing"])
+def test_cli_publication_failure_preserves_destination(preparer, tmp_path, monkeypatch, fault):
+    from scripts import knowledge_utility_capture_records as records
+
+    output = tmp_path / "packet.json"
+    if fault == "existing":
+        output.write_bytes(b"other artifact")
+    elif fault == "parent":
+        output = tmp_path / "missing" / "packet.json"
+    elif fault == "publication":
+
+        def fail_write(path, data):
+            path.write_bytes(b"partial staging")
+            raise OSError("simulated publication failure")
+
+        monkeypatch.setattr(records, "_write_new", fail_write)
+    else:
+
+        def competing_link(source, destination):
+            destination.write_bytes(b"other artifact")
+            raise FileExistsError("simulated competing writer")
+
+        monkeypatch.setattr(records.os, "link", competing_link)
+    with pytest.raises(SystemExit) as error:
+        preparer.main(["--output", str(output)])
+    assert error.value.code == 2
+    if fault in {"existing", "competing"}:
+        assert output.read_bytes() == b"other artifact"
+    else:
+        assert not output.exists()
+    assert not list(tmp_path.glob(".pilot-capture-*"))
+
+
+def test_preparation_requires_no_network_or_credentials(preparer, tmp_path, monkeypatch):
+    from scripts import knowledge_utility_capture_transport as transport
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("offline preparation attempted network or credential access")
+
+    monkeypatch.setattr(socket, "create_connection", forbidden)
+    monkeypatch.setattr(socket.socket, "connect", forbidden)
+    monkeypatch.setattr(transport, "make_live_transport", forbidden)
+    output = tmp_path / "offline.json"
+    preparer.main(["--output", str(output)])
+    packet = json.loads(output.read_text(encoding="utf-8"))
+    assert len(packet["actor_requests"]) == 384
+    assert {s["task_id"] for s in packet["schedule"]["slots"]} == {
+        case["task_id"] for case in packet["evaluator_cases"]
+    }
+
+
+def test_cli_rejects_live_option(preparer, tmp_path):
+    with pytest.raises(SystemExit) as error:
+        preparer.main(["--output", str(tmp_path / "packet.json"), "--live"])
+    assert error.value.code == 2
+    assert not list(tmp_path.iterdir())

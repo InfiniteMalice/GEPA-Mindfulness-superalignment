@@ -3,14 +3,17 @@
 # Standard library
 from __future__ import annotations
 
+import argparse
 from copy import deepcopy
 from hashlib import sha256
 from itertools import permutations
+from pathlib import Path
 from typing import Any
 
 # Third-party
 # Local
 from evaluation.causal_records import canonical_json, content_digest
+from scripts.knowledge_utility_capture_records import publish_json
 from scripts.knowledge_utility_followup_tasks import AuthoredTask, authored_tasks, validate_tasks
 from scripts.prepare_knowledge_utility_pilot import prepare_pilot
 
@@ -243,3 +246,18 @@ def prepare_followup() -> dict[str, Any]:
     if len(canonical_json(packet).encode("utf-8")) > MAX_PACKET_BYTES:
         raise ValueError("follow-up packet exceeds byte limit")
     return packet
+
+
+def main(argv: list[str] | None = None) -> None:
+    """Publish a new offline packet while preserving existing or competing artifacts."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args(argv)
+    try:
+        publish_json(args.output, prepare_followup())
+    except (OSError, ValueError):
+        parser.error("cannot prepare follow-up: invalid task data or file operation")
+
+
+if __name__ == "__main__":
+    main()

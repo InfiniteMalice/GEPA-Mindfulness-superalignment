@@ -7,6 +7,8 @@ or admit data. Every report carries `training_eligibility="DEVELOPMENT"`,
 
 The [knowledge-utility pilot protocol](experiments/knowledge_utility_pilot.md) prepares a
 fixed 72-request study packet offline, with pending knowledge reviews and no live execution.
+The [follow-up preparation protocol](experiments/knowledge_utility_followup.md) prepares
+48 authored tasks and 384 planned requests with separate correctness and format definitions.
 
 ## Operations and results
 
