@@ -8,8 +8,19 @@ import pytest
 
 # Local
 from evaluation.causal_records import content_digest
-from scripts.review_knowledge_utility_followup import export_public_review, prepare_response_review
-from tests.followup_scoring_fixtures import capture_batch, case_for_slot, fresh_packet, row_for
+from scripts.knowledge_utility_followup_records import validate_followup_inputs
+from scripts.review_knowledge_utility_followup import (
+    export_public_review,
+    prepare_response_review,
+    resolve_response_reviews,
+)
+from tests.followup_scoring_fixtures import (
+    capture_batch,
+    case_for_slot,
+    fresh_packet,
+    review_file,
+    row_for,
+)
 
 
 @pytest.fixture
@@ -149,3 +160,139 @@ def test_generated_review_package_size_cap(sample, monkeypatch):
     monkeypatch.setattr("scripts.knowledge_utility_followup_records.MAX_ARTIFACT_BYTES", 100)
     with pytest.raises(ValueError):
         prepare_response_review(packet, captures)
+
+
+def review_setup(sample):
+    packet, captures = sample
+    package = prepare_response_review(packet, captures)
+    mapping = package["private_mapping"][0]
+    one = review_file(package, "reviewer-1", {mapping["review_id"]: "A"})
+    two = review_file(package, "reviewer-2", {mapping["review_id"]: "A"})
+    return validate_followup_inputs(packet, captures), package, mapping, one, two
+
+
+def test_consensus_requires_two_distinct_finalized_reviews(sample):
+    inputs, package, mapping, one, two = review_setup(sample)
+    before = deepcopy((inputs, package, one, two))
+    single = resolve_response_reviews(inputs, package, (one,))
+    assert single.decisions[mapping["slot_id"]]["selected_option"] is None
+    assert single.decisions[mapping["slot_id"]]["reason"] == "insufficient_reviewers"
+    agreed = resolve_response_reviews(inputs, package, (one, two))
+    assert agreed.decisions[mapping["slot_id"]]["selected_option"] == "A"
+    assert agreed.decisions[mapping["slot_id"]]["reason"] is None
+    assert agreed == resolve_response_reviews(inputs, package, (two, one))
+    assert (inputs, package, one, two) == before
+    assert agreed.reviewer_records[0]["review_digest"] == content_digest(one)
+
+
+@pytest.mark.parametrize(
+    "scenario,reason",
+    [
+        ("no_package", "review_package_missing"),
+        ("zero", "insufficient_reviewers"),
+        ("one", "insufficient_reviewers"),
+        ("missing", "missing_judgment"),
+        ("unresolved", "review_unresolved"),
+        ("disagree", "review_disagreement"),
+    ],
+)
+def test_unresolved_reason_priority(sample, scenario, reason):
+    inputs, package, mapping, one, two = review_setup(sample)
+    reviews = (one, two)
+    if scenario == "no_package":
+        package, reviews = None, ()
+    elif scenario == "zero":
+        reviews = ()
+    elif scenario == "one":
+        reviews = (one,)
+    elif scenario == "missing":
+        two["judgments"] = []
+        one["judgments"][0].update(status="unresolved", selected_option=None)
+    elif scenario == "unresolved":
+        two["judgments"][0].update(status="unresolved", selected_option=None)
+    else:
+        two["judgments"][0]["selected_option"] = "B"
+    result = resolve_response_reviews(inputs, package, reviews)
+    decision = result.decisions[mapping["slot_id"]]
+    assert decision["selected_option"] is None and decision["reason"] == reason
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "draft",
+        "finalized_int",
+        "false",
+        "int",
+        "eligibility_missing",
+        "same_id",
+        "bad_id",
+        "unknown",
+        "duplicate",
+        "bundle",
+        "option",
+        "status",
+        "refs_size",
+        "blank_ref",
+        "nonstring_ref",
+        "nine_refs",
+        "385",
+        "no_package",
+        "three",
+        "extra",
+        "schema",
+    ],
+)
+def test_invalid_reviews_reject_entire_batch(sample, mutation):
+    inputs, package, _, one, two = review_setup(sample)
+    judgment = one["judgments"][0]
+    reviews = (one,)  # Invalid single reviews cannot hide behind insufficient consensus.
+    if mutation in {"draft", "finalized_int"}:
+        one["finalized"] = False if mutation == "draft" else 1
+    elif mutation in {"false", "int", "eligibility_missing"}:
+        one["eligibility"]["did_not_author_tasks"] = False if mutation == "false" else 1
+        if mutation == "eligibility_missing":
+            del one["eligibility"]["did_not_author_tasks"]
+    elif mutation == "same_id":
+        two["reviewer_id"] = one["reviewer_id"]
+        reviews = (one, two)
+    elif mutation == "bad_id":
+        one["reviewer_id"] = "bad id"
+    elif mutation == "unknown":
+        judgment["review_id"] = "unknown"
+    elif mutation == "duplicate":
+        one["judgments"].append(deepcopy(judgment))
+    elif mutation == "bundle":
+        one["bundle_digest"] = "0" * 64
+    elif mutation == "option":
+        judgment["selected_option"] = ["A"]
+    elif mutation == "status":
+        judgment["status"] = "unresolved"
+    elif mutation in {"refs_size", "blank_ref", "nonstring_ref", "nine_refs"}:
+        judgment["evidence_refs"] = {
+            "refs_size": ["é" * 513],
+            "blank_ref": [" "],
+            "nonstring_ref": [True],
+            "nine_refs": ["opaque"] * 9,
+        }[mutation]
+    elif mutation == "385":
+        one["judgments"] = [judgment] * 385
+    elif mutation == "no_package":
+        package = None
+    elif mutation == "three":
+        reviews = (one, two, deepcopy(two))
+    elif mutation == "extra":
+        judgment["extra"] = True
+    else:
+        one["schema_version"] = "other"
+    before = deepcopy((inputs, package, reviews))
+    with pytest.raises(ValueError):
+        resolve_response_reviews(inputs, package, reviews)
+    assert (inputs, package, reviews) == before
+
+
+def test_reviewer_id_case_is_not_identity_authentication(sample):
+    inputs, package, mapping, one, two = review_setup(sample)
+    one["reviewer_id"], two["reviewer_id"] = "Reviewer", "reviewer"
+    result = resolve_response_reviews(inputs, package, (one, two))
+    assert result.decisions[mapping["slot_id"]]["reviewer_ids"] == ["Reviewer", "reviewer"]
