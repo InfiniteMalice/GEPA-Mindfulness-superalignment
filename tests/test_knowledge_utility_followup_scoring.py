@@ -1,6 +1,8 @@
 """Offline follow-up input and separate-outcome contracts."""
 
 # Standard library
+import base64
+import json
 from copy import deepcopy
 
 # Third-party
@@ -18,7 +20,15 @@ from scripts.knowledge_utility_followup_records import (
     validate_followup_inputs,
     validate_json_value,
 )
-from tests.followup_scoring_fixtures import capture_batch, fresh_packet, row_for
+from scripts.review_knowledge_utility_followup import prepare_response_review
+from scripts.score_knowledge_utility_followup import score_followup
+from tests.followup_scoring_fixtures import (
+    capture_batch,
+    case_for_slot,
+    fresh_packet,
+    review_file,
+    row_for,
+)
 
 
 @pytest.fixture
@@ -176,3 +186,209 @@ def test_cycles_duplicate_keys_and_nonfinite_json_rejected():
     for text in ['{"a":1,"a":2}', "NaN", "1e999", '"\\ud800"']:
         with pytest.raises(ValueError):
             decode_json_text(text, max_bytes=100)
+
+
+def test_empty_capture_retains_every_slot_and_null_rates(packet):
+    result = score_followup(packet, capture_batch(packet))
+    assert len(result["observations"]) == 384
+    for condition in result["conditions"].values():
+        assert condition["expected"] == condition["missing"] == 96
+        assert condition["completed"] == 0
+        for rate in condition["rates"].values():
+            assert rate == dict(
+                numerator=0, denominator=0, value=None, withheld_reason="no_completed_outputs"
+            )
+        assert condition["semantic_coverage"]["lower"] == 0.0
+        assert condition["semantic_coverage"]["upper"] == 1.0
+    assert result["execution_state"] == "no_imported_rows"
+    assert "no_imported_rows" in result["reasons"]
+    assert not result["verified"] and not result["confers_authority"]
+    for contrast in result["contrasts"].values():
+        assert all(value is None for value in contrast.values())
+
+
+def mixed_capture(packet):
+    rows = []
+    for index in range(5):
+        row = row_for(packet, "none", index, text="I assert A and I assert B. café")
+        key = case_for_slot(packet, row["slot_id"])["expected_option"]
+        if index < 2:
+            row["response_text"] = json.dumps({"answer": key if index == 0 else wrong_option(key)})
+        rows.append(row)
+    for index, status in enumerate(("failed", "refused", "truncated", "missing"), 5):
+        rows.append(
+            row_for(
+                packet,
+                "none",
+                index,
+                status=status,
+                text="A" if status in {"refused", "truncated"} else None,
+                reason="réason",
+            )
+        )
+    captures = capture_batch(packet, rows)
+    package = prepare_response_review(packet, captures)
+    selections = {}
+    for entry in package["private_mapping"]:
+        key = case_for_slot(packet, entry["slot_id"])["expected_option"]
+        index = next(i for i, row in enumerate(rows) if row["slot_id"] == entry["slot_id"])
+        selections[entry["review_id"]] = (
+            key if index == 2 else wrong_option(key) if index == 3 else None
+        )
+    reviews = tuple(review_file(package, reviewer, selections) for reviewer in ("one", "two"))
+    return captures, package, reviews
+
+
+def wrong_option(key):
+    return "B" if key == "A" else "A"
+
+
+def test_mixed_outcomes_keep_semantic_rate_withheld(packet):
+    captures, package, reviews = mixed_capture(packet)
+    result = score_followup(packet, captures, package, reviews)
+    condition = result["conditions"]["none"]
+    counts = dict(
+        completed=5,
+        correct=2,
+        incorrect=2,
+        unresolved=1,
+        resolved=4,
+        failed=1,
+        refused=1,
+        truncated=1,
+        censored=2,
+        missing=88,
+        format_valid=2,
+        joint_success=1,
+    )
+    assert {key: condition[key] for key in counts} == counts
+    assert condition["rates"]["answer_correct"] == dict(
+        numerator=2, denominator=5, value=None, withheld_reason="unresolved_answers"
+    )
+    assert condition["rates"]["format_valid"]["value"] == 2 / 5
+    assert condition["rates"]["joint_success"]["value"] == 1 / 5
+    assert condition["cross_tab"] == dict(
+        format_valid=dict(correct=1, incorrect=1, unresolved=0),
+        format_invalid=dict(correct=1, incorrect=1, unresolved=1),
+    )
+    assert condition["semantic_coverage"] == dict(
+        known_correct=2,
+        unknown_slots=92,
+        expected=96,
+        lower=2 / 96,
+        upper=94 / 96,
+        kind="logical_coverage_bound",
+    )
+    by_slot = {row["slot_id"]: row for row in result["observations"]}
+    for raw in captures["captures"]:
+        observation = by_slot[raw["slot_id"]]
+        for name in ("response", "reason"):
+            original = raw["response_text" if name == "response" else "reason"]
+            retained = observation[name + "_utf8_base64"]
+            assert (None if retained is None else base64.b64decode(retained).decode()) == original
+        if raw["status"] != "completed":
+            assert all(
+                observation[key] is None
+                for key in ("selected_option", "answer_correct", "format_valid", "joint_success")
+            )
+    explicit = captures["captures"][-1]["slot_id"]
+    assert by_slot[explicit]["missingness_origin"] == "explicit"
+    implicit = by_slot[row_for(packet, "none", 9)["slot_id"]]
+    assert implicit["missingness_origin"] == "implicit"
+    assert base64.b64decode(implicit["reason_utf8_base64"]) == b"capture_not_supplied"
+    unresolved = next(
+        row for row in result["observations"] if row["selection_source"] == "unresolved"
+    )
+    assert unresolved["joint_success"] is False
+    assert unresolved["resolution_reason"] == "review_unresolved"
+    review_id = unresolved["review_binding"]["review_id"]
+    key = case_for_slot(packet, unresolved["slot_id"])["expected_option"]
+    for review in reviews:
+        next(j for j in review["judgments"] if j["review_id"] == review_id).update(
+            status="selected", selected_option=key
+        )
+    updated = score_followup(packet, captures, package, reviews)["conditions"]["none"]
+    assert updated["rates"]["answer_correct"]["value"] == 3 / 5
+    assert updated["rates"]["format_valid"]["value"] == 2 / 5
+    assert updated["rates"]["joint_success"]["value"] == 1 / 5
+
+
+def test_full_roster_contrasts_follow_independent_integer_totals(packet):
+    targets = {"none": 72, "lesson_only": 84, "bank_only": 80, "bank_plus_lesson": 88}
+    rows = []
+    for condition, correct in targets.items():
+        for index in range(96):
+            row = row_for(packet, condition, index)
+            key = case_for_slot(packet, row["slot_id"])["expected_option"]
+            row["response_text"] = json.dumps(
+                {"answer": key if index < correct else wrong_option(key)}
+            )
+            rows.append(row)
+    result = score_followup(packet, capture_batch(packet, rows))
+    for name, correct in targets.items():
+        condition = result["conditions"][name]
+        assert condition["completed"] == condition["format_valid"] == condition["resolved"] == 96
+        assert condition["correct"] == condition["joint_success"] == correct
+        assert condition["incorrect"] == 96 - correct
+        assert condition["unresolved"] == condition["missing"] == 0
+    for name, difference in (("standalone", 12 / 96), ("marginal", 8 / 96)):
+        assert result["contrasts"][name] == dict(
+            answer_correct=pytest.approx(difference),
+            joint_success=pytest.approx(difference),
+            format_valid=0,
+        )
+
+
+def test_report_binding_authority_and_determinism(packet):
+    captures, package, reviews = mixed_capture(packet)
+    before = deepcopy((packet, captures, package, reviews))
+    result = score_followup(packet, captures, package, reviews)
+    assert set(result) == set(
+        "schema_version study_id packet_digest capture_digest capture_provenance review_provenance "
+        "packet_state execution_state training_eligibility verified paired confers_authority "
+        "optimizer_input interval reasons limitations conditions "
+        "contrasts observations result_digest".split()
+    )
+    assert all(
+        set(row)
+        == set(
+            "slot_id task_id condition repeat raw_status missingness_origin reason_utf8_base64 "
+            "response_utf8_base64 selection_source selected_option answer_correct format_valid "
+            "joint_success resolution_reason review_binding".split()
+        )
+        for row in result["observations"]
+    )
+    assert result == score_followup(packet, captures, package, tuple(reversed(reviews)))
+    assert (packet, captures, package, reviews) == before
+    assert result["result_digest"] == content_digest(
+        {k: v for k, v in result.items() if k != "result_digest"}
+    )
+    assert result["capture_digest"] == content_digest(captures)
+    assert result["review_provenance"]["package_digest"] == package["package_digest"]
+    assert result["training_eligibility"] == "DEVELOPMENT" and result["interval"] is None
+    assert all(
+        result[key] is False
+        for key in ("verified", "paired", "confers_authority", "optimizer_input")
+    )
+    assert result["packet_state"] == dict(
+        status="pending_independent_review",
+        packet_frozen=False,
+        execution_authorized=False,
+        pending_task_reviews=48,
+    )
+    assert set(result["reasons"]) == {
+        "capture_status_unauthenticated",
+        "generation_seed_unknown",
+        "study_unauthenticated",
+        "packet_unfrozen",
+        "task_reviews_pending",
+        "reviewer_identity_unauthenticated",
+    }
+    assert result["review_provenance"]["reviewer_identity_authenticated"] is False
+    assert result["review_provenance"]["blinding_authenticated"] is False
+
+
+def test_score_generated_output_cap(packet, monkeypatch):
+    monkeypatch.setattr("scripts.knowledge_utility_followup_records.MAX_ARTIFACT_BYTES", 100)
+    with pytest.raises(ValueError):
+        score_followup(packet, capture_batch(packet))
