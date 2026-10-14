@@ -1,6 +1,7 @@
 # Knowledge-utility follow-up offline scoring design
 
-Date: 2026-10-14. Status: proposed written design; implementation planning is not yet approved.
+Date: 2026-10-14. Status: written design approved by the maintainer for implementation planning.
+Implementation-plan approval and execution remain separate stages.
 
 ## Intent and evidence
 
@@ -55,7 +56,7 @@ No automatic semantic judge, substring answer extractor, or model-generated adju
 - Update the protocol and add `docs/adr/0023-knowledge-utility-followup-scoring.md` when
   implementation begins. Preserve the existing pilot files, schemas, and pinned digest.
 
-Proposed pure functions are `validate_followup_inputs(packet, captures)`,
+Proposed public functions are `validate_followup_inputs(packet, captures)`,
 `prepare_response_review(packet, captures)`, `export_public_review(packet, captures, package)`,
 and `score_followup(packet, captures, review_package=None, reviews=())`.
 Review preparation uses operating-system randomness for opaque IDs; scoring and export are
@@ -234,7 +235,9 @@ Per response: at most 8,192 UTF-8 bytes. Per noncompleted reason: 1,024 UTF-8 by
 Each review file has at most 384 judgments; each judgment has at most eight nonblank evidence
 references of at most 1,024 UTF-8 bytes each. Require explicit JSON types, including strict
 booleans, and reject duplicate keys, invalid UTF-8, non-finite numbers, and excessive nesting
-using the existing bounded-envelope validation. No unexpected field is silently ignored.
+using the existing bounded-envelope validation rules with these follow-up-specific limits.
+The current shared helpers have a fixed 4 MiB cap; preserve those helpers and implement the
+parameterized reader/validator in the new follow-up records module. No unexpected field is ignored.
 
 CLI validation/read/write failures exit 2 with a bounded static error message identifying
 validation versus publication. Never include raw responses, reviewer text, or exception bodies.
