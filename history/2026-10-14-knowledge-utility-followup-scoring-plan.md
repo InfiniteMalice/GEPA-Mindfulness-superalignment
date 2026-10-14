@@ -10,7 +10,7 @@
 
 **Spec:** [Approved scoring design](2026-10-14-knowledge-utility-followup-scoring-design.md).
 
-Status: proposed implementation plan, 2026-10-14. Native implementation and one final fresh-context review are the established execution preference; this plan still requires maintainer approval. No implementation has started.
+Status: implementation plan and native execution approved by the maintainer on 2026-10-14, with one final fresh-context review. The numbered tasks below retain the approved implementation and verification contract.
 
 ## Global Constraints
 
@@ -378,9 +378,8 @@ $env:HF_HUB_OFFLINE='1'
 $env:TRANSFORMERS_OFFLINE='1'
 ```
 
-Python executable currently available:
-`C:/Users/evanh/Documents/Codex/2026-10-07/files-pasted-by-the-user-you/work/venv/Scripts/python.exe`.
-Use that executable for `python` below. Record logs outside tracked code; do not commit model
+Use the configured repository virtual environment's Python executable for `python` below.
+Record logs outside tracked code; do not commit model
 outputs, old review files or generated artifacts.
 
 ```text

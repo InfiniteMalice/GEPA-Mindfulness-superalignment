@@ -3,22 +3,28 @@
 # Standard library
 from __future__ import annotations
 
+import argparse
 import re
 import secrets
+import sys
 from copy import deepcopy
 from dataclasses import dataclass
+from pathlib import Path
 
 # Third-party
 # Local
 from evaluation.causal_records import content_digest
+from scripts.knowledge_utility_capture_records import publish_json
 from scripts.knowledge_utility_followup_records import (
     MAX_ARTIFACT_BYTES,
+    MAX_INPUT_BYTES,
     FollowupInputs,
     JsonObject,
     bound_artifact,
     bounded_text,
     canonical_option,
     object_fields,
+    read_json_object,
     validate_followup_inputs,
     validate_json_value,
 )
@@ -284,3 +290,37 @@ def resolve_response_reviews(
         bundle_digest=None if checked is None else checked["public_bundle"]["bundle_digest"],
         reviewer_records=tuple(record for record, _ in reviewers),
     )
+
+
+def main(argv: list[str] | None = None) -> None:
+    """Publish one private package or one validated public bundle, exclusively."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    commands = parser.add_subparsers(dest="command", required=True)
+    for name in ("prepare", "export"):
+        command = commands.add_parser(name)
+        command.add_argument("--packet", type=Path, required=True)
+        command.add_argument("--captures", type=Path, required=True)
+        command.add_argument("--output", type=Path, required=True)
+        if name == "export":
+            command.add_argument("--review-package", type=Path, required=True)
+    args = parser.parse_args(argv)
+    try:
+        packet = read_json_object(args.packet, max_bytes=MAX_INPUT_BYTES)
+        captures = read_json_object(args.captures, max_bytes=MAX_INPUT_BYTES)
+        if args.command == "prepare":
+            result = prepare_response_review(packet, captures)
+        else:
+            package = read_json_object(args.review_package, max_bytes=MAX_ARTIFACT_BYTES)
+            result = export_public_review(packet, captures, package)
+    except (ValueError, OSError):
+        print("cannot process follow-up: invalid input", file=sys.stderr)
+        raise SystemExit(2) from None
+    try:
+        publish_json(args.output, result)
+    except OSError:
+        print("cannot publish follow-up: file operation failed", file=sys.stderr)
+        raise SystemExit(2) from None
+
+
+if __name__ == "__main__":
+    main()

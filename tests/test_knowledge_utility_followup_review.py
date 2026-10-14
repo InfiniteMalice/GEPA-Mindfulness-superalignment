@@ -1,7 +1,11 @@
 """Blinded projection, immutable binding and independent claimed review contracts."""
 
 # Standard library
+import json
+import socket
 from copy import deepcopy
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 # Third-party
 import pytest
@@ -14,6 +18,10 @@ from scripts.review_knowledge_utility_followup import (
     prepare_response_review,
     resolve_response_reviews,
 )
+from scripts.review_knowledge_utility_followup import (
+    main as review_main,
+)
+from scripts.score_knowledge_utility_followup import main as score_main
 from tests.followup_scoring_fixtures import (
     capture_batch,
     case_for_slot,
@@ -296,3 +304,181 @@ def test_reviewer_id_case_is_not_identity_authentication(sample):
     one["reviewer_id"], two["reviewer_id"] = "Reviewer", "reviewer"
     result = resolve_response_reviews(inputs, package, (one, two))
     assert result.decisions[mapping["slot_id"]]["reviewer_ids"] == ["Reviewer", "reviewer"]
+
+
+def write_json(path, value):
+    path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
+    return str(path)
+
+
+def cli_inputs(tmp_path, sample):
+    packet, captures = sample
+    return [
+        "--packet",
+        write_json(tmp_path / "packet.json", packet),
+        "--captures",
+        write_json(tmp_path / "captures.json", captures),
+    ]
+
+
+def test_offline_cli_review_and_score_roundtrip(sample, tmp_path, monkeypatch):
+    def forbidden(*args, **kwargs):
+        raise AssertionError("offline workflow attempted external access")
+
+    monkeypatch.setattr(socket.socket, "connect", forbidden)
+    monkeypatch.setattr("scripts.knowledge_utility_capture_transport._perform_http", forbidden)
+    monkeypatch.setattr(
+        "scripts.knowledge_utility_capture_transport.make_live_transport", forbidden
+    )
+    args = cli_inputs(tmp_path, sample)
+    package_path, bundle_path, report_path = (
+        tmp_path / name for name in ("private.json", "public.json", "report.json")
+    )
+    review_main(["prepare", *args, "--output", str(package_path)])
+    review_main(
+        ["export", *args, "--review-package", str(package_path), "--output", str(bundle_path)]
+    )
+    package = json.loads(package_path.read_text(encoding="utf-8"))
+    bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
+    assert bundle == package["public_bundle"]
+    selection = {case["review_id"]: "A" for case in bundle["cases"]}
+    files = []
+    for reviewer in ("one", "two"):
+        review = review_file(package, reviewer, selection)
+        for judgment in review["judgments"]:
+            judgment["evidence_refs"] = [str(tmp_path / "not-a-file"), "https://invalid.test/"]
+        files.extend(["--review", write_json(tmp_path / (reviewer + ".json"), review)])
+    score_main([*args, "--review-package", str(package_path), *files, "--output", str(report_path)])
+    result = json.loads(report_path.read_text(encoding="utf-8"))
+    assert len(result["observations"]) == 384
+    assert sum(row["selection_source"] == "review_consensus" for row in result["observations"]) == 2
+    assert result["review_provenance"]["reviewer_identity_authenticated"] is False
+    score_main([*args, "--output", str(tmp_path / "unreviewed.json")])
+    unreviewed = json.loads((tmp_path / "unreviewed.json").read_text(encoding="utf-8"))
+    assert sum(row["selection_source"] == "unresolved" for row in unreviewed["observations"]) == 2
+
+
+@pytest.mark.parametrize("command", ["score", "prepare", "export"])
+@pytest.mark.parametrize("failure", ["exists", "parent", "link", "race", "write", "cleanup"])
+def test_cli_publication_preserves_existing_or_complete_output(
+    sample, tmp_path, monkeypatch, capsys, command, failure
+):
+    args = cli_inputs(tmp_path, sample)
+    if command == "export":
+        args += [
+            "--review-package",
+            write_json(tmp_path / "package.json", prepare_response_review(*sample)),
+        ]
+    output = tmp_path / "out.json"
+    expected = None
+    if failure == "exists":
+        output.write_bytes(b"prior")
+        expected = b"prior"
+    elif failure == "parent":
+        output = tmp_path / "absent" / "out.json"
+    elif failure in {"link", "race"}:
+
+        def failed_link(source, destination):
+            if failure == "race":
+                Path(destination).write_bytes(b"competitor")
+            raise OSError("SENTINEL_PRIVATE_EXCEPTION")
+
+        monkeypatch.setattr("scripts.knowledge_utility_capture_records.os.link", failed_link)
+        if failure == "race":
+            expected = b"competitor"
+    elif failure == "write":
+
+        def failed_write(path, data):
+            path.write_bytes(b"partial")
+            raise OSError("SENTINEL_PRIVATE_EXCEPTION")
+
+        monkeypatch.setattr("scripts.knowledge_utility_capture_records._write_new", failed_write)
+    else:
+        cleanup = TemporaryDirectory.cleanup
+
+        def failed_cleanup(self):
+            cleanup(self)
+            raise OSError("SENTINEL_PRIVATE_EXCEPTION")
+
+        monkeypatch.setattr(TemporaryDirectory, "cleanup", failed_cleanup)
+    main = score_main if command == "score" else review_main
+    invocation = args if command == "score" else [command, *args]
+    with pytest.raises(SystemExit) as error:
+        main([*invocation, "--output", str(output)])
+    assert error.value.code == 2
+    error_text = capsys.readouterr().err
+    assert error_text.strip() == "cannot publish follow-up: file operation failed"
+    if failure == "cleanup":
+        assert json.loads(output.read_text(encoding="utf-8"))["schema_version"].startswith(
+            "knowledge-utility-followup-"
+        )
+    elif expected is not None:
+        assert output.read_bytes() == expected
+    else:
+        assert not output.exists()
+    assert not list(tmp_path.glob(".pilot-capture-*"))
+
+
+@pytest.mark.parametrize("command", ["score", "prepare", "export"])
+@pytest.mark.parametrize("failure", ["malformed", "oversized", "unreadable"])
+def test_cli_input_errors_are_bounded_and_redacted(sample, tmp_path, capsys, command, failure):
+    args = cli_inputs(tmp_path, sample)
+    captures_path = tmp_path / "captures.json"
+    if failure == "malformed":
+        captures_path.write_text(
+            '{"SENTINEL_PRIVATE_RESPONSE": "SENTINEL_PRIVATE_REASON"}', encoding="utf-8"
+        )
+    elif failure == "oversized":
+        captures_path.write_bytes(b" " * (4 * 1024 * 1024 + 1))
+    else:
+        args[-1] = str(tmp_path / "missing.json")
+    if command == "export":
+        args += [
+            "--review-package",
+            write_json(tmp_path / "package.json", prepare_response_review(*sample)),
+        ]
+    main = score_main if command == "score" else review_main
+    invocation = args if command == "score" else [command, *args]
+    output = tmp_path / "out.json"
+    with pytest.raises(SystemExit) as error:
+        main([*invocation, "--output", str(output)])
+    assert error.value.code == 2
+    assert capsys.readouterr().err.strip() == "cannot process follow-up: invalid input"
+    assert not output.exists()
+
+
+@pytest.mark.parametrize("extra", [["--live"], ["--review", "a", "--review", "b", "--review", "c"]])
+def test_scoring_cli_rejects_live_and_excess_reviews(sample, tmp_path, extra):
+    args = cli_inputs(tmp_path, sample)
+    with pytest.raises(SystemExit) as error:
+        score_main([*args, *extra, "--output", str(tmp_path / "out.json")])
+    assert error.value.code == 2
+    assert not (tmp_path / "out.json").exists()
+
+
+def test_cli_rejects_draft_and_missing_required_paths(sample, tmp_path):
+    package = prepare_response_review(*sample)
+    review = review_file(package, "one", {})
+    review["finalized"] = False
+    args = cli_inputs(tmp_path, sample)
+    with pytest.raises(SystemExit) as error:
+        score_main(
+            [
+                *args,
+                "--review-package",
+                write_json(tmp_path / "package.json", package),
+                "--review",
+                write_json(tmp_path / "review.json", review),
+                "--output",
+                str(tmp_path / "out.json"),
+            ]
+        )
+    assert error.value.code == 2
+    for main, invocation in (
+        (score_main, []),
+        (review_main, ["prepare"]),
+        (review_main, ["export"]),
+    ):
+        with pytest.raises(SystemExit) as error:
+            main(invocation)
+        assert error.value.code == 2

@@ -3,17 +3,24 @@
 # Standard library
 from __future__ import annotations
 
+import argparse
+import sys
 from base64 import b64encode
 from copy import deepcopy
+from pathlib import Path
 
 # Third-party
 # Local
 from evaluation.causal_records import content_digest
+from scripts.knowledge_utility_capture_records import publish_json
 from scripts.knowledge_utility_followup_records import (
+    MAX_ARTIFACT_BYTES,
+    MAX_INPUT_BYTES,
     FollowupInputs,
     JsonObject,
     bound_artifact,
     canonical_option,
+    read_json_object,
     validate_followup_inputs,
 )
 from scripts.review_knowledge_utility_followup import ReviewSet, resolve_response_reviews
@@ -220,3 +227,40 @@ def score_followup(
     )
     result["result_digest"] = content_digest(result)
     return bound_artifact(result)
+
+
+def main(argv: list[str] | None = None) -> None:
+    """Validate local inputs and exclusively publish one descriptive report."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--packet", type=Path, required=True)
+    parser.add_argument("--captures", type=Path, required=True)
+    parser.add_argument("--review-package", type=Path)
+    parser.add_argument("--review", type=Path, action="append", default=[])
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args(argv)
+    try:
+        if len(args.review) > 2 or (args.review and args.review_package is None):
+            raise ValueError("zero to two reviews require a package")
+        packet = read_json_object(args.packet, max_bytes=MAX_INPUT_BYTES)
+        captures = read_json_object(args.captures, max_bytes=MAX_INPUT_BYTES)
+        package = (
+            None
+            if args.review_package is None
+            else read_json_object(args.review_package, max_bytes=MAX_ARTIFACT_BYTES)
+        )
+        reviews = tuple(
+            read_json_object(path, max_bytes=MAX_ARTIFACT_BYTES) for path in args.review
+        )
+        result = score_followup(packet, captures, package, reviews)
+    except (ValueError, OSError):
+        print("cannot process follow-up: invalid input", file=sys.stderr)
+        raise SystemExit(2) from None
+    try:
+        publish_json(args.output, result)
+    except OSError:
+        print("cannot publish follow-up: file operation failed", file=sys.stderr)
+        raise SystemExit(2) from None
+
+
+if __name__ == "__main__":
+    main()
