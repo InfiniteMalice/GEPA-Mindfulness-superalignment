@@ -4,12 +4,15 @@
 from collections import Counter
 from dataclasses import replace
 from decimal import ROUND_HALF_UP, Decimal
+from hashlib import sha256
 from itertools import permutations
 
 # Third-party
 import pytest
 
 # Local
+from evaluation.causal_records import canonical_json, content_digest
+from scripts.prepare_knowledge_utility_pilot import prepare_pilot
 
 
 @pytest.fixture
@@ -137,3 +140,178 @@ def test_representative_answers_recomputed_from_facts(task_data):
     possibilities = [certified for certified in (False, True) if not certified or False]
     assert possibilities == [False]
     assert tasks["conditional_statements", 0].correct_text == "K is not certified"
+
+
+@pytest.fixture
+def preparer():
+    from scripts import prepare_knowledge_utility_followup
+
+    return prepare_knowledge_utility_followup
+
+
+def test_packet_is_deterministic_and_digest_bound(preparer):
+    packet = preparer.prepare_followup()
+    assert set(packet) == set(
+        "schema_version study_id as_of status execution_authorized packet_frozen optimizer_input "
+        "confers_authority training_eligibility model limits knowledge rubric schedule "
+        "evaluator_cases actor_requests review_templates report_template packet_digest".split()
+    )
+    assert packet["schema_version"] == "knowledge-utility-followup-packet-v1"
+    assert canonical_json(packet) == canonical_json(preparer.prepare_followup())
+    original = packet.pop("packet_digest")
+    assert original == content_digest(packet)
+    packet["evaluator_cases"][0]["expected_option"] = "changed"
+    assert content_digest(packet) != original
+    assert preparer.prepare_followup()["packet_digest"] == original
+
+
+def test_schedule_and_options_are_balanced(preparer):
+    packet = preparer.prepare_followup()
+    cases = packet["evaluator_cases"]
+    assert len(cases) == len({c["task_id"] for c in cases}) == 48
+    assert Counter(c["expected_option"] for c in cases) == dict.fromkeys("ABCD", 12)
+    slots = packet["schedule"]["slots"]
+    assert len(slots) == len({s["slot_id"] for s in slots}) == 384
+    conditions = sorted(["none", "lesson_only", "bank_only", "bank_plus_lesson"])
+    assert Counter(s["condition"] for s in slots) == dict.fromkeys(conditions, 96)
+    assert [s["sequence"] for s in slots] == list(range(384))
+    key = "knowledge-utility-followup-order-v1"
+    ids = [c["task_id"] for c in cases]
+    assert ids == sorted(ids, key=lambda t: (sha256(f"{key}|task|{t}".encode()).hexdigest(), t))
+    blocks = [(t, repeat) for t in ids for repeat in (0, 1)]
+    blocks.sort(key=lambda b: (sha256(f"{key}|block|{b[0]}|{b[1]}".encode()).hexdigest(), *b))
+    orders = list(permutations(conditions))
+    for index, block in enumerate(blocks):
+        group = slots[index * 4 : index * 4 + 4]
+        assert [(s["task_id"], s["repeat"]) for s in group] == [block] * 4
+        assert tuple(s["condition"] for s in group) == orders[index % 24]
+    actual_orders = [tuple(s["condition"] for s in slots[i : i + 4]) for i in range(0, 384, 4)]
+    assert Counter(actual_orders) == dict.fromkeys(orders, 4)
+
+
+def test_option_remap_preserves_key_and_distractors(preparer, task_data):
+    authored = {t.task_id: t for t in task_data.authored_tasks()}
+    for case in preparer.prepare_followup()["evaluator_cases"]:
+        task = authored[case["task_id"]]
+        assert case["options"][case["expected_option"]] == task.correct_text
+        assert {case["options"][k]: v for k, v in case["distractor_errors"].items()} == {
+            d.text: d.error for d in task.distractors
+        }
+        assert case["task_digest"] == content_digest(
+            dict(prompt=case["prompt"], options=case["options"])
+        )
+
+
+def test_actor_messages_only_contain_public_material(preparer, task_data, monkeypatch):
+    tasks = task_data.authored_tasks()
+    sentinel = "PRIVATE_DERIVATION_SENTINEL"
+    altered = (replace(tasks[0], derivation=(sentinel,) * 3, variant_rationale=sentinel),) + tasks[
+        1:
+    ]
+    monkeypatch.setattr(preparer, "authored_tasks", lambda: altered)
+    packet = preparer.prepare_followup()
+    cases = {c["task_id"]: c for c in packet["evaluator_cases"]}
+    knowledge = packet["knowledge"]
+    lesson = knowledge["lesson"]["summary"]
+    bank = knowledge["bank"]["entries"][0]["lesson"]["summary"]
+    contexts = {
+        "none": "",
+        "lesson_only": lesson,
+        "bank_only": bank,
+        "bank_plus_lesson": bank + "\n" + lesson,
+    }
+    base = (
+        "Solve the task using its explicit facts and rules. Return only JSON with one key, "
+        '"answer", whose value is exactly "A", "B", "C", or "D". '
+        "Do not add explanation or other keys."
+    )
+    for slot, request in zip(packet["schedule"]["slots"], packet["actor_requests"], strict=True):
+        assert {k: v for k, v in request.items() if k != "messages"} == slot
+        case = cases[request["task_id"]]
+        context = contexts[request["condition"]]
+        system = base + ("\nKnowledge context:\n" + context if context else "")
+        user = (
+            case["prompt"]
+            + "\nOptions:\n"
+            + "\n".join(f"{label}: {text}" for label, text in case["options"].items())
+        )
+        assert request["messages"] == [
+            dict(role="system", content=system),
+            dict(role="user", content=user),
+        ]
+        assert sentinel not in canonical_json(request["messages"])
+
+
+def test_authority_and_templates_stay_pending(preparer):
+    packet = preparer.prepare_followup()
+    for field in ("execution_authorized", "packet_frozen", "optimizer_input", "confers_authority"):
+        assert packet[field] is False
+    assert packet["training_eligibility"] == "DEVELOPMENT"
+    assert packet["status"] == "pending_independent_review"
+    assert packet["limits"]["approved_generation_budget_usd"] is None
+    assert packet["limits"]["generation_requests"] == 384
+    assert packet["schedule"]["generation_seed_policy"] == "unknown"
+    assert all(s["generation_seed"] is None for s in packet["schedule"]["slots"])
+    for case, review in zip(
+        packet["evaluator_cases"], packet["review_templates"]["task_reviews"], strict=True
+    ):
+        assert case["review_status"] == review["status"] == "pending"
+        assert case["dependency_group"] is None and case["dependencies_known"] is False
+        assert review["task_digest"] == case["task_digest"]
+        assert review["reviewer_id"] is None and review["evidence_refs"] == []
+        assert all(value is None for value in review["checks"].values())
+    response = packet["review_templates"]["response_review"]
+    assert response["status"] == "pending" and response["evidence_refs"] == []
+    for key in ("review_id", "task_digest", "response_digest", "reviewer_id", "selected_option"):
+        assert response[key] is None
+    assert response["rubric_digest"] == content_digest(packet["rubric"])
+    report = packet["report_template"]
+    assert report["observations"] == [] and report["execution_state"] == "not_started"
+    assert report["verified"] is report["paired"] is False
+    for row in report["conditions"].values():
+        assert row["expected"] == 96
+        assert all(v is None for k, v in row.items() if k not in ("expected", "rates"))
+        assert all(v is None for v in row["rates"].values())
+    assert all(v is None for row in report["comparisons"].values() for v in row.values())
+
+
+def test_knowledge_matches_frozen_pilot(preparer, monkeypatch):
+    prior = prepare_pilot()
+    assert (
+        prior["packet_digest"] == "637f63de6ec8b07bd766062568d9390e5edbf5e788f939066344559d1f4540b1"
+    )
+    knowledge = preparer.prepare_followup()["knowledge"]
+    assert knowledge["origin_packet_digest"] == prior["packet_digest"]
+    for field in ("source_episodes", "lesson", "bank"):
+        assert knowledge[field] == prior[field]
+    prior["packet_digest"] = "changed"
+    monkeypatch.setattr(preparer, "prepare_pilot", lambda: prior)
+    with pytest.raises(ValueError):
+        preparer.prepare_followup()
+
+
+def test_packet_size_is_bounded(preparer, monkeypatch):
+    rubric = preparer._rubric()
+    rubric["oversized_authored_metadata"] = "x" * (4 * 1024 * 1024)
+    monkeypatch.setattr(preparer, "_rubric", lambda: rubric)
+    with pytest.raises(ValueError, match="exceeds byte limit"):
+        preparer.prepare_followup()
+
+
+def test_origin_content_checked_even_with_unchanged_digest(preparer, monkeypatch):
+    prior = prepare_pilot()
+    prior["lesson"]["summary"] = "Substituted content"
+    monkeypatch.setattr(preparer, "prepare_pilot", lambda: prior)
+    with pytest.raises(ValueError, match="original pilot content changed"):
+        preparer.prepare_followup()
+
+
+def test_original_interfaces_reject_followup(preparer):
+    from scripts.knowledge_utility_capture_records import build_manifest
+    from scripts.score_knowledge_utility_pilot import score_pilot
+
+    packet = preparer.prepare_followup()
+    with pytest.raises(ValueError):
+        build_manifest(packet)
+    with pytest.raises(ValueError):
+        score_pilot(packet, {})
