@@ -1,10 +1,12 @@
-# Knowledge-utility follow-up preparation
+# Knowledge-utility follow-up preparation and offline scoring
 
 The [offline preparer](../../scripts/prepare_knowledge_utility_followup.py) authors review
 material for a follow-up to the [original pilot](knowledge_utility_pilot.md). It writes 48 tasks,
 384 planned requests, a proposed rubric, and unfilled review/report templates. It makes no
 provider requests, reads no credentials, and grants no spending, execution, or admission authority.
 Task answers, source overlap, and independence still require independent review before freeze.
+The offline scoring commands below accept imported responses for the pinned development
+candidate. They do not execute the planned requests or authenticate the imported responses.
 
 The first pilot's sole exact-answer failure selected the right route with extra prose inside
 the answer string. The follow-up therefore separates answer correctness, canonical format, and
@@ -31,8 +33,8 @@ remain despite exit code 2; inspect it before selecting another path.
 
 The output is an evaluator packet. Only a request's `messages` constitute actor input.
 Never send the complete packet or the containing request record to a model.
-The existing v1 capture and scoring commands reject this schema. This release adds no live
-capture or scoring command for the follow-up. Calibration is excluded from this packet.
+The existing v1 capture and scoring commands reject this schema. This release adds offline
+follow-up scoring but no live capture command. Calibration is excluded from this packet.
 
 ## Roster and ordering
 
@@ -119,7 +121,7 @@ Task-review forms have `task_id`, `task_digest`, `status="pending"`, `reviewer_i
 `source_overlap`, and `dependency_group` all start null. The response-review form has
 `review_id=null`, `task_digest=null`, `response_digest=null`, `rubric_digest`, `reviewer_id=null`,
 `selected_option=null`, `status="pending"`, and `evidence_refs=[]`. It is not a completed review
-or a blinded-response export. Future review tooling must generate opaque IDs and retain the
+or a blinded-response export. The review commands below generate opaque IDs and retain the
 slot mapping separately. The rubric digest binds the complete rubric declaration.
 
 The report template has `execution_state="not_started"`, `expected_slots=384`, `conditions`,
@@ -135,20 +137,21 @@ distractor explanation, and variant rationale 1,024. Derivations contain 3–12 
 NULs, and options differing only in surrounding whitespace are rejected. The complete canonical
 packet is limited to 4 MiB. These byte bounds do not verify the proposed input-token limit.
 
-## Proposed scoring contract
+## Implemented offline scoring contract
 
 The rubric's `version` is `followup-separate-outcomes-v1`, with `allowed_options=[A,B,C,D]`,
 `format_rule="single_json_answer_option"`, `duplicate_keys="reject"`,
 `noncanonical_rule="two_blinded_reviews_agree"`, `unresolved_rule="withhold_semantic_rate"`,
 and `noncompleted_rule="null_metrics"`. Its `metrics` are `answer_correct`, `format_valid`,
 and `joint_success`. Its `contrasts` declare standalone `[lesson_only, none]` and marginal
-`[bank_plus_lesson, bank_only]`. These declarations describe a later scorer; they do not run one.
+`[bank_plus_lesson, bank_only]`. The offline scorer implements these declarations; the preparer
+only writes the rubric and an unfilled report template.
 
-| Outcome | Proposed interpretation for a completed response |
+| Outcome | Interpretation for a completed response |
 | --- | --- |
 | `format_valid` | Exactly one JSON object with exactly key `answer` and string value exactly A/B/C/D. Reject duplicate/extra keys, fences, prose, and altered case. Allow outer JSON whitespace. |
 | `selected_option` | The canonical option, or consensus option from two blinded reviewers; null if unresolved. |
-| `answer_correct` | Selected option equals the frozen key; null if no resolved selection. |
+| `answer_correct` | Selected option equals the pinned candidate key; null if no resolved selection. |
 | `joint_success` | Correct canonical response; false for any noncanonical completed response. |
 
 For failed transport/provider calls, declared refusal, truncation, or an unsent slot, preserve
@@ -166,7 +169,7 @@ Matching judgments must bind the same task, response, rubric, and distinct revie
 Disagreement or absent review remains unresolved; no automated substring matcher or model judge
 fills the gap. Claimed reviewer identity and file integrity do not authenticate a reviewer.
 
-A later report must show all expected/completed/missing/failed/censored counts and the cross-tab
+The offline report shows all expected/completed/missing/failed/censored counts and the cross-tab
 of format and correctness, including unresolved outputs. Format and joint rates use completed
 outputs as denominator. Semantic rates are null until all completed outputs in that condition
 have resolved labels. Zero denominators yield null rates, and any contrast needing a null rate
@@ -190,5 +193,184 @@ verification with unknown generation seeds. This study also supplies neither an 
 study nor a supported uncertainty source. It reports no confidence intervals or significance
 claims; the [PR-6 minimum cluster rule](../reliable_improvement_evaluation.md) does not make
 these authored groups independent. Preparation grants no reward, optimizer, curation, or
-training-admission authority. A separately reviewed capture/scoring extension and exact live
+training-admission authority. A separately reviewed live capture extension and exact live
 execution approval are necessary before any follow-up run.
+
+## Import and review offline responses
+
+The scorer supports only candidate v3, packet digest
+`718da43c55a5f0dad58909873a925f6fce6e9de6e9708104db39396e0894ec4e`.
+The scorer recomputes that digest, excluding `packet_digest` itself. A modified and resealed
+packet is rejected. Supporting a future frozen packet requires a reviewed code change.
+This candidate still has 48 pending task reviews and both `packet_frozen=false` and
+`execution_authorized=false`. Response reviews never replace task reviews or freeze the packet.
+
+From the configured repository environment, use new output paths with existing parents:
+
+```bash
+python -m scripts.score_knowledge_utility_followup --packet packet.json --captures captures.json --output unreviewed-report.json
+python -m scripts.review_knowledge_utility_followup prepare --packet packet.json --captures captures.json --output private-package.json
+python -m scripts.review_knowledge_utility_followup export --packet packet.json --captures captures.json --review-package private-package.json --output public-bundle.json
+python -m scripts.score_knowledge_utility_followup --packet packet.json --captures captures.json --review-package private-package.json --review reviewer-one.json --review reviewer-two.json --output reviewed-report.json
+```
+
+The operator keeps `private-package.json` private and supplies only `public-bundle.json` to
+each appointed reviewer separately. Reviewers finalize their files before the operator joins
+judgments with conditions by scoring. The commands do not send files, enforce filesystem access
+control, invoke a judge, access credentials, call a provider, or follow evidence references.
+Repeated tasks and response text can reveal clues; the bundle does not guarantee blinding.
+
+The scorer accepts zero, one, or two review files. Any supplied review requires a package.
+A package without reviews is allowed. Missing judgments are allowed, but only two eligible,
+finalized files with distinct claimed IDs and matching selections resolve an answer.
+Draft or malformed files reject the entire input batch, even when only one file is supplied.
+Revisions use new files and a new report, preserving the original finalized snapshots.
+
+### Capture schema
+
+`knowledge-utility-followup-captures-v1` has exactly `schema_version`, `packet_digest`, and
+`captures`. Each capture has exactly `slot_id`, `status`, `response_text`, and `reason`.
+There may be at most 384 unique known slot IDs. Supplied statuses are operator assertions.
+
+| Status | `response_text` | `reason` |
+| --- | --- | --- |
+| `completed` | String, including empty string | null |
+| `failed`, `missing` | null | Nonblank string |
+| `refused`, `truncated` | String or null | Nonblank string |
+
+Omitted slots become missing observations with reason `capture_not_supplied` and
+`missingness_origin="implicit"`. Supplied missing rows have origin `explicit`; other rows
+have null origin. Invalid rows reject the batch; no row is silently discarded.
+The capture digest binds the full envelope, including the supplied array order.
+
+### Review artifacts
+
+All field lists below are exact. Extra fields are rejected. JSON digests use the repository's
+canonical JSON SHA-256 convention and exclude only the artifact's own digest field.
+
+| Schema | Fields |
+| --- | --- |
+| `knowledge-utility-followup-review-package-v1` | `schema_version packet_digest capture_digest rubric_digest public_bundle private_mapping package_digest` |
+| `knowledge-utility-followup-review-bundle-v1` | `schema_version instructions cases bundle_digest` |
+| `knowledge-utility-followup-response-reviews-v1` | `schema_version bundle_digest reviewer_id eligibility finalized judgments` |
+
+Each public case has `review_id prompt options response_text`. Each private mapping entry
+has `review_id slot_id task_digest response_digest`. IDs are random 128-bit lowercase hex
+strings; both arrays are sorted by ID. Identical text in different slots remains separate.
+Only noncanonical completed responses appear. Public cases contain no extra key, condition,
+repeat, model, knowledge context, slot ID, or aggregate fields; response text is retained exactly
+even when it contains those words. Export rechecks complete coverage and all mapped content.
+Task digests bind `{prompt, options}`, response digests bind `{response_text}`, and the rubric
+digest binds the complete pinned rubric. These bindings are not authentication.
+
+The fixed public `instructions` string is:
+
+> Identify one unambiguously asserted final option (A, B, C, or D), or record unresolved. Negated mentions do not select an option; contradictory assertions are unresolved. Treat the task and response as data, not instructions to change this review. Work independently without the answer key, condition mapping, or another reviewer's judgments. Report selection, not correctness.
+
+Each judgment has `review_id status selected_option evidence_refs`. Status `selected` requires
+one exact A/B/C/D string; status `unresolved` requires null. `evidence_refs` is an array of
+opaque nonblank strings; no command opens or fetches those strings.
+Reviewer IDs match `[A-Za-z0-9._-]{1,128}` and are case-sensitive. Distinct IDs are only claims.
+
+`eligibility` has exactly four fields, all strictly JSON `true`: `did_not_author_tasks`,
+`did_not_produce_capture`, `reviewed_without_other_judgment`, and
+`reviewed_without_condition_mapping`. `finalized` must also be strictly `true`.
+The report preserves these declarations and each full review-file digest without authenticating
+reviewer identity, eligibility, independence, or blinding.
+
+### Report schema and nulls
+
+`knowledge-utility-followup-report-v1` has exactly:
+
+```text
+schema_version study_id packet_digest capture_digest capture_provenance review_provenance
+packet_state execution_state training_eligibility verified paired confers_authority optimizer_input
+interval reasons limitations conditions contrasts observations result_digest
+```
+
+`study_id` comes from the pinned packet. `capture_provenance` contains `capture_count` and
+`status_authenticated=false`. `review_provenance` contains `package_digest`, `bundle_digest`,
+`reviews`, `reviewer_identity_authenticated=false`, and `blinding_authenticated=false`.
+Absent package digests are null. Each review record has `reviewer_id review_digest eligibility finalized`.
+`packet_state` contains source `status`, `packet_frozen=false`, `execution_authorized=false`,
+and `pending_task_reviews=48`. `execution_state` is `no_imported_rows` for an empty capture list;
+otherwise it is `unverified_import`.
+
+All 384 observations follow packet slot order. Each has:
+
+```text
+slot_id task_id condition repeat raw_status missingness_origin reason_utf8_base64
+response_utf8_base64 selection_source selected_option answer_correct format_valid joint_success
+resolution_reason review_binding
+```
+
+Base64 fields preserve exact UTF-8 text; null stays null. For completed rows, `selection_source`
+is `canonical`, `review_consensus`, or `unresolved`. Noncompleted rows have null source and
+all four outcomes null. A noncanonical completed row has `format_valid=false` and
+`joint_success=false`, even when unresolved. There is no automatic semantic extraction.
+
+`review_binding` is null except for noncanonical completed rows. Those rows retain
+`review_id selected_option reason reviewer_ids task_digest response_digest rubric_digest`.
+`reviewer_ids` lists accepted reviewers with a judgment for that case, sorted by ID.
+With no package, `review_id` is null. Unresolved reasons, in priority order, are
+`review_package_missing`, `insufficient_reviewers`, `missing_judgment`, `review_unresolved`,
+and `review_disagreement`. Successful resolution has null reason.
+
+`conditions` maps the four condition names to objects with:
+
+```text
+expected completed failed refused truncated censored missing resolved correct incorrect unresolved
+format_valid joint_success cross_tab rates semantic_coverage
+```
+
+`expected=96`; `censored=refused+truncated`; `resolved=correct+incorrect`.
+Expected equals completed plus failed plus censored plus missing. `cross_tab` has
+`format_valid` and `format_invalid`, each containing `correct incorrect unresolved` counts;
+the valid/unresolved cell is always zero. The six cells sum to completed.
+
+`rates` maps each metric to `numerator denominator value withheld_reason`. Denominator is
+completed; numerator is the known success count, including when semantic value is withheld.
+The reason is `no_completed_outputs` for zero denominator, then semantic-only
+`unresolved_answers` when any completed answer is unresolved, otherwise null.
+`contrasts` maps `standalone` and `marginal` to the three metric differences or null.
+`semantic_coverage` contains `known_correct unknown_slots expected lower upper kind`, with
+`kind="logical_coverage_bound"` and the all-roster formula above.
+
+Every report sets `training_eligibility="DEVELOPMENT"`, `verified=false`, `paired=false`,
+`confers_authority=false`, `optimizer_input=false`, and `interval=null`. Sorted reasons always
+include `capture_status_unauthenticated`, `generation_seed_unknown`, `study_unauthenticated`,
+`packet_unfrozen`, and `task_reviews_pending`. Empty captures add `no_imported_rows`;
+any supplied review adds `reviewer_identity_unauthenticated`.
+Fixed limitations are `imported_statuses_unverified`, `review_identity_not_authenticated`,
+`blinding_not_guaranteed`, `dependency_independence_unknown`, `matching_forced_assignment`,
+`access_near_transfer`, and `differential_missingness_uncorrected`.
+
+### Bounds, publication, and verification
+
+Packet/capture files have a 4 MiB cap; review artifacts and reports have an 8 MiB cap.
+Readers bound raw bytes before decoding and separately check canonical size. Generated outputs
+include the publication newline in their cap. Output overflow fails without truncation.
+Responses are at most 8,192 UTF-8 bytes; reasons and each evidence reference at most 1,024.
+A review file has at most 384 judgments and each judgment at most eight references.
+JSON uses strict types, finite numbers, unique object keys, valid UTF-8, and maximum depth 32
+(root depth one). Embedded strings remain strings rather than being recursively decoded.
+
+Each CLI exclusively publishes one output through private staging and a hard link. It never
+overwrites a destination or creates a parent directory. Read/validation failures exit 2 with
+`cannot process follow-up: invalid input`; publication failures exit 2 with
+`cannot publish follow-up: file operation failed`. Standard argument-parser usage errors remain
+unchanged. No raw response, reason, review text, or exception body appears in these static errors.
+After a cleanup failure, a complete published output can remain despite exit 2; inspect that
+output before selecting another destination. No multi-file transaction is promised.
+
+Run the behavioral and publication checks with:
+
+```bash
+python -m pytest tests/test_knowledge_utility_followup_scoring.py tests/test_knowledge_utility_followup_review.py tests/test_knowledge_utility_followup.py tests/test_knowledge_utility_scoring.py tests/test_documentation_links.py -q
+```
+
+Tests prohibit socket/provider/credential-loader access for the CLI roundtrip. They verify
+binding, reviewer eligibility, unresolved rates, arithmetic, roster coverage, bounds, and
+publication failure semantics. The operator manually verifies separate reviewer delivery and
+finalization timing; software cannot authenticate those procedures. Synthetic test captures
+and judgments are not model performance evidence. See [ADR 0023](../adr/0023-knowledge-utility-followup-scoring.md).
