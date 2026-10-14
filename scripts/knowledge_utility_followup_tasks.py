@@ -148,7 +148,7 @@ _TASKS = (
         "35",
         (
             ("31", "Ignores the minimum after the coupon."),
-            ("30", "Applies the coupon after enforcing the minimum."),
+            ("39", "Enforces the minimum on the discounted item charge, then adds delivery."),
             ("36", "Omits the coupon and does not reconsider the minimum."),
         ),
         (
@@ -188,7 +188,7 @@ _TASKS = (
         (
             ("ON_TIME; 0 seconds", "Ignores the strict inequality."),
             ("LATE; 0 seconds", "Detects lateness but fails to cross the strict boundary."),
-            ("ON_TIME; 100 seconds", "Omits waiting and transfer."),
+            ("LATE; 101 seconds", "Counts the wait and transfer twice."),
         ),
         (
             "Travel is 500 seconds and waiting plus transfer is 100.",
@@ -654,7 +654,7 @@ _TASKS = (
     _task(
         "quantified_rules",
         0,
-        "Ship a batch only if every fragile item is padded and every item over 5 kg "
+        "A batch may ship if and only if every fragile item is padded and every item over 5 kg "
         "is strapped. A is fragile, 4 kg, padded, not strapped. B is nonfragile, 7 kg, "
         "not padded, strapped. C is fragile, 6 kg, padded, strapped. May it ship?",
         "Yes",
@@ -673,7 +673,7 @@ _TASKS = (
     _task(
         "quantified_rules",
         1,
-        "Ship a batch only if every fragile item is padded and every item over 5 kg "
+        "A batch may ship if and only if every fragile item is padded and every item over 5 kg "
         "is strapped. A is fragile, 4 kg, padded, not strapped. B is nonfragile, 7 kg, "
         "strapped. C is fragile, 6 kg, padded, not strapped. May it ship?",
         "No: C lacks a strap",

@@ -144,6 +144,42 @@ def test_representative_answers_recomputed_from_facts(task_data):
     assert tasks["conditional_statements", 0].correct_text == "K is not certified"
 
 
+def test_quantified_shipping_rule_is_sufficient_as_well_as_necessary(task_data):
+    """Passing necessary conditions alone cannot establish the permission in the answer key."""
+    pair = [task for task in task_data.authored_tasks() if task.mechanism_id == "quantified_rules"]
+    assert len(pair) == 2
+    for task in pair:
+        assert "if and only if" in task.prompt
+    compliant = [(True, 4, True, False), (False, 7, False, True), (True, 6, True, True)]
+    noncompliant = compliant[:2] + [(True, 6, True, False)]
+
+    def may_ship(rows):
+        return all(
+            (not fragile or padded) and (mass <= 5 or strapped)
+            for fragile, mass, padded, strapped in rows
+        )
+
+    assert may_ship(compliant) and not may_ship(noncompliant)
+    assert pair[0].correct_text == "Yes"
+    assert pair[1].correct_text == "No: C lacks a strap"
+
+
+def test_pricing_distractor_arithmetic_matches_the_declared_mistake(task_data):
+    """Evaluator explanations must produce their associated option, not a different quantity."""
+    tasks = {(t.mechanism_id, t.variant): t for t in task_data.authored_tasks()}
+    wrong_minimum_order = max(10 * 3 + 2 - 5, 35) + 4
+    assert str(wrong_minimum_order) in {d.text for d in tasks["tiered_pricing", 1].distractors}
+
+
+def test_time_distractor_arithmetic_matches_the_declared_mistake(task_data):
+    tasks = {(t.mechanism_id, t.variant): t for t in task_data.authored_tasks()}
+    wrong_elapsed = 750 / 1.5 + 2 * (70 + 30)
+    required_savings = int(wrong_elapsed - (10 * 60 - 1))
+    assert f"LATE; {required_savings} seconds" in {
+        d.text for d in tasks["unit_conversion", 1].distractors
+    }
+
+
 @pytest.fixture
 def preparer():
     from scripts import prepare_knowledge_utility_followup
