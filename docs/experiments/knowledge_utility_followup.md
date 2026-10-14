@@ -33,8 +33,8 @@ remain despite exit code 2; inspect it before selecting another path.
 
 The output is an evaluator packet. Only a request's `messages` constitute actor input.
 Never send the complete packet or the containing request record to a model.
-The existing v1 capture and scoring commands reject this schema. This release adds no live
-capture or scoring command for the follow-up. Calibration is excluded from this packet.
+The existing v1 capture and scoring commands reject this schema. This release adds offline
+follow-up scoring but no live capture command. Calibration is excluded from this packet.
 
 ## Roster and ordering
 
