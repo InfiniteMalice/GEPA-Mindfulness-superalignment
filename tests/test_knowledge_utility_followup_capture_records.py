@@ -280,9 +280,10 @@ def test_store_rejects_dangling_link(records, approval_inputs):
     assert not target.exists()
 
 
-@pytest.mark.skipif(os.mkdir not in os.supports_dir_fd, reason="directory descriptors unavailable")
 @pytest.mark.parametrize("when", ["before_open", "during_mkdir"])
 def test_store_parent_replacement_cannot_redirect_creation(records, tmp_path, monkeypatch, when):
+    if not records.HAS_DIRECTORY_FD:
+        pytest.skip("directory descriptors unavailable")
     parent, parked = tmp_path / "parent", tmp_path / "parked"
     parent.mkdir()
     path = parent / "run"
