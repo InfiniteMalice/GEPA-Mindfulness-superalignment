@@ -471,9 +471,27 @@ Published artifacts are new content versions, not write-protected filesystem obj
 
 ### Frozen scoring and registration
 
-Production `FROZEN_PACKET_REGISTRY` starts empty. A separate reviewed repository change registers
-the exact packet, source, candidate and decision digests after operational acceptance and freeze.
-The operator verifies the complete artifact and actual human approval before proposing that change.
+Production `FROZEN_PACKET_REGISTRY` contains the packet accepted and frozen offline on 2026-10-15.
+The registration binds these exact canonical content digests:
+
+| Artifact | Digest |
+| --- | --- |
+| Frozen packet | `c565ce074a50dafb3c3cfc318aa73e16610298de2d6cc0275fafa60c9656d9a1` |
+| Source draft v3 | `718da43c55a5f0dad58909873a925f6fce6e9de6e9708104db39396e0894ec4e` |
+| Acceptance candidate | `e8a41152d1f647779a4facbfddc06c2defd61987377950bb345066df172561b9` |
+| Maintainer decision | `4c012dc2300e2780af357651d62273bf991eeddcd32015a11050d1c9d68cc767` |
+
+The [retained freeze record](../../tests/fixtures/knowledge_utility_followup/README.md) preserves
+the complete candidate and decision for review. The operator reproduced the candidate from all
+14 original evidence files and checked the actual approval before proposing registration.
+`tests/test_knowledge_utility_followup_registration.py` reconstructs the exact frozen packet and
+checks scoring through the production registry. The test does not authenticate human approval
+or repeat the original review. Registration permits offline scoring only; live execution remains
+unauthorized and all ten accepted limitations remain in the frozen record.
+
+Additional registrations require separate reviewed repository changes binding each exact packet,
+source, candidate and decision digest after operational acceptance and freeze. The operator verifies
+the complete artifact and actual human approval before proposing each change.
 There is no CLI or input-file override. An unregistered frozen packet is rejected for scoring,
 even if freeze construction succeeds. Supporting another source requires another reviewed change.
 

@@ -1,8 +1,9 @@
 # ADR 0024: Offline task-review acceptance and packet freeze
 
 Status: Accepted for offline implementation; design, plan and native execution approved on
-2026-10-14. Operational task-review acceptance, packet freeze, frozen-digest registration and
-live execution require separate decisions on the concrete artifacts.
+2026-10-14. Operational task-review acceptance and offline packet freeze approved and completed
+on 2026-10-15. The subsequent registration binds that exact frozen artifact for offline scoring.
+Live execution remains unauthorized and requires a separate decision on concrete execution inputs.
 
 ## Context
 
@@ -40,3 +41,14 @@ reproducibility, exclusive publication, registered transformation validation, dr
 frozen report state and cross-packet binding failures. Synthetic approvals never populate the runtime
 registry. Local preparation checks the retained evidence, and the full suite checks compatibility.
 All results remain DEVELOPMENT, unverified, unpaired and ineligible to confer training authority.
+
+## Operational registration on 2026-10-15
+
+After presentation of the concrete candidate and its ten limitations, the maintainer explicitly
+accepted the evidence and authorized offline freeze. The operator validated all 14 evidence files
+and verified that freeze changed only the permitted fields. The subsequent registry entry binds
+the packet, source, candidate and decision digests listed in the
+[protocol](../experiments/knowledge_utility_followup.md#frozen-scoring-and-registration).
+The retained freeze-record fixture supports exact reconstruction and production-registry tests;
+synthetic decisions remain unregistered. Registration changes admission to offline scoring,
+without changing metric arithmetic, draft compatibility, or execution authority.

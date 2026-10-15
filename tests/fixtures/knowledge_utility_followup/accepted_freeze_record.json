@@ -1,0 +1,2448 @@
+{
+  "acceptance": {
+    "candidate_digest": "e8a41152d1f647779a4facbfddc06c2defd61987377950bb345066df172561b9",
+    "evidence": [
+      {
+        "file_sha256": "a78bfbc62a682c4e323cccae7460bf1cd62ea7cafda2bcb54efd4003bac766ac",
+        "role": "appointment",
+        "size_bytes": 807
+      },
+      {
+        "file_sha256": "fde039d3ea80bd7a666ff90e1a702287a8602c9845bf9b5c27f9dabc9bf6be5c",
+        "role": "author_reference",
+        "size_bytes": 83342
+      },
+      {
+        "file_sha256": "4e2facb85ddcf0e72f403adfc7906ea6b8e4d0b442b5eb7469f6e5318c7be9a4",
+        "role": "comparison",
+        "size_bytes": 286253
+      },
+      {
+        "file_sha256": "104d0afa91175732d925944c993c9af380719989f44cb55e9d0fd6c3b4a1d41f",
+        "role": "correction_audit",
+        "size_bytes": 635
+      },
+      {
+        "file_sha256": "303f6e98db21969d7a954dc0ed91ff67e53ff4dcafdb744bacded0bf658bbe6f",
+        "role": "first_pass",
+        "size_bytes": 26663
+      },
+      {
+        "file_sha256": "d3f1b4f7bf1f8be6f9f0a85930004a0b78d6a401467663f43f7f210a227cc59e",
+        "role": "original_manifest",
+        "size_bytes": 372
+      },
+      {
+        "file_sha256": "921d788046675e63d77c7f854d5f74b4206eff8893ed5ac294360af432f53838",
+        "role": "predecessor_packet",
+        "size_bytes": 462158
+      },
+      {
+        "file_sha256": "683595967ec7d35a00a2275ddcafa51edf072d6ed4f2afff72877e008bb08a89",
+        "role": "preservation",
+        "size_bytes": 321
+      },
+      {
+        "file_sha256": "b6380f6d7a39de15a4febb1a6119e391ed0b21d28acd1955aa56be9f5dda2c84",
+        "role": "public_tasks",
+        "size_bytes": 24991
+      },
+      {
+        "file_sha256": "94fb808d9d2f3b39a3d1ef88df4188d5bf20f00316ddb5270d776a07dd124ecf",
+        "role": "review_audit",
+        "size_bytes": 982
+      },
+      {
+        "file_sha256": "030a38693f3f6fe0ddf75b0c9222dac2a07e6f10ffa816a6ad16b524b2207fe9",
+        "role": "review_readme",
+        "size_bytes": 2073
+      },
+      {
+        "file_sha256": "97d218e32926b2130f498482ed065d537c791ac48a91b1e727b7ac1f7195c693",
+        "role": "review_report",
+        "size_bytes": 8332
+      },
+      {
+        "file_sha256": "a5691b751317adb150459a3ade77106a3e9d16370387730f5949e285df1bbd11",
+        "role": "solution_template",
+        "size_bytes": 32241
+      },
+      {
+        "file_sha256": "957e46635b79e44d707a130ef489ffc3bdaa56b9251d9c7a6962c9cbc45bdc7d",
+        "role": "targeted_recheck",
+        "size_bytes": 3564
+      }
+    ],
+    "limitations": [
+      {
+        "description": "Access variant 0 reuses the source/bank denial pattern.",
+        "id": "access_near_transfer"
+      },
+      {
+        "description": "First-pass blinding is documented, not authenticated.",
+        "id": "blinding_unauthenticated"
+      },
+      {
+        "description": "Task/group statistical independence is unknown.",
+        "id": "dependency_independence_unknown"
+      },
+      {
+        "description": "48 tasks and 24 pairs do not establish effective N.",
+        "id": "effective_sample_size_unknown"
+      },
+      {
+        "description": "External exposure and contamination are unassessed.",
+        "id": "external_contamination_unassessed"
+      },
+      {
+        "description": "Generation seeds are unknown; pairing is not established.",
+        "id": "generation_seed_unknown"
+      },
+      {
+        "description": "Matching uses one feasible assignment plus cost summation.",
+        "id": "matching_forced_assignment"
+      },
+      {
+        "description": "Proposed dependency groups have cross-group overlap.",
+        "id": "overlapping_dependency_groups"
+      },
+      {
+        "description": "The AI reviewer identity is not authenticated.",
+        "id": "reviewer_identity_unauthenticated"
+      },
+      {
+        "description": "The bank repeats source content; it is not independent evidence.",
+        "id": "source_bank_duplication"
+      }
+    ],
+    "pending_task_count": 0,
+    "predecessor_packet_digest": "53b8828ed0098703e4a779669a7d0645f7bdd9fa2640e70a72e01ee253df7873",
+    "resolved_findings": [
+      {
+        "evidence_roles": [
+          "comparison",
+          "correction_audit",
+          "first_pass",
+          "targeted_recheck"
+        ],
+        "finding_id": "I1",
+        "task_ids": [
+          "followup-task_precedence-0",
+          "followup-task_precedence-1"
+        ]
+      },
+      {
+        "evidence_roles": [
+          "comparison",
+          "correction_audit",
+          "first_pass",
+          "targeted_recheck"
+        ],
+        "finding_id": "I2",
+        "task_ids": [
+          "followup-flow_conservation-0"
+        ]
+      }
+    ],
+    "schema_version": "knowledge-utility-followup-acceptance-candidate-v1",
+    "source_packet_digest": "718da43c55a5f0dad58909873a925f6fce6e9de6e9708104db39396e0894ec4e",
+    "tasks": [
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "4adf66a4f8f0878c97f306dd071f5d41400b3b96e09941c0aaa174c1631a2c87",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "4adf66a4f8f0878c97f306dd071f5d41400b3b96e09941c0aaa174c1631a2c87",
+        "task_id": "followup-exception_scope-0"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "e65570f4d7b96b50ad8ee1ec6a70cba4613cb13182a75b2172449f8f23f899d2",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "e65570f4d7b96b50ad8ee1ec6a70cba4613cb13182a75b2172449f8f23f899d2",
+        "task_id": "followup-queue_discipline-1"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "af029cac7da54f370bf563610f1dd2480392b576653addb2e8d4b73586c68bc1",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "af029cac7da54f370bf563610f1dd2480392b576653addb2e8d4b73586c68bc1",
+        "task_id": "followup-rounding_policy-1"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "ae689c8b27ff21a051ba2570b149367200d3894cb47bcff183d55301334278f8",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "ae689c8b27ff21a051ba2570b149367200d3894cb47bcff183d55301334278f8",
+        "task_id": "followup-matching_constraints-0"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "f4b948bf8a42f07034811ff78f0c0f1e94436dfc188c58a761d9b116ba93e856",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "f4b948bf8a42f07034811ff78f0c0f1e94436dfc188c58a761d9b116ba93e856",
+        "task_id": "followup-interval_composition-0"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "a3673002e53b069682eebf2016713f74dbd9578de4031a975cd635f111e83713",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "a3673002e53b069682eebf2016713f74dbd9578de4031a975cd635f111e83713",
+        "task_id": "followup-state_transitions-1"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "9cb88609da10b9dd5bc339da5c53fe5e01ce8fa54509adcc79b7bc370531a65e",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "9cb88609da10b9dd5bc339da5c53fe5e01ce8fa54509adcc79b7bc370531a65e",
+        "task_id": "followup-interval_composition-1"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "230b21f06289ef8940047f7958724fdd1e7ab1ab234984b9857f47d18a53fa9f",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "230b21f06289ef8940047f7958724fdd1e7ab1ab234984b9857f47d18a53fa9f",
+        "task_id": "followup-conditional_statements-0"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "56624becb04aace81e83d619c66e3e15ba13c446d104c5abaa6231ea4613c8d8",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "56624becb04aace81e83d619c66e3e15ba13c446d104c5abaa6231ea4613c8d8",
+        "task_id": "followup-weighted_allocation-0"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "17fe52bf7f687fe93e9bf2d179506f9419ff44dde33afd23732d2e32671390bc",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "17fe52bf7f687fe93e9bf2d179506f9419ff44dde33afd23732d2e32671390bc",
+        "task_id": "followup-time_window_scheduling-1"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "b2e70da540f219189cbc2643614af91ec48a949a69215498afd340366649cf8c",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "b2e70da540f219189cbc2643614af91ec48a949a69215498afd340366649cf8c",
+        "task_id": "followup-matching_constraints-1"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "8fb4cdc710b817fced05bee608d7b7fe300fb4224adf5de37b0b1e609813121b",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "8fb4cdc710b817fced05bee608d7b7fe300fb4224adf5de37b0b1e609813121b",
+        "task_id": "followup-resource_packing-0"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "7fb8c19f91d90ac2f62c6894c8fb5549f601544d53427a8985a9ad21679f1908",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "7fb8c19f91d90ac2f62c6894c8fb5549f601544d53427a8985a9ad21679f1908",
+        "task_id": "followup-set_operations-0"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "2f53b610e44720a84fb6bfe676ca526bbbfd2890b1a1a86babaa34eea60bd5aa",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "2f53b610e44720a84fb6bfe676ca526bbbfd2890b1a1a86babaa34eea60bd5aa",
+        "task_id": "followup-quorum_with_abstentions-1"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "cbdf567aca053362ade03a1e0714e33dccc1fe648cc88167e39faaf41d5a2984",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "cbdf567aca053362ade03a1e0714e33dccc1fe648cc88167e39faaf41d5a2984",
+        "task_id": "followup-constrained_route_cost-1"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "resolved_by_recheck",
+            "evidence_roles": [
+              "comparison",
+              "correction_audit",
+              "first_pass",
+              "targeted_recheck"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "934e71b76996aa06fa9593e7439164f3bfe208a5d17b85a93f631e0cabad4995",
+        "disposition": "corrected_and_rechecked",
+        "evidence_roles": [
+          "comparison",
+          "correction_audit",
+          "first_pass",
+          "targeted_recheck"
+        ],
+        "source_task_digest": "934e71b76996aa06fa9593e7439164f3bfe208a5d17b85a93f631e0cabad4995",
+        "task_id": "followup-flow_conservation-0"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "02ee4df5bb7d8a3052a630852e2169ac13b6fc5de3ddb1cbd22695c35685a691",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "02ee4df5bb7d8a3052a630852e2169ac13b6fc5de3ddb1cbd22695c35685a691",
+        "task_id": "followup-unit_conversion-0"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "4283b3bee60ef2529f2339918281da549d93537e413468fcc909d7fcb8e0549c",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "4283b3bee60ef2529f2339918281da549d93537e413468fcc909d7fcb8e0549c",
+        "task_id": "followup-conditional_statements-1"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "73b5d5093ea62262c8e979f3c8220fd0fb3f15eaf0457c09273dc613596c96f4",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "73b5d5093ea62262c8e979f3c8220fd0fb3f15eaf0457c09273dc613596c96f4",
+        "task_id": "followup-quantified_rules-1"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "124a2d8223f36fdfad4a568782e2c32ce2e2a39a7c7351f791e93763d849eb9d",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "124a2d8223f36fdfad4a568782e2c32ce2e2a39a7c7351f791e93763d849eb9d",
+        "task_id": "followup-tiered_pricing-1"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "resolved_by_recheck",
+            "evidence_roles": [
+              "comparison",
+              "correction_audit",
+              "first_pass",
+              "targeted_recheck"
+            ]
+          }
+        },
+        "current_task_digest": "840ee1f645523641f3f8ba6ce7a490c79aeadb750c6666dfdf285c54328f1c4b",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "correction_audit",
+          "first_pass",
+          "targeted_recheck"
+        ],
+        "source_task_digest": "840ee1f645523641f3f8ba6ce7a490c79aeadb750c6666dfdf285c54328f1c4b",
+        "task_id": "followup-task_precedence-0"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "resolved_by_recheck",
+            "evidence_roles": [
+              "comparison",
+              "correction_audit",
+              "first_pass",
+              "targeted_recheck"
+            ]
+          },
+          "answer": {
+            "assessment": "resolved_by_recheck",
+            "evidence_roles": [
+              "comparison",
+              "correction_audit",
+              "first_pass",
+              "targeted_recheck"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "resolved_by_recheck",
+            "evidence_roles": [
+              "comparison",
+              "correction_audit",
+              "first_pass",
+              "targeted_recheck"
+            ]
+          }
+        },
+        "current_task_digest": "955bcece3d610dc9ce302e653a75a8febd91b33ffe8cca86e31b5d9ba529b5ba",
+        "disposition": "corrected_and_rechecked",
+        "evidence_roles": [
+          "comparison",
+          "correction_audit",
+          "first_pass",
+          "targeted_recheck"
+        ],
+        "source_task_digest": "e4df171201378861a40a07c022f377a342900f7e544f7fee164f778c07ddd168",
+        "task_id": "followup-task_precedence-1"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "b3e153fa6029f77c1a7c50045d8a4bba98d401608abe8e425ad78eb01e2ce194",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "b3e153fa6029f77c1a7c50045d8a4bba98d401608abe8e425ad78eb01e2ce194",
+        "task_id": "followup-policy_precedence-1"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "c1e8cd0543c9aea789c50e2a66b4a8aac593d0e114ddf4b1ee8fb95163a8d2e1",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "c1e8cd0543c9aea789c50e2a66b4a8aac593d0e114ddf4b1ee8fb95163a8d2e1",
+        "task_id": "followup-rounding_policy-0"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "d022ff90f2b6e9023deceb4eb856a97bd9fc55d2e2df2db26232ae5da4344003",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "d022ff90f2b6e9023deceb4eb856a97bd9fc55d2e2df2db26232ae5da4344003",
+        "task_id": "followup-weighted_allocation-1"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "9e323a8ed632e57453e7f0b1c194be213b694ce76d9ad91d73730022883febd0",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "9e323a8ed632e57453e7f0b1c194be213b694ce76d9ad91d73730022883febd0",
+        "task_id": "followup-transaction_order-1"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "e05485fbad81e11923378d526277106175e04bf339e0571a1379a4f879f60b21",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "e05485fbad81e11923378d526277106175e04bf339e0571a1379a4f879f60b21",
+        "task_id": "followup-access_conjunction-1"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "fe76e1ea3675d0dde66d3705bf6bd5492c7e378f281e25f985d9f76ea336651e",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "fe76e1ea3675d0dde66d3705bf6bd5492c7e378f281e25f985d9f76ea336651e",
+        "task_id": "followup-transaction_order-0"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "4ec3e6ec526d93327f28cd01084ac795fcf6ca5100ed89ceb5ea097c146b4f3e",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "4ec3e6ec526d93327f28cd01084ac795fcf6ca5100ed89ceb5ea097c146b4f3e",
+        "task_id": "followup-inventory_reconciliation-1"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "3265350bafc92156ea30de14a2a65dab5ddd7176743796833ebb3aa48ab7c225",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "3265350bafc92156ea30de14a2a65dab5ddd7176743796833ebb3aa48ab7c225",
+        "task_id": "followup-tiered_pricing-0"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "7541bc75fc1e38d32df5c8cdc50672446deaa4d78cd876c250a75579867cb3b1",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "7541bc75fc1e38d32df5c8cdc50672446deaa4d78cd876c250a75579867cb3b1",
+        "task_id": "followup-aggregation_filters-0"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "e9f4f7a15d0ed8f9c3a9b4587670885cb5b6a5a4d52e079111b86c9cf30abe5f",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "e9f4f7a15d0ed8f9c3a9b4587670885cb5b6a5a4d52e079111b86c9cf30abe5f",
+        "task_id": "followup-resource_packing-1"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "e222f786e57e880563330cca2aef9f27f01e0e61e18a3c6619f9b0ea77320e51",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "e222f786e57e880563330cca2aef9f27f01e0e61e18a3c6619f9b0ea77320e51",
+        "task_id": "followup-aggregation_filters-1"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "dd5298cde448b67d9fbb667d66ee3681a7461f06e7e7fd35aa6b2a0a8963d1ab",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "dd5298cde448b67d9fbb667d66ee3681a7461f06e7e7fd35aa6b2a0a8963d1ab",
+        "task_id": "followup-table_joins-1"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "ba8e9bac1843aaa2640552496201b9d8c5ee363f8f3b20075a63db60231f12bf",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "ba8e9bac1843aaa2640552496201b9d8c5ee363f8f3b20075a63db60231f12bf",
+        "task_id": "followup-quorum_with_abstentions-0"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "ca9d74e947b6800a40a96c56689ec533ced9a8ab2686bf1a150a8adcd1a03817",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "ca9d74e947b6800a40a96c56689ec533ced9a8ab2686bf1a150a8adcd1a03817",
+        "task_id": "followup-access_conjunction-0"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "64cc0b4111ff4cf5fa992d4b83d7eb7308f1c695515a86631242450cd2ce7fa4",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "64cc0b4111ff4cf5fa992d4b83d7eb7308f1c695515a86631242450cd2ce7fa4",
+        "task_id": "followup-flow_conservation-1"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "92de8bc6c308fc244dcaf68dcfa7e86c66aba5f76ad199dfb9bb98ad962a3846",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "92de8bc6c308fc244dcaf68dcfa7e86c66aba5f76ad199dfb9bb98ad962a3846",
+        "task_id": "followup-policy_precedence-0"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "bfeb3417730c0b38e70bc18c2971c9f8c4b85acdd50967072765e35ccff854b9",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "bfeb3417730c0b38e70bc18c2971c9f8c4b85acdd50967072765e35ccff854b9",
+        "task_id": "followup-exception_scope-1"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "561c5dca3f8983f8c89e233e0b237015a11daa09099eeff5c042ccedb10d2ad6",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "561c5dca3f8983f8c89e233e0b237015a11daa09099eeff5c042ccedb10d2ad6",
+        "task_id": "followup-table_joins-0"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "a328ee10f519f5c28d885e1df0eed4c657c5de3718cd9a91fd9d40b1854b5b90",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "a328ee10f519f5c28d885e1df0eed4c657c5de3718cd9a91fd9d40b1854b5b90",
+        "task_id": "followup-constrained_route_cost-0"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "bae91e05f2b2355d4fc15d79690399266d6fd891d8d30fbd3abc3cfeb83786a4",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "bae91e05f2b2355d4fc15d79690399266d6fd891d8d30fbd3abc3cfeb83786a4",
+        "task_id": "followup-time_window_scheduling-0"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "82ac9da936ca9f3ccd89a3490a48e4816ff9fb54435444f3f180ed66cd60aed9",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "82ac9da936ca9f3ccd89a3490a48e4816ff9fb54435444f3f180ed66cd60aed9",
+        "task_id": "followup-queue_discipline-0"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "a118a82a3b03d8b4d23bb70bfa7eda6555983d781b6a416a64ec59cefc3d92c2",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "a118a82a3b03d8b4d23bb70bfa7eda6555983d781b6a416a64ec59cefc3d92c2",
+        "task_id": "followup-state_transitions-0"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "549ffbca619e8021366504fe2c311c7818d73506f583567960d7e54737044a50",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "549ffbca619e8021366504fe2c311c7818d73506f583567960d7e54737044a50",
+        "task_id": "followup-set_operations-1"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "442f9ffe8c1afbec94bfc0104dd22a9988f7d4eff3a75d5793ad569f327b038d",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "442f9ffe8c1afbec94bfc0104dd22a9988f7d4eff3a75d5793ad569f327b038d",
+        "task_id": "followup-inventory_reconciliation-0"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "3bdb82e688712c2d6d25d45c307f41830e15e72d9d4ecce7f31177c572405259",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "3bdb82e688712c2d6d25d45c307f41830e15e72d9d4ecce7f31177c572405259",
+        "task_id": "followup-quantified_rules-0"
+      },
+      {
+        "checks": {
+          "ambiguity": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "answer": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "dependency_group": {
+            "assessment": "limitation_retained",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "source_overlap": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          },
+          "variant_structure": {
+            "assessment": "reviewed_clear",
+            "evidence_roles": [
+              "comparison",
+              "first_pass"
+            ]
+          }
+        },
+        "current_task_digest": "11446e29d680dac1587453d4e09d26d4d48d3e90e4e912363044b133c2bc4f6c",
+        "disposition": "carried_forward",
+        "evidence_roles": [
+          "comparison",
+          "first_pass"
+        ],
+        "source_task_digest": "11446e29d680dac1587453d4e09d26d4d48d3e90e4e912363044b133c2bc4f6c",
+        "task_id": "followup-unit_conversion-1"
+      }
+    ]
+  },
+  "decision": {
+    "accept_task_review": true,
+    "accepted_limitations": [
+      "access_near_transfer",
+      "blinding_unauthenticated",
+      "dependency_independence_unknown",
+      "effective_sample_size_unknown",
+      "external_contamination_unassessed",
+      "generation_seed_unknown",
+      "matching_forced_assignment",
+      "overlapping_dependency_groups",
+      "reviewer_identity_unauthenticated",
+      "source_bank_duplication"
+    ],
+    "authorization_ref": "Codex thread 01a11c83-cf41-7542-b09e-ad099d5be301: human message \"Yes\" immediately following the assistant question \"Approve accepting this evidence and freezing the packet offline?\", presented with acceptance-review-2026-10-15.md. Scope: all ten candidate limitations and offline freeze only; live execution excluded.",
+    "authorize_freeze": true,
+    "candidate_digest": "e8a41152d1f647779a4facbfddc06c2defd61987377950bb345066df172561b9",
+    "decision_digest": "4c012dc2300e2780af357651d62273bf991eeddcd32015a11050d1c9d68cc767",
+    "execution_authorized": false,
+    "maintainer_id": "human-user-in-current-codex-thread",
+    "schema_version": "knowledge-utility-followup-freeze-decision-v1",
+    "source_packet_digest": "718da43c55a5f0dad58909873a925f6fce6e9de6e9708104db39396e0894ec4e"
+  },
+  "source_packet_digest": "718da43c55a5f0dad58909873a925f6fce6e9de6e9708104db39396e0894ec4e"
+}
