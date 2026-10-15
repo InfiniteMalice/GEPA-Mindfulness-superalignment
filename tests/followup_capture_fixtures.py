@@ -2,6 +2,7 @@
 
 # Standard library
 import json
+import os
 from copy import deepcopy
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -52,4 +53,40 @@ def price_record():
         input_usd_per_million="0.75",
         output_usd_per_million="4.5",
         counting_policy="no_charge",
+    )
+
+
+def seal_execution(raw):
+    raw["execution_digest"] = content_digest(
+        {key: value for key, value in raw.items() if key != "execution_digest"}
+    )
+    return raw
+
+
+def execution_record(manifest, run_dir, *, budget="1.032192"):
+    """Declare synthetic test authorization; never write an operational approval."""
+    return seal_execution(
+        dict(
+            schema_version="knowledge-utility-followup-execution-v1",
+            run_id="synthetic-run",
+            packet_digest=manifest["packet_digest"],
+            manifest_digest=manifest["manifest_digest"],
+            implementation_commit=COMMIT,
+            run_directory=os.path.normcase(str(run_dir.resolve())),
+            profile=deepcopy(manifest["profile"]),
+            prices=price_record(),
+            provider_review=dict(
+                verified_at="2026-10-15T12:00:00Z",
+                source_urls=["https://developers.openai.com/api/docs/models"],
+                model_available=True,
+                profile_compatible=True,
+                counting_charge_reference="synthetic assertion; not billing evidence",
+            ),
+            approved_budget_usd=budget,
+            approved_count_requests=384,
+            approved_generation_requests=384,
+            accept_unknown_counting_cost=False,
+            execution_authorized=True,
+            approval_reference="synthetic:not-human-approval",
+        )
     )

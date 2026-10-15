@@ -1,8 +1,9 @@
 # Follow-up capture runner design
 
-Status: Direction and written design approved on 2026-10-15. Implementation plan awaiting review.
-This document authorizes no implementation, credential access, provider requests, or spending.
-Implementation planning follows written-design approval. An eventual live run requires its own
+Status: Direction, written design, implementation plan, and native implementation approved on
+2026-10-15. Implementation in progress; live execution remains separately gated.
+The maintainer approved tooling implementation; credential access, provider requests, and spending
+remain outside that approval. An eventual live run requires its own
 concrete execution approval after implementation, review, and provider compatibility/price checks.
 
 ## Purpose and scope

@@ -10,7 +10,7 @@
 
 **Spec:** [Approved capture design](2026-10-15-knowledge-utility-followup-capture-design.md).
 
-**Status:** Written design approved on 2026-10-15. This plan awaits review; implementation and live execution have not been authorized by this document. Native implementation and one fresh final reviewer remain the established execution method.
+**Status:** Written design, plan, and native implementation approved on 2026-10-15. Implementation is in progress with one fresh final reviewer. Live execution remains separately authorized after concrete execution-input review.
 
 ## Global constraints
 
