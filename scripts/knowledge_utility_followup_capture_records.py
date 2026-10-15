@@ -18,6 +18,7 @@ from scripts.knowledge_utility_capture_records import (
     normalized_path,
     parse_prices,
     reservation_micro_usd,
+    utc_now,
 )
 from scripts.knowledge_utility_followup_records import (
     MAX_INPUT_BYTES,
@@ -225,3 +226,50 @@ def validate_execution(
         if os.path.lexists(run_dir) or not run_dir.parent.is_dir():
             raise ValueError("fresh run directory required")
     return FollowupExecution(deepcopy(value), prices, budget, reserve)
+
+
+@dataclass(frozen=True)
+class FollowupRunStore:
+    """Exclusive run ownership and immutable, bounded audit artifacts."""
+
+    root: Path
+    identity: JsonObject
+
+    @classmethod
+    def create(
+        cls, run_dir: Path, execution: FollowupExecution, manifest: JsonObject
+    ) -> "FollowupRunStore":
+        """Claim and initialize a fresh directory before credential access."""
+        run_dir.mkdir()
+        identity = {
+            key: execution.raw[key]
+            for key in ("run_id", "packet_digest", "manifest_digest", "execution_digest")
+        }
+        store = cls(run_dir, identity)
+        for child in ("counts", "attempts", "results"):
+            (run_dir / child).mkdir()
+        store.write_record("execution.json", {"execution": execution.raw})
+        store.write_record("requests.json", {"manifest": manifest})
+        store.write_record("execution-started.json", {"utc": utc_now()})
+        return store
+
+    def write_record(self, relative: str, data: JsonObject) -> None:
+        """Flush exclusive writes; preserve partial evidence on any failure."""
+        metadata = {"execution.json", "requests.json", "execution-started.json", "terminal.json"}
+        match = re.fullmatch(
+            r"(?:counts/([0-9]{3})-(?:intent|result)|(?:attempts|results)/([0-9]{3}))\.json",
+            relative,
+        )
+        if relative not in metadata and (
+            match is None or int(match.group(1) or match.group(2)) >= SLOT_COUNT
+        ):
+            raise ValueError("uncontrolled run filename")
+        if set(data) & set(self.identity):
+            raise ValueError("record cannot replace run identity")
+        record = dict(data, **self.identity)
+        validate_json_value(record, max_bytes=MAX_INPUT_BYTES - 1)
+        encoded = (canonical_json(record) + "\n").encode("utf-8")
+        with (self.root / relative).open("xb") as stream:
+            stream.write(encoded)
+            stream.flush()
+            os.fsync(stream.fileno())

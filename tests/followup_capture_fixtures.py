@@ -11,6 +11,7 @@ from pathlib import Path
 # Third-party
 # Local
 from evaluation.causal_records import content_digest
+from scripts.knowledge_utility_capture_transport import TransportResult
 from scripts.prepare_knowledge_utility_followup import prepare_followup
 
 NOW = datetime(2026, 10, 15, 12, tzinfo=timezone.utc)
@@ -90,3 +91,61 @@ def execution_record(manifest, run_dir, *, budget="1.032192"):
             approval_reference="synthetic:not-human-approval",
         )
     )
+
+
+def transport_result(body):
+    return TransportResult(
+        200,
+        "synthetic-request",
+        json.dumps(body).encode(),
+        None,
+        False,
+        False,
+        NOW.isoformat(),
+        NOW.isoformat(),
+        0.01,
+    )
+
+
+def provider_result(text='{"answer":"A"}', *, status="completed"):
+    return transport_result(
+        dict(
+            object="response",
+            model="gpt-5.4-mini-2026-03-17",
+            status=status,
+            error=None,
+            usage=dict(input_tokens=100, output_tokens=10),
+            incomplete_details={"reason": "max_output_tokens"} if status == "incomplete" else None,
+            output=[
+                dict(
+                    type="message",
+                    role="assistant",
+                    status=status,
+                    content=[dict(type="output_text", text=text)],
+                )
+            ],
+        )
+    )
+
+
+class FakeTransport:
+    """Observe real orchestration while replacing only the provider boundary."""
+
+    def __init__(self, responder=None):
+        self.calls = []
+        self.responder = responder
+
+    def post(self, endpoint, payload):
+        index = len(self.calls)
+        self.calls.append((endpoint, deepcopy(payload)))
+        if self.responder is not None:
+            return self.responder(endpoint, payload, index)
+        if endpoint == "responses/input_tokens":
+            return transport_result(
+                dict(
+                    object="response.input_tokens",
+                    input_tokens=100,
+                    usage=dict(input_tokens=100, output_tokens=0),
+                )
+            )
+        return provider_result()
