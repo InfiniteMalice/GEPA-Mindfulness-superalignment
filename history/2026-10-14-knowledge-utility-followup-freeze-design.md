@@ -1,8 +1,8 @@
 # Follow-up task-review acceptance and packet freeze
 
-Status: Direction approved on 2026-10-14; written design awaiting maintainer review.
-Implementation planning, implementation, acceptance of task-review evidence, candidate freeze,
-and live execution are separate decisions. This document records none of those approvals.
+Status: Direction and written design approved on 2026-10-14; implementation planning authorized.
+Implementation, acceptance of task-review evidence, candidate freeze, and live execution remain
+separate decisions. This document records none of those approvals.
 
 ## Purpose and scope
 
@@ -110,7 +110,10 @@ The fixed mapping preserves the comparison's limitations and proposed dependency
 it does not turn every check into a boolean pass. Map `checked-and-clear` to `reviewed_clear`,
 `checked-with-study-limitation` and `proposed` to `limitation_retained`, and `issue` to
 `resolved_by_recheck` only for I1/I2 checks covered by the targeted recheck. Reject an issue
-outside that fixed mapping. Each record retains `comparison` and `first_pass` evidence roles;
+outside that fixed mapping. I1 includes both precedence tasks' pair assessments even though
+precedence-0 retains its content and `carried_forward` disposition. I2 maps the flow-0 answer
+assessment to `resolved_by_recheck` because its nested option-A distractor check contained the issue.
+Each record retains `comparison` and `first_pass` evidence roles;
 each resolved check additionally cites `correction_audit` and `targeted_recheck`.
 Role arrays are sorted, unique subsets of the fixed role set. The implementation plan records the full
 48-task mapping for review before implementation. No runtime LLM classifies review prose.
