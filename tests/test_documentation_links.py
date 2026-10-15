@@ -40,6 +40,7 @@ DOCUMENTS = (
     ROOT / "docs" / "adr" / "0022-knowledge-utility-capture.md",
     ROOT / "docs" / "adr" / "0023-knowledge-utility-followup-scoring.md",
     ROOT / "docs" / "adr" / "0024-knowledge-utility-followup-freeze.md",
+    ROOT / "docs" / "adr" / "0025-knowledge-utility-followup-capture.md",
     ROOT / "docs" / "recommendations" / "CAUSAL_ALIGNMENT_AUDIT.md",
     ROOT / "docs" / "recommendations" / "UNIFIED_RECOMMENDATIONS.md",
     ROOT / "docs" / "recommendations" / "RESEARCH_TRACEABILITY.md",
