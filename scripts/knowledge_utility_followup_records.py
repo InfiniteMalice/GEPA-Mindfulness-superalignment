@@ -33,7 +33,14 @@ class FrozenPacketRegistration:
 
 
 # Operational registration requires a separately reviewed, explicitly approved frozen artifact.
-FROZEN_PACKET_REGISTRY: tuple[FrozenPacketRegistration, ...] = ()
+FROZEN_PACKET_REGISTRY: tuple[FrozenPacketRegistration, ...] = (
+    FrozenPacketRegistration(
+        packet_digest="c565ce074a50dafb3c3cfc318aa73e16610298de2d6cc0275fafa60c9656d9a1",
+        source_packet_digest=SUPPORTED_PACKET_DIGEST,
+        candidate_digest="e8a41152d1f647779a4facbfddc06c2defd61987377950bb345066df172561b9",
+        decision_digest="4c012dc2300e2780af357651d62273bf991eeddcd32015a11050d1c9d68cc767",
+    ),
+)
 
 
 def validate_json_value(value: object, *, max_bytes: int) -> None:
