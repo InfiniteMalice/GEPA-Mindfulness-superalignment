@@ -3,6 +3,7 @@
 # Standard library
 from __future__ import annotations
 
+import argparse
 import base64
 import json
 import math
@@ -17,13 +18,20 @@ from typing import Any, Callable
 # Local
 from evaluation.causal_records import canonical_json
 from scripts.capture_knowledge_utility_pilot import implementation_commit, normalize_result
-from scripts.knowledge_utility_capture_records import MODEL, utc_now
-from scripts.knowledge_utility_capture_transport import MAX_BODY, Transport, TransportResult
+from scripts.knowledge_utility_capture_records import MODEL, publish_json, utc_now
+from scripts.knowledge_utility_capture_transport import (
+    MAX_BODY,
+    Transport,
+    TransportResult,
+    make_live_transport,
+)
 from scripts.knowledge_utility_followup_capture_records import (
+    MAX_APPROVAL_BYTES,
     SLOT_COUNT,
     FollowupExecution,
     FollowupRunStore,
     build_manifest,
+    prepare_capture,
     validate_execution,
 )
 from scripts.knowledge_utility_followup_records import (
@@ -32,6 +40,8 @@ from scripts.knowledge_utility_followup_records import (
     JsonObject,
     decode_json_text,
     object_fields,
+    read_json_object,
+    validate_json_value,
 )
 from scripts.score_knowledge_utility_followup import score_followup
 
@@ -495,3 +505,61 @@ def export_run(packet: object, run_dir: Path) -> JsonObject:
     )
     score_followup(packet, envelope)
     return envelope
+
+
+def main(argv: list[str] | None = None) -> None:
+    """Default to offline preparation; live execution requires all explicit bindings."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--live", action="store_true")
+    modes.add_argument("--export", action="store_true")
+    parser.add_argument("--packet", type=Path, required=True)
+    for name in ("output", "prices", "execution", "run-dir", "credential-file"):
+        parser.add_argument("--" + name, type=Path)
+    args = parser.parse_args(argv)
+    supplied = {
+        name
+        for name in ("output", "prices", "execution", "run_dir", "credential_file")
+        if getattr(args, name) is not None
+    }
+    required = {"output"}
+    allowed = {"output", "prices"}
+    if args.live:
+        required = allowed = {"execution", "run_dir", "credential_file"}
+    elif args.export:
+        required = allowed = {"run_dir", "output"}
+    if not required <= supplied or not supplied <= allowed:
+        parser.error("missing or irrelevant mode arguments")
+    error = (
+        "follow-up capture stopped; preserve run directory and inspect intents"
+        if args.live
+        else "cannot process follow-up capture: invalid input or file operation"
+    )
+    try:
+        packet = read_json_object(args.packet, max_bytes=MAX_INPUT_BYTES)
+        if args.live:
+            execution = read_json_object(args.execution, max_bytes=MAX_APPROVAL_BYTES)
+            summary = run_live(
+                packet, execution, args.run_dir, lambda: make_live_transport(args.credential_file)
+            )
+            if summary["state"] != "finished":
+                parser.error(error)
+            return
+        if args.export:
+            result = export_run(packet, args.run_dir)
+        else:
+            prices = (
+                read_json_object(args.prices, max_bytes=MAX_APPROVAL_BYTES)
+                if args.prices is not None
+                else None
+            )
+            result = prepare_capture(packet, prices)
+        validate_json_value(result, max_bytes=MAX_INPUT_BYTES - 1)
+        publish_json(args.output, result)
+    except (Exception, KeyboardInterrupt):
+        # The exception may include credentials or provider text; never interpolate it.
+        parser.error(error)
+
+
+if __name__ == "__main__":
+    main()

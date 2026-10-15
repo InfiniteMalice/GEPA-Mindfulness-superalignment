@@ -1,12 +1,13 @@
-# Knowledge-utility follow-up preparation and offline scoring
+# Knowledge-utility follow-up preparation, capture, and offline scoring
 
 The [offline preparer](../../scripts/prepare_knowledge_utility_followup.py) authors review
 material for a follow-up to the [original pilot](knowledge_utility_pilot.md). It writes 48 tasks,
 384 planned requests, a proposed rubric, and unfilled review/report templates. It makes no
 provider requests, reads no credentials, and grants no spending, execution, or admission authority.
 Task-review evidence requires maintainer acceptance before freeze; independence remains unverified.
-The offline scoring commands below accept imported responses for the pinned development
-candidate. They do not execute the planned requests or authenticate the imported responses.
+The offline scoring commands below accept imported responses for the pinned draft v3 and
+registered frozen packet. They do not execute requests or authenticate imported responses.
+The separate capture command below requires concrete execution approval before provider access.
 
 The first pilot's sole exact-answer failure selected the right route with extra prose inside
 the answer string. The follow-up therefore separates answer correctness, canonical format, and
@@ -33,8 +34,9 @@ remain despite exit code 2; inspect it before selecting another path.
 
 The output is an evaluator packet. Only a request's `messages` constitute actor input.
 Never send the complete packet or the containing request record to a model.
-The existing v1 capture and scoring commands reject this schema. This release adds offline
-follow-up scoring but no live capture command. Calibration is excluded from this packet.
+The original pilot capture and scoring commands reject this schema. Follow-up scoring accepts
+draft v3 and its registered frozen packet; follow-up live capture accepts only the latter.
+Calibration is excluded from this packet.
 
 ## Roster and ordering
 
@@ -193,17 +195,19 @@ verification with unknown generation seeds. This study also supplies neither an 
 study nor a supported uncertainty source. It reports no confidence intervals or significance
 claims; the [PR-6 minimum cluster rule](../reliable_improvement_evaluation.md) does not make
 these authored groups independent. Preparation grants no reward, optimizer, curation, or
-training-admission authority. A separately reviewed live capture extension and exact live
-execution approval are necessary before any follow-up run.
+training-admission authority. The capture extension below requires separate approval of the
+concrete live execution inputs before any follow-up run.
 
 ## Import and review offline responses
 
-The scorer supports only candidate v3, packet digest
+The scorer supports candidate v3, packet digest
 `718da43c55a5f0dad58909873a925f6fce6e9de6e9708104db39396e0894ec4e`.
-The scorer recomputes that digest, excluding `packet_digest` itself. A modified and resealed
-packet is rejected. Supporting a future frozen packet requires a reviewed code change.
-This candidate still has 48 pending task reviews and both `packet_frozen=false` and
-`execution_authorized=false`. Response reviews never replace task reviews or freeze the packet.
+It also supports the exact [registered frozen packet](#frozen-scoring-and-registration).
+The scorer recomputes packet digests, excluding `packet_digest` itself, and validates the frozen
+transformation. Modified and resealed packets outside those registrations are rejected.
+Draft v3 retains 48 pending task reviews and both `packet_frozen=false` and
+`execution_authorized=false`; the registered frozen report records accepted task review with
+execution authority still false. Response reviews never replace task reviews or freeze packets.
 
 From the configured repository environment, use new output paths with existing parents:
 
@@ -527,3 +531,164 @@ publication can leave a complete output despite exit 2; inspect that file before
 Run freeze, frozen-scoring, and CLI tests alongside the existing follow-up/pilot suites and
 documentation-link checks. Synthetic decisions in tests are not human authorization. Preparing
 the actual candidate does not freeze it, authorize live execution, or grant training admission.
+
+## Bounded follow-up capture
+
+The [capture runner](../../scripts/capture_knowledge_utility_followup.py) and
+[record validator](../../scripts/knowledge_utility_followup_capture_records.py) implement
+[ADR 0025](../adr/0025-knowledge-utility-followup-capture.md). Tooling approval does not authorize
+provider calls. Before live execution, the operator must obtain separate maintainer approval of
+all concrete execution fields, verify the approval reference, and select the credential file locally.
+No current price, counting-charge policy, budget, credential, or live approval is supplied by this
+implementation or its synthetic tests.
+
+From the repository root in the configured Python environment:
+
+```bash
+python -m scripts.capture_knowledge_utility_followup --packet FROZEN --output PREPARATION
+python -m scripts.capture_knowledge_utility_followup --packet FROZEN --prices PRICES --output PREPARATION
+python -m scripts.capture_knowledge_utility_followup --live --packet FROZEN --execution APPROVAL --run-dir NEW_DIRECTORY --credential-file KEY_FILE
+python -m scripts.capture_knowledge_utility_followup --export --packet FROZEN --run-dir EXISTING_DIRECTORY --output CAPTURES
+```
+
+Default preparation and export are offline and do not read credentials. Modes are mutually
+exclusive and reject irrelevant flags. Live mode accepts no output, price, endpoint, model, limit,
+or retry overrides. Export accepts no execution or credential override. Use a new output path with
+an existing parent supporting hard links. Publication preserves existing and competing destinations;
+unsupported hard links fail without an overwrite fallback. If cleanup fails after publication, a
+complete destination may remain despite exit 2; inspect it before choosing another output path.
+
+### Exact packet and requests
+
+Capture supports only frozen packet
+`c565ce074a50dafb3c3cfc318aa73e16610298de2d6cc0275fafa60c9656d9a1`.
+The manifest has schema `knowledge-utility-followup-requests-v1` and exact fields
+`schema_version`, `packet_digest`, `profile`, `requests`, and `manifest_digest`. Its digest is
+`af85b29c1f52f70ba5a05a7f56aa11e6848fe8ed8f13d4aaf4c04df81bea74c2`.
+Each of 384 ordered requests contains `sequence`, `slot_id`, `payload`, `request_digest`, and
+`count_payload`. Only the actor's two public messages enter `payload.input`; evaluator labels,
+answers, reviews, and packet metadata are excluded. Count payloads contain only `model`, `input`,
+`reasoning`, and `tools` from the generation payload.
+
+The exact profile is `model=gpt-5.4-mini-2026-03-17`, `reasoning={"effort":"none"}`,
+`temperature=1`, `max_output_tokens=256`, `tools=[]`, `store=false`, `service_tier=default`,
+`truncation=disabled`, and `stream=false`. The input bound is 2,048 tokens. Preparation returns
+`manifest`, `reservation_estimate`, and `token_counts="unknown"`. Without prices the estimate is
+null. With declared prices it reports per-request and roster reservations in integer micro-USD,
+`budget_scope="generation_only"`, the counting policy, and a declared zero or unknown counting cost.
+It does not count tokens, verify provider compatibility, or authorize execution.
+
+### Separate execution declaration
+
+The execution input has schema `knowledge-utility-followup-execution-v1` and these exact fields:
+
+```text
+schema_version run_id packet_digest manifest_digest implementation_commit run_directory
+profile prices provider_review approved_budget_usd approved_count_requests
+approved_generation_requests accept_unknown_counting_cost execution_authorized
+approval_reference execution_digest
+```
+
+`execution_digest` is the canonical content digest excluding itself. The two request caps must
+be integer 384, execution authorization must be boolean true, and packet, manifest and profile
+must match the regenerated manifest. The implementation commit must be the current clean tracked
+Git HEAD, expressed as 40 lowercase hexadecimal characters. The directory binding must be absolute
+and resolve to the requested new directory; its parent must exist. Live validation rejects an
+existing or partially initialized run directory before credential access. References must be
+nonblank bounded text; their presence does not authenticate approval.
+
+The exact price fields are `model`, `service_tier`, `currency`, `verified_at`, `source_urls`,
+`input_usd_per_million`, `output_usd_per_million`, and `counting_policy`. The model/tier match the
+profile, currency is USD, and generation rates are positive unsigned decimal strings with at most
+six fractional digits. `provider_review` has exact fields `verified_at`, `source_urls`,
+`model_available`, `profile_compatible`, and `counting_charge_reference`; both assertions must be
+boolean true. Both source lists contain 1–10 HTTPS URLs on `openai.com`, `developers.openai.com`,
+or `platform.openai.com`. The operator verifies those sources; URL validation is not a fetch or
+proof. Both timestamps use UTC `Z` syntax and must be no more than 24 hours old and not in the
+future when live execution starts. Historical export validates internal bindings without checking
+today's HEAD or freshness. Offline preparation checks price syntax without requiring freshness.
+
+For generation rates I and O in USD per million tokens, reserve
+`R = ceil(2048*I + 256*O)` integer micro-USD before each generation intent, including a partial
+intent write. The unsigned decimal budget must cover `384*R` and be at most USD 5.00. Counting
+policy `no_charge` requires `accept_unknown_counting_cost=false` and a supporting counting-charge
+reference. Policy `unverified_accepted` requires explicit boolean true acceptance of unknown
+counting charges. The ceiling covers generation only. Reservation is conservative authorization
+accounting; estimated generation cost uses valid retained usage. Neither is a bill. Counting
+usage remains retained with null estimated and billed costs. Total billed cost stays null.
+
+### Durable dispatch and recovery
+
+The runner exclusively creates the directory and initializes metadata before constructing the
+transport or reading the credential. It then issues all 384 `responses/input_tokens` calls in order.
+Each complete count must be unredacted HTTP 200, without transport error, and have object
+`response.input_tokens` with an integer input count between 0 and 2,048. A failing count stops the
+run before any generation. After passing all counts, it serially sends up to 384 `responses` calls.
+A failed generation stops subsequent requests; completed, refused, and output-token-truncated
+results permit the next slot. There is no retry or resume command.
+
+Every record carries `run_id`, `packet_digest`, `manifest_digest`, and `execution_digest`.
+Slot records also carry `sequence`, `slot_id`, and `request_digest`.
+The fixed layout is:
+
+| Path | Additional fields |
+| --- | --- |
+| `execution.json` | `execution` |
+| `requests.json` | `manifest` |
+| `execution-started.json` | `utc` |
+| `counts/NNN-intent.json` | `utc`, `payload` |
+| `counts/NNN-result.json` | retained-result fields below |
+| `attempts/NNN.json` | `utc`, `attempt_number=1`, `reservation_micro_usd`, `cumulative_micro_usd` |
+| `results/NNN.json` | retained-result fields below |
+| `terminal.json` | `utc`, `state`, `reason`, `count_requests`, `generation_attempts`, `reserved_micro_usd`, `budget_scope`, `counting_policy`, `counting_cost_usd`, `total_billed_cost_usd` |
+
+`NNN` is exactly `000` through `383`. Retained-result fields are `transport`, `provider`, `usage`,
+`requested_model`, `returned_model`, `cost_scope`, `estimated_cost_usd`, and `billed_cost_usd`.
+Transport contains `status`, `request_id`, base64 `body`, `error_code`, `redacted`, `incomplete`,
+`started_at`, `ended_at`, and `elapsed_seconds`. The transport sanitizes credentials before retention;
+provider content remains untrusted. Invalid provider JSON remains in transport bytes with a null
+parsed projection. Valid usage can produce a generation estimate, never a counting estimate.
+
+The store creates each file exclusively, flushes and fsyncs before continuing. It writes the intent
+before each post and the result before later dispatch. A failed write or interrupt stops dispatch;
+partial files stay in place. A pending request is uncertain even if its post did not return.
+Directory initialization and terminal-write failure may leave no complete terminal summary.
+Do not rerun live mode into that directory or delete evidence to enable a resend. Inspect and export
+retained evidence instead. Neither an error exit nor a missing result proves a request was unbilled.
+
+Export reads the original run without writing it. It rejects unexpected entries, non-files,
+symlinks/reparse points, wrong identities or fields, altered projections/reservations, gaps, results
+without intents, and later work after a failed or uncertain request. Any generation requires all
+384 passing counts. Complete results are recomputed from transport bytes and checked against their
+saved projections. Only a final missing result or interrupted JSON/UTF-8 write can become
+`failed/uncertain_attempt`; duplicate keys, excess depth/size, and parseable conflicts reject.
+A partial intent cannot have a result. An absent/partial optional terminal is recoverable; complete
+terminal identity and accounting conflicts reject. Unsent reasons come from count/generation
+history, never from terminal text.
+
+Export emits exactly 384 schedule-ordered rows using the existing captures-v1 schema, with
+unattempted slots marked missing. The existing scorer validates that envelope and grades completed
+text separately. Scored exports remain DEVELOPMENT, unverified, unpaired, with authority and
+optimizer-input flags false. `execution_authorized=false` remains in scored report packet state:
+scoring does not authenticate the separately retained execution declaration.
+
+### Bounds, exit codes, and verification
+
+All inputs require strict UTF-8, unique keys, finite numbers, exact field/type validation, and JSON
+depth at most 32. Packets, manifests, preparation, exports, and each retained record are capped at
+4 MiB; standalone price/execution inputs at 1 MiB. Output bounds include the publication newline.
+Transport bodies are at most 1 MiB and normalized response text at most 8,192 bytes. Export processes
+one bounded record at a time instead of collecting raw bodies. A full run may occupy multiple GiB;
+disk exhaustion stops dispatch and requires evidence inspection.
+
+Successful preparation/export and a completed roster exit 0. Argument errors use argparse.
+Other offline failures exit 2 with `cannot process follow-up capture: invalid input or file operation`.
+Live failures and stopped/uncertain runs exit 2 with
+`follow-up capture stopped; preserve run directory and inspect intents`.
+Exceptions, credentials and raw provider error text are never printed by these handlers.
+
+Run the follow-up capture records, live, export and CLI tests together with existing knowledge-utility
+and documentation-link tests. They use synthetic declarations and fake providers, preserve existing
+pilot/scoring behavior and draft goldens, and verify mode isolation, exact accounting, interruption,
+read-only recovery and exclusive publication. Fresh provider/price review and concrete human execution
+approval remain required before an operational run.
