@@ -4,7 +4,7 @@ The [offline preparer](../../scripts/prepare_knowledge_utility_followup.py) auth
 material for a follow-up to the [original pilot](knowledge_utility_pilot.md). It writes 48 tasks,
 384 planned requests, a proposed rubric, and unfilled review/report templates. It makes no
 provider requests, reads no credentials, and grants no spending, execution, or admission authority.
-Task answers, source overlap, and independence still require independent review before freeze.
+Task-review evidence requires maintainer acceptance before freeze; independence remains unverified.
 The offline scoring commands below accept imported responses for the pinned development
 candidate. They do not execute the planned requests or authenticate the imported responses.
 
@@ -278,7 +278,7 @@ Reviewer IDs match `[A-Za-z0-9._-]{1,128}` and are case-sensitive. Distinct IDs 
 The report preserves these declarations and each full review-file digest without authenticating
 reviewer identity, eligibility, independence, or blinding.
 
-### Report schema and nulls
+### Draft report schema and nulls
 
 `knowledge-utility-followup-report-v1` has exactly:
 
@@ -374,3 +374,138 @@ binding, reviewer eligibility, unresolved rates, arithmetic, roster coverage, bo
 publication failure semantics. The operator manually verifies separate reviewer delivery and
 finalization timing; software cannot authenticate those procedures. Synthetic test captures
 and judgments are not model performance evidence. See [ADR 0023](../adr/0023-knowledge-utility-followup-scoring.md).
+
+## Task-review acceptance and packet freeze
+
+The [freeze CLI](../../scripts/freeze_knowledge_utility_followup.py) prepares an acceptance
+candidate from the fixed v3 packet and retained review evidence. A separate operation consumes
+an explicit maintainer decision and produces a new frozen packet. Neither operation executes
+model requests or registers a packet for scoring. See [ADR 0024](../adr/0024-knowledge-utility-followup-freeze.md).
+
+The [fixed profile](../../scripts/knowledge_utility_followup_freeze_profile.py) pins 14 evidence
+files by SHA-256 of original bytes and byte count. Evidence roles are `appointment`,
+`author_reference`, `comparison`, `correction_audit`, `first_pass`, `original_manifest`,
+`predecessor_packet`, `preservation`, `public_tasks`, `review_audit`, `review_readme`, `review_report`,
+`solution_template`, and `targeted_recheck`. These retained files are operator-supplied local
+artifacts, not downloaded or reconstructed by the CLI. Reformatting evidence changes its pin.
+
+The evidence-input manifest has exactly `schema_version files`, with schema
+`knowledge-utility-followup-evidence-inputs-v1`. `files` maps exactly those 14 roles to nonblank
+local path strings, each at most 4,096 UTF-8 bytes. Relative paths resolve against the manifest's
+parent directory. File paths in this manifest are explicit read inputs; references embedded in
+evidence are never followed or executed. File paths are omitted from generated evidence metadata.
+
+From the repository root:
+
+```bash
+python -m scripts.freeze_knowledge_utility_followup prepare --packet followup-packet.json --evidence-manifest evidence-inputs.json --output acceptance-candidate.json
+```
+
+The candidate uses schema `knowledge-utility-followup-acceptance-candidate-v1` and exactly:
+
+```text
+schema_version source_packet_digest predecessor_packet_digest evidence tasks
+resolved_findings limitations pending_task_count candidate_digest
+```
+
+`source_packet_digest` is v3; `predecessor_packet_digest` is
+`53b8828ed0098703e4a779669a7d0645f7bdd9fa2640e70a72e01ee253df7873`.
+`evidence` is sorted by role; each entry has `role file_sha256 size_bytes`.
+`tasks` follows evaluator-case order and has 48 records with exactly
+`task_id source_task_digest current_task_digest disposition evidence_roles checks`.
+Each `checks` object has `answer ambiguity variant_structure source_overlap dependency_group`;
+each check has `assessment evidence_roles`. Role arrays are sorted and unique.
+
+The fixed mapping contains 184 `reviewed_clear`, five `resolved_by_recheck`, and 51
+`limitation_retained` assessments. Only flow-0 and precedence-1 have disposition
+`corrected_and_rechecked`; the other 46 task records are `carried_forward`.
+Precedence-0's pair assessment is rechecked without changing its task content. Flow-0's answer
+assessment retains the corrected nested distractor issue. I1 covers precedence-1 answer/ambiguity
+and both precedence pair assessments; I2 covers flow-0's option-A distractor explanation.
+`resolved_findings` contains `finding_id task_ids evidence_roles` for I1 and I2.
+
+`limitations` contains sorted `id description` records for `access_near_transfer`,
+`blinding_unauthenticated`, `dependency_independence_unknown`, `effective_sample_size_unknown`,
+`external_contamination_unassessed`, `generation_seed_unknown`, `matching_forced_assignment`,
+`overlapping_dependency_groups`, `reviewer_identity_unauthenticated`, and `source_bank_duplication`.
+`pending_task_count=0` means all tasks have evidence mapped for decision, not that acceptance
+has occurred. The candidate has no approval or freeze flag. The original blind first pass has
+47 determinate answers and one null; the targeted correction recheck is unblinded. Those records
+remain unchanged and are not relabeled as 48 successful blind solves.
+
+### Maintainer decision and frozen content
+
+After reviewing the actual candidate and limitations, the maintainer explicitly authorizes
+task-review acceptance and freeze. The operator records that decision with schema
+`knowledge-utility-followup-freeze-decision-v1` and exactly:
+
+```text
+schema_version candidate_digest source_packet_digest maintainer_id authorization_ref
+accepted_limitations accept_task_review authorize_freeze execution_authorized decision_digest
+```
+
+The two acceptance/freeze flags are strictly true; execution authorization is strictly false.
+`accepted_limitations` equals the candidate's complete sorted limitation-ID list.
+Identity/reference strings are nonblank and at most 1,024 UTF-8 bytes. `authorization_ref` cites
+the actual human approval and is not fetched. Software validates the declaration and bindings;
+software cannot authenticate a human message or infer acceptance from a design approval.
+
+Only after that explicit operational authorization, run:
+
+```bash
+python -m scripts.freeze_knowledge_utility_followup freeze --packet followup-packet.json --evidence-manifest evidence-inputs.json --candidate acceptance-candidate.json --decision freeze-decision.json --output frozen-packet.json
+```
+
+The command repeats evidence validation and compares the complete candidate. The new packet has
+schema `knowledge-utility-followup-frozen-packet-v1`, status `frozen_with_accepted_task_review`,
+`packet_frozen=true`, and `freeze_record` with exactly `source_packet_digest acceptance decision`.
+The last two fields embed the complete candidate and decision. Its packet digest is recomputed.
+Every other v3 field remains equal, including `as_of`, actor requests, keys, model, schedule,
+knowledge, rubric and source templates. Retained review/report templates describe the original
+draft; current accepted state comes from `freeze_record`, not those templates.
+
+Identical inputs produce identical content. The command inserts no clock values, random IDs,
+or paths. Canonical object digests exclude only their own digest field; evidence `file_sha256`
+binds original bytes. Hashes do not authenticate reviewer identity, blinding, approval or provenance.
+Published artifacts are new content versions, not write-protected filesystem objects.
+
+### Frozen scoring and registration
+
+Production `FROZEN_PACKET_REGISTRY` starts empty. A separate reviewed repository change registers
+the exact packet, source, candidate and decision digests after operational acceptance and freeze.
+The operator verifies the complete artifact and actual human approval before proposing that change.
+There is no CLI or input-file override. An unregistered frozen packet is rejected for scoring,
+even if freeze construction succeeds. Supporting another source requires another reviewed change.
+
+Registered frozen inputs use `knowledge-utility-followup-report-v2`. The existing report fields
+are retained, with `task_review_provenance` added. That object has exactly
+`source_packet_digest candidate_digest decision_digest acceptance_recorded
+maintainer_identity_authenticated reviewer_identity_authenticated blinding_authenticated`.
+`acceptance_recorded=true`; the three authentication flags remain false. `packet_state` contains
+the frozen status, `packet_frozen=true`, `execution_authorized=false`, and `pending_task_reviews=0`.
+Remove `packet_unfrozen` and `task_reviews_pending` from draft reasons and add
+`task_review_acceptance_unauthenticated`; retain all other applicable reasons and limitations.
+
+All metrics, null handling, response consensus, observations and authority flags retain their
+existing definitions. Draft v3 still emits report-v1 unchanged. Capture/private-review bindings
+must name the actual packet; an unchanged draft batch/package fails against a frozen packet.
+These are consistency checks, not authentication of imported captures. No migration or provenance
+upgrade is provided. Task-review acceptance does not replace two-reviewer response adjudication.
+
+### Freeze bounds, publication, and verification
+
+Manifest/candidate/decision inputs have a 1 MiB cap; packets and each evidence file have a 4 MiB
+cap; cumulative evidence has a 16 MiB cap. The existing strict JSON rules apply. Raw reads are
+bounded before decoding; the same evidence byte snapshot is hashed and parsed. Candidate and
+frozen outputs reserve one byte for the publication newline. Oversized outputs fail without truncation.
+
+Each operation publishes one file with the existing exclusive hard-link helper and requires an
+existing output parent. Input/validation failures exit 2 with
+`cannot process follow-up freeze: invalid input`; publication failures exit 2 with
+`cannot publish follow-up freeze: file operation failed`. Argument-parser errors are unchanged.
+No raw evidence or exception body appears in these messages. A cleanup failure after successful
+publication can leave a complete output despite exit 2; inspect that file before retrying.
+
+Run freeze, frozen-scoring, and CLI tests alongside the existing follow-up/pilot suites and
+documentation-link checks. Synthetic decisions in tests are not human authorization. Preparing
+the actual candidate does not freeze it, authorize live execution, or grant training admission.

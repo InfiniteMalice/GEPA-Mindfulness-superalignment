@@ -1,8 +1,8 @@
 # Follow-up task-review acceptance and packet freeze
 
-Status: Direction and written design approved on 2026-10-14; implementation planning authorized.
-Implementation, acceptance of task-review evidence, candidate freeze, and live execution remain
-separate decisions. This document records none of those approvals.
+Status: Direction, written design, implementation plan and native implementation approved on
+2026-10-14. Acceptance of task-review evidence, candidate freeze and live execution remain
+separate decisions. This document records none of those operational approvals.
 
 ## Purpose and scope
 

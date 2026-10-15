@@ -18,8 +18,8 @@ no new runtime dependency.
 
 **Spec:** [Approved design](2026-10-14-knowledge-utility-followup-freeze-design.md).
 **Pinned data:** [Evidence hashes and all 48 task mappings](2026-10-14-knowledge-utility-followup-freeze-plan-evidence.md).
-**Status:** Written plan awaiting maintainer review. Native implementation with one fresh final
-reviewer remains the selected method. No operational acceptance, freeze, or live execution is authorized.
+**Status:** Plan and native implementation approved on 2026-10-14, with one fresh final reviewer.
+No operational acceptance, freeze, or live execution is authorized.
 
 ## Global constraints
 
@@ -294,6 +294,6 @@ documentation and delivery. The appendix supplies all 14 pins and 48 task mappin
 defined before consumers; review-focus tests belong to the owning task. Real evidence preparation
 is reproducible locally, while CI uses explicit synthetic fixtures and cannot grant authorization.
 
-Written-design approval is recorded. The next gate is review of this plan; implementation uses
-the preserved native method only after that review. Actual candidate acceptance/freeze, production
+Written-design and plan approval are recorded. Implementation uses the preserved native method.
+Actual candidate acceptance/freeze, production
 digest registration, and live execution remain later decisions on concrete artifacts.
