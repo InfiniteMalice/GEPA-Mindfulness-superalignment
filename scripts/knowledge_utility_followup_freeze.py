@@ -12,7 +12,9 @@ from scripts.knowledge_utility_followup_records import (
     MAX_INPUT_BYTES,
     SUPPORTED_PACKET_DIGEST,
     JsonObject,
+    bounded_text,
     decode_json_text,
+    object_fields,
     validate_json_value,
 )
 
@@ -118,4 +120,49 @@ def prepare_acceptance(packet: object, evidence: dict[str, bytes]) -> JsonObject
     )
     result["candidate_digest"] = content_digest(result)
     validate_json_value(result, max_bytes=MAX_RECORD_BYTES - 1)
+    return result
+
+
+def freeze_followup(
+    packet: object, evidence: dict[str, bytes], candidate: object, decision: object
+) -> JsonObject:
+    """Validate a declared human decision; hashes do not authenticate its authorization."""
+    validate_json_value(candidate, max_bytes=MAX_RECORD_BYTES)
+    validate_json_value(decision, max_bytes=MAX_RECORD_BYTES)
+    expected = prepare_acceptance(packet, evidence)
+    # Canonical hashing distinguishes JSON false from zero, unlike Python object equality.
+    if content_digest(candidate) != content_digest(expected):
+        raise ValueError("acceptance candidate mismatch")
+    approved = object_fields(
+        decision,
+        "schema_version candidate_digest source_packet_digest maintainer_id authorization_ref "
+        "accepted_limitations accept_task_review authorize_freeze execution_authorized "
+        "decision_digest",
+    )
+    if (
+        approved["schema_version"] != "knowledge-utility-followup-freeze-decision-v1"
+        or approved["candidate_digest"] != expected["candidate_digest"]
+        or approved["source_packet_digest"] != expected["source_packet_digest"]
+        or approved["accept_task_review"] is not True
+        or approved["authorize_freeze"] is not True
+        or approved["execution_authorized"] is not False
+        or approved["accepted_limitations"] != [row["id"] for row in expected["limitations"]]
+        or approved["decision_digest"] != _digest(approved, "decision_digest")
+    ):
+        raise ValueError("invalid freeze decision")
+    bounded_text(approved["maintainer_id"], 1024)
+    bounded_text(approved["authorization_ref"], 1024)
+    result = deepcopy(_packet(packet, SUPPORTED_PACKET_DIGEST))
+    result.update(
+        schema_version="knowledge-utility-followup-frozen-packet-v1",
+        status="frozen_with_accepted_task_review",
+        packet_frozen=True,
+        freeze_record=dict(
+            source_packet_digest=expected["source_packet_digest"],
+            acceptance=deepcopy(expected),
+            decision=deepcopy(approved),
+        ),
+    )
+    result["packet_digest"] = _digest(result, "packet_digest")
+    validate_json_value(result, max_bytes=MAX_INPUT_BYTES - 1)
     return result
