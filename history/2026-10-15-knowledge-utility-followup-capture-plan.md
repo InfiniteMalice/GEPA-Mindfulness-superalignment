@@ -10,7 +10,7 @@
 
 **Spec:** [Approved capture design](2026-10-15-knowledge-utility-followup-capture-design.md).
 
-**Status:** Written design, plan, and native implementation approved on 2026-10-15. Implementation is in progress with one fresh final reviewer. Live execution remains separately authorized after concrete execution-input review.
+**Status:** Written design, plan, and native implementation approved on 2026-10-15. All five tasks are implemented and locally validated; CodeRabbit review and one fresh final review are complete, with valid findings fixed and regression-tested. Live execution remains separately authorized after concrete execution-input review.
 
 ## Global constraints
 
@@ -380,6 +380,6 @@ The reference manifest was independently projected from the retained frozen pack
 implementation, token counting, or a provider call. No unit-test results are claimed for code
 that does not exist yet.
 
-Review this written plan before native implementation. The separate execution record, fresh
+The maintainer approved this written plan before native implementation. The separate execution record, fresh
 provider/price evidence, budget, credential selection and unknown counting-charge acceptance are
 future operational inputs, not blanks to fill with inferred approvals during implementation.

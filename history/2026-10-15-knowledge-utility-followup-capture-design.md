@@ -1,7 +1,8 @@
 # Follow-up capture runner design
 
 Status: Direction, written design, implementation plan, and native implementation approved on
-2026-10-15. Implementation in progress; live execution remains separately gated.
+2026-10-15. Implementation, local validation, and review fixes completed on 2026-10-15;
+live execution remains separately gated.
 The maintainer approved tooling implementation; credential access, provider requests, and spending
 remain outside that approval. An eventual live run requires its own
 concrete execution approval after implementation, review, and provider compatibility/price checks.

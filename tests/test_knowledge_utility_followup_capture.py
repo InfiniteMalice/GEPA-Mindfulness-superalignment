@@ -267,3 +267,58 @@ def test_retained_result_bounds_and_roundtrip(runner, live_inputs):
         changed = dict(saved["transport"], **{key: value})
         with pytest.raises(ValueError):
             runner.restore_transport(changed)
+
+
+@pytest.mark.parametrize("index", [0, 1])
+def test_uncreated_generation_intent_preserves_reservation_and_exports(
+    runner, live_inputs, monkeypatch, index
+):
+    packet, path, raw = live_inputs
+    original = records.FollowupRunStore.write_record
+
+    def fail_before_creation(self, name, data):
+        if name == f"attempts/{index:03}.json":
+            raise OSError("synthetic disk full before file creation")
+        return original(self, name, data)
+
+    monkeypatch.setattr(records.FollowupRunStore, "write_record", fail_before_creation)
+    fake = FakeTransport()
+    summary = runner.run_live(packet, raw, path, lambda: fake)
+    assert summary["state"] == "uncertain"
+    assert summary["reserved_micro_usd"] == (index + 1) * 2688
+    assert len(fake.calls) == 384 + index
+    assert not (path / f"attempts/{index:03}.json").exists()
+    before = {p: p.read_bytes() for p in path.rglob("*") if p.is_file()}
+    rows = runner.export_run(packet, path)["captures"]
+    assert all(row["status"] == "completed" for row in rows[:index])
+    assert all(row["status"] == "missing" for row in rows[index:])
+    assert {p: p.read_bytes() for p in before} == before
+    terminal = path / "terminal.json"
+    changed = json.loads(terminal.read_text())
+    changed["reserved_micro_usd"] += 2688
+    terminal.write_text(json.dumps(changed))
+    with pytest.raises(ValueError):
+        runner.export_run(packet, path)
+
+
+@pytest.mark.parametrize("field", ["started_at", "ended_at"])
+@pytest.mark.parametrize(
+    "stamp", ["not-a-time", "", "2026-10-15T12:00:00", "2026-10-15T12:00:00+01:00"]
+)
+def test_transport_timestamps_require_utc_syntax(runner, live_inputs, field, stamp):
+    packet, path, raw = live_inputs
+    execution = records.validate_execution(raw, records.build_manifest(packet), path)
+    saved = runner.retained_result(provider_result(), execution, generation=True)
+    saved["transport"][field] = stamp
+    with pytest.raises(ValueError):
+        runner.restore_transport(saved["transport"])
+
+
+def test_historical_transport_timestamps_remain_valid(runner, live_inputs):
+    packet, path, raw = live_inputs
+    execution = records.validate_execution(raw, records.build_manifest(packet), path)
+    result = replace(
+        provider_result(), started_at="2000-01-01T00:00:00Z", ended_at="2000-01-01T00:00:01+00:00"
+    )
+    saved = runner.retained_result(result, execution, generation=True)
+    assert runner.restore_transport(saved["transport"]) == result

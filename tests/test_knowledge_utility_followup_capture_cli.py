@@ -242,3 +242,19 @@ def test_offline_subprocess_prepare_export_and_help(inputs, monkeypatch):
         assert result.returncode == 0, result.stderr
     assert json.loads(output.with_name("exported.json").read_text()) == expected
     assert {p: p.read_bytes() for p in before} == before
+
+
+@pytest.mark.parametrize("relative", ["captures.json", "results/383.json", "counts/../alias.json"])
+def test_export_output_cannot_mutate_run_tree(inputs, capsys, relative):
+    packet, output = inputs
+    path = output.with_name("empty-run")
+    manifest = records.build_manifest(json.loads(packet.read_text()))
+    execution = records.validate_execution(execution_record(manifest, path), manifest, path)
+    records.FollowupRunStore.create(path, execution, manifest)
+    before = {p: p.read_bytes() for p in path.rglob("*") if p.is_file()}
+    rejected(
+        ["--export", "--packet", packet, "--run-dir", path, "--output", path / relative],
+        capsys,
+        OFFLINE_ERROR,
+    )
+    assert {p: p.read_bytes() for p in path.rglob("*") if p.is_file()} == before

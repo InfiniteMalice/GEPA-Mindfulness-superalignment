@@ -557,6 +557,8 @@ or retry overrides. Export accepts no execution or credential override. Use a ne
 an existing parent supporting hard links. Publication preserves existing and competing destinations;
 unsupported hard links fail without an overwrite fallback. If cleanup fails after publication, a
 complete destination may remain despite exit 2; inspect it before choosing another output path.
+For export, choose an output path outside the resolved run directory and all its descendants.
+The CLI rejects destinations inside that directory before publication, including path aliases.
 
 ### Exact packet and requests
 
@@ -648,6 +650,8 @@ Transport contains `status`, `request_id`, base64 `body`, `error_code`, `redacte
 `started_at`, `ended_at`, and `elapsed_seconds`. The transport sanitizes credentials before retention;
 provider content remains untrusted. Invalid provider JSON remains in transport bytes with a null
 parsed projection. Valid usage can produce a generation estimate, never a counting estimate.
+Both transport timestamps must be syntactically valid UTC timestamps; historical export applies
+no current-time freshness requirement to them.
 
 The store creates each file exclusively, flushes and fsyncs before continuing. It writes the intent
 before each post and the result before later dispatch. A failed write or interrupt stops dispatch;
@@ -665,6 +669,13 @@ saved projections. Only a final missing result or interrupted JSON/UTF-8 write c
 A partial intent cannot have a result. An absent/partial optional terminal is recoverable; complete
 terminal identity and accounting conflicts reject. Unsent reasons come from count/generation
 history, never from terminal text.
+
+If generation-intent creation fails before creating a file, the terminal retains that slot's
+reservation. Export permits this single additional reservation only for an uncertain terminal
+with reason `interrupted_or_io_failure`, all 384 counts passing, a possibly empty prefix of
+completed, refused, or truncated generation results shorter than 384 slots, and no additional
+recorded dispatch. The slot remains missing because no intent exists. Other accounting differences
+still reject export.
 
 Export emits exactly 384 schedule-ordered rows using the existing captures-v1 schema, with
 unattempted slots marked missing. The existing scorer validates that envelope and grades completed

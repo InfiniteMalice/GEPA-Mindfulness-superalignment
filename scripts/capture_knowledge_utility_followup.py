@@ -47,6 +47,7 @@ from scripts.score_knowledge_utility_followup import score_followup
 
 
 def restore_transport(raw: object) -> TransportResult:
+    """Restore bounded evidence with valid UTC timestamps, regardless of its age."""
     if type(raw) is not dict or set(raw) != {field.name for field in fields(TransportResult)}:
         raise ValueError("invalid transport fields")
     value = dict(raw)
@@ -66,8 +67,7 @@ def restore_transport(raw: object) -> TransportResult:
         if value[key] is not None and (type(value[key]) is not str or len(value[key]) > 256):
             raise ValueError("invalid transport metadata")
     for key in ("started_at", "ended_at"):
-        if type(value[key]) is not str or len(value[key]) > 64:
-            raise ValueError("invalid timestamp")
+        _stamp_valid(value[key])
     elapsed = value["elapsed_seconds"]
     if type(elapsed) not in (int, float) or not math.isfinite(elapsed) or elapsed < 0:
         raise ValueError("invalid elapsed time")
@@ -342,6 +342,7 @@ def _terminal(
     counts_uncertain: bool,
     generation_uncertain: bool,
     finished: bool,
+    unwritten_intent_allowed: bool,
 ) -> None:
     value = _bound_record(
         record,
@@ -356,8 +357,18 @@ def _terminal(
     ):
         if type(value[key]) is not int or not max(0, limit - int(uncertain)) <= value[key] <= limit:
             raise ValueError("terminal dispatch accounting mismatch")
+    reserved = attempts * execution.reservation_micro_usd
+    if (
+        unwritten_intent_allowed
+        and value["state"] == "uncertain"
+        and value["reason"] == "interrupted_or_io_failure"
+        and type(value["reserved_micro_usd"]) is int
+        and value["reserved_micro_usd"] == reserved + execution.reservation_micro_usd
+    ):
+        # Reservation precedes open(): a failed open can leave no final intent file.
+        reserved += execution.reservation_micro_usd
     expected = dict(
-        reserved_micro_usd=attempts * execution.reservation_micro_usd,
+        reserved_micro_usd=reserved,
         budget_scope="generation_only",
         counting_policy=execution.prices.counting_policy,
         counting_cost_usd="0" if execution.prices.counting_policy == "no_charge" else None,
@@ -497,6 +508,11 @@ def export_run(packet: object, run_dir: Path) -> JsonObject:
             counts_uncertain=counts_uncertain,
             generation_uncertain=generation_uncertain,
             finished=attempts == SLOT_COUNT and not generation_blocked,
+            unwritten_intent_allowed=(
+                count_passed == SLOT_COUNT
+                and attempts < SLOT_COUNT
+                and all(row["status"] != "failed" for row in rows)
+            ),
         )
     envelope = dict(
         schema_version=CAPTURE_SCHEMA,
@@ -546,6 +562,8 @@ def main(argv: list[str] | None = None) -> None:
                 parser.error(error)
             return
         if args.export:
+            if args.output.resolve().is_relative_to(args.run_dir.resolve()):
+                raise ValueError("export output must be outside the retained run")
             result = export_run(packet, args.run_dir)
         else:
             prices = (
