@@ -186,15 +186,19 @@ def score_followup(
         "capture_status_unauthenticated",
         "generation_seed_unknown",
         "study_unauthenticated",
-        "packet_unfrozen",
-        "task_reviews_pending",
     ]
+    frozen = inputs.packet["packet_frozen"]
+    reasons.extend(
+        ["task_review_acceptance_unauthenticated"]
+        if frozen
+        else ["packet_unfrozen", "task_reviews_pending"]
+    )
     if not inputs.rows:
         reasons.append("no_imported_rows")
     if reviews:
         reasons.append("reviewer_identity_unauthenticated")
     result = dict(
-        schema_version=REPORT_SCHEMA,
+        schema_version="knowledge-utility-followup-report-v2" if frozen else REPORT_SCHEMA,
         study_id=inputs.packet["study_id"],
         packet_digest=inputs.packet_digest,
         capture_digest=inputs.capture_digest,
@@ -208,9 +212,9 @@ def score_followup(
         ),
         packet_state=dict(
             status=inputs.packet["status"],
-            packet_frozen=False,
+            packet_frozen=frozen,
             execution_authorized=False,
-            pending_task_reviews=48,
+            pending_task_reviews=0 if frozen else 48,
         ),
         execution_state="no_imported_rows" if not inputs.rows else "unverified_import",
         training_eligibility="DEVELOPMENT",
@@ -225,6 +229,17 @@ def score_followup(
         contrasts=_contrasts(conditions),
         observations=observations,
     )
+    if frozen:
+        freeze = inputs.packet["freeze_record"]
+        result["task_review_provenance"] = dict(
+            source_packet_digest=freeze["source_packet_digest"],
+            candidate_digest=freeze["acceptance"]["candidate_digest"],
+            decision_digest=freeze["decision"]["decision_digest"],
+            acceptance_recorded=True,
+            maintainer_identity_authenticated=False,
+            reviewer_identity_authenticated=False,
+            blinding_authenticated=False,
+        )
     result["result_digest"] = content_digest(result)
     return bound_artifact(result)
 

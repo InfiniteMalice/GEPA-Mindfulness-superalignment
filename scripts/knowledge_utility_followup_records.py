@@ -22,6 +22,20 @@ SUPPORTED_PACKET_DIGEST = "718da43c55a5f0dad58909873a925f6fce6e9de6e9708104db393
 CAPTURE_SCHEMA = "knowledge-utility-followup-captures-v1"
 
 
+@dataclass(frozen=True)
+class FrozenPacketRegistration:
+    """Reviewed content registration, not authentication of the recorded human decision."""
+
+    packet_digest: str
+    source_packet_digest: str
+    candidate_digest: str
+    decision_digest: str
+
+
+# Operational registration requires a separately reviewed, explicitly approved frozen artifact.
+FROZEN_PACKET_REGISTRY: tuple[FrozenPacketRegistration, ...] = ()
+
+
 def validate_json_value(value: object, *, max_bytes: int) -> None:
     """Validate exact JSON types, acyclic depth <=32 and canonical UTF-8 size."""
     active: set[int] = set()
@@ -161,22 +175,76 @@ class FollowupInputs:
     rows: dict[str, JsonObject]
 
 
-def validate_followup_inputs(packet: object, captures: object) -> FollowupInputs:
-    """Accept only the pinned candidate and a complete structurally valid capture batch."""
+def _registered_artifact(value: object, field: str, expected: str) -> JsonObject:
+    validate_json_value(value, max_bytes=1024 * 1024)
+    if type(value) is not dict or value.get(field) != expected:
+        raise ValueError("registered artifact mismatch")
+    if content_digest({k: v for k, v in value.items() if k != field}) != expected:
+        raise ValueError("registered artifact digest mismatch")
+    return value
+
+
+def validate_supported_packet(packet: object) -> JsonObject:
+    """Snapshot pinned draft or registered frozen content and recheck its source transformation."""
     validate_json_value(packet, max_bytes=MAX_INPUT_BYTES)
-    validate_json_value(captures, max_bytes=MAX_INPUT_BYTES)
     if type(packet) is not dict:
         raise ValueError("packet object required")
     digest = content_digest({k: v for k, v in packet.items() if k != "packet_digest"})
-    if packet.get("packet_digest") != digest or digest != SUPPORTED_PACKET_DIGEST:
+    if packet.get("packet_digest") != digest:
+        raise ValueError("packet digest mismatch")
+    if digest == SUPPORTED_PACKET_DIGEST:
+        return deepcopy(packet)
+    registrations = [entry for entry in FROZEN_PACKET_REGISTRY if entry.packet_digest == digest]
+    if len(registrations) != 1:
         raise ValueError("unsupported packet")
+    registered = registrations[0]
+    if (
+        registered.source_packet_digest != SUPPORTED_PACKET_DIGEST
+        or packet.get("schema_version") != "knowledge-utility-followup-frozen-packet-v1"
+        or packet.get("status") != "frozen_with_accepted_task_review"
+        or packet.get("packet_frozen") is not True
+    ):
+        raise ValueError("invalid frozen state")
+    freeze = object_fields(packet.get("freeze_record"), "source_packet_digest acceptance decision")
+    acceptance = _registered_artifact(
+        freeze["acceptance"], "candidate_digest", registered.candidate_digest
+    )
+    decision = _registered_artifact(
+        freeze["decision"], "decision_digest", registered.decision_digest
+    )
+    if (
+        freeze["source_packet_digest"] != registered.source_packet_digest
+        or acceptance.get("source_packet_digest") != registered.source_packet_digest
+        or decision.get("source_packet_digest") != registered.source_packet_digest
+        or decision.get("candidate_digest") != registered.candidate_digest
+    ):
+        raise ValueError("frozen provenance mismatch")
+    source = deepcopy(packet)
+    del source["freeze_record"]
+    source.update(
+        schema_version="knowledge-utility-followup-packet-v1",
+        status="pending_independent_review",
+        packet_frozen=False,
+    )
+    if content_digest({k: v for k, v in source.items() if k != "packet_digest"}) != (
+        registered.source_packet_digest
+    ):
+        raise ValueError("invalid frozen transformation")
+    return deepcopy(packet)
+
+
+def validate_followup_inputs(packet: object, captures: object) -> FollowupInputs:
+    """Accept a supported packet and a complete structurally valid capture batch."""
+    snapshot = validate_supported_packet(packet)
+    validate_json_value(captures, max_bytes=MAX_INPUT_BYTES)
+    digest = snapshot["packet_digest"]
     envelope = object_fields(captures, "schema_version packet_digest captures")
     if envelope["schema_version"] != CAPTURE_SCHEMA or envelope["packet_digest"] != digest:
         raise ValueError("unsupported captures")
     raw_rows = envelope["captures"]
     if type(raw_rows) is not list or len(raw_rows) > 384:
         raise ValueError("invalid capture array")
-    known = {slot["slot_id"] for slot in packet["schedule"]["slots"]}
+    known = {slot["slot_id"] for slot in snapshot["schedule"]["slots"]}
     rows: dict[str, JsonObject] = {}
     for raw in raw_rows:
         row = object_fields(raw, "slot_id status response_text reason")
@@ -202,7 +270,7 @@ def validate_followup_inputs(packet: object, captures: object) -> FollowupInputs
             if status in {"failed", "missing"} and text is not None:
                 raise ValueError("unexpected text for status")
         rows[slot_id] = row
-    snapshot, captured = deepcopy(packet), deepcopy(envelope)
+    captured = deepcopy(envelope)
     return FollowupInputs(
         packet=snapshot,
         packet_digest=digest,
