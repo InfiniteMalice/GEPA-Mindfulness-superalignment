@@ -314,11 +314,14 @@ def test_transport_timestamps_require_utc_syntax(runner, live_inputs, field, sta
         runner.restore_transport(saved["transport"])
 
 
-def test_historical_transport_timestamps_remain_valid(runner, live_inputs):
+@pytest.mark.parametrize("suffix", ["Z", "+00:00"])
+def test_historical_transport_timestamps_remain_valid(runner, live_inputs, suffix):
     packet, path, raw = live_inputs
     execution = records.validate_execution(raw, records.build_manifest(packet), path)
     result = replace(
-        provider_result(), started_at="2000-01-01T00:00:00Z", ended_at="2000-01-01T00:00:01+00:00"
+        provider_result(),
+        started_at=f"2000-01-01T00:00:00{suffix}",
+        ended_at=f"2000-01-01T00:00:01{suffix}",
     )
     saved = runner.retained_result(result, execution, generation=True)
     assert runner.restore_transport(saved["transport"]) == result

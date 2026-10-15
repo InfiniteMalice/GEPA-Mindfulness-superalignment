@@ -251,3 +251,28 @@ def test_run_directory_alias_binding_and_reuse(records, approval_inputs, kind):
     records.validate_execution(raw, manifest, path)
     with pytest.raises(ValueError):
         records.validate_execution(raw, manifest, path, live_commit=COMMIT, now=NOW)
+
+
+def test_store_creates_canonical_directory_from_alias(records, approval_inputs):
+    manifest, path, raw = approval_inputs
+    execution = records.validate_execution(raw, manifest, path, live_commit=COMMIT, now=NOW)
+    alias = path / ".." / path.name
+    store = records.FollowupRunStore.create(alias, execution, manifest)
+    assert store.root == path.resolve()
+    assert (path / "execution-started.json").is_file()
+    with pytest.raises(FileExistsError):
+        records.FollowupRunStore.create(alias, execution, manifest)
+
+
+def test_store_rejects_dangling_link(records, approval_inputs):
+    manifest, path, raw = approval_inputs
+    execution = records.validate_execution(raw, manifest, path)
+    target = path.parent / "absent"
+    try:
+        path.symlink_to(target, target_is_directory=True)
+    except OSError:
+        pytest.skip("OS denied test symlink creation")
+    with pytest.raises(FileExistsError):
+        records.FollowupRunStore.create(path, execution, manifest)
+    assert path.is_symlink()
+    assert not target.exists()

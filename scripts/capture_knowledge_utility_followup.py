@@ -318,7 +318,8 @@ def _bound_record(
 def _stamp_valid(value: object) -> None:
     if type(value) is not str or not 1 <= len(value) <= 64:
         raise ValueError("invalid audit timestamp")
-    if datetime.fromisoformat(value).utcoffset() != timedelta(0):
+    text = value[:-1] + "+00:00" if value.endswith("Z") else value
+    if datetime.fromisoformat(text).utcoffset() != timedelta(0):
         raise ValueError("UTC audit timestamp required")
 
 

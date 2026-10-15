@@ -223,7 +223,12 @@ def validate_execution(
             age = now - _utc(stamp)
             if not timedelta(0) <= age <= timedelta(hours=24):
                 raise ValueError("provider evidence not fresh")
-        if os.path.lexists(run_dir) or not run_dir.parent.is_dir():
+        resolved_dir = run_dir.resolve()
+        if (
+            os.path.lexists(run_dir)
+            or os.path.lexists(resolved_dir)
+            or not resolved_dir.parent.is_dir()
+        ):
             raise ValueError("fresh run directory required")
     return FollowupExecution(deepcopy(value), prices, budget, reserve)
 
@@ -240,6 +245,10 @@ class FollowupRunStore:
         cls, run_dir: Path, execution: FollowupExecution, manifest: JsonObject
     ) -> "FollowupRunStore":
         """Claim and initialize a fresh directory before credential access."""
+        # Preserve rejection of dangling links before resolving equivalent path spellings.
+        if os.path.lexists(run_dir):
+            raise FileExistsError("run directory already exists")
+        run_dir = run_dir.resolve()
         run_dir.mkdir()
         identity = {
             key: execution.raw[key]
