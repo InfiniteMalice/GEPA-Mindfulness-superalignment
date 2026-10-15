@@ -1,8 +1,10 @@
 """Follow-up capture binds public requests and exact operational constraints."""
 
 # Standard library
+import os
 from copy import deepcopy
 from datetime import timedelta
+from pathlib import Path
 
 # Third-party
 import pytest
@@ -276,3 +278,45 @@ def test_store_rejects_dangling_link(records, approval_inputs):
         records.FollowupRunStore.create(path, execution, manifest)
     assert path.is_symlink()
     assert not target.exists()
+
+
+@pytest.mark.skipif(os.mkdir not in os.supports_dir_fd, reason="directory descriptors unavailable")
+@pytest.mark.parametrize("when", ["before_open", "during_mkdir"])
+def test_store_parent_replacement_cannot_redirect_creation(records, tmp_path, monkeypatch, when):
+    parent, parked = tmp_path / "parent", tmp_path / "parked"
+    parent.mkdir()
+    path = parent / "run"
+    manifest = records.build_manifest(approved_packet())
+    raw = execution_record(manifest, path)
+    execution = records.validate_execution(raw, manifest, path, live_commit=COMMIT, now=NOW)
+    original_mkdir, original_open = os.mkdir, os.open
+    opened = []
+
+    def swap_parent():
+        parent.rename(parked)
+        original_mkdir(parent)
+
+    def replace_during_mkdir(name, mode=0o777, *, dir_fd=None):
+        if Path(name).name == "run":
+            swap_parent()
+        return original_mkdir(name, mode, dir_fd=dir_fd)
+
+    def track_open(*args, **kwargs):
+        fd = original_open(*args, **kwargs)
+        opened.append(fd)
+        return fd
+
+    if when == "before_open":
+        swap_parent()
+    else:
+        monkeypatch.setattr(os, "mkdir", replace_during_mkdir)
+    monkeypatch.setattr(os, "open", track_open)
+    with pytest.raises(OSError, match="parent"):
+        records.FollowupRunStore.create(path, execution, manifest)
+    assert not path.exists()
+    assert (parked / "run").exists() == (when == "during_mkdir")
+    if when == "during_mkdir":
+        assert list((parked / "run").iterdir()) == []
+    for fd in opened:
+        with pytest.raises(OSError):
+            os.fstat(fd)

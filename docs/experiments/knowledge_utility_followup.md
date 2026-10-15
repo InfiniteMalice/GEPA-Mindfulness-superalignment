@@ -622,7 +622,13 @@ usage remains retained with null estimated and billed costs. Total billed cost s
 ### Durable dispatch and recovery
 
 The runner exclusively creates the directory and initializes metadata before constructing the
-transport or reading the credential. It then issues all 384 `responses/input_tokens` calls in order.
+transport or reading the credential. On platforms supporting directory descriptors, creation uses
+`mkdir` relative to an open parent descriptor whose filesystem identity matches live validation.
+Detected parent replacement stops initialization before credential access; an empty directory
+already created in the original parent is preserved. Windows uses path-based creation because
+Python does not provide this descriptor API there. Operators must keep the parent hierarchy
+trusted and stable on Windows, and during subsequent path-based record writes on all platforms.
+The runner then issues all 384 `responses/input_tokens` calls in order.
 Each complete count must be unredacted HTTP 200, without transport error, and have object
 `response.input_tokens` with an integer input count between 0 and 2,048. A failing count stops the
 run before any generation. After passing all counts, it serially sends up to 384 `responses` calls.

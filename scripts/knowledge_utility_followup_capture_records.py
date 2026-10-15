@@ -32,6 +32,7 @@ from scripts.knowledge_utility_followup_records import (
 FROZEN_DIGEST = "c565ce074a50dafb3c3cfc318aa73e16610298de2d6cc0275fafa60c9656d9a1"
 SLOT_COUNT = 384
 MAX_APPROVAL_BYTES = 1024 * 1024
+HAS_DIRECTORY_FD = os.mkdir in os.supports_dir_fd and hasattr(os, "O_DIRECTORY")
 PROFILE = dict(
     model="gpt-5.4-mini-2026-03-17",
     reasoning={"effort": "none"},
@@ -134,6 +135,7 @@ class FollowupExecution:
     prices: PriceRecord
     budget_micro_usd: int
     reservation_micro_usd: int
+    parent_stat: os.stat_result | None = None
 
 
 def _text(value: object, cap: int = 1024) -> None:
@@ -216,6 +218,7 @@ def validate_execution(
         raise ValueError("budget outside full-roster limits")
     if (live_commit is None) != (now is None):
         raise ValueError("incomplete live validation context")
+    parent_stat = None
     if live_commit is not None and now is not None:
         if commit != live_commit or now.utcoffset() != timedelta(0):
             raise ValueError("invalid live revision or clock")
@@ -230,7 +233,29 @@ def validate_execution(
             or not resolved_dir.parent.is_dir()
         ):
             raise ValueError("fresh run directory required")
-    return FollowupExecution(deepcopy(value), prices, budget, reserve)
+        parent_stat = resolved_dir.parent.stat()
+    return FollowupExecution(deepcopy(value), prices, budget, reserve, parent_stat)
+
+
+def _create_run_directory(path: Path, parent_stat: os.stat_result | None) -> None:
+    """Anchor mkdir to the validated parent where directory descriptors are supported."""
+    expected = parent_stat if parent_stat is not None else path.parent.stat()
+    if not HAS_DIRECTORY_FD:
+        # Windows requires the operator to keep the parent hierarchy trusted and stable.
+        if not os.path.samestat(expected, path.parent.stat()):
+            raise OSError("run parent changed")
+        path.mkdir()
+        return
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY") | getattr(os, "O_NOFOLLOW", 0)
+    parent_fd = os.open(path.parent, flags)
+    try:
+        if not os.path.samestat(expected, os.fstat(parent_fd)):
+            raise OSError("run parent changed")
+        os.mkdir(path.name, dir_fd=parent_fd)
+        if not os.path.samestat(expected, path.parent.stat()):
+            raise OSError("run parent changed during creation")
+    finally:
+        os.close(parent_fd)
 
 
 @dataclass(frozen=True)
@@ -249,7 +274,7 @@ class FollowupRunStore:
         if os.path.lexists(run_dir):
             raise FileExistsError("run directory already exists")
         run_dir = run_dir.resolve()
-        run_dir.mkdir()
+        _create_run_directory(run_dir, execution.parent_stat)
         identity = {
             key: execution.raw[key]
             for key in ("run_id", "packet_digest", "manifest_digest", "execution_digest")
