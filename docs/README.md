@@ -48,6 +48,13 @@ is the project orientation; detailed semantics live here and in subsystem README
 
 ## Decisions and research
 
+- [Unified research integration](unified_research_integration.md): October 2026 staged-method
+  proposal, protected boundaries, compatibility and ablation requirements; implementation deferred.
+- [Research-method matrix](recommendations/RESEARCH_INTEGRATION_MATRIX.md): all 19 proposed
+  methods, source-verification gaps, integration owners and acceptance requirements.
+- [PR 0 audit evidence](experiments/unified_research_pr0_audit.md): pinned snapshot checks,
+  blocked baseline and limits; not a completed training experiment.
+
 - [Unified recommendations](recommendations/UNIFIED_RECOMMENDATIONS.md): readable REC-001 through
   REC-014 status, dependencies, implementation evidence, and acceptance tests.
 - [Recommendation registry](recommendations/registry.yaml): canonical machine-readable
