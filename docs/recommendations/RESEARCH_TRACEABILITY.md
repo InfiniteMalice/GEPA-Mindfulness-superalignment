@@ -1,5 +1,11 @@
 # V5 Research Traceability
 
+October 2026 research leads are recorded in the pending
+[method-integration intake](RESEARCH_INTEGRATION_MATRIX.md#source-intake-and-adaptation-boundary).
+Their supplied arXiv metadata and primary texts have not yet been resolved in this environment;
+the resolved entries below do not certify those new sources. No implementation or empirical
+transfer is claimed. Registry admission must follow primary-source verification.
+
 [`references.yaml`](references.yaml) is the single authored metadata registry. The bibliographic
 fields below mirror primary metadata: the original arXiv entries were queried on 2026-09-10;
 REF-KALMAN and the four PR-2 sources (FTA, PINNForge, C3-JEPA and AI Neuroscientist) were checked

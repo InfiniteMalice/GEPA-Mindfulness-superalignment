@@ -1,5 +1,10 @@
 # Unified V5 Recommendations
 
+The October 2026 [integration proposal](../unified_research_integration.md) and
+[method matrix](RESEARCH_INTEGRATION_MATRIX.md) are a pending PR 0 audit. They do not change
+recommendation maturity or claim new implementations. See the
+[audit evidence](../experiments/unified_research_pr0_audit.md) for unresolved baseline gates.
+
 [`registry.yaml`](registry.yaml) is the single authored recommendation registry. This reader
 summarizes current maturity and links each record to repository evidence. Stable research IDs are
 documented in [`RESEARCH_TRACEABILITY.md`](RESEARCH_TRACEABILITY.md); they can motivate or support
