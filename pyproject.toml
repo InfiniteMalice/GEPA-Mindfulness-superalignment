@@ -168,6 +168,7 @@ known-first-party = [
     "curriculum_fixtures",
     "causal_reward_fixtures",
     "test_v5_failure_atlas",
+    "test_research_credit",
     "mindful_trace_gepa",
     "gepa_mindfulness",
     "rg_tracer",

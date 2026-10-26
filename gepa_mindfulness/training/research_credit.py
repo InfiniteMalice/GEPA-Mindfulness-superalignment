@@ -35,11 +35,13 @@ _KINDS = {"knowledge", "progress", "process", "teacher_agreement", "diagnostic"}
 
 
 def _text(value: object) -> None:
+    """Require a bounded exact UTF-8 identifier without coercion."""
     if type(value) is not str or not value.strip() or len(value.encode("utf-8")) > 1024:
         raise ValueError("expected nonblank text of at most 1024 UTF-8 bytes")
 
 
 def _evaluator(value: object) -> TrustedEvaluatorContract:
+    """Snapshot the existing evaluator identity contract after validating every field."""
     if type(value) is not TrustedEvaluatorContract:
         raise ValueError("expected exact TrustedEvaluatorContract")
     for name in ("evaluator_id", "evaluator_version", "contract_id"):
@@ -79,6 +81,7 @@ class ResearchCreditClaim:
     source_metadata_json: str
 
     def __post_init__(self) -> None:
+        """Validate bindings and freeze nested inputs as independent snapshots."""
         self._validate()
         object.__setattr__(self, "evaluator", _evaluator(self.evaluator))
         object.__setattr__(
@@ -97,6 +100,7 @@ class ResearchCreditClaim:
         )
 
     def _validate(self) -> None:
+        """Reject malformed provenance without authenticating its semantic claims."""
         for name in _TEXT_FIELDS:
             _text(getattr(self, name))
         if type(self.credit_kind) is not str or self.credit_kind not in _KINDS:
