@@ -19,6 +19,8 @@ is the project orientation; detailed semantics live here and in subsystem README
   abstention distinctions, and evaluation interpretation.
 - [Verified epistemic process rewards](epistemic_process_rewards.md): optimizer eligibility,
   provenance routes, component bounds, compatibility aliases, and Goodhart risks.
+- [Research credit accounting](research_credit_accounting.md): experimental, default-off
+  proposal contracts and overlap diagnostics; no optimizer or runtime authority.
 - [Structured logging](structured_logging.md): event envelope, action-bound causal sequence,
   serialization, supersession, and telemetry honesty.
 - [Temporal epistemic records](epistemic_state.md): experimental state, measurement, innovation

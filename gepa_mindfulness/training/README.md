@@ -6,6 +6,11 @@ for offline CPU PPO, GRPO, checkpoint resume, collection, evaluation, and capabi
 
 ## Optimizer input eligibility
 
+The optional [research credit accounting guide](../../docs/research_credit_accounting.md)
+documents versioned cross-method proposals and overlap diagnostics. Its default-off audit emits
+DEVELOPMENT data and cannot award optimizer credit or authorize an action. Existing reward and
+training paths are unchanged.
+
 [`eligibility.py`](eligibility.py) defines `TRAIN`, `DEVELOPMENT`, `REGRESSION`, and
 `HIDDEN_EVAL`. Explicitly tagged optimizer inputs require `TRAIN`. The canonical engine
 checks all request metadata on `train` and `resume` before backend creation. The legacy

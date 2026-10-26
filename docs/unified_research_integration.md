@@ -3,9 +3,11 @@
 ## Status and scope
 
 This guide records the dependency-ordered integration boundary for the October 2026 program.
-PR 0 is a **Diagnostic**, documentation-only audit draft. PRs 1–11 are not implemented by
-this change. Baseline tests and upstream primary-text checks remain blocked as recorded in
-the [audit evidence](experiments/unified_research_pr0_audit.md).
+PR 0 delivered a **Diagnostic** documentation audit, subsequently merged as PR #801.
+PR 1's [experimental credit contracts](research_credit_accounting.md) add opt-in diagnostic
+proposals and overlap accounting. Live credit admission/composition and PRs 2–11 remain deferred.
+The [audit evidence](experiments/unified_research_pr0_audit.md) preserves the original local
+baseline and primary-source limitations; PR #801's Python 3.12 CI subsequently passed.
 The [method matrix](recommendations/RESEARCH_INTEGRATION_MATRIX.md) covers all 19 requested
 methods, existing owners, missing work, dependencies, trust boundaries and proposed verification.
 
@@ -79,8 +81,10 @@ cannot fill an independent-verifier field. Authorization remains separately chec
 Protect serializations against unknown versions, nonfinite values, contradictory evidence,
 nested held-out metadata, replay, mutated snapshots and issuer substitution.
 
-These are proposed acceptance requirements, not delivered typed APIs or executable schemas.
-PR 0 does not invent a schema version that the current runtime cannot understand.
+The current research-credit claim/report schemas implement the diagnostic subset of these
+requirements. They remain DEVELOPMENT data with no optimizer accessor or admission authority.
+Live composition, protected admissibility enforcement and durable credit consumption remain
+proposed acceptance requirements. PR 0 itself did not introduce runtime schemas.
 
 ## Method-specific protocol boundaries
 
