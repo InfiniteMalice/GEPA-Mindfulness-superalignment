@@ -13,6 +13,7 @@ from gepa_mindfulness.core.reward_provenance import TrustedEvaluatorContract
 from gepa_mindfulness.verification.interfaces import (
     LocalVerificationResult,
     RelationalVerificationResult,
+    VerificationEvidenceBinding,
 )
 from gepa_mindfulness.verification.state import parse_rfc3339_datetime
 from mindful_trace_gepa import validate_action_bound_sequence
@@ -409,6 +410,65 @@ def audit_loops(
     return _capture(events, steps, task_id)[0]
 
 
+def _review_reservation(
+    candidate: LoopCandidate,
+    identity: TrustedEvaluatorContract,
+    refs: tuple[EvidenceReference, ...],
+) -> dict[str, object]:
+    """Size only: longest valid findings, every unique source ref in every allowed binding.
+
+    Existing verifier contracts reject duplicate references/binding names. Bound subject IDs and
+    identity are known before review; false and contradicted are the longest allowed values.
+    This synthetic shape is never emitted as evidence or passed to the reviewer.
+    """
+    record = candidate.to_dict()
+    local_names = (
+        "executed arguments_valid schema_valid authorization_valid "
+        "intended_operation_observed irreversible_action_permitted"
+    ).split()
+    relational_names = (
+        "task_fit dependencies_satisfied contradiction_status provenance_intact "
+        "authorization_scope_valid claimed_outcome_supported repeated_failed_route"
+    ).split()
+
+    def bindings(names: list[str]) -> tuple[VerificationEvidenceBinding, ...]:
+        return tuple(VerificationEvidenceBinding(name, refs) for name in names)
+
+    def relational(action_id: str) -> RelationalVerificationResult:
+        return RelationalVerificationResult(
+            action_id,
+            False,
+            False,
+            "contradicted",
+            False,
+            False,
+            False,
+            False,
+            refs,
+            bindings(relational_names),
+        )
+
+    local = LocalVerificationResult(
+        record["chosen_action_id"],
+        False,
+        False,
+        False,
+        False,
+        False,
+        False,
+        refs,
+        bindings(local_names),
+    )
+    return LoopPairReview(
+        candidate.digest,
+        identity,
+        False,
+        relational(record["rejected_action_id"]),
+        local,
+        relational(record["chosen_action_id"]),
+    ).to_dict()
+
+
 def mine_loop_pairs(
     events: object,
     steps: object,
@@ -495,6 +555,22 @@ def mine_loop_pairs(
                     "evidence_refs": [ref.to_dict() for ref in refs.values()],
                 }
             )
+        )
+        # Reserve the complete accepted entry before any potentially costly review. Rejected
+        # entries are smaller, but validate that shape too so neither output route can overflow.
+        reserved_review = _review_reservation(candidate, identity, tuple(refs.values()))
+        entry = candidate.to_dict() | {
+            "candidate_digest": candidate.digest,
+            "review": reserved_review,
+        }
+        validate_input_envelope(result | {"pairs": [*result["pairs"], entry]})
+        rejection = {
+            "action_id": row["action_id"],
+            "reason": "unresolved or unsupported original-state recovery",
+            "review": reserved_review,
+        }
+        validate_input_envelope(
+            result | {"rejected_proposals": [*result["rejected_proposals"], rejection]}
         )
         supplied = review(candidate)
         if type(supplied) is not LoopPairReview:

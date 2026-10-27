@@ -96,6 +96,13 @@ later prompt is never substituted. Independent reviewers may inspect later evide
 confirm that the proposed recovery is supported and applicable in the original state, without
 requiring information that became available only later.
 
+Before calling the reviewer, the miner reserves space in the 4 MiB output envelope for the
+complete candidate and a maximum-size valid serialized review, including all source references
+in every allowed finding binding. Prior accepted and rejected records consume that budget.
+Both output routes are checked; insufficient capacity raises before the callback. This is
+conservative: a smaller actual review might fit when the reserved maximum does not. The sizing
+shape is never emitted as evidence, and the completed output is still validated.
+
 `LoopPairReview` binds the exact candidate digest and existing `TrustedEvaluatorContract`.
 The identity must match the host-configured reviewer and differ from the generating model IDs.
 The review reuses existing local/relational result records for the rejected loop and recovery.

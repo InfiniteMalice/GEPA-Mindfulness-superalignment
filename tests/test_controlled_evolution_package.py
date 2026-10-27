@@ -18,6 +18,8 @@ EXPECTED_RESOURCES = {
     "docs/scalar_fusion.md",
     "docs/evidence_memory.md",
     "docs/recommendations/RESEARCH_TRACEABILITY.md",
+    "docs/recommendations/RESEARCH_INTEGRATION_MATRIX.md",
+    "docs/recommendations/source_artifacts/deloop-2610.19376v1-equations.txt",
     "docs/recommendations/UNIFIED_RECOMMENDATIONS.md",
     "docs/recommendations/references.yaml",
     "docs/recommendations/registry.yaml",

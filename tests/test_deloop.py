@@ -33,7 +33,7 @@ from mindful_trace_gepa.logging_schema import EventEnvelope
 REVIEWER = TrustedEvaluatorContract("independent", "v1", "original-state-loop-review-v1")
 
 
-def fixture(actions=None, observations=None, versions=None, contexts=None):
+def fixture(actions=None, observations=None, versions=None, contexts=None, extra_ref_count=0):
     """Capture an entire authored PEO run with unique action and observation evidence."""
     actions = actions or (
         SemanticAction(DecisionKind.TOOL_USE, '{"tool":"read","args":{"a":1,"b":2}}'),
@@ -51,7 +51,12 @@ def fixture(actions=None, observations=None, versions=None, contexts=None):
             f"observation-evidence-{index}", EvidenceSourceKind.EXTERNAL_RECORD
         )
         context = EvidenceReference(f"context-{index}", EvidenceSourceKind.EXTERNAL_RECORD)
-        refs = (evidence, context)
+        refs = (evidence, context) + tuple(
+            EvidenceReference(
+                f"extra-{index}-{number}-" + "x" * 220, EvidenceSourceKind.EXTERNAL_RECORD
+            )
+            for number in range(extra_ref_count)
+        )
         request = RewardRequest(
             Trajectory(
                 action_id,
@@ -434,6 +439,40 @@ class LoopAuditTests(unittest.TestCase):
 
 class LoopPairTests(unittest.TestCase):
     """Recovery proposals preserve the rejected state's prefix and independent findings."""
+
+    def test_complete_entry_budget_rejects_before_review(self):
+        """In-budget source and candidate data cannot omit the larger serialized review."""
+        events, steps = fixture(extra_ref_count=254)
+        self.assertIsNotNone(audit_loops(events, steps, task_id="task", enabled=True))
+        with self.assertRaisesRegex(ValueError, "4 MiB"):
+            mine_loop_pairs(
+                events,
+                steps,
+                task_id="task",
+                reviewer=REVIEWER,
+                review=lambda _: self.fail("over-budget reviewed entry reached callback"),
+                enabled=True,
+            )
+
+    def test_accumulated_entry_budget_stops_before_next_review(self):
+        """Earlier serialized reviews consume capacity reserved for subsequent entries."""
+        base = fixture()[1]
+        events, steps = fixture(
+            actions=(base[0].action, base[0].action, base[0].action, base[2].action),
+            extra_ref_count=128,
+        )
+        called = []
+
+        def evaluate(candidate):
+            called.append(candidate.digest)
+            self.assertEqual(len(called), 1, "over-budget second entry reached callback")
+            return review(candidate)
+
+        with self.assertRaisesRegex(ValueError, "4 MiB"):
+            mine_loop_pairs(
+                events, steps, task_id="task", reviewer=REVIEWER, review=evaluate, enabled=True
+            )
+        self.assertEqual(len(called), 1)
 
     def test_conflicting_cross_step_evidence_identity_fails_before_review(self):
         """A later observation cannot replace the source kind of an earlier typed reference."""
