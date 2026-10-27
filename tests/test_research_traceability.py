@@ -312,6 +312,11 @@ EXPECTED_REFERENCES = (
         "2610.21427",
         "Learning from Interaction Experience via Localized Context Distillation",
     ),
+    (
+        "REF-SST",
+        "2610.22293",
+        "Towards Continual Learning: Mitigating Forgetting With Subspace Tuning",
+    ),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
@@ -409,6 +414,7 @@ EXPECTED_RECOMMENDATION_LINKS = {
     "REF-TOKENIZER-BETRAYAL": ("REC-005",),
     "REF-ACTIONOPD": ("REC-001",),
     "REF-LOCD": ("REC-010",),
+    "REF-SST": ("REC-010",),
 }
 
 PUBLIC_REGISTRY_LOADERS = (

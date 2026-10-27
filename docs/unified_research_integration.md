@@ -8,7 +8,9 @@ PR 1's [experimental credit contracts](research_credit_accounting.md) add opt-in
 proposals, overlap accounting and durable host-reviewed event reservations. Optimizer credit
 composition remains deferred; accounting receipts grant no runtime authority. PR 2 adds
 [experimental ActionOPD/LoCD adapters and kernels](distillation_adapters.md), without a full
-teacher service, training runner or empirical qualification. PRs 3–11 remain unimplemented.
+teacher service, training runner or empirical qualification. PR 3 adds a separate optional
+[CPU SST adapter and numerical probe](subspace_tuning.md); canonical training attachment and
+behavioral retention experiments remain unqualified. PRs 4–11 remain unimplemented.
 The [audit evidence](experiments/unified_research_pr0_audit.md) preserves the original local
 baseline and primary-source limitations; PR #801's Python 3.12 CI subsequently passed.
 The [method matrix](recommendations/RESEARCH_INTEGRATION_MATRIX.md) covers all 19 requested

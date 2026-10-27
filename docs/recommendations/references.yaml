@@ -3252,3 +3252,35 @@ references:
     local_repo_notes:
     - docs/distillation_adapters.md
     - gepa_mindfulness/training/locd.py
+  - reference_id: REF-SST
+    metadata_status: resolved
+    supplied_title: 'Towards Continual Learning: Mitigating Forgetting With Subspace Tuning'
+    title: 'Towards Continual Learning: Mitigating Forgetting With Subspace Tuning'
+    authors:
+    - Arnav Chavan
+    - Kusha Sareen
+    - Rishabh Tiwari
+    - Abhranil Chandra
+    - Johan Obando-Ceron
+    - Kurt Keutzer
+    - Scott Niekum
+    - Inderjit S Dhillon
+    - Devvrit Khatri
+    year: 2026
+    arxiv_id: '2610.22293'
+    doi: 10.48550/arXiv.2610.22293
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.22293
+    recommendation_ids:
+    - REC-010
+    source_demonstrates: The method projects the native optimizer's applied update into the
+      complement of protected leading singular directions, with optional reference-basis refresh.
+    repository_inference: A separate opt-in CPU adapter records spectral diagnostics and restores
+      native parameter and optimizer state on failed steps. Spectral protection does not establish
+      constitutional retention; model admission remains external.
+    maturity: Experimental CPU adapter and authored matrix probe; canonical integration, hardware
+      qualification and Mindfulness retention effectiveness are not established.
+    local_repo_notes:
+    - docs/subspace_tuning.md
+    - gepa_mindfulness/training/subspace_tuning.py
+    - gepa_mindfulness/training/sst_probe.py
