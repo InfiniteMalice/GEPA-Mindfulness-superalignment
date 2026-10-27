@@ -3185,3 +3185,70 @@ references:
     local_repo_notes:
     - docs/recommendations/CAUSAL_ALIGNMENT_AUDIT.md
     - gepa_mindfulness/verification/runtime_governance.py
+
+  - reference_id: REF-ACTIONOPD
+    metadata_status: resolved
+    supplied_title: 'ActionOPD: Distilling Decisions, Not Tokens'
+    title: 'ActionOPD: Distilling Decisions, Not Tokens'
+    authors:
+    - Huining Yuan
+    - Xiangmin Yi
+    - Zelai Xu
+    - Zixu Wang
+    - Xinlei Chen
+    - Xiao-Ping Zhang
+    - Yu Wang
+    - Chao Yu
+    year: 2026
+    arxiv_id: '2610.19820'
+    doi: 10.48550/arXiv.2610.19820
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.19820
+    recommendation_ids:
+    - REC-001
+    source_demonstrates: The paper compares sampled semantic actions at student-encountered states,
+      uses a frequency-bonus agreement objective, and normalizes centered state-group rewards across
+      the retained batch.
+    repository_inference: The experimental adapter preserves teacher provenance and independent outcome
+      records. Exact canonical matching and DEVELOPMENT-only reports are repository adaptations; no
+      teacher agreement authorizes reward or action.
+    maturity: Experimental comparison adapter and numerical kernels; no model training or empirical
+      transfer established.
+    local_repo_notes:
+    - docs/distillation_adapters.md
+    - gepa_mindfulness/training/actionopd.py
+  - reference_id: REF-LOCD
+    metadata_status: resolved
+    supplied_title: Learning from Interaction Experience via Localized Context Distillation
+    title: Learning from Interaction Experience via Localized Context Distillation
+    authors:
+    - Zhezheng Hao
+    - Yongkang Yang
+    - Xilin Xia
+    - Jiarui Yu
+    - Yi Liu
+    - Fanjunduo Wei
+    - Peijie Dong
+    - Tianfu Wang
+    - Qiang Lin
+    - Can Wang
+    - Hande Dong
+    - Jiawei Chen
+    year: 2026
+    arxiv_id: '2610.21427'
+    doi: 10.48550/arXiv.2610.21427
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.21427
+    recommendation_ids:
+    - REC-010
+    source_demonstrates: The paper localizes correction regions, samples privileged-teacher continuations
+      from student prefixes, and minimizes token-distribution divergence only within the regenerated
+      regions.
+    repository_inference: The adapter reuses registered correction sources, isolates teacher context
+      from student inputs, and supplies a separate masked forward-KL objective. Localization remains
+      evidence-bound rather than a mechanistic cause claim.
+    maturity: Experimental segment adapter and optional forward-KL kernel; full training and effectiveness
+      are unqualified.
+    local_repo_notes:
+    - docs/distillation_adapters.md
+    - gepa_mindfulness/training/locd.py

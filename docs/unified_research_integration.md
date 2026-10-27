@@ -6,7 +6,9 @@ This guide records the dependency-ordered integration boundary for the October 2
 PR 0 delivered a **Diagnostic** documentation audit, subsequently merged as PR #801.
 PR 1's [experimental credit contracts](research_credit_accounting.md) add opt-in diagnostic
 proposals, overlap accounting and durable host-reviewed event reservations. Optimizer credit
-composition and PRs 2–11 remain deferred; accounting receipts grant no runtime authority.
+composition remains deferred; accounting receipts grant no runtime authority. PR 2 adds
+[experimental ActionOPD/LoCD adapters and kernels](distillation_adapters.md), without a full
+teacher service, training runner or empirical qualification. PRs 3–11 remain unimplemented.
 The [audit evidence](experiments/unified_research_pr0_audit.md) preserves the original local
 baseline and primary-source limitations; PR #801's Python 3.12 CI subsequently passed.
 The [method matrix](recommendations/RESEARCH_INTEGRATION_MATRIX.md) covers all 19 requested

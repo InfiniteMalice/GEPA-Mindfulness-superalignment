@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from pathlib import Path
 from typing import cast
 
@@ -45,6 +46,9 @@ from gepa_mindfulness import (
     decide_candidate_acceptance,
 )
 from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
+from gepa_mindfulness.training.contracts import RewardRequest
+from gepa_mindfulness.training.locd import prepare_registered_local_segment
+from gepa_mindfulness.training.trajectory import Trajectory
 from gepa_mindfulness.verification import (
     FailureGraph,
     FailureLocalization,
@@ -941,3 +945,81 @@ def test_public_exports_include_authority_records() -> None:
     assert gepa_mindfulness.TrajectoryBinding is TrajectoryBinding
     assert gepa_mindfulness.ProtectedSuiteManifest is ProtectedSuiteManifest
     assert gepa_mindfulness.AcceptanceDecision is AcceptanceDecision
+
+
+def test_locd_adapter_reuses_registered_source_and_rejects_foreign_rollout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Local preparation retains the existing closed-epoch correction-source gate."""
+    store, _history, proposal, _held, _protected = _base(tmp_path)
+    target = RewardRequest(
+        Trajectory(
+            "trajectory:1",
+            None,
+            "public student input",
+            "original response",
+            prompt_token_ids=(1, 2),
+            response_token_ids=(3, 4, 5),
+            policy_version="model:v1",
+        )
+    )
+    identity = {"model_id": "teacher", "version": "v1", "sampling_config": {"seed": 1}}
+    result = prepare_registered_local_segment(
+        store,
+        target,
+        proposal,
+        start=1,
+        end=2,
+        teacher_tokens=(9,),
+        teacher_context="teacher-only evidence",
+        teacher_identity=identity,
+        enabled=True,
+    )
+    assert result["correction"] == proposal.to_dict()
+    assert result["source_event_ids"] == [event.event_id for event in _events()]
+    assert result["loss_mask"] == [False, True]
+    identity["sampling_config"]["seed"] = 2
+    assert result["teacher_identity"]["sampling_config"]["seed"] == 1
+    foreign = RewardRequest(replace(target.trajectory, trajectory_id="foreign"))
+
+    def deny_store_access(*_args: object) -> None:
+        raise AssertionError("foreign rollout reached the evidence store")
+
+    monkeypatch.setattr(CoevolutionStore, "correction_source_events", deny_store_access)
+    with pytest.raises(ValueError, match="localized source trajectory mismatch"):
+        prepare_registered_local_segment(
+            store,
+            foreign,
+            proposal,
+            start=1,
+            end=2,
+            teacher_tokens=(9,),
+            teacher_context="hint",
+            teacher_identity=identity,
+            enabled=True,
+        )
+
+
+@pytest.mark.parametrize("invalid_request", (None, object()))
+def test_locd_rejects_invalid_request_before_store_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, invalid_request: object
+) -> None:
+    """Malformed rollout inputs fail with ValueError before accessing registered evidence."""
+    store, _history, proposal, _held, _protected = _base(tmp_path)
+
+    def deny_store_access(*_args: object) -> None:
+        raise AssertionError("invalid request reached the evidence store")
+
+    monkeypatch.setattr(CoevolutionStore, "correction_source_events", deny_store_access)
+    with pytest.raises(ValueError):
+        prepare_registered_local_segment(
+            store,
+            invalid_request,
+            proposal,
+            start=1,
+            end=2,
+            teacher_tokens=(9,),
+            teacher_context="hint",
+            teacher_identity={"model_id": "teacher", "version": "v1", "sampling_config": {}},
+            enabled=True,
+        )
