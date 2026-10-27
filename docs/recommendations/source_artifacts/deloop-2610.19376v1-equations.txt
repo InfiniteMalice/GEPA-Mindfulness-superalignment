@@ -1,0 +1,17 @@
+DeLoop source equation extract
+Source: https://arxiv.org/html/2610.19376v1
+Attribution: Chen et al. (2026), DeLoop: Repeated Actions as Self-Supervision for Long-Horizon Agents
+Source version: arXiv:2610.19376v1; submitted 2026-10-14
+Checked and extracted: 2026-10-27
+Source license: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)
+Representation: web-reader equation excerpt; UTF-8, LF, final newline
+Scope: excerpt of the checked methods, not publisher raw HTML or PDF bytes.
+
+Section 3.1, repeated-signature indicator:
+ | $$s_{t}=\begin{cases}1&\text{if }x_{t}=x_{i}\text{ for some }i<t,\\
+0&\text{otherwise.}\end{cases}$$  |
+Section 4.1, original state and first different non-looping recovery:
+ | $$\displaystyle x=h_{<t},\qquad y^{-}=a_{t},\qquad y^{+}=a_{t^{\prime}},$$  |
+ | $$\displaystyle t^{\prime}=\min\{\,u>t:s_{u}=0,\ \kappa(a_{u})\neq\kappa(a_{t})\,\}.$$  |
+Section 4.2, DPO objective:
+ | $$\mathcal{L}=-\log\sigma\!\Big(\beta\log\tfrac{\pi_{\theta}(y^{+}\mid x)}{\pi_{\mathrm{ref}}(y^{+}\mid x)}-\beta\log\tfrac{\pi_{\theta}(y^{-}\mid x)}{\pi_{\mathrm{ref}}(y^{-}\mid x)}\Big).$$  |

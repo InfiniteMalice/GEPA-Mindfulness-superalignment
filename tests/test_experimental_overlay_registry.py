@@ -81,6 +81,14 @@ EXPECTED_OVERLAYS = (
         ("REF-LATENT-LANGUAGE-GAP",),
         ("REC-019",),
     ),
+    (
+        "repeated_action_audit",
+        "Repeated-action and recovery audit",
+        "repeated_action_audit",
+        ("action_repetition_audit", "loop_recovery_proposal"),
+        ("REF-DELOOP",),
+        ("REC-010",),
+    ),
 )
 
 
@@ -103,7 +111,7 @@ def test_registry_exposes_exact_disabled_experimental_overlays() -> None:
     )
     assert all(item.maturity == "experimental" for item in loaded)
     assert all(item.enabled_by_default is False for item in loaded)
-    assert len({item.feature_flag for item in loaded}) == 9
+    assert len({item.feature_flag for item in loaded}) == 10
 
 
 @pytest.mark.parametrize("overlay_id", [item[0] for item in EXPECTED_OVERLAYS[-4:]])

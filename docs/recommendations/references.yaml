@@ -3284,3 +3284,37 @@ references:
     - docs/subspace_tuning.md
     - gepa_mindfulness/training/subspace_tuning.py
     - gepa_mindfulness/training/sst_probe.py
+  - reference_id: REF-DELOOP
+    metadata_status: resolved
+    supplied_title: 'DeLoop: Repeated Actions as Self-Supervision for Long-Horizon Agents'
+    title: 'DeLoop: Repeated Actions as Self-Supervision for Long-Horizon Agents'
+    authors:
+    - Tianle Chen
+    - Pushkar Singh
+    - Ketan Todi
+    - Biswajit Paria
+    - Qijia He
+    - Wenqi Wang
+    - Yuwen Tan
+    - Jike Zhong
+    - Sugato Basu
+    - Deepti Ghadiyaram
+    - Arjun Akula
+    year: 2026
+    arxiv_id: '2610.19376'
+    doi: 10.48550/arXiv.2610.19376
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.19376
+    recommendation_ids:
+    - REC-010
+    source_demonstrates: The method detects repeated canonical actions with unchanged observations,
+      pairs a loop with the first later different non-looping action under the original prefix,
+      and trains those preferences using DPO.
+    repository_inference: The opt-in PEO audit separates structural repetition from verified
+      unproductive behavior. Recovery proposals require independent original-state review and
+      remain DEVELOPMENT data without reward, action or training admission authority.
+    maturity: Experimental CPU audit and recovery preparation; optional DPO kernel, full training
+      and behavioral effectiveness are unqualified.
+    local_repo_notes:
+    - docs/deloop_peo.md
+    - gepa_mindfulness/training/deloop.py

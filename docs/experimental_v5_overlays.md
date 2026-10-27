@@ -42,6 +42,7 @@ diagnostic record. It is not permission to act on a proposal.
 | `serialization_roundtrip` | Separate structural equivalence and communication-stage findings. | Treat heuristic similarity as verified semantics or create a canonical case. |
 | `formal_reasoning_audit` | Formal validity and separate public-premise grounding. | Reward private reasoning or equate logical validity with factual truth. |
 | `latent_language_transition` | Comparable latent, language, and action differences. | Treat latent movement as behavioral success, causal proof, or deployment authority. |
+| `repeated_action_audit` | [PEO structural-repeat diagnostics and independently reviewed recovery proposals](deloop_peo.md). | Penalize repetition automatically, admit training data, create a case, or grant action authority. |
 
 The research links explain why each experiment may be worth evaluating. They do not establish the
 overlay's conclusions or prove the repository architecture.
