@@ -1,0 +1,22 @@
+SST source equation extract
+Source: https://arxiv.org/html/2610.22293v1
+Attribution: Chavan et al. (2026), Towards Continual Learning: Mitigating Forgetting With Subspace Tuning
+Source version: arXiv:2610.22293v1; submitted 2026-10-15
+Checked and extracted: 2026-10-27
+Source license: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)
+Artifact representation: equation-only web-reader text extract, UTF-8, LF, final newline
+Extraction: retain the first math span from the identified source lines; omit prose and navigation.
+Scope: this is an excerpt, not the publisher's raw HTML or PDF.
+
+Section 2.1, equation (3):
+$$\Pi(\Delta W)\;=\;Q_{U}\,\Delta W\,Q_{V}\;=\;(I-U_{k}U_{k}^{\top})\,\Delta W\,(I-V_{k}V_{k}^{\top}).$$
+Section 2.1, protected-rank definition:
+$k=\lfloor r\cdot\min(d_{\text{out}},d_{\text{in}})\rfloor$
+Appendix B.8, Algorithm 1, step 17:
+$\Delta W^{\ell}\leftarrow\widetilde{W}_{t+1}^{\ell}-W_{t}^{\ell}$
+Appendix B.8, Algorithm 1, step 18:
+$W_{t+1}^{\ell}\leftarrow W_{t}^{\ell}+Q_{U}^{\ell}\,\Delta W^{\ell}\,Q_{V}^{\ell}$
+Appendix B.8, Algorithm 1, step 20 (refresh condition; text after its numeric label):
+if $K<\infty$ and $(t+1)\bmod K=0$ then
+Appendix B.8, Algorithm 1, step 22:
+$W_{\text{ref}}^{\ell}\leftarrow W_{t+1}^{\ell}$

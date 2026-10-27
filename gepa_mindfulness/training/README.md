@@ -135,6 +135,10 @@ See beads/README.md and AGENTS.md for repository-level workflows.
 
 ## Semantic intent robustness integration
 
+The optional [SST experiment](../../docs/subspace_tuning.md) projects actual native CPU
+SGD/Adam/AdamW updates with fixed or explicitly refreshed SVD references. The adapter and authored
+matrix probe are separate from the canonical backend; no behavioral retention is established.
+
 The [ActionOPD and LoCD adapter guide](../../docs/distillation_adapters.md) documents optional
 typed action comparisons, published agreement/advantage mathematics, registered local correction
 preparation and a separate forward-KL objective. Outputs remain diagnostic unless existing host

@@ -2,7 +2,7 @@
 
 October 2026 research leads are recorded in the pending
 [method-integration intake](RESEARCH_INTEGRATION_MATRIX.md#source-intake-and-adaptation-boundary).
-ActionOPD and LoCD v1 metadata/method texts were checked on 2026-10-27; their
+ActionOPD, LoCD and SST v1 metadata/method texts were checked on 2026-10-27; their
 new entries below describe experimental adapters, not empirical transfer. The other
 October integration leads remain unchecked. Registry admission follows primary-source verification.
 
@@ -2057,3 +2057,25 @@ Primary v1 metadata and method text checked on 2026-10-27; upstream revision and
 **Maturity:** Experimental segment adapter and optional forward-KL kernel; full training and effectiveness are unqualified.
 
 Primary v1 metadata and method text checked on 2026-10-27; upstream revision and adaptation boundaries are recorded in the linked adapter guide.
+
+<a id="ref-sst"></a>
+
+## REF-SST — Towards Continual Learning: Mitigating Forgetting With Subspace Tuning
+
+- Metadata status: `resolved`
+- Supplied title: Towards Continual Learning: Mitigating Forgetting With Subspace Tuning
+- Authors: Arnav Chavan, Kusha Sareen, Rishabh Tiwari, Abhranil Chandra, Johan Obando-Ceron, Kurt Keutzer, Scott Niekum, Inderjit S Dhillon, Devvrit Khatri
+- Year: 2026
+- arXiv: [`2610.22293`](https://arxiv.org/abs/2610.22293)
+- DOI: `10.48550/arXiv.2610.22293`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-010`
+- Local repository notes: [subspace_tuning.md](../subspace_tuning.md), [subspace_tuning.py](../../gepa_mindfulness/training/subspace_tuning.py), [sst_probe.py](../../gepa_mindfulness/training/sst_probe.py)
+
+**Source demonstrates:** The method projects the native optimizer's applied update into the complement of protected leading singular directions, with optional reference-basis refresh.
+
+**Repository inference:** A separate opt-in CPU adapter records spectral diagnostics and restores native parameter and optimizer state on failed steps. Spectral protection does not establish constitutional retention; model admission remains external.
+
+**Maturity:** Experimental CPU adapter and authored matrix probe; canonical integration, hardware qualification and Mindfulness retention effectiveness are not established.
+
+Primary v1 sections 2.1–2.3 and Algorithm 1 checked 2026-10-27; no authoritative upstream code repository was identified. See the guide for CPU, SVD, fallback and checkpoint adaptation boundaries.

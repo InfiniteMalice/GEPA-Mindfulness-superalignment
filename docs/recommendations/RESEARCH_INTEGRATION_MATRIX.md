@@ -3,8 +3,8 @@
 The original October 2026 **proposal audit** was pinned to repository commit
 `2ff430bb84ef81030918b48dba1fbd2c6a2cd336`. It does not change a recommendation,
 reward or admission policy. Existing registries retain authority. On 2026-10-27, ActionOPD
-and LoCD sources were verified and experimental adapters/numerical kernels were added;
-full training pipelines and empirical transfer are unqualified. Other methods remain research leads.
+LoCD and SST sources were verified and experimental adapters/numerical kernels were added;
+canonical training attachment and empirical transfer are unqualified. Other methods remain research leads.
 
 The proposed primary path depends on PR 1's shared provenance/admission/accounting contracts.
 Optional arms do not block stabilization. Dependency numbers refer to the operator's staged PR
@@ -19,7 +19,7 @@ teacher sampling counts, hyperparameters or API costs are inferred from an unava
 
 Paths below are relative to the named package unless qualified; `training/` means
 `gepa_mindfulness/training/`, `verification/` means `gepa_mindfulness/verification/`.
-ActionOPD/LoCD adapter portions are **Experimental**; all other new runtime methods remain
+ActionOPD/LoCD/SST adapter portions are **Experimental**; all other new runtime methods remain
 **Unsupported** (planned, not implemented).
 Existing related components retain their documented maturity; this table does not downgrade them.
 
@@ -27,7 +27,7 @@ Existing related components retain their documented maturity; this table does no
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | ActionOPD ([2610.19820](https://arxiv.org/abs/2610.19820)) | training/trajectory.py; training/contracts.py; cognitive_pairwise_training | Typed canonical comparisons and frequency/whitening kernels exist; teacher service, full optimizer integration and experiments remain absent. | Separate student-state agreement adapter and independently verified eligibility; never infer correctness from agreement. | 1 → 2 | Teacher cannot certify its own action or reward. | Decision quality, calibration, robust task completion. | Teacher shortcut rejection; student-prefix identity; stripe ablations. | C1 | 2 | Experimental adapters; full training Unsupported; Primary |
 | LoCD ([2610.21427](https://arxiv.org/abs/2610.21427)) | coevolution.CorrectionProposal; verification.failure_graph; action_bound_events | Registered-source/local segment preparation and optional forward-KL kernel exist; full generation/training attachment remains absent. | Bind original prefix and earliest supported divergence; distill only corrected continuation; evaluate without privileged context. | 1 → 2 | Localization is observable support, not mechanistic causation; teacher evidence stays out of held-out student context. | Correction with less trajectory deviation. | Multiple regions; unchanged prefix; privileged-context leakage; protected regressions. | C1 | 2 | Experimental adapters; training hardware unqualified; Primary |
-| SST ([2610.22293](https://arxiv.org/abs/2610.22293)) | training/backends/torch_policy.py:optimizer_step; checkpointing | No protected singular-basis transformation found at the optimizer-step boundary. | Project applied parameter delta with fixed/explicitly refreshed basis; persist basis and diagnostics. | 1; 2 for LoCD combination → 3 | Spectral preservation supplies no constitutional certificate. | Retained behavior versus new skill acquisition. | Adam/SGD delta projection, weight decay, AMP skipped steps, rectangular/rank-zero matrices, resume, leakage and correction learning. | C2 | 3 | Unsupported; Primary |
+| SST ([2610.22293](https://arxiv.org/abs/2610.22293)) | training/subspace_tuning.py; training/sst_probe.py; existing optimizer/checkpoint contracts | Standalone CPU native SGD/Adam/AdamW adapter, anchor checkpoints and numerical probe; canonical attachment, AMP/distributed/LoRA and behavioral retention remain absent. | Project applied parameter delta with fixed/explicitly refreshed basis; retain rollback and actual leakage diagnostics. | 1; 2 for LoCD combination → 3 | Spectral preservation supplies no constitutional certificate. | Retention/correction tradeoff under independent behavioral evaluation. | Native-step/weight-decay projection, rank extremes, resume, rollback, explicit freeze and protected regressions. | C0 for tiny probe; C2 for model experiments | 3 | Experimental CPU adapter; behavioral effectiveness unqualified; Primary |
 | DeLoop ([2610.19376](https://arxiv.org/abs/2610.19376)) | semantic_intent_robustness/peo_continuity.py; trajectory_memory.py; canonical case 17 | PEO continuity exists; repeat/unchanged-observation ledger and verified recovery-pair mining missing. | Opt-in ledger followed by separate blocker, DPO and verified-penalty experiments; diagnostic overlay only. | 1 → 4; 2 for LoCD arm | Useful retries, rechecking and required verification cannot become rejected examples. | Less wasted action with preserved completion. | Answered clarification; changed results; human recheck; false recovery; early termination controls. | C1 | 4 | Unsupported; Primary |
 | KnowGPO ([2610.22331](https://arxiv.org/abs/2610.22331)) | verification/state.py; knowledge-utility freeze/capture/scoring scripts; algorithms/grpo.py | Evidence claims and offline utility exist; atomic verified condition grouping and group-based credit missing. | Stable versioned task conditions and separate verified/belief state; knowledge-equivalent trajectory groups. | 1 → 5 | Imported review status and model knowledge claims are not authenticated knowledge. | Acquisition/correction credit beyond outcome-only training. | Duplicate retrieval, contradicted belief correction, grouping equivalence, hidden-test rejection. | C1 | 5 | Unsupported; Primary |
 | PRM4RL ([PRM4RL](https://github.com/deng-ai-lab/PRM4RL)) | training/reward_pipeline.py; verification/interfaces.py; causal_reward.py | No verified task-milestone potential pathway identified. | Versioned dependency milestones and potential-based shaping only under declared assumptions; retain overlap report. | 1 → 5 | Claimed milestone completion cannot authorize action or credit. | Long-horizon progress and recovery. | Telescoping/terminal potential; gamma and horizon; incomplete termination; overlap with knowledge events. | C1 | 5 | Unsupported; Primary |
@@ -55,7 +55,7 @@ intake table as a second resolved reference registry.
 
 - **ActionOPD**: Resolved as [REF-ACTIONOPD](RESEARCH_TRACEABILITY.md#ref-actionopd); v1 primary metadata/method checked 2026-10-27. Upstream Apache-2.0 source revision and exact adaptation boundary appear in the [adapter guide](../distillation_adapters.md).
 - **LoCD**: Resolved as [REF-LOCD](RESEARCH_TRACEABILITY.md#ref-locd); v1 primary metadata/method checked 2026-10-27. Upstream MIT source revision and forward-KL limitations appear in the [adapter guide](../distillation_adapters.md).
-- **SST**: Chavan et al. (2026), Towards continual learning: Mitigating forgetting with subspace tuning. Supplied identifier: `2610.22293`. Primary metadata, paper, upstream code/license and exact formulation remain unchecked in this environment.
+- **SST**: Resolved as [REF-SST](RESEARCH_TRACEABILITY.md#ref-sst); v1 primary metadata, projection, applied-step and refresh definitions checked 2026-10-27. Checked source: [arXiv:2610.22293v1 HTML](https://arxiv.org/html/2610.22293v1), sections 2.1–2.3 and Appendix B.8 Algorithm 1. Retained artifact: [equation-only web-reader extract](source_artifacts/sst-2610.22293v1-equations.txt), 1262 UTF-8/LF bytes, SHA-256 `15649c575513f5ccd25db6870edd52d1b77ca089c630f106b2f6120a1ad1f898`; this digest identifies the retained extract, not the publisher's raw HTML/PDF. No authoritative upstream code repository identified; paper CC BY 4.0. See the [SST guide](../subspace_tuning.md) for adaptations.
 - **DeLoop**: Chen et al. (2026), DeLoop: Repeated actions as self-supervision for long-horizon agents. Supplied identifier: `2610.19376`. Primary metadata, paper, upstream code/license and exact formulation remain unchecked in this environment.
 - **KnowGPO**: Chen et al. (2026), KnowGPO: Knowledge-grouped policy optimization for search agents. Supplied identifier: `2610.22331`. Primary metadata, paper, upstream code/license and exact formulation remain unchecked in this environment.
 - **PRM4RL**: Zhang et al. (2025), Progress Reward Model for Reinforcement Learning via Large Language Models; NeurIPS 2025. Supplied identifier: `PRM4RL`. Primary repository README retrieved; pinned upstream head `f9727ed0d62aa7106b1dd8d76a52b5a6d6775079`. Full paper, reward formula and implementation assumptions remain unchecked.
@@ -74,7 +74,7 @@ intake table as a second resolved reference registry.
 - **Multi-family discovery**: Gu et al. (2026), Discovering state-of-the-art quantum circuits with large language models. Supplied identifier: `2610.22367`. Primary metadata, paper, upstream code/license and exact formulation remain unchecked in this environment.
 
 Initial shell arXiv retrieval was blocked by an unreachable configured proxy. Web access later
-resolved ActionOPD and LoCD; the remaining papers are not yet checked. The original failure was
+resolved ActionOPD, LoCD and SST; the remaining papers are not yet checked. The original failure was
 not a finding that a paper is nonexistent or incorrect. No uploaded papers were present in
 the inspected workspace locations.
 
@@ -83,9 +83,9 @@ environment dependencies. It does not substantiate the proposed independently ve
 knowledge-task milestone contract. That contract is an original Mindfulness adaptation, as is
 the protected credit-accounting layer. No robotics stack is proposed as a core dependency.
 
-The specified SST two-sided projection and potential-based shaping formula are requirements
-from the operator's prompt, pending upstream mathematical verification. They must not be
-described as verified reproductions. LoCD + SST, constitution-filtered VPO, evidence-gated
+The SST applied-update projection and refresh were verified against the primary v1 paper; the
+bounded CPU adapter is not a full experimental reproduction. The potential-based shaping
+adaptation still requires upstream verification. LoCD + SST, constitution-filtered VPO, evidence-gated
 teacher comparisons, text-only KTP, and advisory MPT are explicitly adaptation hypotheses.
 LEV requires an appropriate recurrent backbone. Ordinary repeated inference is not a faithful
 LEV implementation. AGG geometry, SSOH orchestration and quantum-circuit code are outside scope.
