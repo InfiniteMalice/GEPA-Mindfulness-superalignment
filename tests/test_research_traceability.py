@@ -317,6 +317,11 @@ EXPECTED_REFERENCES = (
         "2610.22293",
         "Towards Continual Learning: Mitigating Forgetting With Subspace Tuning",
     ),
+    (
+        "REF-DELOOP",
+        "2610.19376",
+        "DeLoop: Repeated Actions as Self-Supervision for Long-Horizon Agents",
+    ),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
@@ -415,6 +420,7 @@ EXPECTED_RECOMMENDATION_LINKS = {
     "REF-ACTIONOPD": ("REC-001",),
     "REF-LOCD": ("REC-010",),
     "REF-SST": ("REC-010",),
+    "REF-DELOOP": ("REC-010",),
 }
 
 PUBLIC_REGISTRY_LOADERS = (

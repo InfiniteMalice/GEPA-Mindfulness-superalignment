@@ -139,6 +139,7 @@ PR-8 adds [skill_failure_localization.md](../skill_failure_localization.md). Add
 
 - Additional method source: [`REF-LOCD`](RESEARCH_TRACEABILITY.md#ref-locd); see the [experimental adapter guide](../distillation_adapters.md).
 - Retention experiment: [`REF-SST`](RESEARCH_TRACEABILITY.md#ref-sst); see the [optional SST guide](../subspace_tuning.md). Spectral protection does not establish constitutional retention.
+- Repetition experiment: [`REF-DELOOP`](RESEARCH_TRACEABILITY.md#ref-deloop); see the [DeLoop + PEO guide](../deloop_peo.md). Structural repeats do not establish unproductive behavior without independent review.
 
 - Consolidation evidence: [eligibility.py](../../gepa_mindfulness/training/eligibility.py), [test_training_eligibility.py](../../tests/test_training_eligibility.py), [test_synthetic_v5_provenance.py](../../tests/test_synthetic_v5_provenance.py).
 

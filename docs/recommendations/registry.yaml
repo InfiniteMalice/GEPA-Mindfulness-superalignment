@@ -326,6 +326,7 @@ recommendations:
     research_refs:
       - REF-LOCD
       - REF-SST
+      - REF-DELOOP
       - REF-WINNERS-CURSE
       - REF-KNOWLEDGE-WEAVER
       - REF-WORLD-POTENTIAL

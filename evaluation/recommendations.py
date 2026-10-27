@@ -114,6 +114,7 @@ REFERENCE_IDS = (
     "REF-ACTIONOPD",
     "REF-LOCD",
     "REF-SST",
+    "REF-DELOOP",
 )
 REFERENCE_ARXIV_IDS = (
     "2609.01736",
@@ -211,6 +212,7 @@ REFERENCE_ARXIV_IDS = (
     "2610.19820",
     "2610.21427",
     "2610.22293",
+    "2610.19376",
 )
 ALLOWED_METADATA_STATUSES = frozenset({"resolved", "unresolved"})
 

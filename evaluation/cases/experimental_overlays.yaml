@@ -147,3 +147,22 @@ overlays:
       - "REF-LATENT-LANGUAGE-GAP"
     recommendation_refs:
       - "REC-019"
+
+  - id: "repeated_action_audit"
+    title: "Repeated-action and recovery audit"
+    maturity: "experimental"
+    enabled_by_default: false
+    feature_flag: "repeated_action_audit"
+    allowed_outputs:
+      - "action_repetition_audit"
+      - "loop_recovery_proposal"
+    prohibited_effects:
+      - "canonical_case_creation"
+      - "direct_optimizer_reward"
+      - "runtime_authority"
+      - "automatic_training_promotion"
+      - "private_chain_of_thought_reward"
+    research_refs:
+      - "REF-DELOOP"
+    recommendation_refs:
+      - "REC-010"

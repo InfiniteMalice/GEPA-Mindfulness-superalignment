@@ -25,6 +25,8 @@ is the project orientation; detailed semantics live here and in subsystem README
   separate localized token preparation/forward-KL loss; full training remains unqualified.
 - [Subspace Tuning](subspace_tuning.md): optional CPU applied-step projection, numerical probe,
   rollback/checkpoint boundaries and unexecuted LoCD/continual-learning protocols.
+- [DeLoop + PEO](deloop_peo.md): default-off structural-repeat audits, independent original-state
+  recovery review, separate DPO kernel and unexecuted anti-loop ablations.
 - [Structured logging](structured_logging.md): event envelope, action-bound causal sequence,
   serialization, supersession, and telemetry honesty.
 - [Temporal epistemic records](epistemic_state.md): experimental state, measurement, innovation

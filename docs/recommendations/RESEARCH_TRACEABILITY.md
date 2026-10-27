@@ -2,7 +2,7 @@
 
 October 2026 research leads are recorded in the pending
 [method-integration intake](RESEARCH_INTEGRATION_MATRIX.md#source-intake-and-adaptation-boundary).
-ActionOPD, LoCD and SST v1 metadata/method texts were checked on 2026-10-27; their
+ActionOPD, LoCD, SST and DeLoop v1 metadata/method texts were checked on 2026-10-27; their
 new entries below describe experimental adapters, not empirical transfer. The other
 October integration leads remain unchecked. Registry admission follows primary-source verification.
 
@@ -2079,3 +2079,25 @@ Primary v1 metadata and method text checked on 2026-10-27; upstream revision and
 **Maturity:** Experimental CPU adapter and authored matrix probe; canonical integration, hardware qualification and Mindfulness retention effectiveness are not established.
 
 Primary v1 sections 2.1–2.3 and Algorithm 1 checked 2026-10-27; no authoritative upstream code repository was identified. See the guide for CPU, SVD, fallback and checkpoint adaptation boundaries.
+
+<a id="ref-deloop"></a>
+
+## REF-DELOOP — DeLoop: Repeated Actions as Self-Supervision for Long-Horizon Agents
+
+- Metadata status: `resolved`
+- Supplied title: DeLoop: Repeated Actions as Self-Supervision for Long-Horizon Agents
+- Authors: Tianle Chen, Pushkar Singh, Ketan Todi, Biswajit Paria, Qijia He, Wenqi Wang, Yuwen Tan, Jike Zhong, Sugato Basu, Deepti Ghadiyaram, Arjun Akula
+- Year: 2026
+- arXiv: [`2610.19376`](https://arxiv.org/abs/2610.19376)
+- DOI: `10.48550/arXiv.2610.19376`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-010`
+- Local repository notes: [deloop_peo.md](../deloop_peo.md), [deloop.py](../../gepa_mindfulness/training/deloop.py)
+
+**Source demonstrates:** The method detects repeated canonical actions with unchanged observations, pairs a loop with the first later different non-looping action under the original prefix, and trains those preferences using DPO.
+
+**Repository inference:** The opt-in PEO audit separates structural repetition from verified unproductive behavior. Recovery proposals require independent original-state review and remain DEVELOPMENT data without reward, action or training admission authority.
+
+**Maturity:** Experimental CPU audit and recovery preparation; optional DPO kernel, full training and behavioral effectiveness are unqualified.
+
+Primary v1 sections 3.1, 4.1–4.2 and G.1 checked 2026-10-27; paper CC BY 4.0, no authoritative code repository identified. The [retained equation extract](source_artifacts/deloop-2610.19376v1-equations.txt) and its digest in the [matrix](RESEARCH_INTEGRATION_MATRIX.md#source-intake-and-adaptation-boundary) identify the checked representation without claiming raw publisher-byte retrieval.

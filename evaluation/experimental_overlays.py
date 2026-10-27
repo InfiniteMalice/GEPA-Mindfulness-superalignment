@@ -22,6 +22,7 @@ EXPERIMENTAL_OVERLAY_IDS = (
     "serialization_roundtrip",
     "formal_reasoning_audit",
     "latent_language_transition",
+    "repeated_action_audit",
 )
 
 _REGISTRY_FIELDS = {"registry_version", "overlays"}
@@ -47,6 +48,7 @@ _ALLOWED_OUTPUTS_BY_ID = {
     "serialization_roundtrip": ("serialization_roundtrip_result",),
     "formal_reasoning_audit": ("formal_audit_result",),
     "latent_language_transition": ("latent_language_transition_assessment",),
+    "repeated_action_audit": ("action_repetition_audit", "loop_recovery_proposal"),
 }
 _TRACEABILITY_BY_ID = {
     "competing_hypotheses": (("REF-PEARL",), ("REC-011",)),
@@ -58,6 +60,7 @@ _TRACEABILITY_BY_ID = {
     "serialization_roundtrip": (("REF-COMM-BOTTLENECK",), ("REC-017",)),
     "formal_reasoning_audit": (("REF-LOGICTRACK",), ("REC-018",)),
     "latent_language_transition": (("REF-LATENT-LANGUAGE-GAP",), ("REC-019",)),
+    "repeated_action_audit": (("REF-DELOOP",), ("REC-010",)),
 }
 
 
@@ -127,6 +130,7 @@ class ExperimentalOverlayConfig:
     serialization_roundtrip: bool = False
     formal_reasoning_audit: bool = False
     latent_language_transition: bool = False
+    repeated_action_audit: bool = False
 
     def __post_init__(self) -> None:
         _validated_config(self)

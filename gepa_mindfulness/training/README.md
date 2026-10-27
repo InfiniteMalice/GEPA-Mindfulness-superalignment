@@ -135,6 +135,10 @@ See beads/README.md and AGENTS.md for repository-level workflows.
 
 ## Semantic intent robustness integration
 
+The [DeLoop + PEO experiment](../../docs/deloop_peo.md) adds source-bound structural-repeat audits
+and independently reviewed recovery-pair proposals under the original student prefix. The
+separate DPO kernel is not an attached trainer; proposals cannot admit themselves for training.
+
 The optional [SST experiment](../../docs/subspace_tuning.md) projects actual native CPU
 SGD/Adam/AdamW updates with fixed or explicitly refreshed SVD references. The adapter and authored
 matrix probe are separate from the canonical backend; no behavioral retention is established.
