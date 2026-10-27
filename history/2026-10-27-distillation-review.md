@@ -9,3 +9,9 @@ The task uses the previously approved fallback for the unavailable repo-quality-
 Validation: 367 focused CPU tests passed, with four real-PyTorch tests skipped. The changed Python files pass Black formatting, Python 3.10 syntax, and the 100-column limit. The full local suite stops during collection at `tests/test_dapo_hybrid_trainer.py` because PyTorch is not installed (six skips precede that collection error). Full repository CI remains required.
 
 No training, reward eligibility, source-evidence, canonical-case, or governance behavior is expanded. This is a software-correctness fix, with no research-effectiveness claim.
+
+## Trajectory binding before evidence access
+
+A subsequent finding was verified against the current code: the registered evidence read preceded the source-trajectory identity check. The minimal correction moves that existing check before `correction_source_events`, preserving `localized source trajectory mismatch`. The existing successful-source/foreign-rollout test now rejects any store access for the foreign rollout; it failed before the ordering change and passed afterward. The model-version check still follows evidence retrieval.
+
+Validation after this change: 367 focused tests passed, four PyTorch tests skipped; Black, Python 3.10 syntax, and 100-column checks passed for both changed Python files. Full local collection again stopped at `tests/test_dapo_hybrid_trainer.py` due to missing PyTorch, with six skips. Full repository CI remains required. The previously approved quality-gate fallback was used, and the production diff was limited to moving the existing evidence read below the trajectory guard.

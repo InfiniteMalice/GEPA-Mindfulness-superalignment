@@ -107,9 +107,9 @@ def prepare_registered_local_segment(
     ):
         raise ValueError("expected existing coevolution store, correction and exact RewardRequest")
     proposal = CorrectionProposal.from_dict(correction.to_dict())
-    events = store.correction_source_events(proposal)
     if request.trajectory.trajectory_id != proposal.source_trajectory_id:
         raise ValueError("localized source trajectory mismatch")
+    events = store.correction_source_events(proposal)
     if not events or request.trajectory.policy_version != events[0].model_version:
         raise ValueError("localized source model mismatch")
     if type(teacher_identity) is not dict or set(teacher_identity) != {

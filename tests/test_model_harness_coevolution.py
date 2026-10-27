@@ -947,7 +947,9 @@ def test_public_exports_include_authority_records() -> None:
     assert gepa_mindfulness.AcceptanceDecision is AcceptanceDecision
 
 
-def test_locd_adapter_reuses_registered_source_and_rejects_foreign_rollout(tmp_path: Path) -> None:
+def test_locd_adapter_reuses_registered_source_and_rejects_foreign_rollout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Local preparation retains the existing closed-epoch correction-source gate."""
     store, _history, proposal, _held, _protected = _base(tmp_path)
     target = RewardRequest(
@@ -979,7 +981,12 @@ def test_locd_adapter_reuses_registered_source_and_rejects_foreign_rollout(tmp_p
     identity["sampling_config"]["seed"] = 2
     assert result["teacher_identity"]["sampling_config"]["seed"] == 1
     foreign = RewardRequest(replace(target.trajectory, trajectory_id="foreign"))
-    with pytest.raises(ValueError, match="trajectory"):
+
+    def deny_store_access(*_args: object) -> None:
+        raise AssertionError("foreign rollout reached the evidence store")
+
+    monkeypatch.setattr(CoevolutionStore, "correction_source_events", deny_store_access)
+    with pytest.raises(ValueError, match="localized source trajectory mismatch"):
         prepare_registered_local_segment(
             store,
             foreign,
