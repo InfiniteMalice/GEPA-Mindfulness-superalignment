@@ -100,8 +100,12 @@ def prepare_registered_local_segment(
         raise ValueError("enabled must be a boolean")
     if not enabled:
         return None
-    if type(store) is not CoevolutionStore or type(correction) is not CorrectionProposal:
-        raise ValueError("expected existing coevolution store and correction")
+    if (
+        type(store) is not CoevolutionStore
+        or type(correction) is not CorrectionProposal
+        or type(request) is not RewardRequest
+    ):
+        raise ValueError("expected existing coevolution store, correction and exact RewardRequest")
     proposal = CorrectionProposal.from_dict(correction.to_dict())
     events = store.correction_source_events(proposal)
     if request.trajectory.trajectory_id != proposal.source_trajectory_id:

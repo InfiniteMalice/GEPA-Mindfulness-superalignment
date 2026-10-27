@@ -5,12 +5,14 @@ import importlib.util
 import json
 import math
 import unittest
+from dataclasses import replace
 from unittest.mock import patch
 
 # Local
 from evaluation.recommendations import load_research_reference_registry
 from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
 from gepa_mindfulness.core.reward_provenance import TrustedEvaluatorContract
+from gepa_mindfulness.training import actionopd
 from gepa_mindfulness.training.actionopd import (
     DecisionKind,
     SemanticAction,
@@ -176,8 +178,6 @@ class ActionOPDTests(unittest.TestCase):
 
     def test_partial_teacher_set_uses_nominal_count_and_empty_valid_set_is_unknown(self):
         """Upstream retry filtering does not renormalize the declared sample budget."""
-        from dataclasses import replace
-
         partial = evaluate_action_group(
             (target(),),
             (action(),),
@@ -215,8 +215,6 @@ class ActionOPDTests(unittest.TestCase):
 
     def test_tool_schema_change_is_a_different_public_state(self):
         """Matching prompt text alone cannot erase a changed visible tool interface."""
-        from dataclasses import replace
-
         other = RewardRequest(
             replace(target().trajectory, sampling_parameters={"tools": ["new"]}),
             target().observable_references,
@@ -225,8 +223,6 @@ class ActionOPDTests(unittest.TestCase):
 
     def test_group_resource_budget_stops_before_restoring_all_requests(self):
         """Retained input limits apply while ingesting large candidate groups."""
-        from gepa_mindfulness.training import actionopd
-
         requests = tuple(target(str(i), "x" * 2_200_000) for i in range(3))
         with patch.object(actionopd, "_read_request", wraps=actionopd._read_request) as restore:
             with self.assertRaises(ValueError):
@@ -282,8 +278,6 @@ class LocalSegmentTests(unittest.TestCase):
 
     def test_original_prompt_and_response_tokens_cannot_be_negative(self):
         """Source token validation is as strict as teacher continuation validation."""
-        from dataclasses import replace
-
         for changes in ({"prompt_token_ids": (-1,)}, {"response_token_ids": (-2, 4, 5, 6)}):
             with self.subTest(changes=changes):
                 source = RewardRequest(replace(target().trajectory, **changes))
