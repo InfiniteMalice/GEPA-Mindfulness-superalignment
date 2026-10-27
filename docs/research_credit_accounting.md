@@ -5,8 +5,9 @@
 PR 1 introduces **Experimental** opt-in contracts in
 [research_credit.py](../gepa_mindfulness/training/research_credit.py). These records and reports
 do not grant optimizer credit, certify evidence, enforce constitutional admissibility or authorize
-actions. They are the diagnostic portion of the shared-contract stage. Live host admission,
-composite-reward attachment and durable credit consumption remain unimplemented.
+actions. The shared-contract stage now includes diagnostic accounting and a host-reviewed
+durable event-reservation journal. Composite-reward attachment and optimizer credit remain
+unimplemented; reservation alone never pays a reward.
 
 This is original infrastructure derived from the operator's October 2026 integration requirements,
 not a faithful reproduction of ActionOPD, KnowGPO, PRM4RL or another research method. Primary-paper
@@ -85,14 +86,68 @@ optimizer accessor, admission token or replay-restorable live decision. The exis
 checker rejects reports, claims and TRAIN wrappers retaining them. Provenance stripping cannot
 be detected by this module or by the legacy untagged-admission allowance; retain full records.
 
+## Host-reviewed event reservations
+
+[research_credit_ledger.py](../gepa_mindfulness/training/research_credit_ledger.py) adds
+`ResearchCreditUse` and `ResearchCreditLedger`. The journal records reviewed allocations under
+existing host authority. Keep its path, callback and policy outside model/candidate control.
+
+The host binds a use proposal to an exact `RewardRequest` digest. Each selected claim must retain
+that digest as `target_request_digest` in its source metadata, match the target policy version,
+and use only the request's observable references. Source eligibility, independent provenance and
+resolved declared admissibility are required. Diagnostic/teacher-agreement signals cannot be
+selected. Unselected proposals remain in the audit. At most one contribution per semantic event
+can be selected, even when knowledge and progress methods both claim the same event.
+
+Explicit overlap declarations for `provider`, `reward_integrity` and `causal_reward` are mandatory,
+including inactive layers. Every declared layer must be `not_counted`. Missing, unknown and
+already-counted statuses reject reservation. Additional declared layers are checked too; the host
+must enumerate new active layers and independently verify their overlap. Declarations are not proof.
+
+The existing causal adapter's mutation-safe `_accepted` boundary calls the host reviewer with
+the complete target, audit, selection and accounting proposal. Only literal True without envelope
+mutation passes. Missing callbacks, exceptions, false/truthy non-booleans and altered envelopes
+reject without writing. The host authenticates review independence, evidence meaning and semantic
+event identity. The package cannot sandbox arbitrary caller-provided Python.
+
+```python
+from gepa_mindfulness.training.research_credit_ledger import ResearchCreditLedger
+
+ledger = ResearchCreditLedger("/host-owned/credits.sqlite", authority_domain="host-v1")
+assert ledger.reserve(object(), object(), object()) is None  # actual default: enabled=False
+# All following inputs are separately configured, trusted host objects.
+receipt = ledger.reserve(
+    target, claims, use_proposal, authorize_use=trusted_host_review, enabled=True
+)
+```
+
+The journal pins its schema and authority domain. SQLite `BEGIN IMMEDIATE` and unique run/task/event
+keys reserve all selected events atomically across connections and reopenings. Changing method,
+use or policy labels cannot reserve the same recorded event again. Conflicting capture kinds for
+one scoped evidence reference in a submitted batch reject before review. Distinct facts may share
+a source when independently approved; aliases across event IDs still require host normalization.
+
+Proposals use `research-credit-use-v1`; receipts use `research-credit-reservation-v1`. Both remain
+DEVELOPMENT data. Receipts retain the reviewed envelope and SHA-256 digest with
+`authority_granted=False`. `read()` returns detached, digest-checked evidence. Serialized proposals
+and receipts cannot restore a live grant or change RewardPipeline. No reward scale or loss is added.
+
+A reservation is conservative: downstream training failure leaves its events reserved. There is
+no automatic refund, rollback, payment or retry token. Operator recovery must inspect original
+evidence; deleting the journal is not supported recovery. Raw database errors roll back the entire
+reservation. This is per-journal accounting: the host must protect one authoritative journal per
+domain. Copying/rewinding a journal, changing domains or exposing its file to candidate code defeats
+durable accounting. It is not a replacement for authorization or protected candidate promotion.
+
 ## Integration and remaining boundaries
 
 This audit does not replace or mutate RewardPipeline, CausalRewardAdapter, runtime governance,
 the Constitution, the canonical 17 cases, protected suites or CoevolutionStore. No aggregate
 optimizer score is computed from the proposals. Future live composition must resolve semantic
-overlap using host-owned policy and existing admission mechanisms. Cross-call replay prevention,
-durable evidence storage, evaluator authentication and protected candidate promotion remain with
-their existing host owners. Transaction-local duplicate detection is not a persistent ledger.
+overlap using host-owned policy and existing admission mechanisms. The journal now prevents
+cross-call reservation replay within its domain; it does not enforce duplicate credit in other
+journals or reward paths. Raw evidence storage, evaluator authentication and protected promotion
+remain host responsibilities. Automatic optimizer integration is deferred to validated adapters.
 
 ## Software evidence and limitations
 
@@ -100,20 +155,24 @@ Run the deterministic CPU lane from a full checkout:
 
 ```bash
 PYTHONPATH=src:modules:reasoning-generalization-tracer/src \
-  python -m unittest discover -s tests -p test_research_credit.py -v
+  python -m unittest discover -s tests -p 'test_research_credit*.py' -v
 ```
 
 These unittest tests are also discoverable by the repository's ordinary pytest CI. They exercise
 actual package imports without replacing modules. Tests cover serialization, provenance mutation,
 resource short-circuiting, evidence boundaries, overlaps, metadata restrictions and diagnostic
-admission rejection. Software correctness evidence does not establish research effectiveness.
+admission rejection. The combined lane passes 42 tests, including host-review rejection/mutation,
+request bindings, restart/replay, competing writers, rollback, corrupted receipts and multi-event
+allocation. Software correctness evidence does not establish research effectiveness.
 
 The approved repo-quality-gate fallback was used: spec/design, failing tests, implementation,
 verification, independent review and evidence. The design is recorded in
 [the implementation plan](../history/2026-10-26-research-credit-contracts.md). Independent review
 identified route-field loss and late aggregate-size checking; both received failing regression
 tests before fixes. An unused import was removed. Evidence-kind disagreement is explicitly
-documented above rather than being claimed resolved.
+documented above; the diagnostic warning remains compatible while reservation rejects batch
+capture-kind conflicts. The continuation design and independent review evidence are recorded in
+[the allocation plan](../history/2026-10-26-research-credit-admission.md).
 
 Local work uses a 1,019-file hash-verified API snapshot, not a Git clone; excluded binary fixtures,
 notebooks, apps, history and beads prevent a full baseline claim. The local stdlib test lane and

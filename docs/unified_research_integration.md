@@ -5,7 +5,8 @@
 This guide records the dependency-ordered integration boundary for the October 2026 program.
 PR 0 delivered a **Diagnostic** documentation audit, subsequently merged as PR #801.
 PR 1's [experimental credit contracts](research_credit_accounting.md) add opt-in diagnostic
-proposals and overlap accounting. Live credit admission/composition and PRs 2–11 remain deferred.
+proposals, overlap accounting and durable host-reviewed event reservations. Optimizer credit
+composition and PRs 2–11 remain deferred; accounting receipts grant no runtime authority.
 The [audit evidence](experiments/unified_research_pr0_audit.md) preserves the original local
 baseline and primary-source limitations; PR #801's Python 3.12 CI subsequently passed.
 The [method matrix](recommendations/RESEARCH_INTEGRATION_MATRIX.md) covers all 19 requested
@@ -83,8 +84,9 @@ nested held-out metadata, replay, mutated snapshots and issuer substitution.
 
 The current research-credit claim/report schemas implement the diagnostic subset of these
 requirements. They remain DEVELOPMENT data with no optimizer accessor or admission authority.
-Live composition, protected admissibility enforcement and durable credit consumption remain
-proposed acceptance requirements. PR 0 itself did not introduce runtime schemas.
+Durable allocation reservations now require exact request binding, explicit prior-layer accounting
+and fresh host review. Live composition and protected admissibility enforcement remain with
+existing host mechanisms; these records cannot grant either. PR 0 did not introduce runtime schemas.
 
 ## Method-specific protocol boundaries
 
