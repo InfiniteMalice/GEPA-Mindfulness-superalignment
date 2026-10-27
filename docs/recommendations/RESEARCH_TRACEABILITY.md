@@ -2,9 +2,9 @@
 
 October 2026 research leads are recorded in the pending
 [method-integration intake](RESEARCH_INTEGRATION_MATRIX.md#source-intake-and-adaptation-boundary).
-Their supplied arXiv metadata and primary texts have not yet been resolved in this environment;
-the resolved entries below do not certify those new sources. No implementation or empirical
-transfer is claimed. Registry admission must follow primary-source verification.
+ActionOPD and LoCD v1 metadata/method texts were checked on 2026-10-27; their
+new entries below describe experimental adapters, not empirical transfer. The other
+October integration leads remain unchecked. Registry admission follows primary-source verification.
 
 [`references.yaml`](references.yaml) is the single authored metadata registry. The bibliographic
 fields below mirror primary metadata: the original arXiv entries were queried on 2026-09-10;
@@ -2013,3 +2013,47 @@ Kirkpatrick, J. R., Radulescu, A., & Sterken, R. K. (2026). *Talking with Langua
 **Repository inference:** Deferred beyond PR-7: examine generated promises versus authorized commitments and observed compliance. Preserve the constitution and normative commitments; contested philosophical claims are not training labels.
 
 **Maturity:** Deferred conceptual input; no implementation in this series; not reproduced. Primary metadata/abstract checked 2026-10-08.
+
+<a id="ref-actionopd"></a>
+
+## REF-ACTIONOPD — ActionOPD: Distilling Decisions, Not Tokens
+
+- Metadata status: `resolved`
+- Supplied title: ActionOPD: Distilling Decisions, Not Tokens
+- Authors: Huining Yuan, Xiangmin Yi, Zelai Xu, Zixu Wang, Xinlei Chen, Xiao-Ping Zhang, Yu Wang, Chao Yu
+- Year: 2026
+- arXiv: [`2610.19820`](https://arxiv.org/abs/2610.19820)
+- DOI: `10.48550/arXiv.2610.19820`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-001`
+- Local repository notes: [distillation_adapters.md](../distillation_adapters.md), [actionopd.py](../../gepa_mindfulness/training/actionopd.py)
+
+**Source demonstrates:** The paper compares sampled semantic actions at student-encountered states, uses a frequency-bonus agreement objective, and normalizes centered state-group rewards across the retained batch.
+
+**Repository inference:** The experimental adapter preserves teacher provenance and independent outcome records. Exact canonical matching and DEVELOPMENT-only reports are repository adaptations; no teacher agreement authorizes reward or action.
+
+**Maturity:** Experimental comparison adapter and numerical kernels; no model training or empirical transfer established.
+
+Primary v1 metadata and method text checked on 2026-10-27; upstream revision and adaptation boundaries are recorded in the linked adapter guide.
+
+<a id="ref-locd"></a>
+
+## REF-LOCD — Learning from Interaction Experience via Localized Context Distillation
+
+- Metadata status: `resolved`
+- Supplied title: Learning from Interaction Experience via Localized Context Distillation
+- Authors: Zhezheng Hao, Yongkang Yang, Xilin Xia, Jiarui Yu, Yi Liu, Fanjunduo Wei, Peijie Dong, Tianfu Wang, Qiang Lin, Can Wang, Hande Dong, Jiawei Chen
+- Year: 2026
+- arXiv: [`2610.21427`](https://arxiv.org/abs/2610.21427)
+- DOI: `10.48550/arXiv.2610.21427`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-010`
+- Local repository notes: [distillation_adapters.md](../distillation_adapters.md), [locd.py](../../gepa_mindfulness/training/locd.py)
+
+**Source demonstrates:** The paper localizes correction regions, samples privileged-teacher continuations from student prefixes, and minimizes token-distribution divergence only within the regenerated regions.
+
+**Repository inference:** The adapter reuses registered correction sources, isolates teacher context from student inputs, and supplies a separate masked forward-KL objective. Localization remains evidence-bound rather than a mechanistic cause claim.
+
+**Maturity:** Experimental segment adapter and optional forward-KL kernel; full training and effectiveness are unqualified.
+
+Primary v1 metadata and method text checked on 2026-10-27; upstream revision and adaptation boundaries are recorded in the linked adapter guide.

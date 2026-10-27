@@ -13,6 +13,7 @@ recommendations:
     supersedes: []
     dependencies: []
     research_refs:
+      - REF-ACTIONOPD
       - REF-WINNERS-CURSE
       - REF-HEART
     repo_refs:
@@ -323,6 +324,7 @@ recommendations:
       - REC-005
       - REC-009
     research_refs:
+      - REF-LOCD
       - REF-WINNERS-CURSE
       - REF-KNOWLEDGE-WEAVER
       - REF-WORLD-POTENTIAL

@@ -302,6 +302,16 @@ EXPECTED_REFERENCES = (
         "Artificial intelligence pathways from weather to climate",
     ),
     ("REF-TALKING-LMS", "2610.09064", "Talking with Language Models"),
+    (
+        "REF-ACTIONOPD",
+        "2610.19820",
+        "ActionOPD: Distilling Decisions, Not Tokens",
+    ),
+    (
+        "REF-LOCD",
+        "2610.21427",
+        "Learning from Interaction Experience via Localized Context Distillation",
+    ),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
@@ -397,6 +407,8 @@ EXPECTED_RECOMMENDATION_LINKS = {
     "REF-DWM": ("REC-002",),
     "REF-LEXICAL-PERTURB": ("REC-005",),
     "REF-TOKENIZER-BETRAYAL": ("REC-005",),
+    "REF-ACTIONOPD": ("REC-001",),
+    "REF-LOCD": ("REC-010",),
 }
 
 PUBLIC_REGISTRY_LOADERS = (

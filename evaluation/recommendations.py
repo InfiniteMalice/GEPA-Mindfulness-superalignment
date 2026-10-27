@@ -111,6 +111,8 @@ REFERENCE_IDS = (
     "REF-CONVEX-CONCAVE-RL",
     "REF-WEATHER-CLIMATE",
     "REF-TALKING-LMS",
+    "REF-ACTIONOPD",
+    "REF-LOCD",
 )
 REFERENCE_ARXIV_IDS = (
     "2609.01736",
@@ -205,6 +207,8 @@ REFERENCE_ARXIV_IDS = (
     "2610.09108",
     "2610.09770",
     "2610.09064",
+    "2610.19820",
+    "2610.21427",
 )
 ALLOWED_METADATA_STATUSES = frozenset({"resolved", "unresolved"})
 

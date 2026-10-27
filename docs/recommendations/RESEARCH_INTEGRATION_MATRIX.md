@@ -1,10 +1,10 @@
 # Research-method applicability and integration matrix
 
-This is the October 2026 **proposal audit**, pinned to repository commit
+The original October 2026 **proposal audit** was pinned to repository commit
 `2ff430bb84ef81030918b48dba1fbd2c6a2cd336`. It does not change a recommendation,
-reference, reward or admission registry. Existing registries retain authority.
-Method names and citations below are supplied research leads until primary-text verification.
-No new method implementation is claimed here.
+reward or admission policy. Existing registries retain authority. On 2026-10-27, ActionOPD
+and LoCD sources were verified and experimental adapters/numerical kernels were added;
+full training pipelines and empirical transfer are unqualified. Other methods remain research leads.
 
 The proposed primary path depends on PR 1's shared provenance/admission/accounting contracts.
 Optional arms do not block stabilization. Dependency numbers refer to the operator's staged PR
@@ -19,13 +19,14 @@ teacher sampling counts, hyperparameters or API costs are inferred from an unava
 
 Paths below are relative to the named package unless qualified; `training/` means
 `gepa_mindfulness/training/`, `verification/` means `gepa_mindfulness/verification/`.
-All new runtime methods currently have maturity **Unsupported** (planned, not implemented).
+ActionOPD/LoCD adapter portions are **Experimental**; all other new runtime methods remain
+**Unsupported** (planned, not implemented).
 Existing related components retain their documented maturity; this table does not downgrade them.
 
 | Method / stable citation | Existing component | Missing functionality | Proposed implementation / adaptation | Required dependencies | Trust boundary | Expected experimental value (hypothesis) | Verification strategy | Estimated compute | PR assignment | Maturity / applicability |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| ActionOPD ([2610.19820](https://arxiv.org/abs/2610.19820)) | training/trajectory.py; training/contracts.py; cognitive_pairwise_training | Semantic action canonicalization and black-box teacher sampling absent from inspected training path. | Separate student-state agreement adapter and independently verified eligibility; never infer correctness from agreement. | 1 → 2 | Teacher cannot certify its own action or reward. | Decision quality, calibration, robust task completion. | Teacher shortcut rejection; student-prefix identity; stripe ablations. | C1 | 2 | Unsupported; Primary |
-| LoCD ([2610.21427](https://arxiv.org/abs/2610.21427)) | coevolution.CorrectionProposal; verification.failure_graph; action_bound_events | Localized proposal records exist; teacher continuation generation and segment loss attachment are missing. | Bind original prefix and earliest supported divergence; distill only corrected continuation; evaluate without privileged context. | 1 → 2 | Localization is observable support, not mechanistic causation; teacher evidence stays out of held-out student context. | Correction with less trajectory deviation. | Multiple regions; unchanged prefix; privileged-context leakage; protected regressions. | C1 | 2 | Unsupported; Primary |
+| ActionOPD ([2610.19820](https://arxiv.org/abs/2610.19820)) | training/trajectory.py; training/contracts.py; cognitive_pairwise_training | Typed canonical comparisons and frequency/whitening kernels exist; teacher service, full optimizer integration and experiments remain absent. | Separate student-state agreement adapter and independently verified eligibility; never infer correctness from agreement. | 1 → 2 | Teacher cannot certify its own action or reward. | Decision quality, calibration, robust task completion. | Teacher shortcut rejection; student-prefix identity; stripe ablations. | C1 | 2 | Experimental adapters; full training Unsupported; Primary |
+| LoCD ([2610.21427](https://arxiv.org/abs/2610.21427)) | coevolution.CorrectionProposal; verification.failure_graph; action_bound_events | Registered-source/local segment preparation and optional forward-KL kernel exist; full generation/training attachment remains absent. | Bind original prefix and earliest supported divergence; distill only corrected continuation; evaluate without privileged context. | 1 → 2 | Localization is observable support, not mechanistic causation; teacher evidence stays out of held-out student context. | Correction with less trajectory deviation. | Multiple regions; unchanged prefix; privileged-context leakage; protected regressions. | C1 | 2 | Experimental adapters; training hardware unqualified; Primary |
 | SST ([2610.22293](https://arxiv.org/abs/2610.22293)) | training/backends/torch_policy.py:optimizer_step; checkpointing | No protected singular-basis transformation found at the optimizer-step boundary. | Project applied parameter delta with fixed/explicitly refreshed basis; persist basis and diagnostics. | 1; 2 for LoCD combination → 3 | Spectral preservation supplies no constitutional certificate. | Retained behavior versus new skill acquisition. | Adam/SGD delta projection, weight decay, AMP skipped steps, rectangular/rank-zero matrices, resume, leakage and correction learning. | C2 | 3 | Unsupported; Primary |
 | DeLoop ([2610.19376](https://arxiv.org/abs/2610.19376)) | semantic_intent_robustness/peo_continuity.py; trajectory_memory.py; canonical case 17 | PEO continuity exists; repeat/unchanged-observation ledger and verified recovery-pair mining missing. | Opt-in ledger followed by separate blocker, DPO and verified-penalty experiments; diagnostic overlay only. | 1 → 4; 2 for LoCD arm | Useful retries, rechecking and required verification cannot become rejected examples. | Less wasted action with preserved completion. | Answered clarification; changed results; human recheck; false recovery; early termination controls. | C1 | 4 | Unsupported; Primary |
 | KnowGPO ([2610.22331](https://arxiv.org/abs/2610.22331)) | verification/state.py; knowledge-utility freeze/capture/scoring scripts; algorithms/grpo.py | Evidence claims and offline utility exist; atomic verified condition grouping and group-based credit missing. | Stable versioned task conditions and separate verified/belief state; knowledge-equivalent trajectory groups. | 1 → 5 | Imported review status and model knowledge claims are not authenticated knowledge. | Acquisition/correction credit beyond outcome-only training. | Duplicate retrieval, contradicted belief correction, grouping equivalence, hidden-test rejection. | C1 | 5 | Unsupported; Primary |
@@ -52,8 +53,8 @@ resolve its metadata and primary text, record version/date/digest and permitted 
 then update that existing registry and its traceability reader together. Do not treat this
 intake table as a second resolved reference registry.
 
-- **ActionOPD**: Yuan et al. (2026), ActionOPD: Distilling decisions, not tokens. Supplied identifier: `2610.19820`. Primary metadata, paper, upstream code/license and exact formulation remain unchecked in this environment.
-- **LoCD**: Hao et al. (2026), Learning from interaction experience via localized context distillation. Supplied identifier: `2610.21427`. Primary metadata, paper, upstream code/license and exact formulation remain unchecked in this environment.
+- **ActionOPD**: Resolved as [REF-ACTIONOPD](RESEARCH_TRACEABILITY.md#ref-actionopd); v1 primary metadata/method checked 2026-10-27. Upstream Apache-2.0 source revision and exact adaptation boundary appear in the [adapter guide](../distillation_adapters.md).
+- **LoCD**: Resolved as [REF-LOCD](RESEARCH_TRACEABILITY.md#ref-locd); v1 primary metadata/method checked 2026-10-27. Upstream MIT source revision and forward-KL limitations appear in the [adapter guide](../distillation_adapters.md).
 - **SST**: Chavan et al. (2026), Towards continual learning: Mitigating forgetting with subspace tuning. Supplied identifier: `2610.22293`. Primary metadata, paper, upstream code/license and exact formulation remain unchecked in this environment.
 - **DeLoop**: Chen et al. (2026), DeLoop: Repeated actions as self-supervision for long-horizon agents. Supplied identifier: `2610.19376`. Primary metadata, paper, upstream code/license and exact formulation remain unchecked in this environment.
 - **KnowGPO**: Chen et al. (2026), KnowGPO: Knowledge-grouped policy optimization for search agents. Supplied identifier: `2610.22331`. Primary metadata, paper, upstream code/license and exact formulation remain unchecked in this environment.
@@ -72,7 +73,8 @@ intake table as a second resolved reference registry.
 - **MPT**: Xu et al. (2026), Learning self-orchestration in decentralized agent swarms. Supplied identifier: `2610.22322`. Primary metadata, paper, upstream code/license and exact formulation remain unchecked in this environment.
 - **Multi-family discovery**: Gu et al. (2026), Discovering state-of-the-art quantum circuits with large language models. Supplied identifier: `2610.22367`. Primary metadata, paper, upstream code/license and exact formulation remain unchecked in this environment.
 
-ArXiv retrieval was blocked by an unreachable configured proxy. That is an access failure,
+Initial shell arXiv retrieval was blocked by an unreachable configured proxy. Web access later
+resolved ActionOPD and LoCD; the remaining papers are not yet checked. The original failure was
 not a finding that a paper is nonexistent or incorrect. No uploaded papers were present in
 the inspected workspace locations.
 

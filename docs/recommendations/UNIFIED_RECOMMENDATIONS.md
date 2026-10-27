@@ -26,6 +26,8 @@ and keeps trace appearance outside optimizer targets.
 - Acceptance tests: [`test_epistemic_process_rewards.py`](../../tests/test_epistemic_process_rewards.py), [`test_reward_integrity_rewards.py`](../../tests/test_reward_integrity_rewards.py).
 - Research: [`REF-HEART`](RESEARCH_TRACEABILITY.md#ref-heart), [`REF-WINNERS-CURSE`](RESEARCH_TRACEABILITY.md#ref-winners-curse).
 
+- Additional method source: [`REF-ACTIONOPD`](RESEARCH_TRACEABILITY.md#ref-actionopd); see the [experimental adapter guide](../distillation_adapters.md).
+
 #### REC-002 — Action-bound epistemic commitments.
 
 PR-1 adds [temporal epistemic record contracts](../epistemic_state.md) for declared state,
@@ -134,6 +136,8 @@ PR-8 adds [skill_failure_localization.md](../skill_failure_localization.md). Add
 PR-8 adds [skill_failure_localization.md](../skill_failure_localization.md). Additional acceptance coverage: [test_skill_bank.py](../../tests/test_skill_bank.py).
 
 #### REC-010 — Online experience collection; offline harness/skill evolution.
+
+- Additional method source: [`REF-LOCD`](RESEARCH_TRACEABILITY.md#ref-locd); see the [experimental adapter guide](../distillation_adapters.md).
 
 - Consolidation evidence: [eligibility.py](../../gepa_mindfulness/training/eligibility.py), [test_training_eligibility.py](../../tests/test_training_eligibility.py), [test_synthetic_v5_provenance.py](../../tests/test_synthetic_v5_provenance.py).
 

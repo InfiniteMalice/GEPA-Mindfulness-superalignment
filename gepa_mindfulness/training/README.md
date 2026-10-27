@@ -135,6 +135,11 @@ See beads/README.md and AGENTS.md for repository-level workflows.
 
 ## Semantic intent robustness integration
 
+The [ActionOPD and LoCD adapter guide](../../docs/distillation_adapters.md) documents optional
+typed action comparisons, published agreement/advantage mathematics, registered local correction
+preparation and a separate forward-KL objective. Outputs remain diagnostic unless existing host
+admission separately authorizes a training use; this change does not run or attach a trainer.
+
 The repository also ships `modules/semantic_intent_robustness` for semantic
 invariance training and evaluation. Use its `SemanticBatch` and
 `compute_loss_breakdown()` helpers to add invariance, topic-vs-intent

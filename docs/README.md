@@ -21,6 +21,8 @@ is the project orientation; detailed semantics live here and in subsystem README
   provenance routes, component bounds, compatibility aliases, and Goodhart risks.
 - [Research credit accounting](research_credit_accounting.md): experimental, default-off
   proposal contracts and overlap diagnostics; no optimizer or runtime authority.
+- [Distillation adapters](distillation_adapters.md): source-checked ActionOPD comparisons and
+  separate localized token preparation/forward-KL loss; full training remains unqualified.
 - [Structured logging](structured_logging.md): event envelope, action-bound causal sequence,
   serialization, supersession, and telemetry honesty.
 - [Temporal epistemic records](epistemic_state.md): experimental state, measurement, innovation
