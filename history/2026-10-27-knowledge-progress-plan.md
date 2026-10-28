@@ -113,3 +113,21 @@ training eligibility, runtime authorization or canonical reward-pipeline edits. 
 were verified against 1048 baseline files. Exactly these changes will be blob-hash checked
 before advancing an isolated connector-backed branch. Open a draft PR for independent CI and
 operator review; no merge, deployment, teacher/model call or empirical training occurred.
+
+PR 807 review follow-up (2026-10-28): both CodeRabbit findings were verified against current
+head f920fa0e25273ae2d168f42c27aa3dd3e1db124c. With five milestones, three before and four
+after, gamma 0.75 gives an exact zero but float multiplication yielded 1.1102230246251565e-16
+and a spurious progress claim. The new regression failed before the fix. Use exact rational
+milestone counts and the represented gamma, converting only row values to floats. A neighboring
+represented gamma retains a valid 8.881784197001253e-17 contribution; no tolerance is introduced.
+The accounting guide linked from the installed knowledge/progress guide was absent in the actual
+wheel. Its artifact assertion failed before the fix; add it to existing package data and the
+existing wheel-resource contract. No prior entries or authority rules change.
+
+Follow-up validation: 740 focused tests passed, with 23 existing real-tensor skips. Full local
+collection remains blocked by missing PyTorch in tests/test_dapo_hybrid_trainer.py after six
+skips. Three changed Python files pass Black, Python 3.10 syntax and 100-column checks. The
+rebuilt wheel satisfies every existing and added resource assertion byte-for-byte; the accounting
+guide is independently readable through importlib.resources outside the checkout. The maintainer
+now authorizes ready PRs, CI/review monitoring, fixes until clean, then merge and continuation;
+no failing check is bypassed and no empirical improvement is inferred from these tests.

@@ -374,6 +374,55 @@ class KnowledgeProgressTests(unittest.TestCase):
                 self.assertIsNone(row["group_id"])
                 self.assertIsNone(row["knowledge_advantage"])
 
+    def test_exact_zero_progress_does_not_create_a_claim(self):
+        specs = tuple(
+            KnowledgeCondition(
+                f"milestone-{i}",
+                "task",
+                "v1",
+                f"Milestone {i} completed.",
+                "milestone",
+                REVIEWER,
+            )
+            for i in range(5)
+        )
+        before = EvidenceState(
+            tuple(
+                EvidenceClaim(
+                    c.condition_id,
+                    c.proposition,
+                    (REF,) if i < 3 else (),
+                    "supported" if i < 3 else "unverified",
+                )
+                for i, c in enumerate(specs)
+            )
+        )
+        after = EvidenceState(
+            tuple(
+                EvidenceClaim(
+                    c.condition_id,
+                    c.proposition,
+                    (REF,) if i < 4 else (),
+                    "supported" if i < 4 else "unverified",
+                )
+                for i, c in enumerate(specs)
+            )
+        )
+        for gamma, expected in ((0.75, 0.0), (0.7500000000000001, 8.881784197001253e-17)):
+            with self.subTest(gamma=gamma):
+                result = prepare(
+                    (step(before=before, after=after),),
+                    conditions=specs,
+                    context=context(gamma=gamma),
+                )
+                self.assertEqual(result["steps"][0]["shaping"], expected)
+                if expected == 0:
+                    self.assertEqual(result["claims"], [])
+                    self.assertIsNone(result["credit_audit"])
+                else:
+                    self.assertEqual(len(result["claims"]), 1)
+                    self.assertEqual(result["claims"][0]["score"], expected)
+
     def test_terminal_zero_potential_telescopes_without_success_credit(self):
         mid = state(("supported", "supported", "unverified"))
         done = state(("supported", "supported", "supported"))

@@ -130,6 +130,10 @@ separate from knowledge gain. For continuing transitions:
 
 `F(s, a, s') = gamma * Phi(s') - Phi(s)`.
 
+The calculation uses exact milestone fractions and the exact represented gamma before converting
+JSON result values to floats. No fixed tolerance discards small nonzero shaping contributions;
+exact cancellation cannot create a rounding-only progress claim.
+
 A genuine finite-episode termination has zero next potential, including failed or premature
 termination. This can give negative shaping without asserting a hidden-thought failure. A
 truncation yields `shaping=None` and no progress claim: it is not silently treated as terminal

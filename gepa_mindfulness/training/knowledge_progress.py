@@ -6,6 +6,7 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 from dataclasses import dataclass, fields
+from fractions import Fraction
 from typing import Callable
 
 # Local
@@ -316,6 +317,7 @@ def prepare_knowledge_progress(
             validate_input_envelope(source)
     specs = _catalog(ctx, tuple(KnowledgeCondition.from_dict(v) for v in source["conditions"]))
     catalog_digest = content_digest(source["conditions"])
+    represented_gamma = Fraction.from_float(ctx.gamma)
     captured = tuple(LearningStep.from_dict(value) for value in source["steps"])
     milestones = {key for key, spec in specs.items() if spec.kind == "milestone"}
     knowledge = set(specs) - milestones
@@ -373,11 +375,13 @@ def prepare_knowledge_progress(
         }
         fresh = acquired - seen[item.episode_id]
         before_done, after_done = _completed(before, specs), _completed(after, specs)
-        phi_before = len(before_done) / len(milestones) if milestones else 0.0
-        phi_after = len(after_done) / len(milestones) if milestones else 0.0
+        phi_before = Fraction(len(before_done), len(milestones)) if milestones else Fraction(0)
+        phi_after = Fraction(len(after_done), len(milestones)) if milestones else Fraction(0)
         if item.termination == "terminated":
-            phi_after = 0.0
-        shaping = None if item.termination == "truncated" else ctx.gamma * phi_after - phi_before
+            phi_after = Fraction(0)
+        shaping = (
+            None if item.termination == "truncated" else represented_gamma * phi_after - phi_before
+        )
         correction = []
         if item.belief_before is not None and item.belief_after is not None:
             b0 = _state(item.belief_before, specs, refs)
@@ -419,9 +423,9 @@ def prepare_knowledge_progress(
                     key for key in milestones if after[key] == "supported" and key not in after_done
                 ),
                 "milestone_gain": len(after_done) - len(before_done),
-                "phi_before": phi_before,
-                "phi_after": phi_after,
-                "shaping": shaping,
+                "phi_before": float(phi_before),
+                "phi_after": float(phi_after),
+                "shaping": None if shaping is None else float(shaping),
                 "termination": item.termination,
                 "group_id": group_id,
                 "knowledge_advantage": None,
