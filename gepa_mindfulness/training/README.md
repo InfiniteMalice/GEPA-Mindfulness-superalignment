@@ -158,3 +158,9 @@ existing trainers without rewriting the core GEPA loop.
 
 The [PEO curriculum guide](../../docs/peo_curriculum.md) describes opt-in data stages,
 anchor mixtures, admission, host-directed adaptation and dataset-factory integration.
+
+## Knowledge and milestone experiments
+
+The default-off [knowledge/progress adapter](../../docs/knowledge_progress.md) prepares reviewed
+evidence transitions, prior-state groups and milestone potential proposals. It reuses the existing
+credit audit and event journal, leaves admissibility unresolved and attaches no trainer or reward.

@@ -10,8 +10,8 @@ durable event-reservation journal. Composite-reward attachment and optimizer cre
 unimplemented; reservation alone never pays a reward.
 
 This is original infrastructure derived from the operator's October 2026 integration requirements,
-not a faithful reproduction of ActionOPD, KnowGPO, PRM4RL or another research method. Primary-paper
-verification remains required before those adapters are implemented. See the
+not a faithful reproduction of ActionOPD, KnowGPO, PRM4RL or another research method. Primary papers have since been checked for the bounded ActionOPD, KnowGPO and PRM4RL adapters;
+this shared accounting layer remains an original adaptation. See the
 [integration guide](unified_research_integration.md) and
 [method matrix](recommendations/RESEARCH_INTEGRATION_MATRIX.md).
 
@@ -180,3 +180,7 @@ Black 24.10.0's sequential formatting API were run. Black and development depend
 retrieved into an external workspace tools directory through GitHub because pip/clone networking
 remained unavailable; they are not vendored or added as runtime dependencies. Full pytest,
 lint/type and packaging CI for this change remain independent acceptance requirements.
+
+The [KnowGPO + PRM4RL protocol](knowledge_progress.md) describes task-local evidence transitions
+and separate, unresolved knowledge/progress proposals. Their same-event overlap is reported by
+this audit; evidence review does not replace normative admission or durable event reservation.

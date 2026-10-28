@@ -1,0 +1,14 @@
+PRM4RL mathematical/source note (authored summary, not a publisher-byte extract)
+Checked: 2026-10-27; arXiv:2610.22056v1, 2026-10-15; paper CC BY 4.0.
+Primary: https://arxiv.org/html/2610.22056v1 (sections 4.1-4.2, Algorithm 1).
+Authors: Xiuhui Zhang, Ning Gao, Xingyu Jiang, Yihui Chen, Yuheng Pan,
+Mohan Zhang, Yue Deng. NeurIPS 2025; DOI 10.52202/085713-3370.
+Progress reward: R_PRM = gamma * Phi(s_next) - Phi(s) + I_success * r_bonus.
+Shaping component: F = gamma * Phi(s_next) - Phi(s).
+The full method generates subtask progress functions and augments robotic state
+with subtask priors. Mindfulness implements only discrete verified milestones
+and the shaping component, with zero terminated potential and unscored truncations.
+Official README revision: deng-ai-lab/PRM4RL
+f9727ed0d62aa7106b1dd8d76a52b5a6d6775079; no code license identified in that tree.
+No code copied. Fixed Markov potential, matching discount and boundary assumptions
+require independent host validation; no generalized policy-invariance result claimed.

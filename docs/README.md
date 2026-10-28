@@ -74,3 +74,6 @@ is the project orientation; detailed semantics live here and in subsystem README
 The Constitution is a living document, not an implementation manual. Canonical case identity,
 reward eligibility, event semantics, recommendation status, and research metadata are governed by
 their respective machine-readable registries or technical contracts above.
+
+- [Knowledge and progress preparation](knowledge_progress.md): independently reviewed condition
+  transitions, prior-state groups, milestone potentials and separate credit proposals.

@@ -3318,3 +3318,68 @@ references:
     local_repo_notes:
     - docs/deloop_peo.md
     - gepa_mindfulness/training/deloop.py
+  - reference_id: REF-KNOWGPO
+    metadata_status: resolved
+    supplied_title: 'KnowGPO: Knowledge-Grouped Policy Optimization for Search Agents'
+    title: 'KnowGPO: Knowledge-Grouped Policy Optimization for Search Agents'
+    authors:
+    - Siqi Chen
+    - Zhengxi Lu
+    - Yuchen Yan
+    - Xingyu Wu
+    - Qipeng Chen
+    - Xin Zhang
+    - Aiting Liu
+    - Chao Deng
+    - Jie Liu
+    - Jin Ma
+    - Weiming Lu
+    - Jun Xiao
+    - Yongliang Shen
+    year: 2026
+    arxiv_id: '2610.22331'
+    doi: 10.48550/arXiv.2610.22331
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.22331
+    recommendation_ids:
+    - REC-010
+    source_demonstrates: Atomic knowledge conditions define accumulated states; Algorithm 1 groups non-answer
+      steps by preceding state and normalizes incremental condition gain before mixing it with episode
+      outcome advantage.
+    repository_inference: The optional evidence-transition adapter retains contradictions and first-acquisition
+      history, separates belief corrections, and prepares unresolved knowledge claims under independent
+      host review without trainer or reward authority.
+    maturity: Experimental CPU preparation and grouping; full KnowGPO training, independent behavioral
+      evaluation and improvement are not established.
+    local_repo_notes:
+    - docs/knowledge_progress.md
+    - gepa_mindfulness/training/knowledge_progress.py
+  - reference_id: REF-PRM4RL
+    metadata_status: resolved
+    supplied_title: Progress Reward Model for Reinforcement Learning via Large Language Models
+    title: Progress Reward Model for Reinforcement Learning via Large Language Models
+    authors:
+    - Xiuhui Zhang
+    - Ning Gao
+    - Xingyu Jiang
+    - Yihui Chen
+    - Yuheng Pan
+    - Mohan Zhang
+    - Yue Deng
+    year: 2025
+    arxiv_id: '2610.22056'
+    doi: 10.52202/085713-3370
+    venue_status: NeurIPS 2025
+    canonical_url: https://arxiv.org/abs/2610.22056
+    recommendation_ids:
+    - REC-010
+    source_demonstrates: Subtask progress functions supply a potential difference plus a separately specified
+      success bonus; the complete method also augments robotic state with subtask priors.
+    repository_inference: Discrete dependency-closed milestones supply only a diagnostic shaping component
+      with zero terminal potential and explicit truncation withholding. The existing overlap audit and
+      event journal prevent automatic composition with knowledge credit.
+    maturity: Experimental CPU potential and credit preparation; robotic reproduction, trainer integration,
+      policy-invariance assumptions and behavioral improvement are unqualified.
+    local_repo_notes:
+    - docs/knowledge_progress.md
+    - gepa_mindfulness/training/knowledge_progress.py

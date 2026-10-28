@@ -107,11 +107,13 @@ exclude = [
 ]
 
 [tool.setuptools.package-data]
-docs = ["cumulative_curriculum.md", "causal_reward_adapter.md", "reliable_improvement_evaluation.md", "evidence_topology.md", "pluralistic_robustness.md", "sensitive_debate.md", "causal_diagnostics.md", "controlled_evolution.md", "experimental_v5_overlays.md", "research_overlays.md", "epistemic_state.md", "temporal_estimator.md", "scalar_fusion.md", "evidence_memory.md", "peo_continuity.md", "system_one_routing.md", "skill_failure_localization.md", "synthetic_worlds.md", "peo_curriculum.md", "relation_flips.md", "contrastive_training.md", "dynamic_uncertainty.md", "evaluation_ladder.md", "world_model_ablation.md", "hypothesis_state.md", "semantic_exploration.md", "distillation_adapters.md", "subspace_tuning.md", "deloop_peo.md"]
+docs = ["cumulative_curriculum.md", "causal_reward_adapter.md", "reliable_improvement_evaluation.md", "evidence_topology.md", "pluralistic_robustness.md", "sensitive_debate.md", "causal_diagnostics.md", "controlled_evolution.md", "experimental_v5_overlays.md", "research_overlays.md", "epistemic_state.md", "temporal_estimator.md", "scalar_fusion.md", "evidence_memory.md", "peo_continuity.md", "system_one_routing.md", "skill_failure_localization.md", "synthetic_worlds.md", "peo_curriculum.md", "relation_flips.md", "contrastive_training.md", "dynamic_uncertainty.md", "evaluation_ladder.md", "world_model_ablation.md", "hypothesis_state.md", "semantic_exploration.md", "distillation_adapters.md", "subspace_tuning.md", "deloop_peo.md", "knowledge_progress.md"]
 "docs.recommendations" = [
     "RESEARCH_TRACEABILITY.md",
     "RESEARCH_INTEGRATION_MATRIX.md",
     "source_artifacts/deloop-2610.19376v1-equations.txt",
+    "source_artifacts/knowgpo-2610.22331v1-method.txt",
+    "source_artifacts/prm4rl-2610.22056v1-method.txt",
     "UNIFIED_RECOMMENDATIONS.md",
     "references.yaml",
     "registry.yaml",

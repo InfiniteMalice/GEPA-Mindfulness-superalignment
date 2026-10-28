@@ -137,6 +137,8 @@ PR-8 adds [skill_failure_localization.md](../skill_failure_localization.md). Add
 
 #### REC-010 — Online experience collection; offline harness/skill evolution.
 
+- Knowledge/progress experiment: [`REF-KNOWGPO`](RESEARCH_TRACEABILITY.md#ref-knowgpo), [`REF-PRM4RL`](RESEARCH_TRACEABILITY.md#ref-prm4rl); see the [evidence and accounting protocol](../knowledge_progress.md). Evidence review does not resolve admissibility or pay credit.
+
 - Additional method source: [`REF-LOCD`](RESEARCH_TRACEABILITY.md#ref-locd); see the [experimental adapter guide](../distillation_adapters.md).
 - Retention experiment: [`REF-SST`](RESEARCH_TRACEABILITY.md#ref-sst); see the [optional SST guide](../subspace_tuning.md). Spectral protection does not establish constitutional retention.
 - Repetition experiment: [`REF-DELOOP`](RESEARCH_TRACEABILITY.md#ref-deloop); see the [DeLoop + PEO guide](../deloop_peo.md). Structural repeats do not establish unproductive behavior without independent review.
