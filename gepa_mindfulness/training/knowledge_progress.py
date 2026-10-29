@@ -384,6 +384,7 @@ def prepare_knowledge_progress(
             None if item.termination == "truncated" else represented_gamma * phi_after - phi_before
         )
         exact_shapings.append(shaping)
+        serialized_shaping = None if shaping is None else float(shaping)
         correction = []
         if item.belief_before is not None and item.belief_after is not None:
             b0 = _state(item.belief_before, specs, refs)
@@ -427,7 +428,11 @@ def prepare_knowledge_progress(
                 "milestone_gain": len(after_done) - len(before_done),
                 "phi_before": float(phi_before),
                 "phi_after": float(phi_after),
-                "shaping": None if shaping is None else float(shaping),
+                "shaping": serialized_shaping,
+                "shaping_exact": None if shaping is None else str(shaping),
+                "progress_diagnostic_only": (
+                    shaping is not None and shaping != 0 and serialized_shaping == 0
+                ),
                 "termination": item.termination,
                 "group_id": group_id,
                 "knowledge_advantage": None,
@@ -452,7 +457,7 @@ def prepare_knowledge_progress(
             if (
                 value is None
                 or (kind == "knowledge" and value == 0)
-                or (kind == "progress" and shaping == 0)
+                or (kind == "progress" and (shaping == 0 or row["progress_diagnostic_only"]))
             ):
                 continue
             component = (

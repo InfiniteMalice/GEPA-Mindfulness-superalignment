@@ -423,7 +423,7 @@ class KnowledgeProgressTests(unittest.TestCase):
                     self.assertEqual(len(result["claims"]), 1)
                     self.assertEqual(result["claims"][0]["score"], expected)
 
-    def test_nonzero_progress_survives_float_underflow(self):
+    def test_underflowed_progress_remains_exact_diagnostic_without_reservable_claim(self):
         result = prepare(
             (
                 step(
@@ -441,10 +441,38 @@ class KnowledgeProgressTests(unittest.TestCase):
         row = result["steps"][0]
         self.assertEqual((row["phi_before"], row["phi_after"]), (0.0, 0.5))
         self.assertEqual(row["shaping"], 0.0)
+        self.assertEqual(result["claims"], [])
+        self.assertIsNone(result["credit_audit"])
+        self.assertEqual(row["shaping_exact"], f"1/{2**1075}")
+        self.assertTrue(row["progress_diagnostic_only"])
+        self.assertEqual(result["steps"][1]["shaping_exact"], "0")
+        self.assertFalse(result["steps"][1]["progress_diagnostic_only"])
+
+    def test_underflowed_progress_does_not_suppress_knowledge_gain(self):
+        result = prepare(
+            (step(after=state(("supported", "supported", "unverified"))),),
+            context=context(gamma=5e-324),
+        )
+        self.assertTrue(result["steps"][0]["progress_diagnostic_only"])
+        self.assertEqual(len(result["claims"]), 1)
+        self.assertEqual(result["claims"][0]["credit_kind"], "knowledge")
+        self.assertEqual(result["claims"][0]["score"], 1)
+
+    def test_smallest_representable_progress_still_creates_a_claim(self):
+        result = prepare(
+            (
+                step(
+                    before=state(("supported", "unverified", "unverified")),
+                    after=state(("supported", "supported", "unverified")),
+                ),
+            ),
+            context=context(gamma=1e-323),
+        )
+        self.assertEqual(result["steps"][0]["shaping"], 5e-324)
+        self.assertFalse(result["steps"][0]["progress_diagnostic_only"])
         self.assertEqual(len(result["claims"]), 1)
         self.assertEqual(result["claims"][0]["credit_kind"], "progress")
-        self.assertEqual(result["claims"][0]["score"], 0.0)
-        self.assertEqual(result["claims"][0]["event_id"], "event-episode-1-0")
+        self.assertEqual(result["claims"][0]["score"], 5e-324)
 
     def test_terminal_zero_potential_telescopes_without_success_credit(self):
         mid = state(("supported", "supported", "unverified"))

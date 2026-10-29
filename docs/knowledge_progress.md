@@ -133,8 +133,11 @@ separate from knowledge gain. For continuing transitions:
 The calculation uses exact milestone fractions and the exact represented gamma before converting
 JSON result values to floats. No fixed tolerance discards small nonzero shaping contributions;
 exact cancellation cannot create a rounding-only progress claim. Progress emission uses each
-step's exact shaping value. A nonzero contribution that underflows to a serialized float of zero
-still retains its progress proposal; this does not grant admission or optimizer credit.
+step's exact shaping value. The `shaping_exact` rational string preserves nonzero values even
+when `shaping` underflows to a serialized float of zero. Such rows have
+`progress_diagnostic_only=true` and emit no reservable progress claim: the current credit
+contract cannot represent their amount. Representable nonzero contributions remain eligible
+for proposals, without granting admission or optimizer credit. No numerical tolerance is used.
 
 A genuine finite-episode termination has zero next potential, including failed or premature
 termination. This can give negative shaping without asserting a hidden-thought failure. A

@@ -145,3 +145,17 @@ test passed separately after restoring the missing build frontend. Both changed 
 Black, Python 3.10 syntax and 100-column checks. Full local collection still stops at
 tests/test_dapo_hybrid_trainer.py because PyTorch is missing (six preceding skips). A fresh
 independent read-only review found no issues and independently passed the 26 adapter tests.
+
+Further review verified a downstream contract limitation: the float-only claim score can round
+nonzero shaping to zero, and an independently admitted zero score could still reserve its event.
+The original underflow-proposal expectation is superseded: retain `shaping_exact` as a rational
+string and mark underflowed rows `progress_diagnostic_only`; emit no reservable progress claim
+until the credit contract can represent the amount. Exact per-step nonzero detection remains,
+with no tolerance. Updated boundary regressions failed before the fix; they cover exact retention,
+a following zero-progress episode, unaffected knowledge gain, and the smallest representable
+positive progress score. No shared credit contract, ledger, authority or protected policy changes.
+
+Final underflow-contract validation: 795 focused tests passed with eight existing skips, including
+the wheel-resource contract. All 28 adapter tests pass. Changed Python files pass Black, Python
+3.10 syntax and 100-column checks. Full local collection again stops at the missing PyTorch
+import in tests/test_dapo_hybrid_trainer.py after six skips; fresh CI remains the full-suite gate.
