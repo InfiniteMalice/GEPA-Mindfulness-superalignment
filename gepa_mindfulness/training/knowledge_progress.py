@@ -322,6 +322,7 @@ def prepare_knowledge_progress(
     milestones = {key for key, spec in specs.items() if spec.kind == "milestone"}
     knowledge = set(specs) - milestones
     previous, seen, rows, groups, evidence_kinds = {}, {}, [], defaultdict(list), {}
+    exact_shapings = []
     action_ids, event_ids = set(), set()
     for item in captured:
         target = _request_wire(item.request)
@@ -382,6 +383,7 @@ def prepare_knowledge_progress(
         shaping = (
             None if item.termination == "truncated" else represented_gamma * phi_after - phi_before
         )
+        exact_shapings.append(shaping)
         correction = []
         if item.belief_before is not None and item.belief_after is not None:
             b0 = _state(item.belief_before, specs, refs)
@@ -442,12 +444,16 @@ def prepare_knowledge_progress(
             )
     claims = []
     source_digest = content_digest(source)
-    for item, row in zip(captured, rows):
+    for item, row, shaping in zip(captured, rows, exact_shapings):
         for kind, value, reference in (
             ("knowledge", row["knowledge_gain"], "REF-KNOWGPO"),
             ("progress", row["shaping"], "REF-PRM4RL"),
         ):
-            if value is None or value == 0:
+            if (
+                value is None
+                or (kind == "knowledge" and value == 0)
+                or (kind == "progress" and shaping == 0)
+            ):
                 continue
             component = (
                 "verified_knowledge_gain" if kind == "knowledge" else "verified_milestone_progress"

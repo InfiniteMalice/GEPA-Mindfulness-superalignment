@@ -131,3 +131,17 @@ rebuilt wheel satisfies every existing and added resource assertion byte-for-byt
 guide is independently readable through importlib.resources outside the checkout. The maintainer
 now authorizes ready PRs, CI/review monitoring, fixes until clean, then merge and continuation;
 no failing check is bypassed and no empirical improvement is inferred from these tests.
+
+PR 807 outside-diff review follow-up (2026-10-29): verified that gamma 5e-324 with one of two
+milestones complete produces nonzero exact shaping but serializes to float zero. The regression
+failed because no progress proposal was emitted. Retain exact shaping per step for the emission
+decision, preserve the knowledge zero check, and keep float result/claim serialization unchanged.
+The regression includes a following zero-progress episode so the decision cannot reuse another
+step's shaping. Exact zero and truncation still emit no progress proposal. The focused adapter
+suite passes all 26 tests after the fix. No reward authority or empirical claim changes.
+
+Fresh follow-up validation: 792 focused tests passed with eight existing skips; the wheel-resource
+test passed separately after restoring the missing build frontend. Both changed Python files pass
+Black, Python 3.10 syntax and 100-column checks. Full local collection still stops at
+tests/test_dapo_hybrid_trainer.py because PyTorch is missing (six preceding skips). A fresh
+independent read-only review found no issues and independently passed the 26 adapter tests.

@@ -423,6 +423,29 @@ class KnowledgeProgressTests(unittest.TestCase):
                     self.assertEqual(len(result["claims"]), 1)
                     self.assertEqual(result["claims"][0]["score"], expected)
 
+    def test_nonzero_progress_survives_float_underflow(self):
+        result = prepare(
+            (
+                step(
+                    before=state(("supported", "unverified", "unverified")),
+                    after=state(("supported", "supported", "unverified")),
+                ),
+                step(
+                    episode="no-progress",
+                    before=state(("supported", "unverified", "unverified")),
+                    after=state(("supported", "unverified", "unverified")),
+                ),
+            ),
+            context=context(gamma=5e-324),
+        )
+        row = result["steps"][0]
+        self.assertEqual((row["phi_before"], row["phi_after"]), (0.0, 0.5))
+        self.assertEqual(row["shaping"], 0.0)
+        self.assertEqual(len(result["claims"]), 1)
+        self.assertEqual(result["claims"][0]["credit_kind"], "progress")
+        self.assertEqual(result["claims"][0]["score"], 0.0)
+        self.assertEqual(result["claims"][0]["event_id"], "event-episode-1-0")
+
     def test_terminal_zero_potential_telescopes_without_success_credit(self):
         mid = state(("supported", "supported", "unverified"))
         done = state(("supported", "supported", "supported"))
