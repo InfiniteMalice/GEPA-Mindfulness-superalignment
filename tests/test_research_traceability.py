@@ -322,6 +322,16 @@ EXPECTED_REFERENCES = (
         "2610.19376",
         "DeLoop: Repeated Actions as Self-Supervision for Long-Horizon Agents",
     ),
+    (
+        "REF-KNOWGPO",
+        "2610.22331",
+        "KnowGPO: Knowledge-Grouped Policy Optimization for Search Agents",
+    ),
+    (
+        "REF-PRM4RL",
+        "2610.22056",
+        "Progress Reward Model for Reinforcement Learning via Large Language Models",
+    ),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
@@ -421,6 +431,8 @@ EXPECTED_RECOMMENDATION_LINKS = {
     "REF-LOCD": ("REC-010",),
     "REF-SST": ("REC-010",),
     "REF-DELOOP": ("REC-010",),
+    "REF-KNOWGPO": ("REC-010",),
+    "REF-PRM4RL": ("REC-010",),
 }
 
 PUBLIC_REGISTRY_LOADERS = (
@@ -451,6 +463,13 @@ def test_resolved_metadata_is_complete_and_uses_canonical_arxiv_urls() -> None:
             assert reference.arxiv_id is None
             assert reference.doi is None
             assert reference.canonical_url == "https://github.com/Contrastive-LM/CLM"
+            continue
+        if reference.reference_id == "REF-PRM4RL":
+            assert reference.year == 2025
+            assert reference.arxiv_id == "2610.22056"
+            assert reference.doi == "10.52202/085713-3370"
+            assert reference.venue_status == "NeurIPS 2025"
+            assert reference.canonical_url == "https://arxiv.org/abs/2610.22056"
             continue
         if reference.reference_id == "REF-CI":
             assert reference.year == 1997

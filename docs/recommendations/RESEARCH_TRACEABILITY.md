@@ -2,7 +2,7 @@
 
 October 2026 research leads are recorded in the pending
 [method-integration intake](RESEARCH_INTEGRATION_MATRIX.md#source-intake-and-adaptation-boundary).
-ActionOPD, LoCD, SST and DeLoop v1 metadata/method texts were checked on 2026-10-27; their
+ActionOPD, LoCD, SST, DeLoop, KnowGPO and PRM4RL v1 metadata/method texts were checked on 2026-10-27; their
 new entries below describe experimental adapters, not empirical transfer. The other
 October integration leads remain unchecked. Registry admission follows primary-source verification.
 
@@ -2101,3 +2101,51 @@ Primary v1 sections 2.1–2.3 and Algorithm 1 checked 2026-10-27; no authoritati
 **Maturity:** Experimental CPU audit and recovery preparation; optional DPO kernel, full training and behavioral effectiveness are unqualified.
 
 Primary v1 sections 3.1, 4.1–4.2 and G.1 checked 2026-10-27; paper CC BY 4.0, no authoritative code repository identified. The [retained equation extract](source_artifacts/deloop-2610.19376v1-equations.txt) and its digest in the [matrix](RESEARCH_INTEGRATION_MATRIX.md#source-intake-and-adaptation-boundary) identify the checked representation without claiming raw publisher-byte retrieval.
+
+<a id="ref-knowgpo"></a>
+
+## REF-KNOWGPO — KnowGPO: Knowledge-Grouped Policy Optimization for Search Agents
+
+- Metadata status: `resolved`
+- Supplied title: KnowGPO: Knowledge-Grouped Policy Optimization for Search Agents
+- Authors: Siqi Chen, Zhengxi Lu, Yuchen Yan, Xingyu Wu, Qipeng Chen, Xin Zhang, Aiting Liu, Chao Deng, Jie Liu, Jin Ma, Weiming Lu, Jun Xiao, Yongliang Shen
+- Year: 2026
+- arXiv: [`2610.22331`](https://arxiv.org/abs/2610.22331)
+- DOI: `10.48550/arXiv.2610.22331`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-010`
+- Local repository notes: [knowledge_progress.md](../knowledge_progress.md), [knowledge_progress.py](../../gepa_mindfulness/training/knowledge_progress.py)
+
+**Source demonstrates:** Atomic knowledge conditions define accumulated states; Algorithm 1 groups non-answer steps by preceding state and normalizes incremental condition gain before mixing it with episode outcome advantage.
+
+**Repository inference:** The optional evidence-transition adapter retains contradictions and first-acquisition history, separates belief corrections, and prepares unresolved knowledge claims under independent host review without trainer or reward authority.
+
+**Maturity:** Experimental CPU preparation and grouping; full KnowGPO training, independent behavioral evaluation and improvement are not established.
+
+Primary definitions checked 2026-10-27; see the [protocol](../knowledge_progress.md) for source
+revisions, licenses and adaptation boundaries, and the [matrix](RESEARCH_INTEGRATION_MATRIX.md#source-intake-and-adaptation-boundary)
+for retained method-note identities/digests. No full experimental reproduction is claimed.
+
+<a id="ref-prm4rl"></a>
+
+## REF-PRM4RL — Progress Reward Model for Reinforcement Learning via Large Language Models
+
+- Metadata status: `resolved`
+- Supplied title: Progress Reward Model for Reinforcement Learning via Large Language Models
+- Authors: Xiuhui Zhang, Ning Gao, Xingyu Jiang, Yihui Chen, Yuheng Pan, Mohan Zhang, Yue Deng
+- Year: 2025
+- arXiv: [`2610.22056`](https://arxiv.org/abs/2610.22056)
+- DOI: `10.52202/085713-3370`
+- Venue/status: NeurIPS 2025
+- Recommendations influenced: `REC-010`
+- Local repository notes: [knowledge_progress.md](../knowledge_progress.md), [knowledge_progress.py](../../gepa_mindfulness/training/knowledge_progress.py)
+
+**Source demonstrates:** Subtask progress functions supply a potential difference plus a separately specified success bonus; the complete method also augments robotic state with subtask priors.
+
+**Repository inference:** Discrete dependency-closed milestones supply only a diagnostic shaping component with zero terminal potential and explicit truncation withholding. The existing overlap audit and event journal prevent automatic composition with knowledge credit.
+
+**Maturity:** Experimental CPU potential and credit preparation; robotic reproduction, trainer integration, policy-invariance assumptions and behavioral improvement are unqualified.
+
+Primary definitions checked 2026-10-27; see the [protocol](../knowledge_progress.md) for source
+revisions, licenses and adaptation boundaries, and the [matrix](RESEARCH_INTEGRATION_MATRIX.md#source-intake-and-adaptation-boundary)
+for retained method-note identities/digests. No full experimental reproduction is claimed.

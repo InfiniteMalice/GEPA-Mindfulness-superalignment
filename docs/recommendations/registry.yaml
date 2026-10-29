@@ -327,6 +327,8 @@ recommendations:
       - REF-LOCD
       - REF-SST
       - REF-DELOOP
+      - REF-KNOWGPO
+      - REF-PRM4RL
       - REF-WINNERS-CURSE
       - REF-KNOWLEDGE-WEAVER
       - REF-WORLD-POTENTIAL

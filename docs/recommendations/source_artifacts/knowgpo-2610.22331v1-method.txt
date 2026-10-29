@@ -1,0 +1,14 @@
+KnowGPO mathematical/source note (authored summary, not a publisher-byte extract)
+Checked: 2026-10-27; arXiv:2610.22331v1, 2026-10-15.
+Primary: https://arxiv.org/html/2610.22331v1 (sections 3.2-3.3, Algorithm 1).
+Paper license: arXiv perpetual non-exclusive. No paper prose copied.
+Atomic-condition state: s_t = s_(t-1) OR delta_s_t.
+Incremental gain: r_t = ||s_t||_1 - ||s_(t-1)||_1.
+Algorithm 1 groups non-answer steps by s_(t-1), despite equation (5)'s index.
+Step advantage: (r_t - group_mean) / (group_std + epsilon).
+The full method mixes episode and step advantages and uses a clipped policy objective.
+Official README/LICENSE revision: ZJU-REAL/KnowGPO
+5b4f8bb5a782a09f4e9a0bcc630557c5deb7715d; Apache-2.0; core code coming soon.
+Mindfulness permits explicit evidence revocation, remembers earlier support and keeps
+belief corrections, milestone shaping, outcome reward and admission separate.
+No upstream code copied; no full training reproduction or empirical transfer claimed.
