@@ -19,7 +19,7 @@ with whole-rollout quarantine and independent review; full VPO training remains 
 PR 7 adds [immutable dataset research preparation](dataset_research.md), reusing the existing
 manifest and review contracts. Full AutoSFT orchestration, training admission and empirical
 effectiveness remain unsupported.
-PRs 7–11 remain unimplemented.
+PRs 8–11 remain unimplemented.
 The [audit evidence](experiments/unified_research_pr0_audit.md) preserves the original local
 baseline and primary-source limitations; PR #801's Python 3.12 CI subsequently passed.
 The [method matrix](recommendations/RESEARCH_INTEGRATION_MATRIX.md) covers all 19 requested
