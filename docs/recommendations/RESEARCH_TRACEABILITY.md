@@ -2168,7 +2168,7 @@ Bahlous-Boldi et al. (2026). *Vector Policy Optimization: Training for Diversity
 
 **Source demonstrates:** Rollout-local candidate sets are scored by expected maximum scalarized reward under common Dirichlet weight draws, then normalized within prompt groups to train diverse solutions.
 
-**Repository inference:** Independent admissibility precedes set scoring; an invalid or unresolved member quarantines its whole rollout. Bounded host-reviewed preparation reuses existing provenance and GRPO helpers without trainer or reward authority.
+**Repository inference:** Structural checks gate diagnostic set calculations and quarantine a whole rollout if any member is invalid or unresolved. Independent host review determines whether the resulting metrics are reviewed evidence. Raw scores and proposed metrics retained after rejected review remain diagnostics, not independently admitted results. Preparation reuses existing provenance and GRPO helpers without granting training or runtime admission.
 
 **Maturity:** Experimental CPU scoring and evidence preparation; full VPO training, joint reward composition, behavioral diversity and constitutional non-regression are not empirically qualified.
 
