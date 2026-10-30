@@ -1,0 +1,14 @@
+{
+  "schema_version": "decision-routing-runtime-example-v1",
+  "enabled": false,
+  "adapter": "gepa_mindfulness.factuality_observability.decision_routing.route_decision",
+  "routing_policy": {"enabled": false},
+  "backend": null,
+  "confidence_threshold": null,
+  "calibration_bins": null,
+  "operator_configuration_required": true,
+  "native_loop_runtime_implemented": false,
+  "depth_analysis_mode": "recorded_full_trace_diagnostic",
+  "actual_compute_savings_established": false,
+  "source_references": ["https://arxiv.org/abs/2610.21411v1", "https://arxiv.org/abs/2610.20951v1"]
+}

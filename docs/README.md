@@ -64,6 +64,8 @@ is the project orientation; detailed semantics live here and in subsystem README
   methods, source-verification gaps, integration owners and acceptance requirements.
 - [Immutable dataset research](dataset_research.md): default-off AutoSFT-inspired recipe
   preparation, independent review, source lineage and separate training-host admission.
+- [Structured decisions and native depth](decision_routing.md): optional Jev-style routing,
+  matched error/calibration metrics and separate LEV trace diagnostics; native execution unsupported.
 - [PR 0 audit evidence](experiments/unified_research_pr0_audit.md): pinned snapshot checks,
   blocked baseline and limits; not a completed training experiment.
 

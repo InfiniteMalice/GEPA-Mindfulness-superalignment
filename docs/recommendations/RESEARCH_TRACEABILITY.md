@@ -2201,3 +2201,47 @@ and empirical effectiveness remain Unsupported. No improvement is established.
 Primary sections 2.1–2.2, 4.1–4.3, B.2–B.4 and D checked 2026-10-30, CC BY 4.0.
 The paper links Thinking-Space/AutoSFT, currently a code placeholder. No upstream code is copied.
 The [matrix](RESEARCH_INTEGRATION_MATRIX.md) records the retained checked rendition and digest.
+
+<a id="ref-jev-litemas"></a>
+
+## REF-JEV-LITEMAS — Jev-LiteMAS: Separating Decisions from Generation in Multi-Agent Workflows
+
+- Metadata status: `resolved`
+- Supplied title: Jev-LiteMAS: Separating Decisions from Generation in Multi-Agent Workflows
+- Authors: Kaixiang Wang, Zhaojiacheng Zhou, Jiong Lou, Jie Li
+- Year: 2026
+- DOI: `10.48550/arXiv.2610.21411`
+- arXiv: [`2610.21411`](https://arxiv.org/abs/2610.21411)
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-008`
+- Local repository notes: [decision_routing.md](../decision_routing.md), [decision_routing.py](../../gepa_mindfulness/factuality_observability/decision_routing.py), [decision_routing.py](../../evaluation/decision_routing.py).
+
+**Source demonstrates:** Bounded coordination is separated from generative execution and corrective feedback, with task and artifact history grounding expert handoffs and local screening.
+
+**Repository inference:** An optional structured probability adapter binds public context and model readouts, reuses the existing independent route guard, and exposes raw errors separately from guarded decisions. It grants no runtime or reward authority.
+
+**Maturity:** Experimental structured-routing interface and Diagnostic matched metrics; live Jev services, full MAS execution and empirically qualified calibration remain Unsupported.
+
+Primary v1 method sections checked 2026-10-30, paper CC BY 4.0. Checked source notes, exact digests and adaptation limits are recorded in the [matrix](RESEARCH_INTEGRATION_MATRIX.md) and [protocol](../decision_routing.md). No upstream code is copied.
+
+<a id="ref-lev"></a>
+
+## REF-LEV — LEV: Thinking Fast and Deep with Looped Decision Models
+
+- Metadata status: `resolved`
+- Supplied title: LEV: Thinking Fast and Deep with Looped Decision Models
+- Authors: Dingjie Song, Zhiling Yan, Yuxuan Zhang, Lichao Sun
+- Year: 2026
+- DOI: `10.48550/arXiv.2610.20951`
+- arXiv: [`2610.20951`](https://arxiv.org/abs/2610.20951)
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-008`
+- Local repository notes: [decision_routing.md](../decision_routing.md), [decision_routing.py](../../gepa_mindfulness/factuality_observability/decision_routing.py).
+
+**Source demonstrates:** A natively looped model shares per-depth decision readouts and resumes hidden state; its stopper predicts agreement with the deepest answer rather than independently verified correctness.
+
+**Repository inference:** A native-session Protocol and full-trace diagnostic keep declared architecture compatibility, simulated exit depth, executed depth, deep agreement and independent labels separate. No actual compute savings or compatible model execution is established.
+
+**Maturity:** Diagnostic recorded-depth analysis; native model execution, stopper fitting, empirical calibration and effectiveness remain Unsupported.
+
+Primary v1 method sections checked 2026-10-30, paper CC BY 4.0. Checked source notes, exact digests and adaptation limits are recorded in the [matrix](RESEARCH_INTEGRATION_MATRIX.md) and [protocol](../decision_routing.md). No upstream code is copied.

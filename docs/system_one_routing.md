@@ -1,5 +1,9 @@
 # System-One routing (experimental, opt-in)
 
+The optional [structured-decision extension](decision_routing.md) wraps this same guard
+with public-context/readout binding, raw calibration/error diagnostics and separate
+recorded-depth research. It adds no execution or verifier authority.
+
 `gepa_mindfulness.factuality_observability.epistemic_routing` feeds recorded uncertainty into
 bounded route proposals. The existing `choose_routing_action()` and default pipeline are
 unchanged. No model service, network client, model weights or new dependency is installed.

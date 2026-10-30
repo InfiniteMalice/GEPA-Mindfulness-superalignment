@@ -1,0 +1,13 @@
+Authored method note; not publisher HTML/PDF bytes.
+Wang et al., Jev-LiteMAS, arXiv:2610.21411v1, submitted 2026-10-15.
+https://arxiv.org/html/2610.21411v1 ; paper CC BY 4.0.
+Primary sections 4.1-4.3 checked 2026-10-30 through successful browser reads.
+Bounded coordination is separate from generative work and corrective feedback.
+Task/artifact history grounds the decision; local artifact acceptance is distinct
+from final task completion. No authoritative code repository was established.
+Ignore uncorrected ACM template venue/DOI placeholders as bibliographic evidence.
+GEPA adapts structured decisions to the existing RecommendedAction vocabulary and
+independent evidence/risk guard, retaining raw errors and confidence diagnostics.
+No independent verification, authorization or reward can be waived by a model pass.
+No full MAS implementation, deployed calibration or transferred gains are claimed.
+No upstream code or new model/client dependencies are copied.

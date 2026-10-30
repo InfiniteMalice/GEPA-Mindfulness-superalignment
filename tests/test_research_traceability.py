@@ -342,6 +342,16 @@ EXPECTED_REFERENCES = (
         "2610.22194",
         "AutoSFT: An Agentic System for Automated Data Research in Supervised Fine-Tuning",
     ),
+    (
+        "REF-JEV-LITEMAS",
+        "2610.21411",
+        "Jev-LiteMAS: Separating Decisions from Generation in Multi-Agent Workflows",
+    ),
+    (
+        "REF-LEV",
+        "2610.20951",
+        "LEV: Thinking Fast and Deep with Looped Decision Models",
+    ),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
@@ -445,6 +455,8 @@ EXPECTED_RECOMMENDATION_LINKS = {
     "REF-PRM4RL": ("REC-010",),
     "REF-VPO": ("REC-010",),
     "REF-AUTOSFT": ("REC-010",),
+    "REF-JEV-LITEMAS": ("REC-008",),
+    "REF-LEV": ("REC-008",),
 }
 
 PUBLIC_REGISTRY_LOADERS = (

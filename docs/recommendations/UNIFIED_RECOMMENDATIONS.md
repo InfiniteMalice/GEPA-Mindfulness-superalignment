@@ -123,6 +123,8 @@ PR-8 adds [skill_failure_localization.md](../skill_failure_localization.md). Add
 
 - Experimental routing: [System-One guide](../system_one_routing.md); opt-in proposals retain host authority gates.
 
+Structured decision/depth extensions: [`REF-JEV-LITEMAS`](RESEARCH_TRACEABILITY.md#ref-jev-litemas), [`REF-LEV`](RESEARCH_TRACEABILITY.md#ref-lev); see [the protocol](../decision_routing.md). The existing guard remains authoritative; live services and native execution remain Unsupported.
+
 #### REC-009 — Verified skill lifecycle.
 
 - Repository evidence: [skill_lifecycle.py](../../gepa_mindfulness/skill_lifecycle.py), [skill_bank.py](../../gepa_mindfulness/skill_bank.py).

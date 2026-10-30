@@ -26,6 +26,7 @@ DOCUMENTS = (
     ROOT / "docs" / "knowledge_progress.md",
     ROOT / "docs" / "vector_policy.md",
     ROOT / "docs" / "dataset_research.md",
+    ROOT / "docs" / "decision_routing.md",
     ROOT / "docs" / "controlled_evolution.md",
     ROOT / "docs" / "causal_diagnostics.md",
     ROOT / "docs" / "causal_reward_adapter.md",
