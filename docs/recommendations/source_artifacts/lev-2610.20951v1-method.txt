@@ -1,0 +1,14 @@
+Authored method note; not publisher HTML/PDF bytes.
+Song et al., LEV, arXiv:2610.20951v1, submitted 2026-10-14.
+https://arxiv.org/html/2610.20951v1 ; paper CC BY 4.0.
+Primary sections 4.1-4.3 checked 2026-10-30 through successful browser reads.
+Native loop pretraining, a shared per-step readout and hidden-state resumption
+are required; repeating a conventional model is not equivalent. Deep-answer
+agreement is the stopper's target, not independently established correctness.
+Author-linked https://github.com/OpenLAIR/lev revision
+fd584e9b4893ed040054e10995a77aa339ec3313; Apache-2.0 root LICENSE,
+Git blob e1ece45b775283628888a36bc75f56078cee9de0. No upstream code copied.
+GEPA supplies an external native-session Protocol and recorded full-trace analysis.
+Architecture declarations remain unverified. A selected shallow depth does not
+save actual computation after the full trace ran. Compatible model execution,
+stopper fitting, calibration qualification and effectiveness remain unsupported.

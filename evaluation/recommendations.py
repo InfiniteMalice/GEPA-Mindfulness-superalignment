@@ -119,6 +119,8 @@ REFERENCE_IDS = (
     "REF-PRM4RL",
     "REF-VPO",
     "REF-AUTOSFT",
+    "REF-JEV-LITEMAS",
+    "REF-LEV",
 )
 REFERENCE_ARXIV_IDS = (
     "2609.01736",
@@ -221,6 +223,8 @@ REFERENCE_ARXIV_IDS = (
     "2610.22056",
     "2605.22817",
     "2610.22194",
+    "2610.21411",
+    "2610.20951",
 )
 ALLOWED_METADATA_STATUSES = frozenset({"resolved", "unresolved"})
 

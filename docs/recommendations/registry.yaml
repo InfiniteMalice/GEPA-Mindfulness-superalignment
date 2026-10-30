@@ -253,6 +253,8 @@ recommendations:
       - REF-HEART
       - REF-BIOMETRIC-MEM
       - REF-JEV-MEM
+      - REF-JEV-LITEMAS
+      - REF-LEV
       - REF-CLM
       - REF-TOOLLERY
       - REF-SEEK
