@@ -180,6 +180,8 @@ PR18 adds [PEO improvement intake](../controlled_evolution.md#peo-improvement-in
 
 PR19 adds [private promotion requests](../controlled_evolution.md#private-promotion-and-experimental-provenance): fixed protocol commitments, per-seed budget checks, typed requests and an append-only private audit. Improver responses contain status only. [Contract tests](../../tests/test_private_promotion.py) validate the integration; the host supplies private generators, protected execution, metering and independent review.
 
+PR 9 adds [advisory improvement workflows and private model–harness attribution](../improvement_workflows.md). Existing human routing, coevolution admission, protected receipts and runtime authority remain unchanged; full RSIFlow training and live procedural execution are Unsupported.
+
 ## P2
 
 ### P2 — Experimental

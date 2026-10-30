@@ -121,6 +121,8 @@ REFERENCE_IDS = (
     "REF-AUTOSFT",
     "REF-JEV-LITEMAS",
     "REF-LEV",
+    "REF-RSIFLOW",
+    "REF-HARNESS-SELF-EVOLUTION",
 )
 REFERENCE_ARXIV_IDS = (
     "2609.01736",
@@ -225,6 +227,8 @@ REFERENCE_ARXIV_IDS = (
     "2610.22194",
     "2610.21411",
     "2610.20951",
+    "2610.21791",
+    "2609.38372",
 )
 ALLOWED_METADATA_STATUSES = frozenset({"resolved", "unresolved"})
 

@@ -333,6 +333,8 @@ recommendations:
       - REF-PRM4RL
       - REF-VPO
       - REF-AUTOSFT
+      - REF-RSIFLOW
+      - REF-HARNESS-SELF-EVOLUTION
       - REF-WINNERS-CURSE
       - REF-KNOWLEDGE-WEAVER
       - REF-WORLD-POTENTIAL
@@ -396,6 +398,9 @@ recommendations:
       - docs/world_model_ablation.md
       - gepa_mindfulness/controlled_improvement.py
       - gepa_mindfulness/private_promotion.py
+      - gepa_mindfulness/improvement_workflows.py
+      - evaluation/model_harness_attribution.py
+      - docs/improvement_workflows.md
     acceptance_tests:
       - tests/test_training_eligibility.py
       - tests/test_synthetic_v5_provenance.py
@@ -415,6 +420,8 @@ recommendations:
       - tests/test_world_model_ablation.py
       - tests/test_controlled_improvement.py
       - tests/test_private_promotion.py
+      - tests/test_improvement_workflows.py
+      - tests/test_model_harness_attribution.py
     implementation_refs:
       - gepa_mindfulness/training/eligibility.py
       - gepa_mindfulness/learning_surfaces.py
@@ -432,6 +439,9 @@ recommendations:
       - evaluation/world_model_contracts.py
       - gepa_mindfulness/controlled_improvement.py
       - gepa_mindfulness/private_promotion.py
+      - gepa_mindfulness/improvement_workflows.py
+      - evaluation/model_harness_attribution.py
+      - docs/improvement_workflows.md
 
   - id: REC-011
     title: "Multiple competing hypotheses + information-gain inquiry."

@@ -3520,3 +3520,59 @@ references:
     local_repo_notes:
     - docs/decision_routing.md
     - gepa_mindfulness/factuality_observability/decision_routing.py
+
+  - reference_id: REF-RSIFLOW
+    metadata_status: resolved
+    supplied_title: 'RSIFlow: Adaptive Self-Improvement Workflows with an Evolving Meta-Agent'
+    title: 'RSIFlow: Adaptive Self-Improvement Workflows with an Evolving Meta-Agent'
+    authors:
+    - Huan Zhang
+    - Mingju Chen
+    - Dongxu Zhou
+    - Can Lv
+    - Sen Cui
+    - Faguo Wu
+    - Shiji Zhou
+    year: 2026
+    arxiv_id: '2610.21791'
+    doi: 10.48550/arXiv.2610.21791
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.21791
+    recommendation_ids:
+    - REC-010
+    source_demonstrates: Feedback-guided selection among Model, Harness and task-bound Artifacts interventions
+      from a frozen parent, with paired training-batch evaluation and separate meta-skill maintenance.
+    repository_inference: Evidence-reviewed advisory diagnosis extends existing learning-surface classification
+      and controlled intake. Human and unresolved routes dominate; recommendations never register, execute
+      or admit a candidate.
+    maturity: Experimental advisory workflow integration; trained meta-policy, full RSIFlow execution and
+      empirical effectiveness remain Unsupported.
+    local_repo_notes:
+    - docs/improvement_workflows.md
+    - gepa_mindfulness/improvement_workflows.py
+    - evaluation/model_harness_attribution.py
+
+  - reference_id: REF-HARNESS-SELF-EVOLUTION
+    metadata_status: resolved
+    supplied_title: Self-Evolving Harness on Multiple Tasks with the Agent as Its Own Optimizer
+    title: Self-Evolving Harness on Multiple Tasks with the Agent as Its Own Optimizer
+    authors:
+    - Qiankai Xu
+    year: 2026
+    arxiv_id: '2609.38372'
+    doi: 10.48550/arXiv.2609.38372
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2609.38372
+    recommendation_ids:
+    - REC-010
+    source_demonstrates: A frozen model and shared harness alternate solver and proposer sessions using
+      complete records, evolution notes, bounded edits and engineering checks across multiple task domains.
+    repository_inference: Bounded procedural hypotheses reuse independent GEPA admission and protected evaluation.
+      Private matched model/harness reports separate model-only, harness-only and interaction effects without
+      promoting candidates.
+    maturity: Experimental bounded procedure proposals and Diagnostic private attribution; live isolated
+      execution, deployment and research effectiveness remain Unsupported.
+    local_repo_notes:
+    - docs/improvement_workflows.md
+    - gepa_mindfulness/improvement_workflows.py
+    - evaluation/model_harness_attribution.py

@@ -460,3 +460,7 @@ deployment, model-weight mutation, live skill installation, or catalog-to-catalo
 | Skill catalog and evaluation trust boundaries | [`test_verified_skill_lifecycle_review.py`](../tests/test_verified_skill_lifecycle_review.py) |
 | Candidate correction, protected regressions, metrics, and decisions | [`test_model_harness_coevolution.py`](../tests/test_model_harness_coevolution.py) |
 | Recommendation and research registry consistency | [`test_recommendation_registry.py`](../tests/test_recommendation_registry.py), [`test_recommendation_documentation_consistency.py`](../tests/test_recommendation_documentation_consistency.py), [`test_research_traceability.py`](../tests/test_research_traceability.py) |
+
+## Advisory workflow integration
+
+The default-off [workflow adapter](improvement_workflows.md) adds independently reviewed diagnosis and bounded procedure proposals to existing intake. Private matched model–harness reports never replace receipts or admission and are not optimizer inputs.
