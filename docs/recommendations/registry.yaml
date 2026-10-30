@@ -330,6 +330,7 @@ recommendations:
       - REF-KNOWGPO
       - REF-PRM4RL
       - REF-VPO
+      - REF-AUTOSFT
       - REF-WINNERS-CURSE
       - REF-KNOWLEDGE-WEAVER
       - REF-WORLD-POTENTIAL

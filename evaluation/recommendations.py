@@ -118,6 +118,7 @@ REFERENCE_IDS = (
     "REF-KNOWGPO",
     "REF-PRM4RL",
     "REF-VPO",
+    "REF-AUTOSFT",
 )
 REFERENCE_ARXIV_IDS = (
     "2609.01736",
@@ -219,6 +220,7 @@ REFERENCE_ARXIV_IDS = (
     "2610.22331",
     "2610.22056",
     "2605.22817",
+    "2610.22194",
 )
 ALLOWED_METADATA_STATUSES = frozenset({"resolved", "unresolved"})
 

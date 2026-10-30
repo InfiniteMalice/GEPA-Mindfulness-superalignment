@@ -62,6 +62,8 @@ is the project orientation; detailed semantics live here and in subsystem README
   proposal, protected boundaries, compatibility and ablation requirements; implementation deferred.
 - [Research-method matrix](recommendations/RESEARCH_INTEGRATION_MATRIX.md): all 19 proposed
   methods, source-verification gaps, integration owners and acceptance requirements.
+- [Immutable dataset research](dataset_research.md): default-off AutoSFT-inspired recipe
+  preparation, independent review, source lineage and separate training-host admission.
 - [PR 0 audit evidence](experiments/unified_research_pr0_audit.md): pinned snapshot checks,
   blocked baseline and limits; not a completed training experiment.
 

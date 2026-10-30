@@ -139,6 +139,7 @@ PR-8 adds [skill_failure_localization.md](../skill_failure_localization.md). Add
 
 - Knowledge/progress experiment: [`REF-KNOWGPO`](RESEARCH_TRACEABILITY.md#ref-knowgpo), [`REF-PRM4RL`](RESEARCH_TRACEABILITY.md#ref-prm4rl); see the [evidence and accounting protocol](../knowledge_progress.md). Evidence review does not resolve admissibility or pay credit.
 - VPO preparation: [`REF-VPO`](RESEARCH_TRACEABILITY.md#ref-vpo); the [protocol](../vector_policy.md) quarantines unsafe whole rollouts before independent review. Set metrics remain DEVELOPMENT and grant no optimizer or runtime authority.
+- Dataset research preparation: [`REF-AUTOSFT`](RESEARCH_TRACEABILITY.md#ref-autosft); the [protocol](../dataset_research.md) preserves immutable pools and separates independent review from training-host admission. Live orchestration and retraining remain Unsupported.
 
 - Additional method source: [`REF-LOCD`](RESEARCH_TRACEABILITY.md#ref-locd); see the [experimental adapter guide](../distillation_adapters.md).
 - Retention experiment: [`REF-SST`](RESEARCH_TRACEABILITY.md#ref-sst); see the [optional SST guide](../subspace_tuning.md). Spectral protection does not establish constitutional retention.

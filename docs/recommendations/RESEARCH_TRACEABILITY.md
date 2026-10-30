@@ -2173,3 +2173,31 @@ Bahlous-Boldi et al. (2026). *Vector Policy Optimization: Training for Diversity
 **Maturity:** Experimental CPU scoring and evidence preparation; full VPO training, joint reward composition, behavioral diversity and constitutional non-regression are not empirically qualified.
 
 Primary v1 sections 3.1–3.2 and Appendix B checked 2026-10-28. Paper CC BY 4.0; official Apache-2.0 repository and retained artifact digests are recorded in the [integration matrix](RESEARCH_INTEGRATION_MATRIX.md).
+
+<a id="ref-autosft"></a>
+
+## REF-AUTOSFT — AutoSFT: An Agentic System for Automated Data Research in Supervised Fine-Tuning
+
+- Metadata status: `resolved`
+- Supplied title: AutoSFT: An Agentic System for Automated Data Research in Supervised Fine-Tuning
+- Authors: Bingxiang He, Pengqi Sun, Shihao Peng, Shaoxuan Li, Huiyu Xiao, Hongjian Shi, Zixuan Fu, Ziqing Qiao, Yuxin Zuo, Cheng Qian, Xinqiang Yu, Jiayi Li, Xiusi Chen, Yizhen Song, Xiangyang Wang, Iofai Lei, Yudong Wang, Ning Ding, Zhiyuan Liu, Xiaozhi Wang, Chaojun Xiao
+- Year: 2026
+- arXiv: [`2610.22194`](https://arxiv.org/abs/2610.22194)
+- DOI: `10.48550/arXiv.2610.22194`
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-010`
+- Local repository notes: [dataset governance protocol](../dataset_research.md), [CPU preparation](../../synthetic_data/dataset_research.py).
+
+**Source demonstrates:** A fixed-initialization dataset research loop with distinct execution,
+complementary analysis and synthesis roles, plus independent semantic/decontamination checks.
+
+**Repository inference:** Explicit immutable row/recipe transformations, existing manifest and
+review schemas, strict protected-source separation and a complete-payload host check prepare
+a DEVELOPMENT research candidate. Preparation grants no training admission or verifier authority.
+
+**Maturity:** Experimental CPU preparation; live multi-agent research, admission, retraining
+and empirical effectiveness remain Unsupported. No improvement is established.
+
+Primary sections 2.1–2.2, 4.1–4.3, B.2–B.4 and D checked 2026-10-30, CC BY 4.0.
+The paper links Thinking-Space/AutoSFT, currently a code placeholder. No upstream code is copied.
+The [matrix](RESEARCH_INTEGRATION_MATRIX.md) records the retained checked rendition and digest.

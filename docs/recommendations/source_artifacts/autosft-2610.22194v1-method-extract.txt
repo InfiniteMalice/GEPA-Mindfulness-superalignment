@@ -1,0 +1,10 @@
+Checked artifact: browser-rendered text extract; not original HTML/PDF bytes.
+Source: https://arxiv.org/html/2610.22194v1
+Checked: 2026-10-30; arXiv v1 submitted 2026-10-15; paper CC BY 4.0.
+Authors: Bingxiang He et al. AutoSFT (2026).
+Sections 2.1 and 4.3; source line labels belong to the browser rendition.
+
+L91: An automated SFT data research loop searches over the data recipe that reaches the trainer while the base checkpoint stays fixed, as shown in 【57†Figure 2】. We fix a base checkpoint $M_{0}$ and an initial candidate pool $D_{0}$. A recipe $R_{t}$ gives every example in the round’s pool $D_{t}$ a sampling weight, possibly zero, and any rows written during round $t$ join the pool, so that $D_{t+1}$ extends $D_{t}$.
+L92: Training always re-initializes from $M_{0}$, so $\mathrm{train}(M_{0},R_{t})\to C_{t}$ and the pool and the recipe are the only quantities that carry research history across rounds.
+L146: Concretely, the synthesis agent is invoked in every round, reads the evaluation results, and derives a set of targets to strengthen. For each target whose supply in $D_{t}$ is insufficient, it synthesizes examples that pass the target’s verifier. If no target is undersupplied in a given round, the synthesis agent generates no data.
+L147: Generated data pass verification of the target’s constraint, an independent semantic review, and an $n$-gram overlap check against the evaluation sets, described in Appendix 【33†B.4】. Those that pass enter $D_{t+1}$, and whether the round trains on them remains the meta agent’s decision.

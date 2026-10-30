@@ -3417,3 +3417,47 @@ references:
     local_repo_notes:
     - docs/vector_policy.md
     - gepa_mindfulness/training/vector_policy.py
+
+  - reference_id: REF-AUTOSFT
+    metadata_status: resolved
+    supplied_title: 'AutoSFT: An Agentic System for Automated Data Research in Supervised Fine-Tuning'
+    title: 'AutoSFT: An Agentic System for Automated Data Research in Supervised Fine-Tuning'
+    authors:
+    - Bingxiang He
+    - Pengqi Sun
+    - Shihao Peng
+    - Shaoxuan Li
+    - Huiyu Xiao
+    - Hongjian Shi
+    - Zixuan Fu
+    - Ziqing Qiao
+    - Yuxin Zuo
+    - Cheng Qian
+    - Xinqiang Yu
+    - Jiayi Li
+    - Xiusi Chen
+    - Yizhen Song
+    - Xiangyang Wang
+    - Iofai Lei
+    - Yudong Wang
+    - Ning Ding
+    - Zhiyuan Liu
+    - Xiaozhi Wang
+    - Chaojun Xiao
+    year: 2026
+    arxiv_id: '2610.22194'
+    doi: 10.48550/arXiv.2610.22194
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.22194
+    recommendation_ids:
+    - REC-010
+    source_demonstrates: A fixed-initialization dataset research loop with distinct execution,
+      complementary analysis and synthesis roles, plus independent semantic/decontamination checks.
+    repository_inference: Explicit immutable row/recipe transformations, existing manifest and
+      review schemas, strict protected-source separation and a complete-payload host check prepare
+      a DEVELOPMENT research candidate. Preparation grants no training admission or verifier authority.
+    maturity: Experimental CPU preparation; live multi-agent research, admission, retraining
+      and empirical effectiveness remain Unsupported. No improvement is established.
+    local_repo_notes:
+    - docs/dataset_research.md
+    - synthetic_data/dataset_research.py

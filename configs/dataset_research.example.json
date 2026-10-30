@@ -1,0 +1,13 @@
+{
+  "schema_version": "dataset-research-runtime-example-v1",
+  "enabled": false,
+  "maturity": "Experimental",
+  "source_reference": "https://arxiv.org/abs/2610.22194v1",
+  "adapter": "synthetic_data.dataset_research.prepare_dataset_revision",
+  "external_runtime_required": true,
+  "host_authentication_required": true,
+  "training_admission_implemented": false,
+  "training_execution_implemented": false,
+  "protected_evaluation_feedback_allowed": false,
+  "tokenizer_trainer_and_budget": "operator-declared ResearchRound; no inferred defaults"
+}
