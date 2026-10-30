@@ -136,6 +136,6 @@ Calibration identity, memory/context integrity and backend architecture must be 
 reviewed before attaching that runtime. No accepted baseline or protected verifier is changed.
 
 CPU checks: `python -m pytest -q tests/test_decision_routing.py tests/test_decision_routing_benchmark.py`.
-The [disabled example](../configs/decision_routing.example.json) leaves operator thresholds,
+The [disabled example](https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/blob/1d6b29a8092573baed9e125c988737af06d273e7/configs/decision_routing.example.json) leaves operator thresholds,
 calibration bins and external backend configuration unspecified. No external API spend or model
 training has been run for this integration.
