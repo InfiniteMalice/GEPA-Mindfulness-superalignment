@@ -332,6 +332,11 @@ EXPECTED_REFERENCES = (
         "2610.22056",
         "Progress Reward Model for Reinforcement Learning via Large Language Models",
     ),
+    (
+        "REF-VPO",
+        "2605.22817",
+        "Vector Policy Optimization: Training for Diversity Improves Test-Time Search",
+    ),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
@@ -433,6 +438,7 @@ EXPECTED_RECOMMENDATION_LINKS = {
     "REF-DELOOP": ("REC-010",),
     "REF-KNOWGPO": ("REC-010",),
     "REF-PRM4RL": ("REC-010",),
+    "REF-VPO": ("REC-010",),
 }
 
 PUBLIC_REGISTRY_LOADERS = (

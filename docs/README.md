@@ -1,5 +1,7 @@
 # Documentation
 
+The [VPO admissibility protocol](vector_policy.md) documents default-off set-score experiments.
+
 Use this index to find the authoritative contract for a concept. The root [README](../README.md)
 is the project orientation; detailed semantics live here and in subsystem READMEs.
 

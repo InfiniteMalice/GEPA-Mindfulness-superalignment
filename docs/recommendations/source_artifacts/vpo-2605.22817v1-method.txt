@@ -1,0 +1,18 @@
+VPO method note (authored summary, not publisher HTML/PDF bytes)
+Primary: Bahlous-Boldi et al., arXiv:2605.22817v1, submitted 2026-05-21.
+Paper sections 3.1-3.2 and Appendix B checked 2026-10-28; paper CC BY 4.0.
+One autoregressive rollout emits a candidate set S. For common weight draws
+w_k ~ Dir(1), its score is mean_k max_{y in S} dot(w_k, r(x,y)).
+Use the SAME weight matrix for all compared sets from one prompt group.
+Population-normalize rollout scores; the paper broadcasts the advantage over
+the entire rollout. This note is not evidence of any GEPA behavioral improvement.
+Official project https://vpo-rl.github.io/ links https://github.com/ryanboldi/vpo.
+Checked upstream revision: 0436e9303ef20e97a61110450ca7d82ac9d8bc55.
+Checked artifact: vpo/utils/vpo.py, 11260 bytes; Git blob SHA-1
+51eff0f353b89599c3d93841bf924902d2e3ab16. Root LICENSE is Apache-2.0.
+Upstream computes float64 products, stores float32 raw scores and zeros groups
+with std < epsilon. GEPA retains binary64 metrics and reuses its population
+std-plus-epsilon helper without that extra low-variance threshold.
+Independent admission, whole-rollout quarantine, explicit retained weights,
+bounded CPU preparation and all authority limits are Mindfulness adaptations.
+No upstream code, veRL, SciPy or model-training dependencies are copied.

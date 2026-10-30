@@ -2149,3 +2149,27 @@ for retained method-note identities/digests. No full experimental reproduction i
 Primary definitions checked 2026-10-27; see the [protocol](../knowledge_progress.md) for source
 revisions, licenses and adaptation boundaries, and the [matrix](RESEARCH_INTEGRATION_MATRIX.md#source-intake-and-adaptation-boundary)
 for retained method-note identities/digests. No full experimental reproduction is claimed.
+
+<a id="ref-vpo"></a>
+
+## REF-VPO — Vector Policy Optimization: Training for Diversity Improves Test-Time Search
+
+Bahlous-Boldi et al. (2026). *Vector Policy Optimization: Training for Diversity Improves Test-Time Search*. arXiv. [2605.22817](https://arxiv.org/abs/2605.22817).
+
+- Metadata status: `resolved`
+- Supplied title: Vector Policy Optimization: Training for Diversity Improves Test-Time Search
+- Authors: Ryan Bahlous-Boldi, Isha Puri, Idan Shenfeld, Akarsh Kumar, Mehul Damani, Sebastian Risi, Omar Khattab, Zhang-Wei Hong, Pulkit Agrawal
+- Year: 2026
+- DOI: `10.48550/arXiv.2605.22817`
+- arXiv: [`2605.22817`](https://arxiv.org/abs/2605.22817)
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-010`
+- Local repository notes: [VPO protocol](../vector_policy.md), [CPU adapter](../../gepa_mindfulness/training/vector_policy.py).
+
+**Source demonstrates:** Rollout-local candidate sets are scored by expected maximum scalarized reward under common Dirichlet weight draws, then normalized within prompt groups to train diverse solutions.
+
+**Repository inference:** Structural checks gate diagnostic set calculations and quarantine a whole rollout if any member is invalid or unresolved. Independent host review determines whether the resulting metrics are reviewed evidence. Raw scores and proposed metrics retained after rejected review remain diagnostics, not independently admitted results. Preparation reuses existing provenance and GRPO helpers without granting training or runtime admission.
+
+**Maturity:** Experimental CPU scoring and evidence preparation; full VPO training, joint reward composition, behavioral diversity and constitutional non-regression are not empirically qualified.
+
+Primary v1 sections 3.1–3.2 and Appendix B checked 2026-10-28. Paper CC BY 4.0; official Apache-2.0 repository and retained artifact digests are recorded in the [integration matrix](RESEARCH_INTEGRATION_MATRIX.md).
