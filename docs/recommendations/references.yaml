@@ -3383,3 +3383,35 @@ references:
     local_repo_notes:
     - docs/knowledge_progress.md
     - gepa_mindfulness/training/knowledge_progress.py
+
+  - reference_id: REF-VPO
+    metadata_status: resolved
+    supplied_title: 'Vector Policy Optimization: Training for Diversity Improves Test-Time Search'
+    title: 'Vector Policy Optimization: Training for Diversity Improves Test-Time Search'
+    authors:
+    - Ryan Bahlous-Boldi
+    - Isha Puri
+    - Idan Shenfeld
+    - Akarsh Kumar
+    - Mehul Damani
+    - Sebastian Risi
+    - Omar Khattab
+    - Zhang-Wei Hong
+    - Pulkit Agrawal
+    year: 2026
+    arxiv_id: '2605.22817'
+    doi: 10.48550/arXiv.2605.22817
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2605.22817
+    recommendation_ids:
+    - REC-010
+    source_demonstrates: Rollout-local candidate sets are scored by expected maximum scalarized reward
+      under common Dirichlet weight draws, then normalized within prompt groups to train diverse solutions.
+    repository_inference: Independent admissibility precedes set scoring; an invalid or unresolved member
+      quarantines its whole rollout. Bounded host-reviewed preparation reuses existing provenance and
+      GRPO helpers without trainer or reward authority.
+    maturity: Experimental CPU scoring and evidence preparation; full VPO training, joint reward composition,
+      behavioral diversity and constitutional non-regression are not empirically qualified.
+    local_repo_notes:
+    - docs/vector_policy.md
+    - gepa_mindfulness/training/vector_policy.py

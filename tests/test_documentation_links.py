@@ -24,6 +24,7 @@ DOCUMENTS = (
     ROOT / "docs" / "thought_alignment.md",
     ROOT / "docs" / "epistemic_process_rewards.md",
     ROOT / "docs" / "knowledge_progress.md",
+    ROOT / "docs" / "vector_policy.md",
     ROOT / "docs" / "controlled_evolution.md",
     ROOT / "docs" / "causal_diagnostics.md",
     ROOT / "docs" / "causal_reward_adapter.md",

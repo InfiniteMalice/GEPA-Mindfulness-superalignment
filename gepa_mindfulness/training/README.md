@@ -1,5 +1,8 @@
 # Training Modules
 
+The default-off [VPO preparation](../../docs/vector_policy.md) keeps set scoring separate from
+independent admissibility and optimizer/runtime authority; full VPO training remains unsupported.
+
 The training package contains the canonical portable PyTorch RL engine and compatibility training
 surfaces retained for older workflows. Start with the [portable RL guide](../../docs/rl/README.md)
 for offline CPU PPO, GRPO, checkpoint resume, collection, evaluation, and capability diagnosis.
