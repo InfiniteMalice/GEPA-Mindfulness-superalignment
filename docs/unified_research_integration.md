@@ -16,7 +16,10 @@ live intervention/training attachment and effectiveness remain unqualified. PR 5
 prior-state groups and milestone potentials with separate unresolved credit proposals. No trainer
 is attached and no behavioral improvement is established. PR 6 adds [VPO set-score preparation](vector_policy.md),
 with whole-rollout quarantine and independent review; full VPO training remains unsupported.
-PRs 7–11 remain unimplemented.
+PR 7 adds [immutable dataset research preparation](dataset_research.md), reusing the existing
+manifest and review contracts. Full AutoSFT orchestration, training admission and empirical
+effectiveness remain unsupported.
+PRs 8–11 remain unimplemented.
 The [audit evidence](experiments/unified_research_pr0_audit.md) preserves the original local
 baseline and primary-source limitations; PR #801's Python 3.12 CI subsequently passed.
 The [method matrix](recommendations/RESEARCH_INTEGRATION_MATRIX.md) covers all 19 requested

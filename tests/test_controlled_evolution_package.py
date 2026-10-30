@@ -21,6 +21,8 @@ EXPECTED_RESOURCES = {
     "docs/recommendations/RESEARCH_INTEGRATION_MATRIX.md",
     "docs/knowledge_progress.md",
     "docs/vector_policy.md",
+    "docs/dataset_research.md",
+    "docs/recommendations/source_artifacts/autosft-2610.22194v1-method-extract.txt",
     "docs/recommendations/source_artifacts/vpo-2605.22817v1-method.txt",
     "docs/research_credit_accounting.md",
     "docs/recommendations/source_artifacts/knowgpo-2610.22331v1-method.txt",
