@@ -123,13 +123,16 @@ def test_authorized_catalog_recovers_sources_without_private_labels():
         require_training_eligible(result)
 
 
-@pytest.mark.parametrize("authorizer", [None, lambda req: False, lambda req: "yes"])
-def test_no_access_means_no_catalog_content(authorizer):
+@pytest.mark.parametrize("decision", [None, False, "yes"])
+def test_no_access_means_no_catalog_content(decision):
     snapshot, workspace, topology, query = workspace_fixture()
+    seen = []
+    authorizer = None if decision is None else lambda req: seen.append(req) or decision
     result = retrieve_evidence_workspace(
         workspace, snapshot, topology, query, authorize=authorizer, enabled=True
     )
     assert result["producer_view"]["items"] == []
+    assert len(seen) == (0 if decision is None else 2)
 
 
 def test_partial_denial_withholds_summary_and_leaves_allowed_source_at_root():
