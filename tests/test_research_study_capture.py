@@ -1,12 +1,13 @@
 """Private captures enter the existing independent audit, never optimizer credit."""
 
+# Standard library
 import json
 from dataclasses import replace
 
+# Third-party
 import pytest
-from test_improvement_records import REF, case
-from test_research_studies import configuration
 
+# Local
 from evaluation.causal_records import canonical_json, content_digest
 from evaluation.improvement_audit import partition_digest
 from evaluation.improvement_records import (
@@ -28,6 +29,10 @@ from evaluation.research_study_records import (
     StudyMetricCapture,
 )
 from gepa_mindfulness.training.eligibility import require_training_eligible
+
+# isort: split
+from test_improvement_records import REF, case
+from test_research_studies import configuration
 
 
 def fixture():

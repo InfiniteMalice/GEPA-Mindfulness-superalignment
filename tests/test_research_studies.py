@@ -5,7 +5,6 @@ from dataclasses import replace
 
 # Third-party
 import pytest
-from test_improvement_records import DIGEST, EVALUATOR, REF, case
 
 # Local
 from evaluation.causal_records import content_digest
@@ -19,6 +18,9 @@ from evaluation.improvement_records import (
 from evaluation.research_studies import prepare_research_study
 from evaluation.research_study_records import STUDIES, StudyConfiguration, StudyRuntime
 from gepa_mindfulness.training.eligibility import require_training_eligible
+
+# isort: split
+from test_improvement_records import DIGEST, EVALUATOR, REF, case
 
 
 def configuration(study_id="A", configured=2):

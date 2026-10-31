@@ -3,15 +3,15 @@
 Goal: prepare the master's Studies A–F and analyze independently captured outcomes through the
 existing improvement-audit and clustered-statistics contracts, without launching models or
 claiming empirical gains. PR9 is still under final-head CI; this isolated preparation will not
-be published before PR9 merges. Current prospective base is PR811 head748d63d1e4e246a937eac416a005e467d622df88,
-tree03489a83662e6efcbbe4af347a770167f7e2c31a. Reconcile the actual merge commit before publication.
+be published before PR9 merges. Current prospective base is PR811 head 748d63d1e4e246a937eac416a005e467d622df88,
+tree 03489a83662e6efcbbe4af347a770167f7e2c31a. Reconcile the actual merge commit before publication.
 
 Design: reuse SystemConfig, DatasetManifest, CandidateSpec, MetricSpec, EvaluationSlot,
 ImprovementProtocol, AttemptJournal, ExposureRecord, FinalTestAuthorization and authentication
 from evaluation/improvement_records.py and improvement_audit.py. Reuse estimate_paired and its
 dependency-cluster bootstrap; random seeds/repeats do not become independent task families.
-Study conditions are research overlays, never a second canonical case registry. Preserve all17
-cases, case0fallback, CASE×STRIPE×REPEAT, protected evaluation, credit and host authority.
+Study conditions are research overlays, never a second canonical case registry. Preserve all 17
+cases, case 0 fallback, CASE×STRIPE×REPEAT, protected evaluation, credit and host authority.
 
 Declare six fixed study rosters (6/7/6/4/6/4 conditions) separately from runtime availability.
 Explicit unsupported/not-requested conditions stay visible as unrun; no baseline substitution.
@@ -75,7 +75,7 @@ Interfaces and task sequence:
    in acceptance so every ordered evidence/source/test link is complete.
 5. Run new/related audit/statistics/provenance/source suites, Python3.10/Black/line/import checks,
    actual wheel/resource/import smoke. Obtain ONE fresh whole-branch review required by inline
-   execution. Publish a ready PR through GitHubplugin only after PR9 merge; monitor final-head
+   execution. Publish a ready PR through GitHub plugin only after PR9 merge; monitor final-head
    CI/reviews, minimally fix verified findings, and merge only when clear. Do not repeat approval
    questions already answered by the master/standing workflow.
 
@@ -91,28 +91,37 @@ use the existing verified bibliography; no optional paper algorithm or code is i
 Quality-gate fallback is approved; no bd/.beads. Record baseline, RED/GREEN, rulings and final
 evidence below. Repository instructions override skill defaults for prose plans/no task lists.
 
-Baseline70passed. Study/compiler tests observed missing-module RED, then21GREEN. Capture
+Baseline: 70 passed. Study/compiler tests observed missing-module RED, then 21 GREEN. Capture
 tests observed missing-module RED; source-type/status/reference cases then deliberately
-exposed authentication calls before new-schema structural validation (3RED), and now reject
-those inputs before authentication. Related core110passed in31.80s; added final authorization,
-missing/failed/applicability/capacity/unrun tests23passed in35.71s separately.
+exposed authentication calls before new-schema structural validation (3 RED), and now reject
+those inputs before authentication. Related core: 110 passed in 31.80s; added final authorization,
+missing/failed/applicability/capacity/unrun tests: 23 passed in 35.71s separately.
 Ruling: return a HIDDEN_EVAL StudyCaptureEnvelope instead of a bare legacy DiagnosticEvidence,
 because its source JSON is text and stripping the envelope loses the shared training guard.
 Only the host adapter unwraps after complete plan/source validation. No eligibility policy changes.
 Ruling: reuse the existing audit's optional source-schema branch with strict typed binding;
 legacy schemas retain behavior. Unknown/inapplicable measurements are missing, not zeros.
 
-PR9 merged by maintainer and verified: maina71ad5d247a338754d2354c0725f1491fa26b6ff, tree03489a83662e6efcbbe4af347a770167f7e2c31a exactlymatches prepared source base. Both final-head Python/CodeRabbit checks passed, no actionablereviews/threads. Prior optionalcomment/merge/pluginandnetworkcalls stalled and wereinterrupted; do notretrythose obsoleteactions. ContinuePR10.
+PR9 merged by maintainer and verified: main a71ad5d247a338754d2354c0725f1491fa26b6ff,
+tree 03489a83662e6efcbbe4af347a770167f7e2c31a exactly matches the prepared source base.
+Both final-head Python/CodeRabbit checks passed, with no actionable reviews or threads.
+Prior optional comment, merge, plugin and network calls stalled and were interrupted;
+do not retry those obsolete actions. Continue PR10.
 
-Final acceptance: 22-file related suite633passed,2skipped in79.58s. EightchangedPythonfiles
-pass BlackAPI/Python3.10syntax/100cols and AST unused-import checks. Twoadditional capacity
-regressions were observedRED for derived cost overflow and repeated exposure reasons, then
+Final acceptance: 22-file related suite: 633 passed, 2 skipped in 79.58s. Eight changed Python files
+pass Black API/Python 3.10 syntax/100-column and AST unused-import checks. Two additional capacity
+regressions were observed RED for derived cost overflow and repeated exposure reasons, then
 GREEN after existing journal-summary prevalidation and full candidate×metric exposure reservation.
 One fresh independent whole-branch reviewer /root/review_research_studies found no actionable
-findings, independently80passed in41.95s and confirmed all manifest/wheel hashes. No secondreview
-needed. Actual final no-isolation wheel32resources+4runtimefiles byteequal; isolated import/defaultoff/
-studyroster/registry/resource smoke passed. WheelSHA256d4f3768233e429182357cbba5d63d7f5633c3b0f345ceab154f40b183fd4402c.
-Full local Torch/ruff execution unavailable; remoteCI remains the integration gate. No API/model
+findings, independently ran 80 passing checks in 41.95s and confirmed all manifest/wheel hashes.
+No second review needed. Actual final no-isolation wheel: 32 resources and 4 runtime files match
+byte for byte; isolated import/default-off/study roster/registry/resource smoke checks passed.
+Wheel SHA256: d4f3768233e429182357cbba5d63d7f5633c3b0f345ceab154f40b183fd4402c.
+Full local Torch/Ruff execution unavailable; remote CI remains the integration gate. No API/model
 experiment, paid training or deployment occurred. Tests show software correctness, not research
 effectiveness or supported hardware qualification. Existing protected/canonical/authority files
-are outside the diff. Use ready PR and existing standing review/merge workflow.
+are outside the diff. Use a ready PR and the existing standing review/merge workflow.
+
+PR812 review follow-up: moved repository fixture imports into the labeled local section in both
+new test modules and restored spacing in this validation record. The two test modules pass all
+46 tests in 38.12s. Runtime code and packaged resources are unchanged by these review fixes.
