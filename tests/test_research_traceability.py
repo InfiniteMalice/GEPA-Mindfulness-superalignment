@@ -362,6 +362,12 @@ EXPECTED_REFERENCES = (
         "2609.38372",
         "Self-Evolving Harness on Multiple Tasks with the Agent as Its Own Optimizer",
     ),
+    (
+        "REF-LIBRARIAN-AGENTS",
+        "2610.22273",
+        "Librarian Agents: Training LLMs to Curate Long-Context Workspaces "
+        "that Anticipate Future Queries",
+    ),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
@@ -469,6 +475,7 @@ EXPECTED_RECOMMENDATION_LINKS = {
     "REF-LEV": ("REC-008",),
     "REF-RSIFLOW": ("REC-010",),
     "REF-HARNESS-SELF-EVOLUTION": ("REC-010",),
+    "REF-LIBRARIAN-AGENTS": ("REC-006",),
 }
 
 PUBLIC_REGISTRY_LOADERS = (

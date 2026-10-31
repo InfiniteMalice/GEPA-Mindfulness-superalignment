@@ -1,0 +1,14 @@
+Authored method note, not publisher HTML/PDF or an upstream code extract.
+Source: https://arxiv.org/html/2610.22273v1 ; version 1, 2026-10-15.
+Checked 2026-10-31: sections 2.1–2.4 and Appendix A.1/A.7–A.11. Paper CC BY 4.0.
+
+A builder creates reusable hierarchical synthetic files with references to raw documents.
+CreateFile/MergeFiles/Delete/Stop operate on synthetic structure; raw documents remain available.
+The answerer is frozen. GRPO trains the builder from hidden training-query answerability probes
+and terminal correctness. The main run uses no explicit navigation/construction-cost shaping.
+Evaluation questions are unavailable during construction and checkpoint selection.
+GEPA adapts source-linked indexing and authorized readout only; no builder training is reproduced.
+
+Author-linked https://github.com/teresaz05/librarian-agents
+Revision 27c9d86391b5da9c04e88b920076fa3867782bb9; root LICENSE MIT,
+Git blob SHA-1 7cc8db2603a370f335fd5422a0ed114285558dfc. No upstream code copied.

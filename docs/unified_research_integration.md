@@ -176,3 +176,5 @@ moral-violation label for scoring convenience.
 PR 0 advances only after baseline checks are recorded and source intake is resolved enough
 for each next implementation. Later PRs add their own executable schemas, default-off configs,
 negative tests, documentation and acceptance evidence. No unfinished stage is marked implemented.
+
+The optional [PR 11a workspace prototype](evidence_workspace.md) reuses existing artifact provenance and current authorized readout. It preserves raw-source fallback and unverified synthetic channels; no builder RL, latent memory or empirical gain is established.

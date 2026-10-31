@@ -1,0 +1,17 @@
+{
+  "schema_version": "evidence-workspace-operator-example-v1",
+  "enabled": false,
+  "snapshot_source": "operator-supplied ArtifactSnapshot; retain original evidence",
+  "topology_source": "operator-supplied existing EvidenceTopology",
+  "query_source": "operator-supplied ArtifactQuery with current host access policy",
+  "nodes": [
+    {"node_id": "summary", "item_id": "existing-derived-item", "parent_id": null},
+    {"node_id": "source", "item_id": "existing-source-item", "parent_id": "summary"}
+  ],
+  "construction_provenance": "operator-supplied observable references; no self-certification",
+  "builder_model_version": "unconfigured",
+  "answerer_model_version": "unconfigured",
+  "evaluator_version": "unconfigured",
+  "training_runtime": "unsupported",
+  "latent_memory_runtime": "unsupported"
+}

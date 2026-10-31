@@ -87,3 +87,5 @@ their respective machine-readable registries or technical contracts above.
 [Governed improvement workflows and paired model–harness attribution](improvement_workflows.md) describe the default-off PR 9 integration.
 
 [Unified research studies and reproducibility](research_ablation_suite.md) prepares default-off study overlays and private independently authenticated reports.
+
+[Inspectable evidence workspace](evidence_workspace.md) adds an optional source-linked index with existing access checks; native builder RL and latent memory remain unsupported.
