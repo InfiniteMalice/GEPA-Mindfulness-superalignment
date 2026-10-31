@@ -3576,3 +3576,34 @@ references:
     - docs/improvement_workflows.md
     - gepa_mindfulness/improvement_workflows.py
     - evaluation/model_harness_attribution.py
+
+  - reference_id: REF-LIBRARIAN-AGENTS
+    metadata_status: resolved
+    supplied_title: 'Librarian Agents: Training LLMs to Curate Long-Context Workspaces that Anticipate
+      Future Queries'
+    title: 'Librarian Agents: Training LLMs to Curate Long-Context Workspaces that Anticipate Future
+      Queries'
+    authors:
+    - Anikait Singh
+    - Teresa Zhang
+    - Yoonho Lee
+    - Roshen Sanjay Nair
+    - Aviral Kumar
+    - Chelsea Finn
+    year: 2026
+    arxiv_id: '2610.22273'
+    doi: 10.48550/arXiv.2610.22273
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.22273
+    recommendation_ids:
+    - REC-006
+    source_demonstrates: A builder constructs reusable source-linked synthetic workspaces and is trained
+      for downstream answerability with a frozen answerer and hidden reward queries.
+    repository_inference: A bounded index reuses existing artifact lineage and current host-authorized
+      retrieval; source recovery and synthetic status remain explicit without new verification or reward
+      authority.
+    maturity: Experimental CPU workspace preparation and Diagnostic readout; native builder RL, latent
+      memory and empirical effectiveness remain Unsupported.
+    local_repo_notes:
+    - docs/evidence_workspace.md
+    - gepa_mindfulness/verification/evidence_workspace.py

@@ -194,13 +194,19 @@ recommendations:
       - REF-MEMORY-VALIDITY
       - REF-EDGEMEM
       - REF-GRAPHMEM
+      - REF-LIBRARIAN-AGENTS
     repo_refs:
       - gepa_mindfulness/verification/state.py
+      - gepa_mindfulness/verification/evidence_workspace.py
+      - docs/evidence_workspace.md
     acceptance_tests:
       - tests/test_governed_evidence_commit.py
       - tests/test_world_evidence_state.py
+      - tests/test_evidence_workspace.py
     implementation_refs:
       - gepa_mindfulness/verification/state.py
+      - gepa_mindfulness/verification/evidence_workspace.py
+      - docs/evidence_workspace.md
 
   - id: REC-007
     title: Structured failure graph.

@@ -2289,3 +2289,27 @@ Primary v1 methods checked 2026-10-30. Exact checked artifacts, source licenses 
 **Maturity:** Experimental bounded procedure proposals and Diagnostic private attribution; live isolated execution, deployment and research effectiveness remain Unsupported.
 
 Primary v1 methods checked 2026-10-30. Exact checked artifacts, source licenses and authored-note digests appear in the [matrix](RESEARCH_INTEGRATION_MATRIX.md) and [protocol](../improvement_workflows.md). No upstream code is copied.
+
+<a id="ref-librarian-agents"></a>
+
+## REF-LIBRARIAN-AGENTS — Librarian Agents: Training LLMs to Curate Long-Context Workspaces that Anticipate Future Queries
+
+- Metadata status: `resolved`
+- Supplied title: Librarian Agents: Training LLMs to Curate Long-Context Workspaces that Anticipate Future Queries
+- Authors: Anikait Singh, Teresa Zhang, Yoonho Lee, Roshen Sanjay Nair, Aviral Kumar, Chelsea Finn
+- Year: 2026
+- DOI: `10.48550/arXiv.2610.22273`
+- arXiv: [`2610.22273`](https://arxiv.org/abs/2610.22273)
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-006`
+- Local repository notes: [evidence_workspace.md](../evidence_workspace.md), [evidence_workspace.py](../../gepa_mindfulness/verification/evidence_workspace.py).
+
+**Source demonstrates:** A builder constructs reusable source-linked synthetic workspaces and is trained for downstream answerability with a frozen answerer and hidden reward queries.
+
+**Repository inference:** A bounded index reuses existing artifact lineage and current host-authorized retrieval; source recovery and synthetic status remain explicit without new verification or reward authority.
+
+**Maturity:** Experimental CPU workspace preparation and Diagnostic readout; native builder RL, latent memory and empirical effectiveness remain Unsupported.
+
+Primary v1 sections checked 2026-10-31. Exact checked source, upstream revision/license and
+retained authored-note digest appear in the [matrix](RESEARCH_INTEGRATION_MATRIX.md) and
+[workspace protocol](../evidence_workspace.md). No upstream code copied.
