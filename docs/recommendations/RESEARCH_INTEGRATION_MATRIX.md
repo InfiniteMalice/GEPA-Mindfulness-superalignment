@@ -92,3 +92,7 @@ LEV implementation. AGG geometry, SSOH orchestration and quantum-circuit code ar
 
 See the [integration guide](../unified_research_integration.md) and
 [PR 0 audit evidence](../experiments/unified_research_pr0_audit.md).
+
+## Unified study preparation
+
+PR 10 adds the [six-study reproducibility protocol](../research_ablation_suite.md), with explicit runtime availability, common checkpoint/data/protected/budget commitments, shared seeds, private component captures and existing independently authenticated cluster statistics. This does not upgrade any method to Supported or claim unrun training/empirical results. Unsupported optional conditions remain explicit.

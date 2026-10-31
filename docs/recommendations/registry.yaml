@@ -401,6 +401,10 @@ recommendations:
       - gepa_mindfulness/improvement_workflows.py
       - evaluation/model_harness_attribution.py
       - docs/improvement_workflows.md
+      - evaluation/research_study_records.py
+      - evaluation/research_studies.py
+      - evaluation/research_study_capture.py
+      - docs/research_ablation_suite.md
     acceptance_tests:
       - tests/test_training_eligibility.py
       - tests/test_synthetic_v5_provenance.py
@@ -422,6 +426,8 @@ recommendations:
       - tests/test_private_promotion.py
       - tests/test_improvement_workflows.py
       - tests/test_model_harness_attribution.py
+      - tests/test_research_studies.py
+      - tests/test_research_study_capture.py
     implementation_refs:
       - gepa_mindfulness/training/eligibility.py
       - gepa_mindfulness/learning_surfaces.py
@@ -442,6 +448,10 @@ recommendations:
       - gepa_mindfulness/improvement_workflows.py
       - evaluation/model_harness_attribution.py
       - docs/improvement_workflows.md
+      - evaluation/research_study_records.py
+      - evaluation/research_studies.py
+      - evaluation/research_study_capture.py
+      - docs/research_ablation_suite.md
 
   - id: REC-011
     title: "Multiple competing hypotheses + information-gain inquiry."
