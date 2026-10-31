@@ -22,7 +22,9 @@ effectiveness remain unsupported.
 PR 8 adds [structured decision routing and native-depth diagnostics](decision_routing.md),
 reusing the existing guard and calibration metrics. Live Jev/LEV services, native loop
 models and empirically qualified calibration remain unsupported.
-PRs 9–11 remain unimplemented.
+PR 9 adds [advisory workflow selection and private paired attribution](improvement_workflows.md),
+reusing existing intake, classifier, human routing and admission. Live isolated execution, learned
+meta-policy qualification and empirical effectiveness remain unsupported. PRs 10–11 remain unimplemented.
 The [audit evidence](experiments/unified_research_pr0_audit.md) preserves the original local
 baseline and primary-source limitations; PR #801's Python 3.12 CI subsequently passed.
 The [method matrix](recommendations/RESEARCH_INTEGRATION_MATRIX.md) covers all 19 requested

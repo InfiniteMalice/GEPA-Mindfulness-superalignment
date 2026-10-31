@@ -1,0 +1,9 @@
+{
+  "schema_version": "improvement-workflows-example-v1",
+  "workflow_selection_enabled": false,
+  "model_harness_attribution_enabled": false,
+  "independent_reviewer": null,
+  "external_trial_runtime": null,
+  "training_enabled": false,
+  "deployment_enabled": false
+}

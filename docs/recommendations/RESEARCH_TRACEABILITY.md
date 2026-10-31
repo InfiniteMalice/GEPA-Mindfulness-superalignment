@@ -2245,3 +2245,47 @@ Primary v1 method sections checked 2026-10-30, paper CC BY 4.0. Checked source n
 **Maturity:** Diagnostic recorded-depth analysis; native model execution, stopper fitting, empirical calibration and effectiveness remain Unsupported.
 
 Primary v1 method sections checked 2026-10-30, paper CC BY 4.0. Checked source notes, exact digests and adaptation limits are recorded in the [matrix](RESEARCH_INTEGRATION_MATRIX.md) and [protocol](../decision_routing.md). No upstream code is copied.
+
+<a id="ref-rsiflow"></a>
+
+## REF-RSIFLOW — RSIFlow: Adaptive Self-Improvement Workflows with an Evolving Meta-Agent
+
+- Metadata status: `resolved`
+- Supplied title: RSIFlow: Adaptive Self-Improvement Workflows with an Evolving Meta-Agent
+- Authors: Huan Zhang, Mingju Chen, Dongxu Zhou, Can Lv, Sen Cui, Faguo Wu, Shiji Zhou
+- Year: 2026
+- DOI: `10.48550/arXiv.2610.21791`
+- arXiv: [`2610.21791`](https://arxiv.org/abs/2610.21791)
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-010`
+- Local repository notes: [improvement_workflows.md](../improvement_workflows.md), [improvement_workflows.py](../../gepa_mindfulness/improvement_workflows.py), [model_harness_attribution.py](../../evaluation/model_harness_attribution.py).
+
+**Source demonstrates:** Feedback-guided selection among Model, Harness and task-bound Artifacts interventions from a frozen parent, with paired training-batch evaluation and separate meta-skill maintenance.
+
+**Repository inference:** Evidence-reviewed advisory diagnosis extends existing learning-surface classification and controlled intake. Human and unresolved routes dominate; recommendations never register, execute or admit a candidate.
+
+**Maturity:** Experimental advisory workflow integration; trained meta-policy, full RSIFlow execution and empirical effectiveness remain Unsupported.
+
+Primary v1 methods checked 2026-10-30. Exact checked artifacts, source licenses and authored-note digests appear in the [matrix](RESEARCH_INTEGRATION_MATRIX.md) and [protocol](../improvement_workflows.md). No upstream code is copied.
+
+<a id="ref-harness-self-evolution"></a>
+
+## REF-HARNESS-SELF-EVOLUTION — Self-Evolving Harness on Multiple Tasks with the Agent as Its Own Optimizer
+
+- Metadata status: `resolved`
+- Supplied title: Self-Evolving Harness on Multiple Tasks with the Agent as Its Own Optimizer
+- Authors: Qiankai Xu
+- Year: 2026
+- DOI: `10.48550/arXiv.2609.38372`
+- arXiv: [`2609.38372`](https://arxiv.org/abs/2609.38372)
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-010`
+- Local repository notes: [improvement_workflows.md](../improvement_workflows.md), [improvement_workflows.py](../../gepa_mindfulness/improvement_workflows.py), [model_harness_attribution.py](../../evaluation/model_harness_attribution.py).
+
+**Source demonstrates:** A frozen model and shared harness alternate solver and proposer sessions using complete records, evolution notes, bounded edits and engineering checks across multiple task domains.
+
+**Repository inference:** Bounded procedural hypotheses reuse independent GEPA admission and protected evaluation. Private matched model/harness reports separate model-only, harness-only and interaction effects without promoting candidates.
+
+**Maturity:** Experimental bounded procedure proposals and Diagnostic private attribution; live isolated execution, deployment and research effectiveness remain Unsupported.
+
+Primary v1 methods checked 2026-10-30. Exact checked artifacts, source licenses and authored-note digests appear in the [matrix](RESEARCH_INTEGRATION_MATRIX.md) and [protocol](../improvement_workflows.md). No upstream code is copied.

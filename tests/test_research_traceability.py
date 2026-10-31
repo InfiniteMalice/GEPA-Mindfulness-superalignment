@@ -352,6 +352,16 @@ EXPECTED_REFERENCES = (
         "2610.20951",
         "LEV: Thinking Fast and Deep with Looped Decision Models",
     ),
+    (
+        "REF-RSIFLOW",
+        "2610.21791",
+        "RSIFlow: Adaptive Self-Improvement Workflows with an Evolving Meta-Agent",
+    ),
+    (
+        "REF-HARNESS-SELF-EVOLUTION",
+        "2609.38372",
+        "Self-Evolving Harness on Multiple Tasks with the Agent as Its Own Optimizer",
+    ),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
@@ -457,6 +467,8 @@ EXPECTED_RECOMMENDATION_LINKS = {
     "REF-AUTOSFT": ("REC-010",),
     "REF-JEV-LITEMAS": ("REC-008",),
     "REF-LEV": ("REC-008",),
+    "REF-RSIFLOW": ("REC-010",),
+    "REF-HARNESS-SELF-EVOLUTION": ("REC-010",),
 }
 
 PUBLIC_REGISTRY_LOADERS = (

@@ -1,0 +1,15 @@
+Authored method note; not publisher text or a verbatim extract.
+Primary: https://arxiv.org/html/2609.38372v1
+Version/date: v1, 2026-09-29. Checked: 2026-10-30. Paper license: CC BY 4.0.
+Author: Qiankai Xu. Sections checked: 3.1-3.5 and Algorithm 1.
+The solver and proposer use the same frozen model and harness in fresh sessions.
+The proposer receives complete task records, harness code, notes and previous update records.
+Engineering checks constrain edits to harness scope, require a code change besides notes,
+enforce added-line budgets and a mock-model run. A failed check leads to repair.
+Multi-task evolution uses disjoint fresh training batches and separately held-out evaluations;
+continued evolution adds a new domain with old success anchors. Notes retain update experience.
+Added-line caps follow a declared cosine schedule; this is not an optimizer update equation.
+GEPA does not adopt engineering checks as admission or grant unrestricted editing freedom.
+Existing protected receipts and external authority remain required. Procedure proposals and
+matched 2x2 model/harness attribution are original research adaptations, not a reproduction.
+No authoritative code repository identified for this exact paper; no upstream code copied.

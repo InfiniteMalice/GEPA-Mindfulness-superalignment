@@ -83,3 +83,5 @@ their respective machine-readable registries or technical contracts above.
 
 - [Knowledge and progress preparation](knowledge_progress.md): independently reviewed condition
   transitions, prior-state groups, milestone potentials and separate credit proposals.
+
+[Governed improvement workflows and paired model–harness attribution](improvement_workflows.md) describe the default-off PR 9 integration.
