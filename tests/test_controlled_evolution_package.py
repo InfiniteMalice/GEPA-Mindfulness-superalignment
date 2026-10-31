@@ -24,6 +24,7 @@ EXPECTED_RESOURCES = {
     "docs/dataset_research.md",
     "docs/decision_routing.md",
     "docs/improvement_workflows.md",
+    "docs/research_ablation_suite.md",
     "docs/recommendations/source_artifacts/rsiflow-2610.21791v1-method.txt",
     "docs/recommendations/source_artifacts/harness-2609.38372v1-method.txt",
     "docs/recommendations/source_artifacts/jev-litemas-2610.21411v1-method.txt",

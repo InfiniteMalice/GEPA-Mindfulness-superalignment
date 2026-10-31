@@ -25,6 +25,7 @@ from .improvement_records import (
     record_digest,
 )
 from .improvement_statistics import PairedObservation, estimate_overstatement, estimate_paired
+from .research_study_records import STUDY_SOURCE_SCHEMA, validate_research_capture_source
 
 FAILURE_METRICS = {
     "causal_invariance": ("spurious_decision_flip_rate", False),
@@ -55,13 +56,14 @@ def _authenticate(purpose, subject, refs, protocol, callback, statuses) -> bool:
     return status == "verified"
 
 
-def _source_row(evidence, slot, metric, candidate, evaluator):
+def _source_row(evidence, slot, metric, candidate, evaluator, *, protocol_digest=None):
     source = json.loads(evidence.source_json)
     schema = source.get("schema_version")
     schemas = {
         "evaluation-ladder-v1": ("rows", "probe_id"),
         "causal-diagnostics-v1": ("rows", "opportunity_id"),
         "sensitive-debate-report-v1": ("metric_rows", "opportunity_id"),
+        STUDY_SOURCE_SCHEMA: ("rows", "opportunity_id"),
     }
     if schema not in schemas or schema != metric.source_schema:
         raise ValueError("unsupported or mismatched diagnostic schema")
@@ -88,7 +90,10 @@ def _source_row(evidence, slot, metric, candidate, evaluator):
     row = selected[0]
     if row.get("unit", metric.unit) != metric.unit:
         raise ValueError("source metric unit mismatch")
-    if schema == "evaluation-ladder-v1":
+    if schema == STUDY_SOURCE_SCHEMA:
+        validate_research_capture_source(source, row, slot, evidence.evidence_refs, protocol_digest)
+        systems, contract = [source["system"]], source["evaluator"]
+    elif schema == "evaluation-ladder-v1":
         systems, contract = [source["system"]], source["evaluator"]
     elif schema == "causal-diagnostics-v1":
         pairs = [p for p in source["pairs"] if p["pair_id"] == row["pair_id"]]
@@ -269,7 +274,12 @@ def _join_captures(
             rows.append(output)
             continue
         source, row = _source_row(
-            ev, slot, metric, candidates[slot.candidate_id], protocol.evaluator
+            ev,
+            slot,
+            metric,
+            candidates[slot.candidate_id],
+            protocol.evaluator,
+            protocol_digest=record_digest(protocol),
         )
         start = journal_report["starts"].get(sid)
         allowed = case.purpose != "final_test"
