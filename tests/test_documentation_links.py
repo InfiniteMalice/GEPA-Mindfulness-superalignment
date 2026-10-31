@@ -28,6 +28,7 @@ DOCUMENTS = (
     ROOT / "docs" / "dataset_research.md",
     ROOT / "docs" / "decision_routing.md",
     ROOT / "docs" / "improvement_workflows.md",
+    ROOT / "docs" / "research_ablation_suite.md",
     ROOT / "docs" / "controlled_evolution.md",
     ROOT / "docs" / "causal_diagnostics.md",
     ROOT / "docs" / "causal_reward_adapter.md",

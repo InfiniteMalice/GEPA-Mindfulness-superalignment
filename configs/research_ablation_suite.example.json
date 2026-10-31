@@ -1,0 +1,14 @@
+{
+  "schema_version": "research-ablation-suite-operator-template-v1",
+  "study_preparation_enabled": false,
+  "capture_preparation_enabled": false,
+  "private_audit_enabled": false,
+  "external_runtime": null,
+  "training_authority": null,
+  "private_evaluation_authority": null,
+  "deployment_enabled": false,
+  "study_ids": ["A", "B", "C", "D", "E", "F"],
+  "runtime_qualification": "not_assessed",
+  "unconfigured_arm_status": "unsupported",
+  "immutable_configuration_artifact": null
+}
