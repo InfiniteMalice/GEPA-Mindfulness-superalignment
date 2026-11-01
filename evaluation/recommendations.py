@@ -124,6 +124,7 @@ REFERENCE_IDS = (
     "REF-RSIFLOW",
     "REF-HARNESS-SELF-EVOLUTION",
     "REF-LIBRARIAN-AGENTS",
+    "REF-TF-OPD",
 )
 REFERENCE_ARXIV_IDS = (
     "2609.01736",
@@ -231,6 +232,7 @@ REFERENCE_ARXIV_IDS = (
     "2610.21791",
     "2609.38372",
     "2610.22273",
+    "2610.22236",
 )
 ALLOWED_METADATA_STATUSES = frozenset({"resolved", "unresolved"})
 

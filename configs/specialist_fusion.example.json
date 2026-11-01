@@ -1,0 +1,8 @@
+{
+  "schema_version": "tfopd-config-v1",
+  "enabled": false,
+  "alpha": 0.9,
+  "accumulation_dtype": "float32",
+  "storage_dtype": "float32",
+  "condition_limit": 1000000000000.0
+}
