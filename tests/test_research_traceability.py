@@ -368,6 +368,7 @@ EXPECTED_REFERENCES = (
         "Librarian Agents: Training LLMs to Curate Long-Context Workspaces "
         "that Anticipate Future Queries",
     ),
+    ("REF-TF-OPD", "2610.22236", "Training-Free On-Policy Distillation"),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
@@ -476,6 +477,7 @@ EXPECTED_RECOMMENDATION_LINKS = {
     "REF-RSIFLOW": ("REC-010",),
     "REF-HARNESS-SELF-EVOLUTION": ("REC-010",),
     "REF-LIBRARIAN-AGENTS": ("REC-006",),
+    "REF-TF-OPD": ("REC-010",),
 }
 
 PUBLIC_REGISTRY_LOADERS = (

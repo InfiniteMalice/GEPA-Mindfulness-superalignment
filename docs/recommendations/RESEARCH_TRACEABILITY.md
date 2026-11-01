@@ -2313,3 +2313,28 @@ Primary v1 methods checked 2026-10-30. Exact checked artifacts, source licenses 
 Primary v1 sections checked 2026-10-31. Exact checked source, upstream revision/license and
 retained authored-note digest appear in the [matrix](RESEARCH_INTEGRATION_MATRIX.md) and
 [workspace protocol](../evidence_workspace.md). No upstream code copied.
+
+<a id="ref-tf-opd"></a>
+
+## REF-TF-OPD — Training-Free On-Policy Distillation
+
+- Metadata status: `resolved`
+- Supplied title: Training-Free On-Policy Distillation
+- Authors: Bangji Yang, Jiajun Fan, Zhaoyu Zhu, Hongbo Ma, Ge Liu
+- Year: 2026
+- DOI: `10.48550/arXiv.2610.22236`
+- arXiv: [`2610.22236`](https://arxiv.org/abs/2610.22236)
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-010`
+- Local repository notes: [specialist_fusion.md](../specialist_fusion.md), [specialist_fusion_records.py](../../gepa_mindfulness/training/specialist_fusion_records.py), [specialist_fusion.py](../../gepa_mindfulness/training/specialist_fusion.py).
+
+**Source demonstrates:** Shared-base specialists are fused by layer-wise weighted least squares using input second moments from selected own-rollout teacher-forced passes, with explicit precision and repetition filtering.
+
+**Repository inference:** Bounded CPU statistics and linear-layer candidate arithmetic retain existing source restrictions and diagnostic provenance; mathematical fit never admits data, updates a live model or authorizes promotion.
+
+**Maturity:** Experimental CPU numerical kernels and Diagnostic proposals; native collection, full checkpoint fusion and empirical retention or alignment effectiveness remain Unsupported.
+
+Primary v1 sections 3.1–3.5 and Appendix B checked 2026-10-31. Exact retained authored-note
+digest and adaptation boundaries appear in the [matrix](RESEARCH_INTEGRATION_MATRIX.md) and
+[protocol](../specialist_fusion.md). No upstream code copied; no authoritative method-code
+repository/license was established from the primary source.
