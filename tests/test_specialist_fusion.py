@@ -26,7 +26,6 @@ from gepa_mindfulness.training.specialist_fusion_records import (
     TFOPDConfig,
 )
 
-
 np = pytest.importorskip("numpy", reason="optional fusion extra is not installed")
 
 

@@ -107,3 +107,8 @@ Final wheel SHA256 ed1d10e61f034597326e946bce98b77a39ad57ad9cb01ce7e9e8c22d4b111
 36 required resources and 3 changed runtime files byte-equal source. Isolated outside-checkout
 imports, default-off functions, no NumPy import, registry and guide-resource smoke passed.
 Local full Torch suite/Ruff unavailable; final remote CI must pass before merge.
+
+Remote CI found one Ruff I001: redundant blank line between test imports and the optional
+NumPy assignment. Removed only that blank line. The execution environment became unavailable
+after initial publication; remote CI validates this formatting-only fix and the complete branch.
+The production files and built-wheel inputs are unchanged by this fix.
