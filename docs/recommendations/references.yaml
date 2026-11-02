@@ -3749,3 +3749,31 @@ references:
     - docs/family_search.md
     - evaluation/family_search_records.py
     - evaluation/family_search.py
+
+  - reference_id: REF-MEMORILLA
+    metadata_status: resolved
+    supplied_title: 'MEMORILLA: Latent semantic memory for LLMs'
+    title: 'Memorilla: Latent Semantic Memory for LLMs'
+    authors:
+    - Adibvafa Fallahpour
+    - Parsa Idehpour
+    - Vignesh Kothapalli
+    - Nikita Mounier
+    - Shirley Wu
+    - Shayan Pardis
+    - Jure Leskovec
+    year: 2026
+    arxiv_id: '2610.21375'
+    doi: 10.48550/arXiv.2610.21375
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.21375
+    recommendation_ids:
+    - REC-006
+    source_demonstrates: Trainable query-conditioned slots read persistent frozen-encoder document
+      embeddings and project them into a frozen decoder; the agentic study retains textual history.
+    repository_inference: Any optional latent-memory experiment must preserve independently recoverable
+      raw evidence and current whole-collection access checks through existing authorities and Study F.
+    maturity: Diagnostic source qualification only; native latent-memory execution, training, hybrid
+      answering and comparative effectiveness remain Unsupported. No backend is implemented by PR11g.
+    local_repo_notes:
+    - docs/latent_memory_research.md

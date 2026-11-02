@@ -83,3 +83,7 @@ existing governed admission. No canonical case, reward eligibility or manifest i
 
 The deterministic tests establish software boundaries only. No answering/training experiment
 has run; no accuracy, efficiency, retention, anti-loop or alignment gain is claimed.
+
+The separate [MEMORILLA qualification protocol](latent_memory_research.md) records checked
+native-method artifacts and external-runtime requirements. It adds no latent backend and does
+not change workspace retrieval, source admission or access authority.

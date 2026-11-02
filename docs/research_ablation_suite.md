@@ -194,3 +194,7 @@ Method definitions and adaptation limits remain in the existing [source matrix](
 and [traceability](recommendations/RESEARCH_TRACEABILITY.md). This suite is original research
 coordination software over those adapters, not a reproduction of all methods. Unrun training,
 native/optional backends and empirical effectiveness remain **Unsupported**.
+
+The [MEMORILLA source/runtime qualification protocol](latent_memory_research.md) supplies the
+optional latent-memory intake boundary for Study F. Source qualification adds no runtime;
+unimplemented latent and hybrid conditions remain explicitly `unsupported` in the existing roster.

@@ -377,6 +377,11 @@ EXPECTED_REFERENCES = (
         "2610.22367",
         "Discovering state-of-the-art quantum circuits with large language models",
     ),
+    (
+        "REF-MEMORILLA",
+        "2610.21375",
+        "MEMORILLA: Latent semantic memory for LLMs",
+    ),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
@@ -490,6 +495,7 @@ EXPECTED_RECOMMENDATION_LINKS = {
     "REF-KTP": ("REC-019",),
     "REF-MPT": ("REC-012",),
     "REF-MULTI-FAMILY-DISCOVERY": ("REC-010",),
+    "REF-MEMORILLA": ("REC-006",),
 }
 
 PUBLIC_REGISTRY_LOADERS = (

@@ -2440,3 +2440,31 @@ Apache-2.0 code licensing. Exact checked artifacts and authored-note digest are 
 the [matrix](RESEARCH_INTEGRATION_MATRIX.md). The [protocol](../family_search.md) separates
 the methodological adaptation from circuit correctness, failure budgets, scoring and archive
 geometry. No upstream code/data was copied, imported or executed.
+
+<a id="ref-memorilla"></a>
+
+## REF-MEMORILLA — Memorilla: Latent Semantic Memory for LLMs
+
+- Metadata status: `resolved`
+- Supplied title: MEMORILLA: Latent semantic memory for LLMs
+- Authors: Adibvafa Fallahpour, Parsa Idehpour, Vignesh Kothapalli, Nikita Mounier, Shirley Wu, Shayan Pardis, Jure Leskovec
+- Year: 2026
+- DOI: `10.48550/arXiv.2610.21375`
+- arXiv: [`2610.21375`](https://arxiv.org/abs/2610.21375)
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-006`
+- Local repository notes: [latent_memory_research.md](../latent_memory_research.md).
+
+**Source demonstrates:** Trainable query-conditioned slots read persistent frozen-encoder document embeddings and project them into a frozen decoder; the agentic study retains textual history.
+
+**Repository inference:** Any optional latent-memory experiment must preserve independently recoverable raw evidence and current whole-collection access checks through existing authorities and Study F.
+
+**Maturity:** Diagnostic source qualification only; native latent-memory execution, training, hybrid answering and comparative effectiveness remain Unsupported. No backend is implemented by PR11g.
+
+Primary v1 dated 2026-10-15, sections 2.1–2.6, 6 and Appendices B.1–B.2, F, G–G.1 checked
+2026-11-02; paper CC BY 4.0. Author-linked `snap-stanford/memorilla` pinned
+`b915c1315870518b8e55be34d3427fc8f8654119`, Apache-2.0 code license; exact checked
+artifacts and retained authored-note digest are in the
+[matrix](RESEARCH_INTEGRATION_MATRIX.md) and [qualification protocol](../latent_memory_research.md).
+No upstream code, model or dataset copied, imported or executed. Model/data licensing remains
+separate; source metadata does not qualify a native runtime or confer evidence authority.

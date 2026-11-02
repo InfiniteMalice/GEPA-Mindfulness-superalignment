@@ -129,6 +129,7 @@ REFERENCE_IDS = (
     "REF-KTP",
     "REF-MPT",
     "REF-MULTI-FAMILY-DISCOVERY",
+    "REF-MEMORILLA",
 )
 REFERENCE_ARXIV_IDS = (
     "2609.01736",
@@ -241,6 +242,7 @@ REFERENCE_ARXIV_IDS = (
     "2610.21459",
     "2610.22322",
     "2610.22367",
+    "2610.21375",
 )
 ALLOWED_METADATA_STATUSES = frozenset({"resolved", "unresolved"})
 

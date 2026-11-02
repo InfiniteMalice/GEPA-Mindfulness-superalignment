@@ -31,6 +31,8 @@ EXPECTED_RESOURCES = {
     "docs/knowledge_transfer.md",
     "docs/specialist_participation.md",
     "docs/family_search.md",
+    "docs/latent_memory_research.md",
+    "docs/recommendations/source_artifacts/memorilla-2610.21375v1-method.txt",
     "docs/recommendations/source_artifacts/discovery-2610.22367v1-method.txt",
     "docs/recommendations/source_artifacts/mpt-2610.22322v1-method.txt",
     "docs/recommendations/source_artifacts/ktp-2610.21459v1-method.txt",

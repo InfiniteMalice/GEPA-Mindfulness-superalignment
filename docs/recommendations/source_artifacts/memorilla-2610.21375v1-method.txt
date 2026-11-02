@@ -1,0 +1,17 @@
+Authored method note, not publisher HTML/PDF or upstream code.
+Source: Fallahpour et al., Memorilla: Latent Semantic Memory for LLMs.
+arXiv:2610.21375v1, 2026-10-15; paper CC BY 4.0.
+Checked 2026-11-02: sections 2.1-2.6, 6, Appendices B.1-B.2, F, G-G.1.
+A frozen encoder persists document embeddings. Trainable query-conditioned slots
+read the collection and project into a frozen decoder's input space. Supervised
+loss covers answer tokens. The agentic study instead trains memory with GRPO
+while retaining textual history; its settings are not a GEPA configuration.
+Author-linked code: snap-stanford/memorilla at
+b915c1315870518b8e55be34d3427fc8f8654119; Apache-2.0 LICENSE Git blob
+261eeb9e9f8b2b4b0d119366dda99c6fd7d35c64. Checked memory.py Git blob
+1fa9a3269f01e8ddc93006537632d43ee3c841d8 and decoder/data/embedding/training
+paths. No code, model or dataset copied, imported or executed.
+GEPA source recovery, current access checks and independent evidence review are
+additional requirements. Latent vectors or recalled text cannot certify claims.
+PR11g registers this source and a qualification protocol only; no native backend
+or experiment is implemented. Native execution and effectiveness are Unsupported.

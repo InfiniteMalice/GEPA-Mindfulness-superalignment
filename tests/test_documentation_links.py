@@ -35,6 +35,7 @@ DOCUMENTS = (
     ROOT / "docs" / "knowledge_transfer.md",
     ROOT / "docs" / "specialist_participation.md",
     ROOT / "docs" / "family_search.md",
+    ROOT / "docs" / "latent_memory_research.md",
     ROOT / "docs" / "controlled_evolution.md",
     ROOT / "docs" / "causal_diagnostics.md",
     ROOT / "docs" / "causal_reward_adapter.md",
