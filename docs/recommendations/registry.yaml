@@ -195,6 +195,7 @@ recommendations:
       - REF-EDGEMEM
       - REF-GRAPHMEM
       - REF-LIBRARIAN-AGENTS
+      - REF-MEMORILLA
     repo_refs:
       - gepa_mindfulness/verification/state.py
       - gepa_mindfulness/verification/evidence_workspace.py

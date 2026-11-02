@@ -59,7 +59,7 @@ is the project orientation; detailed semantics live here and in subsystem README
 ## Decisions and research
 
 - [Unified research integration](unified_research_integration.md): October 2026 staged-method
-  proposal, protected boundaries, compatibility and ablation requirements; implementation deferred.
+  integration, protected boundaries, experimental software subsets and unrun native methods.
 - [Research-method matrix](recommendations/RESEARCH_INTEGRATION_MATRIX.md): all 19 proposed
   methods, source-verification gaps, integration owners and acceptance requirements.
 - [Immutable dataset research](dataset_research.md): default-off AutoSFT-inspired recipe
@@ -109,3 +109,6 @@ Optional [family-search preparation](family_search.md) binds structural hypothes
 matched task/seed/budget rosters and scheduled donor transfers to existing candidate protocols.
 Journal diagnostics retain failed attempts and unknown costs. Independent outcome auditing and
 governed promotion retain authority; live search and comparative effectiveness remain Unsupported.
+
+[Latent-memory source qualification](latent_memory_research.md) records checked MEMORILLA artifacts,
+external-runtime requirements and the existing Study F evidence boundary; native execution is Unsupported.

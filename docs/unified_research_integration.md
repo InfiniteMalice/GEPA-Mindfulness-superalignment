@@ -26,7 +26,13 @@ PR 9 adds [advisory workflow selection and private paired attribution](improveme
 reusing existing intake, classifier, human routing and admission. Live isolated execution, learned
 meta-policy qualification and empirical effectiveness remain unsupported. PR 10 adds [study preparation and private capture/audit integration](research_ablation_suite.md),
 reusing existing manifests, attempt/exposure records and dependency-cluster statistics. No model
-training or empirical gain is established; unsupported arms stay unrun. PR 11 remains unimplemented.
+training or empirical gain is established; unsupported arms stay unrun.
+PR 11a–f add independent optional software subsets: [evidence workspace](evidence_workspace.md),
+[TF-OPD arithmetic](specialist_fusion.md), [intrinsic-dynamics probes](intrinsic_dynamics.md),
+[text transfer probes](knowledge_transfer.md), [advisory participation](specialist_participation.md)
+and [family-search preparation](family_search.md). Their native-model training and effectiveness
+remain unqualified. PR 11g adds [MEMORILLA source qualification](latent_memory_research.md)
+only; no latent-memory backend or experiment is implemented.
 The [audit evidence](experiments/unified_research_pr0_audit.md) preserves the original local
 baseline and primary-source limitations; PR #801's Python 3.12 CI subsequently passed.
 The [method matrix](recommendations/RESEARCH_INTEGRATION_MATRIX.md) covers all 19 requested

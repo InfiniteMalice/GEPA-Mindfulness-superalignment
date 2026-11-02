@@ -94,7 +94,7 @@ claim candidates retain separate sources and remain provisional before host comm
 - Repository evidence: [`state.py`](../../gepa_mindfulness/verification/state.py), [evidence_workspace.py](../../gepa_mindfulness/verification/evidence_workspace.py), [evidence_workspace.md](../evidence_workspace.md).
 - Limit: evidence identifiers are not dereferenced or issuer-authenticated by this record layer.
 - Acceptance checks: [`test_world_evidence_state.py`](../../tests/test_world_evidence_state.py), [test_evidence_workspace.py](../../tests/test_evidence_workspace.py).
-- Research: [`REF-EDGEMEM`](RESEARCH_TRACEABILITY.md#ref-edgemem), [`REF-GRAPHMEM`](RESEARCH_TRACEABILITY.md#ref-graphmem), [`REF-RECAST`](RESEARCH_TRACEABILITY.md#ref-recast), [`REF-TOPOGRAPHRAG`](RESEARCH_TRACEABILITY.md#ref-topographrag), [`REF-EXPERIENCEINDEX`](RESEARCH_TRACEABILITY.md#ref-experienceindex), [`REF-MEMORY-VALIDITY`](RESEARCH_TRACEABILITY.md#ref-memory-validity), [`REF-LIBRARIAN-AGENTS`](RESEARCH_TRACEABILITY.md#ref-librarian-agents).
+- Research: [`REF-EDGEMEM`](RESEARCH_TRACEABILITY.md#ref-edgemem), [`REF-GRAPHMEM`](RESEARCH_TRACEABILITY.md#ref-graphmem), [`REF-RECAST`](RESEARCH_TRACEABILITY.md#ref-recast), [`REF-TOPOGRAPHRAG`](RESEARCH_TRACEABILITY.md#ref-topographrag), [`REF-EXPERIENCEINDEX`](RESEARCH_TRACEABILITY.md#ref-experienceindex), [`REF-MEMORY-VALIDITY`](RESEARCH_TRACEABILITY.md#ref-memory-validity), [`REF-LIBRARIAN-AGENTS`](RESEARCH_TRACEABILITY.md#ref-librarian-agents), [`REF-MEMORILLA`](RESEARCH_TRACEABILITY.md#ref-memorilla).
 
 #### REC-007 — Structured failure graph.
 
