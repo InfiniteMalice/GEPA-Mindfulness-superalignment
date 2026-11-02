@@ -89,8 +89,12 @@ No gap or source reproduction certifies learning. Application remains a separate
 
 Nonbaseline comparisons reuse `estimate_paired` within cohort/channel. Captured abstention/error
 has zero recorded correct attainment; absent captures leave incomplete pairs. Negative effects
-remain negative. Entity clusters average unit/repeat observations, so repeated samples and
-multiple attributes do not become independent entities. Summary rates weight planned cells;
+remain negative. Matched repeat deltas are averaged within each case/condition first. Condition
+means are then averaged within each case, case means within each entity cluster, and cluster
+means for the paired effect. Here case IDs are transfer-unit IDs and each comparison contains
+one candidate condition. Unequal matched repeat counts do not reweight units; observations are
+not pooled directly. Repeated samples and multiple attributes do not become independent entities.
+Summary rates weight planned cells;
 paired effects weight entity cluster means. These estimands can differ and are both retained.
 
 Intervals default to unavailable (`dependencies_known=False`). Explicit, independently audited

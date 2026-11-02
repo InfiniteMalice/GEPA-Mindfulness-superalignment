@@ -117,3 +117,11 @@ established, nothing copied. Source mismatch would invalidate fidelity, so claim
 Final: Ruling: local full Torch/Ruff/Python matrix and network-isolated build dependency install
 were unavailable. Source-equal no-isolation wheel verification is separate evidence; final remote
 CI must pass before merge. Ignoring this distinction would leave compatibility unverified.
+
+Post-publication CodeRabbit finding: clarify the estimator's hierarchical weighting in the
+protocol. Verified existing groups and adapter mapping: mean matched repeats per case/condition,
+mean condition means per case, mean case means per entity, mean entity means. Each transfer unit
+is a case; each comparison has one candidate. Unequal-repeat example +1 once versus -1 twice
+gives entity mean0, not pooled-1/3. Documentation only; runtime unchanged. Existing26 transfer/
+statistics checks pass; rebuilt wheel40resources/3runtimefiles match and isolated smoke passes.
+Updated wheel SHA256ab104795dd21cb6db5079d65dd708c0a9fe0a9e04d0326e6f3e8dd17a947e060.
