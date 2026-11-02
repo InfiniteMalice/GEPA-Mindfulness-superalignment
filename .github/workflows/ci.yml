@@ -115,6 +115,14 @@ jobs:
           )
           assert collect_input_statistics(None, object()) is None
           assert fuse_linear_layer(object(), object(), object()) is None
+          from evaluation.intrinsic_dynamics import (
+              capture_world_transition, compare_rollout_costs, run_action_probes,
+          )
+          assert capture_world_transition(None, (), 0, trajectory_id=None,
+                                          before=None, after=None) is None
+          assert compare_rollout_costs((), system=None) is None
+          assert run_action_probes((), system=None, fit_trajectories=(),
+                                   test_trajectories=()) is None
           assert "numpy" not in sys.modules
           print(mindful_trace_gepa.__name__)
           PY

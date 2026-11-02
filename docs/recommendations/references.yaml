@@ -3637,3 +3637,32 @@ references:
     - docs/specialist_fusion.md
     - gepa_mindfulness/training/specialist_fusion_records.py
     - gepa_mindfulness/training/specialist_fusion.py
+
+  - reference_id: REF-INTRINSIC-DYNAMICS
+    metadata_status: resolved
+    supplied_title: Learning Intrinsic Dynamics in Latent World Models
+    title: Learning Intrinsic Dynamics in Latent World Models
+    authors:
+    - Jiamin Shi
+    - Yuanhong Zhang
+    - Zhiyang Liu
+    - Jiawei Sun
+    - Jingwen Fu
+    year: 2026
+    arxiv_id: '2610.21612'
+    doi: 10.48550/arXiv.2610.21612
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.21612
+    recommendation_ids:
+    - REC-010
+    source_demonstrates: Inverse action supervision and frozen action probes investigate transition information;
+      candidate-cost rankings and closed-loop control are assessed separately.
+    repository_inference: Bounded discrete linear probes reuse existing synthetic replay and diagnostic
+      records, separating held-out action accessibility, missing forward predictions and supplied rollout-cost
+      consistency without reward or authorization.
+    maturity: Experimental CPU probes and Diagnostic reports; native joint encoder training, planning and
+      empirical model-level effectiveness remain Unsupported.
+    local_repo_notes:
+    - docs/intrinsic_dynamics.md
+    - evaluation/intrinsic_dynamics_records.py
+    - evaluation/intrinsic_dynamics.py

@@ -382,6 +382,7 @@ recommendations:
       - REF-AIDE2
       - REF-RSI-MASTER
       - REF-TF-OPD
+      - REF-INTRINSIC-DYNAMICS
     repo_refs:
       - gepa_mindfulness/training/eligibility.py
       - gepa_mindfulness/learning_surfaces.py
@@ -415,6 +416,9 @@ recommendations:
       - gepa_mindfulness/training/specialist_fusion_records.py
       - gepa_mindfulness/training/specialist_fusion.py
       - docs/specialist_fusion.md
+      - evaluation/intrinsic_dynamics_records.py
+      - evaluation/intrinsic_dynamics.py
+      - docs/intrinsic_dynamics.md
     acceptance_tests:
       - tests/test_training_eligibility.py
       - tests/test_synthetic_v5_provenance.py
@@ -439,6 +443,7 @@ recommendations:
       - tests/test_research_studies.py
       - tests/test_research_study_capture.py
       - tests/test_specialist_fusion.py
+      - tests/test_intrinsic_dynamics.py
     implementation_refs:
       - gepa_mindfulness/training/eligibility.py
       - gepa_mindfulness/learning_surfaces.py
@@ -466,6 +471,9 @@ recommendations:
       - gepa_mindfulness/training/specialist_fusion_records.py
       - gepa_mindfulness/training/specialist_fusion.py
       - docs/specialist_fusion.md
+      - evaluation/intrinsic_dynamics_records.py
+      - evaluation/intrinsic_dynamics.py
+      - docs/intrinsic_dynamics.md
 
   - id: REC-011
     title: "Multiple competing hypotheses + information-gain inquiry."

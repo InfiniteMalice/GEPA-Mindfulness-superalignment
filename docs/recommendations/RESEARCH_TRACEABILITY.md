@@ -2338,3 +2338,27 @@ Primary v1 sections 3.1–3.5 and Appendix B checked 2026-10-31. Exact retained 
 digest and adaptation boundaries appear in the [matrix](RESEARCH_INTEGRATION_MATRIX.md) and
 [protocol](../specialist_fusion.md). No upstream code copied; no authoritative method-code
 repository/license was established from the primary source.
+
+<a id="ref-intrinsic-dynamics"></a>
+
+## REF-INTRINSIC-DYNAMICS — Learning Intrinsic Dynamics in Latent World Models
+
+- Metadata status: `resolved`
+- Supplied title: Learning Intrinsic Dynamics in Latent World Models
+- Authors: Jiamin Shi, Yuanhong Zhang, Zhiyang Liu, Jiawei Sun, Jingwen Fu
+- Year: 2026
+- DOI: `10.48550/arXiv.2610.21612`
+- arXiv: [`2610.21612`](https://arxiv.org/abs/2610.21612)
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-010`
+- Local repository notes: [intrinsic_dynamics.md](../intrinsic_dynamics.md), [intrinsic_dynamics_records.py](../../evaluation/intrinsic_dynamics_records.py), [intrinsic_dynamics.py](../../evaluation/intrinsic_dynamics.py).
+
+**Source demonstrates:** Inverse action supervision and frozen action probes investigate transition information; candidate-cost rankings and closed-loop control are assessed separately.
+
+**Repository inference:** Bounded discrete linear probes reuse existing synthetic replay and diagnostic records, separating held-out action accessibility, missing forward predictions and supplied rollout-cost consistency without reward or authorization.
+
+**Maturity:** Experimental CPU probes and Diagnostic reports; native joint encoder training, planning and empirical model-level effectiveness remain Unsupported.
+
+Primary v1 checked 2026-11-02; CC BY4.0. The [matrix](RESEARCH_INTEGRATION_MATRIX.md)
+records the exact authored-note digest and [protocol](../intrinsic_dynamics.md) boundaries.
+Code release is planned in the primary source; no upstream method code was copied.
