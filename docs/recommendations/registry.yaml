@@ -381,6 +381,7 @@ recommendations:
       - REF-CARE
       - REF-AIDE2
       - REF-RSI-MASTER
+      - REF-TF-OPD
     repo_refs:
       - gepa_mindfulness/training/eligibility.py
       - gepa_mindfulness/learning_surfaces.py
@@ -411,6 +412,9 @@ recommendations:
       - evaluation/research_studies.py
       - evaluation/research_study_capture.py
       - docs/research_ablation_suite.md
+      - gepa_mindfulness/training/specialist_fusion_records.py
+      - gepa_mindfulness/training/specialist_fusion.py
+      - docs/specialist_fusion.md
     acceptance_tests:
       - tests/test_training_eligibility.py
       - tests/test_synthetic_v5_provenance.py
@@ -434,6 +438,7 @@ recommendations:
       - tests/test_model_harness_attribution.py
       - tests/test_research_studies.py
       - tests/test_research_study_capture.py
+      - tests/test_specialist_fusion.py
     implementation_refs:
       - gepa_mindfulness/training/eligibility.py
       - gepa_mindfulness/learning_surfaces.py
@@ -458,6 +463,9 @@ recommendations:
       - evaluation/research_studies.py
       - evaluation/research_study_capture.py
       - docs/research_ablation_suite.md
+      - gepa_mindfulness/training/specialist_fusion_records.py
+      - gepa_mindfulness/training/specialist_fusion.py
+      - docs/specialist_fusion.md
 
   - id: REC-011
     title: "Multiple competing hypotheses + information-gain inquiry."

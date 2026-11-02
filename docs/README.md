@@ -89,3 +89,5 @@ their respective machine-readable registries or technical contracts above.
 [Unified research studies and reproducibility](research_ablation_suite.md) prepares default-off study overlays and private independently authenticated reports.
 
 [Inspectable evidence workspace](evidence_workspace.md) adds an optional source-linked index with existing access checks; native builder RL and latent memory remain unsupported.
+
+[TF-OPD numerical research](specialist_fusion.md) adds opt-in CPU input moments and immutable fusion proposals; full model fusion and research effectiveness remain unsupported.

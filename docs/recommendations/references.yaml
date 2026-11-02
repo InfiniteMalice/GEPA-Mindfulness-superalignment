@@ -3607,3 +3607,33 @@ references:
     local_repo_notes:
     - docs/evidence_workspace.md
     - gepa_mindfulness/verification/evidence_workspace.py
+
+  - reference_id: REF-TF-OPD
+    metadata_status: resolved
+    supplied_title: Training-Free On-Policy Distillation
+    title: Training-Free On-Policy Distillation
+    authors:
+    - Bangji Yang
+    - Jiajun Fan
+    - Zhaoyu Zhu
+    - Hongbo Ma
+    - Ge Liu
+    year: 2026
+    arxiv_id: '2610.22236'
+    doi: 10.48550/arXiv.2610.22236
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.22236
+    recommendation_ids:
+    - REC-010
+    source_demonstrates: Shared-base specialists are fused by layer-wise weighted least squares using
+      input second moments from selected own-rollout teacher-forced passes, with explicit precision
+      and repetition filtering.
+    repository_inference: Bounded CPU statistics and linear-layer candidate arithmetic retain existing
+      source restrictions and diagnostic provenance; mathematical fit never admits data, updates a live
+      model or authorizes promotion.
+    maturity: Experimental CPU numerical kernels and Diagnostic proposals; native collection, full checkpoint
+      fusion and empirical retention or alignment effectiveness remain Unsupported.
+    local_repo_notes:
+    - docs/specialist_fusion.md
+    - gepa_mindfulness/training/specialist_fusion_records.py
+    - gepa_mindfulness/training/specialist_fusion.py

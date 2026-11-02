@@ -39,7 +39,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e '.[rl-dev,pdf,train,interpret]'
+          pip install -e '.[rl-dev,pdf,train,interpret,fusion]'
           pip install pytest-cov
 
       - name: Show Black & tooling versions and diffs (CI debug)
@@ -102,6 +102,7 @@ jobs:
           "$tmpdir/venv/bin/python" - <<'PY'
           import importlib.util
           import pathlib
+          import sys
           import mindful_trace_gepa
 
           networkx_spec = importlib.util.find_spec("networkx")
@@ -109,6 +110,12 @@ jobs:
               cwd = pathlib.Path.cwd().resolve()
               assert not pathlib.Path(networkx_spec.origin).resolve().is_relative_to(cwd)
           assert importlib.util.find_spec("mindful_trace_gepa.viewer.builder") is not None
+          from gepa_mindfulness.training.specialist_fusion import (
+              collect_input_statistics, fuse_linear_layer,
+          )
+          assert collect_input_statistics(None, object()) is None
+          assert fuse_linear_layer(object(), object(), object()) is None
+          assert "numpy" not in sys.modules
           print(mindful_trace_gepa.__name__)
           PY
           "$tmpdir/venv/bin/gepa" --help

@@ -178,3 +178,5 @@ for each next implementation. Later PRs add their own executable schemas, defaul
 negative tests, documentation and acceptance evidence. No unfinished stage is marked implemented.
 
 The optional [PR 11a workspace prototype](evidence_workspace.md) reuses existing artifact provenance and current authorized readout. It preserves raw-source fallback and unverified synthetic channels; no builder RL, latent memory or empirical gain is established.
+
+Optional [TF-OPD CPU numerical research](specialist_fusion.md) records source-bound moments, linear-layer candidates and precision/interference diagnostics. Existing data eligibility and model admission retain authority; no native model runtime or empirical gain is established.
