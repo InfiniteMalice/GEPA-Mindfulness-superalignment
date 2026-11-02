@@ -123,6 +123,13 @@ jobs:
           assert compare_rollout_costs((), system=None) is None
           assert run_action_probes((), system=None, fit_trajectories=(),
                                    test_trajectories=()) is None
+          from evaluation.knowledge_transfer import (
+              evaluate_knowledge_transfer, public_transfer_prompt,
+          )
+          assert public_transfer_prompt(None, None) is None
+          assert evaluate_knowledge_transfer(None, None, None, repeat_ids=(),
+                                             baseline_condition_id=None,
+                                             evaluator_version=None) is None
           assert "numpy" not in sys.modules
           print(mindful_trace_gepa.__name__)
           PY

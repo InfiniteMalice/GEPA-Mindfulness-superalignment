@@ -28,6 +28,8 @@ EXPECTED_RESOURCES = {
     "docs/evidence_workspace.md",
     "docs/specialist_fusion.md",
     "docs/intrinsic_dynamics.md",
+    "docs/knowledge_transfer.md",
+    "docs/recommendations/source_artifacts/ktp-2610.21459v1-method.txt",
     "docs/recommendations/source_artifacts/intrinsic-2610.21612v1-method.txt",
     "docs/recommendations/source_artifacts/tfopd-2610.22236v1-method.txt",
     "docs/recommendations/source_artifacts/librarian-2610.22273v1-method.txt",

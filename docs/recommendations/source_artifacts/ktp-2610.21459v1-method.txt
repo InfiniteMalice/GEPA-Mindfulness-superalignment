@@ -1,0 +1,16 @@
+Authored method note; not publisher HTML/PDF bytes. UTF-8/LF.
+Li, Hong, Yang, Tang: Can Visual Generation Expand What Unified Multimodal Models Know?
+https://arxiv.org/html/2610.21459v1, 2026-10-15, arXiv non-exclusive distribution license.
+Checked 2026-11-02: sections3.1–3.3/4.1–4.4 and AppendixA.1–A.3.
+KTP separates facts supplied through generation targets from text-only answering.
+Additional alignment entities are disjoint from target QA test entities. Visual
+reproduction and textual accessibility do not establish each other or complete knowledge.
+Author repository kevinlllee/Knowledge-Transfer-Probing checked at
+218a274154dbadc2f4e679ebaf3741706dc1d5c0: README and textual scoring script read.
+No explicit code/data license established; no code or dataset copied/imported.
+Local text-proxy protocol uses independently authored fictional units, saved public
+final answers, declared checkpoint/exposure controls, fixed planned denominators,
+separate source/target/application metrics and existing entity-cluster paired estimates.
+Case/space/terminal-period normalization preserves internal punctuation; no hidden
+reasoning parser or reward. Literal guards do not certify semantic isolation.
+This is an original adaptation, not native multimodal training or empirical reproduction.

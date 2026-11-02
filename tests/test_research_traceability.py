@@ -370,6 +370,7 @@ EXPECTED_REFERENCES = (
     ),
     ("REF-TF-OPD", "2610.22236", "Training-Free On-Policy Distillation"),
     ("REF-INTRINSIC-DYNAMICS", "2610.21612", "Learning Intrinsic Dynamics in Latent World Models"),
+    ("REF-KTP", "2610.21459", "Can Visual Generation Expand What Unified Multimodal Models Know?"),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
@@ -480,6 +481,7 @@ EXPECTED_RECOMMENDATION_LINKS = {
     "REF-LIBRARIAN-AGENTS": ("REC-006",),
     "REF-TF-OPD": ("REC-010",),
     "REF-INTRINSIC-DYNAMICS": ("REC-010",),
+    "REF-KTP": ("REC-019",),
 }
 
 PUBLIC_REGISTRY_LOADERS = (

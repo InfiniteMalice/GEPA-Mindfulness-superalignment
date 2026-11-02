@@ -184,3 +184,7 @@ Optional [TF-OPD CPU numerical research](specialist_fusion.md) records source-bo
 Optional [intrinsic-dynamics diagnostics](intrinsic_dynamics.md) measure frozen action
 accessibility and supplied rollout-cost consistency separately; no learned-model effectiveness
 or causal-recovery claim follows from these probes.
+
+Optional [knowledge-transfer text proxies](knowledge_transfer.md) score saved public source,
+target and application answers with declared exposure controls and complete denominators.
+Native multimodal training and empirical transfer remain Unsupported.
