@@ -33,6 +33,7 @@ DOCUMENTS = (
     ROOT / "docs" / "specialist_fusion.md",
     ROOT / "docs" / "intrinsic_dynamics.md",
     ROOT / "docs" / "knowledge_transfer.md",
+    ROOT / "docs" / "specialist_participation.md",
     ROOT / "docs" / "controlled_evolution.md",
     ROOT / "docs" / "causal_diagnostics.md",
     ROOT / "docs" / "causal_reward_adapter.md",

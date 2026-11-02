@@ -1,0 +1,24 @@
+Authored source/adaptation note; not publisher HTML/PDF or copied source code.
+Checked 2026-11-02: Xu, Qi, Kiruga, Lakkaraju, Du (2026), Learning
+Self-Orchestration in Decentralized Agent Swarms, arXiv:2610.22322v1,
+2026-10-15, https://arxiv.org/html/2610.22322v1, sections 2.1-2.3 and Appendix A.
+Paper license: arXiv.org perpetual non-exclusive distribution license.
+
+The paper selects the highest participation bid, samples exact ties uniformly,
+and skips all-zero turns. Bids also propagate downstream value backward for
+action learning. Separate counterfactual branches from a restored contested
+state produce unequal-return bidding preferences. Action and bidding updates
+alternate; this note does not reproduce training or transfer reported gains.
+
+Author repository Embodied-Minds-Lab/MPT at
+3b56087a2e436e04f077672cf8cffd91b8820b08: README.md,
+src/economy_engine/auction.py (Git blob c0eff66b9e3ab5cf318ff9cfa2429d2da95be7e7),
+LICENSE (Apache-2.0; blob 7a4a3ea2424c09fbe48d455aed1eaa94d9124835), NOTICE read.
+The pinned code reopens all-pass bids at a floor and uses ranking jitter;
+GEPA instead keeps abstention and samples only exact maxima without jitter.
+No upstream code/data copied, imported or executed.
+
+Original GEPA adaptation: independently host-reviewed, default-off advisory
+selection over bounded public packets. Continuous [0,1] bids express willingness,
+not correctness, eligibility, authorization, reward or competence. No action,
+training, native reward redistribution, environment branch or promotion occurs.

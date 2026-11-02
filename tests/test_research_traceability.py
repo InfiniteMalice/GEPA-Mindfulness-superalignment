@@ -371,6 +371,7 @@ EXPECTED_REFERENCES = (
     ("REF-TF-OPD", "2610.22236", "Training-Free On-Policy Distillation"),
     ("REF-INTRINSIC-DYNAMICS", "2610.21612", "Learning Intrinsic Dynamics in Latent World Models"),
     ("REF-KTP", "2610.21459", "Can Visual Generation Expand What Unified Multimodal Models Know?"),
+    ("REF-MPT", "2610.22322", "Learning Self-Orchestration in Decentralized Agent Swarms"),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
@@ -482,6 +483,7 @@ EXPECTED_RECOMMENDATION_LINKS = {
     "REF-TF-OPD": ("REC-010",),
     "REF-INTRINSIC-DYNAMICS": ("REC-010",),
     "REF-KTP": ("REC-019",),
+    "REF-MPT": ("REC-012",),
 }
 
 PUBLIC_REGISTRY_LOADERS = (

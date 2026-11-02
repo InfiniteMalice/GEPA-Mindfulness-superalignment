@@ -130,6 +130,12 @@ jobs:
           assert evaluate_knowledge_transfer(None, None, None, repeat_ids=(),
                                              baseline_condition_id=None,
                                              evaluator_version=None) is None
+          from gepa_mindfulness.factuality_observability.specialist_participation import (
+              select_specialist,
+          )
+          assert select_specialist(None, current_state_digest=None, evaluator=None,
+                                   reviewer_principal_id=None, review=None,
+                                   propose_bid=None) is None
           assert "numpy" not in sys.modules
           print(mindful_trace_gepa.__name__)
           PY

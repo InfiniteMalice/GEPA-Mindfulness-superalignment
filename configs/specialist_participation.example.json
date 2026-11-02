@@ -1,0 +1,9 @@
+{
+  "training_eligibility": "DEVELOPMENT",
+  "optimizer_input": false,
+  "confers_authority": false,
+  "enabled": false,
+  "seed": 0,
+  "max_output_bytes": 4194304,
+  "schema_version": "specialist-participation-config-v1"
+}

@@ -3694,3 +3694,31 @@ references:
     - docs/knowledge_transfer.md
     - evaluation/knowledge_transfer_records.py
     - evaluation/knowledge_transfer.py
+
+  - reference_id: REF-MPT
+    metadata_status: resolved
+    supplied_title: Learning Self-Orchestration in Decentralized Agent Swarms
+    title: Learning Self-Orchestration in Decentralized Agent Swarms
+    authors:
+    - Guowei Xu
+    - Zhenting Qi
+    - Amani Kiruga
+    - Himabindu Lakkaraju
+    - Yilun Du
+    year: 2026
+    arxiv_id: '2610.22322'
+    doi: 10.48550/arXiv.2610.22322
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.22322
+    recommendation_ids:
+    - REC-012
+    source_demonstrates: Participation bids determine turn allocation and backward action credit;
+      counterfactual restored-state rollouts produce separate bidding preferences.
+    repository_inference: Bounded public packets, independent host review and exact positive-bid
+      selection provide advisory recommendations without execution, optimizer credit or authorization.
+    maturity: Experimental CPU selector and Diagnostic reports; native MPT action/bidding training,
+      model backends and empirical participation effectiveness remain Unsupported.
+    local_repo_notes:
+    - docs/specialist_participation.md
+    - gepa_mindfulness/factuality_observability/participation_records.py
+    - gepa_mindfulness/factuality_observability/specialist_participation.py
