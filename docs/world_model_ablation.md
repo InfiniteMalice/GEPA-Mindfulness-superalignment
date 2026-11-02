@@ -162,3 +162,7 @@ The [ADR](adr/0016-world-model-value-ablation.md) explains the bounded design.
 Verification: `python -m pytest tests/test_world_model_ablation.py` checks the executable contracts.
 The installed-wheel smoke executes this example. For a model study, archive the adapter source,
 immutable checkpoint/training records, provider receipts, world split and full report for host review.
+
+Optional [intrinsic-dynamics diagnostics](intrinsic_dynamics.md) measure frozen action
+accessibility and supplied rollout-cost consistency separately; no learned-model effectiveness
+or causal-recovery claim follows from these probes.

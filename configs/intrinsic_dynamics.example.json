@@ -1,0 +1,6 @@
+{
+  "schema_version": "intrinsic-dynamics-config-v1",
+  "training_eligibility": "DEVELOPMENT",
+  "enabled": false,
+  "seed": 0
+}

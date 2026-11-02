@@ -27,6 +27,8 @@ EXPECTED_RESOURCES = {
     "docs/research_ablation_suite.md",
     "docs/evidence_workspace.md",
     "docs/specialist_fusion.md",
+    "docs/intrinsic_dynamics.md",
+    "docs/recommendations/source_artifacts/intrinsic-2610.21612v1-method.txt",
     "docs/recommendations/source_artifacts/tfopd-2610.22236v1-method.txt",
     "docs/recommendations/source_artifacts/librarian-2610.22273v1-method.txt",
     "docs/recommendations/source_artifacts/rsiflow-2610.21791v1-method.txt",

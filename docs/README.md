@@ -91,3 +91,7 @@ their respective machine-readable registries or technical contracts above.
 [Inspectable evidence workspace](evidence_workspace.md) adds an optional source-linked index with existing access checks; native builder RL and latent memory remain unsupported.
 
 [TF-OPD numerical research](specialist_fusion.md) adds opt-in CPU input moments and immutable fusion proposals; full model fusion and research effectiveness remain unsupported.
+
+Optional [intrinsic-dynamics diagnostics](intrinsic_dynamics.md) measure frozen action
+accessibility and supplied rollout-cost consistency separately; no learned-model effectiveness
+or causal-recovery claim follows from these probes.

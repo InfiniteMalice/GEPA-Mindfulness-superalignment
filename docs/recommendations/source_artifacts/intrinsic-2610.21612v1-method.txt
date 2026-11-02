@@ -1,0 +1,15 @@
+Authored method note; not publisher HTML/PDF bytes. UTF-8/LF.
+Shi, Zhang, Liu, Sun, Fu: Learning Intrinsic Dynamics in Latent World Models.
+Primary https://arxiv.org/html/2610.21612v1, 2026-10-15, CC BY4.0.
+Checked 2026-11-02: sections3.1–3.4,4.1,4.4,4.5 and reproducibility.
+Consecutive frozen latents support four action-probe inputs: each endpoint,
+displacement and concatenation. Primary probes are MLPs with common trajectory
+train/validation/test splits. Candidate-cost rank agreement is a separate metric;
+action accessibility alone does not determine planning performance.
+Local adaptation uses bounded discrete one-hot linear probes, fixed FP64 least
+squares, explicit fit/test source isolation and shuffled FIT labels. No validation
+search, shared-encoder updates, SIGReg, planner or visual backbone reproduced.
+Existing offline simulator binds attempted actions and source lineage only.
+Supplied latents and costs remain host declarations, never reward or authority.
+Primary states code release planned; no method-code license established.
+No upstream code copied. Model-level efficacy and causal recovery unmeasured.
