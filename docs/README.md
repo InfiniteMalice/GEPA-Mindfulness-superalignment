@@ -104,3 +104,8 @@ Optional [advisory specialist participation](specialist_participation.md) indepe
 reviews candidates before requesting bids. Exact positive maxima can produce recommendations;
 no action, reward or promotion is authorized. Native MPT training and empirical quality remain
 Unsupported. The interface is Experimental and disabled by default.
+
+Optional [family-search preparation](family_search.md) binds structural hypothesis families,
+matched task/seed/budget rosters and scheduled donor transfers to existing candidate protocols.
+Journal diagnostics retain failed attempts and unknown costs. Independent outcome auditing and
+governed promotion retain authority; live search and comparative effectiveness remain Unsupported.

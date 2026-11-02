@@ -30,6 +30,8 @@ EXPECTED_RESOURCES = {
     "docs/intrinsic_dynamics.md",
     "docs/knowledge_transfer.md",
     "docs/specialist_participation.md",
+    "docs/family_search.md",
+    "docs/recommendations/source_artifacts/discovery-2610.22367v1-method.txt",
     "docs/recommendations/source_artifacts/mpt-2610.22322v1-method.txt",
     "docs/recommendations/source_artifacts/ktp-2610.21459v1-method.txt",
     "docs/recommendations/source_artifacts/intrinsic-2610.21612v1-method.txt",

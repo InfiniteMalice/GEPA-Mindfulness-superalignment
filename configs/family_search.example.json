@@ -1,0 +1,7 @@
+{
+  "training_eligibility": "DEVELOPMENT",
+  "optimizer_input": false,
+  "confers_authority": false,
+  "enabled": false,
+  "schema_version": "family-search-config-v1"
+}

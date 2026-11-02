@@ -1,0 +1,24 @@
+Authored source/adaptation note; not publisher bytes or copied upstream code.
+Checked 2026-11-02: Andi Gu, Alek H. Kemeny, Susanne F. Yelin, Mikhail D. Lukin,
+Discovering state-of-the-art quantum circuits with large language models,
+arXiv:2610.22367v1 (2026-10-15), https://arxiv.org/html/2610.22367v1.
+Read opening framework/Figure 1, Validation and statistical guarantees,
+Cost model and scoring, Evolutionary search. Paper license CC BY-NC-SA 4.0.
+
+The source explores distinct structural families with independent evaluator
+feedback, preserves candidate ancestry and failed attempts, and periodically
+shares promising programs. Circuit-specific correctness reduction, resource
+scoring, bounded-error assumptions and archive geometry do not establish
+constitutional admissibility or permissible moral violations.
+
+Author-linked andigu/uncompute pinned64b5a13aa249f1360846657392e6c66817b26d0f:
+README blob23249bda58d3bfa81678997964bccb54a665839b and Apache-2.0 LICENSE
+blobd645695673349e3947e8e5ae42332d0ac3164cd7 checked via GitHub plugin.
+The release contains circuits/tasks/evaluator; no search-runtime source was
+established by README/root inspection. No quantum code/data copied/imported/run.
+
+Original GEPA adaptation: default-off fixed family plans, matched task/seed/budget
+rosters, synchronous separation/sharing schedule and single-parent transfers over
+existing improvement protocols and journals. No evaluator, winner selection,
+model execution, reward allocation or promotion authority is added. Native
+search orchestration and comparative model effectiveness remain unmeasured.

@@ -383,6 +383,7 @@ recommendations:
       - REF-RSI-MASTER
       - REF-TF-OPD
       - REF-INTRINSIC-DYNAMICS
+      - REF-MULTI-FAMILY-DISCOVERY
     repo_refs:
       - gepa_mindfulness/training/eligibility.py
       - gepa_mindfulness/learning_surfaces.py
@@ -419,6 +420,9 @@ recommendations:
       - evaluation/intrinsic_dynamics_records.py
       - evaluation/intrinsic_dynamics.py
       - docs/intrinsic_dynamics.md
+      - evaluation/family_search_records.py
+      - evaluation/family_search.py
+      - docs/family_search.md
     acceptance_tests:
       - tests/test_training_eligibility.py
       - tests/test_synthetic_v5_provenance.py
@@ -444,6 +448,7 @@ recommendations:
       - tests/test_research_study_capture.py
       - tests/test_specialist_fusion.py
       - tests/test_intrinsic_dynamics.py
+      - tests/test_family_search.py
     implementation_refs:
       - gepa_mindfulness/training/eligibility.py
       - gepa_mindfulness/learning_surfaces.py
@@ -474,6 +479,9 @@ recommendations:
       - evaluation/intrinsic_dynamics_records.py
       - evaluation/intrinsic_dynamics.py
       - docs/intrinsic_dynamics.md
+      - evaluation/family_search_records.py
+      - evaluation/family_search.py
+      - docs/family_search.md
 
   - id: REC-011
     title: "Multiple competing hypotheses + information-gain inquiry."
