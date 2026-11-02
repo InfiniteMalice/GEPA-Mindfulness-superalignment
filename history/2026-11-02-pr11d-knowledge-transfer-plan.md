@@ -122,6 +122,7 @@ Post-publication CodeRabbit finding: clarify the estimator's hierarchical weight
 protocol. Verified existing groups and adapter mapping: mean matched repeats per case/condition,
 mean condition means per case, mean case means per entity, mean entity means. Each transfer unit
 is a case; each comparison has one candidate. Unequal-repeat example +1 once versus -1 twice
-gives entity mean0, not pooled-1/3. Documentation only; runtime unchanged. Existing26 transfer/
-statistics checks pass; rebuilt wheel40resources/3runtimefiles match and isolated smoke passes.
-Updated wheel SHA256ab104795dd21cb6db5079d65dd708c0a9fe0a9e04d0326e6f3e8dd17a947e060.
+gives an entity mean of 0, rather than the pooled value -1/3. Documentation only; runtime is unchanged.
+The existing 26 transfer/statistics checks pass. The rebuilt wheel matches all 40 resources and
+3 runtime files; the isolated smoke test passes.
+Updated wheel SHA256: ab104795dd21cb6db5079d65dd708c0a9fe0a9e04d0326e6f3e8dd17a947e060.
