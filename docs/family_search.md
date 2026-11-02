@@ -97,8 +97,10 @@ cannot be offset by unrelated gains.
 
 ## Host workflow and reproducibility
 
-Restore the disabled [example configuration](../configs/family_search.example.json) using
-`FamilySearchConfig.from_dict`. The host supplies existing immutable protocol/task records;
+From a source checkout, restore the disabled
+[example configuration](../configs/family_search.example.json) using
+`FamilySearchConfig.from_dict`; this example file is not included in the installed wheel.
+The host supplies existing immutable protocol/task records;
 the adapter does not generate cases, candidates, slots, observations or journal events.
 
 ```python
