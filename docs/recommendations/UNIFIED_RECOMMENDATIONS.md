@@ -276,10 +276,12 @@ Experimental and disabled by default. Separating internal-state movement from pu
 
 Measure comparable latent, language, and policy/action deltas independently. Report latent-language decoupling or language change without a matching measured latent signal while retaining origin, comparability, and unavailable-state information.
 
-- Repository evidence: [`latent_language_transition.py`](../../modules/semantic_intent_robustness/latent_language_transition.py), [`research_overlays.md`](../research_overlays.md).
-- Acceptance checks: [`test_latent_language_transition.py`](../../tests/test_latent_language_transition.py).
-- Research: [`REF-LATENT-LANGUAGE-GAP`](RESEARCH_TRACEABILITY.md#ref-latent-language-gap).
+- Repository evidence: [`latent_language_transition.py`](../../modules/semantic_intent_robustness/latent_language_transition.py), [`research_overlays.md`](../research_overlays.md), [`knowledge_transfer_records.py`](../../evaluation/knowledge_transfer_records.py), [`knowledge_transfer.py`](../../evaluation/knowledge_transfer.py), [`knowledge_transfer.md`](../knowledge_transfer.md).
+- Acceptance checks: [`test_knowledge_transfer.py`](../../tests/test_knowledge_transfer.py), [`test_latent_language_transition.py`](../../tests/test_latent_language_transition.py).
+- Research: [`REF-LATENT-LANGUAGE-GAP`](RESEARCH_TRACEABILITY.md#ref-latent-language-gap), [`REF-KTP`](RESEARCH_TRACEABILITY.md#ref-ktp).
 - Limitations: These diagnostics do not establish intent, deception, causal use of a representation, successful steering, or alignment. Transfer ratios depend on measurement normalization. Black-box behavioral evaluation remains available without internal-state access.
+
+The optional [text-proxy knowledge-transfer protocol](../knowledge_transfer.md) separates saved public source access, target recall and application. Planned denominators, missing captures and entity-cluster paired effects remain explicit; no acquisition, native multimodal training or promotion is certified.
 
 ## Research traceability
 

@@ -2362,3 +2362,27 @@ repository/license was established from the primary source.
 Primary v1 checked 2026-11-02; CC BY4.0. The [matrix](RESEARCH_INTEGRATION_MATRIX.md)
 records the exact authored-note digest and [protocol](../intrinsic_dynamics.md) boundaries.
 Code release is planned in the primary source; no upstream method code was copied.
+
+<a id="ref-ktp"></a>
+
+## REF-KTP — Can Visual Generation Expand What Unified Multimodal Models Know?
+
+- Metadata status: `resolved`
+- Supplied title: Can Visual Generation Expand What Unified Multimodal Models Know?
+- Authors: Wenkai Li, Wenyi Hong, Zhuoyi Yang, Jie Tang
+- Year: 2026
+- DOI: `10.48550/arXiv.2610.21459`
+- arXiv: [`2610.21459`](https://arxiv.org/abs/2610.21459)
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-019`
+- Local repository notes: [knowledge_transfer.md](../knowledge_transfer.md), [knowledge_transfer_records.py](../../evaluation/knowledge_transfer_records.py), [knowledge_transfer.py](../../evaluation/knowledge_transfer.py).
+
+**Source demonstrates:** Controlled generation-target knowledge and held-out textual QA distinguish visual reproduction from textual accessibility; alignment supervision is separated by entity.
+
+**Repository inference:** A bounded text-proxy protocol scores saved public source, target and application answers with complete planned denominators, declared exposure controls and existing entity-cluster paired estimates; no answer certifies knowledge acquisition or admission.
+
+**Maturity:** Experimental text-proxy protocol and Diagnostic reports; native multimodal training and empirical model-level transfer remain Unsupported.
+
+Primary v1 and author repository checked 2026-11-02. Exact authored-note digest/license and
+adaptation boundary are in the [matrix](RESEARCH_INTEGRATION_MATRIX.md) and
+[protocol](../knowledge_transfer.md); no code or dataset copied/imported.

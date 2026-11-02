@@ -3666,3 +3666,31 @@ references:
     - docs/intrinsic_dynamics.md
     - evaluation/intrinsic_dynamics_records.py
     - evaluation/intrinsic_dynamics.py
+
+  - reference_id: REF-KTP
+    metadata_status: resolved
+    supplied_title: Can Visual Generation Expand What Unified Multimodal Models Know?
+    title: Can Visual Generation Expand What Unified Multimodal Models Know?
+    authors:
+    - Wenkai Li
+    - Wenyi Hong
+    - Zhuoyi Yang
+    - Jie Tang
+    year: 2026
+    arxiv_id: '2610.21459'
+    doi: 10.48550/arXiv.2610.21459
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.21459
+    recommendation_ids:
+    - REC-019
+    source_demonstrates: Controlled generation-target knowledge and held-out textual QA distinguish visual
+      reproduction from textual accessibility; alignment supervision is separated by entity.
+    repository_inference: A bounded text-proxy protocol scores saved public source, target and application
+      answers with complete planned denominators, declared exposure controls and existing entity-cluster
+      paired estimates; no answer certifies knowledge acquisition or admission.
+    maturity: Experimental text-proxy protocol and Diagnostic reports; native multimodal training and empirical
+      model-level transfer remain Unsupported.
+    local_repo_notes:
+    - docs/knowledge_transfer.md
+    - evaluation/knowledge_transfer_records.py
+    - evaluation/knowledge_transfer.py

@@ -1,0 +1,12 @@
+{
+  "schema_version": "knowledge-transfer-config-v1",
+  "training_eligibility": "DEVELOPMENT",
+  "enabled": false,
+  "dependencies_known": false,
+  "resampling_policy": {
+    "seed": 0,
+    "resamples": 1000,
+    "confidence_level": 0.95,
+    "minimum_clusters": 2
+  }
+}

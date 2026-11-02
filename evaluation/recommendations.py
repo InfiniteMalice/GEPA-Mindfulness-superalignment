@@ -126,6 +126,7 @@ REFERENCE_IDS = (
     "REF-LIBRARIAN-AGENTS",
     "REF-TF-OPD",
     "REF-INTRINSIC-DYNAMICS",
+    "REF-KTP",
 )
 REFERENCE_ARXIV_IDS = (
     "2609.01736",
@@ -235,6 +236,7 @@ REFERENCE_ARXIV_IDS = (
     "2610.22273",
     "2610.22236",
     "2610.21612",
+    "2610.21459",
 )
 ALLOWED_METADATA_STATUSES = frozenset({"resolved", "unresolved"})
 

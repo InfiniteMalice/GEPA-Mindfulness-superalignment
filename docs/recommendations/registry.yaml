@@ -754,11 +754,19 @@ recommendations:
       - "REC-015"
     research_refs:
       - "REF-LATENT-LANGUAGE-GAP"
+      - "REF-KTP"
     repo_refs:
       - "modules/semantic_intent_robustness/latent_language_transition.py"
       - "docs/research_overlays.md"
+      - "evaluation/knowledge_transfer_records.py"
+      - "evaluation/knowledge_transfer.py"
+      - "docs/knowledge_transfer.md"
     acceptance_tests:
+      - "tests/test_knowledge_transfer.py"
       - "tests/test_latent_language_transition.py"
     implementation_refs:
+      - "evaluation/knowledge_transfer_records.py"
+      - "evaluation/knowledge_transfer.py"
+      - "docs/knowledge_transfer.md"
       - "modules/semantic_intent_robustness/latent_language_transition.py"
       - "tests/test_latent_language_transition.py"
