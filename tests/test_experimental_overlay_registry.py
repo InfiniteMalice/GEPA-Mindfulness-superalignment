@@ -199,11 +199,28 @@ def test_experimental_recommendations_name_current_code_docs_and_tests() -> None
             if recommendation_id == "REC-011"
             else ()
         )
+        participation_implementation = (
+            (
+                "gepa_mindfulness/factuality_observability/participation_records.py",
+                "gepa_mindfulness/factuality_observability/specialist_participation.py",
+            )
+            if recommendation_id == "REC-012"
+            else ()
+        )
+        participation_tests = (
+            ("tests/test_specialist_participation.py",) if recommendation_id == "REC-012" else ()
+        )
         assert (
             recommendation.implementation_refs
-            == expected_implementation + relation_implementation + hypothesis_implementation
+            == expected_implementation
+            + relation_implementation
+            + hypothesis_implementation
+            + participation_implementation
         )
-        assert recommendation.acceptance_tests == expected_tests + relation_tests + hypothesis_tests
+        assert (
+            recommendation.acceptance_tests
+            == expected_tests + relation_tests + hypothesis_tests + participation_tests
+        )
 
 
 def test_overlay_records_are_frozen_and_resource_is_packaged() -> None:

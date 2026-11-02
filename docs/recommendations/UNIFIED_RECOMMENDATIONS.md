@@ -204,9 +204,14 @@ PR-17 adds [semantic inquiry proposals](../semantic_exploration.md) using the ex
 
 #### REC-012 — Small adaptive multi-agent topology codebook.
 
-- Repository evidence: [`experimental_overlays.py`](../../evaluation/experimental_overlays.py), [`experimental_records.py`](../../evaluation/experimental_records.py), [`experimental_v5_overlays.md`](../experimental_v5_overlays.md).
-- Acceptance checks: [`test_experimental_overlay_registry.py`](../../tests/test_experimental_overlay_registry.py), [`test_experimental_overlay_flags.py`](../../tests/test_experimental_overlay_flags.py), [`test_experimental_overlay_records.py`](../../tests/test_experimental_overlay_records.py).
-- Research: [`REF-MASKILLS`](RESEARCH_TRACEABILITY.md#ref-maskills).
+- Repository evidence: [`experimental_overlays.py`](../../evaluation/experimental_overlays.py), [`experimental_records.py`](../../evaluation/experimental_records.py), [`experimental_v5_overlays.md`](../experimental_v5_overlays.md), [`participation_records.py`](../../gepa_mindfulness/factuality_observability/participation_records.py), [`specialist_participation.py`](../../gepa_mindfulness/factuality_observability/specialist_participation.py), [`specialist_participation.md`](../specialist_participation.md).
+- Acceptance checks: [`test_experimental_overlay_registry.py`](../../tests/test_experimental_overlay_registry.py), [`test_experimental_overlay_flags.py`](../../tests/test_experimental_overlay_flags.py), [`test_experimental_overlay_records.py`](../../tests/test_experimental_overlay_records.py), [`test_specialist_participation.py`](../../tests/test_specialist_participation.py).
+- Research: [`REF-MASKILLS`](RESEARCH_TRACEABILITY.md#ref-maskills), [`REF-MPT`](RESEARCH_TRACEABILITY.md#ref-mpt).
+
+Optional [specialist participation](../specialist_participation.md) adds a default-off advisory
+selector alongside this experimental coordination overlay. Independent host eligibility precedes
+bidding; bids and recommendations confer no execution, reward or reviewer authority. Native MPT
+training/effectiveness remain Unsupported.
 
 #### REC-013 — Declarative global/focus/local orchestration scope.
 

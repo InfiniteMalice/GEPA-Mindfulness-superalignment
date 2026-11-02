@@ -2386,3 +2386,30 @@ Code release is planned in the primary source; no upstream method code was copie
 Primary v1 and author repository checked 2026-11-02. Exact authored-note digest/license and
 adaptation boundary are in the [matrix](RESEARCH_INTEGRATION_MATRIX.md) and
 [protocol](../knowledge_transfer.md); no code or dataset copied/imported.
+
+<a id="ref-mpt"></a>
+
+## REF-MPT — Learning Self-Orchestration in Decentralized Agent Swarms
+
+- Metadata status: `resolved`
+- Supplied title: Learning Self-Orchestration in Decentralized Agent Swarms
+- Authors: Guowei Xu, Zhenting Qi, Amani Kiruga, Himabindu Lakkaraju, Yilun Du
+- Year: 2026
+- DOI: `10.48550/arXiv.2610.22322`
+- arXiv: [`2610.22322`](https://arxiv.org/abs/2610.22322)
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-012`
+- Local repository notes: [specialist_participation.md](../specialist_participation.md), [participation_records.py](../../gepa_mindfulness/factuality_observability/participation_records.py), [specialist_participation.py](../../gepa_mindfulness/factuality_observability/specialist_participation.py).
+
+**Source demonstrates:** Participation bids determine turn allocation and backward action credit; counterfactual restored-state rollouts produce separate bidding preferences.
+
+**Repository inference:** Bounded public packets, independent host review and exact positive-bid selection provide advisory recommendations without execution, optimizer credit or authorization.
+
+**Maturity:** Experimental CPU selector and Diagnostic reports; native MPT action/bidding training, model backends and empirical participation effectiveness remain Unsupported.
+
+Primary v1 (2026-10-15), sections 2.1–2.3 and Appendix A checked 2026-11-02; arXiv
+perpetual non-exclusive distribution license. The pinned Apache-2.0 author repository's auction
+uses floor reopening and jitter, while this original advisory adaptation preserves abstention
+and exact maxima. Exact source-note digest/artifact are in the
+[matrix](RESEARCH_INTEGRATION_MATRIX.md); [protocol](../specialist_participation.md) documents
+the independent-review boundary. No upstream code/data copied, imported or executed.

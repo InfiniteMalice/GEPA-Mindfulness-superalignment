@@ -99,3 +99,8 @@ or causal-recovery claim follows from these probes.
 Optional [knowledge-transfer text proxies](knowledge_transfer.md) score saved public source,
 target and application answers with declared exposure controls and complete denominators.
 Native multimodal training and empirical transfer remain Unsupported.
+
+Optional [advisory specialist participation](specialist_participation.md) independently
+reviews candidates before requesting bids. Exact positive maxima can produce recommendations;
+no action, reward or promotion is authorized. Native MPT training and empirical quality remain
+Unsupported. The interface is Experimental and disabled by default.
