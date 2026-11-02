@@ -136,6 +136,9 @@ jobs:
           assert select_specialist(None, current_state_digest=None, evaluator=None,
                                    reviewer_principal_id=None, review=None,
                                    propose_bid=None) is None
+          from evaluation.family_search import prepare_family_search, summarize_family_search
+          assert prepare_family_search(None, None) is None
+          assert summarize_family_search(None, None, None) is None
           assert "numpy" not in sys.modules
           print(mindful_trace_gepa.__name__)
           PY

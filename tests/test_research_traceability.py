@@ -372,6 +372,11 @@ EXPECTED_REFERENCES = (
     ("REF-INTRINSIC-DYNAMICS", "2610.21612", "Learning Intrinsic Dynamics in Latent World Models"),
     ("REF-KTP", "2610.21459", "Can Visual Generation Expand What Unified Multimodal Models Know?"),
     ("REF-MPT", "2610.22322", "Learning Self-Orchestration in Decentralized Agent Swarms"),
+    (
+        "REF-MULTI-FAMILY-DISCOVERY",
+        "2610.22367",
+        "Discovering state-of-the-art quantum circuits with large language models",
+    ),
 )
 
 EXPECTED_RECOMMENDATION_LINKS = {
@@ -484,6 +489,7 @@ EXPECTED_RECOMMENDATION_LINKS = {
     "REF-INTRINSIC-DYNAMICS": ("REC-010",),
     "REF-KTP": ("REC-019",),
     "REF-MPT": ("REC-012",),
+    "REF-MULTI-FAMILY-DISCOVERY": ("REC-010",),
 }
 
 PUBLIC_REGISTRY_LOADERS = (

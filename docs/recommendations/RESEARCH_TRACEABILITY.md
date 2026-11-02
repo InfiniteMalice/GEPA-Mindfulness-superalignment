@@ -2413,3 +2413,30 @@ uses floor reopening and jitter, while this original advisory adaptation preserv
 and exact maxima. Exact source-note digest/artifact are in the
 [matrix](RESEARCH_INTEGRATION_MATRIX.md); [protocol](../specialist_participation.md) documents
 the independent-review boundary. No upstream code/data copied, imported or executed.
+
+<a id="ref-multi-family-discovery"></a>
+
+## REF-MULTI-FAMILY-DISCOVERY — Discovering state-of-the-art quantum circuits with large language models
+
+- Metadata status: `resolved`
+- Supplied title: Discovering state-of-the-art quantum circuits with large language models
+- Authors: Andi Gu, Alek H. Kemeny, Susanne F. Yelin, Mikhail D. Lukin
+- Year: 2026
+- DOI: `10.48550/arXiv.2610.22367`
+- arXiv: [`2610.22367`](https://arxiv.org/abs/2610.22367)
+- Venue/status: Not supplied by official arXiv metadata.
+- Recommendations influenced: `REC-010`
+- Local repository notes: [family_search.md](../family_search.md), [family_search_records.py](../../evaluation/family_search_records.py), [family_search.py](../../evaluation/family_search.py).
+
+**Source demonstrates:** Separate structural candidate families retain ancestry and failed attempts, use independent evaluator feedback and periodically share promising programs.
+
+**Repository inference:** Bounded family plans and journal diagnostics reuse existing candidate, exposure and independent-audit contracts without generation, outcome scoring or promotion.
+
+**Maturity:** Experimental CPU preparation and Diagnostic reports; live search orchestration and comparative model effectiveness remain Unsupported.
+
+Primary v1 (2026-10-15), framework/Figure 1 and methods checked 2026-11-02; CC BY-NC-SA 4.0
+paper. Author-linked `andigu/uncompute` pinned `64b5a13aa249f1360846657392e6c66817b26d0f` has
+Apache-2.0 code licensing. Exact checked artifacts and authored-note digest are retained in
+the [matrix](RESEARCH_INTEGRATION_MATRIX.md). The [protocol](../family_search.md) separates
+the methodological adaptation from circuit correctness, failure budgets, scoring and archive
+geometry. No upstream code/data was copied, imported or executed.

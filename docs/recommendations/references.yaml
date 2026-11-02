@@ -3722,3 +3722,30 @@ references:
     - docs/specialist_participation.md
     - gepa_mindfulness/factuality_observability/participation_records.py
     - gepa_mindfulness/factuality_observability/specialist_participation.py
+
+  - reference_id: REF-MULTI-FAMILY-DISCOVERY
+    metadata_status: resolved
+    supplied_title: Discovering state-of-the-art quantum circuits with large language models
+    title: Discovering state-of-the-art quantum circuits with large language models
+    authors:
+    - Andi Gu
+    - Alek H. Kemeny
+    - Susanne F. Yelin
+    - Mikhail D. Lukin
+    year: 2026
+    arxiv_id: '2610.22367'
+    doi: 10.48550/arXiv.2610.22367
+    venue_status: null
+    canonical_url: https://arxiv.org/abs/2610.22367
+    recommendation_ids:
+    - REC-010
+    source_demonstrates: Separate structural candidate families retain ancestry and failed attempts,
+      use independent evaluator feedback and periodically share promising programs.
+    repository_inference: Bounded family plans and journal diagnostics reuse existing candidate,
+      exposure and independent-audit contracts without generation, outcome scoring or promotion.
+    maturity: Experimental CPU preparation and Diagnostic reports; live search orchestration and
+      comparative model effectiveness remain Unsupported.
+    local_repo_notes:
+    - docs/family_search.md
+    - evaluation/family_search_records.py
+    - evaluation/family_search.py
