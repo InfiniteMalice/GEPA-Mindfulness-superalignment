@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, fields, replace
 from math import fsum
+from types import MappingProxyType
+from typing import cast
 
 from evaluation.causal_records import canonical_json
+from gepa_mindfulness.core.evidence import EvidenceReference
 from gepa_mindfulness.core.reward_provenance import RewardProvenance, VerificationRoute
 
 from .causal_reward import _accepted, _snapshot_integrity
@@ -146,6 +149,9 @@ class ResearchRewardDecision:
     _trajectory_json: str
     _target_digest: str
     _authorized: bool
+    _optimizer_total: float
+    _metric_values: Mapping[str, float]
+    _observable_references: tuple[EvidenceReference, ...]
 
     def __init__(self) -> None:
         raise TypeError("live decisions are produced only by ResearchRewardProvider.score")
@@ -153,18 +159,16 @@ class ResearchRewardDecision:
     def optimizer_reward(self) -> float:
         if not self._authorized:
             raise ValueError("research optimizer access withheld")
-        return self.to_dict()["diagnostic_total"]
+        return self._optimizer_total
 
     def metrics(self) -> dict[str, float]:
         self.optimizer_reward()
-        return self.to_dict()["metrics"]
+        return dict(self._metric_values)
 
     def bind_trajectory(self, trajectory: Trajectory) -> Trajectory:
         """Bind only the exact original request, never a substituted response or source."""
         self.optimizer_reward()
-        target = RewardRequest(
-            trajectory, tuple(ref for ref in trajectory.evidence_references if ref.is_observable)
-        )
+        target = RewardRequest(trajectory, self._observable_references)
         if request_digest(target) != self._target_digest:
             raise ValueError("research reward target mismatch")
         return Trajectory.from_dict(_json_value(self._trajectory_json))
@@ -188,6 +192,14 @@ def _decision(
         ("_trajectory_json", canonical_json(scored.to_dict())),
         ("_target_digest", request_digest(target)),
         ("_authorized", authorized),
+        ("_optimizer_total", cast(float, report["diagnostic_total"])),
+        ("_metric_values", MappingProxyType(dict(cast(Mapping[str, float], report["metrics"])))),
+        (
+            "_observable_references",
+            tuple(
+                EvidenceReference.from_dict(ref.to_dict()) for ref in target.observable_references
+            ),
+        ),
     ):
         object.__setattr__(result, name, value)
     return result

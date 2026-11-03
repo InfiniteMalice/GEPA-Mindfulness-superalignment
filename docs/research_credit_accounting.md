@@ -229,7 +229,9 @@ independently eligible contributions. Unconfigured kinds, unresolved accounting,
 values, excessive adjustments and component storage bounds fail explicitly; no clipping erases a
 problem. Negative progress has its own observable references and verified evaluator provenance.
 Its sign describes verified milestone dynamics, never private thoughts or virtuous wording.
-Structured baselines retain their own references alongside the original request references;
+Binding retains the request's exact observable-reference selection, including a restricted
+subset or a different selection order; it never broadens that selection. Structured baselines
+retain their own references alongside the original request references;
 conflicting source kinds for one reference identity are rejected before review.
 
 Canonical setup uses an operator-controlled Python host; callbacks are not imported from

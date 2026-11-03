@@ -107,6 +107,9 @@ def test_live_decision_is_reviewed_and_exports_no_optimizer_authority(tmp_path):
         pickle.dumps(result)
     wire["diagnostic_total"] = 900
     assert result.optimizer_reward() == 0.5
+    metrics = result.metrics()
+    metrics["research_adjustment"] = 900
+    assert result.metrics()["research_adjustment"] == 0.25
     assert json.loads(json.dumps(result.to_dict()))["diagnostic_total"] == 0.5
 
 
@@ -555,3 +558,57 @@ def test_structured_baseline_cannot_replace_a_source_reference_kind(tmp_path):
     runtime, _, _ = provider(tmp_path, baseline=ConflictingBaseline())
     with pytest.raises(ValueError, match="conflicting"):
         runtime.score(target)
+
+
+@pytest.mark.parametrize("selection", [(0,), (2, 0)])
+def test_live_binding_preserves_the_original_observable_reference_selection(tmp_path, selection):
+    from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
+
+    original = request()
+    refs = (
+        *original.trajectory.evidence_references,
+        EvidenceReference("not-selected", EvidenceSourceKind.EXTERNAL_RECORD),
+        EvidenceReference("second-selection", EvidenceSourceKind.EXTERNAL_RECORD),
+    )
+    target = replace(
+        original,
+        trajectory=replace(original.trajectory, evidence_references=refs),
+        observable_references=tuple(refs[index] for index in selection),
+    )
+    runtime, _, _ = provider(tmp_path)
+    result = runtime.score(target)
+    bound = result.bind_trajectory(target.trajectory)
+    assert bound.reward_total == 0.5
+    assert bound.reward_component_evidence["research_credit:claim-1"] == (refs[0],)
+    assert result.to_dict()["review"]["target_request"]["observable_references"] == [
+        refs[index].to_dict() for index in selection
+    ]
+
+
+def test_unselected_observable_reference_stays_ineligible_for_credit(tmp_path):
+    from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
+    from gepa_mindfulness.core.reward_provenance import RewardProvenance, VerificationRoute
+
+    original = request()
+    unauthorized = EvidenceReference("not-authorized", EvidenceSourceKind.EXTERNAL_RECORD)
+    target = replace(
+        original,
+        trajectory=replace(
+            original.trajectory,
+            evidence_references=(*original.trajectory.evidence_references, unauthorized),
+        ),
+    )
+    claim = proposal(
+        target,
+        action_id="trajectory",
+        evidence_refs=(unauthorized,),
+        provenance=RewardProvenance(
+            "knowledge", "external", VerificationRoute.OBSERVABLE_EVIDENCE, (unauthorized,)
+        ),
+    )
+    runtime, baseline, _ = provider(
+        tmp_path, propose=lambda actual: submission(actual, claims=(claim,))
+    )
+    with pytest.raises(ValueError):
+        runtime.score(target)
+    assert baseline.calls == 0

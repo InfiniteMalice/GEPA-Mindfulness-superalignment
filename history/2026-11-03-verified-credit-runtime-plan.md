@@ -155,3 +155,14 @@ passes without importing Torch/NumPy. Wheel SHA256:
 895b3052b81329173c696d01bb714f862ff49525a030f0f25638f59e66b2f98b.
 Full final-head remote CI, full remote-tree preservation and public review threads remain
 mandatory publication/merge gates. Research effectiveness is unqualified.
+
+Public review follow-up: Codex found a valid restricted-observable-selection binding failure.
+Two subset/order cases reproduced target mismatch before preserving the live decision's original
+selected references; a separate negative case keeps unselected observable evidence ineligible.
+CodeRabbit's repeated large-audit parsing observation was valid. Live optimizer/metric access now
+uses immutable cached values, returns detached metric copies and retains the authorization gate;
+explicit report export still parses a detached diagnostic record. No timing/efficiency result is
+claimed. The complete focused suite passes 651 checks after these changes. Both public findings
+will be replied to and resolved only after the verified fix reaches the remote branch.
+
+Reviewed-fix wheel SHA256: f6be89deb4753e746191be5cc88ed16cbd5cc27bdd0560a2ffcc2535d20dd42a. Six runtime files and the packaged guide/matrix match current source.
