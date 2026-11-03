@@ -37,8 +37,10 @@ seven data roles, checks immutable recipes and independent reviews, and writes a
 TRAIN artifact only after fresh host admission. Paper-policy reproduction, autonomous
 retraining and empirical effectiveness remain unqualified.
 PR 8 adds [structured decision routing and native-depth diagnostics](decision_routing.md),
-reusing the existing guard and calibration metrics. Live Jev/LEV services, native loop
-models and empirically qualified calibration remain unsupported.
+reusing the existing guard and calibration metrics. An opt-in bounded decision/generative
+review workflow now invokes matching host handlers only after existing exact-scope one-use
+runtime authorization. Bundled model services, native LEV backbones and empirically
+qualified calibration remain unsupported.
 PR 9 adds [advisory workflow selection and private paired attribution](improvement_workflows.md),
 reusing existing intake, classifier, human routing and admission. Live isolated execution, learned
 meta-policy qualification and empirical effectiveness remain unsupported. PR 10 adds [study preparation and private capture/audit integration](research_ablation_suite.md),

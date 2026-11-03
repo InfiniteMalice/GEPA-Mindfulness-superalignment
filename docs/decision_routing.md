@@ -1,8 +1,9 @@
 # Structured decisions and native-depth research
 
 **Maturity: Experimental structured-routing adapter; Diagnostic recorded-depth analysis.**
-Live Jev/LEV services, native loop models, trained stoppers and empirically qualified
-calibration remain **Unsupported**. This integration installs no models, clients or new
+An opt-in bounded decision/review workflow now dispatches actual configured host handlers
+under existing one-use runtime authority. Bundled Jev/LEV services, native loop models, trained
+stoppers and empirically qualified calibration remain **Unsupported**. This integration installs no models, clients or new
 dependencies. It executes only explicitly configured host callbacks and grants no runtime,
 training, verifier or promotion authority.
 
@@ -139,3 +140,64 @@ CPU checks: `python -m pytest -q tests/test_decision_routing.py tests/test_decis
 The [disabled example](https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/blob/1d6b29a8092573baed9e125c988737af06d273e7/configs/decision_routing.example.json) leaves operator thresholds,
 calibration bins and external backend configuration unspecified. No external API spend or model
 training has been run for this integration.
+
+
+## Live decision, corrective review and dispatch
+
+[`run_decision_workflow`](../gepa_mindfulness/factuality_observability/decision_workflow.py)
+adds a working default-off host path around the interfaces above. Supply an enabled
+`DecisionWorkflowConfig`, enabled existing `RoutingPolicy`, public context, bounded decision
+backend, explicit confidence threshold, trusted source authentication, clock and a mapping
+from existing `RecommendedAction` values to host handlers. No new action taxonomy, verifier,
+reward source or authority registry is introduced. Decisions and exports remain DEVELOPMENT.
+
+The workflow freezes the evidence guard/public packet, reserves retained-result capacity and
+requires exact-True host authentication before calling the model. A confident valid routine
+decision goes directly to its matching handler. An uncertain or failed readout can invoke one
+separately named `kind="generative"` reviewer at an explicit review threshold. The reviewer
+receives the original public artifact plus the first decision's public readout/error/guard
+feedback. Its output goes through the same evidence guard. It cannot waive required external
+verification, and agreement is not correctness. If feedback cannot fit the public-context
+limit, the reviewer is skipped and the original conservative guard route is retained. A failed
+review similarly keeps the guard's escalation. At most two model calls execute; no automatic
+clarification/review loop or claim of task completion is introduced.
+
+The host `authorize(packet)` callback must return an existing
+`(ActionRecord, AuthorizationDecision, AuthorityGrantRegistry)` tuple. It may use only the
+already configured runtime owner's enrollment/issuance functions. The action's class must
+match `packet["route"]`, and its scope must equal `packet["action_scope"]`. That digest binds
+the complete actual decision and review audit, public source, workflow and chosen route;
+changing a capture, including latency, requires a fresh grant. Before the selected handler
+runs, `consume_authorization` rechecks current scope, registry, policy/capability, expiry,
+independence and one-use state with the trusted clock. A model readout, exported audit,
+callback return alone or serialized decision cannot bypass that existing owner. Optional
+author/executor identities are forwarded for existing verifier-independence enforcement.
+The authorization record and committed action remain in the bounded audit. Missing handlers
+return `handler_unavailable` before requesting a grant. Mutated packets, mismatched actions,
+expired, forged or replayed decisions do not invoke a handler.
+
+```python
+result = run_decision_workflow(
+    routing_request, config=enabled_workflow, policy=enabled_existing_policy,
+    public=public_context, backend=bounded_backend, confidence_threshold=chosen_threshold,
+    review_backend=optional_generative_reviewer,
+    review_confidence_threshold=chosen_review_threshold,
+    authenticate=host_source_authentication, authorize=existing_owner_authorization,
+    handlers=host_handlers, clock=trusted_clock,
+)
+```
+
+Installed callbacks/handlers are trusted synchronous host integrations. The host enforces
+actual spending/timeouts, source relevance, configured reviewer identity and exact committed
+action execution. It must log actual Predict–Execute–Observe consequences and independently
+verify outcomes afterward. An arbitrary handler return is not verified success, optimizer
+credit, action approval for another scope, or model promotion. This workflow installs no
+external service or model and does not sandbox Python or issue its own grants.
+
+Run `python -m pytest -q tests/test_decision_workflow.py tests/test_decision_routing.py
+ tests/test_epistemic_routing.py tests/test_runtime_authority.py` (on one shell line).
+The CPU fixtures establish software dispatch and authority boundaries. Research runs are
+omitted at operator request; the matched-error/escalation/cost protocol above explains why
+and how later qualification would measure value. The LEV backend abstraction/diagnostics
+remain usable with independently supplied compatible backbones; repeated conventional
+model calls are not a faithful LEV implementation and no speed/accuracy gain is claimed.
