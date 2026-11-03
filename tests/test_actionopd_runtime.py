@@ -138,6 +138,27 @@ def test_source_review_denial_precedes_teacher_access(tmp_path):
     assert queries == []
 
 
+def test_policy_rotation_preserves_the_same_policy_memory_limit(tmp_path):
+    provider, queries, _ = runtime(tmp_path, config=settings(max_states=1))
+    source = request()
+    provider.score(source)
+    next_state = replace(
+        source,
+        trajectory=replace(source.trajectory, prompt="other", trajectory_id="different-state"),
+    )
+    with pytest.raises(ValueError, match="proposer failed"):
+        provider.score(next_state)
+    assert len(queries) == 2
+    next_policy = replace(
+        next_state,
+        trajectory=replace(
+            next_state.trajectory, policy_version="student-v2", trajectory_id="next-policy-state"
+        ),
+    )
+    provider.score(next_policy)
+    assert len(queries) == 4
+
+
 @pytest.mark.parametrize("mutation", ("identity", "state", "sampling", "duplicate"))
 def test_teacher_generation_bindings_fail_closed(tmp_path, mutation):
     config = settings()
@@ -319,7 +340,12 @@ def test_native_config_is_hashed_and_default_hash_preserved():
 
 
 @pytest.mark.parametrize("with_sst", (False, True))
-def test_canonical_native_actionopd_updates_real_weights_and_resumes(tmp_path, with_sst):
+@pytest.mark.parametrize("initial_steps", (1, 2))
+def test_canonical_native_actionopd_updates_real_weights_and_resumes(
+    tmp_path,
+    with_sst,
+    initial_steps,
+):
     import torch
     from test_rl_engine_cpu import TinyLocalCausalLM, TinyLocalTokenizer, _config
 
@@ -355,7 +381,7 @@ def test_canonical_native_actionopd_updates_real_weights_and_resumes(tmp_path, w
 
             return (RolloutRequest(record["prompt"], case_id=record["record_id"], metadata=record),)
 
-    method = settings()
+    method = settings(max_states=1)
     credit_policy = policy(
         coefficients=(("verified_decision", method.credit_weight),),
         dataset_digest=hashlib.sha256(source_path.read_bytes()).hexdigest(),
@@ -367,6 +393,10 @@ def test_canonical_native_actionopd_updates_real_weights_and_resumes(tmp_path, w
         algorithm=replace(config.algorithm, group_size=8),
         sst=SSTConfig(enabled=with_sst, rank_fraction=0.5),
     )
+    if initial_steps > 1:
+        config = replace(
+            config, algorithm=replace(config.algorithm, group_size=32, learning_rate=0.005)
+        )
     observations = {}
     queries = []
     backends = []
@@ -438,10 +468,10 @@ def test_canonical_native_actionopd_updates_real_weights_and_resumes(tmp_path, w
         dataset_factory=lambda _value: Dataset(),
         backend_factory=build_backend,
         reward_factory=build_provider,
-    ).train(max_steps=1)
-    assert result.global_step == 1
+    ).train(max_steps=initial_steps)
+    assert result.global_step == initial_steps
     assert result.policy_parameters_updated is True
-    assert len(queries) == 2
+    assert len(queries) == 2 * initial_steps
     rows = [
         json.loads(line)
         for line in (result.log_directory / "metrics.jsonl").read_text().splitlines()
@@ -456,6 +486,6 @@ def test_canonical_native_actionopd_updates_real_weights_and_resumes(tmp_path, w
         backend_factory=build_backend,
         reward_factory=build_provider,
     ).resume(result.checkpoint.path, max_steps=1)
-    assert resumed.global_step == 2
+    assert resumed.global_step == initial_steps + 1
     assert resumed.policy_parameters_updated is True
-    assert len(queries) == 4
+    assert len(queries) == 2 * (initial_steps + 1)

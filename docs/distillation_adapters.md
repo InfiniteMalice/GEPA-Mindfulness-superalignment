@@ -294,6 +294,11 @@ supply no match. Eq. 6 agreement is recomputed separately from independent outco
 shortcut cannot obtain credit merely because a teacher agrees. An invalid or uncertain candidate
 fails closed; appropriate observable behavioral penalties remain separate from hidden thoughts.
 
+When the student model/policy scope changes, obsolete ephemeral samples are discarded and cache
+capacity resets. Memory bounds continue to apply within the current scope; they do not cap the
+number of optimizer steps. Existing durable evidence and admission/accounting records remain
+intact. Source authorization still precedes cache rotation and subsequent sampling.
+
 New `research-credit-claim-v2` verified-decision proposals retain the exact source, typed action,
 teacher samples and independent verification, and reproduce the score. Existing claims/policies
 keep their v1 schemas; decision-enabled policies/reports use v2. Exports remain DEVELOPMENT data.

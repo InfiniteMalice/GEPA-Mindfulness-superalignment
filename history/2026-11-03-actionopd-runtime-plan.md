@@ -78,3 +78,15 @@ CUDA/AMP/distributed/LoRA execution remains unsupported with rejection boundarie
 Final remote CI supplies isolated package/Gloo coverage, and publication must
 verify all remote blobs/modes against the full base tree. Earlier credit/LoCD
 redesign is excluded; their changed ActionOPD interfaces were reviewed here.
+
+## GitHub review: cache lifetime
+
+The public cache-lifetime finding was verified: logical student policy versions
+change each optimizer step, so retained obsolete entries made memory budgets act
+as a run-length cap. Two native runs with max_states=1 failed on their second
+optimizer step before the fix, with and without SST. Cache scope now includes the
+student model/version and rotates after fresh source approval, resetting only
+ephemeral capacity. Existing evidence and ledger reservations remain unchanged.
+Both runs now train beyond that limit and resume another native update. A separate
+negative test confirms the same-policy state limit still rejects before extra
+teacher calls. All 33 ActionOPD checks pass; final-head remote checks remain required.

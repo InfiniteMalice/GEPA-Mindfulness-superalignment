@@ -200,6 +200,7 @@ class ActionOPDProposer:
         self.capture_source = capture_source
         self._cache: dict[str, tuple[TeacherActionSample, ...]] = {}
         self._cache_bytes = 0
+        self._cache_scope: tuple[str, str | None] | None = None
 
     def __call__(self, request: RewardRequest) -> ResearchRewardSubmission:
         """Sample at a student state, retain separate verification, and propose credit."""
@@ -226,6 +227,14 @@ class ActionOPDProposer:
         }
         if not _accepted(self.authorize_source, envelope):
             raise ValueError("independent ActionOPD source review withheld")
+        scope = (source.trajectory.model_identifier, source.trajectory.policy_version)
+        if self._cache_scope != scope:
+            # Old policy states cannot be reused by the current student. Keep the
+            # cache bounded by live scope, not total run length. Durable source
+            # evidence and existing admission/accounting records are untouched.
+            self._cache.clear()
+            self._cache_bytes = 0
+            self._cache_scope = scope
         if state not in self._cache:
             self._sample_state(source, state)
         teachers = self._cache[state]
