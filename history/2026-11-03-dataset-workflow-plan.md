@@ -62,3 +62,12 @@ separators inside valid JSON strings and working-directory changes after a
 relative output destination. Three positive regressions reproduced failures RED.
 JSONL now splits only on LF delimiters; the live provider retains the exact
 authorized absolute destination. Source schema/eligibility behavior is unchanged.
+
+A public availability finding was verified: an already occupied immutable target
+called host training admission again before mkdir rejected it. A strengthened
+existing regression reproduced the extra callback RED. Target existence is now
+checked before that callback; exclusive mkdir still handles later races. Partial
+write cleanup was declined: retained incomplete artifacts are explicitly part of
+the documented version/evidence recovery contract, so the workflow never silently
+deletes or reuses them. They grant no live provider and require operator cleanup
+or a new workflow ID. A fault-injection test records this boundary.
