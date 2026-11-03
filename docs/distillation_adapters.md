@@ -177,6 +177,11 @@ authorize_correction=host_correction_review, evaluate=host_protected_evaluation,
 candidate_id=new_candidate_id, artifact_root=operator_artifact_root)`. Host functions in this
 example must be configured independently; there is no default reviewer that approves everything.
 
+Generation requires a Transformers-compatible `generate` interface. Single-beam/single-sequence
+overrides disable expanded generation outputs and clear supported inherited contrastive,
+constrained, assisted and token-healing mode selectors. Original configuration and effective
+overrides are retained.
+
 The function copies model, reference, value head, optimizer and SST state and checks storage and
 optimizer ownership. It retains the original student prefix, generates exactly the declared local
 span with greedy source-policy decoding, masks the prefix, and applies the backend's real backward

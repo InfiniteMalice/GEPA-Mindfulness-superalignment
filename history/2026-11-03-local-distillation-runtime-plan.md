@@ -77,3 +77,9 @@ qualification claims. Early EOS is intentionally rejected under exact-span
 semantics. Local isolated-build/Gloo sandbox limits require remote CI, without
 weakened tests. Earlier credit functionality is a separately reviewed parent and
 is not silently reevaluated by this feature review.
+
+GitHub review additionally confirmed inherited contrastive search could override
+greedy decoding. Two real-Transformers regressions failed before clearing supported
+mode selectors in teacher and public generation; all 31 native checks now pass.
+The first remote CI run stopped at one test import-order error, now corrected.
+Final-head lint/full tests remain required; no failed check is weakened.

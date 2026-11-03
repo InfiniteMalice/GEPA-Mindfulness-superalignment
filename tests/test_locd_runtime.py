@@ -11,10 +11,9 @@ from types import SimpleNamespace
 
 import pytest
 import torch
-from torch import nn
-
 from test_model_harness_coevolution import _base, _record
 from test_rl_torch_backend import TinyTokenizer
+from torch import nn
 
 from gepa_mindfulness import (
     CandidateSystem,
@@ -395,9 +394,11 @@ def test_invalid_bundle_retains_completed_public_rollout_and_terminal_status(tmp
 
 
 @pytest.mark.parametrize("stop_after_teacher", (False, True))
+@pytest.mark.parametrize("inherited_mode", ("beam", "contrastive"))
 def test_real_transformers_inherited_beams_cannot_expand_generation_budget(
     tmp_path: Path,
     stop_after_teacher: bool,
+    inherited_mode: str,
 ):
     from transformers import GPT2Config, GPT2LMHeadModel
 
@@ -440,6 +441,9 @@ def test_real_transformers_inherited_beams_cannot_expand_generation_budget(
         },
         evidence_references=request.trajectory.evidence_references,
     )
+    if inherited_mode == "contrastive":
+        model.generation_config.penalty_alpha = 0.6
+        model.generation_config.top_k = 4
     shapes = []
 
     def inspect_forward(_model, positional, keyword):

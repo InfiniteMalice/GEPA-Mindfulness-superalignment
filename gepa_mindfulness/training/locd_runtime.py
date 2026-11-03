@@ -318,12 +318,27 @@ def run_local_correction(
     generation_config = getattr(backend.policy_model, "generation_config", None)
     inherited_config = generation_config.to_dict() if generation_config is not None else {}
     validate_input_envelope(inherited_config)
+    generation_limits: dict[str, object] = dict(_SINGLE_SEQUENCE)
+    # Older Transformers releases expose additional generation-mode selectors.
+    # Clear only attributes supported by this model's configuration, so removed
+    # options never become unsupported forward kwargs on newer releases.
+    for name, value in (
+        ("penalty_alpha", None),
+        ("constraints", None),
+        ("force_words_ids", None),
+        ("dola_layers", None),
+        ("prompt_lookup_num_tokens", None),
+        ("assistant_early_exit", None),
+        ("token_healing", False),
+    ):
+        if generation_config is not None and hasattr(generation_config, name):
+            generation_limits[name] = value
     identity = {
         "model_id": backend.model_identifier,
         "version": source.trajectory.policy_version,
         "sampling_config": {
             "inherited_generation_config": inherited_config,
-            **_SINGLE_SEQUENCE,
+            **generation_limits,
             "do_sample": False,
             "seed": config.seed,
             "max_new_tokens": end - start,
@@ -372,7 +387,7 @@ def run_local_correction(
                 attention_mask=torch.ones_like(prefix_tensor),
                 max_new_tokens=end - start,
                 do_sample=False,
-                **_SINGLE_SEQUENCE,
+                **generation_limits,
             )
         if (
             not isinstance(generated, torch.Tensor)
@@ -476,7 +491,7 @@ def run_local_correction(
             _tokens(prompt + (0,) * count, vocab=vocab, config=config)
             remaining_calls -= 1
             bounded_request = replace(
-                public_request, sampling_parameters={**parameters, **_SINGLE_SEQUENCE}
+                public_request, sampling_parameters={**parameters, **generation_limits}
             )
             with torch.random.fork_rng(devices=[]):
                 return trial.generate((bounded_request,))[0]
