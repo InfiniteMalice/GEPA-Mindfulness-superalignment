@@ -1,9 +1,9 @@
 # KnowGPO + PRM4RL: evidence and credit-accounting protocol
 
-Maturity: **Experimental** CPU state/grouping/potential preparation. Model training, trainer
-attachment, protected behavioral comparisons and empirical improvement are **Unsupported** in
-this stage. All emitted records remain DEVELOPMENT data. Nothing here admits a dataset,
-changes reward eligibility, executes an action or grants runtime authority.
+Maturity: **Experimental** CPU state/grouping/potential preparation and opt-in isolated native
+GRPO trials. Behavioral comparisons and empirical improvement remain unqualified. Emitted
+reports remain DEVELOPMENT data. Existing independent reward, accounting and protected catalog
+owners retain authority; this module cannot deploy a model or execute an action.
 
 ## Sources and adaptations
 
@@ -34,8 +34,9 @@ contradicted; it is not forced into a monotonic OR state. Gains count first acqu
 episode; reacquisition and belief correction are separate diagnostics. Groups retain prior
 contradiction and ever-supported history as well as current support. Milestones are discrete,
 dependency-closed and equally weighted. There is no LLM-generated executable progress function,
-robot state augmentation, success bonus, episode-outcome mixing, PPO update or token-level
-advantage broadcast. Published results and hyperparameters are not transferred to Mindfulness.
+robot state augmentation, success bonus, full episode-outcome mixing or PPO update. The optional
+native trial below broadcasts independently eligible group advantages across each action's
+response tokens. Published results and hyperparameters are not transferred to Mindfulness.
 
 ## Existing contracts and explicit configuration
 
@@ -188,3 +189,70 @@ Run deterministic CPU contracts with `pytest -q tests/test_knowledge_progress.py
 credit-ledger, evidence-state, eligibility, documentation and canonical-case regressions. Build
 the wheel and check the guide, matrix and both method notes through `importlib.resources` outside
 the checkout. Large-model training and external spending require separately configured authority.
+
+## Isolated native CPU training
+
+`training.knowledge_progress_runtime.run_knowledge_progress_trial(backend, steps,
+store, correction, context=..., conditions=..., config=..., algorithm=...,
+pipeline=..., ledger=..., credit_policy=..., authorize_evidence=...,
+authenticate_claims=..., authorize_optimizer_use=..., authorize_accounting=...,
+account_event=..., evaluate=..., candidate_id=..., artifact_root=Path(...))`
+connects these contracts to actual native GRPO forward/backward/optimizer steps.
+It defaults off. Enable a closed `KnowledgeTrainingConfig` with explicit policy,
+review/evaluator identities, source digest, seed and `gamma` matching the learning
+context. Pass the existing native `GRPOAlgorithm` and explicit positive knowledge/
+progress coefficients in `ResearchRewardPolicy`. No constitutional weights enter
+this policy. CPU FP32 full-weight trials, native SST and checkpoint/resume are
+implemented. CUDA, AMP, LoRA and distributed variants are Unsupported here.
+
+Sources must already be TRAIN, with retained nested eligibility, immutable source
+record digest, actual current policy checksum, model identity and tokenizer-bound
+prompt/action tokens. The existing registered model-only correction anchors the
+closed source epoch. Fresh host evidence review authenticates all additional
+condition/state transitions, original capture, source-file identity, provenance,
+normalization and physical reviewer independence. The trainer cannot prove these
+facts from identifiers, support labels, a model belief or fluent explanation.
+Protected/hidden sources cannot be admitted by relabeling a report.
+
+Set `grouping="knowledge_state"` to group eligible search actions using the existing
+prior verified-state/catalog/ever-supported identity. Different model beliefs do
+not change that identity. Answer actions retain public-prompt grouping. Set
+`grouping="public_prompt"` for a conventional outcome/progress grouping control.
+Observed zero-gain actions remain group members with a fresh independently reviewed
+zero contribution; omitting them would teach only positive examples. Constant or
+singleton groups produce no model update. Aggregate logit allocation is bounded.
+
+When the same event proposes knowledge and progress, `event_preference` explicitly
+selects one available eligible component. Raw metrics and overlap records retain
+both. Existing fresh semantic review, optimizer-use review and cross-layer event
+accounting remain mandatory. Their packets include the complete condition/evidence
+report and the exact selected credit. `account_event(target, claim)` only proposes
+an existing `ResearchCreditUse`; it cannot authorize accounting. The durable ledger
+rejects reused events across trials and other reward layers. A reservation remains
+used if a later training/evaluation stage fails; it is never silently refunded.
+
+The native model objective is an original transition-level GRPO adaptation: actual
+frozen old-policy and current-policy log probabilities, existing clipped GRPO loss,
+and weighted verified task contributions with separate raw metrics. The fixed
+potential uses the declared discount and exact arithmetic from the preparation
+layer. This adapter does not implement a full discounted episode-return estimator
+or assert the potential-shaping policy-invariance theorem for group-normalized
+transition rewards. Host evidence review must authenticate the potential and
+termination assumptions for the chosen task. Termination uses zero final potential;
+truncated or unrepresentably small progress remains unscored. No success bonus,
+robotics architecture, hidden-thought reward or full paper reproduction is claimed.
+
+Training updates only a copied backend. Existing LoCD finalization writes an
+immutable checkpoint, evaluates from public prompts and requires store-issued
+held-out/protected receipts through existing catalog acceptance. Regression returns
+no backend and retains evidence. Catalog acceptance never deploys a model.
+Reports retain individual credit decisions, receipt digests, groups, advantages,
+raw gains/progress, model/evaluator versions and final protected admission.
+
+Run `python -m pytest -q tests/test_knowledge_progress_runtime.py
+ tests/test_knowledge_progress.py tests/test_research_credit_runtime.py
+ tests/test_research_credit_ledger.py` for authored CPU software checks. The
+operator excluded research runs; Study B above records why and how later work would
+compare knowledge, progress and combined objectives with matched compute/data,
+independent holdouts, uncertainty, task completion and duplicate-credit controls.
+No empirical gain follows from these functional tests.
