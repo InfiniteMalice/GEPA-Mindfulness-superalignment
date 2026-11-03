@@ -71,58 +71,70 @@ acceptance claim. Research ablations are excluded by the operator's latest instr
 Pre-flight: Task2 consumes Task1's exact SSTConfig field/hash semantics; checkpoint and
 transaction state must change together. Default-off format/hash behavior cannot change.
 
-Baseline evidence:119SST/configchecks passed; nativebackend/engine115passed after restoring
-original omitted13,226bytebackend.pt and17,661bytetraining_state.pt legacyfixtures from
-mergedmain viaGitHubplugin, verifying bothGitblobSHA and provenanceSHA256. No fixture/test
-was modified. CPUtorch2.9.1+cpu andexistingTransformersdependencies installedlocally; nomodel
-orGPUartifactwasdownloaded. Configuration RED5failuresmissingSSTsetting→GREEN158checks,
-includingoriginaldefaultconfiggoldenhashandgenuinelegacyresume. NativebackendRED15missing
-SSTconstructor cases→GREEN103applied-update/backendchecks. Canonicalengine/factoryRED4cases
-showedignoredconfig/missingSSTreport; nowwiringcanonicalfactoriesandmetrics.
+Baseline evidence: 119 SST/config checks passed; native backend/engine 115 passed after
+restoring original omitted 13,226 byte backend.pt and 17,661 byte training_state.pt legacy
+fixtures from merged main via GitHub plugin, verifying both Git blob SHA and provenance
+SHA256. No fixture/test was modified. CPU torch 2.9.1+cpu and existing Transformers
+dependencies installed locally; no model or GPU artifact was downloaded. Configuration RED
+5 failures missing SST setting → GREEN 158 checks, including original default config golden
+hash and genuine legacy resume. Native backend RED 15 missing SST constructor cases → GREEN
+103 applied-update/backend checks. Canonical engine/factory RED 4 cases showed ignored
+config/missing SST report; now wiring canonical factories and metrics.
 
-Task2 integration found the existingclosedmetric schema rejected newSSTnames. Ruling: add
-explicitSSTmetricrecordversion2, retainingv1closednames andallotherrecordversion1 behavior,
-instead ofsilentlychangingoldlogs. The newversion requiresSSTdiagnostics. Regressiontest
-failedforunsupportedv2→passedafterversionedextension. Newnativebackendandengine/factory
-functionalchecks nowpass:471checks5.82seconds, includingactualPPO/GRPOtrain/resume, original
-basisretention, rejectedsilentbackenddowngrade, legacycheckpoints andclosedmetricrecords.
-No ablation/research-effectiveness run. Documentation nowexplainsoperationalwhy/how/usage.
+Task 2 integration found the existing closed metric schema rejected new SST names. Ruling:
+add explicit SST metric record version 2, retaining v1 closed names and all other record
+version 1 behavior, instead of silently changing old logs. The new version requires SST
+diagnostics. Regression test failed for unsupported v2 → passed after versioned extension.
+New native backend and engine/factory functional checks now pass: 471 checks 5.82 seconds,
+including actual PPO/GRPO train/resume, original basis retention, rejected silent backend
+downgrade, legacy checkpoints and closed metric records. No ablation/research-effectiveness
+run. Documentation now explains operational why/how/usage.
 
-2026-11-03 resumedafterinterruptedverification. Relatedsuite530passed15.77seconds; includes
-canonicalPPO/GRPO SStrain/resume, realnativeSGD/Adam/AdamW projections, rankextremes,
-corruptstate/rollback, legacycheckpoint/hash andversionedmetrics. Legacytranslationtest
-caughtsilentlydroppedtop-levelSSTrequest:REDenabledfalse→GREENafterpreservingtheSSTsection.
-Defaultlegacytranslationandnon-SSThashremainunchanged. Python3.10AST/100columns/Blackpassed.
-Wholelocalpytest1195passed/1skipped thenstoppedattest_controlled_evolution_package.py::
-test_wheel_bundles_readable_controlled_evolution_resources. Independentisolatedbuildconfirmed
-sandboxproxyconnectionErrno1Operationnotpermittedwhilstinstallingwheel/setuptools, before
-projectbuild. No failingtestweakened;fullremoteCIremainsmandatory. Nonisolatedwheelbuildand
-46requiredresource/6runtimebytechecks passed; outsidecheckoutconfig/hash/v2metric/docsmoke
-passedwithoutTorch/NumPyimports. No research/ablation run; this isfunctionalverification.
+2026-11-03 resumed after interrupted verification. Related suite 530 passed 15.77 seconds;
+includes canonical PPO/GRPO SST train/resume, real native SGD/Adam/AdamW projections, rank
+extremes, corrupt state/rollback, legacy checkpoint/hash and versioned metrics. Legacy
+translation test caught silently dropped top-level SST request: RED enabled false → GREEN
+after preserving the SST section. Default legacy translation and non-SST hash remain
+unchanged. Python 3.10 AST/100 columns/Black passed. Whole local pytest 1195 passed/1 skipped
+then stopped at test_controlled_evolution_package.py::
+test_wheel_bundles_readable_controlled_evolution_resources. Independent isolated build
+confirmed sandbox proxy connection Errno 1 Operation not permitted whilst installing
+wheel/setuptools, before project build. No failing test weakened; full remote CI remains
+mandatory. Nonisolated wheel build and 46 required resource/6 runtime byte checks passed;
+outside checkout config/hash/v2 metric/doc smoke passed without Torch/NumPy imports. No
+research/ablation run; this is functional verification.
 
-Finalfreshwhole-branchreview: all16paths/hashesscrutinized;530checks independentlypassed
-15.34seconds. NoCritical/Importantruntimefinding. Onevalidminoroperatordocumentationfinding:
-oldrecoveryparagraphcontradictedcanonicalv3automaticSSTpersistence. Correctedparagraph to
-matchtestedruntime; standalonecallersstillownexternalcheckpointcoordination. No runtime
-changeornewprose-onlytest; existingnativecheckpointtests provide thebehavioralevidence.
-Final: Ruling: research/behavioralretention/alignment/hyperparametereffectiveness/ablations
-remainoutside reviseduserscope; claimingthese fromsoftwaretests wouldoverstateevidence.
-Final: Ruling: CUDA/AMP/distributed/LoRA remainunsupported andexplicitlyrejected; assuming
-execution supportwouldsilentlyremoveprotection onuntestedmodes.
-Final: Ruling: large-modelthroughput/memoryscalingremainunqualified; bounds areexplicit and
-no representativebenchmark wasrun. Removinglimitswithoutengineeringcouldexhaustresources.
-Final: Ruling: cross-version/degenerateSVD bitwisereproduction isnotguaranteed; savedanchors
-andruntimeversionsremainrequired. Assumingcross-platformbitparitywouldmisstatecontinuation.
-Final: Ruling: arbitraryinjectedPythonbackends/hooks/concurrentmutation remaintrustedhostcode;
-configurationequalitycannotcertifyarbitraryimplementationbehavior. Treatingit ascertification
-wouldmisplacetrust; runtimeauthorizationandhostadmissionremainindependent.
-Final: Ruling: fullisolatedpackaging/full-suite/remoteintegration aremandatoryCIgates because
-localdependencyinstallationisnetworkblocked; mergingbeforegreenwouldleaveintegrationunverified.
-Final: Ruling: unchangedgovernance/reward/evidence/canonicalcontracts receiveexistingregression
-coverage, notnewempiricalalignmentqualification. Treatingtests asalignmentproof wouldbeunsound.
+Final fresh whole-branch review: all 16 paths/hashes scrutinized; 530 checks independently
+passed 15.34 seconds. No Critical/Important runtime finding. One valid minor operator
+documentation finding: old recovery paragraph contradicted canonical v3 automatic SST
+persistence. Corrected paragraph to match tested runtime; standalone callers still own
+external checkpoint coordination. No runtime change or new prose-only test; existing native
+checkpoint tests provide the behavioral evidence.
+Final: Ruling: research/behavioral retention/alignment/hyperparameter effectiveness/ablations
+remain outside revised user scope; claiming these from software tests would overstate
+evidence.
+Final: Ruling: CUDA/AMP/distributed/LoRA remain unsupported and explicitly rejected; assuming
+execution support would silently remove protection on untested modes.
+Final: Ruling: large-model throughput/memory scaling remain unqualified; bounds are explicit
+and no representative benchmark was run. Removing limits without engineering could exhaust
+resources.
+Final: Ruling: cross-version/degenerate SVD bitwise reproduction is not guaranteed; saved
+anchors and runtime versions remain required. Assuming cross-platform bit parity would
+misstate continuation.
+Final: Ruling: arbitrary injected Python backends/hooks/concurrent mutation remain trusted
+host code; configuration equality cannot certify arbitrary implementation behavior. Treating
+it as certification would misplace trust; runtime authorization and host admission remain
+independent.
+Final: Ruling: full isolated packaging/full-suite/remote integration are mandatory CI gates
+because local dependency installation is network blocked; merging before green would leave
+integration unverified.
+Final: Ruling: unchanged governance/reward/evidence/canonical contracts receive existing
+regression coverage, not new empirical alignment qualification. Treating tests as alignment
+proof would be unsound.
 
-Documentation follow-through: updated existingREF-SST repository-inference/maturity sentences
-in references.yaml andRESEARCH_TRACEABILITY.md because they also incorrectly declaredcanonical
-integrationabsent. No sourceidentity/citation/registryedges/policy changed. These two matching
-status edits followfreshruntime review; finalremoteCodex/CodeRabbit reviewcovers the18path PR.
-All6runtimefilehashes remainthose reviewed andcoveredby530focusedtests.
+Documentation follow-through: updated existing REF-SST repository-inference/maturity
+sentences in references.yaml and RESEARCH_TRACEABILITY.md because they also incorrectly
+declared canonical integration absent. No source identity/citation/registry edges/policy
+changed. These two matching status edits follow fresh runtime review; final remote
+Codex/CodeRabbit review covers the 18 path PR. All 6 runtime file hashes remain those reviewed
+and covered by 530 focused tests.
