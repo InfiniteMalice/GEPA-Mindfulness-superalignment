@@ -23,8 +23,10 @@ repeats while preserving existing runtime authorization and useful rechecking. A
 native CPU DPO trial now trains original-state verified recoveries using isolated model copies,
 existing checkpoints and independent protected catalog admission. The GRPO-penalty comparison
 is an optional unrun research arm; behavioral effectiveness remains unqualified. PR 5 adds [knowledge/progress preparation](knowledge_progress.md): reviewed evidence transitions,
-prior-state groups and milestone potentials with separate unresolved credit proposals. No trainer
-is attached and no behavioral improvement is established. PR 6 adds [VPO set-score preparation](vector_policy.md),
+prior-state groups and milestone potentials with separate unresolved credit proposals. An opt-in
+isolated native CPU GRPO trial now applies freshly admitted event credit and verified-state
+grouping through existing reward/accounting and protected catalog owners. Behavioral improvement
+remains unestablished. PR 6 adds [VPO set-score preparation](vector_policy.md),
 with whole-rollout quarantine and independent review; full VPO training remains unsupported.
 PR 7 adds [immutable dataset research preparation](dataset_research.md), reusing the existing
 manifest and review contracts. Full AutoSFT orchestration, training admission and empirical
