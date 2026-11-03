@@ -264,6 +264,13 @@ def run_loop_preferences(
         raise ValueError("preference pair budget exceeded")
     report.update(mining=mined, pair_count=len(pairs), status="training_review")
     validate_input_envelope(report)
+    if pairs and not any(pair["rejected_action_id"] == proposal.source_action_id for pair in pairs):
+        report.update(
+            status="no_eligible_pairs",
+            pair_count=0,
+            reason="registered_repeat_has_no_eligible_pair",
+        )
+        return LocalCorrectionResult(None, None, canonical_json(report))
     if not pairs:
         report["status"] = "no_eligible_pairs"
         return LocalCorrectionResult(None, None, canonical_json(report))
