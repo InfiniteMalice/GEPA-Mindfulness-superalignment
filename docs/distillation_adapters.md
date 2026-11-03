@@ -2,10 +2,12 @@
 
 ## Status
 
-PR 2 provides **Experimental** opt-in ActionOPD comparisons, numerical reward/advantage helpers,
-localized token preparation and a separate optional PyTorch forward-KL objective. It does not
-provide a teacher service, active model training, environment execution, optimizer admission or
-model promotion. Default training, rewards, runtime authority and canonical cases are unchanged.
+The adapters provide **Experimental** opt-in ActionOPD comparisons, numerical reward/advantage
+helpers, localized token preparation and a separate optional PyTorch forward-KL objective.
+The [native LoCD trial](#native-cpu-local-correction) now performs isolated CPU context
+self-distillation and existing governed catalog validation. ActionOPD still has no native
+training attachment or teacher service. Catalog acceptance never deploys either model.
+Default training, rewards, runtime authority and canonical cases are unchanged.
 
 ## Sources and attribution
 
@@ -133,3 +135,83 @@ multiple seeds, budgets and the protected 17-case/stripe/repeat suites. Compare 
 LoCD and sequential combinations separately; reserve eligible event credit through existing host
 accounting. Do not optimize exported diagnostic reports or infer source correctness from agreement.
 No empirical transfer, SST retention result or protected-case non-regression is claimed here.
+
+## Native CPU local correction
+
+`gepa_mindfulness.training.locd_runtime.run_local_correction()` supplies an opt-in, single-region
+training trial over `TorchPolicyBackend`. Its versioned `LoCDTrainingConfig` is disabled by default.
+This is the shared-model context self-distillation subset of REF-LOCD: the unchanged source
+policy generates a local continuation with trusted evidence, then its detached contextual
+distribution teaches an isolated copy of the student through the existing masked forward KL.
+There is no ActionOPD agreement loss, scalar reward, external teacher service or automatic action.
+
+The operator supplies these existing host objects and roles:
+
+- An exact `RewardRequest` with explicit TRAIN provenance, original token IDs, registered
+  trajectory/model identity, and sampling metadata `source_record_sha256` and
+  `policy_parameter_checksum`. The latter must match the actual current backend. Nested
+  held-out/development/regression or failed V5 provenance stays ineligible. The declared source
+  digest does not authenticate capture; the host source reviewer must check the immutable record,
+  source dataset, tokenizer and actual recorded experience against the coevolution evidence.
+- A `CoevolutionStore`, registered `CorrectionProposal` changing only MODEL, and a separately
+  opened candidate epoch. Teacher evidence references must be observable records. The trusted
+  host authenticates their contents, applicable constraints and supported localization; reference
+  labels or suspicious text spans do not establish truth or mechanistic cause.
+- Fresh `authorize_source` and `authorize_correction` callbacks installed by the operator.
+  They see detached complete review envelopes including source/correction, teacher evidence and
+  actual generated local target. Only literal `True` on an unchanged envelope admits that stage.
+  Exceptions, mutation, missing roles and truthy substitutes fail closed. Configuration names the
+  review policy, reviewer, independent evaluator, source dataset digest and seed. Identity strings
+  record scope; the trusted host must enforce real separation of roles.
+- An independent `evaluate(candidate, generate)` host function. The candidate identifies the
+  actual saved artifact; `generate(RolloutRequest(...))` supplies bounded inference only, without
+  teacher context, corrected training labels or optimizer methods. The host evaluates held-out
+  tasks and the pinned protected case/stripe/repeat suite, creates the existing epoch records,
+  closes the candidate epoch, and returns a store-issued `ValidationBundle`. It must evaluate
+  actual outputs under an independently defined policy. The existing `decide_candidate_acceptance`
+  remains the only catalog acceptance owner; generated summaries and booleans cannot replace it.
+
+Call `run_local_correction(backend, request, store, correction, config=config, start=start,
+end=end, teacher_context=trusted_context, authorize_source=host_source_review,
+authorize_correction=host_correction_review, evaluate=host_protected_evaluation,
+candidate_id=new_candidate_id, artifact_root=operator_artifact_root)`. Host functions in this
+example must be configured independently; there is no default reviewer that approves everything.
+
+The function copies model, reference, value head, optimizer and SST state and checks storage and
+optimizer ownership. It retains the original student prefix, generates exactly the declared local
+span with greedy source-policy decoding, masks the prefix, and applies the backend's real backward
+and optimizer step. Teacher context is supplied only to teacher generation and target forward
+passes. Mandatory post-step generation uses the original public prompt without that context.
+Loss computation does not establish that the corrected continuation is safe or correct; the
+independent correction and protected-evaluation roles remain necessary.
+
+The original backend stays unchanged whether the candidate is accepted, rejected or raises.
+The returned `LocalCorrectionResult.backend` is the isolated backend only after catalog acceptance;
+its decision still has `execute_candidate=False`. Rejected candidates retain their checkpoint and
+the existing source-epoch rollback reference. An unchanged policy (including an SST freeze) returns
+`no_model_change`, no admitted candidate, and no improvement claim. No automatic model promotion,
+deployment, protected manifest rewrite or reward eligibility change occurs.
+
+Each changed trial writes the actual native checkpoint and a DEVELOPMENT `trial.json` under a
+new directory named by the candidate ID's SHA-256. Existing directories are never overwritten.
+The registered artifact digest binds checkpoint bytes. Native checkpoint loading retains optimizer
+and optional SST reference state; this is not a resumable multi-example curriculum manager.
+Audit JSON cannot recreate reviewer authority or replace store receipts. Teacher evidence/context
+is retained in operator-controlled trial artifacts and must receive appropriate access controls.
+Inference call/token/logit bounds and finite FP32 parameter checks fail closed; model and artifact
+digests are rechecked before acceptance. The host must keep its evaluator and filesystem trusted.
+
+The configured parameter, token, logit and evaluation-call limits are engineering budgets, not
+published training hyperparameters. This implementation supports portable CPU full-weight FP32
+models with a known output-vocabulary head. CUDA, mixed precision, distribution, LoRA, external
+teacher APIs and complete paper reproduction remain Unsupported. The native update, checkpoint,
+SST zero/full-rank and protected rejection tests qualify software behavior; behavioral retention,
+constitutional stability and research effectiveness remain unqualified. Maturity: **Experimental**.
+
+Run `python -m pytest -q tests/test_locd_runtime.py tests/test_distillation_adapters.py
+tests/test_model_harness_coevolution.py` in the CPU RL development environment. The weight-driven
+seven-token fixture verifies an actual update, prefix masking, teacher-only hints, source isolation,
+independent receipt admission and checkpoint round-trip; it is not a research benchmark.
+The operator excluded research runs. Future qualification would use the documented Study A
+conditions and protected 17-case/stripe/repeat suites with matched data/compute, independent
+held-out evaluations and multiple seeds, measuring correction, forgetting and calibration separately.
