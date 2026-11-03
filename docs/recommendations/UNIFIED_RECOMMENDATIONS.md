@@ -123,7 +123,7 @@ PR-8 adds [skill_failure_localization.md](../skill_failure_localization.md). Add
 
 - Experimental routing: [System-One guide](../system_one_routing.md); opt-in proposals retain host authority gates.
 
-Structured decision/depth extensions: [`REF-JEV-LITEMAS`](RESEARCH_TRACEABILITY.md#ref-jev-litemas), [`REF-LEV`](RESEARCH_TRACEABILITY.md#ref-lev); see [the protocol](../decision_routing.md). The existing guard remains authoritative; live services and native execution remain Unsupported.
+Structured decision/depth extensions: [`REF-JEV-LITEMAS`](RESEARCH_TRACEABILITY.md#ref-jev-litemas), [`REF-LEV`](RESEARCH_TRACEABILITY.md#ref-lev); see [the protocol](../decision_routing.md). The existing guard remains authoritative; an opt-in bounded decision/generative review workflow now dispatches handlers through existing one-use grants. Bundled services and native LEV backbones remain Unsupported.
 
 #### REC-009 — Verified skill lifecycle.
 
@@ -141,7 +141,7 @@ PR-8 adds [skill_failure_localization.md](../skill_failure_localization.md). Add
 
 - Knowledge/progress experiment: [`REF-KNOWGPO`](RESEARCH_TRACEABILITY.md#ref-knowgpo), [`REF-PRM4RL`](RESEARCH_TRACEABILITY.md#ref-prm4rl); see the [evidence and accounting protocol](../knowledge_progress.md). Evidence review does not resolve admissibility or pay credit.
 - VPO preparation: [`REF-VPO`](RESEARCH_TRACEABILITY.md#ref-vpo); the [protocol](../vector_policy.md) quarantines unsafe whole rollouts before independent review. Set metrics remain DEVELOPMENT and grant no optimizer or runtime authority.
-- Dataset research preparation: [`REF-AUTOSFT`](RESEARCH_TRACEABILITY.md#ref-autosft); the [protocol](../dataset_research.md) preserves immutable pools and separates independent review from training-host admission. Live orchestration and retraining remain Unsupported.
+- Dataset research preparation: [`REF-AUTOSFT`](RESEARCH_TRACEABILITY.md#ref-autosft); the [protocol](../dataset_research.md) preserves immutable pools and separates independent review from training-host admission. Bounded synchronous role execution and fresh host training-data admission are implemented; paper-policy reproduction, autonomous retraining and empirical qualification remain unqualified.
 
 - Additional method source: [`REF-LOCD`](RESEARCH_TRACEABILITY.md#ref-locd); see the [experimental adapter guide](../distillation_adapters.md).
 - Retention experiment: [`REF-SST`](RESEARCH_TRACEABILITY.md#ref-sst); see the [optional SST guide](../subspace_tuning.md). Spectral protection does not establish constitutional retention.
@@ -180,7 +180,7 @@ PR18 adds [PEO improvement intake](../controlled_evolution.md#peo-improvement-in
 
 PR19 adds [private promotion requests](../controlled_evolution.md#private-promotion-and-experimental-provenance): fixed protocol commitments, per-seed budget checks, typed requests and an append-only private audit. Improver responses contain status only. [Contract tests](../../tests/test_private_promotion.py) validate the integration; the host supplies private generators, protected execution, metering and independent review.
 
-PR 9 adds [advisory improvement workflows and private model–harness attribution](../improvement_workflows.md). Existing human routing, coevolution admission, protected receipts and runtime authority remain unchanged; full RSIFlow training and live procedural execution are Unsupported. Sources: [`REF-RSIFLOW`](RESEARCH_TRACEABILITY.md#ref-rsiflow), [`REF-HARNESS-SELF-EVOLUTION`](RESEARCH_TRACEABILITY.md#ref-harness-self-evolution). Acceptance coverage: [test_improvement_workflows.py](../../tests/test_improvement_workflows.py), [test_model_harness_attribution.py](../../tests/test_model_harness_attribution.py).
+PR 9 adds [advisory improvement workflows and private model–harness attribution](../improvement_workflows.md). Existing human routing, coevolution admission, protected receipts and runtime authority remain unchanged; opt-in workflow dispatch and bounded JSON-only procedural worker trials now use that same admission path. Full learned RSIFlow training, arbitrary executable evolution and deployment remain unqualified. Sources: [`REF-RSIFLOW`](RESEARCH_TRACEABILITY.md#ref-rsiflow), [`REF-HARNESS-SELF-EVOLUTION`](RESEARCH_TRACEABILITY.md#ref-harness-self-evolution). Acceptance coverage: [test_improvement_workflows.py](../../tests/test_improvement_workflows.py), [test_model_harness_attribution.py](../../tests/test_model_harness_attribution.py).
 
 PR 10 adds [study preparation and private capture/audit integration](../research_ablation_suite.md). All six rosters retain unsupported arms; existing provenance, independent authentication, final authorization and dependency-cluster statistics remain authoritative. Acceptance coverage: [test_research_studies.py](../../tests/test_research_studies.py), [test_research_study_capture.py](../../tests/test_research_study_capture.py). No live runtime or empirical improvement is established.
 

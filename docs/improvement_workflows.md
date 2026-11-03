@@ -4,8 +4,9 @@ PR 9 adds **Experimental** advisory workflow selection and **Diagnostic** privat
 reports. Both require exact `enabled=True`; disabled calls fail before reading inputs, catalogs
 or invoking callbacks. Existing [controlled improvement](controlled_evolution.md), learning
 surfaces, coevolution, evaluation epochs and private promotion retain their authority. This
-integration does not execute proposals, launch training, modify a catalog, admit a dataset,
-issue an acceptance decision or deploy a candidate. There is no empirical improvement claim.
+advisory adapter retains those limits. A separate opt-in runtime now dispatches eligible
+host workflows and runs JSON-only procedural trials through existing catalog admission.
+It does not deploy candidates or automatically launch training. There is no empirical improvement claim.
 
 ## Workflow selection
 
@@ -156,7 +157,7 @@ and their combinations from declared checkpoints with matched data/budgets/seeds
 protected suite fixed, retain failure distributions and report model/harness interaction using
 the four conditions above. Development diagnosis/review accuracy, rejected/no-change routes,
 verified downstream improvement, regressions and actual costs stay separate. Full learned
-meta-policy training, arbitrary harness execution, live promotion/deployment and behavioral
+meta-policy training, arbitrary executable harness evolution, deployment and behavioral
 effectiveness remain **Unsupported** until independently configured and evaluated.
 
 ## Sources and adaptation boundary
@@ -181,3 +182,114 @@ Exact checked-artifact digests and retained authored notes are in the canonical
 [source matrix](recommendations/RESEARCH_INTEGRATION_MATRIX.md#source-intake-and-adaptation-boundary)
 and [traceability](recommendations/RESEARCH_TRACEABILITY.md). No upstream code or full publisher
 text is copied into the package. Software correctness evidence does not establish research gains.
+
+
+## Active dispatch and governed procedural execution
+
+[`governed_improvement_runtime.py`](../gepa_mindfulness/governed_improvement_runtime.py)
+adds two explicitly enabled host paths. `dispatch_improvement_workflow` reruns the existing
+selection/intake and independent diagnosis review, then chooses an installed model, data,
+memory, skill or harness handler. A fresh complete-packet host check must return exact True
+before that handler runs. Human-review, further-verification and no-justified-change routes
+never invoke a mutating handler. Missing handlers withhold execution. The handler receives a
+detached selection; its return is an observation, not an accepted model, dataset, reward or
+deployment grant. Use the corresponding existing feature's independent admission at each
+handoff. The dispatcher does not fine-tune the model for every failure or train a meta-policy.
+
+`run_harness_improvement` implements an actual isolated-process procedural trial. Use an
+enabled `HarnessTrialConfig`, original and candidate `HarnessProcedureConfig`, a registered
+HARNESS-only correction, supported procedural diagnosis, explicit candidate ID/artifact root,
+independent diagnosis reviewer, fresh host authentication and independent candidate evaluator.
+The source epoch must be closed, the separate candidate epoch empty/open, the model version
+unchanged and the two harness versions distinct/exactly registered. One eligible procedure
+changes; protected policy fields cannot be encoded as configuration options.
+
+| Procedure | Closed settings |
+| --- | --- |
+| Context compaction | `max_tokens`; `preserve_sources=True`; `preserve_action_history=True` |
+| Retrieval sequencing | `order`: permutation of the original eligible source-ID pool |
+| Tool selection | `preferred_tools`: permutation of the original eligible tool-ID pool |
+| Review routing | `preferred_reviewers`: permutation of the original independent reviewer-ID pool |
+| Task decomposition | Positive `max_subtasks` up to 128 |
+| Reasoning budget | Positive `max_tokens` up to 65536 |
+| Recovery | `max_retries` from 0 to 3 |
+| Non-authoritative cache | `max_entries` from 0 to 1024; `provenance_required=True` |
+| Diagnostic instrumentation | Bounded unique `extra_events`, additional to protected audit |
+
+Preference lists select no new source, tool or verifier. They are advisory configuration for
+the installed worker, and never waive existing eligibility/authorization, mandatory review or
+verification. Names are IDs, not paths or commands. Unknown parameters, verifier/acceptance
+policy edits, disabled provenance or history preservation, and replacement reviewer pools fail
+closed. This intentionally supports bounded configuration evolution; arbitrary candidate
+Python, harness source rewriting and policy changes remain outside the executable interface.
+
+The operator installs a trusted standalone worker script with an absolute path and SHA-256.
+It receives one UTF-8 JSON object on stdin, containing `harness` (the versioned procedure
+configuration), pinned `model_version`, public `task={task_id,prompt}` and `seed`. It returns one
+bounded JSON object on stdout. The worker loads the operator's configured backend/procedure
+and executes it; no external client, model checkpoint or credentials are installed here.
+Authentication must independently establish that the script/config actually implement the
+pinned backend and procedure. A model-version string or worker hash alone is not competence,
+permission or scientific provenance. Installed workers must apply existing runtime grants
+before any tool action and record actual PEO effects; stdout is not a verifier finding.
+
+Every call disables the user site (`-s`), removes the current-directory import entry,
+uses a new working directory and starts with a minimal controlled environment. PYTHONPATH,
+PYTHONHOME and credential variables are not inherited. The configured PYTHONHASHSEED is
+honored (unlike `-I`, which ignores it), making string hashes/set ordering repeatable under
+the pinned interpreter. The existing interpreter's LD_LIBRARY_PATH is retained when present
+for its dynamic libraries. Environment keys and a fingerprint are bound before host admission;
+raw values are not logged. The child rechecks the exact bounded script bytes
+before executing their immutable snapshot. POSIX CPU/file-size limits and a wall timeout bound
+the process; stdout is file-backed and size-limited, stderr is discarded, and the process group
+is killed/reaped. Duplicate/malformed/oversized JSON, nonzero exit and timeout are retained as
+failed observations. Output must fit both its raw/reencoded byte budget and the enclosing
+audit depth; invalid nested output is recorded as failed with no retained payload. Maximum
+first-output/task/decision capacity is checked before candidate registration, and each later
+call reserves remaining complete-audit capacity before launch. Complete audit/output/decision capacity is reserved before launch, and
+pending attempts count before execution. The public task is copied so later callback mutation
+cannot rewrite evidence. The evaluator's worker callable expires immediately when evaluation
+returns or raises. No catalog/store handle or private labels are passed to the process.
+
+This is process and data separation for **trusted installed worker code**, not a hostile-code
+security sandbox: the OS account still has ambient filesystem/network permissions. Configure
+an external container/OS sandbox before running arbitrary untrusted executables. The candidate
+interface here accepts only closed data and cannot choose an executable. The host enforces
+real model/tool spending, model identity, source relevance and any stronger isolation policy.
+Non-POSIX execution is Unsupported; no CUDA/distributed qualification is claimed.
+
+The admitted artifact is `harness.json` in a new candidate-ID-hash directory. Existing
+`CoevolutionStore.register_candidate` binds its exact bytes and rollback source epoch.
+`evaluate(candidate, run_public_task)` supplies the existing independently issued held-out and
+protected `ValidationBundle`. The callback retains its store/epoch access on the host; the
+worker receives only public tasks. A failed protected outcome cannot receive a passing
+validation receipt. Missing/failed worker observations withhold acceptance; changed artifact
+or worker bytes, wrong bundles or invalid receipts fail closed. Existing
+`decide_candidate_acceptance` alone decides catalog admission. The return contains a live
+configuration only when accepted, plus the existing decision. `execute_candidate=False` stays
+unchanged. No acceptance decision is consumed for deployment, and no original settings are
+mutated. Retain rejected/failed artifacts and start a new candidate epoch/version for a retry.
+
+Full trial audits are HIDDEN_EVAL, contain actual worker evidence and remain host-private.
+The v2 trial report keeps a bounded decision reference (store-issued UUID, input/decision
+hashes and acceptance/non-deployment status). The complete decision, unrestricted policy
+metadata and all record/cell digests remain durable in the existing Coevolution catalog and
+in `result.decision`; retrieve them with `store.read_decision(reference["decision_id"])`.
+The complete projected reference/report is checked before committing acceptance. Full
+catalog provenance is not duplicated into the 4 MiB observation envelope. Previously emitted
+v1 reports remain retained; neither version can restore admission or execution authority.
+They cannot be optimizer input or iterative selector feedback. Only existing bounded governed
+admission status can cross that boundary. Incomplete filesystem writes/failed evaluations may
+leave a retained pending candidate; there is no silent rollback, audit deletion or auto-retry.
+The host uses the existing durable recovery and rollback references.
+
+Software checks use `tests/test_governed_improvement_runtime.py` with the existing workflow,
+coevolution and attribution suites. Authored CPU worker fixtures demonstrate actual subprocess
+execution and authority boundaries; their declared scores are not research measurements.
+Research runs are omitted at operator request. The existing private 2×2 protocol above explains
+why/how later fixed-model, harness-only, model-only and combined trials separate attribution:
+use the same public task/seed roster, fixed independently installed model/harness versions,
+matched actual budgets and private verifier captures, then call the existing attribution report.
+Do not feed held-out measurements to the workflow selector or call a process exit an improvement.
+Learned meta-policy training, arbitrary source-code evolution, deployment and empirical gains
+remain unqualified. This is an original governed GEPA adaptation of the already cited sources.
