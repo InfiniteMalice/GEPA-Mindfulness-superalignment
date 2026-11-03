@@ -42,8 +42,10 @@ review workflow now invokes matching host handlers only after existing exact-sco
 runtime authorization. Bundled model services, native LEV backbones and empirically
 qualified calibration remain unsupported.
 PR 9 adds [advisory workflow selection and private paired attribution](improvement_workflows.md),
-reusing existing intake, classifier, human routing and admission. Live isolated execution, learned
-meta-policy qualification and empirical effectiveness remain unsupported. PR 10 adds [study preparation and private capture/audit integration](research_ablation_suite.md),
+reusing existing intake, classifier, human routing and admission. An opt-in runtime now
+dispatches independently reviewed workflows and executes bounded JSON-only procedural changes
+in separate worker processes before existing protected catalog admission. Learned meta-policy
+qualification, arbitrary code evolution, deployment and empirical effectiveness remain unqualified. PR 10 adds [study preparation and private capture/audit integration](research_ablation_suite.md),
 reusing existing manifests, attempt/exposure records and dependency-cluster statistics. No model
 training or empirical gain is established; unsupported arms stay unrun.
 PR 11a–f add independent optional software subsets: [evidence workspace](evidence_workspace.md),
@@ -224,3 +226,55 @@ Optional [family-search preparation](family_search.md) binds structural hypothes
 matched task/seed/budget rosters and scheduled donor transfers to existing candidate protocols.
 Journal diagnostics retain failed attempts and unknown costs. Independent outcome auditing and
 governed promotion retain authority; live search and comparative effectiveness remain Unsupported.
+
+
+## Operator feature activation and remaining research boundary
+
+The requested feature implementation is separate from research effectiveness. All paths below
+are opt-in **Experimental** software; passing fixture tests does not make a component Supported.
+Install only the explicit operator-owned runtimes, reviewers and grants each guide requires.
+Do not enable a feature by relabeling DEVELOPMENT reports as TRAIN or by changing protected
+policies. All foundational commitments and canonical 17 cases remain unchanged.
+
+| Feature | Callable/configuration entry | Existing downstream authority |
+| --- | --- | --- |
+| Verified reward attachment | `ResearchRewardProvider` / `ResearchRewardPolicy` | Semantic/use/event-accounting reviews and durable credit ledger |
+| ActionOPD semantic decisions | `build_actionopd_provider` / `ActionOPDConfig` | Existing native GRPO, verified credit and source/checkpoint contracts |
+| LoCD local correction | `run_local_correction` / `LoCDTrainingConfig` | Fresh source/correction checks and protected Coevolution admission |
+| SST applied-update projection | Native `RLRunConfig` SST settings | Existing optimizer/checkpoint owner; no value-preservation certificate |
+| Live DeLoop + PEO guard | `execute_guarded_action` / `LoopGuardConfig` | Independent repeat review and existing one-use runtime grants |
+| DeLoop preferences | `run_loop_preferences` / `DeLoopTrainingConfig` | Original-state pair/use review and protected model admission |
+| KnowGPO + PRM4RL | `run_knowledge_progress_trial` / `KnowledgeTrainingConfig` | Verified-state grouping, exact shaping, existing event ledger and protected admission |
+| Constitution-constrained VPO | `run_vector_policy_trial` / `VPOTrainingConfig` | Independent admissibility, whole-set quarantine, verified-set event credit and protected admission |
+| AutoSFT-inspired dataset workflow | `run_dataset_workflow` / `DatasetWorkflowConfig` | Existing immutable data/curation contracts and fresh independent host TRAIN admission |
+| Jev-style decision/review/dispatch | `run_decision_workflow` / `DecisionWorkflowConfig` | Existing evidence guard and exact-scope one-use runtime grants |
+| RSIFlow-inspired workflow dispatch | `dispatch_improvement_workflow(enabled=True)` | Existing intake/classifier/review, human routing and fresh host workflow admission |
+| Eligible harness procedure trials | `run_harness_improvement` / `HarnessTrialConfig` | Closed JSON procedure scope, fixed worker, existing epochs/receipts/catalog acceptance |
+
+Modules are linked from each method guide above. These are independent objectives and
+interfaces, not one indistinguishable loss or an alternate reward/governance stack. Model and
+harness versions stay separate; accepted configurations/models are never deployed by catalog
+acceptance alone. Original data/checkpoints and evidence remain intact. Each trial can retain
+the current baseline or withhold a candidate when evidence does not justify a change.
+
+The operator excluded research runs, so curricula, cross-method ablations, calibration/error
+qualification, retention studies and empirical comparisons remain **unrun**. Their why/how,
+source artifacts, fixed checkpoint/data/seed/budget assumptions, held-out boundaries and
+uncertainty protocols remain in the linked existing guides and six-study protocol. No API
+spending, large-model training, live deployment or behavioral gain is established here.
+
+Optional existing CPU features remain available in their documented scope: Librarian evidence
+workspaces/retrieval, TF-OPD layer-fusion arithmetic, inverse-dynamics probes, text representation
+transfer probes, independently eligible specialist participation and multi-family search
+records. Full trained specialist/latent/world-model/multimodal systems are longer-term research
+arms, as the original request permits. LEV retains its compatible native-loop backend Protocol
+and depth diagnostics; MEMORILLA retains source qualification and the external backend contract.
+Neither has a bundled qualified native backbone. They are **Unsupported** native implementations,
+not completed model reproductions. Text retrieval is not mislabeled latent memory, repeated
+conventional inference is not LEV, and text transfer tests are not multimodal evidence.
+
+A future operator can qualify those optional arms with explicitly configured compatible models,
+retained raw evidence/source recovery, independent protected tests, matched actual compute and
+existing promotion authority. Do not infer effectiveness from adding a callable, source citation,
+model-version string, unit test or process boundary. This boundary closes the revised primary
+feature scope without claiming the original empirical research program has been completed.
