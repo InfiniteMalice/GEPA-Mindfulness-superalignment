@@ -36,7 +36,7 @@ from gepa_mindfulness.governed_improvement_runtime import (
 from gepa_mindfulness.learning_surfaces import LessonKind
 
 
-def setup_trial(tmp_path, *, protected_pass=True, worker_text=None):
+def setup_trial(tmp_path, *, protected_pass=True, worker_text=None, policy_id="policy:v1"):
     store, history, proposal, held, protected = _base(
         tmp_path / "catalog", (CandidateComponent.HARNESS,)
     )
@@ -83,7 +83,7 @@ def setup_trial(tmp_path, *, protected_pass=True, worker_text=None):
             suite_id="protected:v5", source_receipt=source_protected
         )
         policy = MetricPolicy(
-            "policy:v1",
+            policy_id,
             tuple(
                 MetricSpec(
                     name,
@@ -446,3 +446,26 @@ def test_output_that_exceeds_enclosing_audit_depth_is_a_retained_failure(tmp_pat
     assert row["status"] == "failed" and row["output"] is None
     audit = next(values[5]["artifact_root"].rglob("trial.json"))
     assert json.loads(audit.read_text())["observations"][0]["status"] == "failed"
+
+
+def test_large_decision_metadata_stays_durable_without_overflowing_observation_audit(tmp_path):
+    worker = "import json; print(json.dumps({'blob':'x'*1019000}))"
+    values = setup_trial(tmp_path, worker_text=worker, policy_id="policy:" + "p" * 120000)
+    values[5]["config"] = replace(values[5]["config"], max_output_bytes=1020000)
+    evaluate = values[5]["evaluate"]
+
+    def capture_many(candidate, run):
+        rows = [run({"task_id": "large:" + str(i), "prompt": "Public evidence"}) for i in range(4)]
+        return evaluate(candidate, lambda task: rows[0])
+
+    values[5]["evaluate"] = capture_many
+    result = trial(values)
+    assert result.decision.accepted
+    audit_path = next(values[5]["artifact_root"].rglob("trial.json"))
+    audit = json.loads(audit_path.read_text())
+    assert len(canonical_json(audit).encode("utf-8")) <= 4 * 1024 * 1024
+    reference = audit["decision_reference"]
+    assert reference["decision_digest"] == result.decision.decision_digest
+    assert reference["input_digest"] == result.decision.input_digest
+    assert values[0].read_decision(reference["decision_id"]) == result.decision
+    assert "decision" not in audit

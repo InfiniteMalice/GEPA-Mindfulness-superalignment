@@ -266,7 +266,7 @@ spending, large-model training, live deployment or behavioral gain is establishe
 Optional existing CPU features remain available in their documented scope: Librarian evidence
 workspaces/retrieval, TF-OPD layer-fusion arithmetic, inverse-dynamics probes, text representation
 transfer probes, independently eligible specialist participation and multi-family search
-records. Full trained specialist/latent/world-model/multimodal systems are longer-term research
+records. Fully trained specialist/latent/world-model/multimodal systems are longer-term research
 arms, as the original request permits. LEV retains its compatible native-loop backend Protocol
 and depth diagnostics; MEMORILLA retains source qualification and the external backend contract.
 Neither has a bundled qualified native backbone. They are **Unsupported** native implementations,

@@ -11,7 +11,8 @@ Optional arms do not block stabilization. Dependency numbers refer to the operat
 plan; they are logical stages, not GitHub pull request numbers.
 
 Compute estimates are deliberately workload-relative because checkpoints, task counts, budgets
-and target hardware are not configured: **C0** = CPU record/contract checks, no model;
+and target hardware are not configured: **C0** = CPU contract/numerical/functional fixtures, including declared tiny model updates,
+with no external-model or empirical study;
 **C1** = C0 plus paired rollout/data experiments and any declared small-model training;
 **C2** = C0 plus architecture, spectral, specialist or latent-model work requiring explicit
 memory/FLOP estimates after model dimensions are known. Every row requires C0. No GPU hours,

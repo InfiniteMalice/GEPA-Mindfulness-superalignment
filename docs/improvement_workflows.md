@@ -271,6 +271,13 @@ unchanged. No acceptance decision is consumed for deployment, and no original se
 mutated. Retain rejected/failed artifacts and start a new candidate epoch/version for a retry.
 
 Full trial audits are HIDDEN_EVAL, contain actual worker evidence and remain host-private.
+The v2 trial report keeps a bounded decision reference (store-issued UUID, input/decision
+hashes and acceptance/non-deployment status). The complete decision, unrestricted policy
+metadata and all record/cell digests remain durable in the existing Coevolution catalog and
+in `result.decision`; retrieve them with `store.read_decision(reference["decision_id"])`.
+The complete projected reference/report is checked before committing acceptance. Full
+catalog provenance is not duplicated into the 4 MiB observation envelope. Previously emitted
+v1 reports remain retained; neither version can restore admission or execution authority.
 They cannot be optimizer input or iterative selector feedback. Only existing bounded governed
 admission status can cross that boundary. Incomplete filesystem writes/failed evaluations may
 leave a retained pending candidate; there is no silent rollback, audit deletion or auto-retry.

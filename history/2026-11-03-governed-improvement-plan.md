@@ -78,3 +78,18 @@ context and rejected payloads become retained failed observations. Startup uses
 PYTHONHASHSEED is honored. The interpreter's dynamic-library path is preserved
 when present; environment keys/fingerprint are bound before admission, and no
 credentials are inherited. No protected policy or acceptance authority changed.
+
+A further public capacity finding was reproduced RED with four ~1.02 MB worker
+outputs and a valid 120 KB metric policy ID: the existing catalog committed
+acceptance before duplicated full decision metadata overflowed the observation
+audit. The v2 audit now carries only fixed-size store-issued UUID/hash/status
+provenance; the full decision remains in the existing durable catalog and typed
+result. The exact complete projected reference/report is checked before calling
+existing acceptance. The positive regression verifies a persisted bounded audit
+and retrieves the identical complete decision through the public catalog API.
+No catalog schema, acceptance policy or authority was changed; prior v1 artifacts
+remain untouched.
+
+After the full-decision capacity correction, all 104 focused checks pass. The
+review's grammatical modifier was fixed, and the compute legend now accurately
+distinguishes tiny CPU model-update fixtures from external/empirical studies.

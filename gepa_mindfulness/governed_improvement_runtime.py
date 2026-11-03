@@ -399,7 +399,7 @@ def run_harness_improvement(
         return None
     selection = _select(store, correction, estimate, triage, diagnosis, evaluator, review)
     report = {
-        "schema_version": "harness-trial-report-v1",
+        "schema_version": "harness-trial-report-v2",
         "training_eligibility": "HIDDEN_EVAL",
         "authority_granted": False,
         "optimizer_input": False,
@@ -567,6 +567,24 @@ def run_harness_improvement(
             return HarnessTrialResult(None, None, canonical_json(report))
         if type(bundle) is not ValidationBundle or bundle.candidate != candidate:
             raise ValueError("independent validation bundle must name exact candidate")
+        # Full decision metadata stays durable in the existing catalog. Its policy IDs
+        # and per-cell lists are unbounded by this observation envelope.
+        reference = {
+            "schema_version": "coevolution-decision-reference-v1",
+            "decision_id": "00000000-0000-0000-0000-000000000000",
+            "input_digest": store.validate_bundle(bundle),
+            "decision_digest": "sha256:" + "0" * 64,
+            "accepted": False,
+            "execute_candidate": False,
+        }
+        # Store-issued IDs are UUIDs; hashes have fixed wire size and False is longer.
+        validate_input_envelope(
+            report
+            | {
+                "status": "catalog_rejected",
+                "decision_reference": reference,
+            }
+        )
         decision = decide_candidate_acceptance(bundle, authority_store=store)
     except Exception:
         report["status"] = "validation_failed"
@@ -574,7 +592,13 @@ def run_harness_improvement(
         raise
     report.update(
         status="catalog_accepted" if decision.accepted else "catalog_rejected",
-        decision=decision.to_dict(),
+        decision_reference={
+            **reference,
+            "decision_id": decision.decision_id,
+            "input_digest": decision.input_digest,
+            "decision_digest": decision.decision_digest,
+            "accepted": decision.accepted,
+        },
     )
     _write_report(directory, report)
     return HarnessTrialResult(
