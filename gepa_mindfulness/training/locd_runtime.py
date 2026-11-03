@@ -1,5 +1,6 @@
 """Isolated, host-reviewed CPU context self-distillation using existing LoCD contracts."""
 
+# Standard library
 from __future__ import annotations
 
 import hashlib
@@ -9,6 +10,7 @@ from dataclasses import dataclass, fields, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+# Local
 from evaluation.causal_records import canonical_json
 from gepa_mindfulness.coevolution import (
     AcceptanceDecision,
@@ -36,6 +38,7 @@ from .seeds import validate_seed
 from .trajectory import RolloutRequest, Trajectory
 
 if TYPE_CHECKING:
+    from .algorithms import GRPOAlgorithm
     from .backends.torch_policy import TorchPolicyBackend
 
 HostReview = Callable[[dict[str, object]], bool]
@@ -451,6 +454,54 @@ def run_local_correction(
             generation_limits=generation_limits,
             vocab=vocab,
         )
+
+
+def _grpo_update(
+    backend: TorchPolicyBackend,
+    trajectories: tuple[Trajectory, ...],
+    algorithm: GRPOAlgorithm,
+    config: LoCDTrainingConfig,
+) -> tuple[TorchPolicyBackend, dict[str, object]]:
+    """Share actual isolated old/current forwards and the existing native GRPO step.
+
+    Callers validate sources and host credit, bound aggregate logits, and own the
+    RNG fork/seed before this helper. No admission or runtime authority is granted.
+    """
+    import torch
+
+    from .engine import _trajectory_batch
+
+    trial = _clone_backend(backend)
+    trial.policy_model.eval()
+    trial.reference_model.eval()
+    with torch.no_grad():
+        old = trial.evaluate(_trajectory_batch(trajectories))
+    current = tuple(
+        replace(
+            source,
+            old_log_probs=tuple(old.log_probs[index, : len(source.response_token_ids)].tolist()),
+        )
+        for index, source in enumerate(trajectories)
+    )
+    batch = _trajectory_batch(current)
+    loss = algorithm.compute_loss(batch, trial.evaluate(batch))
+    if not bool(torch.isfinite(loss.total_loss).all()):
+        raise ValueError("nonfinite native GRPO loss")
+    trial.zero_grad()
+    trial.backward(loss.total_loss)
+    if any(
+        parameter.grad is not None and not bool(torch.isfinite(parameter.grad).all())
+        for parameter in trial.policy_parameters()
+    ):
+        raise ValueError("nonfinite native GRPO gradient")
+    step = trial.optimizer_step()
+    trial.zero_grad()
+    _validate_backend(trial, config)
+    return trial, {
+        "loss": float(loss.total_loss.detach()),
+        "optimizer_step": step.step,
+        "candidate_policy_checksum": trial.policy_parameter_checksum(),
+    }
 
 
 def _generation_limits(backend: TorchPolicyBackend) -> tuple[dict[str, object], dict[str, object]]:

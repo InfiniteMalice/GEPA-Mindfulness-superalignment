@@ -35,9 +35,9 @@ from .locd_runtime import (
     HostReview,
     LocalCorrectionResult,
     LoCDTrainingConfig,
-    _clone_backend,
     _finalize_trial,
     _generation_limits,
+    _grpo_update,
     _tokens,
     _validate_backend,
 )
@@ -190,7 +190,6 @@ def run_knowledge_progress_trial(
 
     from .algorithms import GRPOAlgorithm
     from .backends import TorchTensorOps
-    from .engine import _trajectory_batch
 
     limits = config.limits()
     vocab = _validate_backend(backend, limits)
@@ -405,40 +404,12 @@ def run_knowledge_progress_trial(
     ):
         report["status"] = "no_trainable_groups"
         return LocalCorrectionResult(None, None, canonical_json(report))
-    trial = _clone_backend(backend)
     with torch.random.fork_rng(devices=[]):
         torch.random.default_generator.manual_seed(config.seed)
-        trial.policy_model.eval()
-        trial.reference_model.eval()
-        with torch.no_grad():
-            old = trial.evaluate(_trajectory_batch(tuple(trainable)))
-        trainable = [
-            replace(
-                source,
-                old_log_probs=tuple(
-                    old.log_probs[index, : len(source.response_token_ids)].tolist()
-                ),
-            )
-            for index, source in enumerate(trainable)
-        ]
-        batch = _trajectory_batch(tuple(trainable))
-        evaluation = trial.evaluate(batch)
-        loss = algorithm.compute_loss(batch, evaluation)
-        trial.zero_grad()
-        trial.backward(loss.total_loss)
-        if any(
-            parameter.grad is not None and not bool(torch.isfinite(parameter.grad).all())
-            for parameter in trial.policy_parameters()
-        ):
-            raise ValueError("nonfinite knowledge/progress gradient")
-        step = trial.optimizer_step()
-        trial.zero_grad()
-        updated = trial.policy_parameter_checksum()
-        _validate_backend(trial, limits)
+        trial, update = _grpo_update(backend, tuple(trainable), algorithm, limits)
+        report.update(update)
+        updated = update["candidate_policy_checksum"]
         report.update(
-            loss=float(loss.total_loss.detach()),
-            optimizer_step=step.step,
-            candidate_policy_checksum=updated,
             raw_knowledge_gain=fsum(row["knowledge_gain"] for row in prepared["steps"]),
             raw_progress=fsum(
                 row["shaping"] for row in prepared["steps"] if row["shaping"] is not None

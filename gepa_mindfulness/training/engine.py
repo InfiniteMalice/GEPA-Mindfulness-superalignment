@@ -1,5 +1,6 @@
 """Canonical capability-first reinforcement-learning execution engine."""
 
+# Standard library
 from __future__ import annotations
 
 import hashlib
@@ -21,6 +22,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Literal, Protocol, cast
 
+# Local
 from .adapter_publication import AdapterCandidate, AdapterManifest, LocalAdapterPublisher
 from .capability import (
     BackendCapabilities,
@@ -2981,6 +2983,7 @@ class _JSONLRunLogger:
             ACTIONOPD_METRIC_SCHEMA_VERSION,
             LOG_SCHEMA_VERSION,
             RESEARCH_METRIC_SCHEMA_VERSION,
+            VPO_METRIC_SCHEMA_VERSION,
             MetricRecord,
         )
 
@@ -3019,9 +3022,13 @@ class _JSONLRunLogger:
             global_step=global_step,
             scope="aggregate",
             schema_version=(
-                ACTIONOPD_METRIC_SCHEMA_VERSION
-                if "research_verified_decision_raw" in component_means
-                else RESEARCH_METRIC_SCHEMA_VERSION if research_rows else LOG_SCHEMA_VERSION
+                VPO_METRIC_SCHEMA_VERSION
+                if "research_verified_set_raw" in component_means
+                else (
+                    ACTIONOPD_METRIC_SCHEMA_VERSION
+                    if "research_verified_decision_raw" in component_means
+                    else RESEARCH_METRIC_SCHEMA_VERSION if research_rows else LOG_SCHEMA_VERSION
+                )
             ),
             backend=self.backend_name,
             actor_backend=self.actor_backend,
@@ -3048,12 +3055,16 @@ class _JSONLRunLogger:
                     global_step=global_step,
                     scope="response",
                     schema_version=(
-                        ACTIONOPD_METRIC_SCHEMA_VERSION
-                        if "research_verified_decision_raw" in response_metrics
+                        VPO_METRIC_SCHEMA_VERSION
+                        if "research_verified_set_raw" in response_metrics
                         else (
-                            RESEARCH_METRIC_SCHEMA_VERSION
-                            if type(reward) is ResearchRewardDecision
-                            else LOG_SCHEMA_VERSION
+                            ACTIONOPD_METRIC_SCHEMA_VERSION
+                            if "research_verified_decision_raw" in response_metrics
+                            else (
+                                RESEARCH_METRIC_SCHEMA_VERSION
+                                if type(reward) is ResearchRewardDecision
+                                else LOG_SCHEMA_VERSION
+                            )
                         )
                     ),
                     backend=self.backend_name,
