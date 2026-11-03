@@ -1368,3 +1368,26 @@ def test_sst_metrics_use_version_two_without_relaxing_version_one() -> None:
         MetricRecord.from_mapping({**payload, "metrics": {"sst_unknown": 1.0}})
     with pytest.raises(ValueError, match="finite"):
         MetricRecord.from_mapping({**payload, "metrics": {"sst_target_count": float("nan")}})
+
+
+def test_research_metrics_require_their_own_version_without_opening_old_schemas() -> None:
+    original = _metric().to_dict()
+    extended = {
+        **original,
+        "schema_version": 3,
+        "metrics": {
+            "total_reward": 0.5,
+            "research_baseline_reward": 0.25,
+            "research_adjustment": 0.25,
+            "research_knowledge_raw": 0.5,
+            "research_knowledge_weighted": 0.25,
+        },
+    }
+    assert MetricRecord.from_mapping(extended).to_dict() == extended
+    for version in (1, 2):
+        with pytest.raises(ValueError):
+            MetricRecord.from_mapping({**extended, "schema_version": version})
+    with pytest.raises(ValueError):
+        MetricRecord.from_mapping({**original, "schema_version": 3})
+    with pytest.raises(ValueError):
+        MetricRecord.from_mapping({**extended, "metrics": {"research_unknown": 1.0}})

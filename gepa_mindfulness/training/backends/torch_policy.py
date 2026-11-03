@@ -315,7 +315,7 @@ class TorchPolicyBackend:
                         value_predictions=self._float_tuple(values),
                         sampling_parameters=effective_parameters,
                         backend_name=self.backend_name,
-                        backend_version=torch.__version__,
+                        backend_version=str(torch.__version__),
                         model_identifier=self.model_identifier,
                         adapter_identifier=self.adapter_identifier,
                         policy_version=request.policy_version,

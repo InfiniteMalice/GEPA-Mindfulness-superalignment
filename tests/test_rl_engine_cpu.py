@@ -904,3 +904,245 @@ def test_resume_is_exactly_equivalent_to_uninterrupted_training(tmp_path: Path) 
         return normalized
 
     assert normalized_records(first, continuation) == normalized_records(uninterrupted)
+
+
+@pytest.mark.parametrize("algorithm", ["ppo", "grpo"])
+@pytest.mark.parametrize(
+    "approved,binding",
+    [
+        (True, "configured"),
+        (False, "configured"),
+        (True, "absent_wrapper"),
+        (True, "inactive_wrapper"),
+    ],
+)
+def test_live_research_credit_drives_native_updates_only_after_host_review(
+    tmp_path: Path, algorithm: str, approved: bool, binding: str
+) -> None:
+    from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
+    from gepa_mindfulness.core.reward_provenance import (
+        RewardProvenance,
+        TrustedEvaluatorContract,
+        VerificationRoute,
+    )
+    from gepa_mindfulness.training.causal_reward_records import request_digest
+    from gepa_mindfulness.training.research_credit import ResearchCreditClaim
+    from gepa_mindfulness.training.research_credit_ledger import (
+        ResearchCreditLedger,
+        ResearchCreditUse,
+    )
+    from gepa_mindfulness.training.research_credit_runtime import (
+        ResearchRewardPolicy,
+        ResearchRewardProvider,
+        ResearchRewardSubmission,
+    )
+    from gepa_mindfulness.training.reward_pipeline import RewardPipeline
+
+    config = _config(tmp_path, algorithm)
+    dataset_digest = hashlib.sha256(Path(config.dataset.train_path).read_bytes()).hexdigest()
+    credit_policy = ResearchRewardPolicy(
+        "cpu-host-policy",
+        "run",
+        "task",
+        "harness-v1",
+        dataset_digest,
+        coefficients=(("knowledge", 0.5),),
+        enabled=True,
+    )
+    config = replace(config, research_credit=credit_policy)
+    observations = {}
+    backends = []
+    original_checksums = []
+
+    class ObservedBackend(TorchPolicyBackend):
+        """Host observer attaches actual local fixture outcomes, not model certification."""
+
+        def generate(self, requests):
+            captured = []
+            for trajectory in super().generate(requests):
+                ref = EvidenceReference(
+                    trajectory.trajectory_id + ":external-outcome",
+                    EvidenceSourceKind.EXTERNAL_RECORD,
+                )
+                observations[ref.reference_id] = trajectory.response == "chosen"
+                captured.append(
+                    replace(
+                        trajectory,
+                        evidence_references=(ref,),
+                        sampling_parameters={
+                            **trajectory.sampling_parameters,
+                            "training_eligibility": "TRAIN",
+                        },
+                    )
+                )
+            return tuple(captured)
+
+    def build_backend(value):
+        backend = ObservedBackend(
+            policy_model=TinyLocalCausalLM(),
+            tokenizer=TinyLocalTokenizer(),
+            device="cpu",
+            learning_rate=value.algorithm.learning_rate,
+            max_new_tokens=1,
+            model_identifier=value.policy.model_name,
+        )
+        backends.append(backend)
+        original_checksums.append(backend.policy_parameter_checksum())
+        return backend
+
+    class BaselineProvider:
+        def score(self, target):
+            return 0.0
+
+    def propose(target):
+        trajectory = target.trajectory
+        ref = target.observable_references[0]
+        claim = ResearchCreditClaim(
+            claim_id=trajectory.trajectory_id,
+            method_id="host-verified-knowledge",
+            component_name="knowledge",
+            credit_kind="knowledge",
+            source_reference="REF-KNOWGPO",
+            authority_domain="host",
+            run_id="run",
+            task_id="task",
+            event_id=trajectory.trajectory_id,
+            action_id=trajectory.trajectory_id,
+            model_version=trajectory.policy_version,
+            harness_version="harness-v1",
+            producer_id=trajectory.model_identifier,
+            evaluator=TrustedEvaluatorContract("independent-fixture", "v1", "known-outcome"),
+            dataset_digest=dataset_digest,
+            state_digest="b" * 64,
+            evidence_refs=(ref,),
+            score=1.0 if observations[ref.reference_id] else 0.0,
+            admissibility="admitted",
+            provenance=RewardProvenance(
+                "knowledge",
+                "external fixture outcome",
+                VerificationRoute.OBSERVABLE_EVIDENCE,
+                (ref,),
+            ),
+            source_metadata_json=json.dumps(
+                {"training_eligibility": "TRAIN", "target_request_digest": request_digest(target)}
+            ),
+        )
+        selection = ResearchCreditUse(
+            trajectory.trajectory_id,
+            credit_policy.policy_id,
+            request_digest(target),
+            (claim.claim_id,),
+            (
+                (
+                    claim.claim_id,
+                    (
+                        ("provider", "not_counted"),
+                        ("reward_integrity", "not_counted"),
+                        ("causal_reward", "not_counted"),
+                    ),
+                ),
+            ),
+        )
+        return ResearchRewardSubmission((claim,), selection)
+
+    def authenticate(envelope):
+        for claim in envelope["audit"]["claims"]:
+            ref = claim["evidence_refs"][0]["reference_id"]
+            if claim["score"] != (1.0 if observations[ref] else 0.0):
+                return False
+        return approved
+
+    runtime = ResearchRewardProvider(
+        RewardPipeline(BaselineProvider()),
+        ledger=ResearchCreditLedger(tmp_path / "credits.sqlite", authority_domain="host"),
+        policy=credit_policy,
+        propose=propose,
+        authenticate_claims=authenticate,
+        authorize_optimizer_use=lambda envelope: True,
+        authorize_accounting=lambda envelope: True,
+    )
+    selected_provider = runtime
+    if binding != "configured":
+
+        class DelegatingProvider:
+            def score(self, target):
+                return runtime.score(target)
+
+        selected_provider = DelegatingProvider()
+        config = replace(
+            config,
+            research_credit=(
+                None if binding == "absent_wrapper" else replace(credit_policy, enabled=False)
+            ),
+        )
+    engine = RLTrainingEngine(
+        config, backend_factory=build_backend, reward_factory=lambda _: selected_provider
+    )
+    if binding != "configured":
+        with pytest.raises(ValueError, match="configured"):
+            engine.train(max_steps=1)
+        assert backends[-1].policy_parameter_checksum() == original_checksums[-1]
+        return
+    if not approved:
+        with pytest.raises(ValueError, match="withheld"):
+            engine.train(max_steps=1)
+        assert backends[-1].policy_parameter_checksum() == original_checksums[-1]
+        return
+    result = engine.train(max_steps=1)
+    assert result.global_step == 1 and result.policy_parameters_updated is True
+    assert backends[-1].policy_parameter_checksum() != original_checksums[-1]
+    assert all(t.reward_component_provenance for t in result.trajectories)
+    metrics = [
+        json.loads(line)
+        for line in (result.log_directory / "metrics.jsonl").read_text().splitlines()
+    ]
+    assert any(row["metrics"].get("research_knowledge_raw") == 1.0 for row in metrics)
+    assert any(row["schema_version"] == 3 for row in metrics)
+
+
+def test_credit_enable_requires_host_binding_before_backend_creation(tmp_path: Path) -> None:
+    from gepa_mindfulness.training.research_credit_runtime import ResearchRewardPolicy
+
+    config = _config(tmp_path, "ppo")
+    digest = hashlib.sha256(Path(config.dataset.train_path).read_bytes()).hexdigest()
+    config = replace(
+        config,
+        research_credit=ResearchRewardPolicy(
+            "policy",
+            "run",
+            "task",
+            "harness",
+            digest,
+            coefficients=(("knowledge", 0.5),),
+            enabled=True,
+        ),
+    )
+
+    def forbidden_backend(value):
+        pytest.fail("unconfigured credit feature reached model initialization")
+
+    with pytest.raises(ValueError, match="host"):
+        RLTrainingEngine(config, backend_factory=forbidden_backend).train(max_steps=1)
+
+
+def test_credit_configuration_does_not_require_reward_hooks_for_collection(tmp_path: Path) -> None:
+    from gepa_mindfulness.training.research_credit_runtime import ResearchRewardPolicy
+
+    config = _config(tmp_path, "ppo")
+    digest = hashlib.sha256(Path(config.dataset.train_path).read_bytes()).hexdigest()
+    config = replace(
+        config,
+        research_credit=ResearchRewardPolicy(
+            "policy",
+            "run",
+            "task",
+            "harness",
+            digest,
+            coefficients=(("knowledge", 0.5),),
+            enabled=True,
+        ),
+    )
+    result = _engine(config, [], []).collect()
+    assert result.trajectory_count == 1
+    assert result.parameters_updated is False
+    assert all(not t.reward_components for t in result.trajectories)

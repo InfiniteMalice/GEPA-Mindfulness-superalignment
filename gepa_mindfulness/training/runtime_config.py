@@ -11,11 +11,14 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from .policy_versions import StalenessPolicy
 from .seeds import validate_seed
 from .subspace_tuning import SSTConfig
+
+if TYPE_CHECKING:
+    from .research_credit_runtime import ResearchRewardPolicy
 
 try:
     import yaml
@@ -729,6 +732,7 @@ class RLRunConfig:
     hybrid: HybridConfig = field(default_factory=HybridConfig)
     seed: int = 42
     sst: SSTConfig = field(default_factory=SSTConfig)
+    research_credit: ResearchRewardPolicy | None = None
 
     def __post_init__(self) -> None:
         sections = {
@@ -746,6 +750,18 @@ class RLRunConfig:
                 raise TypeError(f"configuration.{name} must be a {expected_type.__name__}")
         if type(self.sst) is not SSTConfig:
             raise TypeError("configuration.sst must be an SSTConfig")
+        if self.research_credit is not None:
+            from .research_credit_runtime import ResearchRewardPolicy
+
+            if type(self.research_credit) is not ResearchRewardPolicy:
+                raise TypeError("configuration.research_credit must be a ResearchRewardPolicy")
+            if self.research_credit.enabled and (
+                self.runtime.backend != "pytorch"
+                or self.runtime.device != "cpu"
+                or self.runtime.precision != "fp32"
+                or self.runtime.distributed.strategy != "none"
+            ):
+                raise ValueError("research credit requires portable CPU FP32 training")
         if self.sst.enabled and (
             self.runtime.backend != "pytorch"
             or self.runtime.device != "cpu"
@@ -780,6 +796,7 @@ class RLRunConfig:
                 "hybrid",
                 "seed",
                 "sst",
+                "research_credit",
             },
             "configuration",
         )
@@ -795,7 +812,25 @@ class RLRunConfig:
             hybrid=HybridConfig.from_mapping(_section(payload, "hybrid")),
             seed=seed,
             sst=_sst_configuration(_section(payload, "sst")),
+            research_credit=_research_credit_configuration(payload.get("research_credit")),
         )
+
+
+def _research_credit_configuration(payload: object) -> ResearchRewardPolicy | None:
+    if payload is None:
+        return None
+    from .research_credit_runtime import ResearchRewardPolicy
+
+    values = dict(_mapping(payload, "research_credit"))
+    _reject_unknown(values, set(ResearchRewardPolicy.__dataclass_fields__), "research_credit")
+    if "coefficients" in values:
+        entries = values["coefficients"]
+        if not isinstance(entries, (list, tuple)) or any(
+            not isinstance(entry, (list, tuple)) for entry in entries
+        ):
+            raise ValueError("research coefficients must be arrays of kind/weight pairs")
+        values["coefficients"] = tuple(tuple(entry) for entry in entries)
+    return ResearchRewardPolicy(**values)
 
 
 def _sst_configuration(payload: Mapping[str, Any]) -> SSTConfig:
@@ -886,6 +921,8 @@ def _translate_legacy_config(payload: Mapping[str, Any]) -> RLRunConfig:
     }
     if "sst" in payload:
         canonical["sst"] = payload["sst"]
+    if "research_credit" in payload:
+        canonical["research_credit"] = payload["research_credit"]
     return RLRunConfig.from_mapping(canonical)
 
 

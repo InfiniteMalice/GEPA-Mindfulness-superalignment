@@ -96,3 +96,16 @@ See the [integration guide](../unified_research_integration.md) and
 ## Unified study preparation
 
 PR 10 adds the [six-study reproducibility protocol](../research_ablation_suite.md), with explicit runtime availability, common checkpoint/data/protected/budget commitments, shared seeds, private component captures and existing independently authenticated cluster statistics. This does not upgrade any method to Supported or claim unrun training/empirical results. Unsupported optional conditions remain explicit.
+
+
+## Runtime feature follow-through
+
+After the operator excluded research studies, canonical CPU SST train/resume was enabled in
+PR #820. The next prerequisite is explicit live research-credit composition: the existing reward
+pipeline and ledger now support a default-off host-reviewed CPU PPO/GRPO adapter with exact
+source/configuration binding, separate raw metrics and durable event accounting. Raw agreement,
+diagnostics and exported reports remain ineligible. This is an original infrastructure adaptation,
+not a new moral classifier or a faithful reproduction of a paper's full training method.
+Method-specific automatic grouping, teacher services and progress/VPO objective attachment still
+require their respective runtime changes; the bridge does not upgrade their maturity by itself.
+See the [live composition guide](../research_credit_accounting.md#live-host-composition-and-canonical-cpu-training).

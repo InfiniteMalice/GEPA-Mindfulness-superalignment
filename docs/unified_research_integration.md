@@ -5,8 +5,10 @@
 This guide records the dependency-ordered integration boundary for the October 2026 program.
 PR 0 delivered a **Diagnostic** documentation audit, subsequently merged as PR #801.
 PR 1's [experimental credit contracts](research_credit_accounting.md) add opt-in diagnostic
-proposals, overlap accounting and durable host-reviewed event reservations. Optimizer credit
-composition remains deferred; accounting receipts grant no runtime authority. PR 2 adds
+proposals, overlap accounting and durable host-reviewed event reservations. A separate optional
+live host adapter now composes independently eligible knowledge/progress/process contributions
+through canonical CPU training; fresh evidence/use/accounting reviews remain mandatory.
+Accounting receipts and exported diagnostics grant no runtime authority. PR 2 adds
 [experimental ActionOPD/LoCD adapters and kernels](distillation_adapters.md), without a full
 teacher service, training runner or empirical qualification. PR 3 adds a separate optional
 [CPU SST adapter and numerical probe](subspace_tuning.md). Explicit canonical CPU PPO/GRPO
@@ -111,8 +113,9 @@ nested held-out metadata, replay, mutated snapshots and issuer substitution.
 The current research-credit claim/report schemas implement the diagnostic subset of these
 requirements. They remain DEVELOPMENT data with no optimizer accessor or admission authority.
 Durable allocation reservations now require exact request binding, explicit prior-layer accounting
-and fresh host review. Live composition and protected admissibility enforcement remain with
-existing host mechanisms; these records cannot grant either. PR 0 did not introduce runtime schemas.
+and fresh host review. The opt-in live runtime uses existing host reviews and ledger accounting for composition;
+protected admissibility enforcement remains with the trusted host. These records cannot grant
+either optimizer or action authority on their own. PR 0 did not introduce runtime schemas.
 
 ## Method-specific protocol boundaries
 

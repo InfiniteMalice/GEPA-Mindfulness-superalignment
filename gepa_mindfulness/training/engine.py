@@ -38,6 +38,11 @@ from .contracts import (
 )
 from .eligibility import require_training_eligible
 from .policy_versions import PolicyVersion, StalenessDecision, evaluate_staleness
+from .research_credit_runtime import (
+    ResearchRewardDecision,
+    ResearchRewardPolicy,
+    ResearchRewardProvider,
+)
 from .runtime_config import DistributedRuntimeConfig, RLRunConfig
 from .seeds import validate_seed
 from .trajectory import PolicyEvaluation, RolloutRequest, Trajectory, TrajectoryBatch
@@ -561,6 +566,22 @@ class RLTrainingEngine:
             require_pairs=self._default_dataset and mode in {"evaluate", "train", "resume"},
             materialize=self._default_dataset,
         )
+        credit_policy = self.config.research_credit
+        if (
+            credit_policy is not None
+            and credit_policy.enabled
+            and credit_policy.dataset_digest != snapshot.sha256
+        ):
+            raise ValueError("research credit dataset digest does not match the captured source")
+        if (
+            mode != "collect"
+            and credit_policy is not None
+            and credit_policy.enabled
+            and self._default_reward
+        ):
+            raise ValueError(
+                "research credit requires an explicitly configured host reward provider"
+            )
         dataset = (
             _SnapshotDataset(snapshot)
             if self._default_dataset
@@ -617,6 +638,21 @@ class RLTrainingEngine:
             reward_provider = (
                 default_reward if self._default_reward else self._reward_provider(mode)
             )
+            if mode != "collect":
+                requested_credit = credit_policy is not None and credit_policy.enabled
+                live_credit = (
+                    type(reward_provider) is ResearchRewardProvider
+                    and reward_provider.policy.enabled
+                )
+                if requested_credit or live_credit:
+                    if (
+                        not live_credit
+                        or not requested_credit
+                        or reward_provider.policy != credit_policy
+                    ):
+                        raise ValueError(
+                            "research credit requires the matching configured host provider"
+                        )
             batch_preparer = self._batch_preparer(mode)
             checkpoint_coordinator = (
                 _LocalCheckpointCoordinator(self.config, backend, snapshot)
@@ -793,6 +829,7 @@ class RLTrainingEngine:
                 scored, rewards = self._score(
                     trajectories,
                     reward_provider,
+                    research_policy=self.config.research_credit,
                     weights=(
                         None if hybrid_state is None else tuple(item.weight for item in decisions)
                     ),
@@ -944,6 +981,7 @@ class RLTrainingEngine:
                 scored, rewards = self._score(
                     trajectories,
                     reward_provider,
+                    research_policy=self.config.research_credit,
                     weights=(
                         None if hybrid_state is None else tuple(item.weight for item in decisions)
                     ),
@@ -1107,6 +1145,7 @@ class RLTrainingEngine:
         provider: RewardProvider | None,
         *,
         weights: tuple[float, ...] | None = None,
+        research_policy: ResearchRewardPolicy | None = None,
     ) -> tuple[tuple[Trajectory, ...], tuple[object, ...]]:
         if provider is None:  # pragma: no cover - mode selection enforces a provider
             raise RuntimeError("reward provider is unavailable")
@@ -1123,6 +1162,14 @@ class RLTrainingEngine:
             )
             for trajectory in trajectories
         )
+        if any(type(result) is ResearchRewardDecision for result in results):
+            if (
+                type(research_policy) is not ResearchRewardPolicy
+                or not research_policy.enabled
+                or type(provider) is not ResearchRewardProvider
+                or provider.policy != research_policy
+            ):
+                raise ValueError("research rewards require the matching configured host provider")
         if weights is not None:
             if len(weights) != len(results):
                 raise ValueError("staleness weights must align with scored trajectories")
@@ -1741,6 +1788,8 @@ def _bind_reward(
     *,
     validate_custom: bool = True,
 ) -> Trajectory:
+    if type(result) is ResearchRewardDecision:
+        return result.bind_trajectory(trajectory)
     total = _reward_value(result)
     if not isinstance(result, RewardAssessment):
         if total < 0.0:
@@ -2160,7 +2209,10 @@ def _serialized_artifact(value: object | None) -> object | None:
 
 
 def _reward_value(result: object) -> float:
-    value = result if isinstance(result, (int, float)) else getattr(result, "total", None)
+    if type(result) is ResearchRewardDecision:
+        value = result.optimizer_reward()
+    else:
+        value = result if isinstance(result, (int, float)) else getattr(result, "total", None)
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError("reward provider must return a numeric value or object with total")
     numeric = float(value)
@@ -2849,7 +2901,7 @@ class _JSONLRunLogger:
     def metrics(self, rewards: tuple[object, ...], global_step: int) -> None:
         from datetime import datetime, timezone
 
-        from .run_logging import MetricRecord
+        from .run_logging import LOG_SCHEMA_VERSION, RESEARCH_METRIC_SCHEMA_VERSION, MetricRecord
 
         values = tuple(_reward_value(reward) for reward in rewards)
         mean = sum(values) / len(values) if values else 0.0
@@ -2868,6 +2920,16 @@ class _JSONLRunLogger:
             / max(sum(isinstance(reward, RewardAssessment) for reward in rewards), 1)
             for name in component_names
         }
+        research_rows = [
+            reward.metrics() for reward in rewards if type(reward) is ResearchRewardDecision
+        ]
+        if research_rows:
+            component_means.update(
+                {
+                    name: math.fsum(row[name] for row in research_rows) / len(rewards)
+                    for name in research_rows[0]
+                }
+            )
         self._record_counter += 1
         record = MetricRecord(
             record_id=f"metrics-{global_step}-{self._record_counter}",
@@ -2875,6 +2937,9 @@ class _JSONLRunLogger:
             timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             global_step=global_step,
             scope="aggregate",
+            schema_version=(
+                RESEARCH_METRIC_SCHEMA_VERSION if research_rows else LOG_SCHEMA_VERSION
+            ),
             backend=self.backend_name,
             actor_backend=self.actor_backend,
             learner_backend=self.learner_backend,
@@ -2890,6 +2955,8 @@ class _JSONLRunLogger:
             response_metrics = {"response_reward": _reward_value(reward)}
             if isinstance(reward, RewardAssessment):
                 response_metrics.update(reward.components)
+            if type(reward) is ResearchRewardDecision:
+                response_metrics.update(reward.metrics())
             self.sink.log_metrics(
                 MetricRecord(
                     record_id=f"response-{global_step}-{index}-{self._record_counter}",
@@ -2897,6 +2964,11 @@ class _JSONLRunLogger:
                     timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                     global_step=global_step,
                     scope="response",
+                    schema_version=(
+                        RESEARCH_METRIC_SCHEMA_VERSION
+                        if type(reward) is ResearchRewardDecision
+                        else LOG_SCHEMA_VERSION
+                    ),
                     backend=self.backend_name,
                     actor_backend=self.actor_backend,
                     learner_backend=self.learner_backend,
@@ -3045,6 +3117,8 @@ def _config_payload(config: RLRunConfig) -> bytes:
         payload.pop("hybrid", None)
     if not config.sst.enabled:
         payload.pop("sst", None)
+    if config.research_credit is None or not config.research_credit.enabled:
+        payload.pop("research_credit", None)
     dataset = cast(dict[str, object], payload["dataset"])
     payload["dataset"] = {"format": dataset["format"]}
     algorithm = cast(dict[str, object], payload["algorithm"])
