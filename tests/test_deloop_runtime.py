@@ -62,7 +62,9 @@ class ActionTokenizer:
         return " ".join(self.words[token] for token in tokens if token not in (0, 1))
 
 
-def setup_preferences(tmp_path: Path, *, sst=SSTConfig(), regress=False, two_pairs=False):
+def setup_preferences(
+    tmp_path: Path, *, sst=SSTConfig(), regress=False, two_pairs=False, episode_id="action-1"
+):
     store, history, original, held, protected = _base(tmp_path / "authority")
     events, steps = fixture()
     if two_pairs:
@@ -125,7 +127,7 @@ def setup_preferences(tmp_path: Path, *, sst=SSTConfig(), regress=False, two_pai
     refs = {ref.reference_id: ref for step in steps for ref in step.request.observable_references}
     typed = tuple((event.event_id, refs[ref]) for event in events for ref in event.evidence_refs)
     binding = store.register_trajectory(
-        trajectory_id="action-1",
+        trajectory_id=episode_id,
         source_epoch_id="epoch:source",
         events=events,
         event_evidence_refs=typed,
@@ -139,7 +141,7 @@ def setup_preferences(tmp_path: Path, *, sst=SSTConfig(), regress=False, two_pai
     )
     correction = replace(
         original,
-        source_trajectory_id="action-1",
+        source_trajectory_id=episode_id,
         source_action_id="action-1",
         failure_graph=replace(graph, nodes=(node,)),
         source_evidence_refs=binding.source_evidence_refs,
@@ -440,3 +442,14 @@ def test_registered_correction_repeat_must_have_an_eligible_training_pair(tmp_pa
     assert not training_reviews
     assert not evaluations
     assert not (tmp_path / "trials").exists()
+
+
+def test_registered_episode_identity_is_distinct_from_action_identity(tmp_path):
+    backend, events, steps, store, correction, args, _ = setup_preferences(
+        tmp_path, episode_id="episode:loop"
+    )
+    assert store.correction_source_events(correction)
+    result = run_loop_preferences(backend, events, steps, store, correction, **args)
+    assert result.backend is not None
+    assert result.to_dict()["correction"]["source_trajectory_id"] == "episode:loop"
+    assert result.to_dict()["mining"]["pairs"][0]["rejected_action_id"] == "action-1"
