@@ -4,8 +4,9 @@ Maturity: **Experimental**. This stage implements a default-off PEO repetition a
 independently reviewed recovery-pair preparation, and a separate optional DPO numerical kernel.
 A separately enabled [live repeat guard](#live-repeat-guard) now suppresses independently
 confirmed unproductive actions and delegates eligible actions through the existing runtime
-authorization owner. Native DPO/GRPO training attachment and dataset admission remain absent.
-Behavioral improvement is unestablished.
+authorization owner. An opt-in isolated native CPU DPO trial now uses original admitted
+sources and existing protected catalog admission. A GRPO-penalty comparison remains an
+unrun research arm. Behavioral improvement is unestablished.
 
 ## Source and adaptation boundary
 
@@ -222,8 +223,8 @@ preserving useful evidence. An executor exception after consumption requires the
 authorization/recovery process. The wrapper cannot sandbox deliberately untrusted host code.
 
 `GuardedExecution.invoked` records callback invocation, not task success or verified execution.
-Actual result verification remains separate. Native preference training and observable GRPO
-penalty attachment are subsequent integrations; this guard does not award rewards.
+Actual result verification remains separate. Native preference training is available below;
+the GRPO-penalty comparison remains unrun at operator request. This guard awards no rewards.
 
 Run `python -m pytest -q tests/test_live_loop_guard.py tests/test_deloop.py
 tests/test_runtime_authority.py tests/test_peo_continuity.py`. Deterministic fixtures check actual
@@ -232,3 +233,64 @@ clarification recovery diagnostics, unknown/forged review data, prediction bindi
 review-capacity reservation. Maturity: **Experimental**. The operator excluded research runs;
 the Study C protocol above explains how later qualification would measure task completion and
 useful verification alongside loop rate, rather than claiming gains from these software tests.
+
+## Native CPU preference trial
+
+`training.deloop_runtime.run_loop_preferences(backend, events, steps, store,
+correction, task_id=..., config=..., review=..., authorize_source=...,
+authorize_training=..., evaluate=..., candidate_id=..., artifact_root=Path(...))`
+performs an isolated native update. `DeLoopTrainingConfig` defaults off; explicitly
+set `enabled=True`, policy/reviewer/evaluator identities, immutable source
+`dataset_digest`, seed and positive finite `beta`. Beta is operator supplied,
+without an assumed paper default. Versioned settings restore configuration only.
+CPU full-weight FP32 is implemented; LoRA, AMP, CUDA and distributed DPO trials
+are Unsupported here. Optional native SST and checkpoint/resume are retained.
+
+Supply original admitted TRAIN `LoopStep` requests and complete action-bound PEO
+events registered in the existing closed-epoch `CoevolutionStore`. The correction
+must identify an observed repeat and change only the model. All requests retain
+nested eligibility, source-file digest, current policy checksum, model identity
+and bound prompt/response tokens. Hidden/protected provenance is rejected
+recursively. Never strip failed V5 records or relabel diagnostic mining output.
+A fresh host source review authenticates capture, evidence, state equivalence,
+independence and permission before pair review or model calls.
+
+The registered correction's repeat must have an eligible mined training pair.
+The store's episode/trajectory ID is distinct from constituent action IDs; source
+membership uses the correction's action ID, while the complete registered episode
+events must still exactly match the supplied PEO history.
+If its recovery is rejected, other accepted pairs cannot substitute for it; the
+trial returns no model before training-use review. A trial may include additional
+independently reviewed repeats from the same registered episode as auxiliary
+comparisons. This does not register or claim correction of separate localized
+failures for those auxiliary repeats.
+
+The existing miner independently verifies the repeat and first later structural
+recovery, including original-state applicability and supported authorized outcomes.
+Unsupported answers, premature termination and skipped verification cannot qualify
+merely by avoiding repetition. A separate training-use review authorizes the exact
+raw-source comparison. The installed host roles must be independent in fact;
+identifiers and booleans do not authenticate evidence. Complete nested candidate/
+review capacity and the review-attempt budget are checked before callbacks.
+
+Both actions are scored at the rejected action's original preceding prompt. The
+later recovery prompt remains audit data. Native policy/frozen-reference forwards
+produce action-sequence log-probability sums for the separate `deloop_dpo_loss`.
+Per-pair backward calls average gradients before one optimizer step, freeing each
+pair's logit graph. No process bonus or hidden-thought penalty is created.
+
+The source model, reference and caller RNG remain unchanged. Existing LoCD trial
+finalization supplies an immutable checkpoint, bounded public-only rollout,
+host-held-out/protected store-issued receipts and `decide_candidate_acceptance`.
+Protected regression returns no candidate backend and retains evidence. Catalog
+acceptance is not deployment. Results remain DEVELOPMENT audit reports. No eligible
+pairs or no model change produces no admitted model.
+
+Run `python -m pytest -q tests/test_deloop_runtime.py tests/test_deloop.py
+tests/test_locd_runtime.py tests/test_model_harness_coevolution.py` for authored
+functional fixtures: real updates, original-state alignment, isolated source,
+review failures, checkpoint compatibility and protected rejection. Maturity:
+**Experimental**. Study C is unrun at operator request; its protocol above records
+why and how to qualify completion, useful verification and termination alongside
+loop rate under matched compute/data. This is an original host-reviewed adaptation
+of REF-DELOOP, with no behavioral gain or full paper reproduction claimed.

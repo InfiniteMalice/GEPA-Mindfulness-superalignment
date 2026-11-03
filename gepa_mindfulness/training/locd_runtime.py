@@ -315,24 +315,7 @@ def run_local_correction(
         raise ValueError("invalid original correction region")
     context = tuple(backend.tokenizer.encode(teacher_context, add_special_tokens=False))
     # Validate localization and the registered source BEFORE invoking any host role/model.
-    generation_config = getattr(backend.policy_model, "generation_config", None)
-    inherited_config = generation_config.to_dict() if generation_config is not None else {}
-    validate_input_envelope(inherited_config)
-    generation_limits: dict[str, object] = dict(_SINGLE_SEQUENCE)
-    # Older Transformers releases expose additional generation-mode selectors.
-    # Clear only attributes supported by this model's configuration, so removed
-    # options never become unsupported forward kwargs on newer releases.
-    for name, value in (
-        ("penalty_alpha", None),
-        ("constraints", None),
-        ("force_words_ids", None),
-        ("dola_layers", None),
-        ("prompt_lookup_num_tokens", None),
-        ("assistant_early_exit", None),
-        ("token_healing", False),
-    ):
-        if generation_config is not None and hasattr(generation_config, name):
-            generation_limits[name] = value
+    inherited_config, generation_limits = _generation_limits(backend)
     identity = {
         "model_id": backend.model_identifier,
         "version": source.trajectory.policy_version,
@@ -455,87 +438,144 @@ def run_local_correction(
         if updated_checksum == checksum:
             report["status"] = "no_model_change"
             return LocalCorrectionResult(None, None, canonical_json(report))
-        # One new directory per trial: never overwrite prior evidence/checkpoints.
-        trial_dir = artifact_root / hashlib.sha256(candidate_id.encode()).hexdigest()
-        trial_dir.mkdir(parents=True, exist_ok=False)
-        checkpoint = trial_dir / "backend.pt"
-        trial.save_checkpoint(checkpoint)
-        artifact_digest = "sha256:" + hashlib.sha256(checkpoint.read_bytes()).hexdigest()
-        evaluated_state_digest = _state_digest(trial)
-        candidate = store.register_candidate(
-            candidate_id=candidate_id, correction=proposal, artifact_digest=artifact_digest
+        return _finalize_trial(
+            trial,
+            store,
+            proposal,
+            report,
+            config=config,
+            candidate_id=candidate_id,
+            artifact_root=artifact_root,
+            source=source,
+            evaluate=evaluate,
+            generation_limits=generation_limits,
+            vocab=vocab,
         )
-        report.update(
-            checkpoint_path=str(checkpoint.resolve()),
-            artifact_digest=artifact_digest,
-            candidate=candidate.to_dict(),
-            status="pending_independent_validation",
-        )
-        _write_report(trial_dir, report)
-        remaining_calls = config.max_evaluation_calls
 
-        def generate(public_request: RolloutRequest) -> Trajectory:
-            """Expose bounded inference, never context targets or optimizer methods."""
-            nonlocal remaining_calls
-            if type(public_request) is not RolloutRequest or public_request.num_samples != 1:
-                raise ValueError("single public evaluation rollout required")
-            if public_request.policy_version != candidate.model_version:
-                raise ValueError("candidate evaluation policy version mismatch")
-            parameters = dict(public_request.sampling_parameters)
-            if set(parameters) - {"max_new_tokens", "do_sample", "temperature", "top_p"}:
-                raise ValueError("unsupported evaluation sampling parameter")
-            count = parameters.get("max_new_tokens", trial.max_new_tokens)
-            if type(count) is not int or not 0 < count <= config.max_tokens or remaining_calls <= 0:
-                raise ValueError("evaluation budget exceeded")
-            prompt = tuple(trial.tokenizer.encode(public_request.prompt, add_special_tokens=False))
-            _tokens(prompt + (0,) * count, vocab=vocab, config=config)
-            remaining_calls -= 1
-            bounded_request = replace(
-                public_request, sampling_parameters={**parameters, **generation_limits}
+
+def _generation_limits(backend: TorchPolicyBackend) -> tuple[dict[str, object], dict[str, object]]:
+    """Capture inherited settings and enforce existing single-sequence generation bounds."""
+    generation_config = getattr(backend.policy_model, "generation_config", None)
+    inherited_config = generation_config.to_dict() if generation_config is not None else {}
+    validate_input_envelope(inherited_config)
+    generation_limits: dict[str, object] = dict(_SINGLE_SEQUENCE)
+    # Older Transformers releases expose additional generation-mode selectors.
+    # Clear only attributes supported by this model's configuration, so removed
+    # options never become unsupported forward kwargs on newer releases.
+    for name, value in (
+        ("penalty_alpha", None),
+        ("constraints", None),
+        ("force_words_ids", None),
+        ("dola_layers", None),
+        ("prompt_lookup_num_tokens", None),
+        ("assistant_early_exit", None),
+        ("token_healing", False),
+    ):
+        if generation_config is not None and hasattr(generation_config, name):
+            generation_limits[name] = value
+    return inherited_config, generation_limits
+
+
+def _finalize_trial(
+    trial: TorchPolicyBackend,
+    store: CoevolutionStore,
+    proposal: CorrectionProposal,
+    report: dict[str, object],
+    *,
+    config: LoCDTrainingConfig,
+    candidate_id: str,
+    artifact_root: Path,
+    source: RewardRequest,
+    evaluate: CandidateEvaluator,
+    generation_limits: dict[str, object],
+    vocab: int,
+) -> LocalCorrectionResult:
+    """Reuse the existing immutable checkpoint and independent catalog admission path."""
+    import torch
+
+    # One new directory per trial: never overwrite prior evidence/checkpoints.
+    trial_dir = artifact_root / hashlib.sha256(candidate_id.encode()).hexdigest()
+    trial_dir.mkdir(parents=True, exist_ok=False)
+    checkpoint = trial_dir / "backend.pt"
+    trial.save_checkpoint(checkpoint)
+    artifact_digest = "sha256:" + hashlib.sha256(checkpoint.read_bytes()).hexdigest()
+    evaluated_state_digest = _state_digest(trial)
+    candidate = store.register_candidate(
+        candidate_id=candidate_id, correction=proposal, artifact_digest=artifact_digest
+    )
+    report.update(
+        checkpoint_path=str(checkpoint.resolve()),
+        artifact_digest=artifact_digest,
+        candidate=candidate.to_dict(),
+        status="pending_independent_validation",
+    )
+    _write_report(trial_dir, report)
+    remaining_calls = config.max_evaluation_calls
+
+    def generate(public_request: RolloutRequest) -> Trajectory:
+        """Expose bounded inference, never context targets or optimizer methods."""
+        nonlocal remaining_calls
+        if type(public_request) is not RolloutRequest or public_request.num_samples != 1:
+            raise ValueError("single public evaluation rollout required")
+        if public_request.policy_version != candidate.model_version:
+            raise ValueError("candidate evaluation policy version mismatch")
+        parameters = dict(public_request.sampling_parameters)
+        if set(parameters) - {"max_new_tokens", "do_sample", "temperature", "top_p"}:
+            raise ValueError("unsupported evaluation sampling parameter")
+        count = parameters.get("max_new_tokens", trial.max_new_tokens)
+        if type(count) is not int or not 0 < count <= config.max_tokens or remaining_calls <= 0:
+            raise ValueError("evaluation budget exceeded")
+        prompt = tuple(trial.tokenizer.encode(public_request.prompt, add_special_tokens=False))
+        _tokens(prompt + (0,) * count, vocab=vocab, config=config)
+        remaining_calls -= 1
+        bounded_request = replace(
+            public_request, sampling_parameters={**parameters, **generation_limits}
+        )
+        with torch.random.fork_rng(devices=[]):
+            return trial.generate((bounded_request,))[0]
+
+    try:
+        public_result = generate(
+            RolloutRequest(
+                source.trajectory.prompt,
+                case_id=source.trajectory.case_id,
+                policy_version=candidate.model_version,
+                seed=config.seed,
+                sampling_parameters={
+                    "max_new_tokens": len(source.trajectory.response_token_ids),
+                    "do_sample": False,
+                },
             )
-            with torch.random.fork_rng(devices=[]):
-                return trial.generate((bounded_request,))[0]
-
+        )
+        report["public_reevaluation"] = public_result.to_dict()
+        _write_report(trial_dir, report)
         try:
-            public_result = generate(
-                RolloutRequest(
-                    source.trajectory.prompt,
-                    case_id=source.trajectory.case_id,
-                    policy_version=candidate.model_version,
-                    seed=config.seed,
-                    sampling_parameters={"max_new_tokens": len(response), "do_sample": False},
-                )
-            )
-            report["public_reevaluation"] = public_result.to_dict()
-            _write_report(trial_dir, report)
-            try:
-                bundle = evaluate(candidate, generate)
-            except Exception:
-                report["status"] = "evaluation_failed"
-                raise ValueError("independent candidate evaluation failed") from None
-            if (
-                trial.policy_parameter_checksum() != updated_checksum
-                or _state_digest(trial) != evaluated_state_digest
-                or "sha256:" + hashlib.sha256(checkpoint.read_bytes()).hexdigest()
-                != artifact_digest
-            ):
-                raise ValueError("candidate changed during independent evaluation")
-            if type(bundle) is not ValidationBundle or bundle.candidate != candidate:
-                raise ValueError("validation bundle does not name the actual candidate")
-            decision = decide_candidate_acceptance(bundle, authority_store=store)
+            bundle = evaluate(candidate, generate)
         except Exception:
-            if report["status"] != "evaluation_failed":
-                report["status"] = "validation_failed"
-            _write_report(trial_dir, report)
-            raise
-        report.update(
-            status="catalog_accepted" if decision.accepted else "catalog_rejected",
-            decision=decision.to_dict(),
-        )
+            report["status"] = "evaluation_failed"
+            raise ValueError("independent candidate evaluation failed") from None
+        if (
+            trial.policy_parameter_checksum() != report["candidate_policy_checksum"]
+            or _state_digest(trial) != evaluated_state_digest
+            or "sha256:" + hashlib.sha256(checkpoint.read_bytes()).hexdigest() != artifact_digest
+        ):
+            raise ValueError("candidate changed during independent evaluation")
+        if type(bundle) is not ValidationBundle or bundle.candidate != candidate:
+            raise ValueError("validation bundle does not name the actual candidate")
+        decision = decide_candidate_acceptance(bundle, authority_store=store)
+    except Exception:
+        if report["status"] != "evaluation_failed":
+            report["status"] = "validation_failed"
         _write_report(trial_dir, report)
-        return LocalCorrectionResult(
-            trial if decision.accepted else None, decision, canonical_json(report)
-        )
+        raise
+    report.update(
+        status="catalog_accepted" if decision.accepted else "catalog_rejected",
+        decision=decision.to_dict(),
+    )
+    _write_report(trial_dir, report)
+    return LocalCorrectionResult(
+        trial if decision.accepted else None, decision, canonical_json(report)
+    )
 
 
 def _write_report(directory: Path, report: dict[str, object]) -> None:
