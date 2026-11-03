@@ -56,3 +56,9 @@ on the unchanged parent; tests are not weakened or skipped.
 Empirical data quality, autonomous retraining and paper-policy reproduction are
 not established. At operator request, research is omitted; rationale and fixed
 checkpoint/seed/budget/held-out protocol remain in docs/dataset_research.md.
+
+Public review identified two valid consumption edge cases: literal Unicode line
+separators inside valid JSON strings and working-directory changes after a
+relative output destination. Three positive regressions reproduced failures RED.
+JSONL now splits only on LF delimiters; the live provider retains the exact
+authorized absolute destination. Source schema/eligibility behavior is unchanged.

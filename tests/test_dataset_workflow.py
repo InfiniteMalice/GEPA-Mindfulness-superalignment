@@ -377,3 +377,25 @@ def test_admitted_provider_supports_existing_training_resume_mode(tmp_path):
     pool, previous, contract, policy, args, _, _ = setup_workflow(tmp_path)
     result = run_dataset_workflow(pool, previous, contract, policy, **args)
     assert result.dataset.materialize("resume") == result.dataset.materialize("train")
+
+
+@pytest.mark.parametrize("separator", ("\u2028", "\u2029"))
+def test_jsonl_materialization_preserves_unicode_separators_inside_strings(tmp_path, separator):
+    pool, previous, contract, policy, args, _, _ = setup_workflow(tmp_path)
+    args["render"] = lambda record: ("A" + separator + "B", "answer")
+    result = run_dataset_workflow(pool, previous, contract, policy, **args)
+    assert result.dataset.materialize("train")[0].prompt == "A" + separator + "B"
+
+
+def test_relative_destination_remains_bound_after_working_directory_change(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    pool, previous, contract, policy, args, _, _ = setup_workflow(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    args["output_root"] = Path("artifacts")
+    result = run_dataset_workflow(pool, previous, contract, policy, **args)
+    other = tmp_path / "other"
+    other.mkdir()
+    monkeypatch.chdir(other)
+    assert len(result.dataset.materialize("resume")) == 3
+    assert str(result.dataset.path) == result.to_dict()["dataset_path"]

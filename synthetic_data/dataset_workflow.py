@@ -134,7 +134,7 @@ class AdmittedDataset:
         if hashlib.sha256(payload).hexdigest() != self._sha256:
             raise ValueError("admitted dataset bytes changed; fresh admission required")
         requests = []
-        for index, line in enumerate(payload.decode("utf-8").splitlines(), 1):
+        for index, line in enumerate(payload.decode("utf-8").rstrip("\n").split("\n"), 1):
             record = read_curriculum_object(line)
             require_training_eligible(record)
             if record.get("training_eligibility") != "TRAIN":
@@ -421,8 +421,8 @@ def run_dataset_workflow(
         example_count += item.repetitions
     payload = b"".join(chunks)
     digest = hashlib.sha256(payload).hexdigest()
-    directory = output_root / hashlib.sha256(config.workflow_id.encode()).hexdigest()
-    data_path = directory / "train.jsonl"
+    directory = (output_root / hashlib.sha256(config.workflow_id.encode()).hexdigest()).resolve()
+    data_path = (directory / "train.jsonl").resolve()
     report.update(
         status="admission_pending",
         training_sha256=digest,
