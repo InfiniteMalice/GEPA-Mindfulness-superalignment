@@ -1,7 +1,8 @@
 # Immutable dataset research and host governance
 
-**Maturity: Experimental CPU preparation.** Live multi-agent research, training admission,
-retraining, and effectiveness are **Unsupported** here. The default-off
+**Maturity: Experimental CPU preparation and host-governed dataset workflow.**
+The optional synchronous role workflow and live training-dataset admission are implemented.
+Paper-policy reproduction, autonomous retraining, and empirical effectiveness remain unqualified. The default-off
 [adapter](../synthetic_data/dataset_research.py) performs no network calls, file writes,
 model execution, training, or catalog mutation. Passing tests establishes software behavior,
 not improved alignment or dataset quality. Use the [disabled configuration](../configs/dataset_research.example.json)
@@ -21,8 +22,8 @@ This is an exact retained browser text extract, not original HTML/PDF bytes.
 The research design motivates fixed initialization and separated execution, complementary
 analysis, and synthesis. GEPA adds explicit operation schemas, immutable manifests, trusted
 host review and stricter held-out isolation. The paper's action families are post-hoc
-descriptions; this typed API is an original adaptation. A bounded CPU preparation function
-does not reproduce the paper's multi-agent research policy or measured gains. In particular,
+descriptions; this typed API is an original adaptation. The bounded CPU preparation and explicitly configured role workflow
+do not reproduce the paper's multi-agent research policy or measured gains. In particular,
 the candidate cannot modify a verifier, consume protected evaluation feedback for optimization,
 or admit its own generated data. No paper hyperparameters are chosen as GEPA defaults.
 
@@ -127,3 +128,76 @@ evaluation before promoting a trained model; a successful data preparation revie
 
 CPU verification: `python -m pytest -q tests/test_dataset_research.py`.
 No retraining, paid generation or effectiveness experiment has been run for this integration.
+
+
+## Active opt-in dataset workflow
+
+[`run_dataset_workflow`](../synthetic_data/dataset_workflow.py) executes one revision with
+operator-installed synchronous callbacks: four analyses, meta planning, synthesis, execution,
+and independent verification. It reuses `DatasetPool`, `DatasetRecipe`, `DatasetRevision`,
+`ResearchRound`, `CurationPolicy`, `GenerationReview` and every operation check above.
+`DatasetWorkflowConfig()` is disabled and reads no source or callback. Enable explicitly and
+bind seven distinct role actors, a separate host admission identity, policy/trainer digests,
+seed, example budget and byte budget. Callbacks may wrap a configured external client; this
+module contains no service, credentials, network calls, or agent-spawning framework. Installed
+Python callbacks are trusted executable integrations, not a process sandbox. Authentication
+must establish actual roles and independence; actor strings alone cannot do so.
+
+Original rich rows must retain explicit `metadata.training_eligibility=TRAIN`; nested
+restrictions still reject the source before any role runs. The host first authenticates the
+full source/configuration packet. Analysis packets include the canonical manifest's 17 case
+IDs and declared source coverage; unassigned rows stay unassigned. Source-example IDs never
+become canonical case IDs. The meta role fixes an empty-additions revision and exact recipe;
+synthesis returns immutable new rows, and execution binds those rows without replacing the
+chosen operation or sources. Newly synthesized rows retain their generator/model/config,
+source template and independent completed human review with validated canonical coordinates,
+as required by existing optimizer-ingress policy. A generator cannot certify its own label.
+The configured renderer and tokenizer must produce actual counts for the fixed trainer
+configuration; the executor cannot rewrite original counts or invent new counts.
+
+Independent review and complete-payload host authentication run through
+`prepare_dataset_revision`. Missing, disputed or human-required evidence withholds data.
+A separate fresh `authorize_training` callback must return exact `True` for the unchanged
+complete admission packet, containing the final dataset SHA-256, count and destination.
+Callbacks receive detached bounded JSON; mutation or exceptions fail closed. Example and byte
+capacity is reserved before repetition expansion. Only then are `train.jsonl`, `pool.json`,
+`recipe.json` and `workflow.json` written into a new workflow-ID-hash directory. Existing
+artifacts are never overwritten. Use a new workflow ID/version for another revision. A failed
+filesystem write can leave an incomplete directory; it returns no live provider and requires
+operator cleanup or a new workflow ID. Source files and protected suites are untouched.
+
+The result contains a DEVELOPMENT audit and, on admission, a live `AdmittedDataset` provider.
+Its `materialize(mode)` interface returns existing `RolloutRequest` values with the supervised
+response, retained source record/evidence, source-line/hash and external admission reference.
+It checks one exact immutable byte snapshot on every materialization. The audit cannot restore
+this provider; JSON and pickle do not grant training permission. This is dataset admission,
+not model acceptance, runtime action authority, reward credit, or deployment. A configured
+trainer can consume the provider through its existing dataset-provider boundary; a trained
+model still requires protected evaluation and governed promotion.
+
+A minimal host call uses the existing typed pool/recipe/contract/policy and explicit integrations:
+
+```python
+result = run_dataset_workflow(
+    pool, previous_recipe, fixed_round, curation_policy,
+    config=enabled_config,
+    analyses=analysis_callbacks,  # four analysis_* roles
+    plan=meta_callback, synthesize=synthesis_callback,
+    execute=execution_callback, verify=independent_review_callback,
+    render=fixed_renderer, count_tokens=fixed_tokenizer_count,
+    authorize_sources=host_source_authentication,
+    authenticate=host_evidence_authentication,
+    authorize_training=host_training_admission,
+    admission_reference=external_host_record,
+    output_root=versioned_output_root,
+)
+if result.dataset is not None:
+    requests = result.dataset.materialize("train")
+```
+
+Run `python -m pytest -q tests/test_dataset_workflow.py tests/test_dataset_research.py`.
+The tests use authored CPU fixtures and deterministic callbacks, not empirical dataset-quality
+measurements. Research runs are omitted at the operator's request. To qualify effectiveness
+later, use the fixed checkpoint/seed/token budget protocol above, compare all seven operations
+against unchanged data, keep held-out tests inaccessible to callbacks, and run protected
+17-case/calibration/constitutional checks after retraining. No gain is claimed here.

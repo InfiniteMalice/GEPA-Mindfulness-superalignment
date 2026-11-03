@@ -32,8 +32,10 @@ GRPO trial now uses verified-set contributions through existing credit/ledger ow
 weights, native checkpoints/SST and protected catalog admission. Behavioral qualification and
 joint studies remain unrun.
 PR 7 adds [immutable dataset research preparation](dataset_research.md), reusing the existing
-manifest and review contracts. Full AutoSFT orchestration, training admission and empirical
-effectiveness remain unsupported.
+manifest and review contracts. An opt-in bounded synchronous workflow now executes the
+seven data roles, checks immutable recipes and independent reviews, and writes a versioned
+TRAIN artifact only after fresh host admission. Paper-policy reproduction, autonomous
+retraining and empirical effectiveness remain unqualified.
 PR 8 adds [structured decision routing and native-depth diagnostics](decision_routing.md),
 reusing the existing guard and calibration metrics. Live Jev/LEV services, native loop
 models and empirically qualified calibration remain unsupported.
