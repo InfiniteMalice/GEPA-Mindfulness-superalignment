@@ -223,6 +223,8 @@ zero contribution; omitting them would teach only positive examples. Constant or
 singleton groups produce no model update. Aggregate logit allocation is bounded.
 The registered correction's source must belong to a trainable group. Updates of
 other groups cannot substitute for an excluded or constant source group.
+For these per-action learning records, membership uses `source_action_id`;
+the separate registered episode/trajectory ID remains unchanged in provenance.
 
 When the same event proposes knowledge and progress, `event_preference` explicitly
 selects one available eligible component. Raw metrics and overlap records retain

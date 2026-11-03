@@ -96,3 +96,13 @@ side effects are outside the trusted-host contract. Existing source checksums ar
 combined with full-state clone/final-evaluation checks. Special-token decoding
 retains the full original token sequence in the loss. Unsupported hardware and
 unrun empirical research remain explicitly unqualified.
+
+## Separate episode/action identity coverage
+
+The per-action DeLoop/knowledge namespace finding was assessed against this
+whole-set contract rather than copied blindly. Here a VectorRollout represents
+the complete model episode. A positive characterization now registers a separate
+`episode:sets`, keeps source action `action-1`, and binds the first whole-set
+rollout to that episode. It trains successfully and preserves both identities.
+No VPO source-binding change is justified; the inherited per-action knowledge
+fix and dependency are included. All 87 focused checks pass after these updates.

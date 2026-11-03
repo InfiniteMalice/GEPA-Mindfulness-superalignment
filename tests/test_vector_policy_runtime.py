@@ -47,9 +47,11 @@ class SetTokenizer:
         return " ".join(self.words[token] for token in tokens if token not in (0, 1))
 
 
-def setup_vector(tmp_path, *, sst=SSTConfig(), regress=False, negative=False):
+def setup_vector(
+    tmp_path, *, sst=SSTConfig(), regress=False, negative=False, episode_id="action-1"
+):
     backend, _, _, store, correction, original, evaluations = setup_preferences(
-        tmp_path, sst=sst, regress=regress
+        tmp_path, sst=sst, regress=regress, episode_id=episode_id
     )
     low = rollout(candidates=(candidate("ordinary", (0.2, 0.2)),))
     high = rollout(candidates=(candidate("a", (0.9, 0.1)), candidate("b", (0.1, 0.9))))
@@ -63,7 +65,7 @@ def setup_vector(tmp_path, *, sst=SSTConfig(), regress=False, negative=False):
     for index, record in enumerate((low, high), 1):
         trajectory = replace(
             record.request.trajectory,
-            trajectory_id=f"action-{index}",
+            trajectory_id=episode_id if index == 1 else f"action-{index}",
             prompt="Vector public prompt",
             prompt_token_ids=(2,),
             response_token_ids=(3 if index == 1 else 5,),
@@ -312,3 +314,15 @@ def test_quarantined_registered_source_cannot_be_replaced_by_other_safe_sets(tmp
     assert not credited
     assert not evaluations
     assert not (tmp_path / "vector-trials").exists()
+
+
+def test_whole_set_episode_identity_remains_distinct_from_its_source_action(tmp_path):
+    backend, records, store, correction, args, _, _ = setup_vector(
+        tmp_path, episode_id="episode:sets"
+    )
+    assert store.correction_source_events(correction)
+    result = run_vector_policy_trial(backend, records, store, correction, **args)
+    assert result.backend is not None
+    retained = result.to_dict()["candidate"]["correction"]
+    assert retained["source_trajectory_id"] == "episode:sets"
+    assert retained["source_action_id"] == "action-1"

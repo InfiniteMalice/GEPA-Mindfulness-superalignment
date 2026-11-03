@@ -256,6 +256,9 @@ A fresh host source review authenticates capture, evidence, state equivalence,
 independence and permission before pair review or model calls.
 
 The registered correction's repeat must have an eligible mined training pair.
+The store's episode/trajectory ID is distinct from constituent action IDs; source
+membership uses the correction's action ID, while the complete registered episode
+events must still exactly match the supplied PEO history.
 If its recovery is rejected, other accepted pairs cannot substitute for it; the
 trial returns no model before training-use review. A trial may include additional
 independently reviewed repeats from the same registered episode as auxiliary
