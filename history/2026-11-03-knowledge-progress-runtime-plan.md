@@ -88,3 +88,12 @@ attributed to its localized correction. The check was observed RED. The original
 source must now belong to a trainable group before any optimizer/model trial;
 other groups cannot replace it. All 253 focused checks pass before the dependency
 update. This is a software provenance correction, not research or claimed efficacy.
+
+## Episode and action namespaces
+
+The verified DeLoop namespace finding was reproduced here as well: a valid
+registered `episode:learning` containing `action-1` passed the store but was rejected
+by this per-action adapter. The positive regression was observed RED. Membership,
+trainable-source participation and source reevaluation now use the correction's
+`source_action_id`, while the separate episode identity/digest stays intact in
+catalog provenance. Whole-rollout adapters retain their own episode contract.

@@ -156,8 +156,8 @@ def run_loop_preferences(
     _text(candidate_id, "candidate_id")
     audit, sources = _capture(events, steps, task_id)
     source_ids = {step.request.trajectory.trajectory_id for step in sources}
-    if proposal.source_trajectory_id not in source_ids:
-        raise ValueError("registered source trajectory mismatch")
+    if proposal.source_action_id not in source_ids:
+        raise ValueError("registered source action mismatch")
     registered = store.correction_source_events(proposal)
     if canonical_json([event.to_dict() for event in registered]) != canonical_json(
         [event.to_dict() for event in events]

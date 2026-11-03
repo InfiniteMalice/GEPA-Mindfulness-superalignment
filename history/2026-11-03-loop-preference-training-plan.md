@@ -138,3 +138,13 @@ registered repeat lacks a supported pair. Accepted auxiliary comparisons remain
 in the audit and may accompany an accepted source pair from the same episode;
 they do not claim registration/correction of separate localized failures.
 Final-head focused checks and remote CI must pass again after this correction.
+
+## Episode versus action identity
+
+A later Codex review finding was independently verified against CoevolutionStore:
+registered episode IDs and constituent action IDs are distinct contracts. A valid
+`episode:loop` registration passed store validation but the adapter rejected it
+because fixtures had aliased the episode name to `action-1`. A new positive
+regression was observed RED. Membership now uses `source_action_id` before reading
+registered evidence; exact complete registered-event equality is retained. The
+original episode ID remains intact in correction/candidate provenance.

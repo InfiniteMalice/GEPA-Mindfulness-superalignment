@@ -230,7 +230,7 @@ def run_knowledge_progress_trial(
         raise ValueError("exact LearningStep sources required")
     captured = tuple(LearningStep.from_dict(step.to_dict()) for step in steps)
     by_id = {step.request.trajectory.trajectory_id: step for step in captured}
-    if proposal.source_trajectory_id not in by_id:
+    if proposal.source_action_id not in by_id:
         raise ValueError("registered correction source mismatch")
     registered = store.correction_source_events(proposal)
     if (
@@ -401,7 +401,7 @@ def run_knowledge_progress_trial(
             )
     report.update(group_sizes=group_sizes, advantages=advantage_values)
     if not trainable or not any(
-        trajectory.trajectory_id == proposal.source_trajectory_id for trajectory in trainable
+        trajectory.trajectory_id == proposal.source_action_id for trajectory in trainable
     ):
         report["status"] = "no_trainable_groups"
         return LocalCorrectionResult(None, None, canonical_json(report))
@@ -455,7 +455,7 @@ def run_knowledge_progress_trial(
             config=limits,
             candidate_id=candidate_id,
             artifact_root=artifact_root,
-            source=by_id[proposal.source_trajectory_id].request,
+            source=by_id[proposal.source_action_id].request,
             evaluate=evaluate,
             generation_limits=generation_limits,
             vocab=vocab,

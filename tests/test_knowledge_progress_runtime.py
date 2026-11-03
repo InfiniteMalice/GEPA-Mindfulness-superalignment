@@ -32,9 +32,11 @@ from gepa_mindfulness.training.reward_pipeline import RewardPipeline
 from gepa_mindfulness.training.subspace_tuning import SSTConfig
 
 
-def setup_knowledge(tmp_path, *, preference="knowledge", regress=False, sst=SSTConfig()):
+def setup_knowledge(
+    tmp_path, *, preference="knowledge", regress=False, sst=SSTConfig(), episode_id="action-1"
+):
     backend, _, raw, store, correction, original, evaluations = setup_preferences(
-        tmp_path, regress=regress, sst=sst
+        tmp_path, regress=regress, sst=sst, episode_id=episode_id
     )
     verifier = TrustedEvaluatorContract(REVIEWER.evaluator_id, "v1", REVIEWER.contract_id)
     ctx = context(model_version="model:v1", harness_version="harness:v1", evaluator=verifier)
@@ -318,3 +320,13 @@ def test_registered_source_must_belong_to_a_trainable_group(tmp_path):
     assert result.to_dict()["status"] == "no_trainable_groups"
     assert not evaluations
     assert not (tmp_path / "learning-trials").exists()
+
+
+def test_learning_action_identity_does_not_replace_registered_episode_identity(tmp_path):
+    backend, steps, store, correction, args, _, _ = setup_knowledge(
+        tmp_path, episode_id="episode:learning"
+    )
+    assert store.correction_source_events(correction)
+    result = run_knowledge_progress_trial(backend, steps, store, correction, **args)
+    assert result.backend is not None
+    assert result.to_dict()["candidate"]["correction"]["source_trajectory_id"] == "episode:learning"
