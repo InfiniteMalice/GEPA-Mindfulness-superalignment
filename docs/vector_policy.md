@@ -3,9 +3,10 @@
 ## Maturity and primary source
 
 [vector_policy.py](../gepa_mindfulness/training/vector_policy.py) supplies **Experimental**,
-default-off CPU records, numerical kernels and host-reviewed preparation. Full VPO training,
-token advantage attachment, behavioral improvement, protected regression qualification and joint
-KnowGPO/PRM4RL rewards remain **Unsupported** or unexecuted. Unit tests do not prove alignment.
+default-off CPU records, numerical kernels and host-reviewed preparation. A separate opt-in
+isolated native CPU GRPO trial now attaches one verified set advantage to each safe whole
+rollout and reuses protected catalog admission. Behavioral qualification and joint
+KnowGPO/PRM4RL studies remain unrun. Unit tests do not prove alignment.
 
 Bahlous-Boldi et al. (2026), [Vector Policy Optimization: Training for Diversity Improves
 Test-Time Search](https://arxiv.org/abs/2605.22817v1), sections 3.1–3.2 and Appendix B, were checked
@@ -98,9 +99,10 @@ advantage. Uncertain moral judgment stays uncertain. Empty/unreviewed groups ret
 `fallback_required=true` and route to an independent host for abstention, clarification,
 refusal/redirection or escalation; this API executes no fallback or candidate.
 
-Even reviewed metrics remain DEVELOPMENT and require host admission. No new reward provider,
-governance layer, runtime grant or optimizer path is introduced. Foundational values remain
-mutually constraining and cannot be diluted by weights. Future attachment must preserve
+Even reviewed preparation reports remain DEVELOPMENT. The native path below uses the existing
+research reward provider and fresh independent admission; no competing reward authority,
+governance layer or runtime grant is introduced. Foundational values remain mutually
+constraining and cannot be diluted by weights. Training preserves
 [existing event accounting](research_credit_accounting.md): one verified event cannot be paid
 again through VPO, knowledge, progress and process components. Joint coefficients are not implemented.
 
@@ -119,3 +121,81 @@ held-out tests, multiple seeds, paired comparisons and uncertainty estimates. In
 distributions. Evaluate all 17 canonical cases under `CASE × STRIPE × REPEAT`; case 0 remains
 noncanonical. Never promote a model with a protected regression. These behavioral experiments
 have not run; training/spending requires separately configured operator authority.
+
+## Native admissible-set trial
+
+`training.vector_policy_runtime.run_vector_policy_trial(backend, rollouts, store,
+correction, scope=..., config=..., algorithm=..., pipeline=..., ledger=...,
+credit_policy=..., authorize_evidence=..., authenticate_claims=...,
+authorize_optimizer_use=..., authorize_accounting=..., account_event=...,
+evaluate=..., candidate_id=..., artifact_root=Path(...))` performs real native CPU
+forward/backward/optimizer steps on an isolated model copy. `VPOTrainingConfig`
+defaults off; enable it with explicit operator policy/reviewer/evaluator IDs,
+immutable dataset digest, fixed constitution digest, seed and bounds. Supply the
+existing `VectorPolicyConfig` with shared dimensions/weight draws and the matching
+native GRPO normalization epsilon. CPU FP32 full weights, native SST and checkpoint
+resume are implemented; CUDA, AMP, LoRA and distributed trials are Unsupported here.
+
+The constitution digest is an operator-fixed reference, never a learned weight or
+proof of moral alignment. Scope substitution fails before review. Installed host
+roles authenticate the actual normative reference, applicable constraints, evidence,
+source-file identity, semantic normalization and physical reviewer independence.
+Unresolved admissibility remains unresolved and cannot be changed by weight sampling.
+The existing allowed task dimensions exclude constitutional values. Invalid members
+quarantine the whole generated set, including every token in that rollout. No
+candidate action is executed for exploration. Empty admissible groups preserve
+independent fallback routing; constant/singleton groups produce no model update.
+For a nonempty constant group, retaining the current model is the training fallback;
+the nested evidence flag can remain `fallback_required=false` because admissible
+task strategies exist. That flag never admits a model or authorizes execution.
+
+Original sources must already be TRAIN and retain all nested eligibility, current
+model/checksum, source-record digest, and tokenizer-bound prompt/whole-set response.
+The registered model-only correction anchors the closed source epoch; fresh complete
+evidence review authenticates additional rollouts. Each source retains exactly one
+host-captured `vpo-event:<normalized-semantic-event-id>` trace reference. Trace identity
+is outside sampling parameters so distinct outcomes can share the same public state.
+The host authenticates its meaning; a model-produced string never authorizes credit.
+The registered source must remain admissible and participate in the updated group.
+Other safe sets cannot replace a quarantined source for correction attribution.
+
+`vector_policy_credit.make_vector_credit` proposes a `verified_set` contribution
+with a closed raw-source/metric/verification proof. Its constructor recomputes the
+exact set score, response, configured dimensions/weights, subjects, evaluator,
+constitution scope, request/state/event bindings and source eligibility. It rejects
+unsafe or empty sets. Raw facts form a new independently reviewable contribution;
+existing DEVELOPMENT preparation reports are retained separately and never relabeled
+as TRAIN. The proposal remains unresolved until fresh existing host admission.
+
+`ResearchRewardProvider` and `ResearchCreditLedger` retain authority. Supply one
+explicit positive `verified_set` coefficient and a zero baseline for this isolated
+objective. The coefficient bounds the signed credit; native advantages use the
+reviewed raw set scores and declared epsilon, preserving normalization under that
+accounting scale. Valid negative scores remain negative. Fresh semantic, optimizer-use
+and cross-layer accounting reviews receive the full set evidence and exact credit;
+`account_event` merely proposes the existing `ResearchCreditUse`. One event cannot
+be reused through task, knowledge, progress, process or teacher credit. Reservations
+remain consumed after later no-update/failure rather than being silently refunded.
+
+Legacy claim/policy/decision wires remain unchanged. Only verified sets select
+claim/policy/decision version 3; their distinct raw/weighted metrics use closed metric
+version 5, including the shared JSONL logger. Existing metric versions 1–4 retain
+their field boundaries. This trial uses only the set objective; joint research
+coefficients are not implemented here. Native GRPO old/current forwards and updates
+are shared with the knowledge/progress trial while their objectives stay separate.
+
+The model/reference/RNG remain isolated. Existing immutable checkpoints, public-only
+generation and protected `CoevolutionStore` receipts govern final catalog acceptance.
+Regression returns no backend and retains evidence; acceptance does not deploy.
+Reports retain common weight draws, raw set scores, quarantine/fallback decisions,
+advantages, individual credit/receipt records and protected admission. They remain
+DEVELOPMENT audit data.
+
+Run `python -m pytest -q tests/test_vector_policy_runtime.py tests/test_vector_credit.py
+ tests/test_vector_policy.py tests/test_knowledge_progress_runtime.py
+ tests/test_research_credit_runtime.py tests/test_rl_logging.py` for authored CPU
+software checks. These demonstrate implementation and trust boundaries, not diversity
+or alignment gains. The operator excluded research; the protocol above records why
+and how to compare useful diversity, completion, resources and constitutional
+regressions later under matched data/compute and independent holdouts. Source
+qualification and the original adaptations remain as recorded above.

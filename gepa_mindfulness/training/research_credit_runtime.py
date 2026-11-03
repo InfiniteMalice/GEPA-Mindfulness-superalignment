@@ -1,13 +1,15 @@
 """Default-off, freshly host-reviewed credit composition over the existing ledger."""
 
+# Standard library
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass, fields, replace
 from math import fsum
 from types import MappingProxyType
 from typing import cast
 
+# Local
 from evaluation.causal_records import canonical_json
 from gepa_mindfulness.core.evidence import EvidenceReference
 from gepa_mindfulness.core.reward_provenance import RewardProvenance, VerificationRoute
@@ -30,8 +32,15 @@ from .research_credit_ledger import ResearchCreditLedger, ResearchCreditUse
 from .reward_pipeline import RewardPipeline, RewardResult
 from .trajectory import Trajectory
 
-_KINDS = frozenset({"knowledge", "progress", "process", "verified_decision"})
+_KINDS = frozenset({"knowledge", "progress", "process", "verified_decision", "verified_set"})
 HostReview = Callable[[dict[str, object]], bool]
+
+
+def _method_schema(prefix: str, kinds: Collection[object]) -> str:
+    """Preserve old wires; only explicit verified-set use selects version three."""
+    if "verified_set" in kinds:
+        return prefix + "-v3"
+    return prefix + ("-v2" if "verified_decision" in kinds else "-v1")
 
 
 @dataclass(frozen=True)
@@ -76,11 +85,7 @@ class ResearchRewardPolicy:
         self.__post_init__()
         value = {field.name: getattr(self, field.name) for field in fields(self)}
         value["coefficients"] = [list(entry) for entry in self.coefficients]
-        value["schema_version"] = (
-            "research-reward-policy-v2"
-            if "verified_decision" in dict(self.coefficients)
-            else "research-reward-policy-v1"
-        )
+        value["schema_version"] = _method_schema("research-reward-policy", dict(self.coefficients))
         validate_input_envelope(value)
         return value
 
@@ -95,10 +100,8 @@ class ResearchRewardPolicy:
             or any(type(entry) is not list for entry in value["coefficients"])
         ):
             raise ValueError("invalid research reward policy schema")
-        expected_schema = (
-            "research-reward-policy-v2"
-            if any(entry and entry[0] == "verified_decision" for entry in value["coefficients"])
-            else "research-reward-policy-v1"
+        expected_schema = _method_schema(
+            "research-reward-policy", tuple(entry[0] for entry in value["coefficients"] if entry)
         )
         if value["schema_version"] != expected_schema:
             raise ValueError("research reward policy kind/schema mismatch")
@@ -419,7 +422,9 @@ class ResearchRewardProvider:
             "research_baseline_reward": baseline.total,
             "research_adjustment": adjustment,
         }
-        kinds = _KINDS if "verified_decision" in weights else _KINDS - {"verified_decision"}
+        kinds = {"knowledge", "progress", "process"} | (
+            set(weights) & {"verified_decision", "verified_set"}
+        )
         for kind in sorted(kinds):
             for field, suffix in (("raw", "raw"), ("weighted", "weighted")):
                 try:
@@ -429,11 +434,7 @@ class ResearchRewardProvider:
                 _number(value)
                 metric_values[f"research_{kind}_{suffix}"] = value
         report = {
-            "schema_version": (
-                "research-reward-decision-v2"
-                if "verified_decision" in weights
-                else "research-reward-decision-v1"
-            ),
+            "schema_version": _method_schema("research-reward-decision", weights),
             "metrics": metric_values,
             "training_eligibility": "DEVELOPMENT",
             "authority_granted": False,

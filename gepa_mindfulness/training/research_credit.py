@@ -38,11 +38,14 @@ _KINDS = {
     "teacher_agreement",
     "diagnostic",
     "verified_decision",
+    "verified_set",
 }
 
 
 def _claim_schema(credit_kind: str) -> str:
     """Keep existing claims byte-compatible; verified decisions need their own version."""
+    if credit_kind == "verified_set":
+        return "research-credit-claim-v3"
     return "research-credit-claim-v2" if credit_kind == "verified_decision" else _SCHEMA
 
 
@@ -178,6 +181,10 @@ class ResearchCreditClaim:
             raise ValueError("source metadata must be a JSON object")
         if self.credit_kind == "verified_decision":
             _validate_verified_decision(self, metadata)
+        elif self.credit_kind == "verified_set":
+            from .vector_policy_credit import validate_vector_credit
+
+            validate_vector_credit(self, metadata)
 
     def to_dict(self) -> dict[str, object]:
         """Return detached versioned audit data; revalidate nested caller-owned records."""

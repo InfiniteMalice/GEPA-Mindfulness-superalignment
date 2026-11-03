@@ -27,7 +27,10 @@ prior-state groups and milestone potentials with separate unresolved credit prop
 isolated native CPU GRPO trial now applies freshly admitted event credit and verified-state
 grouping through existing reward/accounting and protected catalog owners. Behavioral improvement
 remains unestablished. PR 6 adds [VPO set-score preparation](vector_policy.md),
-with whole-rollout quarantine and independent review; full VPO training remains unsupported.
+with whole-rollout quarantine and independent review. An opt-in isolated native CPU set-level
+GRPO trial now uses verified-set contributions through existing credit/ledger owners, shared
+weights, native checkpoints/SST and protected catalog admission. Behavioral qualification and
+joint studies remain unrun.
 PR 7 adds [immutable dataset research preparation](dataset_research.md), reusing the existing
 manifest and review contracts. Full AutoSFT orchestration, training admission and empirical
 effectiveness remain unsupported.
