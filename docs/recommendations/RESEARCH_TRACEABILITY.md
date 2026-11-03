@@ -2074,9 +2074,9 @@ Primary v1 metadata and method text checked on 2026-10-27; upstream revision and
 
 **Source demonstrates:** The method projects the native optimizer's applied update into the complement of protected leading singular directions, with optional reference-basis refresh.
 
-**Repository inference:** A separate opt-in CPU adapter records spectral diagnostics and restores native parameter and optimizer state on failed steps. Spectral protection does not establish constitutional retention; model admission remains external.
+**Repository inference:** Opt-in CPU applied-update protection integrates with canonical PPO/GRPO and versioned checkpoint/resume, retaining spectral diagnostics and failed-step rollback. Spectral protection does not establish constitutional retention; model admission remains external.
 
-**Maturity:** Experimental CPU adapter and authored matrix probe; canonical integration, hardware qualification and Mindfulness retention effectiveness are not established.
+**Maturity:** Experimental CPU adapter, canonical PPO/GRPO configuration and checkpoint/resume; CUDA, AMP, distributed and LoRA SST remain Unsupported. Behavioral retention is unqualified.
 
 Primary v1 sections 2.1–2.3 and Algorithm 1 checked 2026-10-27; no authoritative upstream code repository was identified. See the guide for CPU, SVD, fallback and checkpoint adaptation boundaries.
 

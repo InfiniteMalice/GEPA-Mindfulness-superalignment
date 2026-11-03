@@ -25,6 +25,8 @@ def create_portable_backend(
     """Create a configured backend from injected or Hugging Face model assets."""
     if not isinstance(config, RLRunConfig):
         raise TypeError("config must be an RLRunConfig")
+    if config.sst.enabled and training_mode != "full":
+        raise ValueError("SST requires full-weight training; LoRA is unsupported")
     if (policy_model is None) != (tokenizer is None):
         raise ValueError("policy_model and tokenizer must be supplied together")
     if policy_model is None:
@@ -60,6 +62,7 @@ def create_portable_backend(
             else config.policy.model_name
         ),
         adapter_identifier=adapter_identifier,
+        sst_config=config.sst,
     )
 
 

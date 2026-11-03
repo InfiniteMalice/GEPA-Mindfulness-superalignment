@@ -1,9 +1,43 @@
-# Optional Subspace Tuning experiment
+# Subspace Tuning in CPU training
 
-Maturity: **Experimental**. The standalone CPU adapter and authored matrix probe are separate
-from the canonical RL engine. Tensor execution requires the existing `rl` extra. CUDA, AMP,
-distributed training, PEFT/LoRA integration and canonical checkpoint integration are **Unsupported**
-for this adapter. No Mindfulness retention or capability improvement has been established.
+Maturity: **Experimental**. SST is available as an explicit option in canonical CPU PPO/GRPO
+training and resume, as well as through the standalone adapter. It requires the existing `rl`
+extra. CUDA, AMP, distributed training and PEFT/LoRA remain **Unsupported** for SST and fail
+explicitly. Functional CPU tests establish optimizer/checkpoint behavior; no behavioral retention
+or alignment improvement is claimed.
+
+## Enable in the canonical runtime
+
+From a source checkout, copy [the CPU SST configuration](../configs/rl/pytorch_cpu_ppo_sst.yaml),
+set `policy.model_name` to a local model directory and set the admitted training-pair path.
+Then run `gepa rl doctor --config run.sst.yaml`, `gepa rl train --config run.sst.yaml` and
+`gepa rl resume --config run.sst.yaml --checkpoint <saved-checkpoint-directory>`.
+The CLI reads the same configuration as the Python engine. No model is downloaded.
+
+To enable SST in an existing portable CPU configuration, add:
+
+```yaml
+sst:
+  enabled: true
+  rank_fraction: 0.5
+  refresh_every: null
+  fallback: error
+```
+
+The rank is an example, not a validated retention setting. Omitting `sst` leaves training,
+version-2 backend checkpoints and existing resume configuration hashes unchanged. SST-enabled
+runs use backend checkpoint version 3 with the original references, refresh counters and native
+optimizer state; they reject a missing or incompatible SST state before restore mutation.
+
+Canonical SST protects every trainable two-dimensional policy parameter. Biases/nonmatrix
+parameters and the separate value head retain ordinary updates. Existing matrix/total-element
+limits apply to these bounded CPU runs; oversized models fail explicitly. The default total
+snapshot budget is 4,194,304 optimizer-owned elements; see the settings below before selecting
+a model. An injected backend must implement the requested SST configuration rather than ignore it.
+
+Step results retain per-matrix update magnitudes, protected rank, decomposition residual and
+leakage. Aggregate SST diagnostics use metric-record version 2; ordinary metric records remain
+version 1. These numerical diagnostics grant no evidence, optimizer-credit or admission authority.
 
 ## Source and adaptation boundary
 
@@ -58,7 +92,7 @@ optimizer.zero_grad(set_to_none=True)
 
 The factory returns `None` by default, without importing PyTorch or inspecting the optimizer.
 A host choosing this adapter must branch explicitly between it and the ordinary optimizer step.
-The canonical configuration, CLI, engine and backend never activate it automatically.
+The canonical configuration, CLI, engine and backend activate it only with `sst.enabled: true`.
 
 Only exact native `torch.optim.SGD`, `Adam` and `AdamW` are implemented. Named targets must be
 unique trainable parameters owned by that optimizer. All optimizer parameters must have dense,
@@ -95,9 +129,10 @@ checkpoint containers. The SVD is recomputed from the saved anchor on restore; e
 reproduction across BLAS/PyTorch versions or degenerate SVDs is not guaranteed. Record those
 runtime versions. Restore does not authenticate a checkpoint or authorize model promotion.
 
-The canonical engine does not serialize this adapter. Resuming through that engine without a
-separate, matching adapter checkpoint is unsupported. Roll back to the declared model, native
-optimizer and adapter checkpoint together after an interrupted external run.
+The canonical engine automatically includes this state in SST-enabled version-3 backend
+checkpoints and restores it transactionally with model weights and native optimizer state.
+No separate adapter checkpoint is needed for `gepa rl resume`. Standalone callers remain
+responsible for saving and restoring all three states together after an interrupted external run.
 
 ## Bounded diagnostic and reproducibility
 

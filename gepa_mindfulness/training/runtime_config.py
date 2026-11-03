@@ -15,6 +15,7 @@ from typing import Any, Literal, cast
 
 from .policy_versions import StalenessPolicy
 from .seeds import validate_seed
+from .subspace_tuning import SSTConfig
 
 try:
     import yaml
@@ -727,6 +728,7 @@ class RLRunConfig:
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     hybrid: HybridConfig = field(default_factory=HybridConfig)
     seed: int = 42
+    sst: SSTConfig = field(default_factory=SSTConfig)
 
     def __post_init__(self) -> None:
         sections = {
@@ -742,6 +744,15 @@ class RLRunConfig:
         for name, expected_type in sections.items():
             if not isinstance(getattr(self, name), expected_type):
                 raise TypeError(f"configuration.{name} must be a {expected_type.__name__}")
+        if type(self.sst) is not SSTConfig:
+            raise TypeError("configuration.sst must be an SSTConfig")
+        if self.sst.enabled and (
+            self.runtime.backend != "pytorch"
+            or self.runtime.device != "cpu"
+            or self.runtime.precision != "fp32"
+            or self.runtime.distributed.strategy != "none"
+        ):
+            raise ValueError("SST requires portable CPU FP32 full-weight training")
         if isinstance(self.seed, bool) or not isinstance(self.seed, int):
             raise TypeError("configuration.seed must be an integer")
         validate_seed(self.seed, "configuration.seed")
@@ -768,6 +779,7 @@ class RLRunConfig:
                 "logging",
                 "hybrid",
                 "seed",
+                "sst",
             },
             "configuration",
         )
@@ -782,7 +794,15 @@ class RLRunConfig:
             logging=LoggingConfig.from_mapping(_section(payload, "logging")),
             hybrid=HybridConfig.from_mapping(_section(payload, "hybrid")),
             seed=seed,
+            sst=_sst_configuration(_section(payload, "sst")),
         )
+
+
+def _sst_configuration(payload: Mapping[str, Any]) -> SSTConfig:
+    """Parse optional protection settings without coercion or numerical imports."""
+    payload = _mapping(payload, "sst")
+    _reject_unknown(payload, set(SSTConfig.__dataclass_fields__), "sst")
+    return SSTConfig(**dict(payload))
 
 
 def translate_legacy_config(payload: Mapping[str, Any]) -> RLRunConfig:
@@ -864,6 +884,8 @@ def _translate_legacy_config(payload: Mapping[str, Any]) -> RLRunConfig:
         },
         "seed": _legacy_integer(training.get("seed", payload.get("seed")), 42),
     }
+    if "sst" in payload:
+        canonical["sst"] = payload["sst"]
     return RLRunConfig.from_mapping(canonical)
 
 

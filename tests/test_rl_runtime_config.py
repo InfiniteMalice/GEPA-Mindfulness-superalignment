@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import inspect
 import warnings
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 from pathlib import Path
 
 import pytest
 
+from gepa_mindfulness.training.engine import _config_hash, _config_payload
 from gepa_mindfulness.training.runtime_config import (
     AlgorithmConfig,
     CheckpointConfig,
@@ -22,6 +23,65 @@ from gepa_mindfulness.training.runtime_config import (
     load_rl_config,
     translate_legacy_config,
 )
+from gepa_mindfulness.training.subspace_tuning import SSTConfig
+
+
+def test_canonical_sst_is_explicit_and_preserves_disabled_resume_identity() -> None:
+    """Enabling projection must change identity while absent/inactive settings stay compatible."""
+    baseline = RLRunConfig.from_mapping({})
+    assert baseline.sst.enabled is False
+    assert b'"sst"' not in _config_payload(baseline)
+    inactive = replace(baseline, sst=SSTConfig(rank_fraction=0.25, refresh_every=3))
+    assert _config_hash(inactive) == _config_hash(baseline)
+    enabled = RLRunConfig.from_mapping(
+        {"sst": {"enabled": True, "rank_fraction": 0.5, "refresh_every": 2}}
+    )
+    assert enabled.sst == SSTConfig(enabled=True, rank_fraction=0.5, refresh_every=2)
+    assert _config_hash(enabled) != _config_hash(baseline)
+    assert _config_hash(replace(enabled, sst=SSTConfig(enabled=True))) != _config_hash(enabled)
+
+
+def test_legacy_translation_keeps_an_explicit_sst_request() -> None:
+    """Translating an older configuration cannot silently discard requested protection."""
+    with pytest.warns(DeprecationWarning):
+        translated = translate_legacy_config(
+            {"model_name": "local-model", "sst": {"enabled": True, "rank_fraction": 0.5}}
+        )
+    assert translated.sst.enabled is True
+    assert translated.sst.rank_fraction == 0.5
+
+
+@pytest.mark.parametrize(
+    "settings",
+    [
+        {"enabled": "true"},
+        {"enabled": 1},
+        {"rank_fraction": True},
+        {"rank_fraction": -0.1},
+        {"refresh_every": 0},
+        {"fallback": "unprotected"},
+        {"unknown": True},
+    ],
+)
+def test_canonical_sst_rejects_ambiguous_or_unknown_settings(settings: dict) -> None:
+    """Misspelled or coercible protection settings cannot silently select another behavior."""
+    with pytest.raises((TypeError, ValueError)):
+        RLRunConfig.from_mapping({"sst": settings})
+
+
+@pytest.mark.parametrize(
+    "runtime",
+    [
+        {"backend": "cuda", "device": "cuda:0"},
+        {"backend": "pytorch", "device": "cuda:0"},
+        {"backend": "llama-cpp-vulkan"},
+        {"backend": "mojo-vulkan-llamacpp"},
+    ],
+)
+def test_canonical_sst_rejects_unsupported_modes_before_model_loading(runtime: dict) -> None:
+    """A runtime without this applied-update integration must reject an enable request."""
+    with pytest.raises(ValueError, match="SST.*CPU"):
+        RLRunConfig.from_mapping({"runtime": runtime, "sst": {"enabled": True}})
 
 
 def _deprecation_warnings(captured: list[warnings.WarningMessage]) -> list[warnings.WarningMessage]:

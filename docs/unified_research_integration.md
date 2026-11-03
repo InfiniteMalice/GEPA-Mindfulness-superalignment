@@ -9,8 +9,8 @@ proposals, overlap accounting and durable host-reviewed event reservations. Opti
 composition remains deferred; accounting receipts grant no runtime authority. PR 2 adds
 [experimental ActionOPD/LoCD adapters and kernels](distillation_adapters.md), without a full
 teacher service, training runner or empirical qualification. PR 3 adds a separate optional
-[CPU SST adapter and numerical probe](subspace_tuning.md); canonical training attachment and
-behavioral retention experiments remain unqualified. PR 4 adds the default-off
+[CPU SST adapter and numerical probe](subspace_tuning.md). Explicit canonical CPU PPO/GRPO
+configuration and checkpoint/resume now work; behavioral retention remains unqualified. PR 4 adds the default-off
 [DeLoop + PEO audit and recovery preparation](deloop_peo.md), with a separate DPO kernel;
 live intervention/training attachment and effectiveness remain unqualified. PR 5 adds [knowledge/progress preparation](knowledge_progress.md): reviewed evidence transitions,
 prior-state groups and milestone potentials with separate unresolved credit proposals. No trainer

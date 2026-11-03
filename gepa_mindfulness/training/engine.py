@@ -607,6 +607,8 @@ class RLTrainingEngine:
         resume_initializing = mode == "resume"
         primary_error: BaseException | None = None
         try:
+            if self.config.sst.enabled and getattr(backend, "sst_config", None) != self.config.sst:
+                raise ValueError("backend does not implement the configured SST protection")
             initial_backend_requirements = set(requirements)
             if mode == "collect":
                 initial_backend_requirements.discard(Capability.SUPPORTS_GENERATION)
@@ -2521,6 +2523,7 @@ def _default_backend_factory(config: RLRunConfig) -> TrainablePolicyBackend:
         max_new_tokens=config.policy.max_new_tokens,
         max_grad_norm=config.algorithm.max_grad_norm,
         model_identifier=config.policy.model_name,
+        sst_config=config.sst,
     )
 
 
@@ -2913,7 +2916,7 @@ class _JSONLRunLogger:
     ) -> None:
         from datetime import datetime, timezone
 
-        from .run_logging import MetricRecord
+        from .run_logging import LOG_SCHEMA_VERSION, SST_METRIC_SCHEMA_VERSION, MetricRecord
 
         metrics: dict[str, float] = {
             "learning_rate": learning_rate,
@@ -2922,6 +2925,19 @@ class _JSONLRunLogger:
         gradient_norm = _scalar(getattr(step_result, "gradient_norm", None))
         if gradient_norm is not None:
             metrics["pre_clip_gradient_norm"] = gradient_norm
+        sst_report = getattr(step_result, "sst_report", None)
+        if isinstance(sst_report, Mapping) and isinstance(sst_report.get("targets"), Mapping):
+            targets = tuple(sst_report["targets"].values())
+            metrics["sst_target_count"] = float(len(targets))
+            metrics["sst_frozen_target_count"] = float(
+                sum(target["status"] == "frozen" for target in targets)
+            )
+            for field in ("raw_update_norm", "applied_update_norm"):
+                metrics[f"sst_{field}"] = math.hypot(*(target[field] for target in targets))
+            for field in ("left_leakage", "right_leakage", "svd_relative_residual"):
+                values = [target[field] for target in targets if target[field] is not None]
+                if values:
+                    metrics[f"sst_max_{field}"] = max(values)
         for field, name in (
             ("policy_loss", "policy_loss"),
             ("value_loss", "value_loss"),
@@ -2948,6 +2964,11 @@ class _JSONLRunLogger:
                 learner_backend=self.learner_backend,
                 policy_version=self.policy_version or f"policy-{global_step - 1}",
                 metrics=_distributed_mean_scalars(self.config, metrics),
+                schema_version=(
+                    SST_METRIC_SCHEMA_VERSION
+                    if "sst_target_count" in metrics
+                    else LOG_SCHEMA_VERSION
+                ),
             )
         )
 
@@ -3022,6 +3043,8 @@ def _config_payload(config: RLRunConfig) -> bytes:
     payload.pop("logging", None)
     if config.runtime.backend != "mojo-vulkan-llamacpp":
         payload.pop("hybrid", None)
+    if not config.sst.enabled:
+        payload.pop("sst", None)
     dataset = cast(dict[str, object], payload["dataset"])
     payload["dataset"] = {"format": dataset["format"]}
     algorithm = cast(dict[str, object], payload["algorithm"])

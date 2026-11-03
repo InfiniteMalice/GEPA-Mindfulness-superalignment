@@ -50,6 +50,7 @@ from gepa_mindfulness.training.runtime_config import (
     RLRunConfig,
     RuntimeConfig,
 )
+from gepa_mindfulness.training.subspace_tuning import SSTConfig
 from gepa_mindfulness.training.trajectory import RolloutRequest, TrajectoryBatch
 
 
@@ -404,6 +405,46 @@ def _engine(
         return backend
 
     return RLTrainingEngine(config, backend_factory=build_backend)
+
+
+@pytest.mark.parametrize("algorithm", ["ppo", "grpo"])
+def test_canonical_sst_configuration_drives_real_updates_and_resumable_checkpoints(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, algorithm: str
+) -> None:
+    """An accepted enable flag must protect canonical updates and persist their original basis."""
+    monkeypatch.setattr(
+        "gepa_mindfulness.training.engine._load_local_transformers_assets",
+        lambda _: (TinyLocalCausalLM(), TinyLocalTokenizer()),
+    )
+    config = replace(_config(tmp_path, algorithm), sst=SSTConfig(enabled=True, rank_fraction=0.5))
+    trained = RLTrainingEngine(config).train(max_steps=1)
+    assert trained.global_step == 1 and trained.policy_parameters_updated is True
+    checkpoint = trained.checkpoint.path
+    payload = torch.load(checkpoint / "backend.pt", map_location="cpu", weights_only=True)
+    assert payload["format_version"] == 3 and payload["sst_state"]["step"] == 1
+    original_references = deepcopy(payload["sst_state"]["references"])
+    report = trained.to_dict()["evaluation_artifacts"]["optimizer_step"]["sst_report"]
+    assert report["authority_granted"] is False and len(report["targets"]) >= 1
+    metrics = [
+        json.loads(line)
+        for line in (trained.log_directory / "metrics.jsonl").read_text().splitlines()
+    ]
+    assert any(row["metrics"].get("sst_target_count", 0) > 0 for row in metrics)
+    resumed = RLTrainingEngine(config).resume(checkpoint, max_steps=1)
+    assert resumed.global_step == 2
+    after = torch.load(
+        resumed.checkpoint.path / "backend.pt", map_location="cpu", weights_only=True
+    )
+    assert after["sst_state"]["step"] == 2
+    for name, reference in original_references.items():
+        torch.testing.assert_close(after["sst_state"]["references"][name], reference)
+
+
+def test_enabled_sst_is_not_silently_ignored_by_an_injected_backend(tmp_path: Path) -> None:
+    """An injected default backend must not turn an SST request into ordinary training."""
+    config = replace(_config(tmp_path, "ppo"), sst=SSTConfig(enabled=True, rank_fraction=0.5))
+    with pytest.raises(ValueError, match="SST|sst"):
+        _engine(config, [], []).train(max_steps=1)
 
 
 def _peo_dataset(eligibility: str) -> PEOCurriculumDataset:

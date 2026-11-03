@@ -25,6 +25,7 @@ from gepa_mindfulness.training.policy_versions import PolicyVersion
 from gepa_mindfulness.training.trajectory import Trajectory
 
 LOG_SCHEMA_VERSION = 1
+SST_METRIC_SCHEMA_VERSION = 2
 MetricScope = Literal["aggregate", "group", "response"]
 
 
@@ -68,6 +69,17 @@ _METRIC_NAMES = frozenset(
         "task_success",
         "total_reward",
         "value_loss",
+    }
+)
+_SST_METRIC_NAMES = frozenset(
+    {
+        "sst_target_count",
+        "sst_frozen_target_count",
+        "sst_raw_update_norm",
+        "sst_applied_update_norm",
+        "sst_max_left_leakage",
+        "sst_max_right_leakage",
+        "sst_max_svd_relative_residual",
     }
 )
 _RUN_MANIFEST_FIELDS = frozenset(
@@ -281,15 +293,25 @@ class MetricRecord:
         _non_negative_integer(self.global_step, "global_step")
         if self.scope not in {"aggregate", "group", "response"}:
             raise ValueError("metric scope must be 'aggregate', 'group', or 'response'")
-        if self.schema_version != LOG_SCHEMA_VERSION:
-            raise ValueError(f"metric schema_version must be {LOG_SCHEMA_VERSION}")
+        if type(self.schema_version) is not int or self.schema_version not in (
+            LOG_SCHEMA_VERSION,
+            SST_METRIC_SCHEMA_VERSION,
+        ):
+            raise ValueError("metric schema_version must be 1 or 2 (SST diagnostics)")
         if not isinstance(self.metrics, Mapping) or not self.metrics:
             raise ValueError("metrics must be a non-empty mapping")
+        allowed = _METRIC_NAMES
+        if self.schema_version == SST_METRIC_SCHEMA_VERSION:
+            if not set(self.metrics).intersection(_SST_METRIC_NAMES):
+                raise ValueError("metric schema_version 2 requires SST diagnostics")
+            allowed = allowed | _SST_METRIC_NAMES
         metrics: dict[str, float] = {}
         for name, value in self.metrics.items():
             _required_string(name, "metric name")
-            if name not in _METRIC_NAMES:
-                raise ValueError(f"metric name {name!r} is not in schema version 1")
+            if name not in allowed:
+                raise ValueError(
+                    f"metric name {name!r} is not in schema version {self.schema_version}"
+                )
             if (
                 isinstance(value, bool)
                 or not isinstance(value, (int, float))
@@ -1057,6 +1079,7 @@ __all__ = [
     "MetricRecord",
     "PublicationRecord",
     "RunManifest",
+    "SST_METRIC_SCHEMA_VERSION",
     "TrajectoryRecord",
     "validate_checkpoint_id",
 ]
