@@ -5,8 +5,9 @@
 The adapters provide **Experimental** opt-in ActionOPD comparisons, numerical reward/advantage
 helpers, localized token preparation and a separate optional PyTorch forward-KL objective.
 The [native LoCD trial](#native-cpu-local-correction) now performs isolated CPU context
-self-distillation and existing governed catalog validation. ActionOPD still has no native
-training attachment or teacher service. Catalog acceptance never deploys either model.
+self-distillation and existing governed catalog validation. The [native ActionOPD adapter](#native-verified-actionopd)
+now binds a configured black-box teacher callback to independently verified decision credit and
+canonical CPU GRPO training. It installs no external API client. Catalog acceptance never deploys either model.
 Default training, rewards, runtime authority and canonical cases are unchanged.
 
 ## Sources and attribution
@@ -78,9 +79,9 @@ can retain a failed/unknown outcome. Results are DEVELOPMENT data with no author
 admission. Invalid-action penalties describe observable protocol failures, not hidden thoughts.
 
 `actionopd_advantages(groups, epsilon=...)` skips unsupervised/equal-reward groups. It is distinct
-from the current GRPO helper, which normalizes each group separately. No change to canonical GRPO
-is made. The full upstream rollout selection/clipped update and benchmark run are unimplemented.
-Hosts must independently admit actions, rewards and datasets before using any proposed objective.
+from ordinary GRPO's per-group normalization. The native opt-in adapter below uses this helper
+before the existing clipped GRPO update. Full upstream rollout selection and benchmark runs remain
+unimplemented. Hosts independently admit actions, rewards and datasets before optimization.
 
 ## Local segment and correction-source adapter
 
@@ -220,3 +221,111 @@ independent receipt admission and checkpoint round-trip; it is not a research be
 The operator excluded research runs. Future qualification would use the documented Study A
 conditions and protected 17-case/stripe/repeat suites with matched data/compute, independent
 held-out evaluations and multiple seeds, measuring correction, forgetting and calibration separately.
+
+## Native verified ActionOPD
+
+`gepa_mindfulness.training.actionopd_runtime` connects typed semantic decisions to the canonical
+CPU GRPO learner through the existing `ResearchRewardProvider` and `ResearchCreditLedger`.
+`ActionOPDConfig` is disabled by default and becomes part of checkpoint/resume identity when
+enabled. It pins teacher/verifier versions and contracts, source-review policy, explicit teacher
+sample count, sampling configuration, frequency bonus, whitening epsilon and cache/candidate
+budgets. Engineering budgets are not paper hyperparameters. Ordinary GRPO and default hashes
+remain unchanged.
+
+Configure these host roles through `build_actionopd_provider()`:
+
+- A pinned `ResearchRewardPolicy` and durable `ResearchCreditLedger`. Use the single coefficient
+  `("verified_decision", method.credit_weight)`, where `credit_weight=1/(1+frequency_bonus)` bounds
+  Eq. 6 scalar credit. A zero baseline keeps this method separate from knowledge, progress and
+  process objectives. Their later combinations require separately validated accounting.
+- An admitted `DatasetProvider` through the engine's existing `dataset_factory`. Source rows must
+  retain explicit TRAIN eligibility, at the root or canonical pair `metadata` location, and all
+  original provenance. The host authenticates that materialized rows belong to the immutable file
+  captured by the engine and its pinned dataset digest. No protected test is rewritten.
+- A `capture_source(Trajectory) -> RewardRequest` host observer. The engine binds actual native
+  outputs to selected admitted rows before capture. Capture may add observable evidence; output,
+  token IDs, policy identity, sampling and retained source metadata stay exact. Its complete
+  observable boundary is explicit. Nested held-out or failed V5 provenance cannot be removed or
+  relabeled. Capture does not grant training permission or certify truth.
+- Fresh `authorize_source(envelope)` review before teacher access, including cache hits. It
+  authenticates capture, tokenizer/public-state completeness, source eligibility, applicable
+  constraints and configured permission/budget for proposed teacher calls. Missing, denied,
+  mutating, throwing and truthy non-boolean reviews fail closed. Paid APIs and large training need
+  separately configured operator authority; this adapter includes no network client or credentials.
+- A `sample_teacher(public_packet, index) -> TeacherActionSample` callback. The packet contains
+  public prompt/token IDs, student model/policy, public sampling fields, configured teacher
+  identity/sampling and an opaque state fingerprint. It excludes sampled student responses, source
+  records, private answer keys and evaluation labels. The host retains complete public task
+  context in the original prompt. A fingerprint cannot recover omitted context or authenticate
+  evidence. Credentials belong outside logged sampling configuration.
+- Host `parse_action(request)` and independent `verify_action(request, action)` roles returning
+  existing `SemanticAction` and evidence/action-bound `RelationalVerificationResult` records.
+  Task fit, dependencies, provenance, authorization and supported claimed outcomes must be
+  affirmative, contradiction resolved as none, and a repeated failed route absent. Uncertainty
+  or adverse results reject the proposal. Fresh host review authenticates the records; a flag or
+  declared identity does not prove moral alignment or truth.
+- `account_event(request) -> (semantic_event_id, layers)` and fresh existing `authenticate_claims`,
+  `authorize_optimizer_use` and `authorize_accounting` callbacks. Normalize the actual event
+  across methods and declare every relevant prior reward layer. Unknown, missing or counted
+  required layers fail closed. The existing ledger prevents event replay and concurrent duplicate
+  reservations. Callbacks are installed by the host, never certified by a teacher or candidate.
+
+The resulting object is an exact `ResearchRewardProvider`. Pass it through the existing
+`reward_factory`, with `config.actionopd=method` and `config.research_credit=credit_policy`.
+The engine checks matching method/provider/batch/loss settings and actual CPU FP32 execution.
+Use the existing native full-weight backend, admitted dataset factory, checkpoint store and
+optional SST. Undeclared or mismatched services fail before teacher sampling. Changed
+teacher/config/data identity prevents incompatible resume. One bounded rollout batch per
+optimizer step supplies global whitening; cross-microbatch whitening is unsupported.
+
+For example, with independently installed host functions, construct
+`provider = build_actionopd_provider(method, policy=credit_policy, ledger=host_ledger,
+capture_source=host_capture, authorize_source=host_source_review,
+sample_teacher=host_teacher_sampler, parse_action=host_parser, verify_action=host_verifier,
+account_event=host_event_accounting, authenticate_claims=host_claim_review,
+authorize_optimizer_use=host_training_review, authorize_accounting=host_accounting_review)`.
+Run `RLTrainingEngine(config, dataset_factory=host_dataset_factory,
+backend_factory=host_native_cpu_backend, reward_factory=lambda _: provider).train()`.
+There are no default approving reviewers.
+
+Samples are cached only for the same retained student state and pinned generation/policy
+configuration, with sample/state/byte bounds. Invalid teacher samples retain provenance and
+supply no match. Eq. 6 agreement is recomputed separately from independent outcomes. A prohibited
+shortcut cannot obtain credit merely because a teacher agrees. An invalid or uncertain candidate
+fails closed; appropriate observable behavioral penalties remain separate from hidden thoughts.
+
+When the student model/policy scope changes, obsolete ephemeral samples are discarded and cache
+capacity resets. Memory bounds continue to apply within the current scope; they do not cap the
+number of optimizer steps. Existing durable evidence and admission/accounting records remain
+intact. Source authorization still precedes cache rotation and subsequent sampling.
+
+New `research-credit-claim-v2` verified-decision proposals retain the exact source, typed action,
+teacher samples and independent verification, and reproduce the score. Existing claims/policies
+keep their v1 schemas; decision-enabled policies/reports use v2. Exports remain DEVELOPMENT data.
+Raw `teacher_agreement` and `diagnostic` kinds remain ineligible even with provenance. Only fresh
+live authorized decisions supply optimizer access; JSON cannot recreate that capability or
+authorize execution.
+
+The batch preparer verifies live target/policy/method bindings, groups by public student state,
+centers each retained group and whitens across the complete retained batch using Eq. 7. Scalar
+credit and epsilon use the same positive scale, preserving raw Eq. 7 normalization up to floating
+rounding. Unsupervised/equal-reward groups are skipped without forcing an update. The existing
+clipped GRPO loss uses actual student probabilities; teachers never need token probabilities.
+Native checkpoints retain optimizer/SST state and method identity. Fresh caches after resume
+require identical generation provenance; bit-identical external sampling also needs a
+deterministic host sampler. The ledger is not refunded on later failure.
+
+Raw/weighted verified-decision metrics use closed schema v4. Metric schemas v1/v2/v3 keep their
+prior meanings. Agreement, independent outcomes and host eligibility remain inspectable.
+Training creates checkpoints; protected evaluation and governed promotion remain separate
+mandatory operator processes. Protected evaluation uses student-only inference without teacher
+supervision. Native ActionOPD capture/scoring operates only on admitted TRAIN sources.
+
+Run `python -m pytest -q tests/test_actionopd_runtime.py tests/test_actionopd_verified_credit.py`.
+The offline fixture samples from actual current weights, trains with canonical GRPO and resumes
+native checkpoints using host evidence and a probability-free teacher callback. These are
+software checks. Maturity: **Experimental**. CUDA/AMP/distribution, LoRA, complete reproduction,
+external-service qualification and behavioral effectiveness remain Unsupported or unqualified.
+Research runs were excluded by the operator. Future Study A qualification would compare baseline,
+agreement, independently verified decisions and stripe augmentation with matched budgets,
+held-out 17-case suites and multiple seeds, reporting calibration, completion and regressions.

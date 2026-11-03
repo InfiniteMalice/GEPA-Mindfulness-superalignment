@@ -55,6 +55,7 @@ _PAIR_TOKEN_PATTERN = re.compile(r"[^\W_]+(?:['’][^\W_]+)?", re.UNICODE)
 if TYPE_CHECKING:
     from torch import nn
 
+    from .actionopd_runtime import ActionOPDConfig
     from .backends.base import BackendCheckpointResult, TokenizerLike
     from .checkpointing import RankRNGState
 
@@ -491,9 +492,7 @@ class RLTrainingEngine:
         self._default_logger = logger_factory is None
         self.dataset_factory = dataset_factory
         self.reward_factory = reward_factory
-        self.batch_preparer_factory = batch_preparer_factory or (
-            lambda value: _DefaultBatchPreparer(value.algorithm)
-        )
+        self.batch_preparer_factory = batch_preparer_factory or _default_batch_preparer
         self.checkpoint_factory = checkpoint_factory
         self.logger_factory = logger_factory
         self.actor_factory = actor_factory
@@ -654,6 +653,46 @@ class RLTrainingEngine:
                             "research credit requires the matching configured host provider"
                         )
             batch_preparer = self._batch_preparer(mode)
+            if mode != "collect":
+                from .actionopd_runtime import (
+                    ActionOPDBatchPreparer,
+                    validate_actionopd_binding,
+                )
+
+                validate_actionopd_binding(self.config.actionopd, reward_provider)
+                if self.config.actionopd is not None and self.config.actionopd.enabled:
+                    import torch
+
+                    from .algorithms.grpo import GRPOAlgorithm, GRPOAlgorithmConfig
+                    from .backends.torch_policy import TorchPolicyBackend
+
+                    if (
+                        type(batch_preparer) is not ActionOPDBatchPreparer
+                        or batch_preparer.config != self.config
+                        or type(backend) is not TorchPolicyBackend
+                        or backend.training_mode != "full"
+                        or backend.device.type != "cpu"
+                        or backend.autocast_dtype is not None
+                        or backend.gradient_scaler is not None
+                        or backend.distributed_strategy != "none"
+                    ):
+                        raise ValueError("ActionOPD requires the native CPU batch/learner path")
+                    if any(
+                        parameter.dtype != torch.float32
+                        for module in (
+                            backend.policy_model,
+                            backend.reference_model,
+                            backend.value_head,
+                        )
+                        for parameter in module.parameters()
+                    ):
+                        raise ValueError("ActionOPD requires actual FP32 model parameters")
+                    if algorithm is not None and (
+                        type(algorithm) is not GRPOAlgorithm
+                        or algorithm.config
+                        != GRPOAlgorithmConfig.from_runtime_config(self.config.algorithm)
+                    ):
+                        raise ValueError("ActionOPD requires the configured native GRPO objective")
             checkpoint_coordinator = (
                 _LocalCheckpointCoordinator(self.config, backend, snapshot)
                 if self._default_checkpoint and mode in {"train", "resume"}
@@ -817,6 +856,12 @@ class RLTrainingEngine:
                     generation_backend.capabilities().require({Capability.SUPPORTS_GENERATION})
                 else:
                     _validate_rollout_output(self.config, selected, trajectories)
+                if self.config.actionopd is not None and self.config.actionopd.enabled:
+                    from .actionopd_runtime import capture_actionopd_sources
+
+                    trajectories = capture_actionopd_sources(
+                        self.config.actionopd, reward_provider, selected, trajectories
+                    )
                 decisions = _hybrid_staleness_decisions(
                     self.config,
                     trajectories,
@@ -830,6 +875,7 @@ class RLTrainingEngine:
                     trajectories,
                     reward_provider,
                     research_policy=self.config.research_credit,
+                    actionopd_config=self.config.actionopd,
                     weights=(
                         None if hybrid_state is None else tuple(item.weight for item in decisions)
                     ),
@@ -964,6 +1010,12 @@ class RLTrainingEngine:
                     generation_backend.capabilities().require({Capability.SUPPORTS_GENERATION})
                 else:
                     _validate_rollout_output(self.config, selected, trajectories)
+                if self.config.actionopd is not None and self.config.actionopd.enabled:
+                    from .actionopd_runtime import capture_actionopd_sources
+
+                    trajectories = capture_actionopd_sources(
+                        self.config.actionopd, reward_provider, selected, trajectories
+                    )
                 decisions = _hybrid_staleness_decisions(
                     self.config,
                     trajectories,
@@ -982,6 +1034,7 @@ class RLTrainingEngine:
                     trajectories,
                     reward_provider,
                     research_policy=self.config.research_credit,
+                    actionopd_config=self.config.actionopd,
                     weights=(
                         None if hybrid_state is None else tuple(item.weight for item in decisions)
                     ),
@@ -1146,9 +1199,13 @@ class RLTrainingEngine:
         *,
         weights: tuple[float, ...] | None = None,
         research_policy: ResearchRewardPolicy | None = None,
+        actionopd_config: ActionOPDConfig | None = None,
     ) -> tuple[tuple[Trajectory, ...], tuple[object, ...]]:
         if provider is None:  # pragma: no cover - mode selection enforces a provider
             raise RuntimeError("reward provider is unavailable")
+        from .actionopd_runtime import validate_actionopd_binding
+
+        validate_actionopd_binding(actionopd_config, provider)
         results = tuple(
             provider.score(
                 RewardRequest(
@@ -1170,6 +1227,16 @@ class RLTrainingEngine:
                 or provider.policy != research_policy
             ):
                 raise ValueError("research rewards require the matching configured host provider")
+            if any(
+                "research_verified_decision_raw" in result.metrics()
+                for result in results
+                if type(result) is ResearchRewardDecision
+            ):
+                if actionopd_config is None or not actionopd_config.enabled:
+                    raise ValueError(
+                        "verified decisions require declared ActionOPD training settings"
+                    )
+                validate_actionopd_binding(actionopd_config, provider)
         if weights is not None:
             if len(weights) != len(results):
                 raise ValueError("staleness weights must align with scored trajectories")
@@ -1630,6 +1697,15 @@ class _PairRewardProvider:
             if value < 0.0:
                 full_evidence[name] = references
         return RewardAssessment(total, components, full_evidence, references, integrity)
+
+
+def _default_batch_preparer(config: RLRunConfig) -> BatchPreparer:
+    """Select the explicitly configured objective without changing ordinary GRPO."""
+    if config.actionopd is not None and config.actionopd.enabled:
+        from .actionopd_runtime import ActionOPDBatchPreparer
+
+        return ActionOPDBatchPreparer(config)
+    return _DefaultBatchPreparer(config.algorithm)
 
 
 class _DefaultBatchPreparer:
@@ -2901,7 +2977,12 @@ class _JSONLRunLogger:
     def metrics(self, rewards: tuple[object, ...], global_step: int) -> None:
         from datetime import datetime, timezone
 
-        from .run_logging import LOG_SCHEMA_VERSION, RESEARCH_METRIC_SCHEMA_VERSION, MetricRecord
+        from .run_logging import (
+            ACTIONOPD_METRIC_SCHEMA_VERSION,
+            LOG_SCHEMA_VERSION,
+            RESEARCH_METRIC_SCHEMA_VERSION,
+            MetricRecord,
+        )
 
         values = tuple(_reward_value(reward) for reward in rewards)
         mean = sum(values) / len(values) if values else 0.0
@@ -2938,7 +3019,9 @@ class _JSONLRunLogger:
             global_step=global_step,
             scope="aggregate",
             schema_version=(
-                RESEARCH_METRIC_SCHEMA_VERSION if research_rows else LOG_SCHEMA_VERSION
+                ACTIONOPD_METRIC_SCHEMA_VERSION
+                if "research_verified_decision_raw" in component_means
+                else RESEARCH_METRIC_SCHEMA_VERSION if research_rows else LOG_SCHEMA_VERSION
             ),
             backend=self.backend_name,
             actor_backend=self.actor_backend,
@@ -2965,9 +3048,13 @@ class _JSONLRunLogger:
                     global_step=global_step,
                     scope="response",
                     schema_version=(
-                        RESEARCH_METRIC_SCHEMA_VERSION
-                        if type(reward) is ResearchRewardDecision
-                        else LOG_SCHEMA_VERSION
+                        ACTIONOPD_METRIC_SCHEMA_VERSION
+                        if "research_verified_decision_raw" in response_metrics
+                        else (
+                            RESEARCH_METRIC_SCHEMA_VERSION
+                            if type(reward) is ResearchRewardDecision
+                            else LOG_SCHEMA_VERSION
+                        )
                     ),
                     backend=self.backend_name,
                     actor_backend=self.actor_backend,
@@ -3119,6 +3206,8 @@ def _config_payload(config: RLRunConfig) -> bytes:
         payload.pop("sst", None)
     if config.research_credit is None or not config.research_credit.enabled:
         payload.pop("research_credit", None)
+    if config.actionopd is None or not config.actionopd.enabled:
+        payload.pop("actionopd", None)
     dataset = cast(dict[str, object], payload["dataset"])
     payload["dataset"] = {"format": dataset["format"]}
     algorithm = cast(dict[str, object], payload["algorithm"])

@@ -30,7 +30,7 @@ from .research_credit_ledger import ResearchCreditLedger, ResearchCreditUse
 from .reward_pipeline import RewardPipeline, RewardResult
 from .trajectory import Trajectory
 
-_KINDS = frozenset({"knowledge", "progress", "process"})
+_KINDS = frozenset({"knowledge", "progress", "process", "verified_decision"})
 HostReview = Callable[[dict[str, object]], bool]
 
 
@@ -76,7 +76,11 @@ class ResearchRewardPolicy:
         self.__post_init__()
         value = {field.name: getattr(self, field.name) for field in fields(self)}
         value["coefficients"] = [list(entry) for entry in self.coefficients]
-        value["schema_version"] = "research-reward-policy-v1"
+        value["schema_version"] = (
+            "research-reward-policy-v2"
+            if "verified_decision" in dict(self.coefficients)
+            else "research-reward-policy-v1"
+        )
         validate_input_envelope(value)
         return value
 
@@ -87,11 +91,17 @@ class ResearchRewardPolicy:
         if (
             type(value) is not dict
             or set(value) != names | {"schema_version"}
-            or value["schema_version"] != "research-reward-policy-v1"
             or type(value["coefficients"]) is not list
             or any(type(entry) is not list for entry in value["coefficients"])
         ):
             raise ValueError("invalid research reward policy schema")
+        expected_schema = (
+            "research-reward-policy-v2"
+            if any(entry and entry[0] == "verified_decision" for entry in value["coefficients"])
+            else "research-reward-policy-v1"
+        )
+        if value["schema_version"] != expected_schema:
+            raise ValueError("research reward policy kind/schema mismatch")
         args = {name: value[name] for name in names}
         args["coefficients"] = tuple(tuple(entry) for entry in value["coefficients"])
         return cls(**args)
@@ -409,7 +419,8 @@ class ResearchRewardProvider:
             "research_baseline_reward": baseline.total,
             "research_adjustment": adjustment,
         }
-        for kind in sorted(_KINDS):
+        kinds = _KINDS if "verified_decision" in weights else _KINDS - {"verified_decision"}
+        for kind in sorted(kinds):
             for field, suffix in (("raw", "raw"), ("weighted", "weighted")):
                 try:
                     value = fsum(item[field] for item in components if item["kind"] == kind)
@@ -418,7 +429,11 @@ class ResearchRewardProvider:
                 _number(value)
                 metric_values[f"research_{kind}_{suffix}"] = value
         report = {
-            "schema_version": "research-reward-decision-v1",
+            "schema_version": (
+                "research-reward-decision-v2"
+                if "verified_decision" in weights
+                else "research-reward-decision-v1"
+            ),
             "metrics": metric_values,
             "training_eligibility": "DEVELOPMENT",
             "authority_granted": False,

@@ -18,6 +18,7 @@ from .seeds import validate_seed
 from .subspace_tuning import SSTConfig
 
 if TYPE_CHECKING:
+    from .actionopd_runtime import ActionOPDConfig
     from .research_credit_runtime import ResearchRewardPolicy
 
 try:
@@ -733,6 +734,7 @@ class RLRunConfig:
     seed: int = 42
     sst: SSTConfig = field(default_factory=SSTConfig)
     research_credit: ResearchRewardPolicy | None = None
+    actionopd: ActionOPDConfig | None = None
 
     def __post_init__(self) -> None:
         sections = {
@@ -750,6 +752,28 @@ class RLRunConfig:
                 raise TypeError(f"configuration.{name} must be a {expected_type.__name__}")
         if type(self.sst) is not SSTConfig:
             raise TypeError("configuration.sst must be an SSTConfig")
+        if self.actionopd is not None:
+            from .actionopd_runtime import ActionOPDConfig
+            from .research_credit_runtime import ResearchRewardPolicy
+
+            if type(self.actionopd) is not ActionOPDConfig:
+                raise TypeError("configuration.actionopd must be an ActionOPDConfig")
+            if self.actionopd.enabled and (
+                self.algorithm.name != "grpo"
+                or type(self.research_credit) is not ResearchRewardPolicy
+                or not self.research_credit.enabled
+                or self.research_credit.coefficients
+                != (("verified_decision", self.actionopd.credit_weight),)
+            ):
+                raise ValueError(
+                    "ActionOPD requires GRPO and its matching verified-decision policy"
+                )
+            if self.actionopd.enabled and (
+                self.algorithm.gradient_accumulation_steps != 1
+                or self.algorithm.batch_size * self.algorithm.group_size
+                > self.actionopd.max_candidates
+            ):
+                raise ValueError("ActionOPD requires one bounded batch for global whitening")
         if self.research_credit is not None:
             from .research_credit_runtime import ResearchRewardPolicy
 
@@ -797,6 +821,7 @@ class RLRunConfig:
                 "seed",
                 "sst",
                 "research_credit",
+                "actionopd",
             },
             "configuration",
         )
@@ -813,7 +838,19 @@ class RLRunConfig:
             seed=seed,
             sst=_sst_configuration(_section(payload, "sst")),
             research_credit=_research_credit_configuration(payload.get("research_credit")),
+            actionopd=_actionopd_configuration(payload.get("actionopd")),
         )
+
+
+def _actionopd_configuration(payload: object) -> ActionOPDConfig | None:
+    """Parse opt-in method settings without importing native Torch backends."""
+    if payload is None:
+        return None
+    from .actionopd_runtime import ActionOPDConfig
+
+    values = dict(_mapping(payload, "actionopd"))
+    _reject_unknown(values, set(ActionOPDConfig.__dataclass_fields__), "actionopd")
+    return ActionOPDConfig(**values)
 
 
 def _research_credit_configuration(payload: object) -> ResearchRewardPolicy | None:
@@ -923,6 +960,8 @@ def _translate_legacy_config(payload: Mapping[str, Any]) -> RLRunConfig:
         canonical["sst"] = payload["sst"]
     if "research_credit" in payload:
         canonical["research_credit"] = payload["research_credit"]
+    if "actionopd" in payload:
+        canonical["actionopd"] = payload["actionopd"]
     return RLRunConfig.from_mapping(canonical)
 
 

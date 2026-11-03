@@ -11,8 +11,10 @@ through canonical CPU training; fresh evidence/use/accounting reviews remain man
 Accounting receipts and exported diagnostics grant no runtime authority. PR 2 adds
 [experimental ActionOPD/LoCD adapters and kernels](distillation_adapters.md).
 An opt-in native CPU LoCD context self-distillation trial now updates an isolated student and
-uses existing independent protected catalog validation; a full ActionOPD training attachment,
-teacher service and empirical qualification remain absent. PR 3 adds a separate optional
+uses existing independent protected catalog validation. An explicit native ActionOPD adapter
+now binds configured black-box teacher sampling, independently verified semantic credit and
+global batch whitening to canonical CPU GRPO/checkpoint/SST execution. External teacher clients,
+full paper reproduction and empirical qualification remain absent. PR 3 adds a separate optional
 [CPU SST adapter and numerical probe](subspace_tuning.md). Explicit canonical CPU PPO/GRPO
 configuration and checkpoint/resume now work; behavioral retention remains unqualified. PR 4 adds the default-off
 [DeLoop + PEO audit and recovery preparation](deloop_peo.md), with a separate DPO kernel;

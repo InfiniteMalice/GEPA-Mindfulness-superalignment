@@ -31,7 +31,19 @@ _TEXT_FIELDS = (
     "harness_version",
     "producer_id",
 )
-_KINDS = {"knowledge", "progress", "process", "teacher_agreement", "diagnostic"}
+_KINDS = {
+    "knowledge",
+    "progress",
+    "process",
+    "teacher_agreement",
+    "diagnostic",
+    "verified_decision",
+}
+
+
+def _claim_schema(credit_kind: str) -> str:
+    """Keep existing claims byte-compatible; verified decisions need their own version."""
+    return "research-credit-claim-v2" if credit_kind == "verified_decision" else _SCHEMA
 
 
 def _text(value: object) -> None:
@@ -164,13 +176,15 @@ class ResearchCreditClaim:
         metadata = _json_value(self.source_metadata_json)
         if type(metadata) is not dict:
             raise ValueError("source metadata must be a JSON object")
+        if self.credit_kind == "verified_decision":
+            _validate_verified_decision(self, metadata)
 
     def to_dict(self) -> dict[str, object]:
         """Return detached versioned audit data; revalidate nested caller-owned records."""
         self._validate()
         wire = {field.name: getattr(self, field.name) for field in fields(self)}
         wire.update(
-            schema_version=_SCHEMA,
+            schema_version=_claim_schema(self.credit_kind),
             training_eligibility="DEVELOPMENT",
             evaluator={
                 "evaluator_id": self.evaluator.evaluator_id,
@@ -187,7 +201,7 @@ class ResearchCreditClaim:
 
     @classmethod
     def from_dict(cls, value: object) -> ResearchCreditClaim:
-        """Restore only exact v1 DEVELOPMENT claims, never a live authorization."""
+        """Restore supported versioned DEVELOPMENT claims, never a live authorization."""
         validate_input_envelope(value)
         names = {field.name for field in fields(cls)}
         if type(value) is not dict or set(value) != names | {
@@ -195,7 +209,10 @@ class ResearchCreditClaim:
             "training_eligibility",
         }:
             raise ValueError("unexpected or missing claim fields")
-        if value["schema_version"] != _SCHEMA or value["training_eligibility"] != "DEVELOPMENT":
+        if (
+            value["schema_version"] != _claim_schema(value.get("credit_kind"))
+            or value["training_eligibility"] != "DEVELOPMENT"
+        ):
             raise ValueError("unsupported schema or training relabel")
         raw_evaluator = value["evaluator"]
         if type(raw_evaluator) is not dict or set(raw_evaluator) != {
@@ -217,6 +234,83 @@ class ResearchCreditClaim:
             else _reward_provenance_from_dict(value["provenance"])
         )
         return cls(**values)
+
+
+def _validate_verified_decision(claim: ResearchCreditClaim, metadata: dict[str, object]) -> None:
+    """Reproduce a decision proposal; host verification and admission remain necessary."""
+    from gepa_mindfulness.verification.interfaces import RelationalVerificationResult
+
+    from .actionopd import (
+        SemanticAction,
+        TeacherActionSample,
+        evaluate_action_group,
+        public_state_digest,
+    )
+    from .causal_reward_records import _read_request, request_digest
+
+    if (
+        claim.method_id != "ActionOPD"
+        or claim.source_reference != "REF-ACTIONOPD"
+        or claim.component_name != "verified_decision"
+        or claim.score < 0
+    ):
+        raise ValueError("verified decision requires the declared ActionOPD component")
+    source = _read_request(metadata.get("decision_source"))
+    if (
+        metadata.get("target_request_digest") != request_digest(source)
+        or source.trajectory.trajectory_id != claim.action_id
+        or source.trajectory.policy_version != claim.model_version
+        or public_state_digest(source) != claim.state_digest
+    ):
+        raise ValueError("verified decision source binding mismatch")
+    proof = metadata.get("verified_decision")
+    if (
+        type(proof) is not dict
+        or set(proof)
+        != {
+            "schema_version",
+            "action",
+            "teacher_samples",
+            "verification",
+            "frequency_bonus",
+            "nominal_teacher_count",
+        }
+        or proof["schema_version"] != "actionopd-verified-decision-v1"
+        or type(proof["teacher_samples"]) is not list
+    ):
+        raise ValueError("invalid verified decision proof schema")
+    verification = RelationalVerificationResult.from_dict(proof["verification"])
+    if (
+        not all(
+            (
+                verification.task_fit,
+                verification.dependencies_satisfied,
+                verification.provenance_intact,
+                verification.authorization_scope_valid,
+                verification.claimed_outcome_supported,
+            )
+        )
+        or verification.contradiction_status != "none"
+        or verification.repeated_failed_route
+        or not set(verification.evidence_refs).issubset(claim.evidence_refs)
+    ):
+        raise ValueError("independent decision verification is incomplete or adverse")
+    samples = tuple(TeacherActionSample.from_dict(item) for item in proof["teacher_samples"])
+    if any(sample.teacher.evaluator_id == claim.evaluator.evaluator_id for sample in samples):
+        raise ValueError("teacher cannot certify its own decision")
+    comparison = evaluate_action_group(
+        (source,),
+        (SemanticAction.from_dict(proof["action"]),),
+        samples,
+        (verification,),
+        frequency_bonus=proof["frequency_bonus"],
+        nominal_teacher_count=proof["nominal_teacher_count"],
+        enabled=True,
+    )
+    proposed_score = comparison["candidates"][0]["agreement_reward"]
+    expected_score = 0.0 if proposed_score is None else proposed_score
+    if claim.score != expected_score:
+        raise ValueError("verified decision score differs from the retained comparison")
 
 
 def audit_research_credit(

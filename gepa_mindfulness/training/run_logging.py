@@ -26,6 +26,7 @@ from gepa_mindfulness.training.trajectory import Trajectory
 
 LOG_SCHEMA_VERSION = 1
 RESEARCH_METRIC_SCHEMA_VERSION = 3
+ACTIONOPD_METRIC_SCHEMA_VERSION = 4
 SST_METRIC_SCHEMA_VERSION = 2
 MetricScope = Literal["aggregate", "group", "response"]
 
@@ -89,6 +90,12 @@ _RESEARCH_METRIC_NAMES = frozenset(
         f"research_{kind}_{component}"
         for kind in ("knowledge", "progress", "process")
         for component in ("raw", "weighted")
+    }
+)
+_ACTIONOPD_METRIC_NAMES = frozenset(
+    {
+        "research_verified_decision_raw",
+        "research_verified_decision_weighted",
     }
 )
 _RUN_MANIFEST_FIELDS = frozenset(
@@ -306,8 +313,11 @@ class MetricRecord:
             LOG_SCHEMA_VERSION,
             SST_METRIC_SCHEMA_VERSION,
             RESEARCH_METRIC_SCHEMA_VERSION,
+            ACTIONOPD_METRIC_SCHEMA_VERSION,
         ):
-            raise ValueError("metric schema_version must be 1, 2 (SST) or 3 (research credit)")
+            raise ValueError(
+                "metric schema_version must be 1, 2 (SST), 3 (credit) or 4 (decisions)"
+            )
         if not isinstance(self.metrics, Mapping) or not self.metrics:
             raise ValueError("metrics must be a non-empty mapping")
         allowed = _METRIC_NAMES
@@ -319,6 +329,12 @@ class MetricRecord:
             if "research_adjustment" not in self.metrics:
                 raise ValueError("metric schema_version 3 requires research credit diagnostics")
             allowed = allowed | _RESEARCH_METRIC_NAMES
+        if self.schema_version == ACTIONOPD_METRIC_SCHEMA_VERSION:
+            if "research_adjustment" not in self.metrics or not _ACTIONOPD_METRIC_NAMES.issubset(
+                self.metrics
+            ):
+                raise ValueError("metric schema_version 4 requires verified decision diagnostics")
+            allowed = allowed | _RESEARCH_METRIC_NAMES | _ACTIONOPD_METRIC_NAMES
         metrics: dict[str, float] = {}
         for name, value in self.metrics.items():
             _required_string(name, "metric name")
@@ -1088,6 +1104,7 @@ def _exclusive_stream_lock(stream: BinaryIO) -> Iterator[None]:
 
 
 __all__ = [
+    "ACTIONOPD_METRIC_SCHEMA_VERSION",
     "JSONLLoggingSink",
     "LOG_SCHEMA_VERSION",
     "MetricRecord",
