@@ -399,3 +399,50 @@ def test_concurrent_worker_calls_cannot_exceed_the_evaluation_budget(tmp_path, m
     assert result.decision.accepted
     assert len(result.to_dict()["observations"]) == 1
     assert len(errors) == 1
+
+
+def test_maximum_advertised_output_budget_runs_small_valid_worker(tmp_path):
+    values = setup_trial(tmp_path)
+    values[5]["config"] = replace(values[5]["config"], max_output_bytes=1048576)
+    result = trial(values)
+    assert result.decision.accepted
+    assert result.to_dict()["observations"][0]["status"] == "completed"
+
+
+def test_worker_hash_seed_is_reproducible_without_cwd_or_user_site_imports(tmp_path):
+    worker = (
+        "import json,os,sys\n"
+        "json.load(sys.stdin)\n"
+        "print(json.dumps({'hash':str(hash('same task')),"
+        "'no_user_site':sys.flags.no_user_site, 'ignore_environment':sys.flags.ignore_environment,"
+        "'cwd_import': '' in sys.path or os.getcwd() in sys.path}))\n"
+    )
+    values = setup_trial(tmp_path, worker_text=worker)
+    evaluate = values[5]["evaluate"]
+
+    def repeated(candidate, run):
+        rows = [run({"task_id": "same", "prompt": "same task"}) for _ in range(3)]
+        return evaluate(candidate, lambda task: rows[0])
+
+    values[5]["evaluate"] = repeated
+    result = trial(values)
+    rows = result.to_dict()["observations"]
+    assert all(row["output"]["ignore_environment"] == 0 for row in rows)
+    assert all(row["output"]["no_user_site"] == 1 for row in rows)
+    assert not any(row["output"]["cwd_import"] for row in rows)
+    assert len({row["output"]["hash"] for row in rows}) == 1
+
+
+def test_output_that_exceeds_enclosing_audit_depth_is_a_retained_failure(tmp_path):
+    worker = (
+        "import json\nvalue={}\n"
+        "for _ in range(29): value={'nested':value}\n"
+        "print(json.dumps(value))\n"
+    )
+    values = setup_trial(tmp_path, worker_text=worker)
+    result = trial(values)
+    assert result.configuration is None
+    row = result.to_dict()["observations"][0]
+    assert row["status"] == "failed" and row["output"] is None
+    audit = next(values[5]["artifact_root"].rglob("trial.json"))
+    assert json.loads(audit.read_text())["observations"][0]["status"] == "failed"

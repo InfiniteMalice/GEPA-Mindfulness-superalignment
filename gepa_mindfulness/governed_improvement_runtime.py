@@ -59,7 +59,9 @@ _KEYS = {
     "diagnostic_instrumentation": {"extra_events"},
 }
 _BOOTSTRAP = (
-    "import hashlib,resource,sys\n"
+    "import sys\n"
+    "sys.path[:]=[entry for entry in sys.path if entry]\n"
+    "import hashlib,resource\n"
     "resource.setrlimit(resource.RLIMIT_FSIZE,(int(sys.argv[2]),int(sys.argv[2])))\n"
     "resource.setrlimit(resource.RLIMIT_CPU,(int(sys.argv[3]),int(sys.argv[3])))\n"
     "with open(sys.argv[1],'rb') as source: code=source.read(4194305)\n"
@@ -288,7 +290,20 @@ def _worker_digest(config: HarnessTrialConfig) -> str:
     return config.worker_sha256
 
 
-def _run_worker(config: HarnessTrialConfig, directory: Path, job: dict) -> dict:
+def _worker_environment(config: HarnessTrialConfig) -> dict[str, str]:
+    environment = {"PYTHONHASHSEED": str(config.seed), "OMP_NUM_THREADS": "1"}
+    # Preserve the configured interpreter's dynamic libraries, never credential variables.
+    if "LD_LIBRARY_PATH" in os.environ:
+        environment["LD_LIBRARY_PATH"] = os.environ["LD_LIBRARY_PATH"]
+    return environment
+
+
+def _run_worker(
+    config: HarnessTrialConfig,
+    directory: Path,
+    job: dict,
+    environment: dict[str, str] | None = None,
+) -> dict:
     """Run fixed trusted code with bounded files/CPU/output; candidate data cannot select code."""
     if os.name != "posix":
         raise ValueError("isolated worker requires supported POSIX resource limits")
@@ -301,7 +316,7 @@ def _run_worker(config: HarnessTrialConfig, directory: Path, job: dict) -> dict:
         process = subprocess.Popen(
             [
                 sys.executable,
-                "-I",
+                "-s",
                 "-c",
                 _BOOTSTRAP,
                 config.worker_path,
@@ -313,7 +328,7 @@ def _run_worker(config: HarnessTrialConfig, directory: Path, job: dict) -> dict:
             stdout=captured,
             stderr=subprocess.DEVNULL,
             cwd=directory,
-            env={"PYTHONHASHSEED": str(config.seed), "OMP_NUM_THREADS": "1"},
+            env=dict(_worker_environment(config) if environment is None else environment),
             start_new_session=True,
         )
         try:
@@ -324,8 +339,11 @@ def _run_worker(config: HarnessTrialConfig, directory: Path, job: dict) -> dict:
                 if len(raw) <= config.max_output_bytes:
                     try:
                         value = decode_curriculum_json(raw.decode("utf-8"))
-                        validate_input_envelope(value)
-                        if type(value) is dict:
+                        # Bound reserialized bytes and depth at its actual audit position.
+                        validate_input_envelope({"observations": [{"output": value}]})
+                        if type(value) is dict and len(canonical_json(value).encode("utf-8")) <= (
+                            config.max_output_bytes
+                        ):
                             output, status = value, "completed"
                     except (ValueError, RecursionError, UnicodeError):
                         pass
@@ -428,13 +446,19 @@ def run_harness_improvement(
         raise ValueError("fresh host admission, independent evaluator and artifact root required")
     _text(candidate_id, "candidate_id")
     _worker_digest(config)
+    environment = _worker_environment(config)
     report.update(
         original=original.to_dict(),
         proposed=proposed.to_dict(),
         model_version=source.model_version,
         candidate_id=candidate_id,
         status="host_admission_pending",
-        runtime={"python_version": sys.version.split()[0], "platform": sys.platform},
+        runtime={
+            "python_version": sys.version.split()[0],
+            "platform": sys.platform,
+            "environment_keys": sorted(environment),
+            "environment_sha256": hashlib.sha256(canonical_json(environment).encode()).hexdigest(),
+        },
     )
     validate_input_envelope(
         report
@@ -442,6 +466,8 @@ def run_harness_improvement(
             "candidate_projections": [correction.to_dict(), correction.to_dict()],
             "authority": store.authority().to_dict(),
             "final_metadata_capacity": "x" * 65536,
+            "first_output_capacity": "x" * config.max_output_bytes,
+            "public_task_capacity": "x" * (65536 * 6),
         }
     )
     if not authenticate_payload(report, authenticate):
@@ -492,7 +518,7 @@ def run_harness_improvement(
         validate_input_envelope(
             report
             | {
-                "next_output": "x" * (config.max_output_bytes * 6),
+                "next_output": "x" * config.max_output_bytes,
                 "next_task": task,
                 "decision_projection": candidate.to_dict(),
                 "final_capacity": "x" * 65536,
@@ -517,7 +543,7 @@ def run_harness_improvement(
         report["observations"].append(captured)
         _write_report(directory, report)
         try:
-            result = _run_worker(config, run_dir, job)
+            result = _run_worker(config, run_dir, job, environment)
         except OSError:
             result = {"status": "failed", "output": None, "wall_time_ms": 0}
         captured.update(result)

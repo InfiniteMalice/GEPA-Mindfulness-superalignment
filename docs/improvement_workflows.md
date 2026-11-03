@@ -233,12 +233,20 @@ pinned backend and procedure. A model-version string or worker hash alone is not
 permission or scientific provenance. Installed workers must apply existing runtime grants
 before any tool action and record actual PEO effects; stdout is not a verifier finding.
 
-Every call uses isolated Python (`-I`), a new working directory and a minimal environment
-without inherited credential variables. The child rechecks the exact bounded script bytes
+Every call disables the user site (`-s`), removes the current-directory import entry,
+uses a new working directory and starts with a minimal controlled environment. PYTHONPATH,
+PYTHONHOME and credential variables are not inherited. The configured PYTHONHASHSEED is
+honored (unlike `-I`, which ignores it), making string hashes/set ordering repeatable under
+the pinned interpreter. The existing interpreter's LD_LIBRARY_PATH is retained when present
+for its dynamic libraries. Environment keys and a fingerprint are bound before host admission;
+raw values are not logged. The child rechecks the exact bounded script bytes
 before executing their immutable snapshot. POSIX CPU/file-size limits and a wall timeout bound
 the process; stdout is file-backed and size-limited, stderr is discarded, and the process group
 is killed/reaped. Duplicate/malformed/oversized JSON, nonzero exit and timeout are retained as
-failed observations. Complete audit/output/decision capacity is reserved before launch, and
+failed observations. Output must fit both its raw/reencoded byte budget and the enclosing
+audit depth; invalid nested output is recorded as failed with no retained payload. Maximum
+first-output/task/decision capacity is checked before candidate registration, and each later
+call reserves remaining complete-audit capacity before launch. Complete audit/output/decision capacity is reserved before launch, and
 pending attempts count before execution. The public task is copied so later callback mutation
 cannot rewrite evidence. The evaluator's worker callable expires immediately when evaluation
 returns or raises. No catalog/store handle or private labels are passed to the process.

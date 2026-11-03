@@ -67,3 +67,14 @@ unchanged outside intended opt-in modules; protected files are preserved by
 complete-remote-tree verification. Black, 100 columns, Python 3.10 syntax, pure
 import/config without Torch/NumPy and wheel/source identity are verified in PR
 evidence. Complete remote Python3.10/3.12 CI/public review remain mandatory.
+
+Three public findings were independently reproduced RED: allowed 1 MiB output
+budget rejected by a sixfold reservation; -I ignoring configured hash seed; and
+standalone-valid output exceeding the enclosing audit depth. Reservations now
+match the explicitly bounded reserialized output and include first-call/task
+capacity before candidate registration. Worker output is validated in its audit
+context and rejected payloads become retained failed observations. Startup uses
+-s with a clean environment and removed cwd import entry so only configured
+PYTHONHASHSEED is honored. The interpreter's dynamic-library path is preserved
+when present; environment keys/fingerprint are bound before admission, and no
+credentials are inherited. No protected policy or acceptance authority changed.
