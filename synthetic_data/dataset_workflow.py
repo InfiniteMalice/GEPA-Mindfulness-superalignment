@@ -430,6 +430,8 @@ def run_dataset_workflow(
         dataset_path=str(data_path.resolve()),
     )
     validate_curriculum_envelope(report)
+    if directory.exists():
+        raise FileExistsError("dataset workflow artifact already exists")
     if not authenticate_payload(report, authorize_training):
         report["status"] = "training_admission_withheld"
         return DatasetWorkflowResult(None, canonical_json(report))
