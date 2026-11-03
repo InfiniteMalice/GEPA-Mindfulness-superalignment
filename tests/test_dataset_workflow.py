@@ -251,11 +251,14 @@ def test_byte_budget_withholds_before_final_training_authority(tmp_path):
 
 def test_versioned_artifacts_are_not_overwritten(tmp_path):
     pool, previous, contract, policy, args, _, _ = setup_workflow(tmp_path)
+    admissions = []
+    args["authorize_training"] = lambda packet: admissions.append(packet) or True
     first = run_dataset_workflow(pool, previous, contract, policy, **args)
     original = first.dataset.path.read_bytes()
     with pytest.raises(FileExistsError):
         run_dataset_workflow(pool, previous, contract, policy, **args)
     assert first.dataset.path.read_bytes() == original
+    assert len(admissions) == 1
 
 
 def test_source_coverage_reports_unassigned_without_inventing_canonical_cases(tmp_path):
@@ -399,3 +402,27 @@ def test_relative_destination_remains_bound_after_working_directory_change(tmp_p
     monkeypatch.chdir(other)
     assert len(result.dataset.materialize("resume")) == 3
     assert str(result.dataset.path) == result.to_dict()["dataset_path"]
+
+
+def test_partial_write_is_retained_without_provider_or_silent_retry(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    pool, previous, contract, policy, args, _, _ = setup_workflow(tmp_path)
+    write_text = Path.write_text
+
+    def fail_recipe(path, data, *values, **keywords):
+        if path.name == "recipe.json":
+            raise OSError("fixture write failure")
+        return write_text(path, data, *values, **keywords)
+
+    monkeypatch.setattr(Path, "write_text", fail_recipe)
+    with pytest.raises(OSError, match="fixture write"):
+        run_dataset_workflow(pool, previous, contract, policy, **args)
+    artifact = next(args["output_root"].rglob("train.jsonl"))
+    original = artifact.read_bytes()
+    args["authorize_training"] = lambda _: pytest.fail(
+        "occupied artifact requested fresh admission"
+    )
+    with pytest.raises(FileExistsError):
+        run_dataset_workflow(pool, previous, contract, policy, **args)
+    assert artifact.read_bytes() == original
