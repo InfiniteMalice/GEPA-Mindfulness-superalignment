@@ -2,8 +2,10 @@
 
 Maturity: **Experimental**. This stage implements a default-off PEO repetition audit,
 independently reviewed recovery-pair preparation, and a separate optional DPO numerical kernel.
-It does not run a model trainer, deploy a duplicate blocker, award GRPO penalties, admit a dataset
-or change runtime authority. Behavioral improvement is unestablished.
+A separately enabled [live repeat guard](#live-repeat-guard) now suppresses independently
+confirmed unproductive actions and delegates eligible actions through the existing runtime
+authorization owner. Native DPO/GRPO training attachment and dataset admission remain absent.
+Behavioral improvement is unestablished.
 
 ## Source and adaptation boundary
 
@@ -146,4 +148,87 @@ paired seeds and independently held-out tests, and retain failure distributions 
 Report loop rate alongside informative-repeat rate, clarification recovery, premature termination,
 verified completion, tokens and time. Include necessary rechecking, partial answers, changing tool
 results and forbidden shortcuts. Do not promote a lower loop rate that sacrifices verification or
-task success. No blocker, GRPO reward path or behavioral experiment is implemented by this stage.
+task success. No GRPO reward path or behavioral experiment is implemented by this stage.
+
+## Live repeat guard
+
+`gepa_mindfulness.training.live_loop_guard` adds versioned, default-off `LoopGuardConfig`,
+`inspect_repeat_guard()` and `execute_guarded_action()`. This is an original conservative
+inference adaptation of the source repetition rule, not published DeLoop training or a new
+permission system. The existing overlay flag remains an audit declaration; it does not enable
+execution. An operator must separately configure this procedural guard and its host roles.
+
+Supply completed action-bound `events` and `LoopStep`s, a pending `LoopStep`, its existing
+`PredictionCommit` and `ActionRecord`. The pending action must have a new action/prediction ID,
+exact semantic class/commitment and current observable context references. The source run,
+model and harness remain bound to configured scope. The underlying PEO audit validates complete
+chronological execution/observation coverage and state/action/observation signatures.
+
+Before enrolling an action policy/grant, the runtime owner sets the existing
+`ActionRecord.authorization_scope` to `loop_guard_action_scope(pending, prediction, config)`.
+This digest binds complete pending inputs, prediction and procedural scope. The existing owner
+still authenticates the intended operation and issues authority; a digest grants none. Coherently
+rewriting an action and prediction while reusing their IDs cannot reuse the original grant.
+No runtime authority schemas or acceptance rules are changed.
+
+Fresh `authenticate_context(packet)` review authenticates source issuers/evidence, current
+state applicability, public-state normalization and any claimed human recheck, productive repeat
+or necessary independent verification. The host must actually check those facts; labels and
+different reviewer strings do not establish truth or real independence. Missing, false,
+truthy non-boolean, mutating and throwing callbacks route to `escalate`, without invoking an
+executor. No uncertain judgment is relabeled as a deterministic constitutional violation.
+
+Authenticated exceptions continue through ordinary authority checks. A prior necessary recheck
+is not treated as an unproductive source failure. Changed environment state, a new observation,
+or an intervening novel/informative action also prevents stale loop suppression. The first
+retry cannot be blocked from an imagined unchanged observation: completed repeat evidence is
+required. The guard does not infer arbitrary paraphrase equivalence; host normalization must
+bind actual operational arguments rather than superficial explanation wording.
+
+For a current nonexempt repeated pattern, `verify_repeat(packet)` returns the existing
+`RelationalVerificationResult` for the latest matching completed repeat. Its
+`repeated_failed_route` binding must include both original and repeated observation references,
+with intact provenance, valid authorization scope and no contradiction. A confirmed unproductive
+repeat yields `blocked_repeat`. An independently supported productive repeat can continue.
+Both conclusive routes require the observation binding; a false repeated-route flag alone is
+not an independently verified absence finding.
+Unknown, malformed, mutated, foreign-subject, foreign-evidence or incomplete findings escalate.
+Every result remains diagnostic DEVELOPMENT data with `authority_granted=False`; it never
+supplies optimizer credit or claims task completion. Current answered-clarification and verification
+restart subtypes reuse the existing overlay semantics and do not assign canonical cases.
+
+Final route/reason capacity is reserved on every path before context authentication, including
+authenticated exceptions and empty history. A suspect pattern additionally reserves the complete
+maximum allowed serialized relational review, including every source reference in every possible
+binding. This may conservatively reject a packet whose eventual smaller review could fit.
+Callback exception text is not exported. Preserve the immutable raw PEO store independently of
+the bounded supplied history and record returned diagnostics using the existing host audit path.
+
+For live use, call `execute_guarded_action(action, issued_authorization, grant_registry=registry,
+clock=host_clock, execute=host_execute_committed_action, config=config, events=events, steps=steps,
+pending=pending, prediction=prediction, authenticate_context=host_context_review,
+verify_repeat=host_repeat_verifier, action_author_id=author_id, action_executor_id=executor_id)`.
+The synchronous trusted host executor must resolve and execute exactly the authenticated
+committed semantic action and log its actual consequences in the existing PEO stream.
+
+The wrapper recomputes inspection; it never accepts an exported continue report as permission.
+On continue (or with the guard disabled), it calls existing `consume_authorization()` against
+the live registry and clock before invoking the executor. Reconstructed, expired, revoked,
+mutated and replayed decisions retain existing rejection behavior. Guard review must remain
+independent of the model and action author/executor identities. A blocked/escalated action
+does not consume its authorization, select a replacement, terminate the task or certify an
+answer. The host replans, resumes after clarification, or requests appropriate review while
+preserving useful evidence. An executor exception after consumption requires the existing fresh
+authorization/recovery process. The wrapper cannot sandbox deliberately untrusted host code.
+
+`GuardedExecution.invoked` records callback invocation, not task success or verified execution.
+Actual result verification remains separate. Native preference training and observable GRPO
+penalty attachment are subsequent integrations; this guard does not award rewards.
+
+Run `python -m pytest -q tests/test_live_loop_guard.py tests/test_deloop.py
+tests/test_runtime_authority.py tests/test_peo_continuity.py`. Deterministic fixtures check actual
+callback suppression, one-use authorized delegation, necessary rechecks, new state/observations,
+clarification recovery diagnostics, unknown/forged review data, prediction binding and complete
+review-capacity reservation. Maturity: **Experimental**. The operator excluded research runs;
+the Study C protocol above explains how later qualification would measure task completion and
+useful verification alongside loop rate, rather than claiming gains from these software tests.

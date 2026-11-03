@@ -20,6 +20,7 @@ EXPECTED_RESOURCES = {
     "docs/recommendations/RESEARCH_TRACEABILITY.md",
     "docs/recommendations/RESEARCH_INTEGRATION_MATRIX.md",
     "docs/distillation_adapters.md",
+    "docs/deloop_peo.md",
     "docs/knowledge_progress.md",
     "docs/vector_policy.md",
     "docs/dataset_research.md",
