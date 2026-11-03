@@ -19,8 +19,10 @@ full paper reproduction and empirical qualification remain absent. PR 3 adds a s
 configuration and checkpoint/resume now work; behavioral retention remains unqualified. PR 4 adds the default-off
 [DeLoop + PEO audit and recovery preparation](deloop_peo.md), with a separate DPO kernel;
 an explicitly enabled live repeat guard now suppresses independently confirmed unproductive
-repeats while preserving existing runtime authorization and useful rechecking. Native training
-attachment and effectiveness remain unqualified. PR 5 adds [knowledge/progress preparation](knowledge_progress.md): reviewed evidence transitions,
+repeats while preserving existing runtime authorization and useful rechecking. A separate opt-in
+native CPU DPO trial now trains original-state verified recoveries using isolated model copies,
+existing checkpoints and independent protected catalog admission. The GRPO-penalty comparison
+is an optional unrun research arm; behavioral effectiveness remains unqualified. PR 5 adds [knowledge/progress preparation](knowledge_progress.md): reviewed evidence transitions,
 prior-state groups and milestone potentials with separate unresolved credit proposals. No trainer
 is attached and no behavioral improvement is established. PR 6 adds [VPO set-score preparation](vector_policy.md),
 with whole-rollout quarantine and independent review; full VPO training remains unsupported.
