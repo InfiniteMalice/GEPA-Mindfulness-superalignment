@@ -1,5 +1,6 @@
 """Native preference updates on authored CPU traces, without effectiveness claims."""
 
+# Standard library
 from __future__ import annotations
 
 import json
@@ -7,8 +8,12 @@ from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
 
+# Third-party
 import pytest
 import torch
+
+# isort: split
+# Local
 from test_deloop import REVIEWER, fixture, review
 from test_locd_runtime import ContextModel
 from test_model_harness_coevolution import _base, _record

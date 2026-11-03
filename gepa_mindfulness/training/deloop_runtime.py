@@ -1,5 +1,6 @@
 """Opt-in isolated native DPO on independently reviewed original-state recoveries."""
 
+# Standard library
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -7,6 +8,7 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+# Local
 from evaluation.causal_records import canonical_json, content_digest
 from gepa_mindfulness.coevolution import CandidateComponent, CoevolutionStore, CorrectionProposal
 from gepa_mindfulness.core.evidence import EvidenceReference
