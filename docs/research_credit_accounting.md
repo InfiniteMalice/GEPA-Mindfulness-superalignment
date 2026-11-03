@@ -1,5 +1,14 @@
 # Research credit proposals and diagnostic accounting
 
+The opt-in native ActionOPD adapter adds separately versioned verified-decision proposals and
+decision-enabled policies/reports (v2), using this same host admission and durable accounting
+path. Raw teacher-agreement and diagnostic claims remain ineligible. It retains typed comparison
+inputs and independent observable verification, reproduces the semantic score, and requires fresh
+host semantic/use/accounting reviews. Metrics use closed schema v4; existing wire/metric schemas
+remain unchanged. See [native verified ActionOPD](distillation_adapters.md#native-verified-actionopd)
+for source capture, teacher isolation, event normalization, grouping, checkpoint and authority
+requirements. This software integration supplies no empirical effectiveness claim.
+
 ## Status and scope
 
 PR 1 introduces **Experimental** opt-in contracts in
@@ -22,7 +31,9 @@ this shared accounting layer remains an original adaptation. See the
 source reference to authority/run/task/event/action identity, model and harness versions,
 producer identity, evaluator ID/version/contract, dataset and student-state SHA-256 digests,
 observable evidence, finite raw score, declared admissibility and retained source metadata.
-`credit_kind` distinguishes knowledge, progress, process, teacher agreement and diagnostics.
+`credit_kind` distinguishes knowledge, progress, process, teacher agreement, diagnostics and
+separately verified decisions. The last kind requires the retained ActionOPD comparison and
+independent observable verification; raw agreement still cannot pass eligibility alone.
 Process values cannot be negative; the record does not create a new reward scale.
 
 The existing `RewardProvenance`, `EvidenceReference` and `TrustedEvaluatorContract` contracts
@@ -47,7 +58,8 @@ candidate execution or spending. No new runtime dependency is introduced.
 
 ## Serialization and evidence integrity
 
-Claims serialize as `research-credit-claim-v1`; reports use `research-credit-audit-v1`. Both
+Original kinds serialize as `research-credit-claim-v1`; verified decisions use v2. Reports use
+`research-credit-audit-v1` with explicitly versioned nested claims. Both
 carry `training_eligibility="DEVELOPMENT"`. Claim restoration rejects missing/extra fields,
 unsupported versions and relabeling to TRAIN. Source metadata remains immutable canonical JSON
 and retains nested provenance, including held-out restrictions. Full-source metadata parsing
