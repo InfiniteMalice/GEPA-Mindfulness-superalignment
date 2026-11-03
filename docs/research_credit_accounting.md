@@ -6,8 +6,9 @@ PR 1 introduces **Experimental** opt-in contracts in
 [research_credit.py](../gepa_mindfulness/training/research_credit.py). These records and reports
 do not grant optimizer credit, certify evidence, enforce constitutional admissibility or authorize
 actions. The shared-contract stage now includes diagnostic accounting and a host-reviewed
-durable event-reservation journal. Composite-reward attachment and optimizer credit remain
-unimplemented; reservation alone never pays a reward.
+durable event-reservation journal. An optional live host adapter now connects independently
+reviewed knowledge/progress/process contributions to canonical CPU PPO/GRPO updates. Reservation
+alone never pays a reward, and exported proposals and reports remain optimizer-ineligible.
 
 This is original infrastructure derived from the operator's October 2026 integration requirements,
 not a faithful reproduction of ActionOPD, KnowGPO, PRM4RL or another research method. Primary papers have since been checked for the bounded ActionOPD, KnowGPO and PRM4RL adapters;
@@ -40,8 +41,8 @@ assert audit_research_credit(object()) is None  # default-off; input untouched
 report = audit_research_credit(claims, enabled=True)
 ```
 
-The actual configuration is the strict boolean `enabled=False` function parameter. There is no
-new CLI or implicit YAML loader. Enabling this audit does not enable training, external calls,
+The audit configuration remains the strict boolean `enabled=False` function parameter.
+Enabling this audit does not enable the separate live adapter, training, external calls,
 candidate execution or spending. No new runtime dependency is introduced.
 
 ## Serialization and evidence integrity
@@ -143,11 +144,12 @@ durable accounting. It is not a replacement for authorization or protected candi
 
 This audit does not replace or mutate RewardPipeline, CausalRewardAdapter, runtime governance,
 the Constitution, the canonical 17 cases, protected suites or CoevolutionStore. No aggregate
-optimizer score is computed from the proposals. Future live composition must resolve semantic
+optimizer score is computed by the audit. The separate live adapter must resolve semantic
 overlap using host-owned policy and existing admission mechanisms. The journal now prevents
 cross-call reservation replay within its domain; it does not enforce duplicate credit in other
 journals or reward paths. Raw evidence storage, evaluator authentication and protected promotion
-remain host responsibilities. Automatic optimizer integration is deferred to validated adapters.
+remain host responsibilities. The explicitly configured live adapter below reuses these owners;
+it never upgrades a restored report into authority.
 
 ## Software evidence and limitations
 
@@ -184,3 +186,121 @@ lint/type and packaging CI for this change remain independent acceptance require
 The [KnowGPO + PRM4RL protocol](knowledge_progress.md) describes task-local evidence transitions
 and separate, unresolved knowledge/progress proposals. Their same-event overlap is reported by
 this audit; evidence review does not replace normative admission or durable event reservation.
+
+
+## Live host composition and canonical CPU training
+
+Maturity: **Experimental** software integration. The operator requested working features while
+omitting research studies; no empirical improvement, calibrated admissibility classifier or
+research reproduction is claimed. The why/how is to preserve separate raw research signals while
+making fresh host admission and duplicate-event accounting unavoidable at the training boundary.
+
+`research_credit_runtime.ResearchRewardProvider` wraps the existing `RewardPipeline` and exact
+`ResearchCreditLedger`. Its immutable `ResearchRewardPolicy` pins policy/run/task/harness identity,
+dataset SHA-256, explicit positive coefficients for `knowledge`, `progress` and `process`, and an
+absolute adjustment budget in `(0,1]`. These coefficients never weight constitutional commitments.
+Process values retain the existing nonnegative rule; signed progress retains observable evidence.
+Raw teacher agreement and diagnostics remain ineligible, even with an admitted declaration.
+
+Each enabled score performs this sequence:
+
+1. Snapshot the actual source request; require explicit TRAIN and recursive source eligibility.
+2. Snapshot the proposed claims/use. Reuse the ledger's existing structural preflight, including
+   exact target/policy version/evidence binding, prior-layer accounting and selected event overlap.
+   Also pin the action, run, task, harness, dataset, host policy and evaluator independence.
+   Unselected held-out material is excluded from training review too.
+3. Score the existing baseline once and preserve its existing negative-evidence validation and
+   optional integrity breakdown. Retain every raw and weighted research component separately.
+4. Reserve the complete bounded diagnostic export, then require fresh `authenticate_claims` and
+   `authorize_optimizer_use` host reviews. Only literal True on an unchanged envelope passes.
+5. Use the existing ledger's fresh `authorize_accounting` review and durable event reservation.
+6. Return a live target-bound decision. The canonical engine explicitly requests its optimizer
+   value and its validated scored trajectory; a report or duck-typed diagnostic cannot substitute.
+
+The host owns and authenticates all callbacks, actual source records, reviewer principals and
+applicable constraints. The evidence review must establish semantic support and admissibility,
+including constitutional uncertainty routing; a producer's `admitted` string is insufficient.
+The optimizer-use review must authorize the specific policy, baseline, source and allocation.
+Unknown or rejected judgment withholds optimizer access; it is not automatically a moral violation.
+Identity strings and unit tests cannot prove alignment or independent factual truth.
+
+The scalar is `baseline_total + sum(raw_score * configured_coefficient)` for the selected,
+independently eligible contributions. Unconfigured kinds, unresolved accounting, overlap, nonfinite
+values, excessive adjustments and component storage bounds fail explicitly; no clipping erases a
+problem. Negative progress has its own observable references and verified evaluator provenance.
+Its sign describes verified milestone dynamics, never private thoughts or virtuous wording.
+Binding retains the request's exact observable-reference selection, including a restricted
+subset or a different selection order; it never broadens that selection. Structured baselines
+retain their own references alongside the original request references;
+conflicting source kinds for one reference identity are rejected before review.
+
+Canonical setup uses an operator-controlled Python host; callbacks are not imported from
+candidate-controlled YAML. For example, after configuring the real existing source observer,
+pipeline, proposer and independent review functions:
+
+```python
+from gepa_mindfulness.training.engine import RLTrainingEngine
+from gepa_mindfulness.training.research_credit_ledger import ResearchCreditLedger
+from gepa_mindfulness.training.research_credit_runtime import ResearchRewardProvider
+from gepa_mindfulness.training.runtime_config import load_rl_config
+
+config = load_rl_config("operator-run.yaml")
+runtime = ResearchRewardProvider(
+    existing_pipeline,
+    ledger=ResearchCreditLedger("run-credit.sqlite", authority_domain="operator-domain"),
+    policy=config.research_credit,
+    propose=propose_for_request,
+    authenticate_claims=authenticate_evidence_and_admissibility,
+    authorize_optimizer_use=authorize_this_training_use,
+    authorize_accounting=review_prior_credit,
+)
+engine = RLTrainingEngine(
+    config,
+    backend_factory=host_observed_backend_factory,
+    reward_factory=lambda _: runtime,
+)
+result = engine.train(max_steps=1)
+```
+
+`host_observed_backend_factory` uses the existing backend contract to retain admitted source
+metadata and real outcome/evidence references in generated trajectories. A raw model response is
+not an independently verified outcome. This example names required operator bindings; it does not
+provide fake approving verifiers or imply that the ordinary CLI installs a verifier service.
+The CPU acceptance test exercises real model updates with an independently defined local fixture.
+
+The optional `research_credit` configuration section contains the policy fields (without its wire
+`schema_version`), for example:
+
+```yaml
+research_credit:
+  enabled: true
+  policy_id: operator-policy-v1
+  run_id: declared-run
+  task_id: declared-task
+  harness_version: declared-harness-v1
+  dataset_digest: <sha256-of-the-exact-training-file>
+  coefficients:
+    - [knowledge, 0.5]
+    - [progress, 0.25]
+  max_abs_adjustment: 1.0
+```
+
+The coefficients are illustrative operator choices, not validated method hyperparameters. The
+engine checks the captured dataset digest and the exact enabled host provider/policy. Enabled
+policy settings participate in checkpoint/resume identity; absent/inactive settings preserve the
+old hash. Legacy translation retains an explicit request. CPU FP32 portable training is the
+implemented path; CUDA/AMP/distributed/hybrid credit attachment is Unsupported. Protected held-out
+evaluation must use its existing evaluation path, without the training-credit adapter.
+
+Successful scored trajectories retain weighted component evidence and reviewer provenance.
+Metric-record version 3 retains baseline, adjustment and raw/weighted knowledge/progress/process
+metrics. Versions 1 and 2 keep their existing closed names; SST diagnostics remain separate v2 rows.
+Keep the full detached review/decision export in the operator's existing audit store as well.
+`research-reward-policy-v1` and `research-reward-submission-v1` are versioned inputs. Decision
+exports use `research-reward-decision-v1`, remain DEVELOPMENT and cannot restore live authority.
+
+The durable reservation survives process restart. Replaying a semantic event with another use ID
+fails. A downstream optimizer/checkpoint failure does not refund the event automatically; preserve
+the journal with rollback references and route recovery to the existing host procedure. Accepted
+catalog entries and accounting receipts do not deploy models, authorize tools or revise policy.
+No new authority registry, canonical case, reward authority or runtime dependency is introduced.

@@ -203,6 +203,52 @@ class ResearchCreditLedger:
             raise ValueError("enabled must be a boolean")
         if not enabled:
             return None
+        target, selection, envelope, events = self._prepare_allocation(request, claims, use)
+        # Pin the database connection before invoking trusted external host code.
+        with closing(sqlite3.connect(self._path, timeout=5)) as connection:
+            self._check(connection)
+            if not _accepted(authorize_use, envelope):
+                raise ValueError("independent host credit review rejected or unavailable")
+            receipt = {
+                "schema_version": _RECEIPT_SCHEMA,
+                "training_eligibility": "DEVELOPMENT",
+                "authority_granted": False,
+                "status": "reserved",
+                "envelope": envelope,
+            }
+            receipt["receipt_digest"] = content_digest(receipt)
+            validate_input_envelope(receipt)
+            with connection:
+                connection.execute("BEGIN IMMEDIATE")
+                self._check(connection)
+                if connection.execute(
+                    "SELECT 1 FROM credit_reservations WHERE use_id=?", (selection.use_id,)
+                ).fetchone():
+                    raise ValueError("credit use identity already reserved")
+                for event in events:
+                    if connection.execute(
+                        "SELECT 1 FROM credit_events WHERE "
+                        "run_id=? AND task_id=? AND event_id=?",
+                        event,
+                    ).fetchone():
+                        raise ValueError("semantic event already reserved")
+                connection.execute(
+                    "INSERT INTO credit_reservations VALUES (?, ?, ?)",
+                    (selection.use_id, receipt["receipt_digest"], canonical_json(receipt)),
+                )
+                connection.executemany(
+                    "INSERT INTO credit_events VALUES (?, ?, ?, ?)",
+                    [(*event, receipt["receipt_digest"]) for event in sorted(events)],
+                )
+        return receipt
+
+    def _prepare_allocation(
+        self,
+        request: RewardRequest,
+        claims: tuple[ResearchCreditClaim, ...],
+        use: ResearchCreditUse,
+    ) -> tuple[RewardRequest, ResearchCreditUse, dict[str, object], set[tuple[str, str, str]]]:
+        """Share the existing structural checks without reserving or granting authority."""
         if type(request) is not RewardRequest or type(use) is not ResearchCreditUse:
             raise ValueError("expected exact request and use records")
         target = _read_request(_request_wire(request))
@@ -252,43 +298,7 @@ class ResearchCreditLedger:
             "audit": audit,
         }
         validate_input_envelope(envelope)
-        # Pin the database connection before invoking trusted external host code.
-        with closing(sqlite3.connect(self._path, timeout=5)) as connection:
-            self._check(connection)
-            if not _accepted(authorize_use, envelope):
-                raise ValueError("independent host credit review rejected or unavailable")
-            receipt = {
-                "schema_version": _RECEIPT_SCHEMA,
-                "training_eligibility": "DEVELOPMENT",
-                "authority_granted": False,
-                "status": "reserved",
-                "envelope": envelope,
-            }
-            receipt["receipt_digest"] = content_digest(receipt)
-            validate_input_envelope(receipt)
-            with connection:
-                connection.execute("BEGIN IMMEDIATE")
-                self._check(connection)
-                if connection.execute(
-                    "SELECT 1 FROM credit_reservations WHERE use_id=?", (selection.use_id,)
-                ).fetchone():
-                    raise ValueError("credit use identity already reserved")
-                for event in events:
-                    if connection.execute(
-                        "SELECT 1 FROM credit_events WHERE "
-                        "run_id=? AND task_id=? AND event_id=?",
-                        event,
-                    ).fetchone():
-                        raise ValueError("semantic event already reserved")
-                connection.execute(
-                    "INSERT INTO credit_reservations VALUES (?, ?, ?)",
-                    (selection.use_id, receipt["receipt_digest"], canonical_json(receipt)),
-                )
-                connection.executemany(
-                    "INSERT INTO credit_events VALUES (?, ?, ?, ?)",
-                    [(*event, receipt["receipt_digest"]) for event in sorted(events)],
-                )
-        return receipt
+        return target, selection, envelope, events
 
     def read(self, receipt_digest: str) -> dict[str, object]:
         """Read a detached, digest-checked accounting receipt, not a live grant."""
