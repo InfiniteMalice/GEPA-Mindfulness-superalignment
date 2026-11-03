@@ -7,12 +7,6 @@ from pathlib import Path
 
 import pytest
 import torch
-from torch import nn
-
-from gepa_mindfulness.training.backends.torch_policy import TorchPolicyBackend
-from gepa_mindfulness.training.backends.torch_portable import create_portable_backend
-from gepa_mindfulness.training.runtime_config import RLRunConfig
-from gepa_mindfulness.training.subspace_tuning import SSTConfig
 from test_rl_torch_backend import (
     TinyCausalLM,
     TinyTokenizer,
@@ -20,6 +14,12 @@ from test_rl_torch_backend import (
     _assert_nested_equal,
     _backend_snapshot,
 )
+from torch import nn
+
+from gepa_mindfulness.training.backends.torch_policy import TorchPolicyBackend
+from gepa_mindfulness.training.backends.torch_portable import create_portable_backend
+from gepa_mindfulness.training.runtime_config import RLRunConfig
+from gepa_mindfulness.training.subspace_tuning import SSTConfig
 
 
 def _backend(

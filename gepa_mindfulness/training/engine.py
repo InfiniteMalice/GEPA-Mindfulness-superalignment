@@ -2916,7 +2916,7 @@ class _JSONLRunLogger:
     ) -> None:
         from datetime import datetime, timezone
 
-        from .run_logging import LOG_SCHEMA_VERSION, MetricRecord, SST_METRIC_SCHEMA_VERSION
+        from .run_logging import LOG_SCHEMA_VERSION, SST_METRIC_SCHEMA_VERSION, MetricRecord
 
         metrics: dict[str, float] = {
             "learning_rate": learning_rate,
