@@ -1349,3 +1349,22 @@ def test_nonempty_jsonl_history_requires_a_final_newline(
             sink.log_metrics(_metric(record_id="next-record"))
 
     assert path.read_text(encoding="utf-8") == original
+
+
+def test_sst_metrics_use_version_two_without_relaxing_version_one() -> None:
+    """New optimizer diagnostics must round-trip explicitly and remain invalid in old logs."""
+    old = _metric().to_dict()
+    payload = {
+        **old,
+        "schema_version": 2,
+        "metrics": {**old["metrics"], "sst_target_count": 2.0, "sst_applied_update_norm": 0.01},
+    }
+    parsed = MetricRecord.from_mapping(payload)
+    assert parsed.to_dict() == payload
+    with pytest.raises(ValueError, match="metric name"):
+        MetricRecord.from_mapping({**payload, "schema_version": 1})
+    assert MetricRecord.from_mapping(old).to_dict() == old
+    with pytest.raises(ValueError):
+        MetricRecord.from_mapping({**payload, "metrics": {"sst_unknown": 1.0}})
+    with pytest.raises(ValueError, match="finite"):
+        MetricRecord.from_mapping({**payload, "metrics": {"sst_target_count": float("nan")}})

@@ -7,7 +7,7 @@ import math
 import pickle
 from collections.abc import Iterator, Mapping
 from contextlib import AbstractContextManager, ExitStack, contextmanager, nullcontext
-from copy import deepcopy
+from copy import copy, deepcopy
 from dataclasses import dataclass
 from enum import Enum
 from functools import wraps
@@ -28,6 +28,7 @@ from gepa_mindfulness.training.capability import (
 )
 from gepa_mindfulness.training.policy_versions import PolicyVersion
 from gepa_mindfulness.training.seeds import validate_seed
+from gepa_mindfulness.training.subspace_tuning import SSTConfig, create_sst_adapter
 from gepa_mindfulness.training.trajectory import (
     PolicyEvaluation,
     RolloutRequest,
@@ -39,6 +40,7 @@ from .base import BackendCheckpointResult, OptimizerStepResult, TokenizerLike, T
 
 TrainingMode = Literal["full", "lora"]
 _CHECKPOINT_FORMAT_VERSION = 2
+_SST_CHECKPOINT_FORMAT_VERSION = 3
 _LEGACY_CHECKPOINT_FORMAT_VERSION = 1
 _MISSING_CHECKPOINT_VALUE = object()
 _ADAPTER_FORMAT_ID = "pytorch-lora-state-dict-v1"
@@ -102,6 +104,7 @@ class _BackendStateSnapshot:
     value_head_state: dict[str, torch.Tensor]
     optimizer_state: dict[str, object]
     gradient_scaler_state: dict[str, object] | None
+    sst_state: dict[str, object] | None
     step: int
     max_new_tokens: int
     learning_rate: float
@@ -120,6 +123,14 @@ class _CheckpointRestorePlan:
     value_head_state: Mapping[str, torch.Tensor]
     optimizer_state: dict[str, object]
     gradient_scaler_state: dict[str, object] | None
+    sst_state: dict[str, object] | None
+
+
+@dataclass(frozen=True)
+class _SSTOptimizerStepResult(OptimizerStepResult):
+    """Native step evidence with separate non-authoritative projection diagnostics."""
+
+    sst_report: Mapping[str, object] | None = None
 
 
 @dataclass(frozen=True)
@@ -164,7 +175,19 @@ class TorchPolicyBackend:
         training_mode: TrainingMode = "full",
         model_identifier: str | None = None,
         adapter_identifier: str | None = None,
+        sst_config: SSTConfig = SSTConfig(),
     ) -> None:
+        if type(sst_config) is not SSTConfig:
+            raise TypeError("sst_config must be an SSTConfig")
+        if sst_config.enabled and (
+            torch.device(device).type != "cpu"
+            or training_mode != "full"
+            or autocast_dtype is not None
+            or gradient_scaler is not None
+            or getattr(policy_model, "_gepa_distributed_strategy", "none") != "none"
+        ):
+            raise ValueError("SST requires CPU full-weight training without AMP or distribution")
+        self.sst_config = sst_config
         self.device = self._validated_device(device)
         self.backend_name = self._validated_backend_name(backend_name)
         self.autocast_dtype = self._validated_autocast_dtype(autocast_dtype)
@@ -222,6 +245,19 @@ class TorchPolicyBackend:
             self.adapter_identifier = "peft-lora"
         self.tensor_ops = TorchTensorOps()
         self._step = 0
+        self._sst_adapter = None
+        if self.sst_config.enabled:
+            targets = {
+                f"policy.{name}": parameter
+                for name, parameter in self.policy_model.named_parameters()
+                if parameter.requires_grad and parameter.ndim == 2
+            }
+            self._sst_adapter = create_sst_adapter(
+                self.optimizer,
+                targets,
+                reference_id=f"policy:{self.model_identifier}",
+                config=self.sst_config,
+            )
 
     @_translate_oom("generate")
     def generate(self, requests: Sequence[RolloutRequest]) -> Sequence[Trajectory]:
@@ -353,6 +389,10 @@ class TorchPolicyBackend:
     @_translate_oom("optimizer_step")
     def optimizer_step(self) -> OptimizerStepResult:
         """Apply accumulated gradients and return monotonic step evidence."""
+        if self._sst_adapter is not None and (
+            self.gradient_scaler is not None or self.autocast_dtype is not None
+        ):
+            raise ValueError("SST does not support mixed precision or gradient scaling")
         trainable = [*self.policy_parameters(), *self.value_head.parameters()]
         if not any(parameter.grad is not None for parameter in trainable):
             raise RuntimeError("optimizer_step requires accumulated gradients")
@@ -365,7 +405,10 @@ class TorchPolicyBackend:
         )
         if self.max_grad_norm is not None:
             torch.nn.utils.clip_grad_norm_(trainable, self.max_grad_norm)
-        if self.gradient_scaler is None:
+        sst_report = None
+        if self._sst_adapter is not None:
+            sst_report = self._sst_adapter.step()
+        elif self.gradient_scaler is None:
             self.optimizer.step()
         else:
             scale_before = float(self.gradient_scaler.get_scale())
@@ -379,6 +422,12 @@ class TorchPolicyBackend:
                     updated=False,
                 )
         self._step += 1
+        if sst_report is not None:
+            return _SSTOptimizerStepResult(
+                step=self._step,
+                gradient_norm=math.sqrt(squared_norm),
+                sst_report=sst_report,
+            )
         return OptimizerStepResult(step=self._step, gradient_norm=math.sqrt(squared_norm))
 
     def zero_grad(self) -> None:
@@ -391,8 +440,13 @@ class TorchPolicyBackend:
         cuda_rng_state = (
             torch.cuda.get_rng_state(self.device).cpu() if self.device.type == "cuda" else None
         )
+        format_version = (
+            _SST_CHECKPOINT_FORMAT_VERSION
+            if self._sst_adapter is not None
+            else _CHECKPOINT_FORMAT_VERSION
+        )
         payload = {
-            "format_version": _CHECKPOINT_FORMAT_VERSION,
+            "format_version": format_version,
             "backend_name": self.backend_name,
             "model_identifier": self.model_identifier,
             "adapter_identifier": self.adapter_identifier,
@@ -409,12 +463,14 @@ class TorchPolicyBackend:
             "cpu_rng_state": torch.get_rng_state(),
             "cuda_rng_state": cuda_rng_state,
         }
+        if self._sst_adapter is not None:
+            payload["sst_state"] = self._sst_adapter.state_dict()
         try:
             torch.save(payload, destination)
         except (OSError, RuntimeError, TypeError, pickle.PickleError) as error:
             raise RuntimeError(f"failed to save backend checkpoint: {destination}") from error
         return BackendCheckpointResult(
-            format_version=_CHECKPOINT_FORMAT_VERSION,
+            format_version=format_version,
             step=self._step,
         )
 
@@ -688,6 +744,8 @@ class TorchPolicyBackend:
             self.value_head.load_state_dict(plan.value_head_state, strict=True)
             self.optimizer.load_state_dict(plan.optimizer_state)
             self._move_optimizer_state_to_device()
+            if self._sst_adapter is not None and plan.sst_state is not None:
+                self._sst_adapter.load_state_dict(plan.sst_state)
             if self.gradient_scaler is not None and plan.gradient_scaler_state is not None:
                 self.gradient_scaler.load_state_dict(plan.gradient_scaler_state)
             self._step = cast(int, checkpoint["step"])
@@ -754,6 +812,7 @@ class TorchPolicyBackend:
             value_head_state=value_head_state,
             optimizer_state=optimizer_state,
             gradient_scaler_state=gradient_scaler_state,
+            sst_state=cast(dict[str, object] | None, checkpoint.get("sst_state")),
         )
 
     def policy_parameters(self) -> tuple[nn.Parameter, ...]:
@@ -948,11 +1007,23 @@ class TorchPolicyBackend:
             if self.autocast_dtype is not None or self.gradient_scaler is not None:
                 raise ValueError("checkpoint version 1 is incompatible with mixed precision")
             required_fields = legacy_fields
+        elif format_version == _SST_CHECKPOINT_FORMAT_VERSION:
+            if self._sst_adapter is None:
+                raise ValueError("SST checkpoint requires an enabled matching SST configuration")
+            required_fields = legacy_fields | {
+                "autocast_dtype",
+                "gradient_scaler_state",
+                "sst_state",
+            }
         elif format_version == _CHECKPOINT_FORMAT_VERSION:
             required_fields = legacy_fields | {"autocast_dtype", "gradient_scaler_state"}
         else:
             raise ValueError(
-                "checkpoint format_version must be 2 or the compatible legacy version 1"
+                "checkpoint format_version must be 3 (SST), 2 or compatible legacy version 1"
+            )
+        if self._sst_adapter is not None and format_version != _SST_CHECKPOINT_FORMAT_VERSION:
+            raise ValueError(
+                "enabled SST requires a checkpoint containing its saved reference state"
             )
         if set(raw_payload) != required_fields:
             raise ValueError("backend checkpoint fields are missing or unrecognized")
@@ -973,6 +1044,13 @@ class TorchPolicyBackend:
         step = normalized["step"]
         if isinstance(step, bool) or not isinstance(step, int) or step < 0:
             raise ValueError("backend checkpoint step must be a non-negative integer")
+        if self._sst_adapter is not None:
+            candidate = copy(self._sst_adapter)
+            candidate.load_state_dict(normalized["sst_state"])
+            sst_state = candidate.state_dict()
+            if sst_state["step"] != step:
+                raise ValueError("SST and backend checkpoint step counters differ")
+            normalized["sst_state"] = sst_state
         self._positive_integer(normalized["max_new_tokens"], "checkpoint max_new_tokens")
         self._positive_number(normalized["learning_rate"], "checkpoint learning_rate")
         self._validated_rng_state(
@@ -1158,6 +1236,7 @@ class TorchPolicyBackend:
             value_head_state=self._cloned_module_state(self.value_head),
             optimizer_state=deepcopy(self.optimizer.state_dict()),
             gradient_scaler_state=self._gradient_scaler_state(),
+            sst_state=(None if self._sst_adapter is None else self._sst_adapter.state_dict()),
             step=self._step,
             max_new_tokens=self.max_new_tokens,
             learning_rate=self.learning_rate,
@@ -1194,6 +1273,9 @@ class TorchPolicyBackend:
             lambda: self.optimizer.load_state_dict(snapshot.optimizer_state),
         )
         self._attempt_rollback(errors, self._move_optimizer_state_to_device)
+        sst_adapter, sst_state = self._sst_adapter, snapshot.sst_state
+        if sst_adapter is not None and sst_state is not None:
+            self._attempt_rollback(errors, lambda: sst_adapter.load_state_dict(sst_state))
         gradient_scaler = self.gradient_scaler
         gradient_scaler_state = snapshot.gradient_scaler_state
         if gradient_scaler is not None and gradient_scaler_state is not None:

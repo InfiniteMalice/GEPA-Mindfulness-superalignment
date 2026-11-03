@@ -6,6 +6,10 @@ logs. The default backend
 uses PyTorch and Hugging Face Transformers on CPU or CUDA. It never downloads a model: the model
 identifier must resolve from a local directory or the existing Hugging Face cache.
 
+Portable CPU full-weight PPO/GRPO supports optional [Subspace Tuning](../subspace_tuning.md).
+Set `sst.enabled: true` to project applied policy-matrix updates; reference bases and counters
+are saved and restored with SST checkpoints. CUDA, AMP, distributed and LoRA SST are unsupported.
+
 ## RL maturity matrix
 
 | Path | Maturity | Verified boundary |

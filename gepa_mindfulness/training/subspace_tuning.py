@@ -13,7 +13,7 @@ from typing import Any
 
 @dataclass(frozen=True)
 class SSTConfig:
-    """Bound a standalone experiment; budgets are repository controls, not paper settings."""
+    """Configure bounded CPU projection; budgets are repository controls, not paper settings."""
 
     enabled: bool = False
     rank_fraction: float = 0.99
@@ -73,7 +73,7 @@ class SSTStepAdapter:
     """Replace selected native optimizer updates with their free-to-free blocks.
 
     The trusted host supplies already-admitted training and owns the native optimizer.
-    This research adapter is separate from the canonical backend and its checkpoints.
+    Standalone callers own checkpoints; the canonical CPU backend persists this state too.
     It supports CPU dense full-weight float32/float64 only. No closures or AMP are used.
     """
 
