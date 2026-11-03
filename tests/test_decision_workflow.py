@@ -126,7 +126,12 @@ def test_missing_selected_handler_never_requests_a_grant():
     assert not calls
 
 
-def test_misbound_grant_and_replay_cannot_invoke_any_handler():
+def test_misbound_grant_and_replay_cannot_invoke_any_handler(monkeypatch):
+    timings = iter((0.0, 1.0, 2.0, 4.0, 5.0, 8.0))
+    monkeypatch.setattr(
+        "gepa_mindfulness.factuality_observability.epistemic_routing.perf_counter",
+        lambda: next(timings),
+    )
     req, args, calls, captured = setup_workflow()
     first = run_decision_workflow(req, **args)
     assert first.invoked

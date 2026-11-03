@@ -42,3 +42,10 @@ config without Torch/NumPy pass. The corrected dataset dependency is incorporate
 its public Unicode/path findings are fixed in the parent. Complete remote CI and
 public review remain required before merge. No research run or speed/accuracy
 improvement is claimed.
+
+Public review found the stale-scope test depended on unequal real callback
+latencies. Equal bound timer captures reproduced a PermissionError rather than
+the assumed binding mismatch RED. The test now controls all six timestamps
+across its three calls; distinct scope latencies are deterministic. The separate
+consumed-fresh-grant test still independently checks one-use rejection. No
+production behavior or assertion strength is changed.
