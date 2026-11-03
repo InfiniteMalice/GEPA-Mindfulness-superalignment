@@ -421,3 +421,22 @@ def test_two_pairs_share_one_optimizer_step_and_original_rejected_histories(tmp_
     assert result.to_dict()["optimizer_step"] == 1
     assert result.to_dict()["loss"] == pytest.approx(0.69314718)
     assert result.backend.policy_model.gradient_inputs == [(2, 5), (2, 3), (6, 5), (6, 3)]
+
+
+def test_registered_correction_repeat_must_have_an_eligible_training_pair(tmp_path):
+    backend, events, steps, store, correction, args, evaluations = setup_preferences(
+        tmp_path, two_pairs=True
+    )
+    training_reviews = []
+    args["review"] = lambda candidate: review(
+        candidate, original=candidate.to_dict()["rejected_action_id"] != correction.source_action_id
+    )
+    args["authorize_training"] = lambda packet: training_reviews.append(packet) or True
+    result = run_loop_preferences(backend, events, steps, store, correction, **args)
+    assert result.backend is None
+    assert result.to_dict()["status"] == "no_eligible_pairs"
+    assert result.to_dict()["pair_count"] == 0
+    assert len(result.to_dict()["mining"]["pairs"]) == 1
+    assert not training_reviews
+    assert not evaluations
+    assert not (tmp_path / "trials").exists()

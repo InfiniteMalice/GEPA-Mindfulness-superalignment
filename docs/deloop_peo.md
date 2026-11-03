@@ -255,6 +255,13 @@ recursively. Never strip failed V5 records or relabel diagnostic mining output.
 A fresh host source review authenticates capture, evidence, state equivalence,
 independence and permission before pair review or model calls.
 
+The registered correction's repeat must have an eligible mined training pair.
+If its recovery is rejected, other accepted pairs cannot substitute for it; the
+trial returns no model before training-use review. A trial may include additional
+independently reviewed repeats from the same registered episode as auxiliary
+comparisons. This does not register or claim correction of separate localized
+failures for those auxiliary repeats.
+
 The existing miner independently verifies the repeat and first later structural
 recovery, including original-state applicability and supported authorized outcomes.
 Unsupported answers, premature termination and skipped verification cannot qualify

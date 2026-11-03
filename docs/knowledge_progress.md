@@ -221,6 +221,8 @@ not change that identity. Answer actions retain public-prompt grouping. Set
 Observed zero-gain actions remain group members with a fresh independently reviewed
 zero contribution; omitting them would teach only positive examples. Constant or
 singleton groups produce no model update. Aggregate logit allocation is bounded.
+The registered correction's source must belong to a trainable group. Updates of
+other groups cannot substitute for an excluded or constant source group.
 
 When the same event proposes knowledge and progress, `event_preference` explicitly
 selects one available eligible component. Raw metrics and overlap records retain

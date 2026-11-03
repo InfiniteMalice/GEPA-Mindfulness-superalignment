@@ -125,3 +125,16 @@ ERROR tests/test_llama_cpp_vulkan_backend.py::test_backend_forwards_largest_port
 ERROR tests/test_llama_cpp_vulkan_backend.py::test_backend_close_is_idempotent
 ERROR tests/test_llama_cpp_vulkan_integration.py::test_reachable_endpoint_does_not_prove_vulkan
 ```
+
+## Public provenance finding
+
+Final-head CI on 2168488 passed 6,944 tests and 40 CPU acceptance checks on each
+Python 3.10/3.12 runner, with clear Codex review. A later CodeRabbit finding was
+verified before merge: rejecting the correction's own repeat while accepting an
+auxiliary repeat could still train and attribute a candidate to the rejected
+source. The new regression reproduced that incorrect admission RED. The trial
+now returns no eligible training pairs before training-use review when its
+registered repeat lacks a supported pair. Accepted auxiliary comparisons remain
+in the audit and may accompany an accepted source pair from the same episode;
+they do not claim registration/correction of separate localized failures.
+Final-head focused checks and remote CI must pass again after this correction.

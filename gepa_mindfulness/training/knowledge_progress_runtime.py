@@ -400,7 +400,9 @@ def run_knowledge_progress_trial(
                 )
             )
     report.update(group_sizes=group_sizes, advantages=advantage_values)
-    if not trainable:
+    if not trainable or not any(
+        trajectory.trajectory_id == proposal.source_trajectory_id for trajectory in trainable
+    ):
         report["status"] = "no_trainable_groups"
         return LocalCorrectionResult(None, None, canonical_json(report))
     trial = _clone_backend(backend)

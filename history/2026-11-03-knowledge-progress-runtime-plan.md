@@ -78,3 +78,13 @@ contract. All these judgments agree with the documented experimental CPU scope.
 The full local run and final remote CI are separate qualifications. Existing
 network/socket and missing-local-notebook limits remain visible and tests are
 neither weakened nor skipped. Publication/PR evidence records their final results.
+
+## Registered-source attribution regression
+
+A verified public finding on the preceding DeLoop stage prompted checking this
+parallel provenance boundary. A new native regression showed that a singleton
+registered source group could be skipped while unrelated groups trained and were
+attributed to its localized correction. The check was observed RED. The original
+source must now belong to a trainable group before any optimizer/model trial;
+other groups cannot replace it. All 253 focused checks pass before the dependency
+update. This is a software provenance correction, not research or claimed efficacy.

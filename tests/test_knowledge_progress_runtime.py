@@ -294,3 +294,27 @@ def test_mutating_review_cannot_admit_learning(tmp_path, role):
     with pytest.raises(ValueError):
         run_knowledge_progress_trial(backend, steps, store, correction, **args)
     assert not (tmp_path / "learning-trials").exists()
+
+
+def test_registered_source_must_belong_to_a_trainable_group(tmp_path):
+    backend, steps, store, correction, args, _, evaluations = setup_knowledge(tmp_path)
+    first = replace(steps[0], is_answer=True)
+    extra = replace(
+        steps[0],
+        episode_id="episode-3",
+        event_id="knowledge-event-3",
+        request=replace(
+            steps[0].request,
+            trajectory=replace(
+                steps[0].request.trajectory,
+                trajectory_id="action-3",
+            ),
+        ),
+    )
+    result = run_knowledge_progress_trial(
+        backend, (first, steps[1], extra), store, correction, **args
+    )
+    assert result.backend is None
+    assert result.to_dict()["status"] == "no_trainable_groups"
+    assert not evaluations
+    assert not (tmp_path / "learning-trials").exists()
