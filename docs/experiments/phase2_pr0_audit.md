@@ -60,12 +60,14 @@ are Supported, Implemented; hardware unqualified, Experimental, Diagnostic and U
 
 ## Testing baseline
 
-The complete unchanged-source test invocation is running. The final freeze will retain the
-command, exit code, complete log, JUnit results, dependency versions and any failures before PR 0
-is offered for merge. No partial progress is a passing baseline.
+The final full baseline passes: **7,064 passed, 11 skipped, 18 warnings, 162 subtests passed**
+in 413.88 seconds, exit code 0. No production code was changed. The
+[freeze manifest](phase2_baseline/manifest.json) retains all three full-run outcomes, source hashes,
+dependency versions, complete logs and compressed JUnit XML. Decompress each XML with
+`gzip -dc baseline-final-pytest.xml.gz` (or Python's standard `gzip` module) for per-test results.
 
 Environment: workspace-local CPython 3.12.16; CPU PyTorch 2.15.0+cpu; transformers 5.22.1.
-Installed the declared `rl-dev,pdf,train,interpret,fusion` extras plus pytest-cov. No external
+Installed the declared `rl-dev,pdf,train,interpret,fusion` extras plus pytest-cov and pip. No external
 model weights, model endpoints or paid research runs are used. Baseline collection: 7,074 tests.
 
 ```text
@@ -78,7 +80,25 @@ black --config pyproject.toml --check --diff .
 Ruff passes; Black passes (822 files unchanged). Both CI mypy commands pass (9 source files and
 the logging schema separately). The sandbox initially blocked Black's worker socket; the same
 check ran successfully with approved execution outside the sandbox. This is an environment
-limitation, not a formatting failure. The test suite's eventual status remains to be recorded.
+limitation, not a formatting failure. Eighteen focused documentation/constitutional tests pass.
+
+The first full run had 7,021 passed, 6 failed, 37 errors and 11 skipped. Local HTTP/DDP sockets
+were blocked by the sandbox, and wheel tests could not fetch isolated build dependencies.
+The second full run outside those restrictions had 7,063 passed, 1 failed and 11 skipped:
+`tests/test_rl_adapters.py::test_adapter_import_succeeds_from_an_installed_wheel` invokes
+`python -m pip`, absent from uv's default virtual environment. Installing pip resolved the focused
+test (1 passed); the third full run then passed. All attempts remain available, including their
+exact failure diagnostics. Environment repair did not relax assertions, add skips or edit code.
+
+Skips record missing DSPy, the optional `gepa_dapo_grn` module, an unconfigured native llama.cpp
+endpoint, Windows-only path aliases, unavailable CUDA/multi-GPU hardware and the absent Mojo
+toolchain. Mock loopback and CPU-DDP acceptance passed; this does not qualify native Vulkan,
+Mojo, CUDA or external model behavior. Warnings remain in the original test metadata.
+
+The first audit-document head `fb5b7121151afbcaca98a2ecea07cc421681ec9a` also passed both Python
+3.10 and 3.12 CI jobs, including unit coverage, CPU RL acceptance, build, outside-checkout wheel
+smoke and CLI/demo smoke in [run 41797611119](https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/actions/runs/41797611119).
+The final PR head is checked separately after adding this immutable audit evidence.
 
 ## Known limits and non-duplication decisions
 

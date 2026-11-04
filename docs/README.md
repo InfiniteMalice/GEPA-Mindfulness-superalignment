@@ -58,6 +58,9 @@ is the project orientation; detailed semantics live here and in subsystem README
 
 ## Decisions and research
 
+- [Phase 2 audit](experiments/phase2_pr0_audit.md), [architecture](adr/0026-cva-causal-interpretability.md)
+  and [primary sources](phase2_research_sources.md): additive CVA and falsifiable mechanistic
+  research design, baseline evidence and qualification limits.
 - [Unified research integration](unified_research_integration.md): October 2026 staged-method
   integration, protected boundaries, experimental software subsets and unrun native methods.
 - [Research-method matrix](recommendations/RESEARCH_INTEGRATION_MATRIX.md): all 19 proposed

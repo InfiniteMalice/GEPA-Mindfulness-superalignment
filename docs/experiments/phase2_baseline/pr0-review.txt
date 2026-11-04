@@ -1,0 +1,6 @@
+Independent fresh-context PR 0 review, 2026-11-04
+No critical findings.
+Important: persist exact supplied constitutional text and A-H matrix for downstream builders. Addressed by history/2026-11-04-phase2-required-text.md and linked plan.
+Minor: AutoSFT module owner incorrectly named training.dataset_workflow; corrected to synthetic_data.dataset_workflow.
+Assessment: architecture preserves candidate/feasibility/open-world distinctions, host authority, diagnostic-only records, canonical V5, frozen predictions and actual intervention evidence. Baseline results must be finalized before merge.
+Review provides design/software scrutiny, not independent scientific proof validation.
