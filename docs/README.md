@@ -35,6 +35,8 @@ is the project orientation; detailed semantics live here and in subsystem README
   and update contracts; no estimator, causal reconciliation, reward or authority.
 - [Verification and runtime authority](VERIFICATION_AND_RUNTIME_AUTHORITY.md): world/evidence state,
   local and relational verification, failure graph, recovery, and authority separation.
+- [Constraint-Verified Alignment](constraint_verified_alignment.md): opt-in finite witnesses,
+  scoped infeasibility certificates, truthful noncompletion and host-owned verification boundaries.
 - [Evidence and memory integration](evidence_memory.md): qualitative numeric eligibility,
   memory kind/influence and preservation of source boundaries through summary views.
 - [PEO evidence continuity](peo_continuity.md): prospective evidence use, executed-action
