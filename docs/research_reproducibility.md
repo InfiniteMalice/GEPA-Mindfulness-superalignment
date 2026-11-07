@@ -82,3 +82,7 @@ GPT-2/Llama studies exercise actual hooks, interventions and KL; constructed dic
 trained SAEs. Locked semantic fidelity, trained model reliability, architecture calibration and
 intervention-informed parameter updates remain unrun. Unknowns, nulls and falsifications remain
 in original raw artifacts and must not be discarded by a comparative summary.
+
+## Connector-published checkout
+
+For the final connector-published delivery, first follow [published source provenance](phase2_publication.md) to verify and import the bundled original Git history. The historical audit pins intentionally retain original research commit IDs; a fresh clone needs that local provenance import. Runtime code, original measurements and ordinary inference are unchanged. Frozen publication-status statements describe their original audit time.
