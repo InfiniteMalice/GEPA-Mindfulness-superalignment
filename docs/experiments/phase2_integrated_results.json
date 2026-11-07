@@ -1,0 +1,99 @@
+{
+  "alignment_improvement": "NOT_ESTABLISHED",
+  "authority_granted": false,
+  "baseline_commit": "fcc4142b2a5f0bdd9e9f4f7a8b90d5c72d13d923",
+  "candidate_training": "NOT_RUN",
+  "diagnostic_status": "diagnostic",
+  "experiments": [
+    {
+      "confidence_interval": null,
+      "confidence_interval_reason": "No qualified independent trained-model comparison; dependent synthetic runs are not independent alignment samples.",
+      "experiment": "A",
+      "observed_scope": "Nine offline finite fixtures; exact candidate and scoped feasibility checking. No real target.",
+      "source": "docs/experiments/phase2_pr3_manifest.json",
+      "status": "OBSERVED_SYNTHETIC",
+      "title": "Finite feasibility classification"
+    },
+    {
+      "confidence_interval": null,
+      "confidence_interval_reason": "No qualified independent trained-model comparison; dependent synthetic runs are not independent alignment samples.",
+      "experiment": "B",
+      "observed_scope": "Scripted uncertainty behavior and original structured CVA joins exercised. No before/after trained candidate.",
+      "source": "docs/experiments/phase2_pr7_manifest.json",
+      "status": "TRAINED_COMPARISON_NOT_RUN",
+      "title": "Graceful noncompletion"
+    },
+    {
+      "confidence_interval": null,
+      "confidence_interval_reason": "No qualified independent trained-model comparison; dependent synthetic runs are not independent alignment samples.",
+      "experiment": "C",
+      "observed_scope": "Seed 17: six components, 24 frozen hypotheses; all 24 falsified in the retained probe.",
+      "source": "docs/experiments/phase2_pr4_manifest.json",
+      "status": "OBSERVED_RANDOM_MODELS",
+      "title": "Native discovery"
+    },
+    {
+      "confidence_interval": null,
+      "confidence_interval_reason": "No qualified independent trained-model comparison; dependent synthetic runs are not independent alignment samples.",
+      "experiment": "D",
+      "observed_scope": "Seed 53: eight dependent studies, 76 conditions, 684 actual output rows, KL/NLL and matched controls.",
+      "source": "docs/experiments/phase2_pr5_manifest.json",
+      "status": "OBSERVED_RANDOM_MODELS",
+      "title": "Simulation fidelity"
+    },
+    {
+      "confidence_interval": null,
+      "confidence_interval_reason": "No qualified independent trained-model comparison; dependent synthetic runs are not independent alignment samples.",
+      "experiment": "E",
+      "observed_scope": "Seed 71: 17 runs, 139 conditions, 6672 logit values; constructed/null predictions retained. No semantic mechanism established.",
+      "source": "docs/experiments/phase2_pr6_manifest.json",
+      "status": "OBSERVED_RANDOM_MODELS",
+      "title": "Causal validity"
+    },
+    {
+      "confidence_interval": null,
+      "confidence_interval_reason": "No qualified independent trained-model comparison; dependent synthetic runs are not independent alignment samples.",
+      "experiment": "F",
+      "observed_scope": "Scripted constant uncertainty and tiny diagnostic-copy equality checks only; trained and intervention-informed candidates unrun.",
+      "source": "docs/experiments/phase2_pr7_manifest.json",
+      "status": "TRAINED_COMPARISON_NOT_RUN",
+      "title": "Behavioral versus mechanistic improvement"
+    },
+    {
+      "confidence_interval": null,
+      "confidence_interval_reason": "No qualified independent trained-model comparison; dependent synthetic runs are not independent alignment samples.",
+      "experiment": "G",
+      "observed_scope": "GPT-2/Llama, signed regimes, paraphrase/task fixtures. Six dependent comparison studies; 22 measured and two unavailable arms. No trained OOD reliability or method superiority.",
+      "source": "docs/experiments/phase2_pr8_manifest.json",
+      "status": "PARTIAL_RANDOM_MODEL_SOFTWARE",
+      "title": "Generalization and method comparison"
+    },
+    {
+      "confidence_interval": null,
+      "confidence_interval_reason": "No qualified independent trained-model comparison; dependent synthetic runs are not independent alignment samples.",
+      "experiment": "H",
+      "observed_scope": "Nine exact reconstructions; original sources retained; serialized checkpoints only.",
+      "source": "docs/experiments/phase2_pr9_resource_probe.json.gz",
+      "status": "OBSERVED_FINITE_FIXTURES",
+      "title": "Resource tradeoffs"
+    }
+  ],
+  "final_software_regression": {
+    "exit_code": 0,
+    "passed": 7313,
+    "seconds": 571.8,
+    "skipped": 11,
+    "source": "phase2_pr9_pytest.log",
+    "subtests": 162,
+    "warnings": 18
+  },
+  "maturity": "experimental",
+  "nulls_and_falsifications": "RETAINED_IN_ORIGINAL_SOURCES",
+  "optimizer_input": false,
+  "promotion": "NOT_AUTHORIZED",
+  "publication_status": "PR0_DRAFT_CANCELLED_READY_ACTION; later stages local pending confirmation",
+  "schema_version": "phase2-integrated-research-v1",
+  "source_audit": "phase2_pr9_historical_audit.json.gz",
+  "trained_model_capability_regression": "NOT_RUN",
+  "training_eligibility": "DEVELOPMENT"
+}
