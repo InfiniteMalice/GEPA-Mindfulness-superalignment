@@ -1,0 +1,52 @@
+{
+  "authority_granted": false,
+  "base_commit": "428678a",
+  "diagnostic_status": "diagnostic",
+  "focused_suite": {
+    "passed": 48,
+    "seconds": 7.27
+  },
+  "full_suite": {
+    "exit_code": 0,
+    "passed": 7239,
+    "seconds": 442.71,
+    "skipped": 11,
+    "subtests": 162,
+    "warnings": 18
+  },
+  "junit_uncompressed_sha256": "46cb9a0d72aeb90ab0ce5a8fd3a7bb3495561a7dd74b55c5f173147fa0944c6e",
+  "maturity": "experimental",
+  "optimizer_input": false,
+  "probe": {
+    "authentication": "SYNTHETIC_SOFTWARE_FIXTURE",
+    "logit_values": 6672,
+    "measured_conditions": 139,
+    "registry_admission": "NOT_PERFORMED",
+    "runs": 17,
+    "seed": 71,
+    "trained_models": false
+  },
+  "probe_uncompressed_sha256": "8a95bbfd262225c71240b68c4dd3979983acad0e7832d748bdf4b524bef2cbf9",
+  "schema_version": "phase2-pr6-artifacts-v1",
+  "sha256": {
+    "docs/README.md": "a7f683afa3f021c6149480d423036bc1c1ecb0f5b42dc1968fa0f937581748ac",
+    "docs/causal_mechanistic_evidence.md": "9fe87854130a16f9d512d6ed4ca307ddbaa2b4aebc9220307137e5c6c745f9d4",
+    "docs/experiments/phase2_pr6_causal_probe.json.gz": "2eaec19bad0324da0dbdae7309a86feb8d0f2a65cecad218e0081c3a92b57d2d",
+    "docs/experiments/phase2_pr6_causal_probe.py": "761ba17da9a7b9e44c33aeb07c84358d694e549051163a65ca76ab52508984e2",
+    "docs/experiments/phase2_pr6_checks.log.gz": "36b1f5dbed71b7c3e7f6e1787baec14685ffa8486686251e3c506d97da6875e1",
+    "docs/experiments/phase2_pr6_pytest.log": "ce2ed82c0a2867184530ebbed479bb7c719a08c05a62cb0f09b62eeabd4eca8d",
+    "docs/experiments/phase2_pr6_pytest.xml.gz": "458f0055c4176edfdf04ff56b0c90db9060538addbc98fba3bfa20de71393d84",
+    "docs/experiments/phase2_pr6_validation.md": "b29c64c25bf758b7915b9522ac5b86be562ab2ea93ec4f467c33792c5bf925fb",
+    "gepa_mindfulness/interpret/causal_interventions.py": "45b9ceaa78a07d97b5b61b9671d6d53a8576ae9fba1a85c03982f72aedfb0875",
+    "gepa_mindfulness/interpret/mechanistic_evidence.py": "5ee931a2f8ebe31cf06b006b04b9a5e529e7748a32e4d932ef0a811103b5a8f4",
+    "gepa_mindfulness/interpret/mechanistic_graphs.py": "4fd81a7906e27142a8d058476b7703924f756fd5568d45509a83d1b22f2b584e",
+    "gepa_mindfulness/interpret/native_causal_records.py": "63162eef1cdbc1c1d12d545b0981da10d7e0026ffa42c3d56779fdbbb9f2af31",
+    "history/2026-11-05-phase2-causal-design.md": "bb782e2fa90dcfa244417580daacdffa1f4495f386a294f16081c3c62fd7911c",
+    "pyproject.toml": "43c0e98f8c59e01b59a7a0032488c26339e268405715a305f15f200575dc3391",
+    "tests/test_controlled_evolution_package.py": "146d758f9deb358089abaae16f84fd6e3eb9e1ab2037efb439f329f2532b1222",
+    "tests/test_mechanistic_evidence.py": "473f3296ab845e44ddf69912e4634e9ab9bc080af3ca52c13623a27a42d9cf23",
+    "tests/test_mechanistic_graphs.py": "4586395676125c8e467e86eaed034d4450ea62fc20f73337722cdb3947c7a124",
+    "tests/test_native_causal_interventions.py": "e4e7ccd784ce3618e694fa5d879140fea127f4cdb05b3ba936478e3ad9bd8a96"
+  },
+  "training_eligibility": "DEVELOPMENT"
+}
