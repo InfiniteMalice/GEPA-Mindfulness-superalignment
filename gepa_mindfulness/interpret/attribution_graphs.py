@@ -57,7 +57,7 @@ class AttributionNode:
 
 @dataclass
 class AttributionEdge:
-    """Directed edge showing causal influence between nodes."""
+    """Directed attribution estimate; an edge alone does not establish causal influence."""
 
     source_node: AttributionNode
     target_node: AttributionNode
