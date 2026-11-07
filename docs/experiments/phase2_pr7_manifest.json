@@ -1,0 +1,53 @@
+{
+  "authority_granted": false,
+  "base_commit": "5fe5453",
+  "diagnostic_status": "diagnostic",
+  "focused_suite": {
+    "passed": 26,
+    "seconds": 117.37
+  },
+  "full_suite": {
+    "exit_code": 0,
+    "passed": 7265,
+    "seconds": 559.48,
+    "skipped": 11,
+    "subtests": 162,
+    "warnings": 18
+  },
+  "junit_uncompressed_sha256": "0883bd20c0d28f1cd058781102aafeac4a9ba1739055e97a4c68db4ed555da5d",
+  "maturity": "experimental",
+  "optimizer_input": false,
+  "probe": {
+    "authentication": "SYNTHETIC_SOFTWARE_FIXTURE",
+    "compound": 13,
+    "native_measured_conditions": 14,
+    "original_structured_cva_observations": 14,
+    "public_captures": 56,
+    "registry_admission": "NOT_PERFORMED",
+    "seed": 71,
+    "single_variable": 13,
+    "templates": 26,
+    "trained_models": false
+  },
+  "probe_uncompressed_sha256": "e01205596fbc8a66cfeb6dfa37fcabf8c8d35890f0bbe04508e574d7e635227e",
+  "schema_version": "phase2-pr7-artifacts-v1",
+  "sha256": {
+    "docs/README.md": "00318f7433e7c132e68ed171f9d9b122e3e31f41f9403b8ff995163966129389",
+    "docs/alignment_mechanistic_studies.md": "701d5404c2a7b2cd71f28fe961300470ac14a0b776b89ae308cf28e58ffcc5dd",
+    "docs/experiments/phase2_pr7_checks.log.gz": "061232ca3244674e639f848ee110e7b541f6fc477b1d3a6ee7435e9286ba0a18",
+    "docs/experiments/phase2_pr7_pytest.log": "dc5db3c6a062fbc7d8833ac42170d898e3bc950c94f5a3032bef1798babdc6bc",
+    "docs/experiments/phase2_pr7_pytest.xml.gz": "c36fc8737072050803ba66d752e5c38fc3c2572efb51605705539302fa558469",
+    "docs/experiments/phase2_pr7_study_probe.json.gz": "e18cc88ab02d1d8ed32d398043508d6d9384f4668c2d7a4d578a14097008d1b0",
+    "docs/experiments/phase2_pr7_study_probe.py": "fd6f80c061ad55d0e477f41c0098f54b3d7f1521e0c30bb2c079dad6bc90296e",
+    "docs/experiments/phase2_pr7_validation.md": "eca88ea00b57ad971d7abcd1889031eb228438604085e7c68fed29c28ec290e1",
+    "evaluation/mechanistic_studies.py": "fb48b7cc6bf17b1467f776266fe695f7d6bad79331723ca68eacf1a51f18eb0e",
+    "evaluation/mechanistic_study_records.py": "239e0cf2852bdcc37c1fd22ae56b8eb772e2b8b5131e5e1e4d83cdfc4e1b5b28",
+    "history/2026-11-05-phase2-alignment-studies-design.md": "b96180d8ae78843b747a61dd3b0d01382379eb1629becf6c9bcbab91bdae8586",
+    "pyproject.toml": "bcda1baa64f8aa53b02d0c4be77615cc43036654c0357a6dda6002c91bf67770",
+    "synthetic_data/alignment_studies.py": "92f34eb3f614c8fea6c05fa26761e282d0f3bc2b611560648dcd64d1ba980933",
+    "tests/test_alignment_studies.py": "420a2b822c12bf22bd8113e4779399329cbe735b2e0512f36824f25915a8eb1c",
+    "tests/test_controlled_evolution_package.py": "0a92511dfa0cf01cf86716cbc986ceb767fae0957ca874da7e28bcf15095113f",
+    "tests/test_study_native_execution.py": "b525c0ba7ec17a7bdfbde855d4bc76dbfd52f4a0e726c4d91dd7c4e430d46d97"
+  },
+  "training_eligibility": "DEVELOPMENT"
+}
