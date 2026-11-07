@@ -1,0 +1,39 @@
+{
+  "base_commit": "5e2b686",
+  "full_suite": {
+    "exit_code": 0,
+    "passed": 7191,
+    "seconds": 430.91,
+    "skipped": 11,
+    "subtests": 162,
+    "warnings": 18
+  },
+  "junit_uncompressed_sha256": "994a76773abfe64703548c896bf0f3454b76a699e6f507cbf323857dcaffcc79",
+  "maturity": "experimental",
+  "optimizer_input": false,
+  "probe": {
+    "measured_conditions": 76,
+    "mechanism_admission": "NOT_PERFORMED",
+    "output_records": 684,
+    "seed": 53,
+    "studies": 8,
+    "trained_models": false
+  },
+  "probe_uncompressed_sha256": "fa4d728a8b60b2ead95dc7c00b9fa9b97d7ffcf278fa479ae9258f229db00168",
+  "schema_version": "phase2-pr5-artifacts-v1",
+  "sha256": {
+    "docs/README.md": "881fac61091e78a569e3ac87022021079bc2fbf76054ca4ce7790d283aabca33",
+    "docs/activation_simulation.md": "26cb97a6c9ad75cdccd631dbf4b6a7bc3a0568e1c4d6278b895894df7f88f417",
+    "docs/experiments/phase2_pr5_pytest.log": "5aea3ca4c52ff83fc2da7683480b90b2de1adf189155992364b1ab385b168b02",
+    "docs/experiments/phase2_pr5_pytest.xml.gz": "1c5c3cd1ed157d5a4d7911f6480f306ab04e8a75ff90c67a31c70306a945c04d",
+    "docs/experiments/phase2_pr5_simulation_probe.json.gz": "93a82416055fda06e72b627b230c760b766462bcb66307070e9038bdf3735e64",
+    "docs/experiments/phase2_pr5_simulation_probe.py": "4627f6cf30bedfaec3831fad3bcc7c016de7c1d4062605a5ffe87368ac02a697",
+    "docs/experiments/phase2_pr5_validation.md": "fefde25ca34f898a8b02d7c872f5e3cd55a8d9bc82997a877640e7d8e4527d76",
+    "gepa_mindfulness/interpret/activation_simulation.py": "0808296e72912947a48eb2b36e843b03d4ff5da646a1c54dfd9d560ebc618cf3",
+    "gepa_mindfulness/interpret/activation_simulation_records.py": "a68f2cf1305c058bc7e2fa72b6ab53bf4ec0bdf0adcec98e3c8c39d0c15f6be5",
+    "pyproject.toml": "a1d1b1a84a50517a7bc314809b25cfa429f72aed8a058cb7c9d6e7689e19d1cf",
+    "tests/test_activation_simulation.py": "07c50496fa6173a5d777b47d6f54b1772f13bb2b2cee1006e47fefbb5344f452",
+    "tests/test_controlled_evolution_package.py": "1ef177a947b2e5875b1db261873b394f6d9aec4364a7ddb95513878b2752c4ea"
+  },
+  "training_eligibility": "DEVELOPMENT"
+}
