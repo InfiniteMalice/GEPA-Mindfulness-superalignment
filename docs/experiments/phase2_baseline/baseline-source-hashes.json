@@ -1,0 +1,25 @@
+{
+  "baseline_sha": "fcc4142b2a5f0bdd9e9f4f7a8b90d5c72d13d923",
+  "files": {
+    "README.md": "d8f0d0599df18f10df3320cf84aae24dd6385a882335d1c7c0c0234f0298dbdb",
+    "docs/GEPA_Mindfulness_Constitution.md": "b2ed38f2cf4904bdafe52e99f1909890d6d62d85bcf9bdee94b04859011b4205",
+    "docs/17_CASE_FRAMEWORK.md": "853f6dd23f0676c4db236e5f2694f011b7953101c3854705417114d091b0fb40",
+    "docs/epistemic_process_rewards.md": "054bb1b9d39fa0515e6d34d64e7fa2c5f90bb0053e2ea3eb9096f9cae63b5b40",
+    "docs/VERIFICATION_AND_RUNTIME_AUTHORITY.md": "76d175d7554263312340af54da0e6de33ce4428840fc5aba33934372a623c6aa",
+    "docs/controlled_evolution.md": "73c6a61c91a9315121cc8f1dd448aa17d017447ec0496ce7e810c4724fe5616e",
+    "docs/causal_diagnostics.md": "483549f7d60262f3175a5146ceb7f7ec90b3dc6f41d504e6bb92138a51737146",
+    "docs/research_ablation_suite.md": "7f5be86ac050216b758102c7bf2a2f48010b77af6d3f77933c20fa4b174c795a",
+    "docs/deloop_peo.md": "c30b9ace11fee058b234c1cff65159efacc8a041f33c196b7da2fe98c479811c",
+    "evaluation/cases/17_case_manifest.yaml": "dd65edf21e951031846e1eb5717671984843d01747938a76a068d7ae256e9ffe",
+    "gepa_mindfulness/interpret/attribution_graphs.py": "2e829757c8704e3af849e8c16f566150c8cebe7ad1c6c067261f2ef3be0ad0e4",
+    "gepa_mindfulness/interpret/graph_comparison.py": "bb37a6c2066004c9ea490509da683955546f2e2a03f7e9da2c49f030f1ea901d",
+    "gepa_mindfulness/interpret/graph_metrics.py": "a6819294bfa233629d9a81a09a4276b63e656800831b7f5ba573a0eaf9b9cac8",
+    "gepa_mindfulness/core/circuit_tracer_adapter.py": "b26d597d3a18dd8b22066fcdfa4eb971936eee5fda9d44bbf4fc7e7b67977409",
+    "gepa_mindfulness/coevolution.py": "f6e5b444d6cccd197282ce2ce1d571215f303d3d813889228b75243e17689b15",
+    "gepa_mindfulness/learning_surfaces.py": "8afeeb90796a9be6320b0c82fe14457a21e0660824be2299f7662e974bc725f7",
+    "evaluation/causal_diagnostics.py": "a53b33cc3b238967d31d3ed7c186f51960f6f05307a525f06e92affce4d27cc6",
+    "evaluation/model_harness_attribution.py": "598b4594c8192c41586abefe9aa31aa095f2956c3df619089e1c6446579c6409",
+    ".github/workflows/ci.yml": "3318c8929bb2ea93d15c4c71f19863bea82a80ad3e303824b3802514fbeeec7c",
+    "pyproject.toml": "9fe39b522a54b409e669c18ef611c8608908e5aa6a0930aa0bf7d1d3b7da5c0a"
+  }
+}
