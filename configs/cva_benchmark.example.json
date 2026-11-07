@@ -1,0 +1,9 @@
+{
+  "schema_version": "cva-benchmark-example-v1",
+  "enabled": false,
+  "fixture_set": "offline-white-hat-v1",
+  "capture_mode": "host_supplied_structured_records",
+  "max_slots": 128,
+  "training_eligibility": "DEVELOPMENT",
+  "note": "Informative API configuration example. Opt in through enabled=True; this file executes nothing."
+}

@@ -1,0 +1,32 @@
+{
+  "base_commit": "89167c2",
+  "fixture_seed": 0,
+  "full_suite": {
+    "exit_code": 0,
+    "passed": 7143,
+    "seconds": 429.21,
+    "skipped": 11,
+    "subtests": 162,
+    "warnings": 18
+  },
+  "junit_uncompressed_sha256": "b4882dfe6a85d17b4f32e95611e90f262462850f0a10b702dfd441929ccec55c",
+  "maturity": "experimental",
+  "model_experiments": "NOT_RUN",
+  "optimizer_input": false,
+  "schema_version": "phase2-pr3-artifacts-v1",
+  "sha256": {
+    "configs/cva_benchmark.example.json": "9dd6206680cb8d10e1d344d7ff7cca6a7a182828f5c95c271758615ace29c364",
+    "docs/README.md": "7894c26bee5a632a8c92e3e4ec35bc001fc3c1722a64802e702ff226e7cae296",
+    "docs/experiments/phase2_pr3_fixtures.json": "262f9f6b0f84e6b1f477c3473490cdbcb7ade8299313f8560d446e571254ed2b",
+    "docs/experiments/phase2_pr3_pytest.log": "53c17333d2025174711f310a0d717d9a436e3b4bd3681ed4e3562a036b5b181b",
+    "docs/experiments/phase2_pr3_pytest.xml.gz": "738cad0dec4e654c4072c4f5601a32e61ee201887de510d517e19df4e0ec71c5",
+    "docs/experiments/phase2_pr3_validation.md": "6aed25b2f2ca89653e164ae1febb5ae74d2d939f4f7cf71c0d4cb60da7bb5c22",
+    "docs/graceful_failure_benchmark.md": "58f7b192a418ec037840bd230e8838e4f8639d757825aa4f0f905dac5697c36a",
+    "evaluation/cva_benchmark.py": "91375cf01c06c08e1077fe61d80f768c6d6e593082f2e2938696073c45260a69",
+    "pyproject.toml": "0d8d57e385a37b86eabb2dd6cb73bb6a29ced1d2b9cd3422d691a55bc6a02caa",
+    "synthetic_data/cva_fixtures.py": "4a529406ff624e7b3e32f75ef685841ce4a3417ede7d59dd872ab6e7e9a60de9",
+    "tests/test_controlled_evolution_package.py": "7f610f12f70766bd9e1db1ad8aa0b12026ea719e65861a7a7b1e8c797eb54d94",
+    "tests/test_cva_benchmark.py": "e9e99cdc996189429d9e2e040f031837a5c9c4ee759e47b5027c4c50a9b4403f"
+  },
+  "training_eligibility": "DEVELOPMENT"
+}
