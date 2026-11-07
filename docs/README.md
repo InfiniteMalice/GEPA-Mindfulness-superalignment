@@ -45,6 +45,8 @@ is the project orientation; detailed semantics live here and in subsystem README
   preregistered controls and frozen-model distribution evidence; diagnostic only.
 - [Causal mechanistic evidence](causal_mechanistic_evidence.md): actual patching, ablation, path
   tests and independent replay with protected diagnostic registration and scoped graph annotations.
+- [Alignment-specific mechanistic studies](alignment_mechanistic_studies.md): behavior-first
+  honesty, abstention, clarification, laundering, dual-path, value-conflict and CVA comparisons.
 - [Evidence and memory integration](evidence_memory.md): qualitative numeric eligibility,
   memory kind/influence and preservation of source boundaries through summary views.
 - [PEO evidence continuity](peo_continuity.md): prospective evidence use, executed-action
