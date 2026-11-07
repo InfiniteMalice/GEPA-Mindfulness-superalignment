@@ -1,0 +1,58 @@
+{
+  "authority_granted": false,
+  "base_commit": "83ca0e2",
+  "diagnostic_status": "diagnostic",
+  "focused_suite": {
+    "passed": 15,
+    "seconds": 7.3
+  },
+  "full_suite": {
+    "exit_code": 0,
+    "passed": 7280,
+    "seconds": 567.69,
+    "skipped": 11,
+    "subtests": 162,
+    "warnings": 18
+  },
+  "junit_uncompressed_sha256": "b845b7622c65b331a2d443b193166517067b611294cec488c7031bd336be84cf",
+  "maturity": "experimental",
+  "optimizer_input": false,
+  "probe": {
+    "actual_batch_forwards": 204,
+    "causal_prediction_results": {
+      "FALSIFIED": 50,
+      "MET": 8,
+      "NOT_SPECIFIC": 8
+    },
+    "control_seed": 79,
+    "learned_dictionaries": false,
+    "measured_arms": 22,
+    "measured_conditions": 184,
+    "model_seed": 71,
+    "output_rows": 1104,
+    "planned_arms": 24,
+    "registry_admission": "NOT_PERFORMED",
+    "studies": 6,
+    "trained_models": false,
+    "unavailable_arms": 2
+  },
+  "probe_uncompressed_sha256": "3719277ea34b106939e9a64f0ceb13911f15474a1b25b9ebbae76bded91a0c56",
+  "schema_version": "phase2-pr8-artifacts-v1",
+  "sha256": {
+    "docs/README.md": "ee09e3864ae3f57af8acd03b086722aa9a7618c1002e84b7d8ff34c975d21b9c",
+    "docs/comparative_interpretation.md": "f9f1163b05471ba983e9711f32dd96a881d60a9af1079cf17b30c6974cbc04aa",
+    "docs/experiments/phase2_pr8_checks.log.gz": "c41e33e84c5d10ee12fc025a22fe066debfc1e5e5d2432a6f484a490b8ae1cae",
+    "docs/experiments/phase2_pr8_comparison_probe.json.gz": "4e0cb1e03403c1ba200cef567576f261ae5564f048ec50b5896f4bbc290ea6cf",
+    "docs/experiments/phase2_pr8_comparison_probe.py": "ffa348b376da4edfe2edb78e08e5ecab39f072521a0db9187d077f3cc18a9321",
+    "docs/experiments/phase2_pr8_pytest.log": "6e0a60262e739a11e529e88b08cb74342021b062676bfdcf3a684b6172071ec8",
+    "docs/experiments/phase2_pr8_pytest.xml.gz": "11269c23b54ecf6a11e831068164083227dd0e8d779eb4d53f2b796cf82c6cc6",
+    "docs/experiments/phase2_pr8_validation.md": "67a75bda8cb6be000d11c7473cc4db53f6289ff79ba5a9aee84cc435d148d116",
+    "gepa_mindfulness/interpret/comparative.py": "02ec166af7516d29b8cf8b33707e5dd87b8d5e4b0ee36560488c731bdad30244",
+    "gepa_mindfulness/interpret/comparative_records.py": "e6d613a8112e8a754a75597d7ac1a7967079683523618e4c9bb3783fcbfa88b6",
+    "history/2026-11-05-phase2-comparative-design.md": "6bf5f7244c93ca6558e037d442bc95505cda295fa1ee48606397ad2de4b1645a",
+    "pyproject.toml": "d084f01f5d0658be68aa8ade33e1aa49104a77a440f5a17563fe168c26960b16",
+    "tests/test_comparative_interpretation.py": "3796a1373cd17e253eaa1dd5429fd32eeccac776f2848170173a13a5173f0f71",
+    "tests/test_controlled_evolution_package.py": "6ccfe2955738723dbb9e09781d91162f695e75c843ca99444bb74f606ad916dc"
+  },
+  "training_eligibility": "DEVELOPMENT"
+}
