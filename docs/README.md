@@ -129,3 +129,6 @@ governed promotion retain authority; live search and comparative effectiveness r
 
 [Latent-memory source qualification](latent_memory_research.md) records checked MEMORILLA artifacts,
 external-runtime requirements and the existing Study F evidence boundary; native execution is Unsupported.
+
+- [Research reproducibility](research_reproducibility.md): immutable source custody, paired statistics, protected regression reporting, historical audits and finite recomputation.
+- [Phase 2 delivery map](phase2_delivery.md) and [integrated results](experiments/phase2_results.md).

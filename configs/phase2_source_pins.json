@@ -1,0 +1,66 @@
+[
+  {
+    "commit": "eb3f10162e2ad28e9ae179ed4ba1d968dcb6e77c",
+    "manifest": "docs/experiments/phase2_baseline/manifest.json",
+    "manifest_digest": "cbdfcde95b3638d456afb3491fa5a3901be5f933a2c643c4e39732f7a361628b",
+    "stage": 0
+  },
+  {
+    "commit": "ecad6996b1e5bef2cc8adaa9731a311a8b64ebe6",
+    "sha256": {
+      "docs/GEPA_Mindfulness_Constitution.md": "e3fd77927a03d867476d42593033bed3b32e98de3f1ce7e73ef2166cadc4a3cc",
+      "docs/experiments/phase2_constitution.diff": "607c1f137040196b84bf6cf4b22c4cb6e4dad57a09c117d4a882334aec834869",
+      "docs/experiments/phase2_pr1_pytest.log": "9558fba63b36f4f61036f28cfcb5cdd68d1b493a802edc5668bd7ce95138fc24",
+      "docs/experiments/phase2_pr1_validation.md": "a8339e2427162ed7ceb8de28a2d532ddf4eb71fa915074799c335a27ee8fdfe1"
+    },
+    "stage": 1
+  },
+  {
+    "commit": "89167c2dac0c14a1dfa9177f54790c30dc88a0fd",
+    "sha256": {
+      "docs/constraint_verified_alignment.md": "3f6db0716fa8e9dcb64c909a1c5dceedd29cee81378496f63a19d883b60d0fa8",
+      "docs/experiments/phase2_pr2_pytest.log": "e7e1fb1c2a31ebed133ef07abcca7f931a5e83bd21dab87bc17c8b2fc1c80e74",
+      "docs/experiments/phase2_pr2_validation.md": "d2d14d34efde72cec2705db970d3e6ea4677403b80d0a3403cc29f55ec7a944a",
+      "gepa_mindfulness/verification/cva.py": "af44df5fd765027aaccbe007f3873b0a9a83f0bf0c5b6a8d247fa60d0015ad3d",
+      "gepa_mindfulness/verification/cva_finite.py": "9291cf7ee5a8887f7a73c0fd6ebd924eae87531cf1794b27d4a83813eb9dd338",
+      "gepa_mindfulness/verification/cva_records.py": "85ccc509c816faa39d2354b82148f5a3ee3488742f97a0fc2ddc2ef81f105342"
+    },
+    "stage": 2
+  },
+  {
+    "commit": "e83b8712668dae8e5182c064ef119f1f3f0cbd95",
+    "manifest": "docs/experiments/phase2_pr3_manifest.json",
+    "manifest_digest": "e0790ff9052255d3801c2a63db4014c77591e5b5b2078d5c1efe516fe9c25c92",
+    "stage": 3
+  },
+  {
+    "commit": "5e2b686af8792259a765ca353f1c93ed4ed8aead",
+    "manifest": "docs/experiments/phase2_pr4_manifest.json",
+    "manifest_digest": "0032ffb2ee201b5eb395dbdc4fc9d8e044810fc325db96537fbadcf6b3fd7d23",
+    "stage": 4
+  },
+  {
+    "commit": "428678a85ed27d190f7fe79df01003cf6eb192e5",
+    "manifest": "docs/experiments/phase2_pr5_manifest.json",
+    "manifest_digest": "7ec2a002b64b2f9d4797c2fef9a9a2018a843c87b942eafdee6c734ff159bc9e",
+    "stage": 5
+  },
+  {
+    "commit": "5fe5453122bfbe11ee1a303af207f3be001076e3",
+    "manifest": "docs/experiments/phase2_pr6_manifest.json",
+    "manifest_digest": "00df28ed18311444835f0cf4dadde5e01e6dd708137ade3ecddeec28ee074f3c",
+    "stage": 6
+  },
+  {
+    "commit": "83ca0e276efd66aae546bb273e432c437699ab11",
+    "manifest": "docs/experiments/phase2_pr7_manifest.json",
+    "manifest_digest": "582c468bfc21b1e7b1ce7484b78786301436045d29a5e206e2fbd5fa555de98e",
+    "stage": 7
+  },
+  {
+    "commit": "c92ba24040598a1918168161b7e53f7021d5b04d",
+    "manifest": "docs/experiments/phase2_pr8_manifest.json",
+    "manifest_digest": "f87846a78cadba839169701818529887d249c3768daf834c6dc4122abc708de3",
+    "stage": 8
+  }
+]
