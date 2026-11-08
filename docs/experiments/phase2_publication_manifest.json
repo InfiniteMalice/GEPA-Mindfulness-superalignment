@@ -43,7 +43,10 @@
       "tests/test_explanation_tests.py": "ecd7a14dc46fe6d8b25fa97ddc7bea7b1a1425246ef715575dafa9a0c0f5820e",
       "tests/test_graceful_failure_constitution.py": "d54d112d808f491470e116e99998ce59699844c618ad89c2b2c4079b5500787a",
       "tests/test_phase2_reproducibility.py": "ca51a56bd0ddd24dde78cd72ae9c5c8fd4da2739f742e13a39997f58d97d09f8",
-      "tests/test_study_native_execution.py": "413d3ecdad7692ab29fad8b8023ad80e08bae6e0ee7835a3fc6f44fed7375c30"
+      "tests/test_study_native_execution.py": "413d3ecdad7692ab29fad8b8023ad80e08bae6e0ee7835a3fc6f44fed7375c30",
+      "docs/phase2_delivery.md": "b521a73421c5676fb808b11671acd0366fc3d4b91a41b95896393566fc602459",
+      "docs/experiments/phase2_integrated_results.json": "3448bee8b25c2db5b5664fb398c9a3ad945d9daa5d6635548f4b9b698c9139da",
+      "docs/experiments/phase2_results.md": "1a5b291e2256a5a76bec1adea889a21a6eb845c9860d15012980f07e4c0c9bf9"
     }
   },
   "schema_version": "phase2-publication-provenance-v1",

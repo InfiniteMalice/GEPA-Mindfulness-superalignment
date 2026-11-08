@@ -23,12 +23,9 @@ reference, not evidence that all proposed empirical research has run.
 
 ## Independently reviewable stages
 
-Each branch extends its predecessor and preserves legacy APIs. The only remote PR is currently
-[#831](https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/pull/831), draft. Its
-ready-for-review action was cancelled and a retry confirmation remains pending. Subsequent stages
-are local; no local branch is represented as merged. After that gate is resolved, publish/review/
-check/merge in stage order, preserving reviewable diffs and protected checks. Squash merges may
-require rebasing the next stage while retaining original research source pins.
+The phase is published through independently reviewable PRs [#831–#840](https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/pulls). PR 0 is merged; the implementation PRs are ready for review and are merged in dependency order after current-head checks and review feedback are clear. Consult their timelines for live merge status.
+
+The [published source provenance](phase2_publication.md) distinguishes the original audited commits, initial connector mirrors and subsequent reviewed corrections. It also explains importing the original-history bundle for pinned historical audits. Original validation snapshots are retained; their draft/local status statements describe the time those snapshots were recorded. The latest corrected software gate is [7,326 passing tests](experiments/phase2_publication_validation.md), with trained-model efficacy explicitly unrun.
 
 | Stage / local branch suffix | Proposed PR description | Migration |
 |---|---|---|

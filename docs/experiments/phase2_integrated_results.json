@@ -79,6 +79,24 @@
     }
   ],
   "final_software_regression": {
+    "passed": 7326,
+    "skipped": 11,
+    "warnings": 18,
+    "subtests": 162,
+    "seconds": 576.47,
+    "exit_code": 0,
+    "source": "phase2_publication_pytest.log"
+  },
+  "maturity": "experimental",
+  "nulls_and_falsifications": "RETAINED_IN_ORIGINAL_SOURCES",
+  "optimizer_input": false,
+  "promotion": "NOT_AUTHORIZED",
+  "publication_status": "STAGED_DELIVERY_PR_831_THROUGH_840; consult PR timelines for current state",
+  "schema_version": "phase2-integrated-research-v1",
+  "source_audit": "phase2_pr9_historical_audit.json.gz",
+  "trained_model_capability_regression": "NOT_RUN",
+  "training_eligibility": "DEVELOPMENT",
+  "initial_software_regression": {
     "exit_code": 0,
     "passed": 7313,
     "seconds": 571.8,
@@ -87,13 +105,17 @@
     "subtests": 162,
     "warnings": 18
   },
-  "maturity": "experimental",
-  "nulls_and_falsifications": "RETAINED_IN_ORIGINAL_SOURCES",
-  "optimizer_input": false,
-  "promotion": "NOT_AUTHORIZED",
-  "publication_status": "PR0_DRAFT_CANCELLED_READY_ACTION; later stages local pending confirmation",
-  "schema_version": "phase2-integrated-research-v1",
-  "source_audit": "phase2_pr9_historical_audit.json.gz",
-  "trained_model_capability_regression": "NOT_RUN",
-  "training_eligibility": "DEVELOPMENT"
+  "publication_prs": [
+    "https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/pull/831",
+    "https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/pull/832",
+    "https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/pull/833",
+    "https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/pull/834",
+    "https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/pull/835",
+    "https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/pull/836",
+    "https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/pull/837",
+    "https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/pull/838",
+    "https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/pull/839",
+    "https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/pull/840"
+  ],
+  "publication_provenance": "docs/phase2_publication.md"
 }

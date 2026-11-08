@@ -1,5 +1,7 @@
 # Phase 2 integrated results
 
+This report retains the initial implementation measurements. The [publication correction validation](phase2_publication_validation.md) records the latest 7,326-test software gate and unchanged comparison outputs; the [published provenance](../phase2_publication.md) links current delivery and preserved historical sources.
+
 Maturity: **Experimental** software, **Diagnostic** observations, **Unqualified** alignment claims.
 
 Baseline `fcc4142b2a5f0bdd9e9f4f7a8b90d5c72d13d923`: **7,064 passed**, 11 skipped, 162 subtests. Stage 8: **7,280 passed**, 11 skipped, 162 subtests. Stage 9 passes **7,313 tests**, 11 skipped and 162 subtests; these counts measure software regression, not model capabilities.
