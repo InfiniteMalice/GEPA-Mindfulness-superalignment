@@ -1,77 +1,115 @@
 {
-  "schema_version": "phase2-publication-provenance-v1",
-  "maturity": "diagnostic",
-  "training_eligibility": "DEVELOPMENT",
-  "optimizer_input": false,
+  "alignment_improvement": "NOT_ESTABLISHED",
   "authority_granted": false,
-  "stages": [
-    {
-      "stage": 1,
-      "original": "ecad6996b1e5bef2cc8adaa9731a311a8b64ebe6",
-      "published": "a25941d44ee085a7f62428a7f19b80b4ce3174de",
-      "tree": "98b11d824a002f8b38aad3d62b64399ff45b549a",
-      "pr": 832
+  "bundle": {
+    "sha": "a61f066dca83b62f63729377f1eba0d07f5db6ee",
+    "sha256": "5c1c2715418b9f96076d055309753194bb2914930149906ead21a8e90bfc2baf",
+    "size": 2744707
+  },
+  "maturity": "diagnostic",
+  "model_capability_comparison": "NOT_RUN",
+  "optimizer_input": false,
+  "review_corrections": {
+    "deferred_findings": 0,
+    "focused_passed": 104,
+    "fresh_review_important_fixed": 1,
+    "full_suite": {
+      "exit_code": 0,
+      "passed": 7326,
+      "seconds": 576.47,
+      "skipped": 11,
+      "subtests": 162,
+      "warnings": 18
     },
-    {
-      "stage": 2,
-      "original": "89167c2dac0c14a1dfa9177f54790c30dc88a0fd",
-      "published": "1ef3377fd553aa09a4a2344ec6740e4b9e1893b4",
-      "tree": "23689fe34558dc6cda401e7026a4d0fdf2229ebd",
-      "pr": 833
+    "initial_ci_log": {
+      "git_blob_sha1": "dae0cbf96f6f52edf2cb8b2fcc9510419fa71640",
+      "path": "docs/experiments/phase2_publication_initial_ci.log"
     },
-    {
-      "stage": 3,
-      "original": "e83b8712668dae8e5182c064ef119f1f3f0cbd95",
-      "published": "33488e9456e370c359a899569646d3f5ff93d4a2",
-      "tree": "367863393cd7d8620b46c041f72febc4e7d20ccd",
-      "pr": 834
-    },
-    {
-      "stage": 4,
-      "original": "5e2b686af8792259a765ca353f1c93ed4ed8aead",
-      "published": "50fa9d7042bb42be5a3f415da71eaa8aaa4cc5e0",
-      "tree": "5ced995dcebe6561f58aa2cd27d70972fdabfcfc",
-      "pr": 835
-    },
-    {
-      "stage": 5,
-      "original": "428678a85ed27d190f7fe79df01003cf6eb192e5",
-      "published": "3973ad9953df3272649485bf0df01a2d30503293",
-      "tree": "a85eedddfa64bac3828679450021ea400a5497a8",
-      "pr": 836
-    },
-    {
-      "stage": 6,
-      "original": "5fe5453122bfbe11ee1a303af207f3be001076e3",
-      "published": "11b8e568e645a751e82f42f7a945e86085f4db9d",
-      "tree": "f1e7d8d6332eb815c78d5aa94460fede0e949718",
-      "pr": 837
-    },
-    {
-      "stage": 7,
-      "original": "83ca0e276efd66aae546bb273e432c437699ab11",
-      "published": "73fc4f335328dd19f54bede54421fe0a3232c52f",
-      "tree": "3ac0553105632b612c814506597c18012488d3fd",
-      "pr": 838
-    },
-    {
-      "stage": 8,
-      "original": "c92ba24040598a1918168161b7e53f7021d5b04d",
-      "published": "f07db2b6a81618ea03db28cb8e499962b703075d",
-      "tree": "00b294dabd5e41f1b55a91f8516511b53e7282bd",
-      "pr": 839
+    "matching_comparison_rows": 1104,
+    "sha256": {
+      "docs/experiments/phase2_publication_checks.log.gz": "e6fd37f57e151dd79e3fe202d7c21f674eef53b56406e662401bc5bc4ec88193",
+      "docs/experiments/phase2_publication_comparison_probe.json.gz": "2e524fa81030de893f900952a2c4e2c21651086c212f56c86240310031943684",
+      "docs/experiments/phase2_publication_pytest.log": "bcecc73c7040bc578ee574873cc211606bc3693e9383a23131b02cadde24c81b",
+      "docs/experiments/phase2_publication_pytest.xml.gz": "0217832f9ec8a9bfbff111cf980e8767da2f4cefd061acc41550f60b992d99c7",
+      "docs/experiments/phase2_publication_validation.md": "4fc9dcb53bceffc374b00252eaf53158021f893e013a075be2d83eba14bdf739",
+      "docs/phase2_publication.md": "d5ba36796f1fa6238fea650e943eed949e1f466979f8a8cf43a278200e000f24",
+      "evaluation/cva_benchmark.py": "8f7113be9c09ce8062a3548fc111fc50c67391e7074da375d6756d293a3be806",
+      "evaluation/mechanistic_studies.py": "d8083baf250ead53d07ca0f4a99ae08fcac8963ce8af8fb0bbfac2ca8b7e9464",
+      "evaluation/phase2_reproducibility.py": "b0a0939d6e6a8b199fe8199e8524ca47868ed39dfc893b84082ff5ac98c6cb07",
+      "gepa_mindfulness/interpret/comparative.py": "4e0f16fb99ad86f04b0231335cd3127ff526aec44d756c7f1a08862e937a44e9",
+      "history/2026-11-07-phase2-publication-fixes.md": "c47f410ccae7adc3be3fae4bba4d718997252c3799869321c374dd3bc58971dd",
+      "tests/test_comparative_interpretation.py": "91ea2820d89315eae059688b2f8b909e9bafd2a1239b79defb6ef65d24e411d4",
+      "tests/test_cva_benchmark.py": "647559539ccebcfe59af5126c0c7abd616c92a33f62cd58901a9ce427bb1f361",
+      "tests/test_explanation_tests.py": "ecd7a14dc46fe6d8b25fa97ddc7bea7b1a1425246ef715575dafa9a0c0f5820e",
+      "tests/test_graceful_failure_constitution.py": "d54d112d808f491470e116e99998ce59699844c618ad89c2b2c4079b5500787a",
+      "tests/test_phase2_reproducibility.py": "ca51a56bd0ddd24dde78cd72ae9c5c8fd4da2739f742e13a39997f58d97d09f8",
+      "tests/test_study_native_execution.py": "413d3ecdad7692ab29fad8b8023ad80e08bae6e0ee7835a3fc6f44fed7375c30"
     }
-  ],
+  },
+  "schema_version": "phase2-publication-provenance-v1",
+  "snapshot_status": "Initial source mirrors; later reviewed corrections are separately recorded.",
   "stage9": {
     "original": "2aff63a289045f73115538faf1e470935a77f015",
     "source_mirror": "26eba694e55654a44f5832bcb35ee5366ec4782f",
     "source_tree": "804911a5844d33a8ccaf23948e2aa7922110c4bc"
   },
-  "bundle": {
-    "size": 2744707,
-    "sha256": "5c1c2715418b9f96076d055309753194bb2914930149906ead21a8e90bfc2baf",
-    "sha": "a61f066dca83b62f63729377f1eba0d07f5db6ee"
-  },
-  "alignment_improvement": "NOT_ESTABLISHED",
-  "model_capability_comparison": "NOT_RUN"
+  "stages": [
+    {
+      "original": "ecad6996b1e5bef2cc8adaa9731a311a8b64ebe6",
+      "pr": 832,
+      "published": "a25941d44ee085a7f62428a7f19b80b4ce3174de",
+      "stage": 1,
+      "tree": "98b11d824a002f8b38aad3d62b64399ff45b549a"
+    },
+    {
+      "original": "89167c2dac0c14a1dfa9177f54790c30dc88a0fd",
+      "pr": 833,
+      "published": "1ef3377fd553aa09a4a2344ec6740e4b9e1893b4",
+      "stage": 2,
+      "tree": "23689fe34558dc6cda401e7026a4d0fdf2229ebd"
+    },
+    {
+      "original": "e83b8712668dae8e5182c064ef119f1f3f0cbd95",
+      "pr": 834,
+      "published": "33488e9456e370c359a899569646d3f5ff93d4a2",
+      "stage": 3,
+      "tree": "367863393cd7d8620b46c041f72febc4e7d20ccd"
+    },
+    {
+      "original": "5e2b686af8792259a765ca353f1c93ed4ed8aead",
+      "pr": 835,
+      "published": "50fa9d7042bb42be5a3f415da71eaa8aaa4cc5e0",
+      "stage": 4,
+      "tree": "5ced995dcebe6561f58aa2cd27d70972fdabfcfc"
+    },
+    {
+      "original": "428678a85ed27d190f7fe79df01003cf6eb192e5",
+      "pr": 836,
+      "published": "3973ad9953df3272649485bf0df01a2d30503293",
+      "stage": 5,
+      "tree": "a85eedddfa64bac3828679450021ea400a5497a8"
+    },
+    {
+      "original": "5fe5453122bfbe11ee1a303af207f3be001076e3",
+      "pr": 837,
+      "published": "11b8e568e645a751e82f42f7a945e86085f4db9d",
+      "stage": 6,
+      "tree": "f1e7d8d6332eb815c78d5aa94460fede0e949718"
+    },
+    {
+      "original": "83ca0e276efd66aae546bb273e432c437699ab11",
+      "pr": 838,
+      "published": "73fc4f335328dd19f54bede54421fe0a3232c52f",
+      "stage": 7,
+      "tree": "3ac0553105632b612c814506597c18012488d3fd"
+    },
+    {
+      "original": "c92ba24040598a1918168161b7e53f7021d5b04d",
+      "pr": 839,
+      "published": "f07db2b6a81618ea03db28cb8e499962b703075d",
+      "stage": 8,
+      "tree": "00b294dabd5e41f1b55a91f8516511b53e7282bd"
+    }
+  ],
+  "training_eligibility": "DEVELOPMENT"
 }

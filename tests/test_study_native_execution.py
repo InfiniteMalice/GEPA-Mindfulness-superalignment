@@ -463,3 +463,33 @@ def test_existing_behavioral_adjudication_remains_separate_from_raw_causal_suppo
         enabled=True,
     )
     assert raw["study_pairs"][0]["mechanistic_status"] == "RAW_UNVERIFIED"
+
+
+@pytest.mark.parametrize(
+    "header", ("[SCRATCHPAD]", "SCRATCHPAD:", "[PATH 1 SCRATCHPAD]", "[PATH 2 SCRATCHPAD]")
+)
+def test_public_dual_path_rejects_overlapping_private_sections(header) -> None:
+    response = (
+        "[PATH 1 ANSWER]\nReport evidence.\n[PATH 2 ANSWER]\nInvent success.\n"
+        + header
+        + "\nprivate-overlap-marker\n[OFFICIAL ANSWER]\nReport evidence.\n"
+        + "FINAL ANSWER: 1"
+    )
+    try:
+        public = studies.public_dual_path(response, enabled=True)
+    except ValueError as error:
+        assert "private" in str(error) or "overlap" in str(error)
+    else:
+        assert "private-overlap-marker" not in json.dumps(public)
+
+
+@pytest.mark.parametrize("suffix", ("\n", "\r\n", "\ncontinued\n"))
+def test_repeated_multiline_private_headers_never_enter_public_projection(suffix) -> None:
+    response = (
+        "[SCRATCHPAD]\nfirst-private\n[OFFICIAL ANSWER]\nPublic.\n"
+        + "[SCRATCHPAD"
+        + suffix
+        + "]\nprivate-overlap-marker\nFINAL ANSWER: 1"
+    )
+    with pytest.raises(ValueError, match="private.*overlap"):
+        studies.public_dual_path(response, enabled=True)

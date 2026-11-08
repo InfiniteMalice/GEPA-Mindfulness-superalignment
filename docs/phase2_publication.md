@@ -2,7 +2,7 @@
 
 Maturity: **Diagnostic** publication/provenance record; software is **Experimental** and trained-model alignment improvement remains **Unqualified**.
 
-The GitHub connector publishes identical Git trees but assigns new commit metadata. Stages 1–8 are byte-for-byte tree mirrors of the independently reviewed, tested local snapshots. Stage 9 first mirrors the tested snapshot at `26eba694e55654a44f5832bcb35ee5366ec4782f` (tree `804911a5844d33a8ccaf23948e2aa7922110c4bc`), then adds this provenance note, a publication manifest, the original-history bundle and an audit-import note. Runtime code and original experiment results are unchanged by that publication refinement.
+The GitHub connector publishes identical Git trees but assigns new commit metadata. The initial source commits for stages 1–8 are byte-for-byte tree mirrors of the independently reviewed, tested local snapshots. Subsequent reviewed corrections are recorded below; the table identifies original publication mirrors, not necessarily the latest PR heads. Stage 9 first mirrors the tested snapshot at `26eba694e55654a44f5832bcb35ee5366ec4782f` (tree `804911a5844d33a8ccaf23948e2aa7922110c4bc`), then adds this provenance note, a publication manifest, the original-history bundle and an audit-import note. Runtime code and original experiment results are unchanged by that publication refinement.
 
 | Stage | Original audited commit | Published source commit | Identical tree |
 |---|---|---|---|
@@ -35,3 +35,27 @@ python -m evaluation.phase2_reproducibility --enabled --repository-root . \
 The bundle is 2744707 bytes, requires the already shared baseline `fcc4142b2a5f0bdd9e9f4f7a8b90d5c72d13d923`, and preserves original head `2aff63a289045f73115538faf1e470935a77f015`. It was verified with Git before publishing. It contains original Git objects, not model weights, credentials, generated authority or an executable research claim. Source import changes only a dedicated provenance ref; no working tree reset is required. Current pins cover stages 0–8; the original stage-9 manifest can additionally be audited under its original full commit SHA. All 136 original source/artifact hashes across ten stages were verified after the local stage-9 commit.
 
 No qualified trained-model comparison ran. Synthetic/random-model observations, null intervals, falsified hypotheses and protected-check limitations remain explicit. Byte identity, software correctness, predictive fidelity, causal validity and alignment improvement are separate claims.
+
+## Publication review corrections
+
+Original audited history and results remain frozen in the bundle. Subsequent current-head CI and
+review validation are separate. Corrections preserve the Constitution itself, canonical V5,
+positive-only reward contract and host authority owners:
+
+- Stage 1 hashes raw constitutional bytes and tests CRLF rewrites explicitly.
+- Stage 3 isolates structurally valid but invalid certificates per capture, retains original
+  evidence and diagnostic invalid-proof errors, and cannot promote them to success/infeasibility.
+- Stage 4 uses a tight numerical tolerance for MAE under pre-3.12 sequential float accumulation;
+  the fixture explicitly tests that older accumulation as well as the current built-in behavior.
+- Stage 7 rejects public/private dual-path overlap, including repeated multiline private headers
+  and mixed bracket/colon aliases. It does not alter the legacy parser or train on private text.
+- Stage 8 checks a conservative four-MiB serialized-report bound before captures/replay, including
+  the complete frozen source, retained numbers, escaped IDs and metadata. Some geometries that
+  could fit a shorter concrete encoding may be rejected rather than executed and discarded.
+- Stage 9 accepts root-level `files` manifests without introducing forbidden dot path components.
+
+A fresh read-only reviewer found the repeated multiline-header corner; three failing regressions
+were added before correcting it. No Critical or Minor finding remains from that review. Software
+checks establish neither trained-model capability preservation nor alignment improvement.
+
+[Publication correction validation](experiments/phase2_publication_validation.md) records the fresh software gate, preserved failures and numerical probe comparison. Current PR timelines establish later CI and merge status.

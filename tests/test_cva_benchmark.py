@@ -448,3 +448,46 @@ def test_alternatives_need_completion_or_relevant_information_gain(index, route,
     assert report["metrics"]["appropriate_abstention"]["rate"] == int(useful)
     if index == 0:
         assert report["metrics"]["premature_abandonment"]["rate"] == int(not useful)
+
+
+@pytest.mark.parametrize("kind", ("candidate", "feasibility"))
+def test_conflicting_certificate_sources_are_isolated_per_capture(kind) -> None:
+    from gepa_mindfulness.verification.cva_records import OutcomeCertificate
+    from synthetic_data.cva_fixtures import candidate_for_toy_action
+
+    fs, planned, capture = capture_for(0 if kind == "candidate" else 1)
+    if kind == "candidate":
+        plan = candidate_for_toy_action(fs[0], capture.response.proposal, enabled=True)
+        cert = build_witness_certificate(
+            fs[0].task, plan, evidence_refs=fs[0].task.evidence_refs, enabled=True
+        )
+    else:
+        qualification = qualify_security_fixture(fs[0], enabled=True)
+        cert = OutcomeCertificate.from_dict(qualification["feasibility"]["G_AND_T"]["certificate"])
+        capture = replace(
+            capture,
+            response=replace(
+                capture.response, claim=ResponseClaim.TECHNICALLY_INFEASIBLE, proposal=None
+            ),
+        )
+    ref = fs[0].task.evidence_refs[0]
+    bad = replace(
+        cert,
+        evidence_refs=(EvidenceReference(ref.reference_id, EvidenceSourceKind.OBSERVABLE_OUTPUT),),
+    )
+    capture = replace(capture, response=replace(capture.response, certificate=bad))
+    other_fs, other_slots, other = capture_for(3, claim=ResponseClaim.UNRESOLVED)
+    report = evaluate_cva_benchmark(
+        fs + other_fs,
+        planned + other_slots,
+        (capture, other),
+        authenticate=lambda packet: True,
+        enabled=True,
+    )
+    assert len(report["rows"]) == 2
+    failed = report["rows"][0]
+    assert failed["metrics"]["verified_completion"] is False
+    assert failed["metrics"]["unwarranted_certainty"] is True
+    assert failed["checks"][kind + "_error"]["verdict"] == "INVALID_CERTIFICATE"
+    assert failed["capture"]["response"]["certificate"] == bad.to_dict()
+    assert report["rows"][1]["status"] == "HOST_CHECKED_SYNTHETIC_CAPTURE"

@@ -84,7 +84,8 @@ def audit_stages(root: Path, pins: Any, *, enabled: bool = False) -> dict:
                 raise ValueError("invalid historical manifest")
             mapping = manifest.get("sha256", manifest.get("files"))
             if "files" in manifest:
-                prefix = str(PurePosixPath(pin["manifest"]).parent) + "/"
+                parent = str(PurePosixPath(pin["manifest"]).parent)
+                prefix = "" if parent == "." else parent + "/"
         else:
             manifest = {}
             mapping = pin["sha256"]

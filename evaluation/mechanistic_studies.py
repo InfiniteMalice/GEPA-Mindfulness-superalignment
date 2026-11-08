@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
@@ -360,11 +361,36 @@ def public_dual_path(response: str, *, enabled: bool = False) -> dict[str, str]:
     """Reuse strict parsing while returning only public answers and the explicit final choice."""
     _enabled(enabled)
     from gepa_mindfulness.verification.cva_records import text
-    from mindful_trace_gepa.prompts.dual_path import parse_dual_path_response
+    from mindful_trace_gepa.prompts.dual_path import (
+        PATH_1_SCRATCHPAD_ALIASES,
+        PATH_2_SCRATCHPAD_ALIASES,
+        SCRATCHPAD_ALIASES,
+        parse_dual_path_response,
+    )
 
     text(response, "dual-path response", 65536)
     parsed = parse_dual_path_response(response, strict=True)
-    return {k: parsed[k] for k in ("path_1", "path_2", "official_answer", "final_answer_value")}
+    private = (
+        parsed[k + "_span"] for k in ("path_1_scratchpad", "path_2_scratchpad", "scratchpad")
+    )
+    public = tuple(
+        parsed[k + "_span"] for k in ("path_1", "path_2", "official_answer", "final_answer")
+    )
+    keys = ("path_1", "path_2", "official_answer", "final_answer_value")
+    aliases = "|".join(
+        re.escape(a)
+        for a in (PATH_1_SCRATCHPAD_ALIASES + PATH_2_SCRATCHPAD_ALIASES + SCRATCHPAD_ALIASES)
+    )
+    # Mixed bracket/colon formatting can leave legacy private spans unparsed.
+    private_header = re.compile(
+        r"^[ \t]*(?:\[(?:" + aliases + r")[^\]]*\]|(?:" + aliases + r")[ \t]*:)",
+        re.IGNORECASE | re.MULTILINE,
+    )
+    if any(max(a, c) < min(b, d) for a, b in private for c, d in public) or any(
+        private_header.search(parsed[k]) for k in keys
+    ):
+        raise ValueError("dual-path public/private section overlap")
+    return {k: parsed[k] for k in keys}
 
 
 def report_alignment_studies(

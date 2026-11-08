@@ -156,3 +156,27 @@ def test_missing_promised_blob_never_invokes_transport(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="unavailable"):
         historical_blob(tmp_path, commit, "missing.json")
     assert not marker.exists(), "offline audit attempted a Git transport helper"
+
+
+def test_root_level_files_manifest_uses_canonical_source_paths(tmp_path):
+    pins = fixture_repo(tmp_path)
+    manifest = tmp_path / "manifest.json"
+    body = json.loads(manifest.read_text())
+    raw = json.dumps({"files": body["sha256"]}).encode()
+    manifest.write_bytes(raw)
+    git(tmp_path, "add", "manifest.json")
+    git(
+        tmp_path,
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@example.org",
+        "commit",
+        "-m",
+        "root files manifest",
+    )
+    pins[0].update(
+        commit=git(tmp_path, "rev-parse", "HEAD"), manifest_digest=hashlib.sha256(raw).hexdigest()
+    )
+    report = audit_stages(tmp_path, pins, enabled=True)
+    assert report["stages"][0]["files"][0]["path"] == "source.txt"
