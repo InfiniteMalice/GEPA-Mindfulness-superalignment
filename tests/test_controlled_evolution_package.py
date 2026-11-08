@@ -11,6 +11,9 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_RESOURCES = {
     "docs/__init__.py",
     "docs/constraint_verified_alignment.md",
+    "docs/graceful_failure_benchmark.md",
+    "synthetic_data/cva_fixtures.py",
+    "evaluation/cva_benchmark.py",
     "gepa_mindfulness/verification/cva.py",
     "gepa_mindfulness/verification/cva_records.py",
     "gepa_mindfulness/verification/cva_finite.py",
