@@ -1,6 +1,7 @@
 """Locked prediction protocol tests; synthetic amplitudes are software fixtures, not neurons."""
 
 # Standard library
+from collections.abc import Iterable
 from dataclasses import replace
 from datetime import datetime, timezone
 
@@ -8,6 +9,7 @@ from datetime import datetime, timezone
 import pytest
 
 # Local
+from gepa_mindfulness.interpret import explanation_tests as explanation_module
 from gepa_mindfulness.interpret.explanation_tests import (
     ActivationPredictor,
     ExampleRef,
@@ -145,7 +147,21 @@ def test_split_manifest_rejects_id_and_exact_context_leakage(data) -> None:
         )
 
 
-def test_rule_freezes_before_locked_prediction_and_can_be_falsified(data) -> None:
+def _legacy_sum(values: Iterable[float], start: float = 0) -> float:
+    """Reproduce the sequential float accumulation used before Python 3.12."""
+    total = start
+    for value in values:
+        total += value
+    return total
+
+
+@pytest.mark.parametrize("legacy_accumulation", (False, True))
+def test_rule_freezes_before_locked_prediction_and_can_be_falsified(
+    data, monkeypatch, legacy_accumulation
+) -> None:
+    """Reject the wrong predictor under both old and current float accumulation."""
+    if legacy_accumulation:
+        monkeypatch.setattr(explanation_module, "sum", _legacy_sum, raising=False)
     _, _, locked, _ = data
     commit = frozen(data)
     restored = type(commit).from_dict(commit.to_dict())
@@ -160,7 +176,7 @@ def test_rule_freezes_before_locked_prediction_and_can_be_falsified(data) -> Non
     assert len(report["rows"]) == 9
     wrong = evaluate_explanation(frozen(data, weights=(-2.0,), bias=1.0), locked, enabled=True)
     assert wrong["prediction_result"] == "PREDICTIONS_FALSIFIED"
-    assert wrong["metrics"]["mae"] == 2
+    assert wrong["metrics"]["mae"] == pytest.approx(2.0, abs=1e-12, rel=0.0)
     assert wrong["metrics"]["sign_errors"] == 9
     with pytest.raises(ValueError, match="forbids optimization"):
         require_training_eligible(report)
