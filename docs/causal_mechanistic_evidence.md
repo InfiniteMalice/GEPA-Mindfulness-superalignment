@@ -113,3 +113,19 @@ positive constructed paths, nulls, falsified predictions and raw logits. No netw
 downloads, learned parameter updates or alignment effects are involved. CPU exact replay is tested;
 CUDA, other architectures, trained behavioral mechanisms and semantic generalization remain unrun.
 See the [primary-source audit](phase2_research_sources.md) for the competing Cammarata/Gao standards.
+
+
+The full-evidence executor reserves `20 × sequence_length × vocabulary_size` distribution values
+before execution, bounded by the plan's budget (default 250,000; hard maximum 1,000,000), plus the
+bounded record encoding. Thus vocabulary sizes above 50,000 are unsupported even at one token;
+32,000 permits only one token at the maximum budget. CPU models are separately capped at 50M
+parameters. This prototype does not support standard large pretrained-model tracing. It fails
+explicitly rather than truncating logits or lifting audit limits. A scalable immutable external
+measurement store needs a separate reviewed design and regression evaluation.
+
+A nonspecific independently replayed result remains `UNRESOLVED`; successful replay does not
+establish specificity against controls. Original experiment manifests pin their original commits,
+not later PR heads: see the final-stage publication provenance guide and the original-history
+bundle. Artifact checksums identify retained bytes. Numerical reproduction need not reproduce a
+wall-clock timestamp, runtime version or measured timing cost byte for byte; preserve those actual
+values instead of assigning a historical clock to new measurements.

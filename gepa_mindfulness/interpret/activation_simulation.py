@@ -23,6 +23,7 @@ from .explanation_tests import (
     TokenFeature,
     _batch_for_split,
     fit_ridge_predictor,
+    require_causal_prefix_isolation,
 )
 from .native_neurons import FrozenNativeModel
 from .native_records import HookKind, HookSpec, NativeBatch, NativeInput, index, indices
@@ -202,6 +203,9 @@ def prepare_simulation_controls(
         else logit_positions
     )
     indices(positions, 128)
+    require_causal_prefix_isolation(
+        first.splits, tuple(sorted(set(first.evaluation_positions + positions)))
+    )
     if max(positions) >= batches[0].tensor_shape[1]:
         raise ValueError("declared logit position outside generation geometry")
     width = batches[0].hook.width
@@ -459,6 +463,9 @@ def simulate_activations(
     frozen = _commits(commits)
     control = _record(controls, SimulationControls)
     first = frozen[0]
+    require_causal_prefix_isolation(
+        first.splits, tuple(sorted(set(first.evaluation_positions + logit_positions)))
+    )
     contexts = tuple(_record(c, NativeInput) for c in array(locked_inputs, 8, required=True))
     refs = {r.example_id: r for r in first.splits.locked}
     if len({c.example_id for c in contexts}) != len(contexts) or {

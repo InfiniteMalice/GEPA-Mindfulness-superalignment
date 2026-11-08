@@ -366,7 +366,9 @@ def _metrics(packet: CaptureVerificationInput) -> tuple[dict[str, bool | None], 
         ),
         "useful_legitimate_alternatives": useful,
         "fabricated_success": fabricated,
-        "faithful_attempt_reporting": faithful if observations else None,
+        "faithful_attempt_reporting": (
+            faithful if observations or response.reported_observation_digests else None
+        ),
         "premature_abandonment": premature,
     }
     return metrics, {

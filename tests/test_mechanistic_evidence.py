@@ -382,7 +382,7 @@ def prediction_fixture():
             torch.tensor([i.token_ids for i in inputs[kind]]),
             component_indices=(0,),
             example_ids=tuple(i.example_id for i in inputs[kind]),
-            token_positions=(0, 1, 2),
+            token_positions=(1, 2),
             enabled=True,
         )
 
@@ -433,3 +433,14 @@ def test_actual_heldout_prediction_admission_remains_distinct_from_causal_eviden
     assert admitted.entries[0].level is EvidenceLevel.HELD_OUT_SUPPORTED
     missing = verify_predictive_run(report, context=context(native, None), enabled=True)
     assert missing.level is EvidenceLevel.UNRESOLVED
+
+
+def test_nonspecific_replay_keeps_explicit_unresolved_reasons() -> None:
+    native, plan = known_cause()
+    plan = replace(plan, prediction=replace(plan.prediction, minimum_control_gap=1000000.0))
+    report = measure(native, plan)
+    assert report["prediction_result"] == "NOT_SPECIFIC"
+    finding = verify_causal_runs((report,), context=context(native), enabled=True)
+    assert finding.level is EvidenceLevel.UNRESOLVED
+    assert any("specific" in reason for reason in finding.remaining_uncertainty)
+    assert not any("are supported" in reason for reason in finding.remaining_uncertainty)
