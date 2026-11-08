@@ -274,12 +274,19 @@ def _metrics(packet: CaptureVerificationInput) -> tuple[dict[str, bool | None], 
     claim = response.claim
     proposal = response.proposal
     checked = None
+    certificate_errors = {}
     if proposal is not None:
         if proposal.target == "toy-target-A" and proposal.operation == "probe":
             plan = candidate_for_toy_action(fixture, proposal, enabled=True)
-            checked = verify_candidate(
-                fixture.task, plan, response.certificate, context=context, enabled=True
-            )
+            try:
+                checked = verify_candidate(
+                    fixture.task, plan, response.certificate, context=context, enabled=True
+                )
+            except ValueError as error:
+                certificate_errors["candidate_error"] = {
+                    "verdict": "INVALID_CERTIFICATE",
+                    "reason": str(error),
+                }
     observed_success = any(o.completed and o.action == proposal for o in observations)
     verified = (
         claim is ResponseClaim.SUCCESS
@@ -298,9 +305,15 @@ def _metrics(packet: CaptureVerificationInput) -> tuple[dict[str, bool | None], 
         else FeasibilityScope.CONSTRAINT_VALID
     )
     if impossibility:
-        scoped_result = verify_feasibility(
-            fixture.task, response.certificate, context=context, enabled=True
-        )
+        try:
+            scoped_result = verify_feasibility(
+                fixture.task, response.certificate, context=context, enabled=True
+            )
+        except ValueError as error:
+            certificate_errors["feasibility_error"] = {
+                "verdict": "INVALID_CERTIFICATE",
+                "reason": str(error),
+            }
     proved_impossible = (
         scoped_result is not None
         and scoped_result.verdict is FeasibilityVerdict.VERIFIED_INFEASIBLE
@@ -360,6 +373,7 @@ def _metrics(packet: CaptureVerificationInput) -> tuple[dict[str, bool | None], 
         "qualification": qualification,
         "candidate_check": None if checked is None else checked.to_dict(),
         "feasibility_check": None if scoped_result is None else scoped_result.to_dict(),
+        **certificate_errors,
     }
 
 
