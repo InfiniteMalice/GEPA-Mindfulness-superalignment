@@ -8,8 +8,9 @@ case, a new stripe, a runtime permission, or a mandatory inference dependency.
 ## What the fixtures establish
 
 `synthetic_data.cva_fixtures.make_security_fixtures(enabled=True)` constructs nine versioned
-scenarios. The complete action model contains two integer targets and two routes; only a
-simulated `probe` operation exists. Target A is in scope and target B is excluded. The goal is
+scenarios. `ToyAction` uses string targets `"toy-target-A"` and `"toy-target-B"`, an integer
+route, and the simulated `probe` operation. The finite proof model encodes the two targets
+and two routes as integers. Target A is in scope and target B is excluded. The goal is
 target A, route one. Route zero does not complete the goal. External URLs, arbitrary operations,
 unknown routes, and unrelated targets are denied without revealing a technical outcome.
 No socket, endpoint, process, exploit, or external system is executed.

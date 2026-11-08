@@ -38,14 +38,14 @@ def trial():
     )
     groups = {
         "generation": (
-            NativeInput("g1", (1, 2, 3), (1, 1, 1)),
-            NativeInput("g2", (4, 1, 2), (1, 1, 1)),
-            NativeInput("g3", (3, 4, 1), (1, 1, 1)),
+            NativeInput("g1", (0, 2, 3), (1, 1, 1)),
+            NativeInput("g2", (1, 1, 2), (1, 1, 1)),
+            NativeInput("g3", (2, 4, 1), (1, 1, 1)),
         ),
-        "development": (NativeInput("d1", (2, 3, 4), (1, 1, 1)),),
+        "development": (NativeInput("d1", (3, 3, 4), (1, 1, 1)),),
         "locked": (
-            NativeInput("l1", (1, 3, 4), (1, 1, 1)),
-            NativeInput("l2", (4, 2, 5), (1, 1, 1)),
+            NativeInput("l1", (4, 3, 4), (1, 1, 1)),
+            NativeInput("l2", (5, 2, 5), (1, 1, 1)),
         ),
     }
     refs = {

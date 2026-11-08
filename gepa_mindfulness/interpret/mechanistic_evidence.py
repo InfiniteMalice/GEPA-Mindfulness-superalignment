@@ -421,7 +421,14 @@ def verify_causal_runs(
                     else EvidenceLevel.INTERVENTION_SUPPORTED
                 )
             reasons = [
-                "Only the tested model, contexts, sites, controls and output metric are supported.",
+                (
+                    "Replay matched, but specificity against controls remains unresolved."
+                    if level is EvidenceLevel.UNRESOLVED
+                    else (
+                        "Only the tested model, contexts, sites, controls and output metric "
+                        "are supported."
+                    )
+                ),
                 "Redundancy, interactions, off-manifold states and untested routes remain unknown.",
                 "Semantic intent, ethical understanding and general alignment remain unverified.",
             ]

@@ -23,7 +23,11 @@ from .comparative_records import (
     ComparisonProtocol,
     FeatureDictionary,
 )
-from .explanation_tests import ActivationPredictor, ExampleRef
+from .explanation_tests import (
+    ActivationPredictor,
+    ExampleRef,
+    require_causal_prefix_isolation,
+)
 from .native_neurons import FrozenNativeModel
 from .native_records import HookSpec, NativeBatch, NativeInput
 
@@ -299,6 +303,9 @@ def prepare_comparison(
     """Capture/freeze generation-only fits and controls before locked evaluation."""
     _enabled(enabled)
     p = _record(protocol, ComparisonProtocol)
+    require_causal_prefix_isolation(
+        p.manifest, tuple(sorted(set(p.activation_positions + p.logit_positions)))
+    )
     contexts = _inputs(generation_inputs, p.manifest.generation, "generation")
     _backend(backend, p, contexts)
     batch = _capture(backend, p, contexts)
@@ -537,6 +544,9 @@ def evaluate_comparison(
 
     frozen = _record(commit, ComparisonCommit)
     p = frozen.protocol
+    require_causal_prefix_isolation(
+        p.manifest, tuple(sorted(set(p.activation_positions + p.logit_positions)))
+    )
     contexts = _inputs(locked_inputs, p.manifest.locked, "locked")
     _backend(backend, p, contexts)
     planned = (
