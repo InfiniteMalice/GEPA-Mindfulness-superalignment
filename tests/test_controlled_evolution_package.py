@@ -10,6 +10,10 @@ from pathlib import Path
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_RESOURCES = {
     "docs/__init__.py",
+    "docs/constraint_verified_alignment.md",
+    "gepa_mindfulness/verification/cva.py",
+    "gepa_mindfulness/verification/cva_records.py",
+    "gepa_mindfulness/verification/cva_finite.py",
     "docs/controlled_evolution.md",
     "docs/experimental_v5_overlays.md",
     "docs/research_overlays.md",
