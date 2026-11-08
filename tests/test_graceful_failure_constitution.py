@@ -6,6 +6,9 @@ import json
 import re
 from pathlib import Path
 
+# Third-party
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 CONSTITUTION = ROOT / "docs/GEPA_Mindfulness_Constitution.md"
 REQUIREMENTS = ROOT / "history/2026-11-04-phase2-required-text.md"
@@ -51,12 +54,14 @@ def _required_addition() -> str:
 
 
 def _section(text: str, number: int) -> str:
+    """Return one numbered section for placement checks."""
     return re.split(rf"^## {number}\. .+\n", text, maxsplit=1, flags=re.MULTILINE)[1].split(
         f"\n## {number + 1}. ", 1
     )[0]
 
 
 def test_required_failure_guidance_precedes_section17_scoring() -> None:
+    """Check the authoritative addition appears exactly before Section 17 scoring."""
     text = CONSTITUTION.read_text(encoding="utf-8")
     section = _section(text, 17)
     assert text.count(TITLE) == 1
@@ -64,6 +69,7 @@ def test_required_failure_guidance_precedes_section17_scoring() -> None:
 
 
 def test_scoring_examples_and_questions_stay_in_their_requested_sections() -> None:
+    """Keep new examples and questions within their authorized subsections."""
     section = _section(CONSTITUTION.read_text(encoding="utf-8"), 17)
     positive, rest = section.split("### Positive scoring signals", 1)[1].split(
         "### Negative scoring signals", 1
@@ -79,22 +85,34 @@ def test_scoring_examples_and_questions_stay_in_their_requested_sections() -> No
 
 
 def test_final_principle_immediately_follows_constraint_respect() -> None:
+    """Check the final graceful-failure sentence follows the existing principle."""
     section = _section(CONSTITUTION.read_text(encoding="utf-8"), 21)
     assert "When blocked, respect constraints.\n\n" + FINAL + "\n\n" in section
 
 
 def test_authorized_additions_preserve_all_original_constitutional_bytes() -> None:
-    text = CONSTITUTION.read_text(encoding="utf-8")
+    """Strip only authorized UTF-8 insertions before hashing untouched original bytes."""
+    raw = CONSTITUTION.read_bytes()
+    text = raw.decode("utf-8")
     assert re.findall(r"^## (\d+)\. ", text, re.MULTILINE) == [str(n) for n in range(1, 22)]
-    original = text.replace(_required_addition(), "", 1)
+    original = raw.replace(_required_addition().encode("utf-8"), b"", 1)
     for value in POSITIVE + NEGATIVE + QUESTIONS:
-        assert original.count("* " + value + "\n") == 1
-        original = original.replace("* " + value + "\n", "", 1)
-    assert original.count(CAVEAT + "\n\n") == 1
-    original = original.replace(CAVEAT + "\n\n", "", 1).replace(FINAL + "\n\n", "", 1)
+        marker = ("* " + value + "\n").encode("utf-8")
+        assert original.count(marker) == 1
+        original = original.replace(marker, b"", 1)
+    caveat = (CAVEAT + "\n\n").encode("utf-8")
+    assert original.count(caveat) == 1
+    original = original.replace(caveat, b"", 1).replace((FINAL + "\n\n").encode("utf-8"), b"", 1)
     manifest = ROOT / "docs/experiments/phase2_baseline/baseline-source-hashes.json"
     baseline = json.loads(manifest.read_text(encoding="utf-8"))["files"]
-    assert (
-        hashlib.sha256(original.encode("utf-8")).hexdigest()
-        == baseline["docs/GEPA_Mindfulness_Constitution.md"]
-    )
+    assert hashlib.sha256(original).hexdigest() == baseline["docs/GEPA_Mindfulness_Constitution.md"]
+
+
+def test_preservation_check_rejects_line_ending_rewrites(tmp_path, monkeypatch) -> None:
+    """A CRLF rewrite must not disappear through text-mode newline normalization."""
+    raw = CONSTITUTION.read_bytes()
+    changed = tmp_path / "constitution.md"
+    changed.write_bytes(raw.replace(b"\n", b"\r\n"))
+    monkeypatch.setitem(globals(), "CONSTITUTION", changed)
+    with pytest.raises(AssertionError):
+        test_authorized_additions_preserve_all_original_constitutional_bytes()
