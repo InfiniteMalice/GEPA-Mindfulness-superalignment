@@ -474,3 +474,54 @@ def test_dense_biased_dictionary_residuals_and_signed_effects_are_independently_
         elif pred.direction * (actual - control) < pred.minimum_control_gap:
             outcome = "NOT_SPECIFIC"
         assert row["prediction_result"] == outcome
+
+
+def test_report_byte_budget_rejects_wide_vocabulary_before_capture(monkeypatch) -> None:
+    import transformers
+
+    from gepa_mindfulness.interpret import comparative
+    from gepa_mindfulness.interpret.native_neurons import FrozenNativeModel
+
+    _, p, groups = trial()
+    source = transformers.GPT2LMHeadModel(
+        transformers.GPT2Config(
+            vocab_size=16384,
+            n_positions=8,
+            n_embd=8,
+            n_inner=16,
+            n_layer=1,
+            n_head=2,
+            bos_token_id=1,
+            eos_token_id=2,
+        )
+    )
+    backend = FrozenNativeModel(source, model_id="wide-fixture", revision="1", enabled=True)
+    hook = backend.hook(layer=0, kind=HookKind.MLP_RESIDUAL)
+    arms = tuple(
+        replace(
+            a,
+            dictionary=(
+                None
+                if a.dictionary is None
+                else replace(
+                    a.dictionary, model_digest=backend.identity.digest, hook_digest=hook.digest
+                )
+            ),
+        )
+        for a in p.arms
+    )
+    p = replace(
+        p,
+        model_digest=backend.identity.digest,
+        hook=hook,
+        arms=arms,
+        manifest=replace(p.manifest, generation=p.manifest.generation[:1]),
+        budget=replace(p.budget, max_distribution_values=2000000),
+    )
+
+    def forbidden_capture(*args):
+        raise AssertionError("oversized report executed a capture")
+
+    monkeypatch.setattr(comparative, "_capture", forbidden_capture)
+    with pytest.raises(ValueError, match="report.*byte|serialized.*budget"):
+        prepare_comparison(backend, p, groups["generation"][:1], clock=Clock(), enabled=True)

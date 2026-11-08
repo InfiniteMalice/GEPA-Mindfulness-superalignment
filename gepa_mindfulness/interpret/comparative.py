@@ -10,7 +10,7 @@ from time import perf_counter_ns
 from typing import Any
 
 # Local
-from evaluation.causal_records import content_digest
+from evaluation.causal_records import canonical_json, content_digest
 from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
 from gepa_mindfulness.training.causal_reward_records import validate_input_envelope
 from gepa_mindfulness.verification.cva_records import _record, array
@@ -154,6 +154,33 @@ def _backend(
     )
     if planned > p.budget.max_distribution_values:
         raise ValueError("comparison distribution evidence budget exceeded before execution")
+    _report_preflight(p, inputs, planned)
+
+
+def _report_preflight(p, inputs, planned, *, source_bytes=0):
+    # Conservative serialized envelope bound, not just the tensor allocation budget.
+    active = tuple(a for a in p.arms if a.dictionary is not None)
+    batch, positions, width = len(inputs), len(p.activation_positions), p.hook.width
+    selected = sum(len(a.selected_features) for a in active)
+    features = sum(a.dictionary.feature_count for a in active if a.dictionary is not None)
+    native_values = (
+        batch
+        * positions
+        * (width * (1 + len(active) * (len(CONDITIONS) + 1)) + features + 6 * selected)
+    )
+    rows = batch * (
+        len(p.logit_positions) * (1 + len(CONDITIONS) * len(active))
+        + positions * selected
+        + len(active)
+    )
+    id_bytes = max(len(canonical_json(i.example_id).encode("utf-8")) for i in inputs)
+    metadata = rows * (2048 + id_bytes)
+    summaries = (1 + len(active) * (len(CONDITIONS) + batch + 2)) * 16384
+    fixed = source_bytes + 3 * len(canonical_json(p.to_dict()).encode("utf-8"))
+    # Finite binary64 JSON numbers need at most 32 bytes including separators.
+    upper_bytes = fixed + metadata + summaries + 32 * (planned + native_values)
+    if upper_bytes > 4 * 1024 * 1024:
+        raise ValueError("comparison serialized report byte budget exceeded before execution")
 
 
 def _capture(backend, p, inputs):
@@ -512,6 +539,15 @@ def evaluate_comparison(
     p = frozen.protocol
     contexts = _inputs(locked_inputs, p.manifest.locked, "locked")
     _backend(backend, p, contexts)
+    planned = (
+        len(contexts)
+        * len(contexts[0].token_ids)
+        * backend._model.config.vocab_size
+        * (1 + len(CONDITIONS) * sum(a.dictionary is not None for a in p.arms))
+    )
+    _report_preflight(
+        p, contexts, planned, source_bytes=len(canonical_json(frozen.to_dict()).encode("utf-8"))
+    )
     start = perf_counter_ns()
     replay = _capture(backend, p, frozen.generation.inputs)
     if replay != frozen.generation:
