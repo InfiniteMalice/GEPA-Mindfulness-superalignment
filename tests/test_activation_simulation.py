@@ -77,7 +77,7 @@ def trial(family="gpt2", neurons=(0, 3)):
         source, model_id=f"random-{family}", revision="seed-31", enabled=True
     )
     hook = native.hook(layer=0, kind=kind)
-    generation = (NativeInput("g1", (1, 2, 3), (1, 1, 1)), NativeInput("g2", (3, 2, 1), (1, 1, 1)))
+    generation = (NativeInput("g1", (0, 2, 3), (1, 1, 1)), NativeInput("g2", (1, 2, 1), (1, 1, 1)))
     development = (NativeInput("d1", (2, 1, 3), (1, 1, 1)),)
     locked = (NativeInput("l1", (3, 1, 2), (1, 1, 1)), NativeInput("l2", (4, 5, 6), (1, 1, 1)))
     manifest = SplitManifest(

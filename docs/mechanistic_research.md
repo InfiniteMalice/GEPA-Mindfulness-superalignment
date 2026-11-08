@@ -159,3 +159,23 @@ semantic laundering, dual-path behavior, value conflicts and CVA authorization/e
 on unchanged V5 cells. A refusal correlation does not establish ethical understanding or deceptive
 intent. Proper circuits must distinguish justified from unnecessary refusal and change predictions
 when valid evidence or authorization changes. This stage does not claim those studies have run.
+
+
+## Causal-prefix qualification migration
+
+`ExampleRef.from_input` now emits `native-example-reference-v2`: visible full-context and
+per-query-position causal-prefix digests ignore masked token IDs while retaining absolute positions.
+`require_causal_prefix_isolation(manifest, positions)` rejects prefix reuse across generation,
+development and locked groups at every declared activation/output position before qualified
+freezing, prediction evaluation, simulation or comparison. Shared BOS tokens can be observed for
+discovery; select genuinely disjoint later positions for held-out evaluation. Neither hashes nor
+distinct first tokens establish semantic independence, privacy, temporal custody or model-general
+validity. Actual input matching and trusted-host authentication remain required.
+
+Legacy v1 references retain their exact wire representation and digest on read/write. Rebuild their
+references from original inputs and freeze a new protocol before qualified evaluation; old records
+cannot be silently upgraded. Earlier bundled probes used whole-sequence split isolation and remain
+historical diagnostics **unqualified for causal-prefix held-out claims**. Corrected probes use the
+`causal-prefix-disjoint-v2` dataset revision and separate output artifacts; their numeric outcomes
+are new measurements, not replacements for the retained originals. Diagnostic metadata never grants
+training eligibility, optimizer credit or runtime authority.
