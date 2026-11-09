@@ -420,15 +420,19 @@ def verify_causal_runs(
                     if len(outcomes) > 1
                     else EvidenceLevel.INTERVENTION_SUPPORTED
                 )
-            reasons = [
-                (
+            if level is EvidenceLevel.CONTRADICTED:
+                scope_reason = "The preregistered prediction was falsified by independent replay."
+            elif level is EvidenceLevel.UNRESOLVED:
+                scope_reason = (
                     "Replay matched, but specificity against controls remains unresolved."
-                    if level is EvidenceLevel.UNRESOLVED
-                    else (
-                        "Only the tested model, contexts, sites, controls and output metric "
-                        "are supported."
-                    )
-                ),
+                )
+            else:
+                scope_reason = (
+                    "Only the tested model, contexts, sites, controls and output metric "
+                    "are supported."
+                )
+            reasons = [
+                scope_reason,
                 "Redundancy, interactions, off-manifold states and untested routes remain unknown.",
                 "Semantic intent, ethical understanding and general alignment remain unverified.",
             ]
