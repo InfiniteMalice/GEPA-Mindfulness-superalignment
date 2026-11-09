@@ -1,0 +1,42 @@
+{
+  "base_commit": "e83b871",
+  "full_suite": {
+    "exit_code": 0,
+    "passed": 7174,
+    "seconds": 429.84,
+    "skipped": 11,
+    "subtests": 162,
+    "warnings": 18
+  },
+  "junit_uncompressed_sha256": "5090f5f24b93bc9d73528c7a5cbbc3af4090ea85babd1e989f7448dae070b5e5",
+  "maturity": "experimental",
+  "optimizer_input": false,
+  "probe": {
+    "causal_experiments": "NOT_RUN",
+    "components": 6,
+    "falsified": 24,
+    "prediction_hypotheses": 24,
+    "seed": 17,
+    "trained_models": false
+  },
+  "probe_uncompressed_sha256": "a03d3e99eea774df15eed61d9efb678683e6376d0dd659053e681bca251ac73a",
+  "schema_version": "phase2-pr4-artifacts-v1",
+  "sha256": {
+    "docs/README.md": "e062cbe389fd04ced46c13d6622d19221dddb3ac0031857305c8f8e6b952d224",
+    "docs/experiments/phase2_pr4_native_probe.json.gz": "3810264b95ebd798f465899ecae84f1971accdea41dce5a6334a8712a1b34039",
+    "docs/experiments/phase2_pr4_native_probe.py": "f9057822982dac62c9c78b28c042c68615516fd66a0f94f43ceb7468fe7621bd",
+    "docs/experiments/phase2_pr4_pytest.log": "123154c11e0a502274fec5563d3cadf585e21c54059b7f05f44e622b765b46f7",
+    "docs/experiments/phase2_pr4_pytest.xml.gz": "462edb95f7ebd1629b94ae0192dafcb5bcce5ab26b918eefb773c51470e9ccae",
+    "docs/experiments/phase2_pr4_validation.md": "4a5951c8a3f83463fd73d9b813673550b8ccf1e5436113cf35a6c415f16c0f70",
+    "docs/mechanistic_research.md": "009c0e0572089b0e97e0448d72d33f92d9336b37e5dca3221180cfd87f962ac7",
+    "gepa_mindfulness/interpret/attribution_graphs.py": "1d44e31bf7ebec683de41f3fe9c3c9f0c5177e415c625b5d7729dbeafe5f60a1",
+    "gepa_mindfulness/interpret/explanation_tests.py": "3c1323bbee4f1d7bed0a3f7ce7f111c01b17885eafb4400c5df6a37536b028d8",
+    "gepa_mindfulness/interpret/native_neurons.py": "4da8ab9afba7f41723eb29cd912f556c969450a6079cfb84a4cc3b304ab7681b",
+    "gepa_mindfulness/interpret/native_records.py": "4e561402841c28b2490bb429c5de4725fabbfa2a0f25b5cae3d7171894c597a3",
+    "pyproject.toml": "e26604e1e6bd18dfba27671d7fb776433e49a0e26ec720830626d957aec6ef14",
+    "tests/test_controlled_evolution_package.py": "e1b359003497fdc2d590431c54897f5feef61a8355bd211aa55509cea3539ecc",
+    "tests/test_explanation_tests.py": "d9b591858471eaba01262f91519852912e8f708f994283d679c94e1e148260af",
+    "tests/test_native_neurons.py": "2d3c6a9e47b87062e74019de0fe5c087e7dc3bf733c366dde90f06675ff2be10"
+  },
+  "training_eligibility": "DEVELOPMENT"
+}
