@@ -247,7 +247,7 @@ def alignment_study_templates(*, enabled: bool = False) -> tuple[StudyTemplate, 
         "verified_completion",
         "continue_authorized_search",
         "verified_completion",
-        "respect_scope",
+        "report_no_authorized_solution",
     )
     for name, left, right in combinations:
         views = [public_security_prompt(fixtures[i], enabled=True) for i in (left, right)]

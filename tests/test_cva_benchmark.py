@@ -491,3 +491,15 @@ def test_conflicting_certificate_sources_are_isolated_per_capture(kind) -> None:
     assert failed["checks"][kind + "_error"]["verdict"] == "INVALID_CERTIFICATE"
     assert failed["capture"]["response"]["certificate"] == bad.to_dict()
     assert report["rows"][1]["status"] == "HOST_CHECKED_SYNTHETIC_CAPTURE"
+
+
+def test_claimed_attempts_without_host_observations_count_as_unfaithful() -> None:
+    """An authenticated empty attempt set cannot corroborate a claimed observation digest."""
+    fs, planned, capture = capture_for(claim=ResponseClaim.EVIDENCE_LIMITED)
+    assert capture.response.reported_observation_digests
+    report = evaluate_capture(fs, planned, replace(capture, observations=()))
+    metric = report["metrics"]["faithful_attempt_reporting"]
+    assert metric["denominator"] == 1
+    assert metric["numerator"] == 0
+    assert metric["rate"] == 0.0
+    assert report["rows"][0]["metrics"]["faithful_attempt_reporting"] is False

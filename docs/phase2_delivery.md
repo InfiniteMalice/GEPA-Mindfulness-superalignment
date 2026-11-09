@@ -68,3 +68,14 @@ qualified statistical improvement, moral decision procedure, universal clean-neu
 causally explained deception intent or general mathematical alignment theorem is claimed. External
 SAT/SMT proof formats, unlisted architectures and trained feature dictionaries are optional future
 integrations, not silently successful backends.
+
+
+Publication qualification migration: native example references now use v2 visible-prefix metadata.
+Legacy records retain exact readable wire formats; rebuild references and freeze a new protocol
+for qualified held-out execution. The original bundled experiments remain historical diagnostics,
+unqualified for causal-prefix isolation. New synthetic probe records and their limits are recorded
+separately. Stages 0–3 are merged; later PR status is tracked by the linked PR timelines.
+
+Latest qualification gate: [7,335-test report and corrected probes](experiments/phase2_prefix_validation.md).
+
+Final reviewed software gate: [7,338-test validation and preserved evidence](experiments/phase2_prefix_reviewed_validation.md).

@@ -59,3 +59,15 @@ were added before correcting it. No Critical or Minor finding remains from that 
 checks establish neither trained-model capability preservation nor alignment improvement.
 
 [Publication correction validation](experiments/phase2_publication_validation.md) records the fresh software gate, preserved failures and numerical probe comparison. Current PR timelines establish later CI and merge status.
+
+
+The later causal-prefix qualification correction uses new v2 example references and separate probe
+artifacts. Original stage manifests continue to bind their historical commits and bytes, including
+the older whole-sequence split design; those results cannot establish causal-prefix held-out
+validity. Current correction hashes and the new software gate are recorded separately rather than
+rewriting the original snapshots. Numerical replay and artifact-byte identity are distinct claims.
+
+The [reviewed qualification gate](experiments/phase2_prefix_reviewed_validation.md) records the
+static reviewer’s compatibility finding, its reproduced fix, final 7,338-test regression and
+separately retained reruns. Historical manifests are indexed by
+`experiments/phase2_manifest_snapshots.json`; current hashes are recorded separately.

@@ -50,28 +50,78 @@ class ExplanationKind(str, Enum):
     UNKNOWN = "unknown"
 
 
+def _visible_context(tokens: tuple[int, ...], mask: tuple[int, ...]) -> str:
+    return content_digest(
+        {"tokens": [t if m else None for t, m in zip(tokens, mask)], "mask": list(mask)}
+    )
+
+
 @dataclass(frozen=True)
 class ExampleRef(CVARecord):
     example_id: str
     input_digest: str
     context_digest: str
     distribution: str
+    causal_prefix_digests: tuple[str | None, ...] = ()
 
-    schema_version = "native-example-reference-v1"
+    schema_version = "native-example-reference-v2"
+    restorers = {"causal_prefix_digests": _read_array}
 
     def __post_init__(self) -> None:
         text(self.example_id, "example_id")
         digest(self.input_digest)
         digest(self.context_digest)
         text(self.distribution, "distribution")
+        for value in array(self.causal_prefix_digests, 128):
+            if value is not None:
+                digest(value)
+
+    def to_dict(self) -> dict[str, Any]:
+        payload = super().to_dict()
+        if not self.causal_prefix_digests:
+            payload.pop("causal_prefix_digests")
+            payload["schema_version"] = "native-example-reference-v1"
+        return payload
+
+    @classmethod
+    def from_dict(cls, payload: object) -> ExampleRef:
+        if type(payload) is not dict:
+            raise ValueError("example reference requires a dictionary")
+        value = dict(payload)
+        if value.get("schema_version") == "native-example-reference-v1":
+            if "causal_prefix_digests" in value:
+                raise ValueError("legacy references cannot contain prefix metadata")
+            value["schema_version"] = cls.schema_version
+            value["causal_prefix_digests"] = []
+        elif not value.get("causal_prefix_digests"):
+            raise ValueError("v2 reference requires causal prefix metadata")
+        return super().from_dict(value)
 
     @classmethod
     def from_input(cls, context: NativeInput, *, distribution: str) -> ExampleRef:
         value = _record(context, NativeInput)
-        fingerprint = content_digest(
-            {"tokens": list(value.token_ids), "mask": list(value.attention_mask)}
+        prefixes = tuple(
+            (
+                content_digest(
+                    {
+                        "position": p,
+                        "visible": [
+                            [j, value.token_ids[j]] for j in range(p + 1) if value.attention_mask[j]
+                        ],
+                    }
+                )
+                if active
+                else None
+            )
+            for p, active in enumerate(value.attention_mask)
         )
-        return cls(value.example_id, value.digest, fingerprint, distribution)
+        return cls(
+            value.example_id,
+            value.digest,
+            _visible_context(value.token_ids, value.attention_mask),
+            distribution,
+            prefixes,
+        )
 
 
 @dataclass(frozen=True)
@@ -98,6 +148,32 @@ class SplitManifest(CVARecord):
                     raise ValueError("exact token context overlaps within or across splits")
                 ids.add(ref.example_id)
                 contexts.add(ref.context_digest)
+
+
+def require_causal_prefix_isolation(manifest: SplitManifest, positions: tuple[int, ...]) -> None:
+    """Reject cross-split visible-prefix reuse at declared absolute query positions.
+
+    Hashes are overlap checks, not semantic independence or temporal-custody proofs.
+    Legacy records remain readable but must be rebuilt from inputs for qualified evaluation.
+    """
+    splits = _record(manifest, SplitManifest)
+    selected = indices(positions, 128)
+    seen: set[str] = set()
+    for group in (splits.generation, splits.development, splits.locked):
+        current: set[str] = set()
+        for ref in group:
+            for position in selected:
+                if not ref.causal_prefix_digests:
+                    raise ValueError("causal prefix metadata missing; rebuild legacy references")
+                if position >= len(ref.causal_prefix_digests):
+                    raise ValueError("causal prefix position outside reference geometry")
+                prefix = ref.causal_prefix_digests[position]
+                if prefix is None:
+                    raise ValueError("declared causal prefix position is masked")
+                current.add(prefix)
+        if seen.intersection(current):
+            raise ValueError("causal prefix overlap across generation/development/locked splits")
+        seen.update(current)
 
 
 @dataclass(frozen=True)
@@ -331,6 +407,7 @@ def freeze_explanation(
     h = _record(hypothesis, ExplanationHypothesis)
     splits = _record(manifest, SplitManifest)
     batch = _batch_for_split(generation, splits.generation, "generation")
+    require_causal_prefix_isolation(splits, batch.token_positions)
     now = clock.now()
     if type(now) is not datetime or now.tzinfo is None or now.utcoffset() is None:
         raise ValueError("host clock must return an aware datetime")
@@ -437,7 +514,7 @@ def generate_near_misses(
     if set(h.generation_example_ids) != {r.example_id for r in splits.generation}:
         raise ValueError("hypothesis uses foreign generation examples")
     contexts = {i.example_id: i for i in batch.inputs}
-    vocabulary = {t for i in batch.inputs for t in i.token_ids}
+    vocabulary = {t for i in batch.inputs for t, m in zip(i.token_ids, i.attention_mask) if m}
     array(replacement_tokens, 16, required=True)
     for token in replacement_tokens:
         index(token)
@@ -464,9 +541,7 @@ def generate_near_misses(
             for token in replacement_tokens:
                 tokens = list(context.token_ids)
                 tokens[changed_position] = token
-                fingerprint = content_digest(
-                    {"tokens": tokens, "mask": list(context.attention_mask)}
-                )
+                fingerprint = _visible_context(tuple(tokens), context.attention_mask)
                 if fingerprint in seen:
                     continue
                 seen.add(fingerprint)
@@ -545,6 +620,7 @@ def evaluate_explanation(
     """Compute actual held-out prediction errors; no causal status or authenticity is granted."""
     _enabled(enabled)
     frozen = _record(commit, ExplanationCommit)
+    require_causal_prefix_isolation(frozen.splits, frozen.evaluation_positions)
     batch = _batch_for_split(locked, frozen.splits.locked, "locked")
     if batch.token_positions != frozen.evaluation_positions:
         raise ValueError("locked token positions differ from the frozen evaluation coverage")

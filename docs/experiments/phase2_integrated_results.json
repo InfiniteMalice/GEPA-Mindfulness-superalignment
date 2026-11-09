@@ -3,6 +3,73 @@
   "authority_granted": false,
   "baseline_commit": "fcc4142b2a5f0bdd9e9f4f7a8b90d5c72d13d923",
   "candidate_training": "NOT_RUN",
+  "causal_prefix_qualification": {
+    "alignment_improvement": "NOT_ESTABLISHED",
+    "authority_granted": false,
+    "comparison": {
+      "arms": {
+        "MEASURED": 22,
+        "UNAVAILABLE": 2
+      },
+      "causal_predictions": {
+        "FALSIFIED": 41,
+        "MET": 19,
+        "NOT_SPECIFIC": 6
+      },
+      "output_rows": 1104,
+      "prediction_criteria": {
+        "FALSIFIED": 8,
+        "MET": 14
+      },
+      "studies": 6
+    },
+    "dataset_revision": "causal-prefix-disjoint-v2",
+    "diagnostic_status": "diagnostic",
+    "discovery": {
+      "components": 6,
+      "outcomes": {
+        "PREDICTIONS_FALSIFIED": 23,
+        "PREREGISTERED_CRITERION_MET": 1
+      }
+    },
+    "independent_review": "BOUNDED_STATIC_REVIEW_ONE_IMPORTANT_FIXED_RED_GREEN",
+    "legacy_probe_qualification": "UNQUALIFIED_FOR_CAUSAL_PREFIX_HELD_OUT_CLAIMS",
+    "limits": [
+      "Random tiny networks and artificial tokens; no trained semantic or alignment claim.",
+      "Dependent examples/conditions; no qualified alignment confidence interval.",
+      "Numeric criterion satisfaction does not establish semantic explanation or causal validity.",
+      "Original measurements remain retained at their original source pins."
+    ],
+    "maturity": "experimental",
+    "optimizer_input": false,
+    "reviewed_probe_sources": {
+      "docs/experiments/phase2_prefix_reviewed_pr4_probe.json.gz": "149b6870ee4aa95ef4e22047dcee9683f1fc391e0d071292d176c2d051626cf2",
+      "docs/experiments/phase2_prefix_reviewed_pr5_probe.json.gz": "7e02520635bd1c9f2741c119725444651dd965e35b3ed98dafd0d8c04df36b4f",
+      "docs/experiments/phase2_prefix_reviewed_pr7_probe.json.gz": "532c4c0a23f490d1bca23a2b76c923a410525111f8c6b573586962a6e376e51f",
+      "docs/experiments/phase2_prefix_reviewed_pr8_probe.json.gz": "31fbcee82520644143d7ef06376fa2aba99186a5847ba4abd51c8d663bebc907"
+    },
+    "schema_version": "phase2-prefix-qualification-results-v1",
+    "simulation": {
+      "conditions": {
+        "MEASURED": 76,
+        "UNAVAILABLE": 4
+      },
+      "kl_range": [
+        0.0,
+        1.3813412867027179e-05
+      ],
+      "measured_output_rows": 684,
+      "studies": 8
+    },
+    "sources": {
+      "docs/experiments/phase2_prefix_pr4_probe.json.gz": "14a4523de330db5a54976fb1914f672baf2f2904bbb405c84cbac4122a8a4671",
+      "docs/experiments/phase2_prefix_pr5_probe.json.gz": "4d5e9e0f92be75cd190a09bfaa6e77ce269c7ec554ae9ea1f13d79d3bfb6e934",
+      "docs/experiments/phase2_prefix_pr7_probe.json.gz": "532c4c0a23f490d1bca23a2b76c923a410525111f8c6b573586962a6e376e51f",
+      "docs/experiments/phase2_prefix_pr8_probe.json.gz": "0a02d31557c815b72844275155f243e669e92ae78eedef89d192e1968b088439"
+    },
+    "trained_semantic_or_alignment_validity": "NOT_ESTABLISHED",
+    "training_eligibility": "DEVELOPMENT"
+  },
   "diagnostic_status": "diagnostic",
   "experiments": [
     {
@@ -79,23 +146,14 @@
     }
   ],
   "final_software_regression": {
-    "passed": 7326,
-    "skipped": 11,
-    "warnings": 18,
-    "subtests": 162,
-    "seconds": 576.47,
     "exit_code": 0,
-    "source": "phase2_publication_pytest.log"
+    "passed": 7338,
+    "seconds": 585.42,
+    "skipped": 11,
+    "source": "phase2_prefix_reviewed_pytest.log",
+    "subtests": 162,
+    "warnings": 18
   },
-  "maturity": "experimental",
-  "nulls_and_falsifications": "RETAINED_IN_ORIGINAL_SOURCES",
-  "optimizer_input": false,
-  "promotion": "NOT_AUTHORIZED",
-  "publication_status": "STAGED_DELIVERY_PR_831_THROUGH_840; consult PR timelines for current state",
-  "schema_version": "phase2-integrated-research-v1",
-  "source_audit": "phase2_pr9_historical_audit.json.gz",
-  "trained_model_capability_regression": "NOT_RUN",
-  "training_eligibility": "DEVELOPMENT",
   "initial_software_regression": {
     "exit_code": 0,
     "passed": 7313,
@@ -105,6 +163,21 @@
     "subtests": 162,
     "warnings": 18
   },
+  "maturity": "experimental",
+  "nulls_and_falsifications": "RETAINED_IN_ORIGINAL_SOURCES",
+  "optimizer_input": false,
+  "pre_review_fix_software_regression": {
+    "exit_code": 0,
+    "passed": 7335,
+    "seconds": 575.83,
+    "skipped": 11,
+    "source": "phase2_prefix_pytest.log",
+    "subtests": 162,
+    "warnings": 18
+  },
+  "promotion": "NOT_AUTHORIZED",
+  "publication_merged_through_stage": 3,
+  "publication_provenance": "docs/phase2_publication.md",
   "publication_prs": [
     "https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/pull/831",
     "https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/pull/832",
@@ -117,5 +190,18 @@
     "https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/pull/839",
     "https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/pull/840"
   ],
-  "publication_provenance": "docs/phase2_publication.md"
+  "publication_round_one_software_regression": {
+    "exit_code": 0,
+    "passed": 7326,
+    "seconds": 576.47,
+    "skipped": 11,
+    "source": "phase2_publication_pytest.log",
+    "subtests": 162,
+    "warnings": 18
+  },
+  "publication_status": "STAGED_DELIVERY_PR_831_THROUGH_840; consult PR timelines for current state",
+  "schema_version": "phase2-integrated-research-v1",
+  "source_audit": "phase2_pr9_historical_audit.json.gz",
+  "trained_model_capability_regression": "NOT_RUN",
+  "training_eligibility": "DEVELOPMENT"
 }

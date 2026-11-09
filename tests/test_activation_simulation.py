@@ -77,7 +77,7 @@ def trial(family="gpt2", neurons=(0, 3)):
         source, model_id=f"random-{family}", revision="seed-31", enabled=True
     )
     hook = native.hook(layer=0, kind=kind)
-    generation = (NativeInput("g1", (1, 2, 3), (1, 1, 1)), NativeInput("g2", (3, 2, 1), (1, 1, 1)))
+    generation = (NativeInput("g1", (0, 2, 3), (1, 1, 1)), NativeInput("g2", (1, 2, 1), (1, 1, 1)))
     development = (NativeInput("d1", (2, 1, 3), (1, 1, 1)),)
     locked = (NativeInput("l1", (3, 1, 2), (1, 1, 1)), NativeInput("l2", (4, 5, 6), (1, 1, 1)))
     manifest = SplitManifest(
@@ -404,4 +404,17 @@ def test_simulation_cannot_use_a_gold_future_token_to_predict_a_causal_activatio
     with pytest.raises(ValueError, match="future-token"):
         prepare_simulation_controls(
             (bad,) + commits[1:], controls.generation_batches, seed=41, enabled=True
+        )
+
+
+def test_invalid_output_geometry_and_controls_do_not_claim_legacy_metadata() -> None:
+    """Malformed output positions retain specific geometry/control diagnostics."""
+    _, native, hook, commits, locked, controls = trial()
+    with pytest.raises(ValueError, match="outside generation geometry"):
+        prepare_simulation_controls(
+            commits, controls.generation_batches, seed=41, logit_positions=(7,), enabled=True
+        )
+    with pytest.raises(ValueError, match="frozen simulation controls"):
+        simulate_activations(
+            native, hook, commits, locked, controls=controls, logit_positions=(7,), enabled=True
         )

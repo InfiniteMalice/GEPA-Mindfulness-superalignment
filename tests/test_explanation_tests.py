@@ -70,9 +70,9 @@ def data():
         )
         return replace(actual, measurements=values)
 
-    generation = batch(("g1", "g2"), [[1, 3, 2], [3, 2, 3]])
+    generation = batch(("g1", "g2"), [[0, 3, 2], [1, 2, 3]])
     development = batch(("d1",), [[2, 1, 3]])
-    locked = batch(("l1", "l2", "l3"), [[3, 1, 1], [1, 2, 2], [3, 3, 3]])
+    locked = batch(("l1", "l2", "l3"), [[3, 1, 1], [4, 2, 2], [5, 3, 3]])
     manifest = SplitManifest(
         tuple(ExampleRef.from_input(i, distribution="id") for i in generation.inputs),
         tuple(ExampleRef.from_input(i, distribution="id") for i in development.inputs),
@@ -323,14 +323,133 @@ def test_every_locked_example_requires_measurement_coverage(data) -> None:
         token_positions=(0, 1),
         measurements=tuple(m for m in generation.measurements if m.token_position < 2),
     )
-    commit = freeze_explanation(
-        hypothesis(generation),
-        manifest,
-        generation,
-        clock=Clock(),
-        max_mae=0.01,
-        activation_threshold=0.5,
-        enabled=True,
-    )
+    with pytest.raises(ValueError, match="masked"):
+        freeze_explanation(
+            hypothesis(generation),
+            manifest,
+            generation,
+            clock=Clock(),
+            max_mae=0.01,
+            activation_threshold=0.5,
+            enabled=True,
+        )
     with pytest.raises(ValueError, match="coverage"):
-        evaluate_explanation(commit, partial, enabled=True)
+        explanation_module._batch_for_split(partial, manifest.locked, "locked")
+
+
+def test_shared_causal_prefix_is_rejected_before_heldout_commit(data) -> None:
+    generation, _, locked, manifest = data
+    changed = replace(
+        locked.inputs[0],
+        token_ids=(generation.inputs[0].token_ids[0],) + locked.inputs[0].token_ids[1:],
+    )
+    refs = (ExampleRef.from_input(changed, distribution=manifest.locked[0].distribution),)
+    splits = replace(manifest, locked=refs + manifest.locked[1:])
+    with pytest.raises(ValueError, match="causal.*prefix|prefix.*overlap"):
+        freeze_explanation(
+            hypothesis(generation),
+            splits,
+            generation,
+            clock=Clock(),
+            max_mae=0.0,
+            activation_threshold=0.5,
+            enabled=True,
+        )
+
+
+def test_masked_token_jitter_cannot_hide_an_identical_visible_context() -> None:
+    gen = NativeInput("g", (1, 2, 3), (1, 0, 1))
+    dev = NativeInput("d", (7, 6, 5), (1, 1, 1))
+    locked = NativeInput("l", (1, 4, 3), (1, 0, 1))
+    with pytest.raises(ValueError, match="context"):
+        SplitManifest(
+            (ExampleRef.from_input(gen, distribution="id"),),
+            (ExampleRef.from_input(dev, distribution="id"),),
+            (ExampleRef.from_input(locked, distribution="id"),),
+        )
+
+
+def test_reference_v2_and_legacy_v1_roundtrip_without_promoting_old_evidence(data) -> None:
+    generation, _, _, manifest = data
+    ref = manifest.generation[0]
+    assert ExampleRef.from_dict(ref.to_dict()) == ref
+    legacy = ref.to_dict()
+    legacy.pop("causal_prefix_digests")
+    legacy["schema_version"] = "native-example-reference-v1"
+    restored = ExampleRef.from_dict(legacy)
+    assert restored.to_dict() == legacy
+    assert restored.causal_prefix_digests == ()
+    from gepa_mindfulness.interpret.explanation_tests import require_causal_prefix_isolation
+
+    old = replace(manifest, generation=(restored,) + manifest.generation[1:])
+    with pytest.raises(ValueError, match="rebuild legacy"):
+        require_causal_prefix_isolation(old, (0,))
+    malformed = ref.to_dict()
+    malformed["causal_prefix_digests"] = []
+    with pytest.raises(ValueError, match="metadata"):
+        ExampleRef.from_dict(malformed)
+
+
+def test_prefix_qualification_uses_query_position_and_visible_tokens() -> None:
+    from gepa_mindfulness.interpret.explanation_tests import require_causal_prefix_isolation
+
+    def ref(name, tokens, mask=(1, 1, 1)):
+        return ExampleRef.from_input(NativeInput(name, tokens, mask), distribution="id")
+
+    g, d, locked_ref = ref("g", (1, 2, 3)), ref("d", (4, 5, 6)), ref("l", (1, 7, 8))
+    splits = SplitManifest((g,), (d,), (locked_ref,))
+    with pytest.raises(ValueError, match="prefix overlap"):
+        require_causal_prefix_isolation(splits, (0,))
+    require_causal_prefix_isolation(splits, (1, 2))
+    assert g.causal_prefix_digests[0] != g.causal_prefix_digests[1]
+    jitter = ref("j", (1, 9, 3), (1, 0, 1))
+    masked = ref("m", (1, 2, 3), (1, 0, 1))
+    assert jitter.causal_prefix_digests == masked.causal_prefix_digests
+    assert jitter.input_digest != masked.input_digest
+    assert jitter.context_digest == masked.context_digest
+    with pytest.raises(ValueError, match="masked"):
+        require_causal_prefix_isolation(SplitManifest((masked,), (d,), (locked_ref,)), (1,))
+    with pytest.raises(ValueError, match="prefix overlap"):
+        require_causal_prefix_isolation(SplitManifest((g,), (locked_ref,), (d,)), (0,))
+
+
+def test_forged_generation_prefix_metadata_does_not_match_actual_inputs(data) -> None:
+    generation, _, _, manifest = data
+    altered = replace(manifest.generation[0], causal_prefix_digests=("a" * 64,) * 3)
+    forged = replace(manifest, generation=(altered,) + manifest.generation[1:])
+    with pytest.raises(ValueError, match="generation context"):
+        freeze_explanation(
+            hypothesis(generation),
+            forged,
+            generation,
+            clock=Clock(),
+            max_mae=0.1,
+            activation_threshold=0.5,
+            enabled=True,
+        )
+
+
+def test_directly_constructed_commit_cannot_bypass_prefix_guard(data) -> None:
+    from gepa_mindfulness.interpret.explanation_tests import ExplanationCommit
+
+    _, _, locked, manifest = data
+    commit = frozen(data)
+    leak = replace(
+        manifest.locked[0], causal_prefix_digests=manifest.generation[0].causal_prefix_digests
+    )
+    forged = replace(commit, splits=replace(manifest, locked=(leak,) + manifest.locked[1:]))
+    restored = ExplanationCommit.from_dict(forged.to_dict())
+    with pytest.raises(ValueError, match="prefix overlap"):
+        evaluate_explanation(restored, locked, enabled=True)
+
+
+def test_present_short_prefix_metadata_reports_geometry_instead_of_legacy() -> None:
+    from gepa_mindfulness.interpret.explanation_tests import require_causal_prefix_isolation
+
+    groups = tuple(
+        (ExampleRef.from_input(NativeInput(name, tokens, (1,) * len(tokens)), distribution="id"),)
+        for name, tokens in [("g", (1, 2, 3)), ("d", (4,)), ("l", (5, 6, 7))]
+    )
+    manifest = SplitManifest(*groups)
+    with pytest.raises(ValueError, match="outside.*geometry"):
+        require_causal_prefix_isolation(manifest, (2,))

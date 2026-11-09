@@ -34,9 +34,9 @@ from gepa_mindfulness.interpret.native_records import HookKind, NativeInput
 
 SEED = 79
 TOKENS = {
-    "generation": ((1, 2, 3), (4, 1, 2), (3, 4, 1)),
-    "development": ((2, 3, 4),),
-    "locked": ((1, 3, 4), (4, 2, 5), (11, 12, 13)),
+    "generation": ((0, 2, 3), (1, 1, 2), (2, 4, 1)),
+    "development": ((3, 3, 4),),
+    "locked": ((4, 3, 4), (5, 2, 5), (6, 12, 13)),
 }
 
 
@@ -212,6 +212,7 @@ def main(argv: list[str] | None = None) -> int:
             {
                 "schema_version": "interpretation-comparison-software-probe-v1",
                 "maturity": "experimental",
+                "dataset_revision": "causal-prefix-disjoint-v2",
                 "diagnostic_status": "diagnostic",
                 "training_eligibility": "DEVELOPMENT",
                 "optimizer_input": False,

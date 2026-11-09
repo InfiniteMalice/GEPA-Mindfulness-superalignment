@@ -29,9 +29,9 @@ from gepa_mindfulness.interpret.native_records import HookKind, NativeInput, Sam
 
 SEED = 17
 INPUTS = {
-    "generation": ((1, 2, 3, 4), (2, 3, 4, 5), (5, 4, 3, 2), (6, 7, 8, 9)),
-    "development": ((3, 4, 5, 6),),
-    "locked": ((2, 1, 3, 5), (1, 2, 4, 4), (13, 17, 29, 23)),
+    "generation": ((0, 2, 3, 4), (1, 3, 4, 5), (2, 4, 3, 2), (3, 7, 8, 9)),
+    "development": ((4, 4, 5, 6),),
+    "locked": ((5, 1, 3, 5), (6, 2, 4, 4), (7, 17, 29, 23)),
 }
 
 
@@ -189,6 +189,7 @@ def main(argv: list[str] | None = None) -> int:
             {
                 "schema_version": "native-software-probe-v1",
                 "maturity": "experimental",
+                "dataset_revision": "causal-prefix-disjoint-v2",
                 "diagnostic_status": "diagnostic",
                 "training_eligibility": "DEVELOPMENT",
                 "optimizer_input": False,

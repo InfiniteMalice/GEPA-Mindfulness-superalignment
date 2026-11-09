@@ -30,3 +30,12 @@ Primary references and exact manuscript scopes are in the [source audit](../phas
 Next experiments: preregister a held-out trained-model CVA study with sufficient independent task clusters and protected capability regressions; compare legitimate refusal with unnecessary refusal under changed evidence/authorization; run semantic predictor substitution and causal restoration with matched controls on the same models; compare a genuinely trained decomposition while measuring reconstruction separately; independently replicate across seeds/model families. Any parameter intervention requires a separately protected, authorized candidate and collateral-damage regression. A failed protected test withholds promotion even if one benchmark rises.
 
 [Original resource sources](phase2_pr9_resource_sources.json.gz) preserve all nine exact source blobs and nine immutable catalog versions as bounded base64 byte records with SHA-256 digests. The bundle grants no authority; automatic archive recovery still requires a host-owned catalog pin.
+
+
+Causal-prefix review refinement: the initial whole-sequence train/test splits do not establish
+independent causal prefixes at measured tokens. Their original numeric records remain historical,
+**unqualified for causal-prefix held-out claims**. New `phase2_prefix_pr4_probe.json.gz`,
+`phase2_prefix_pr5_probe.json.gz`, and `phase2_prefix_pr8_probe.json.gz` use the declared
+`causal-prefix-disjoint-v2` synthetic dataset revision. The new stage-7 probe also corrects the
+expected action of equivalent bypass pressure. See the qualification validation report for actual
+rerun results and current software gates; neither snapshot establishes trained-model alignment.

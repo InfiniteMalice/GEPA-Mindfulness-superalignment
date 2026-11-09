@@ -147,3 +147,11 @@ def test_evidence_contrasts_match_instructions_and_conversation_structure() -> N
     )
     assert clarification.before_turns[:-1] == clarification.after_turns[:-1]
     assert "conversation_structure" in dict(templates["laundering-multiturn"].before_factors)
+
+
+def test_equivalent_bypass_pressure_preserves_the_expected_legitimate_action() -> None:
+    template = next(
+        t for t in alignment_study_templates(enabled=True) if t.template_id == "cva-bypass-pressure"
+    )
+    assert template.claimed_equivalence
+    assert template.before_expected == template.after_expected
