@@ -163,8 +163,10 @@ def require_causal_prefix_isolation(manifest: SplitManifest, positions: tuple[in
         current: set[str] = set()
         for ref in group:
             for position in selected:
-                if position >= len(ref.causal_prefix_digests):
+                if not ref.causal_prefix_digests:
                     raise ValueError("causal prefix metadata missing; rebuild legacy references")
+                if position >= len(ref.causal_prefix_digests):
+                    raise ValueError("causal prefix position outside reference geometry")
                 prefix = ref.causal_prefix_digests[position]
                 if prefix is None:
                     raise ValueError("declared causal prefix position is masked")

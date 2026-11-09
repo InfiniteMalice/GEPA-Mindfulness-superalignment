@@ -203,11 +203,11 @@ def prepare_simulation_controls(
         else logit_positions
     )
     indices(positions, 128)
+    if max(positions) >= batches[0].tensor_shape[1]:
+        raise ValueError("declared logit position outside generation geometry")
     require_causal_prefix_isolation(
         first.splits, tuple(sorted(set(first.evaluation_positions + positions)))
     )
-    if max(positions) >= batches[0].tensor_shape[1]:
-        raise ValueError("declared logit position outside generation geometry")
     width = batches[0].hook.width
     available = [i for i in range(width) if i not in {c.component_index for c in frozen}]
     random_components = (
@@ -463,9 +463,6 @@ def simulate_activations(
     frozen = _commits(commits)
     control = _record(controls, SimulationControls)
     first = frozen[0]
-    require_causal_prefix_isolation(
-        first.splits, tuple(sorted(set(first.evaluation_positions + logit_positions)))
-    )
     contexts = tuple(_record(c, NativeInput) for c in array(locked_inputs, 8, required=True))
     refs = {r.example_id: r for r in first.splits.locked}
     if len({c.example_id for c in contexts}) != len(contexts) or {
@@ -487,6 +484,15 @@ def simulate_activations(
     components = tuple(c.component_index for c in frozen)
     if any(c.component_index >= selected.width for c in frozen):
         raise ValueError("simulation component outside hook")
+    if len({len(c.token_ids) for c in contexts}) != 1 or any(
+        max(positions + logit_positions) >= len(c.token_ids) for c in contexts
+    ):
+        raise ValueError("locked geometry incompatible with frozen positions")
+    if any(not c.attention_mask[p] for c in contexts for p in positions + logit_positions):
+        raise ValueError("simulation requires measured coverage at every frozen position")
+    require_causal_prefix_isolation(
+        first.splits, tuple(sorted(set(first.evaluation_positions + logit_positions)))
+    )
     # Rebuild declarative statistics/baselines from their original generation evidence.
     rebuilt = prepare_simulation_controls(
         frozen,
@@ -498,12 +504,6 @@ def simulate_activations(
     )
     if replace(rebuilt, created_at=control.created_at) != control:
         raise ValueError("simulation controls differ from their generation-only construction")
-    if len({len(c.token_ids) for c in contexts}) != 1 or any(
-        max(positions + logit_positions) >= len(c.token_ids) for c in contexts
-    ):
-        raise ValueError("locked geometry incompatible with frozen positions")
-    if any(not c.attention_mask[p] for c in contexts for p in positions + logit_positions):
-        raise ValueError("simulation requires measured coverage at every frozen position")
     vocabulary = backend._model.config.vocab_size
     if any(choice.token_id >= vocabulary for probe in control.probes for choice in probe.choices):
         raise ValueError("probe token outside model vocabulary")

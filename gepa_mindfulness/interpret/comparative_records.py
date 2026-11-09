@@ -6,6 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 # Local
+from evaluation.causal_records import content_digest
 from gepa_mindfulness.core.evidence import EvidenceReference
 from gepa_mindfulness.verification.cva_records import (
     CVARecord,
@@ -340,7 +341,19 @@ class ComparisonCommit(CVARecord):
         if set(actual) != {r.example_id for r in p.manifest.generation}:
             raise ValueError("generation split differs from commitment")
         for ref in p.manifest.generation:
-            if ExampleRef.from_input(actual[ref.example_id], distribution=ref.distribution) != ref:
+            context = actual[ref.example_id]
+            expected = ExampleRef.from_input(context, distribution=ref.distribution)
+            if not ref.causal_prefix_digests:
+                # Legacy wire records bind raw masked IDs too. Reading is not qualification.
+                expected = ExampleRef(
+                    context.example_id,
+                    context.digest,
+                    content_digest(
+                        {"tokens": list(context.token_ids), "mask": list(context.attention_mask)}
+                    ),
+                    ref.distribution,
+                )
+            if expected != ref:
                 raise ValueError("generation context differs from split")
         fits = tuple(_record(f, ArmFit) for f in array(self.fits, 8, required=True))
         available = [a for a in p.arms if a.dictionary is not None]

@@ -118,8 +118,9 @@ See the [primary-source audit](phase2_research_sources.md) for the competing Cam
 The full-evidence executor reserves `20 × sequence_length × vocabulary_size` distribution values
 before execution, bounded by the plan's budget (default 250,000; hard maximum 1,000,000), plus the
 bounded record encoding. Thus vocabulary sizes above 50,000 are unsupported even at one token;
-32,000 permits only one token at the maximum budget. CPU models are separately capped at 50M
-parameters. This prototype does not support standard large pretrained-model tracing. It fails
+32,000 permits only one token at the maximum budget. `FrozenNativeModel` defaults to a 50M
+parameter budget on CPU and CUDA; callers may explicitly configure up to 1B parameters.
+Only tiny CPU models were exercised by these probes. This prototype does not support standard large pretrained-model tracing. It fails
 explicitly rather than truncating logits or lifting audit limits. A scalable immutable external
 measurement store needs a separate reviewed design and regression evaluation.
 

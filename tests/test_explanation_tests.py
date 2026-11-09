@@ -441,3 +441,15 @@ def test_directly_constructed_commit_cannot_bypass_prefix_guard(data) -> None:
     restored = ExplanationCommit.from_dict(forged.to_dict())
     with pytest.raises(ValueError, match="prefix overlap"):
         evaluate_explanation(restored, locked, enabled=True)
+
+
+def test_present_short_prefix_metadata_reports_geometry_instead_of_legacy() -> None:
+    from gepa_mindfulness.interpret.explanation_tests import require_causal_prefix_isolation
+
+    groups = tuple(
+        (ExampleRef.from_input(NativeInput(name, tokens, (1,) * len(tokens)), distribution="id"),)
+        for name, tokens in [("g", (1, 2, 3)), ("d", (4,)), ("l", (5, 6, 7))]
+    )
+    manifest = SplitManifest(*groups)
+    with pytest.raises(ValueError, match="outside.*geometry"):
+        require_causal_prefix_isolation(manifest, (2,))

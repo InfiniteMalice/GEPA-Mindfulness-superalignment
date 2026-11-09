@@ -1,7 +1,10 @@
 """Matched native/decomposition comparisons use real forwards and preserve uncertainty."""
 
 # Standard library
+import gzip
+import json
 from dataclasses import replace
+from pathlib import Path
 
 # Third-party
 import pytest
@@ -525,3 +528,20 @@ def test_report_byte_budget_rejects_wide_vocabulary_before_capture(monkeypatch) 
     monkeypatch.setattr(comparative, "_capture", forbidden_capture)
     with pytest.raises(ValueError, match="report.*byte|serialized.*budget"):
         prepare_comparison(backend, p, groups["generation"][:1], clock=Clock(), enabled=True)
+
+
+def test_original_nested_comparison_commitments_remain_inert_readable_records() -> None:
+    """Historical v1 commitments roundtrip but cannot enter qualified held-out execution."""
+    from gepa_mindfulness.interpret.comparative_records import ComparisonCommit
+
+    source = Path(__file__).resolve().parents[1] / (
+        "docs/experiments/phase2_pr8_comparison_probe.json.gz"
+    )
+    original = json.loads(gzip.decompress(source.read_bytes()))
+    for result in original["results"]:
+        payload = result["report"]["commit"]
+        restored = ComparisonCommit.from_dict(payload)
+        assert restored.to_dict() == payload
+        assert all(not ref.causal_prefix_digests for ref in restored.protocol.manifest.generation)
+        with pytest.raises(ValueError, match="rebuild legacy"):
+            evaluate_comparison(None, restored, (), enabled=True)
