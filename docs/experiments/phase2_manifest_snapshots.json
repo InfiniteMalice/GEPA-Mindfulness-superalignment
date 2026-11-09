@@ -1,0 +1,51 @@
+{
+  "authority_granted": false,
+  "maturity": "diagnostic",
+  "optimizer_input": false,
+  "schema_version": "phase2-historical-manifest-snapshots-v1",
+  "scope": "Historical artifact identity, not current-head software qualification.",
+  "snapshots": [
+    {
+      "initial_source_mirror": "33488e9456e370c359a899569646d3f5ff93d4a2",
+      "manifest": "docs/experiments/phase2_pr3_manifest.json",
+      "manifest_sha256": "e0790ff9052255d3801c2a63db4014c77591e5b5b2078d5c1efe516fe9c25c92",
+      "source_revision": "e83b8712668dae8e5182c064ef119f1f3f0cbd95"
+    },
+    {
+      "initial_source_mirror": "50fa9d7042bb42be5a3f415da71eaa8aaa4cc5e0",
+      "manifest": "docs/experiments/phase2_pr4_manifest.json",
+      "manifest_sha256": "0032ffb2ee201b5eb395dbdc4fc9d8e044810fc325db96537fbadcf6b3fd7d23",
+      "source_revision": "5e2b686af8792259a765ca353f1c93ed4ed8aead"
+    },
+    {
+      "initial_source_mirror": "3973ad9953df3272649485bf0df01a2d30503293",
+      "manifest": "docs/experiments/phase2_pr5_manifest.json",
+      "manifest_sha256": "7ec2a002b64b2f9d4797c2fef9a9a2018a843c87b942eafdee6c734ff159bc9e",
+      "source_revision": "428678a85ed27d190f7fe79df01003cf6eb192e5"
+    },
+    {
+      "initial_source_mirror": "11b8e568e645a751e82f42f7a945e86085f4db9d",
+      "manifest": "docs/experiments/phase2_pr6_manifest.json",
+      "manifest_sha256": "00df28ed18311444835f0cf4dadde5e01e6dd708137ade3ecddeec28ee074f3c",
+      "source_revision": "5fe5453122bfbe11ee1a303af207f3be001076e3"
+    },
+    {
+      "initial_source_mirror": "73fc4f335328dd19f54bede54421fe0a3232c52f",
+      "manifest": "docs/experiments/phase2_pr7_manifest.json",
+      "manifest_sha256": "582c468bfc21b1e7b1ce7484b78786301436045d29a5e206e2fbd5fa555de98e",
+      "source_revision": "83ca0e276efd66aae546bb273e432c437699ab11"
+    },
+    {
+      "initial_source_mirror": "f07db2b6a81618ea03db28cb8e499962b703075d",
+      "manifest": "docs/experiments/phase2_pr8_manifest.json",
+      "manifest_sha256": "f87846a78cadba839169701818529887d249c3768daf834c6dc4122abc708de3",
+      "source_revision": "c92ba24040598a1918168161b7e53f7021d5b04d"
+    },
+    {
+      "initial_source_mirror": "26eba694e55654a44f5832bcb35ee5366ec4782f",
+      "manifest": "docs/experiments/phase2_pr9_manifest.json",
+      "manifest_sha256": "d8b68c11a190752ed2d4b05ed376b8760e042eaab4b80834d8d0fb1b69840e61",
+      "source_revision": "2aff63a289045f73115538faf1e470935a77f015"
+    }
+  ]
+}

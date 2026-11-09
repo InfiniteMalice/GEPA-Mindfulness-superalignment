@@ -405,3 +405,16 @@ def test_simulation_cannot_use_a_gold_future_token_to_predict_a_causal_activatio
         prepare_simulation_controls(
             (bad,) + commits[1:], controls.generation_batches, seed=41, enabled=True
         )
+
+
+def test_invalid_output_geometry_and_controls_do_not_claim_legacy_metadata() -> None:
+    """Malformed output positions retain specific geometry/control diagnostics."""
+    _, native, hook, commits, locked, controls = trial()
+    with pytest.raises(ValueError, match="outside generation geometry"):
+        prepare_simulation_controls(
+            commits, controls.generation_batches, seed=41, logit_positions=(7,), enabled=True
+        )
+    with pytest.raises(ValueError, match="frozen simulation controls"):
+        simulate_activations(
+            native, hook, commits, locked, controls=controls, logit_positions=(7,), enabled=True
+        )
