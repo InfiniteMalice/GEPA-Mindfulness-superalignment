@@ -145,12 +145,18 @@
       "title": "Resource tradeoffs"
     }
   ],
+  "final_diagnostic_wording_correction": {
+    "affected_tests_passed": 20,
+    "evidence_levels_unchanged": true,
+    "probe": "phase2_final_pr7_probe.json.gz",
+    "seconds": 3.47
+  },
   "final_software_regression": {
     "exit_code": 0,
     "passed": 7338,
-    "seconds": 585.42,
+    "seconds": 586.24,
     "skipped": 11,
-    "source": "phase2_prefix_reviewed_pytest.log",
+    "source": "phase2_final_pytest.log",
     "subtests": 162,
     "warnings": 18
   },
@@ -166,6 +172,15 @@
   "maturity": "experimental",
   "nulls_and_falsifications": "RETAINED_IN_ORIGINAL_SOURCES",
   "optimizer_input": false,
+  "pre_final_wording_software_regression": {
+    "exit_code": 0,
+    "passed": 7338,
+    "seconds": 585.42,
+    "skipped": 11,
+    "source": "phase2_prefix_reviewed_pytest.log",
+    "subtests": 162,
+    "warnings": 18
+  },
   "pre_review_fix_software_regression": {
     "exit_code": 0,
     "passed": 7335,
@@ -176,7 +191,7 @@
     "warnings": 18
   },
   "promotion": "NOT_AUTHORIZED",
-  "publication_merged_through_stage": 3,
+  "publication_merged_through_stage_at_report_time": 5,
   "publication_provenance": "docs/phase2_publication.md",
   "publication_prs": [
     "https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/pull/831",

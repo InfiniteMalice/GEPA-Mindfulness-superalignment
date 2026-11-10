@@ -288,6 +288,7 @@ def main(argv: list[str] | None = None) -> int:
     paths = (
         "evaluation/mechanistic_studies.py",
         "evaluation/mechanistic_study_records.py",
+        "gepa_mindfulness/interpret/mechanistic_evidence.py",
         "synthetic_data/alignment_studies.py",
         "evaluation/causal_diagnostics.py",
         "evaluation/cva_benchmark.py",

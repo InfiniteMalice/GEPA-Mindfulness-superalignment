@@ -273,6 +273,8 @@ def test_falsified_predictions_are_retained_and_not_erased_by_an_acceptance_flag
     finding = verify_causal_runs((report,), context=context(native), enabled=True)
     assert finding.level is EvidenceLevel.CONTRADICTED
     assert finding.source_reports_json == (canonical_json(report),)
+    assert any("falsified" in reason for reason in finding.remaining_uncertainty)
+    assert not any("are supported" in reason for reason in finding.remaining_uncertainty)
 
 
 def test_future_only_context_changes_do_not_count_as_replication() -> None:

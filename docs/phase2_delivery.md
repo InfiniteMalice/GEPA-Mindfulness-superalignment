@@ -79,3 +79,6 @@ separately. Stages 0–3 are merged; later PR status is tracked by the linked PR
 Latest qualification gate: [7,335-test report and corrected probes](experiments/phase2_prefix_validation.md).
 
 Final reviewed software gate: [7,338-test validation and preserved evidence](experiments/phase2_prefix_reviewed_validation.md).
+
+Final publication evidence: [7,338-test gate and final review correction](experiments/phase2_final_validation.md).
+PR timelines establish merge status after this report was generated.

@@ -63,3 +63,8 @@ shared-BOS discovery and future-context retrospective hypotheses remain permitte
 pretrained geometries/external evidence storage are deferred; timestamps/costs are actual run
 metadata; no trained alignment or semantic validity is inferred. Root verification independently
 checks raw source hashes and actual probe outputs, not the language-model reviewer's authority.
+
+Final remote wording finding: CONTRADICTED reasons incorrectly used support prose. Existing
+falsification test augmented, observed RED, corrected three-state reason text; 20 affected tests
+and full7,338-test/162-subtest suite pass. Evidence levels and numeric effects unchanged. Historical
+base versus tested revision distinction is now explicit and linked to the snapshot index.

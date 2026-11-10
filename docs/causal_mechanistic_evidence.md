@@ -120,13 +120,17 @@ before execution, bounded by the plan's budget (default 250,000; hard maximum 1,
 bounded record encoding. Thus vocabulary sizes above 50,000 are unsupported even at one token;
 32,000 permits only one token at the maximum budget. `FrozenNativeModel` defaults to a 50M
 parameter budget on CPU and CUDA; callers may explicitly configure up to 1B parameters.
-Only tiny CPU models were exercised by these probes. This prototype does not support standard large pretrained-model tracing. It fails
+Only tiny CPU models were exercised by these probes. Standard large pretrained-model tracing
+is unsupported. The prototype fails
 explicitly rather than truncating logits or lifting audit limits. A scalable immutable external
 measurement store needs a separate reviewed design and regression evaluation.
 
 A nonspecific independently replayed result remains `UNRESOLVED`; successful replay does not
-establish specificity against controls. Original experiment manifests pin their original commits,
-not later PR heads: see the final-stage publication provenance guide and the original-history
-bundle. Artifact checksums identify retained bytes. Numerical reproduction need not reproduce a
+establish specificity against controls. Contradicted predictions receive an explicit falsification
+reason; replay alone cannot make them supported. Historical `base_commit` fields identify the
+predecessor, not the tested revision. The [snapshot index](experiments/phase2_manifest_snapshots.json)
+identifies the tested full revisions: stage 6 is `5fe5453122bfbe11ee1a303af207f3be001076e3`.
+Current reviewed hashes are separate from these retained historical snapshots. See the final-stage
+publication provenance guide and original-history bundle. Artifact checksums identify retained bytes. Numerical reproduction need not reproduce a
 wall-clock timestamp, runtime version or measured timing cost byte for byte; preserve those actual
 values instead of assigning a historical clock to new measurements.
