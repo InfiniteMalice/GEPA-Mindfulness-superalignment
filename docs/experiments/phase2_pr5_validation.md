@@ -1,5 +1,16 @@
 # Phase 2 PR 5: substitution and downstream simulation
 
+> Publication note: the original report below, including its tables and repeated-run claims,
+> describes the historical source snapshot indexed in the
+> [snapshot index](https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/blob/b5d888b24227e8358d244e33ce2faa9fd32d5b4c/docs/experiments/phase2_manifest_snapshots.json).
+> Its whole-sequence splits are **unqualified for causal-prefix held-out claims**.
+> The current script uses the corrected `causal-prefix-disjoint-v2` dataset; its output is a
+> new measurement, not reproduction of the historical table. The separately retained
+> [corrected PR 5 probe](https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/blob/b5d888b24227e8358d244e33ce2faa9fd32d5b4c/docs/experiments/phase2_prefix_reviewed_pr5_probe.json.gz)
+> and [qualified rerun report](https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/blob/b5d888b24227e8358d244e33ce2faa9fd32d5b4c/docs/experiments/phase2_prefix_reviewed_validation.md)
+> record that protocol. Original tables, raw evidence and full original report bytes remain
+> available at their original pinned revisions; this banner changes no historical measurement.
+
 Maturity: **Experimental** software; all results **Diagnostic**. Model alignment, semantic
 explanation, causal mechanism admission and method superiority remain **Unqualified**.
 Base: local PR 4 commit `5e2b686`. Existing inference, graph, training and authority contracts

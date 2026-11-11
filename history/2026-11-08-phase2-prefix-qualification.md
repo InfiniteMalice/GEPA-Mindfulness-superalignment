@@ -68,3 +68,9 @@ Final remote wording finding: CONTRADICTED reasons incorrectly used support pros
 falsification test augmented, observed RED, corrected three-state reason text; 20 affected tests
 and full7,338-test/162-subtest suite pass. Evidence levels and numeric effects unchanged. Historical
 base versus tested revision distinction is now explicit and linked to the snapshot index.
+
+Completion review verified predictive CONTRADICTED prose also needed falsification wording.
+A held-out failed predictor reproduced the issue, followed by21 evidence tests and7,339 full
+regressions passing. Historical tables receive annotations linking qualified v2 artifacts.
+Packaged guides link pinned repository provenance. Original measurements and source pins remain
+retained. The completion report records execution and independent-review limitations.

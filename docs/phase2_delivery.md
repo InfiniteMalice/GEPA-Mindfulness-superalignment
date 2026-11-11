@@ -82,3 +82,6 @@ Final reviewed software gate: [7,338-test validation and preserved evidence](exp
 
 Final publication evidence: [7,338-test gate and final review correction](experiments/phase2_final_validation.md).
 PR timelines establish merge status after this report was generated.
+
+The [completion validation](experiments/phase2_completion_validation.md) records the 7,339-test
+gate, predictive-evidence correction and final provenance annotations. PR timelines record merges.

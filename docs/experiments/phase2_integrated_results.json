@@ -70,6 +70,12 @@
     "trained_semantic_or_alignment_validity": "NOT_ESTABLISHED",
     "training_eligibility": "DEVELOPMENT"
   },
+  "completion_review": {
+    "mechanistic_evidence_tests_passed": 21,
+    "probe": "phase2_completion_pr7_probe.json.gz",
+    "seconds": 3.58,
+    "validation": "phase2_completion_validation.md"
+  },
   "diagnostic_status": "diagnostic",
   "experiments": [
     {
@@ -153,10 +159,10 @@
   },
   "final_software_regression": {
     "exit_code": 0,
-    "passed": 7338,
-    "seconds": 586.24,
+    "passed": 7339,
+    "seconds": 580.66,
     "skipped": 11,
-    "source": "phase2_final_pytest.log",
+    "source": "phase2_completion_pytest.log",
     "subtests": 162,
     "warnings": 18
   },
@@ -178,6 +184,15 @@
     "seconds": 585.42,
     "skipped": 11,
     "source": "phase2_prefix_reviewed_pytest.log",
+    "subtests": 162,
+    "warnings": 18
+  },
+  "pre_predictive_wording_software_regression": {
+    "exit_code": 0,
+    "passed": 7338,
+    "seconds": 586.24,
+    "skipped": 11,
+    "source": "phase2_final_pytest.log",
     "subtests": 162,
     "warnings": 18
   },
