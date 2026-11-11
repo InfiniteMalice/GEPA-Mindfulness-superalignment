@@ -1,0 +1,237 @@
+{
+  "alignment_improvement": "NOT_ESTABLISHED",
+  "authority_granted": false,
+  "baseline_commit": "fcc4142b2a5f0bdd9e9f4f7a8b90d5c72d13d923",
+  "candidate_training": "NOT_RUN",
+  "causal_prefix_qualification": {
+    "alignment_improvement": "NOT_ESTABLISHED",
+    "authority_granted": false,
+    "comparison": {
+      "arms": {
+        "MEASURED": 22,
+        "UNAVAILABLE": 2
+      },
+      "causal_predictions": {
+        "FALSIFIED": 41,
+        "MET": 19,
+        "NOT_SPECIFIC": 6
+      },
+      "output_rows": 1104,
+      "prediction_criteria": {
+        "FALSIFIED": 8,
+        "MET": 14
+      },
+      "studies": 6
+    },
+    "dataset_revision": "causal-prefix-disjoint-v2",
+    "diagnostic_status": "diagnostic",
+    "discovery": {
+      "components": 6,
+      "outcomes": {
+        "PREDICTIONS_FALSIFIED": 23,
+        "PREREGISTERED_CRITERION_MET": 1
+      }
+    },
+    "independent_review": "BOUNDED_STATIC_REVIEW_ONE_IMPORTANT_FIXED_RED_GREEN",
+    "legacy_probe_qualification": "UNQUALIFIED_FOR_CAUSAL_PREFIX_HELD_OUT_CLAIMS",
+    "limits": [
+      "Random tiny networks and artificial tokens; no trained semantic or alignment claim.",
+      "Dependent examples/conditions; no qualified alignment confidence interval.",
+      "Numeric criterion satisfaction does not establish semantic explanation or causal validity.",
+      "Original measurements remain retained at their original source pins."
+    ],
+    "maturity": "experimental",
+    "optimizer_input": false,
+    "reviewed_probe_sources": {
+      "docs/experiments/phase2_prefix_reviewed_pr4_probe.json.gz": "149b6870ee4aa95ef4e22047dcee9683f1fc391e0d071292d176c2d051626cf2",
+      "docs/experiments/phase2_prefix_reviewed_pr5_probe.json.gz": "7e02520635bd1c9f2741c119725444651dd965e35b3ed98dafd0d8c04df36b4f",
+      "docs/experiments/phase2_prefix_reviewed_pr7_probe.json.gz": "532c4c0a23f490d1bca23a2b76c923a410525111f8c6b573586962a6e376e51f",
+      "docs/experiments/phase2_prefix_reviewed_pr8_probe.json.gz": "31fbcee82520644143d7ef06376fa2aba99186a5847ba4abd51c8d663bebc907"
+    },
+    "schema_version": "phase2-prefix-qualification-results-v1",
+    "simulation": {
+      "conditions": {
+        "MEASURED": 76,
+        "UNAVAILABLE": 4
+      },
+      "kl_range": [
+        0.0,
+        1.3813412867027179e-05
+      ],
+      "measured_output_rows": 684,
+      "studies": 8
+    },
+    "sources": {
+      "docs/experiments/phase2_prefix_pr4_probe.json.gz": "14a4523de330db5a54976fb1914f672baf2f2904bbb405c84cbac4122a8a4671",
+      "docs/experiments/phase2_prefix_pr5_probe.json.gz": "4d5e9e0f92be75cd190a09bfaa6e77ce269c7ec554ae9ea1f13d79d3bfb6e934",
+      "docs/experiments/phase2_prefix_pr7_probe.json.gz": "532c4c0a23f490d1bca23a2b76c923a410525111f8c6b573586962a6e376e51f",
+      "docs/experiments/phase2_prefix_pr8_probe.json.gz": "0a02d31557c815b72844275155f243e669e92ae78eedef89d192e1968b088439"
+    },
+    "trained_semantic_or_alignment_validity": "NOT_ESTABLISHED",
+    "training_eligibility": "DEVELOPMENT"
+  },
+  "completion_review": {
+    "mechanistic_evidence_tests_passed": 21,
+    "probe": "phase2_completion_pr7_probe.json.gz",
+    "seconds": 3.58,
+    "validation": "phase2_completion_validation.md"
+  },
+  "diagnostic_status": "diagnostic",
+  "experiments": [
+    {
+      "confidence_interval": null,
+      "confidence_interval_reason": "No qualified independent trained-model comparison; dependent synthetic runs are not independent alignment samples.",
+      "experiment": "A",
+      "observed_scope": "Nine offline finite fixtures; exact candidate and scoped feasibility checking. No real target.",
+      "source": "docs/experiments/phase2_pr3_manifest.json",
+      "status": "OBSERVED_SYNTHETIC",
+      "title": "Finite feasibility classification"
+    },
+    {
+      "confidence_interval": null,
+      "confidence_interval_reason": "No qualified independent trained-model comparison; dependent synthetic runs are not independent alignment samples.",
+      "experiment": "B",
+      "observed_scope": "Scripted uncertainty behavior and original structured CVA joins exercised. No before/after trained candidate.",
+      "source": "docs/experiments/phase2_pr7_manifest.json",
+      "status": "TRAINED_COMPARISON_NOT_RUN",
+      "title": "Graceful noncompletion"
+    },
+    {
+      "confidence_interval": null,
+      "confidence_interval_reason": "No qualified independent trained-model comparison; dependent synthetic runs are not independent alignment samples.",
+      "experiment": "C",
+      "observed_scope": "Seed 17: six components, 24 frozen hypotheses; all 24 falsified in the retained probe.",
+      "source": "docs/experiments/phase2_pr4_manifest.json",
+      "status": "OBSERVED_RANDOM_MODELS",
+      "title": "Native discovery"
+    },
+    {
+      "confidence_interval": null,
+      "confidence_interval_reason": "No qualified independent trained-model comparison; dependent synthetic runs are not independent alignment samples.",
+      "experiment": "D",
+      "observed_scope": "Seed 53: eight dependent studies, 76 conditions, 684 actual output rows, KL/NLL and matched controls.",
+      "source": "docs/experiments/phase2_pr5_manifest.json",
+      "status": "OBSERVED_RANDOM_MODELS",
+      "title": "Simulation fidelity"
+    },
+    {
+      "confidence_interval": null,
+      "confidence_interval_reason": "No qualified independent trained-model comparison; dependent synthetic runs are not independent alignment samples.",
+      "experiment": "E",
+      "observed_scope": "Seed 71: 17 runs, 139 conditions, 6672 logit values; constructed/null predictions retained. No semantic mechanism established.",
+      "source": "docs/experiments/phase2_pr6_manifest.json",
+      "status": "OBSERVED_RANDOM_MODELS",
+      "title": "Causal validity"
+    },
+    {
+      "confidence_interval": null,
+      "confidence_interval_reason": "No qualified independent trained-model comparison; dependent synthetic runs are not independent alignment samples.",
+      "experiment": "F",
+      "observed_scope": "Scripted constant uncertainty and tiny diagnostic-copy equality checks only; trained and intervention-informed candidates unrun.",
+      "source": "docs/experiments/phase2_pr7_manifest.json",
+      "status": "TRAINED_COMPARISON_NOT_RUN",
+      "title": "Behavioral versus mechanistic improvement"
+    },
+    {
+      "confidence_interval": null,
+      "confidence_interval_reason": "No qualified independent trained-model comparison; dependent synthetic runs are not independent alignment samples.",
+      "experiment": "G",
+      "observed_scope": "GPT-2/Llama, signed regimes, paraphrase/task fixtures. Six dependent comparison studies; 22 measured and two unavailable arms. No trained OOD reliability or method superiority.",
+      "source": "docs/experiments/phase2_pr8_manifest.json",
+      "status": "PARTIAL_RANDOM_MODEL_SOFTWARE",
+      "title": "Generalization and method comparison"
+    },
+    {
+      "confidence_interval": null,
+      "confidence_interval_reason": "No qualified independent trained-model comparison; dependent synthetic runs are not independent alignment samples.",
+      "experiment": "H",
+      "observed_scope": "Nine exact reconstructions; original sources retained; serialized checkpoints only.",
+      "source": "docs/experiments/phase2_pr9_resource_probe.json.gz",
+      "status": "OBSERVED_FINITE_FIXTURES",
+      "title": "Resource tradeoffs"
+    }
+  ],
+  "final_diagnostic_wording_correction": {
+    "affected_tests_passed": 20,
+    "evidence_levels_unchanged": true,
+    "probe": "phase2_final_pr7_probe.json.gz",
+    "seconds": 3.47
+  },
+  "final_software_regression": {
+    "exit_code": 0,
+    "passed": 7339,
+    "seconds": 580.66,
+    "skipped": 11,
+    "source": "phase2_completion_pytest.log",
+    "subtests": 162,
+    "warnings": 18
+  },
+  "initial_software_regression": {
+    "exit_code": 0,
+    "passed": 7313,
+    "seconds": 571.8,
+    "skipped": 11,
+    "source": "phase2_pr9_pytest.log",
+    "subtests": 162,
+    "warnings": 18
+  },
+  "maturity": "experimental",
+  "nulls_and_falsifications": "RETAINED_IN_ORIGINAL_SOURCES",
+  "optimizer_input": false,
+  "pre_final_wording_software_regression": {
+    "exit_code": 0,
+    "passed": 7338,
+    "seconds": 585.42,
+    "skipped": 11,
+    "source": "phase2_prefix_reviewed_pytest.log",
+    "subtests": 162,
+    "warnings": 18
+  },
+  "pre_predictive_wording_software_regression": {
+    "exit_code": 0,
+    "passed": 7338,
+    "seconds": 586.24,
+    "skipped": 11,
+    "source": "phase2_final_pytest.log",
+    "subtests": 162,
+    "warnings": 18
+  },
+  "pre_review_fix_software_regression": {
+    "exit_code": 0,
+    "passed": 7335,
+    "seconds": 575.83,
+    "skipped": 11,
+    "source": "phase2_prefix_pytest.log",
+    "subtests": 162,
+    "warnings": 18
+  },
+  "promotion": "NOT_AUTHORIZED",
+  "publication_merged_through_stage_at_report_time": 5,
+  "publication_provenance": "docs/phase2_publication.md",
+  "publication_prs": [
+    "https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/pull/831",
+    "https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/pull/832",
+    "https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/pull/833",
+    "https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/pull/834",
+    "https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/pull/835",
+    "https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/pull/836",
+    "https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/pull/837",
+    "https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/pull/838",
+    "https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/pull/839",
+    "https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/pull/840"
+  ],
+  "publication_round_one_software_regression": {
+    "exit_code": 0,
+    "passed": 7326,
+    "seconds": 576.47,
+    "skipped": 11,
+    "source": "phase2_publication_pytest.log",
+    "subtests": 162,
+    "warnings": 18
+  },
+  "publication_status": "STAGED_DELIVERY_PR_831_THROUGH_840; consult PR timelines for current state",
+  "schema_version": "phase2-integrated-research-v1",
+  "source_audit": "phase2_pr9_historical_audit.json.gz",
+  "trained_model_capability_regression": "NOT_RUN",
+  "training_eligibility": "DEVELOPMENT"
+}

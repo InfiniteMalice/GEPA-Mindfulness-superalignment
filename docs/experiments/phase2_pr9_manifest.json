@@ -1,0 +1,72 @@
+{
+  "alignment_improvement": "NOT_ESTABLISHED",
+  "authority_granted": false,
+  "base_commit": "c92ba24040598a1918168161b7e53f7021d5b04d",
+  "diagnostic_status": "diagnostic",
+  "focused_suite": {
+    "passed": 34,
+    "seconds": 7.72
+  },
+  "full_suite": {
+    "exit_code": 0,
+    "passed": 7313,
+    "seconds": 571.8,
+    "skipped": 11,
+    "source": "phase2_pr9_pytest.log",
+    "subtests": 162,
+    "warnings": 18
+  },
+  "historical_audit": {
+    "stages": 9,
+    "verified_files": 112
+  },
+  "junit_uncompressed_sha256": "df1dc2877f90b47c4e29001918db97bf31fbe91896fb989f0ae69417a5560400",
+  "maturity": "experimental",
+  "model_experiments": "NOT_RUN",
+  "optimizer_input": false,
+  "publication": "PR0_DRAFT_CANCELLED_ACTION_PENDING; stages1-9 local",
+  "resource_trial": {
+    "compact_checkpoint_bytes": 4365,
+    "fixtures": 9,
+    "full_checkpoint_bytes": 79294,
+    "mathematical_theorem_claim": false,
+    "original_sources_recomputed": 9,
+    "peak_memory_measured": false,
+    "source_hashes_preserved": true,
+    "verification_fidelity": true
+  },
+  "review": {
+    "critical": 0,
+    "deferred_minor": 0,
+    "fixed_red_green": 2,
+    "important": 2
+  },
+  "schema_version": "phase2-pr9-artifacts-v1",
+  "sha256": {
+    "configs/phase2_source_pins.json": "c9a3b400308704788f464f0f3f109222051f46c5e670af861c999ab432046dba",
+    "docs/README.md": "decbf433d4cac74e6155a16a8ab29abcd920d404f68fcccace4a26b0bfed8977",
+    "docs/experiments/phase2_file_inventory.txt": "dba82dea84dc77ea108bf99f3b81454732495175dc405e5068acad146c175c60",
+    "docs/experiments/phase2_integrated_results.json": "9e68646001b4499cc5257612f4feaf823e5dd65a39299d1dc3fd383862586e9c",
+    "docs/experiments/phase2_pr9_checks.log.gz": "91fd89ad3af5ab577ecd795f4990c65dfc84fdc7ff478279aee2b1b999b4414f",
+    "docs/experiments/phase2_pr9_historical_audit.json.gz": "3790b33f07fbb02341c4819a98dbbb34551d156c600e66f8e5d073a318eda8e7",
+    "docs/experiments/phase2_pr9_pytest.log": "430d509b0015e215197b650acb0bde7a2ca5d457c863a9f2b8cd61dd0c10d116",
+    "docs/experiments/phase2_pr9_pytest.xml.gz": "945bbe73f9effe69f43de43c6226af15207b13a42364385264171ad5b879786c",
+    "docs/experiments/phase2_pr9_resource_probe.json.gz": "04d0bffdccd4d23df8e6c468f49e6b8b94edbc667870a45ffe61e6d69ebf1184",
+    "docs/experiments/phase2_pr9_resource_probe.py": "68c2b421bf28bf8eb908810eabb0e67d50ca862db8f4a4787f1c8d43bdbc2b5e",
+    "docs/experiments/phase2_pr9_resource_sources.json.gz": "4c739d68a2d1b0b4c0bb1fca5810bca013054ad0008ec09454d26ec30d23dff8",
+    "docs/experiments/phase2_pr9_validation.md": "4af5e38680b5249ceeb6acec69a80d1b2b300c7b8522e90fd5963570141635b4",
+    "docs/experiments/phase2_results.md": "9e8b2bb7e797465c295013e3fd5de0c531d0a28b29f8203f9193a4926945667e",
+    "docs/phase2_delivery.md": "49315214657a1d4c4e1647c7a770ff86a741c9a2bbff906a8c27b4c7f95a78c9",
+    "docs/research_reproducibility.md": "24427b6a994615d0c5be869b93be8d1d7fbc7689a4373b114fc615d47a47e1ad",
+    "evaluation/phase2_reporting.py": "40c136dff99a53efe9eb9b5c02421f1f03d37515196bf52540f526edf08c9881",
+    "evaluation/phase2_reproducibility.py": "4148330d66f8a2421908ff874b08267a68bc2554b543c8dbc011d44ae2bcf94f",
+    "gepa_mindfulness/verification/research_archive.py": "1ec22d3d76f8deb2955178cc1bccdf74f79148be5bad724c1334a98c69c6baab",
+    "history/2026-11-06-phase2-reporting-design.md": "a9d0288943ab767a4bb3f5d2a79bd1a43ec75d56e5ab605f4b89583ea158f91c",
+    "pyproject.toml": "543de8018ddcc3d1bb3fcfc3ecbf49d5d6a27c6b2634cc66ba7b2ab82bb8990d",
+    "tests/test_controlled_evolution_package.py": "9db6a525f589553b297cac8630d919d2a374ab1062cb24dab9ae582f07ad6a1a",
+    "tests/test_phase2_reporting.py": "d20e34fe6d7c9e651ebda6674041f4fcdde9988eb8c1a7506881bf481e11d31a",
+    "tests/test_phase2_reproducibility.py": "434eabb43996a27ca8cbc627c549cac40c8f0f19dca0213aaaff345c59356a41",
+    "tests/test_research_archive.py": "d2d523cb9edcdfb64d53356543b168aa9b984cb6a017551841b226461b070fa2"
+  },
+  "training_eligibility": "DEVELOPMENT"
+}

@@ -1,0 +1,59 @@
+{
+  "alignment_improvement": "NOT_ESTABLISHED",
+  "authority_granted": false,
+  "comparison": {
+    "arms": {
+      "MEASURED": 22,
+      "UNAVAILABLE": 2
+    },
+    "causal_predictions": {
+      "FALSIFIED": 41,
+      "MET": 19,
+      "NOT_SPECIFIC": 6
+    },
+    "output_rows": 1104,
+    "prediction_criteria": {
+      "FALSIFIED": 8,
+      "MET": 14
+    },
+    "studies": 6
+  },
+  "dataset_revision": "causal-prefix-disjoint-v2",
+  "diagnostic_status": "diagnostic",
+  "discovery": {
+    "components": 6,
+    "outcomes": {
+      "PREDICTIONS_FALSIFIED": 23,
+      "PREREGISTERED_CRITERION_MET": 1
+    }
+  },
+  "legacy_probe_qualification": "UNQUALIFIED_FOR_CAUSAL_PREFIX_HELD_OUT_CLAIMS",
+  "limits": [
+    "Random tiny networks and artificial tokens; no trained semantic or alignment claim.",
+    "Dependent examples/conditions; no qualified alignment confidence interval.",
+    "Numeric criterion satisfaction does not establish semantic explanation or causal validity.",
+    "Original measurements remain retained at their original source pins."
+  ],
+  "maturity": "experimental",
+  "optimizer_input": false,
+  "schema_version": "phase2-prefix-qualification-results-v1",
+  "simulation": {
+    "conditions": {
+      "MEASURED": 76,
+      "UNAVAILABLE": 4
+    },
+    "kl_range": [
+      0.0,
+      1.3813412867027179e-05
+    ],
+    "measured_output_rows": 684,
+    "studies": 8
+  },
+  "sources": {
+    "docs/experiments/phase2_prefix_pr4_probe.json.gz": "14a4523de330db5a54976fb1914f672baf2f2904bbb405c84cbac4122a8a4671",
+    "docs/experiments/phase2_prefix_pr5_probe.json.gz": "4d5e9e0f92be75cd190a09bfaa6e77ce269c7ec554ae9ea1f13d79d3bfb6e934",
+    "docs/experiments/phase2_prefix_pr7_probe.json.gz": "532c4c0a23f490d1bca23a2b76c923a410525111f8c6b573586962a6e376e51f",
+    "docs/experiments/phase2_prefix_pr8_probe.json.gz": "0a02d31557c815b72844275155f243e669e92ae78eedef89d192e1968b088439"
+  },
+  "training_eligibility": "DEVELOPMENT"
+}
