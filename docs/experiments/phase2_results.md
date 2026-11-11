@@ -1,6 +1,6 @@
 # Phase 2 integrated results
 
-This report retains the initial implementation measurements. The [publication correction validation](phase2_publication_validation.md) records the latest 7,326-test software gate and unchanged comparison outputs; the [published provenance](../phase2_publication.md) links current delivery and preserved historical sources.
+The measurements below describe the original pinned implementation snapshots. The current completion gate records 7,339 passing tests. Historical whole-sequence split results remain unqualified for causal-prefix held-out claims. [Completion validation](phase2_completion_validation.md), [published provenance](../phase2_publication.md).
 
 Maturity: **Experimental** software, **Diagnostic** observations, **Unqualified** alignment claims.
 

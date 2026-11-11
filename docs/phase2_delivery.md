@@ -10,7 +10,7 @@ reference, not evidence that all proposed empirical research has run.
 |---|---|
 | Architecture and trust boundaries | [ADR 0026](adr/0026-cva-causal-interpretability.md), [CVA](constraint_verified_alignment.md), [causal evidence](causal_mechanistic_evidence.md), [source custody](research_reproducibility.md) |
 | Exact constitutional diff | [Insertion-only diff](experiments/phase2_constitution.diff), [PR 1 validation](experiments/phase2_pr1_validation.md) |
-| File inventory | [Baseline-to-phase-2 inventory](experiments/phase2_file_inventory.txt); stage 9 inventory is finalized with its validation manifest |
+| File inventory | [Complete delivered inventory](experiments/phase2_completion_inventory.txt), with historical stage inventories retained |
 | Typed APIs | CVA guide; [native discovery](mechanistic_research.md), [simulation](activation_simulation.md), causal guide, [alignment studies](alignment_mechanistic_studies.md), [comparisons](comparative_interpretation.md), source-custody guide |
 | Reproducible finite benchmarks | `synthetic_data/cva_fixtures.py`, `evaluation/cva_benchmark.py`, [fixture results](experiments/phase2_pr3_fixtures.json) |
 | Interpretability protocol | Observe → Hypothesize → Predict → Intervene → Measure → Replicate → Revise; native/causal guides, distinct generation/development/locked data, frozen predictions and host registration |
@@ -25,7 +25,7 @@ reference, not evidence that all proposed empirical research has run.
 
 The phase is published through independently reviewable PRs [#831–#840](https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/pulls). PR 0 is merged; the implementation PRs are ready for review and are merged in dependency order after current-head checks and review feedback are clear. Consult their timelines for live merge status.
 
-The [published source provenance](phase2_publication.md) distinguishes the original audited commits, initial connector mirrors and subsequent reviewed corrections. It also explains importing the original-history bundle for pinned historical audits. Original validation snapshots are retained; their draft/local status statements describe the time those snapshots were recorded. The latest corrected software gate is [7,326 passing tests](experiments/phase2_publication_validation.md), with trained-model efficacy explicitly unrun.
+The [published source provenance](phase2_publication.md) distinguishes the original audited commits, initial connector mirrors and subsequent reviewed corrections. It also explains importing the original-history bundle for pinned historical audits. Original validation snapshots are retained; their draft/local status statements describe the time those snapshots were recorded. The completion gate records 7,339 passing tests. Trained-model comparisons remain unrun. [Completion validation](experiments/phase2_completion_validation.md).
 
 | Stage / local branch suffix | Proposed PR description | Migration |
 |---|---|---|
@@ -33,7 +33,7 @@ The [published source provenance](phase2_publication.md) distinguishes the origi
 | 1 `graceful-failure` | Teach legitimate noncompletion in Section 17; extend examples/questions and final principle while preserving all original prose and 21 numbered sections. | Constitution prose only. |
 | 2 `cva-contracts` | Add default-off typed constraints, witnessed candidate success, separately scoped finite infeasibility and evidence-limited noncompletion under host authority. | New APIs, no legacy format changes. |
 | 3 `graceful-benchmark` | Add nine offline finite white-hat fixtures and original-source CVA checks as a V5 overlay. | Optional overlay; 17 canonical cases unchanged. |
-| 4 `native-neurons` | Capture architecture-specific signed native measurements and test frozen explanations on held-out examples. | Optional exact GPT-2/Llama CPU adapter; unsupported backends fail. |
+| 4 `native-neurons` | Capture architecture-specific signed native measurements and test frozen explanations on held-out examples. | Optional GPT-2/Llama adapter. Legacy v1 references remain readable. Qualified evaluation requires rebuilt v2 prefix references. |
 | 5 `activation-simulation` | Substitute causal-prefix predictions at verified hooks and compute actual KL/NLL with matched controls. | Copied frozen models only; no inference or reward default changes. |
 | 6 `causal-circuits` | Add actual patch/ablation/path/restoration experiments, predicted effects, host replay verification and uncertain edge evidence. | Diagnostic overlays; existing graphs and authority owners preserved. |
 | 7 `alignment-studies` | Capture behavior before instrumentation and bind original structured CVA responses across alignment-specific matched studies. | Optional research fixtures; trained conditions explicitly unrun. |
@@ -70,18 +70,14 @@ SAT/SMT proof formats, unlisted architectures and trained feature dictionaries a
 integrations, not silently successful backends.
 
 
-Publication qualification migration: native example references now use v2 visible-prefix metadata.
-Legacy records retain exact readable wire formats; rebuild references and freeze a new protocol
-for qualified held-out execution. The original bundled experiments remain historical diagnostics,
-unqualified for causal-prefix isolation. New synthetic probe records and their limits are recorded
-separately. Stages 0–3 are merged; later PR status is tracked by the linked PR timelines.
+## Qualification migration and current validation
 
-Latest qualification gate: [7,335-test report and corrected probes](experiments/phase2_prefix_validation.md).
+Native example references use v2 visible-prefix metadata. Legacy v1 records retain their exact
+readable wire representations. Rebuild references and freeze a new protocol for qualified
+held-out execution. The original whole-sequence experiments retain their historical status and
+are unqualified for causal-prefix isolation. The versioned corrected probes and reports document
+the new protocols and their limits. PR timelines record merge status.
 
-Final reviewed software gate: [7,338-test validation and preserved evidence](experiments/phase2_prefix_reviewed_validation.md).
-
-Final publication evidence: [7,338-test gate and final review correction](experiments/phase2_final_validation.md).
-PR timelines establish merge status after this report was generated.
-
-The [completion validation](experiments/phase2_completion_validation.md) records the 7,339-test
-gate, predictive-evidence correction and final provenance annotations. PR timelines record merges.
+The completion validation records the full 7,339-test gate, predictive-evidence correction and
+final provenance annotations. It links retained failures, original measurements and preceding
+qualification reports. [Completion validation](experiments/phase2_completion_validation.md).
