@@ -346,7 +346,7 @@ def test_serialized_level_and_stale_write_scope_cannot_grant_admission() -> None
         admit_mechanistic_finding(after, second, context=context(native), enabled=True, **stale)
 
 
-def prediction_fixture():
+def prediction_fixture(*, falsified=False):
     from gepa_mindfulness.interpret.explanation_tests import (
         ExampleRef,
         ExplanationHypothesis,
@@ -399,6 +399,8 @@ def prediction_fixture():
         ridge=1e-6,
         enabled=True,
     )
+    if falsified:
+        predictor = replace(predictor, bias=100.0)
     hypothesis = ExplanationHypothesis(
         "constructed-lookup",
         "Constructed token-to-MLP relation.",
@@ -446,3 +448,15 @@ def test_nonspecific_replay_keeps_explicit_unresolved_reasons() -> None:
     assert finding.level is EvidenceLevel.UNRESOLVED
     assert any("specific" in reason for reason in finding.remaining_uncertainty)
     assert not any("are supported" in reason for reason in finding.remaining_uncertainty)
+
+
+def test_falsified_activation_prediction_has_a_falsification_reason() -> None:
+    """Independent predictive replay never describes a failed criterion as supported."""
+    from gepa_mindfulness.interpret.mechanistic_evidence import verify_predictive_run
+
+    native, report = prediction_fixture(falsified=True)
+    assert report["prediction_result"] == "PREDICTIONS_FALSIFIED"
+    finding = verify_predictive_run(report, context=context(native), enabled=True)
+    assert finding.level is EvidenceLevel.CONTRADICTED
+    assert any("falsified" in reason for reason in finding.remaining_uncertainty)
+    assert not any("is supported" in reason for reason in finding.remaining_uncertainty)
