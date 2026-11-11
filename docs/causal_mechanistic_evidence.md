@@ -128,9 +128,11 @@ measurement store needs a separate reviewed design and regression evaluation.
 A nonspecific independently replayed result remains `UNRESOLVED`; successful replay does not
 establish specificity against controls. Contradicted predictions receive an explicit falsification
 reason; replay alone cannot make them supported. Historical `base_commit` fields identify the
-predecessor, not the tested revision. The [snapshot index](experiments/phase2_manifest_snapshots.json)
+predecessor, not the tested revision. The [snapshot index](https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/blob/b5d888b24227e8358d244e33ce2faa9fd32d5b4c/docs/experiments/phase2_manifest_snapshots.json)
 identifies the tested full revisions: stage 6 is `5fe5453122bfbe11ee1a303af207f3be001076e3`.
 Current reviewed hashes are separate from these retained historical snapshots. See the final-stage
-publication provenance guide and original-history bundle. Artifact checksums identify retained bytes. Numerical reproduction need not reproduce a
+[publication provenance guide](https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/blob/b5d888b24227e8358d244e33ce2faa9fd32d5b4c/docs/phase2_publication.md)
+and [original-history bundle](https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/blob/b5d888b24227e8358d244e33ce2faa9fd32d5b4c/docs/experiments/phase2_original_stages.bundle).
+Artifact checksums identify retained bytes. Numerical reproduction need not reproduce a
 wall-clock timestamp, runtime version or measured timing cost byte for byte; preserve those actual
 values instead of assigning a historical clock to new measurements.

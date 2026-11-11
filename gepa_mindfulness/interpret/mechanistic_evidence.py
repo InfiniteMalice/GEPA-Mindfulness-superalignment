@@ -547,7 +547,11 @@ def verify_predictive_run(
                 else EvidenceLevel.CONTRADICTED
             )
             reasons = [
-                "Only the declared numeric activation-prediction criterion is supported.",
+                (
+                    "The declared numeric activation-prediction criterion was falsified."
+                    if level is EvidenceLevel.CONTRADICTED
+                    else "Only the declared numeric activation-prediction criterion is supported."
+                ),
                 "No causal, semantic, baseline-superiority or alignment claim is established.",
                 "Retrospective offset explanations are not necessarily causal-prefix predictors.",
             ]
