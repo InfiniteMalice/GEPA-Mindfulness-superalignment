@@ -138,4 +138,4 @@ separate claims. Sources and normative boundaries remain those in
 the [primary-source audit](phase2_research_sources.md).
 
 Historical stage manifests are bound to the source revisions in
-`experiments/phase2_manifest_snapshots.json`; their original hashes are preserved.
+[the repository snapshot index](https://github.com/InfiniteMalice/GEPA-Mindfulness-superalignment/blob/b5d888b24227e8358d244e33ce2faa9fd32d5b4c/docs/experiments/phase2_manifest_snapshots.json); their original hashes are preserved.

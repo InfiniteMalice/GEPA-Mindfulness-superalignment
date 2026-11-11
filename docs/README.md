@@ -43,6 +43,8 @@ is the project orientation; detailed semantics live here and in subsystem README
   measurement, isolated hypothesis generation and locked activation prediction; diagnostic only.
 - [Activation simulation](activation_simulation.md): exact substitutions, real downstream KL/NLL,
   preregistered controls and frozen-model distribution evidence; diagnostic only.
+- [Causal mechanistic evidence](causal_mechanistic_evidence.md): actual patching, ablation, path
+  tests and independent replay with protected diagnostic registration and scoped graph annotations.
 - [Evidence and memory integration](evidence_memory.md): qualitative numeric eligibility,
   memory kind/influence and preservation of source boundaries through summary views.
 - [PEO evidence continuity](peo_continuity.md): prospective evidence use, executed-action
