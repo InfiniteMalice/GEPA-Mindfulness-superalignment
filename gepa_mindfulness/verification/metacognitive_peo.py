@@ -313,6 +313,7 @@ class RecordedEpisodeReport:
                 "repetition",
                 "evidence_use",
                 "calibration",
+                "calibration_coverage",
                 "strategy_observations",
                 "label_evaluator",
                 "failure_graph",
@@ -369,6 +370,9 @@ def _outcomes(episode: RecordedEpisode, threshold: float | None):
     positions = {e.event_id: i for i, e in enumerate(episode.events)}
     refs = {r.reference_id: r for r in s.evidence_refs}
     findings, rows, strategy_rows = [], [], []
+    coverage = dict(
+        bound_outcomes=len(episode.outcome_bindings), verified_labels=0, scored_confidences=0
+    )
     keys = set()
     for binding in episode.outcome_bindings:
         key = (binding.prediction_event_id, binding.action_id)
@@ -386,11 +390,17 @@ def _outcomes(episode: RecordedEpisode, threshold: float | None):
             ),
             None,
         )
-        if (
-            execution
-            and execution.payload["prediction_commit_id"]
-            != prediction.payload["prediction_commit_id"]
-        ):
+        proposal = next(
+            (
+                e
+                for e in episode.events
+                if e.event_type == "action_proposed" and e.action_id == binding.action_id
+            ),
+            None,
+        )
+        if proposal is None:
+            raise ValueError("outcome binding requires a recorded action proposal")
+        if proposal.payload["prediction_commit_id"] != prediction.payload["prediction_commit_id"]:
             raise ValueError("strategy execution must use the named original prediction")
         observation = (
             by_id.get(binding.observation_event_id) if binding.observation_event_id else None
@@ -461,6 +471,8 @@ def _outcomes(episode: RecordedEpisode, threshold: float | None):
             )
         confidence = prediction.payload["confidence"]
         if labels_verified and "correct" in data:
+            coverage["verified_labels"] += 1
+            coverage["scored_confidences"] += int(confidence is not None)
             rows.append(
                 EvalResult(
                     binding.action_id,
@@ -521,7 +533,7 @@ def _outcomes(episode: RecordedEpisode, threshold: float | None):
                         next_step="request_evidence",
                     )
                 )
-    return findings, rows, strategy_rows
+    return findings, rows, strategy_rows, coverage
 
 
 def monitor_recorded_episode(
@@ -554,6 +566,7 @@ def monitor_recorded_episode(
         repetition=None,
         evidence_use=None,
         calibration=None,
+        calibration_coverage=None,
         strategy_observations=[],
         failure_graph=episode.failure_graph.to_dict() if episode.failure_graph else None,
         label_evaluator=(
@@ -637,11 +650,12 @@ def monitor_recorded_episode(
         else:
             diagnostics["repetition"] = {"entries": []}
         assessed.append("repetition")
-    outcome_findings, rows, strategy_rows = _outcomes(episode, threshold)
+    outcome_findings, rows, strategy_rows, coverage = _outcomes(episode, threshold)
     findings.extend(outcome_findings)
     diagnostics["calibration"] = summarize_calibration(rows) if rows else None
+    diagnostics["calibration_coverage"] = coverage
     diagnostics["strategy_observations"] = strategy_rows
-    if rows and all(row.confidence is not None for row in rows):
+    if rows and coverage["scored_confidences"] == coverage["bound_outcomes"]:
         assessed.append("calibration")
     if strategy_rows and all(row["verified_progress"] is not None for row in strategy_rows):
         assessed.append("strategy")

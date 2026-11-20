@@ -188,6 +188,59 @@ def test_calibration_requires_a_bound_verified_outcome() -> None:
     assert "calibration" not in result.assessment.unassessed_domains
 
 
+def test_partial_outcome_labels_do_not_claim_full_calibration_coverage() -> None:
+    """Unscored pending actions remain in the calibration denominator."""
+    events = sequence()[:5]
+    payload = events[3].to_dict()["payload"]
+    payload["actual_outcome"]["correct"] = True
+    events[3] = replace(events[3], payload=payload)
+    prediction = replace(
+        events[0],
+        event_id="pending-p",
+        timestamp="2026-09-30T12:00:05Z",
+        payload=events[0].to_dict()["payload"] | {"prediction_commit_id": "pending-prediction"},
+    )
+    proposed = replace(
+        events[1],
+        event_id="pending-a",
+        action_id="pending-action",
+        timestamp="2026-09-30T12:00:06Z",
+        parent_event_ids=("pending-p",),
+        payload=events[1].to_dict()["payload"]
+        | {"action_id": "pending-action", "prediction_commit_id": "pending-prediction"},
+    )
+    episode = captured(
+        events + [prediction, proposed],
+        posterior=False,
+        bindings=(
+            OutcomeBinding("p", "action", "o", "v"),
+            OutcomeBinding("pending-p", "pending-action", None, None),
+        ),
+    )
+    report = monitor_recorded_episode(episode, enabled=True)
+    assert "calibration" in report.assessment.unassessed_domains
+    coverage = report.to_dict()["diagnostics"]["calibration_coverage"]
+    assert coverage == {"bound_outcomes": 2, "verified_labels": 1, "scored_confidences": 1}
+
+
+def test_pending_action_cannot_claim_strategy_from_unrelated_prediction() -> None:
+    """Proposal identity matters before any execution has occurred."""
+    events = sequence()[:2]
+    payload = events[0].to_dict()["payload"]
+    payload["prediction_commit_id"] = "unrelated-prediction"
+    payload["predicted_outcome"]["strategy_id"] = "evidence_verification"
+    unrelated = replace(
+        events[0], event_id="unrelated", timestamp="2026-09-30T12:00:02Z", payload=payload
+    )
+    episode = captured(
+        events + [unrelated],
+        posterior=False,
+        bindings=(OutcomeBinding("unrelated", "action", None, None, "evidence_verification"),),
+    )
+    with pytest.raises(ValueError, match="original prediction"):
+        monitor_recorded_episode(episode, enabled=True)
+
+
 def test_unverified_accuracy_is_unavailable_and_false_verification_is_flagged() -> None:
     """An actor's verification claim cannot replace a separate bound verifier record."""
     events = sequence()[:4]
