@@ -125,10 +125,11 @@ def test_future_suffix_is_not_read_or_used() -> None:
 
 def test_future_verification_binding_is_rejected() -> None:
     """A later verifier cannot certify a proposal made at an earlier cutoff."""
-    episode = captured(sequence()[:1], posterior=False)
     binding = OutcomeBinding("p", "action", "o", "v")
-    with pytest.raises(ValueError):
-        monitor_recorded_episode(replace(episode, outcome_bindings=(binding,)), enabled=True)
+    episode = captured(sequence()[:2], posterior=False, bindings=(binding,))
+    episode = replace(episode, events=episode.events + tuple(sequence()[2:]))
+    with pytest.raises(ValueError, match="outcome must belong"):
+        monitor_recorded_episode(episode, enabled=True)
 
 
 def test_source_snapshot_cannot_be_replaced_with_hindsight() -> None:
@@ -433,6 +434,53 @@ def test_future_evidence_quality_cannot_influence_an_earlier_cutoff() -> None:
             original.events, evidence_state=future_use.state, evidence_use=(future_use,)
         )
         monitor_recorded_episode(episode, enabled=True)
+
+
+def test_archive_growth_after_cutoff_never_changes_a_replay() -> None:
+    """Only the bounded inspected prefix affects eligibility, regardless of archive size."""
+    episode = captured(sequence()[:1], posterior=False)
+    grown = replace(episode, events=episode.events + (object(),) * 10_001)
+    assert monitor_recorded_episode(grown, enabled=True) == monitor_recorded_episode(
+        episode, enabled=True
+    )
+
+
+def test_evidence_freshness_is_reassessed_at_cutoff_without_rewriting_history() -> None:
+    """A historically fresh measurement can become stale at the diagnostic decision."""
+    from test_peo_continuity import request
+
+    original = request()
+    use = replace(
+        original.evidence_use, policy=replace(original.evidence_use.policy, max_age_seconds=2)
+    )
+    assert use.limitations == ()
+    episode = captured(original.events, evidence_state=use.state, evidence_use=(use,))
+    report = monitor_recorded_episode(episode, enabled=True)
+    assert FindingKind.INSUFFICIENT_EVIDENCE in {f.kind for f in report.assessment.findings}
+    diagnostics = report.to_dict()["diagnostics"]
+    assert diagnostics["evidence_use"][0]["assessed_at"] == use.assessed_at
+    assert diagnostics["evidence_use_at_cutoff"][0]["STATUS"] == "stale"
+
+
+def test_multiple_evidence_use_assessments_keep_distinct_findings_and_originals() -> None:
+    """Different host quality declarations about one claim must not crash the report."""
+    from test_peo_continuity import request
+
+    original = request()
+    first = replace(
+        original.evidence_use,
+        quality=replace(original.evidence_use.quality, source_reliability=None),
+    )
+    second = replace(first, quality=replace(first.quality, source_reliability=0.1))
+    report = monitor_recorded_episode(
+        captured(original.events, evidence_state=first.state, evidence_use=(first, second)),
+        enabled=True,
+    )
+    assert len(report.to_dict()["diagnostics"]["evidence_use"]) == 2
+    warnings = [
+        f for f in report.assessment.findings if f.kind is FindingKind.INSUFFICIENT_EVIDENCE
+    ]
+    assert len(warnings) == 2 and len({f.finding_id for f in warnings}) == 2
 
 
 def test_specialized_findings_share_the_bounded_partial_view(sources) -> None:

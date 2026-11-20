@@ -12,6 +12,8 @@ the exact diagnostic inputs at the decision cutoff, then protects the returned e
 bytes in its append-only trace. The helper proposes a record; it does not write or authenticate a
 trace. The optional `metacognitive_source_snapshot` event uses the existing immutable research
 envelope requirements and binds run, case, stripe, repeat, seed and system versions.
+Hosts must record earlier events under one nonblank `trace_id`, with consistent conversation
+and rollout IDs, before capture. A valid PEO sequence alone does not establish that trace scope.
 
 Three digests bind the original source snapshot, earlier event bytes, and diagnostic inputs
 (outcome bindings, continuity requests, loop steps, evidence-use records and failure graph).
@@ -19,6 +21,9 @@ The adapter rejects edited sources, rewritten events, omitted bindings, forward 
 nonchronological prefixes, mismatched evaluation coordinates and future evidence-quality records.
 It reads only through the cutoff; even an unreadable later suffix is ignored. Source event IDs
 must name the exact captured prefix. At most 1,024 events are inspected.
+Archive growth after the cutoff does not affect replay. Original evidence-use assessments remain
+in the report alongside separate cutoff-time freshness assessments. Calibration coverage counts
+all bound outcomes and keeps the domain partial when any label or confidence is unavailable.
 
 Digests establish byte integrity against a host-protected capture. They do not authenticate an
 actor-controlled replacement of both data and digests. The host must protect capture ownership,

@@ -100,8 +100,8 @@ def bind_source_snapshot(
 
 def _prefix(inputs: MonitoringInput, events: object, cutoff: str) -> tuple[EventEnvelope, ...]:
     """Read and detach only the prefix; never inspect payloads after the cutoff."""
-    if type(events) is not tuple or not 1 <= len(events) <= 10_000:
-        raise ValueError("recorded events require a bounded exact tuple")
+    if type(events) is not tuple or not events:
+        raise ValueError("recorded events require a nonempty exact tuple")
     prefix = []
     for event in events:
         if type(event) is not EventEnvelope:
@@ -312,6 +312,7 @@ class RecordedEpisodeReport:
                 "continuity",
                 "repetition",
                 "evidence_use",
+                "evidence_use_at_cutoff",
                 "calibration",
                 "calibration_coverage",
                 "strategy_observations",
@@ -565,6 +566,7 @@ def monitor_recorded_episode(
         continuity=None,
         repetition=None,
         evidence_use=None,
+        evidence_use_at_cutoff=None,
         calibration=None,
         calibration_coverage=None,
         strategy_observations=[],
@@ -583,14 +585,16 @@ def monitor_recorded_episode(
     if episode.evidence_use is not None:
         uses = [_use_matches(use, s) for use in episode.evidence_use]
         diagnostics["evidence_use"] = [use.to_dict() for use in uses]
+        current_uses = [replace(use, assessed_at=episode.events[-1].timestamp) for use in uses]
+        diagnostics["evidence_use_at_cutoff"] = [use.to_dict() for use in current_uses]
         assessed.append("evidence_use")
-        for use in uses:
+        for index, use in enumerate(current_uses):
             if use.limitations:
                 findings.append(
                     _finding(
                         s,
                         FindingKind.INSUFFICIENT_EVIDENCE,
-                        f"evidence-use:{use.claim_id}",
+                        f"evidence-use:{use.claim_id}:{index}:{content_digest(uses[index].to_dict())}",
                         claims=(use.claim_id,),
                         evidence=use.claim.evidence_refs,
                         next_step="request_evidence",
