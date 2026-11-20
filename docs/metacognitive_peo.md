@@ -59,10 +59,19 @@ separate. A verified observation need not show progress. Unverified success clai
 
 An observed JSON `correct` or `progress` label is not independent verification by itself. Using
 those labels requires a separate host-owned `TrustedEvaluatorContract` with contract ID
-`metacognitive-observed-labels-v1` and matching verifier identity/version. This policy input must
+`metacognitive-observed-labels-v1` and explicit host-owned `label_verification_event_ids` binding
+that evaluator contract to the original prefix verification records. Result IDs remain unique
+and are separate from the stable evaluator identity/version, so multiple observations from one
+evaluator can be scored. An actor-supplied evaluator name does not enroll a result. These policy
+and record bindings must
 not be enrolled from model output or an untrusted episode file. It is a declaration the host
 authenticates, not a Python sandbox. Local/capture verification cannot silently become accuracy
 verification. Conflicting verifier results are preserved and cannot be cherry-picked.
+Label bindings admit only generic outcome-verification records at the evaluator's declared
+version; local-execution or relational diagnostics alone cannot certify independent labels.
+Local execution success and absent/unknown relational outcome support answer different questions.
+The latter is reported as unverified, without inventing a contradiction. Explicit relational
+counterevidence and incompatible conclusions about the same question remain visible.
 
 Calibration reuses existing accuracy, Brier and ECE conventions. High-confidence warnings require
 an explicitly supplied existing host threshold; the adapter changes no calibration threshold.
