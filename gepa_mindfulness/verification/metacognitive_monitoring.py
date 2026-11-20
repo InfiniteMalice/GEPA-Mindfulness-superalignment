@@ -250,7 +250,7 @@ def _assemble(
                 next_step="compare_hypotheses",
             )
         )
-    findings.extend(records(supplemental, MonitoringFinding))
+    findings.extend(records(supplemental, MonitoringFinding, 4096))
     unassessed = tuple(
         domain
         for domain in (
