@@ -217,7 +217,7 @@ def main(argv: list[str] | None = None) -> int:
                 harness_version="synthetic-host-v1",
             )
             if args.output:
-                with args.output.open("x", encoding="utf-8") as stream:
+                with args.output.open("x", encoding="utf-8", newline="\n") as stream:
                     result = run_battery(cells, enabled=True, output=stream)
             else:
                 result = run_battery(cells, enabled=True)

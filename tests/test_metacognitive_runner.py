@@ -3,7 +3,9 @@
 import json
 import subprocess
 import sys
+from hashlib import sha256
 from importlib.resources import files
+from pathlib import Path
 
 import pytest
 
@@ -82,6 +84,7 @@ def test_cli_battery_exports_raw_results_and_unknown_outcomes(tmp_path, capsys):
         == 0
     )
     summary = json.loads(capsys.readouterr().out)
+    assert summary["raw_sha256"] == sha256(out.read_bytes()).hexdigest()
     assert summary["unit_count"] == 11
     assert summary["arm_count"] == 44
     assert summary["final_behavior_status"] == "NOT_RUN"
@@ -90,6 +93,40 @@ def test_cli_battery_exports_raw_results_and_unknown_outcomes(tmp_path, capsys):
     assert len(rows) == 11 and all(
         r["conditions"][3]["execution_status"] == "SIMULATION_ONLY" for r in rows
     )
+
+
+def test_cli_preserves_hashed_bytes_when_platform_translates_newlines(
+    tmp_path, capsys, monkeypatch
+):
+    """Simulate Windows text defaults and compare actual file bytes with the published digest."""
+    out = tmp_path / "windows-results.jsonl"
+    original_open = Path.open
+
+    def windows_open(path, *args, **kwargs):
+        if path == out and args and args[0] == "x":
+            kwargs.setdefault("newline", "\r\n")
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", windows_open)
+    assert (
+        main(
+            [
+                "--enable",
+                "--battery",
+                "--case-id",
+                "1",
+                "--stripe-id",
+                "NONE",
+                "--repeats",
+                "1",
+                "--output",
+                str(out),
+            ]
+        )
+        == 0
+    )
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["raw_sha256"] == sha256(out.read_bytes()).hexdigest()
 
 
 def test_cpu_module_import_does_not_load_optional_model_libraries():
