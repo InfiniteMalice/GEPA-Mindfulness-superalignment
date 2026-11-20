@@ -278,3 +278,27 @@ def test_truncation_metadata_is_versioned_and_v1_remains_readable(sources) -> No
     for bad in (True, -1, "1"):
         with pytest.raises(ValueError):
             replace(value, omitted_finding_count=bad)
+
+
+def test_source_ids_cannot_exceed_diagnostic_reference_bounds(sources) -> None:
+    """Reject an oversized source ID before it can fail later finding construction."""
+    with pytest.raises(ValueError):
+        replace(
+            sources,
+            assumptions=(),
+            evidence_state=EvidenceState(
+                (
+                    replace(
+                        sources.evidence_state.claims[0], claim_id="x" * 513, status="contradicted"
+                    ),
+                )
+            ),
+        )
+    oversized = EvidenceReference("r" * 513, EvidenceSourceKind.EXTERNAL_RECORD)
+    with pytest.raises(ValueError):
+        replace(
+            sources,
+            evidence_state=EvidenceState(
+                (replace(sources.evidence_state.claims[0], evidence_refs=(oversized,)),)
+            ),
+        )
