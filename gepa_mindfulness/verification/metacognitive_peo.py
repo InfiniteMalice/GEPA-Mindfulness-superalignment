@@ -602,7 +602,7 @@ def monitor_recorded_episode(
                 )
     if episode.continuity_requests is not None and episode.inputs.continuity_analysis:
         audits = []
-        for request in episode.continuity_requests:
+        for index, request in enumerate(episode.continuity_requests):
             _use_matches(request.evidence_use, s)
             if any(
                 e.event_id not in by_id or e.to_dict() != by_id[e.event_id].to_dict()
@@ -620,7 +620,10 @@ def monitor_recorded_episode(
                     _finding(
                         s,
                         FindingKind.EVIDENCE_CONTINUITY,
-                        request.commitment_id,
+                        (
+                            f"continuity:{index}:{request.commitment_id}:"
+                            f"{request.decision_event_id}:{request.reconciliation_event_id}"
+                        ),
                         claims=(request.evidence_use.claim_id,),
                         evidence=request.evidence_use.claim.evidence_refs,
                         next_step="review_continuity",
