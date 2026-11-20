@@ -262,3 +262,43 @@ def test_unassessed_domains_survive_wire_round_trip(sources: SourceSnapshot) -> 
     assert restored.unassessed_domains == ("calibration", "continuity")
     with pytest.raises(ValueError):
         replace(value, unassessed_domains=("invented",))
+
+
+def test_truncation_metadata_is_versioned_and_v1_remains_readable(sources) -> None:
+    """New omission counts cannot silently alter the original assessment wire schema."""
+    value = assessment(sources)
+    wire = value.to_dict()
+    assert wire["schema_version"] == "metacognitive-assessment-v2"
+    legacy = dict(wire)
+    del legacy["omitted_finding_count"]
+    del legacy["omitted_dependency_count"]
+    legacy["schema_version"] = "metacognitive-v1"
+    restored = MetacognitiveAssessment.from_dict(legacy)
+    assert restored == value
+    for bad in (True, -1, "1"):
+        with pytest.raises(ValueError):
+            replace(value, omitted_finding_count=bad)
+
+
+def test_source_ids_cannot_exceed_diagnostic_reference_bounds(sources) -> None:
+    """Reject an oversized source ID before it can fail later finding construction."""
+    with pytest.raises(ValueError):
+        replace(
+            sources,
+            assumptions=(),
+            evidence_state=EvidenceState(
+                (
+                    replace(
+                        sources.evidence_state.claims[0], claim_id="x" * 513, status="contradicted"
+                    ),
+                )
+            ),
+        )
+    oversized = EvidenceReference("r" * 513, EvidenceSourceKind.EXTERNAL_RECORD)
+    with pytest.raises(ValueError):
+        replace(
+            sources,
+            evidence_state=EvidenceState(
+                (replace(sources.evidence_state.claims[0], evidence_refs=(oversized,)),)
+            ),
+        )

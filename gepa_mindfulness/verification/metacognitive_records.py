@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, fields
 from enum import Enum
 from math import isfinite
-from typing import Any, TypeVar, cast
+from typing import Any, ClassVar, TypeVar, cast
 
 from evaluation.experimental_records import DiagnosticStatus
 from evaluation.v5_runner import V5EvaluationCell
@@ -68,6 +68,8 @@ def records(value: object, cls: type[_T], maximum: int = 512) -> tuple[_T, ...]:
 def refs(value: object) -> tuple[EvidenceReference, ...]:
     """Require observable provenance, preserving unique source identities and kinds."""
     result = records(value, EvidenceReference, 4096)
+    for ref in result:
+        text(ref.reference_id, "reference_id")
     if any(type(r.source_kind) is not EvidenceSourceKind or not r.is_observable for r in result):
         raise ValueError("diagnostic support requires observable evidence references")
     if len({r.reference_id for r in result}) != len(result):
@@ -111,7 +113,7 @@ class _Record:
         """Export detached JSON after recursive revalidation."""
         checked = snapshot(self, type(self))
         return {
-            "schema_version": SCHEMA_VERSION,
+            "schema_version": getattr(type(self), "WIRE_VERSION", SCHEMA_VERSION),
             "record_type": type(self).__name__,
             **{f.name: _encode(getattr(checked, f.name)) for f in fields(checked)},
         }
@@ -120,8 +122,20 @@ class _Record:
     def from_dict(cls: type[_T], value: object) -> _T:
         """Restore only the exact supported schema and nested record types."""
         names = {f.name for f in fields(cast(Any, cls))} | {"schema_version", "record_type"}
+        version = getattr(cls, "WIRE_VERSION", SCHEMA_VERSION)
+        if (
+            cls.__name__ == "MetacognitiveAssessment"
+            and type(value) is dict
+            and value.get("schema_version") == SCHEMA_VERSION
+        ):
+            legacy_names = names - {"omitted_finding_count", "omitted_dependency_count"}
+            value = exact(value, legacy_names) | {
+                "schema_version": version,
+                "omitted_finding_count": 0,
+                "omitted_dependency_count": 0,
+            }
         data = exact(value, names)
-        if data.pop("schema_version") != SCHEMA_VERSION or data.pop("record_type") != cls.__name__:
+        if data.pop("schema_version") != version or data.pop("record_type") != cls.__name__:
             raise ValueError("unsupported metacognitive schema or record type")
         for name, decoder in _DECODERS.get(cls.__name__, {}).items():
             data[name] = decoder(data[name])
@@ -222,6 +236,8 @@ class SourceSnapshot(_Record):
         object.__setattr__(
             self, "evidence_state", EvidenceState.from_dict(self.evidence_state.to_dict())
         )
+        for claim in self.evidence_state.claims:
+            text(claim.claim_id, "claim_id")
         if self.hypotheses is not None:
             if type(self.hypotheses) is not HypothesisState:
                 raise ValueError("expected exact HypothesisState")
@@ -333,6 +349,8 @@ class MonitoringFinding(_Record):
 class MetacognitiveAssessment(_Record):
     """Derived immutable view; never an accepted evidence update or authority token."""
 
+    WIRE_VERSION: ClassVar[str] = "metacognitive-assessment-v2"
+
     assessment_id: str
     sources: SourceSnapshot
     method_version: str
@@ -342,6 +360,8 @@ class MetacognitiveAssessment(_Record):
     shared_dependencies: tuple[SharedDependency, ...]
     diagnostic_status: DiagnosticStatus = DiagnosticStatus.DIAGNOSTIC
     unassessed_domains: tuple[str, ...] = ()
+    omitted_finding_count: int = 0
+    omitted_dependency_count: int = 0
 
     def __post_init__(self) -> None:
         text(self.assessment_id, "assessment_id")
@@ -350,6 +370,12 @@ class MetacognitiveAssessment(_Record):
             raise ValueError("expected exact monitoring lifecycle status")
         if self.diagnostic_status is not DiagnosticStatus.DIAGNOSTIC:
             raise ValueError("metacognitive records must remain diagnostic")
+        for name in ("omitted_finding_count", "omitted_dependency_count"):
+            count = getattr(self, name)
+            if type(count) is not int or not 0 <= count <= 2**53 - 1:
+                raise ValueError("omission counts require nonnegative JSON-safe integers")
+            if count and self.status is AssessmentStatus.COMPLETE:
+                raise ValueError("a complete assessment cannot omit diagnostics")
         domains = strings(self.unassessed_domains, "unassessed_domains", 8)
         if not set(domains) <= {
             "assumptions",

@@ -22,8 +22,10 @@ findings to sources, method/version, separate uncertainty dimensions and monitor
 `unassessed_domains` explicitly retains missing diagnostic coverage. An assessment with any
 unassessed domain cannot declare its monitoring status complete.
 
-All records use the versioned `metacognitive-v1` wire schema with an exact record type and exact
-fields. `to_dict()` revalidates recursively and returns detached JSON. `from_dict()` rejects
+Nested records use the versioned `metacognitive-v1` wire schema. The assessment wrapper exports
+`metacognitive-assessment-v2` with exact omission counts and can read the original v1 wrapper.
+Every format has exact fields and a record type. `to_dict()` revalidates recursively and returns
+detached JSON. `from_dict()` rejects
 unknown/missing fields, invalid identities, unsupported schemas and unresolved links. Unknown
 uncertainty remains `None`; booleans and nonfinite/out-of-range numeric values are rejected.
 Observable reference kinds remain host declarations and do not authenticate their contents.
@@ -33,6 +35,9 @@ Bounds are 512 evidence claims, 64 hypotheses, 512 hypothesis assessments, 64 tr
 256 assumption bindings, 1,024 source event IDs, 32 provenance entries and 4,096 distinct evidence
 references. An assessment retains at most 512 findings and shared dependencies. These bounds
 limit records accepted by this diagnostic view; they do not prune the host's original history.
+Source claim and evidence-reference IDs are bounded to 512 UTF-8 bytes before monitoring, matching
+the finding-reference contract. Oversized legacy records remain in the host store and require a
+separate host mapping before this bounded view can accept them.
 
 The contract layer validates declared run, case, repeat and system-version consistency. Event
 existence, causal chronology, and association of a source history with a robustness stripe must
