@@ -31,6 +31,12 @@ record schemas, verified process-reward boundary, action-bound event sequence, r
 scaffold, verification types, failure graph, runtime authority contract, controlled-evolution
 records, and disabled experimental overlays are implemented.
 
+The [metacognitive shadow experiment](docs/metacognitive_monitoring.md) derives source-linked
+diagnostics and bounded method proposals. CPU demos require explicit opt-in:
+`python -m evaluation.run_metacognitive --enable --demo unsupported` (or `--demo healthy`).
+The [evaluation battery](docs/metacognitive_evaluation.md) uses recorded synthetic prefixes;
+authorized control is simulation only, and trained-model behavior improvement remains unmeasured.
+
 Maturity labels are evidence boundaries:
 
 - **Supported** means the checked-in path has local automated acceptance evidence.

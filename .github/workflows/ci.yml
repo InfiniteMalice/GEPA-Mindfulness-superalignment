@@ -139,6 +139,18 @@ jobs:
           from evaluation.family_search import prepare_family_search, summarize_family_search
           assert prepare_family_search(None, None) is None
           assert summarize_family_search(None, None, None) is None
+          import json
+          from importlib.resources import files
+          from evaluation.run_metacognitive import run_demo
+          assert run_demo(object())["status"] == "DISABLED"
+          for name in ("unsupported", "healthy"):
+              resource = files("gepa_mindfulness").joinpath(
+                  f"data/metacognitive_{name}_demo.json"
+              )
+              result = run_demo(json.loads(resource.read_text()), enabled=True)
+              assert result["invariants"]["accepted_evidence_unchanged"] is True
+              assert result["invariants"]["authority_granted"] is False
+              assert result["final_behavior_status"] == "NOT_RUN"
           assert "numpy" not in sys.modules
           print(mindful_trace_gepa.__name__)
           PY

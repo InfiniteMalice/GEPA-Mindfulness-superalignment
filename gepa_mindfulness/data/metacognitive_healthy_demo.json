@@ -1,0 +1,10 @@
+{
+  "schema_version": "metacognitive-demo-v1",
+  "challenge": "healthy",
+  "case_id": 1,
+  "stripe_id": "NONE",
+  "repeat_id": 0,
+  "base_seed": 0,
+  "model_version": "synthetic-model-v1",
+  "harness_version": "synthetic-host-v1"
+}
