@@ -260,9 +260,19 @@ def propose_control(
             action = finding.next_step
             if action == "stop_branch" and not _can_stop(checked, finding):
                 action = "compare_hypotheses"
-            strategy = catalogue.get(_PREFERRED.get(action, ""))
-            if strategy and finding.kind in strategy.when_finding_kinds:
-                selection = (finding, action, strategy.strategy_id)
+            candidates = [
+                strategy
+                for strategy in catalogue.values()
+                if finding.kind in strategy.when_finding_kinds
+                and action in strategy.expected_outputs
+                and action != "continue"
+            ]
+            if candidates:
+                preferred = _PREFERRED.get(action)
+                candidates.sort(
+                    key=lambda strategy: (strategy.strategy_id != preferred, strategy.strategy_id)
+                )
+                selection = (finding, action, candidates[0].strategy_id)
                 break
     kind = ProposalKind(selection[1]) if selection else ProposalKind.CONTINUE
     payload = json.dumps(

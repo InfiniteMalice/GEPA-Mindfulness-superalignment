@@ -16,6 +16,9 @@ requests, abstention, assumption verification, comparison, sensitivity, reconcil
 continuity review remain distinct outputs. Methods must declare both the diagnostic kind and
 the selected proposal output. The evidence-verification method also accepts factual evidence-gap
 findings, so the source engine's requests are not lost during composition.
+Preferred methods rank all applicable candidates; they do not exclude another applicable method.
+For example, a confidence-gap sensitivity proposal can select transfer calibration while an
+out-of-scope sensitivity proposal continues to prefer robustness analysis.
 
 An exhausted diagnostic budget or round limit, unavailable/superseded assessment, or absence of
 applicable findings produces a zero-cost no-intervention proposal. This continues the existing

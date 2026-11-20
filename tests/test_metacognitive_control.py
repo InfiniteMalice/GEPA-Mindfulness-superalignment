@@ -188,3 +188,19 @@ def test_round_limit_prevents_further_intervention(sources) -> None:
     proposal = propose_control(assessment(sources), budget=exhausted, enabled=True)
     assert proposal.kind is ProposalKind.CONTINUE
     assert proposal.estimated_steps == 0
+
+
+def test_transfer_calibration_is_reachable_for_confidence_sensitivity(sources) -> None:
+    """A preferred but inapplicable method cannot hide another valid catalogue method."""
+    value = assessment(sources)
+    value = replace(
+        value,
+        findings=(
+            replace(
+                value.findings[0], kind=FindingKind.CONFIDENCE_GAP, next_step="test_sensitivity"
+            ),
+        ),
+    )
+    proposal = propose_control(value, budget=budget(), enabled=True)
+    assert proposal.kind is ProposalKind.TEST_SENSITIVITY
+    assert proposal.strategy_id == "transfer_calibration"
