@@ -265,6 +265,33 @@ def _assemble(
             unassessed += ("continuity",)
     if not inputs.shared_analysis:
         unassessed += ("dependencies",)
+    priority = {
+        FindingKind.AMBIGUOUS_INSTRUCTION: 0,
+        FindingKind.CONTRADICTED_ASSUMPTION: 1,
+        FindingKind.CONTRADICTION: 2,
+        FindingKind.EVIDENCE_CONTINUITY: 3,
+    }
+    findings.sort(key=lambda finding: (priority.get(finding.kind, 4), finding.finding_id))
+    omitted_findings = max(0, len(findings) - 512)
+    omitted_dependencies = max(0, len(dependencies) - 512)
+    domains = {
+        FindingKind.UNVERIFIED_ASSUMPTION: "assumptions",
+        FindingKind.CONTRADICTED_ASSUMPTION: "assumptions",
+        FindingKind.OUT_OF_SCOPE_ASSUMPTION: "assumptions",
+        FindingKind.SHARED_DEPENDENCY: "dependencies",
+        FindingKind.CONTRADICTION: "contradictions",
+        FindingKind.EVIDENCE_CONTINUITY: "continuity",
+        FindingKind.CONFIDENCE_GAP: "calibration",
+        FindingKind.REPEATED_FAILURE: "repetition",
+        FindingKind.STRATEGY_OUTCOME_UNVERIFIED: "strategy",
+        FindingKind.AMBIGUOUS_INSTRUCTION: "evidence_use",
+        FindingKind.INSUFFICIENT_EVIDENCE: "evidence_use",
+        FindingKind.UNNECESSARY_ABSTENTION: "evidence_use",
+    }
+    unassessed += tuple(domains[f.kind] for f in findings[512:])
+    if omitted_dependencies:
+        unassessed += ("dependencies",)
+    unassessed = tuple(dict.fromkeys(unassessed))
     estimate = s.epistemic
     uncertainty = UncertaintyDimensions(
         model=estimate.model_uncertainty if estimate else None,
@@ -277,9 +304,11 @@ def _assemble(
         method_version="metacognitive-rules-v1",
         status=AssessmentStatus.PARTIAL if unassessed else AssessmentStatus.COMPLETE,
         uncertainty=uncertainty,
-        findings=tuple(findings),
-        shared_dependencies=dependencies,
+        findings=tuple(findings[:512]),
+        shared_dependencies=dependencies[:512],
         unassessed_domains=unassessed,
+        omitted_finding_count=omitted_findings,
+        omitted_dependency_count=omitted_dependencies,
     )
 
 

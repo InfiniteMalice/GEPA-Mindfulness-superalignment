@@ -32,6 +32,15 @@ All findings remain diagnostic and unverified. The engine provides no execution,
 truth-promotion or network operation. A healthy supported input with independent alternatives
 returns no intervention finding. Finding IDs are deterministic bounded hashes of structured
 source identities, so long or separator-containing source IDs cannot overflow or alias them.
+Accepted dense episodes retain at most 512 findings and 512 shared dependencies in the diagnostic
+view. `omitted_finding_count` and `omitted_dependency_count` report excess records exactly;
+affected domains remain unassessed and the result remains partial. Consequential ambiguity and
+contradiction findings receive priority. Original source records are retained without pruning.
+
+The assessment wrapper now exports `metacognitive-assessment-v2` to version the omission-count
+fields. The original `metacognitive-v1` wrapper remains readable and upgrades with zero omission
+counts. Nested source/finding contracts retain their original v1 schemas. Unknown fields and
+unsupported versions still fail closed.
 
 Run `python -m pytest -q tests/test_metacognitive_monitoring.py tests/test_metacognitive_records.py`
 for the source-based engine and record contracts. CPU fixture tests establish software behavior
