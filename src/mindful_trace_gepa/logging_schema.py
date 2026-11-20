@@ -87,6 +87,7 @@ class StructuredEventType(str, Enum):
     FORMAL_REASONING_AUDIT = "formal_reasoning_audit"
     LATENT_LANGUAGE_TRANSITION = "latent_language_transition"
     RESEARCH_FAILURE_ATTRIBUTION = "research_failure_attribution"
+    METACOGNITIVE_SOURCE_SNAPSHOT = "metacognitive_source_snapshot"
 
 
 RESEARCH_DIAGNOSTIC_EVENT_TYPES = frozenset(
@@ -99,6 +100,7 @@ RESEARCH_DIAGNOSTIC_EVENT_TYPES = frozenset(
         StructuredEventType.FORMAL_REASONING_AUDIT.value,
         StructuredEventType.LATENT_LANGUAGE_TRANSITION.value,
         StructuredEventType.RESEARCH_FAILURE_ATTRIBUTION.value,
+        StructuredEventType.METACOGNITIVE_SOURCE_SNAPSHOT.value,
     }
 )
 
