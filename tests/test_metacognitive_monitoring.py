@@ -227,3 +227,34 @@ def test_many_shared_sources_disclose_omitted_dependencies(sources) -> None:
     assert result.omitted_dependency_count == 2
     assert "dependencies" in result.unassessed_domains
     assert len(result.sources.hypotheses.hypotheses[0].evidence_refs) == 513
+
+
+def test_one_claim_can_fill_both_ambiguity_and_stakes_roles(sources) -> None:
+    """Shared task-role provenance must not create duplicate invalid finding references."""
+    changed = replace(
+        sources,
+        evidence_state=EvidenceState(
+            (replace(sources.evidence_state.claims[0], status="supported"),)
+        ),
+    )
+    result = monitor_episode(
+        MonitoringInput(
+            changed, "shared-role", ambiguity_claim_id="premise", stakes_claim_id="premise"
+        ),
+        enabled=True,
+    )
+    finding = next(f for f in result.findings if f.kind is FindingKind.AMBIGUOUS_INSTRUCTION)
+    assert finding.claim_ids == ("premise",)
+
+
+def test_same_claim_can_be_premise_and_scope_condition(sources) -> None:
+    """Distinct dependency roles may legitimately cite one retained claim."""
+    changed = replace(
+        sources,
+        evidence_state=EvidenceState(
+            (replace(sources.evidence_state.claims[0], status="contradicted"),)
+        ),
+        assumptions=(replace(sources.assumptions[0], applicability_claim_ids=("premise",)),),
+    )
+    result = monitor_episode(MonitoringInput(changed, "same-condition"), enabled=True)
+    assert FindingKind.OUT_OF_SCOPE_ASSUMPTION in kinds(result)

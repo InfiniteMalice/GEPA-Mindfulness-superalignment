@@ -69,6 +69,9 @@ def _finding(
     evidence: tuple[EvidenceReference, ...] = (),
     next_step: str,
 ) -> MonitoringFinding:
+    claims = tuple(dict.fromkeys(claims))
+    hypotheses = tuple(dict.fromkeys(hypotheses))
+    evidence = tuple(dict.fromkeys(evidence))
     identity = json.dumps([kind.value, key, claims, hypotheses], separators=(",", ":"))
     return MonitoringFinding(
         finding_id=f"{kind.value}:{sha256(identity.encode()).hexdigest()}",

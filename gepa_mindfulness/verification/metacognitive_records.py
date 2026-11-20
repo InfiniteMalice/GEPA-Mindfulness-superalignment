@@ -68,6 +68,8 @@ def records(value: object, cls: type[_T], maximum: int = 512) -> tuple[_T, ...]:
 def refs(value: object) -> tuple[EvidenceReference, ...]:
     """Require observable provenance, preserving unique source identities and kinds."""
     result = records(value, EvidenceReference, 4096)
+    for ref in result:
+        text(ref.reference_id, "reference_id")
     if any(type(r.source_kind) is not EvidenceSourceKind or not r.is_observable for r in result):
         raise ValueError("diagnostic support requires observable evidence references")
     if len({r.reference_id for r in result}) != len(result):
@@ -234,6 +236,8 @@ class SourceSnapshot(_Record):
         object.__setattr__(
             self, "evidence_state", EvidenceState.from_dict(self.evidence_state.to_dict())
         )
+        for claim in self.evidence_state.claims:
+            text(claim.claim_id, "claim_id")
         if self.hypotheses is not None:
             if type(self.hypotheses) is not HypothesisState:
                 raise ValueError("expected exact HypothesisState")
