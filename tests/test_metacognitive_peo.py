@@ -88,6 +88,13 @@ def captured(
         label_evaluator=TrustedEvaluatorContract(
             "verifier", "v1", "metacognitive-observed-labels-v1"
         ),
+        label_verification_event_ids=tuple(
+            e.event_id
+            for e in chain
+            if e.event_type == "verification_result"
+            and e.payload.get("verifier_id") == "verifier"
+            and e.payload.get("verifier_version") == "v1"
+        ),
     )
 
 
@@ -561,3 +568,197 @@ def test_failure_graph_keeps_existing_localization_and_causal_status() -> None:
     bad = replace(graph, nodes=(replace(node, event_id="future-event"),))
     with pytest.raises(ValueError):
         captured(failure_graph=bad)
+
+
+@pytest.mark.parametrize("contradiction", ["none", "unknown", "contradicted"])
+def test_local_success_and_unsupported_relational_outcome_are_not_contradictory(contradiction):
+    """Execution, support and unknown contradiction status are separate questions."""
+    from gepa_mindfulness.verification.interfaces import (
+        LocalVerificationResult,
+        RelationalVerificationResult,
+        VerificationEvidenceBinding,
+        make_local_verification_event,
+        make_relational_verification_event,
+    )
+
+    ref = reconciliation().update.prior_state.evidence_refs
+    local_names = (
+        "executed",
+        "arguments_valid",
+        "schema_valid",
+        "authorization_valid",
+        "intended_operation_observed",
+    )
+    local = LocalVerificationResult(
+        "action",
+        True,
+        True,
+        True,
+        True,
+        True,
+        None,
+        ref,
+        tuple(VerificationEvidenceBinding(n, ref) for n in local_names),
+    )
+    relation_names = ("provenance_intact", "authorization_scope_valid")
+    if contradiction != "unknown":
+        relation_names += ("contradiction_status",)
+    relational = RelationalVerificationResult(
+        "action",
+        False,
+        False,
+        contradiction,
+        True,
+        True,
+        False,
+        False,
+        ref,
+        tuple(VerificationEvidenceBinding(n, ref) for n in relation_names),
+    )
+    metadata = dict(
+        timestamp="2026-09-30T12:00:04Z",
+        run_id="run",
+        repeat_id=0,
+        model_version="model",
+        harness_version="harness",
+        parent_event_ids=("o",),
+    )
+    events = sequence()[:4] + [
+        make_local_verification_event(
+            local, verifier_refs=("verifier-log",), event_id="local", **metadata
+        ),
+        make_relational_verification_event(
+            relational, verifier_refs=("verifier-log",), event_id="relational", **metadata
+        ),
+    ]
+    report = monitor_recorded_episode(
+        captured(events, posterior=False, bindings=(OutcomeBinding("p", "action", "o", "local"),)),
+        enabled=True,
+    )
+    kinds = {f.kind for f in report.assessment.findings}
+    assert (FindingKind.CONTRADICTION in kinds) is (contradiction == "contradicted")
+    assert FindingKind.STRATEGY_OUTCOME_UNVERIFIED in kinds
+
+
+def test_evaluator_name_alone_does_not_enroll_a_result_for_accuracy_labels():
+    """Only host-bound record IDs, together with host policy, admit independent labels."""
+    events = sequence()
+    payload = events[3].to_dict()["payload"]
+    payload["actual_outcome"]["correct"] = True
+    events[3] = replace(events[3], payload=payload)
+    episode = captured(events, bindings=(OutcomeBinding("p", "action", "o", "v"),))
+    assert (
+        monitor_recorded_episode(episode, enabled=True).to_dict()["diagnostics"]["calibration"][
+            "accuracy"
+        ]
+        == 1.0
+    )
+    report = monitor_recorded_episode(
+        replace(episode, label_verification_event_ids=()), enabled=True
+    )
+    assert report.to_dict()["diagnostics"]["calibration"] is None
+    assert "calibration" in report.assessment.unassessed_domains
+
+
+def test_two_result_ids_can_bind_one_host_owned_label_evaluator():
+    """Distinct verification results from one evaluator must both contribute to calibration."""
+    events = sequence()[:5]
+    payload = events[3].to_dict()["payload"]
+    payload["actual_outcome"]["correct"] = True
+    events[3] = replace(events[3], payload=payload)
+    events[4] = replace(
+        events[4], payload=events[4].to_dict()["payload"] | {"verifier_id": "result-one"}
+    )
+    second = []
+    ids = {"p": "p2", "a": "a2", "x": "x2", "o": "o2", "v": "v2"}
+    links = {
+        "prediction_commit_id": "prediction-two",
+        "action_id": "action-two",
+        "observation_id": "observation-two",
+        "verifier_id": "result-two",
+    }
+    for offset, event in enumerate(events):
+        payload = event.to_dict()["payload"]
+        for field, value in links.items():
+            if field in payload:
+                payload[field] = value
+        second.append(
+            replace(
+                event,
+                event_id=ids[event.event_id],
+                action_id="action-two" if event.action_id else None,
+                timestamp=f"2026-09-30T12:00:{offset + 5:02d}Z",
+                payload=payload,
+                parent_event_ids=tuple(ids[p] for p in event.parent_event_ids),
+            )
+        )
+    episode = captured(
+        events + second,
+        posterior=False,
+        bindings=(
+            OutcomeBinding("p", "action", "o", "v"),
+            OutcomeBinding("p2", "action-two", "o2", "v2"),
+        ),
+    )
+    episode = replace(episode, label_verification_event_ids=("v", "v2"))
+    report = monitor_recorded_episode(episode, enabled=True)
+    assert report.to_dict()["diagnostics"]["calibration_coverage"] == {
+        "bound_outcomes": 2,
+        "verified_labels": 2,
+        "scored_confidences": 2,
+    }
+    assert "calibration" not in report.assessment.unassessed_domains
+    with pytest.raises(ValueError):
+        replace(episode, label_verification_event_ids=("o",))
+
+
+def test_json_equivalent_continuity_payloads_do_not_look_like_rewritten_events():
+    """Canonical capture equality must accept JSON-equivalent tuple/list representations."""
+    from test_peo_continuity import request
+
+    original = request(after={"action_reflected": False})
+    events = [replace(e, trace_id="trace-1") for e in original.events]
+    from mindful_trace_gepa.logging_schema import EventEnvelope
+
+    note = EventEnvelope(
+        "1.0",
+        "note",
+        "prompt",
+        events[0].timestamp,
+        payload={"markers": ("a", "b")},
+        run_id="run",
+        repeat_id=0,
+        model_version="model",
+        harness_version="harness",
+        trace_id="trace-1",
+        conversation_id="c",
+    )
+    events.insert(0, note)
+    original = replace(original, events=tuple(events))
+    report = monitor_recorded_episode(
+        captured(
+            events, evidence_state=original.evidence_use.state, continuity_requests=(original,)
+        ),
+        enabled=True,
+    )
+    assert FindingKind.EVIDENCE_CONTINUITY in {f.kind for f in report.assessment.findings}
+
+
+def test_generic_research_event_builder_requires_the_specialized_capture_helper():
+    """A source snapshot cannot be constructed without its three capture digests."""
+    from evaluation.research_audits import make_research_event
+    from mindful_trace_gepa.logging_schema import StructuredEventType
+
+    with pytest.raises(ValueError, match="bind_source_snapshot"):
+        make_research_event(
+            StructuredEventType.METACOGNITIVE_SOURCE_SNAPSHOT,
+            "record",
+            run_id="run",
+            trace_id="trace",
+            evaluation_ref="run",
+            model_version="model",
+            harness_version="harness",
+            parent_event_ids=("p",),
+            evidence_refs=("e",),
+            provenance_refs=("host",),
+        )

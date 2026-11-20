@@ -178,6 +178,8 @@ def make_research_event(
     provenance_refs: tuple[str, ...],
 ) -> EventEnvelope:
     """Use existing envelopes with required research context and reference-only payloads."""
+    if event_type is StructuredEventType.METACOGNITIVE_SOURCE_SNAPSHOT:
+        raise ValueError("source snapshots require bind_source_snapshot and its capture digests")
     if type(event_type) is not StructuredEventType or event_type.value not in (
         RESEARCH_DIAGNOSTIC_EVENT_TYPES
     ):
