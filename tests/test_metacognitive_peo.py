@@ -483,6 +483,47 @@ def test_multiple_evidence_use_assessments_keep_distinct_findings_and_originals(
     assert len(warnings) == 2 and len({f.finding_id for f in warnings}) == 2
 
 
+def test_continuity_warnings_for_successive_decisions_have_distinct_identity() -> None:
+    """Repeated audits of one commitment must retain the decision that each audited."""
+    from test_peo_continuity import request
+
+    first = request(after={"action_reflected": False})
+    decision_prediction = first.events[-2]
+    decision_proposal = first.events[-1]
+    next_prediction = replace(
+        decision_prediction,
+        event_id="next-prediction",
+        checkpoint_step=3,
+        timestamp="2026-09-30T12:00:08Z",
+        payload=decision_prediction.to_dict()["payload"] | {"prediction_commit_id": "next-p"},
+    )
+    next_proposal = replace(
+        decision_proposal,
+        event_id="next-proposal",
+        checkpoint_step=3,
+        timestamp="2026-09-30T12:00:08Z",
+        action_id="next-action",
+        parent_event_ids=("next-prediction",),
+        payload=decision_proposal.to_dict()["payload"]
+        | {"prediction_commit_id": "next-p", "action_id": "next-action"},
+    )
+    events = tuple(
+        replace(e, trace_id="trace-1") for e in first.events + (next_prediction, next_proposal)
+    )
+    first = replace(first, events=events)
+    second = replace(first, decision_event_id="next-proposal")
+    report = monitor_recorded_episode(
+        captured(
+            events,
+            evidence_state=first.evidence_use.state,
+            continuity_requests=(first, second),
+        ),
+        enabled=True,
+    )
+    findings = [f for f in report.assessment.findings if f.kind is FindingKind.EVIDENCE_CONTINUITY]
+    assert len(findings) == 2 and len({f.finding_id for f in findings}) == 2
+
+
 def test_specialized_findings_share_the_bounded_partial_view(sources) -> None:
     """Existing specialized diagnostics can exceed 512 findings without crashing assembly."""
     from gepa_mindfulness.verification.metacognitive_monitoring import _assemble
