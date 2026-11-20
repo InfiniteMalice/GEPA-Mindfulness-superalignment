@@ -172,8 +172,8 @@ def get_repertoire() -> tuple[RepertoireStrategy, ...]:
         _entry(
             "evidence_verification",
             "Identify the observable claim needing verification.",
-            "A confidence gap or claimed strategy outcome lacks independent support.",
-            (k.CONFIDENCE_GAP, k.STRATEGY_OUTCOME_UNVERIFIED),
+            "A factual claim, confidence estimate or strategy outcome lacks independent support.",
+            (k.CONFIDENCE_GAP, k.STRATEGY_OUTCOME_UNVERIFIED, k.INSUFFICIENT_EVIDENCE),
             ("observable_claim", "source_events"),
             ("request_evidence",),
             ("independent_verifier", "bind_verification_to_observation"),
