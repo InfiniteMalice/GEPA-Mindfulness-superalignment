@@ -22,6 +22,7 @@ from .metacognitive_records import (
     strings,
     text,
 )
+from .state import EvidenceClaim
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,8 +88,15 @@ def _finding(
 
 def _assumptions(s: SourceSnapshot) -> list[MonitoringFinding]:
     findings = []
+    resolved: dict[str, EvidenceClaim] = {}
+
+    def resolve(claim_id: str) -> EvidenceClaim:
+        if claim_id not in resolved:
+            resolved[claim_id] = s.evidence_state.resolve(claim_id)
+        return resolved[claim_id]
+
     for binding in s.assumptions:
-        claim = s.evidence_state.resolve(binding.claim_id)
+        claim = resolve(binding.claim_id)
         kind = None
         if claim.status == "contradicted":
             kind = FindingKind.CONTRADICTED_ASSUMPTION
@@ -107,7 +115,7 @@ def _assumptions(s: SourceSnapshot) -> list[MonitoringFinding]:
                 )
             )
         for condition_id in binding.applicability_claim_ids:
-            condition = s.evidence_state.resolve(condition_id)
+            condition = resolve(condition_id)
             if condition.status == "contradicted":
                 findings.append(
                     _finding(
