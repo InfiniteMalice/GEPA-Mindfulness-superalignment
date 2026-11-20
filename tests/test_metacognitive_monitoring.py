@@ -62,6 +62,62 @@ def test_supported_independent_inputs_need_no_intervention(sources: SourceSnapsh
     assert result.shared_dependencies == ()
 
 
+@pytest.mark.parametrize("other", [None, 1.0])
+def test_complementary_resource_metadata_is_not_counterevidence(sources, other) -> None:
+    """Unknown or different resource estimates cannot overturn agreeing epistemic judgments."""
+    from gepa_mindfulness.verification.hypothesis_records import HypothesisScores
+
+    h = sources.hypotheses
+    first = replace(h.assessments[0], scores=HypothesisScores(evidence_fit=0.8))
+    second = replace(
+        first,
+        id="complement",
+        assessor_id="another-assessor",
+        scores=HypothesisScores(evidence_fit=0.8, compute_cost=other),
+    )
+    changed = replace(sources, hypotheses=replace(h, assessments=(first, second)))
+    result = monitor_episode(MonitoringInput(changed, "complementary"), enabled=True)
+    assert FindingKind.CONTRADICTION not in kinds(result)
+    assert result.sources.hypotheses.assessments == (first, second)
+
+
+def test_unavailable_epistemic_dimensions_do_not_challenge_known_values(sources) -> None:
+    """Missing evidence-fit/uncertainty metadata remains unknown, never opposing support."""
+    from gepa_mindfulness.verification.hypothesis_records import HypothesisScores
+
+    h = sources.hypotheses
+    first = replace(h.assessments[0], scores=HypothesisScores(evidence_fit=0.8))
+    second = replace(
+        first,
+        id="unknown",
+        assessor_id="another-assessor",
+        status="unresolved",
+        scores=HypothesisScores(uncertainty=0.2, compute_cost=1.0),
+    )
+    changed = replace(sources, hypotheses=replace(h, assessments=(first, second)))
+    assert FindingKind.CONTRADICTION not in kinds(
+        monitor_episode(MonitoringInput(changed, "unknown"), enabled=True)
+    )
+
+
+def test_opposing_known_evidence_fit_remains_a_live_disagreement(sources) -> None:
+    """Retain both known assessments without picking a preferred assessor."""
+    from gepa_mindfulness.verification.hypothesis_records import HypothesisScores
+
+    h = sources.hypotheses
+    first = replace(h.assessments[0], scores=HypothesisScores(evidence_fit=0.8))
+    second = replace(
+        first,
+        id="opposing",
+        assessor_id="another-assessor",
+        scores=HypothesisScores(evidence_fit=0.2),
+    )
+    changed = replace(sources, hypotheses=replace(h, assessments=(first, second)))
+    assert FindingKind.CONTRADICTION in kinds(
+        monitor_episode(MonitoringInput(changed, "opposing"), enabled=True)
+    )
+
+
 @pytest.mark.parametrize(
     "status,expected",
     [
