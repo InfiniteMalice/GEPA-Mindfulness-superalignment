@@ -314,3 +314,37 @@ def test_same_claim_can_be_premise_and_scope_condition(sources) -> None:
     )
     result = monitor_episode(MonitoringInput(changed, "same-condition"), enabled=True)
     assert FindingKind.OUT_OF_SCOPE_ASSUMPTION in kinds(result)
+
+
+def test_assumption_resolution_is_bounded_and_fresh_per_snapshot(sources, monkeypatch) -> None:
+    """Repeated premise/scope links resolve once per run without retaining stale statuses."""
+    from gepa_mindfulness.verification.metacognitive_monitoring import _assumptions
+
+    sources = replace(
+        sources,
+        assumptions=tuple(
+            replace(binding, applicability_claim_ids=("premise",))
+            for binding in sources.assumptions
+        ),
+    )
+    calls = []
+    original = EvidenceState.resolve
+
+    def counted(state, claim_id):
+        calls.append(claim_id)
+        return original(state, claim_id)
+
+    monkeypatch.setattr(EvidenceState, "resolve", counted)
+    findings = _assumptions(sources)
+    assert len(findings) == 4
+    assert {f.kind for f in findings} == {FindingKind.UNVERIFIED_ASSUMPTION}
+    assert calls == ["premise"]
+
+    changed = replace(
+        sources,
+        evidence_state=EvidenceState(
+            (replace(sources.evidence_state.claims[0], status="supported"),)
+        ),
+    )
+    assert _assumptions(changed) == []
+    assert calls == ["premise", "premise"]
