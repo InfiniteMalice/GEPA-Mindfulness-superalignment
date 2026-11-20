@@ -44,10 +44,13 @@ change source status, optimizer eligibility or authority.
 
 Eight ablations retain per-unit results: baseline/monitoring, monitoring/recommendations,
 shared analysis on/off, continuity on/off, a declared fixed evidence-verification strategy versus
-state-guided selection, independent label policy versus self-report, full diagnostics versus a
+state-guided selection, trusted label admission enabled/disabled, full diagnostics versus a
 simple unsupported-claim counter, and intact versus byte-corrupted input. The fixed and simple
 baselines are diagnostic comparators with no action execution or measured benefit. Corruption
-must fail the protected-capture checks. Additional critiques and answer-label exposure do not
+must fail the protected-capture checks. The label-admission ablation retains the original
+verification events and bindings while removing host permission to treat outcome labels as
+independent accuracy/progress measurements; it does not score calibration against self-reports.
+Additional critiques and answer-label exposure do not
 count as improved task behavior.
 
 ## Metrics and limitations

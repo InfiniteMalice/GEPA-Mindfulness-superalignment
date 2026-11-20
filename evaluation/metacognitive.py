@@ -50,7 +50,7 @@ def _ablate(fixture, remaining_steps) -> dict:
     full, guided = _diagnose(fixture, remaining_steps)
     no_shared, _ = _diagnose(fixture, remaining_steps, shared=False)
     no_continuity, _ = _diagnose(fixture, remaining_steps, continuity=False)
-    self_reported, _ = _diagnose(fixture, remaining_steps, trusted=False)
+    without_label_admission, _ = _diagnose(fixture, remaining_steps, trusted=False)
 
     def counts(report):
         kinds = Counter(f.kind.value for f in report.assessment.findings)
@@ -89,9 +89,9 @@ def _ablate(fixture, remaining_steps) -> dict:
             "guided": guided.strategy_id if guided else None,
             "fixed_status": "DECLARATIVE_BASELINE_ONLY",
         },
-        "verified_self_reported": {
-            "verified": counts(full),
-            "self_reported": counts(self_reported),
+        "trusted_label_admission": {
+            "enabled": counts(full),
+            "disabled": counts(without_label_admission),
         },
         "full_simple_uncertainty": {
             "full": counts(full),
@@ -167,8 +167,12 @@ def evaluate_metacognitive(
                     original_source_digest=fixture.episode.events[-1].payload["source_digest"],
                     baseline_behavior_status="SUPPLIED_RECORD_ONLY",
                     source_event_count=len(fixture.episode.events),
-                    measured_calibration=report.to_dict()["diagnostics"]["calibration"],
-                    unassessed_domains=list(report.assessment.unassessed_domains),
+                    measured_calibration=(
+                        report.to_dict()["diagnostics"]["calibration"] if monitored else None
+                    ),
+                    unassessed_domains=(
+                        list(report.assessment.unassessed_domains) if monitored else None
+                    ),
                 )
             )
         unit = dict(challenge=fixture.name, cell=asdict(source.cell))

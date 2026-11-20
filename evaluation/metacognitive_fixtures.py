@@ -31,13 +31,18 @@ from gepa_mindfulness.verification.hypothesis_records import (
     HypothesisState,
     HypothesisTrigger,
 )
+from gepa_mindfulness.verification.metacognitive_control import ProposalKind
 from gepa_mindfulness.verification.metacognitive_monitoring import MonitoringInput
 from gepa_mindfulness.verification.metacognitive_peo import (
     OutcomeBinding,
     RecordedEpisode,
     bind_source_snapshot,
 )
-from gepa_mindfulness.verification.metacognitive_records import AssumptionBinding, SourceSnapshot
+from gepa_mindfulness.verification.metacognitive_records import (
+    AssumptionBinding,
+    FindingKind,
+    SourceSnapshot,
+)
 from gepa_mindfulness.verification.state import (
     EvidenceClaim,
     EvidenceState,
@@ -88,6 +93,10 @@ class ChallengeFixture:
         for value in (self.expected_findings, self.acceptable_proposals):
             if type(value) is not tuple or any(type(s) is not str for s in value):
                 raise ValueError("scoring labels require string tuples")
+        if not set(self.expected_findings) <= {kind.value for kind in FindingKind}:
+            raise ValueError("unknown expected finding kind")
+        if not set(self.acceptable_proposals) <= {kind.value for kind in ProposalKind}:
+            raise ValueError("unknown acceptable proposal kind")
 
 
 def _templates() -> dict:

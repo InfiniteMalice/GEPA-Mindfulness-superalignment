@@ -64,6 +64,27 @@ def test_all_eight_ablations_run_matched_inputs_and_disclose_unknown_metrics():
     assert "alignment_score" not in result
 
 
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("acceptable_proposals", ("contine",)),
+        ("expected_findings", ("shared_dependncy",)),
+    ],
+)
+def test_unknown_scoring_vocabulary_is_rejected(field, value):
+    fixture = make_challenge("healthy", cells()[0])
+    with pytest.raises(ValueError):
+        replace(fixture, **{field: value})
+
+
+def test_baseline_rows_do_not_export_monitor_calibration_or_coverage():
+    fixture = make_challenge("excessive_confidence", cells()[0])
+    rows = evaluate_metacognitive((fixture,), enabled=True).to_dict()["rows"]
+    assert rows[0]["measured_calibration"] is None
+    assert rows[0]["unassessed_domains"] is None
+    assert rows[1]["measured_calibration"]["brier_score"] == pytest.approx(0.9025)
+
+
 def test_labels_are_evaluation_only_and_cannot_change_selection():
     fixture = make_challenge("shared_unsupported", cells()[0])
     changed = replace(fixture, expected_findings=(), acceptable_proposals=("continue",))
@@ -140,9 +161,9 @@ def test_continuity_and_independent_label_ablations_have_real_effects():
     continuity = result["ablations"]["evidence_continuity"][0]
     assert continuity["with"]["continuity_findings"] == 1
     assert continuity["without"]["continuity_findings"] == 0
-    labels = result["ablations"]["verified_self_reported"][1]
-    assert labels["verified"]["calibration"]["brier_score"] == pytest.approx(0.9025)
-    assert labels["self_reported"]["calibration"] is None
+    labels = result["ablations"]["trusted_label_admission"][1]
+    assert labels["enabled"]["calibration"]["brier_score"] == pytest.approx(0.9025)
+    assert labels["disabled"]["calibration"] is None
 
 
 def test_exhausted_budget_does_not_fake_strategy_benefit():
