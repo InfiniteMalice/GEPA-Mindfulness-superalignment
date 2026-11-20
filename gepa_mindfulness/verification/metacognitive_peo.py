@@ -594,7 +594,8 @@ def monitor_recorded_episode(
                     _finding(
                         s,
                         FindingKind.INSUFFICIENT_EVIDENCE,
-                        f"evidence-use:{use.claim_id}:{index}:{content_digest(uses[index].to_dict())}",
+                        f"evidence-use:{use.claim_id}:{index}:"
+                        f"{content_digest(uses[index].to_dict())}",
                         claims=(use.claim_id,),
                         evidence=use.claim.evidence_refs,
                         next_step="request_evidence",
