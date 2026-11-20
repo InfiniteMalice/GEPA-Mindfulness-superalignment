@@ -22,8 +22,10 @@ findings to sources, method/version, separate uncertainty dimensions and monitor
 `unassessed_domains` explicitly retains missing diagnostic coverage. An assessment with any
 unassessed domain cannot declare its monitoring status complete.
 
-All records use the versioned `metacognitive-v1` wire schema with an exact record type and exact
-fields. `to_dict()` revalidates recursively and returns detached JSON. `from_dict()` rejects
+Nested records use the versioned `metacognitive-v1` wire schema. The assessment wrapper exports
+`metacognitive-assessment-v2` with exact omission counts and can read the original v1 wrapper.
+Every format has exact fields and a record type. `to_dict()` revalidates recursively and returns
+detached JSON. `from_dict()` rejects
 unknown/missing fields, invalid identities, unsupported schemas and unresolved links. Unknown
 uncertainty remains `None`; booleans and nonfinite/out-of-range numeric values are rejected.
 Observable reference kinds remain host declarations and do not authenticate their contents.

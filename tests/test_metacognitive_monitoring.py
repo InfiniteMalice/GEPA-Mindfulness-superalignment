@@ -7,7 +7,11 @@ from test_metacognitive_records import sources as sources
 
 from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
 from gepa_mindfulness.verification.metacognitive_monitoring import MonitoringInput, monitor_episode
-from gepa_mindfulness.verification.metacognitive_records import FindingKind, SourceSnapshot
+from gepa_mindfulness.verification.metacognitive_records import (
+    AssumptionBinding,
+    FindingKind,
+    SourceSnapshot,
+)
 from gepa_mindfulness.verification.state import EvidenceClaim, EvidenceState
 
 
@@ -182,3 +186,44 @@ def test_long_source_ids_have_bounded_deterministic_finding_ids(sources) -> None
     result = monitor_episode(MonitoringInput(changed, "audit"), enabled=True)
     assert all(len(f.finding_id) <= 128 for f in result.findings)
     assert result == monitor_episode(MonitoringInput(changed, "audit"), enabled=True)
+
+
+def test_dense_valid_inputs_disclose_omitted_findings(sources) -> None:
+    """Nine assumptions with 64 conditions must return partial diagnostics, not crash."""
+    ref = sources.evidence_refs[0]
+    condition_ids = tuple(f"condition-{i}" for i in range(64))
+    claims = tuple(
+        EvidenceClaim(f"premise-{i}", "A premise", (ref,), "unverified") for i in range(9)
+    ) + tuple(EvidenceClaim(c, "A condition", (ref,), "unverified") for c in condition_ids)
+    changed = replace(
+        sources,
+        evidence_state=EvidenceState(claims),
+        hypotheses=replace(sources.hypotheses, assessments=()),
+        assumptions=tuple(AssumptionBinding("h1", f"premise-{i}", condition_ids) for i in range(9)),
+    )
+    result = monitor_episode(MonitoringInput(changed, "dense"), enabled=True)
+    assert len(result.findings) == 512
+    assert result.omitted_finding_count == 74
+    assert result.status.value == "partial"
+    assert "assumptions" in result.unassessed_domains
+    assert len(result.sources.evidence_state.claims) == 73
+    assert type(result).from_dict(result.to_dict()) == result
+
+
+def test_many_shared_sources_disclose_omitted_dependencies(sources) -> None:
+    """Shared provenance can exceed the view limit without erasing the original records."""
+    refs = tuple(
+        EvidenceReference(f"shared-{i}", EvidenceSourceKind.EXTERNAL_RECORD) for i in range(513)
+    )
+    h = sources.hypotheses
+    changed = replace(
+        sources,
+        hypotheses=replace(
+            h, hypotheses=tuple(replace(item, evidence_refs=refs) for item in h.hypotheses)
+        ),
+    )
+    result = monitor_episode(MonitoringInput(changed, "dense"), enabled=True)
+    assert len(result.shared_dependencies) == 512
+    assert result.omitted_dependency_count == 2
+    assert "dependencies" in result.unassessed_domains
+    assert len(result.sources.hypotheses.hypotheses[0].evidence_refs) == 513
