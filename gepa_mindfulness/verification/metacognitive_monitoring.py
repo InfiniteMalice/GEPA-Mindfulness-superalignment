@@ -179,7 +179,21 @@ def _contradictions(s: SourceSnapshot) -> list[MonitoringFinding]:
         superseded = {a.supersedes for a in history if a.supersedes is not None}
         for h in s.hypotheses.hypotheses:
             active = [a for a in history if a.hypothesis_id == h.id and a.id not in superseded]
-            if len({(a.status, a.scores) for a in active}) > 1:
+            statuses = {a.status for a in active} - {"unresolved"}
+            # Resource metadata and unavailable dimensions do not challenge an epistemic
+            # commitment. Retain all records, but flag only incompatible live judgments.
+            measured_conflict = any(
+                len(
+                    {
+                        getattr(a.scores, field)
+                        for a in active
+                        if getattr(a.scores, field) is not None
+                    }
+                )
+                > 1
+                for field in ("evidence_fit", "uncertainty", "risk", "transfer")
+            )
+            if len(statuses) > 1 or measured_conflict:
                 evidence = tuple(dict.fromkeys(r for a in active for r in a.evidence_refs))
                 result.append(
                     _finding(
