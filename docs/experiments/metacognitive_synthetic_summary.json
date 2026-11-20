@@ -1,0 +1,182 @@
+{
+  "arm_count": 16456,
+  "authority_granted": false,
+  "by_group": {
+    "case": {
+      "1": {
+        "both_matches": 242,
+        "units": 242
+      },
+      "10": {
+        "both_matches": 242,
+        "units": 242
+      },
+      "11": {
+        "both_matches": 242,
+        "units": 242
+      },
+      "12": {
+        "both_matches": 242,
+        "units": 242
+      },
+      "13": {
+        "both_matches": 242,
+        "units": 242
+      },
+      "14": {
+        "both_matches": 242,
+        "units": 242
+      },
+      "15": {
+        "both_matches": 242,
+        "units": 242
+      },
+      "16": {
+        "both_matches": 242,
+        "units": 242
+      },
+      "17": {
+        "both_matches": 242,
+        "units": 242
+      },
+      "2": {
+        "both_matches": 242,
+        "units": 242
+      },
+      "3": {
+        "both_matches": 242,
+        "units": 242
+      },
+      "4": {
+        "both_matches": 242,
+        "units": 242
+      },
+      "5": {
+        "both_matches": 242,
+        "units": 242
+      },
+      "6": {
+        "both_matches": 242,
+        "units": 242
+      },
+      "7": {
+        "both_matches": 242,
+        "units": 242
+      },
+      "8": {
+        "both_matches": 242,
+        "units": 242
+      },
+      "9": {
+        "both_matches": 242,
+        "units": 242
+      }
+    },
+    "challenge": {
+      "contradictory_evidence": {
+        "both_matches": 374,
+        "units": 374
+      },
+      "excessive_confidence": {
+        "both_matches": 374,
+        "units": 374
+      },
+      "false_verification": {
+        "both_matches": 374,
+        "units": 374
+      },
+      "healthy": {
+        "both_matches": 374,
+        "units": 374
+      },
+      "high_stakes_ambiguity": {
+        "both_matches": 374,
+        "units": 374
+      },
+      "motivated_forgetting": {
+        "both_matches": 374,
+        "units": 374
+      },
+      "repeated_failed_reasoning": {
+        "both_matches": 374,
+        "units": 374
+      },
+      "reward_pressure": {
+        "both_matches": 374,
+        "units": 374
+      },
+      "semantic_laundering": {
+        "both_matches": 374,
+        "units": 374
+      },
+      "shared_unsupported": {
+        "both_matches": 374,
+        "units": 374
+      },
+      "unnecessary_abstention": {
+        "both_matches": 374,
+        "units": 374
+      }
+    },
+    "stripe": {
+      "CONFLICTING_EVIDENCE": {
+        "both_matches": 374,
+        "units": 374
+      },
+      "DISTRACTOR": {
+        "both_matches": 374,
+        "units": 374
+      },
+      "MISSING_EVIDENCE": {
+        "both_matches": 374,
+        "units": 374
+      },
+      "NONE": {
+        "both_matches": 374,
+        "units": 374
+      },
+      "PARAPHRASE": {
+        "both_matches": 374,
+        "units": 374
+      },
+      "REWARD_PRESSURE": {
+        "both_matches": 374,
+        "units": 374
+      },
+      "STALE_EVIDENCE": {
+        "both_matches": 374,
+        "units": 374
+      },
+      "TIME_BUDGET_PRESSURE": {
+        "both_matches": 374,
+        "units": 374
+      },
+      "TOOL_ERROR": {
+        "both_matches": 374,
+        "units": 374
+      },
+      "TOOL_OUTPUT_INJECTION": {
+        "both_matches": 374,
+        "units": 374
+      },
+      "UNAUTHORIZED_EVIDENCE": {
+        "both_matches": 374,
+        "units": 374
+      }
+    }
+  },
+  "cells": 374,
+  "condition_d": "SIMULATION_ONLY",
+  "enabled": true,
+  "final_behavior_status": "NOT_RUN",
+  "limitation": "Synthetic structural checks only; no trained-model improvement measured",
+  "monitoring_matches": 4114,
+  "raw_sha256": "cd14a280124f312dbee3499998ca3205dafa1a20b258b0710b6a746688c2f745",
+  "raw_written": true,
+  "reward_changed": false,
+  "schema_version": "metacognitive-battery-summary-v1",
+  "strategy_matches": 4114,
+  "training_eligibility": "REGRESSION",
+  "unit_count": 4114,
+  "verified_task_success": null
+}

@@ -2,10 +2,10 @@
 
 ## Architecture audit and scope
 
-This experiment will derive diagnostic assessments from existing evidence, uncertainty,
+This experiment derives diagnostic assessments from existing evidence, uncertainty,
 hypothesis, and action-bound event records, then select bounded reasoning-method proposals.
 Monitoring, strategy selection, and externally verified behavioral improvement are separate
-capabilities. The audit stage adds no runtime implementation or behavior change.
+capabilities. All new computation is disabled by default.
 
 The design is inspired by [Sage-Taiyi v2, sections 2.3–2.5](https://arxiv.org/html/2611.12762v2):
 source-linked assessments inform selection among reusable methods. The paper's scientific
@@ -32,16 +32,16 @@ Narrow monitoring and strategy selection already exist. The missing capability i
 source-linked view that connects those diagnostics to explicit shared dependencies, an inspectable
 method catalogue, and matched evaluation of monitoring versus recommendation selection.
 
-## Proposed integration
+## Implemented integration
 
-Use focused metacognitive modules in `gepa_mindfulness.verification` for derived assessments,
+Focused metacognitive modules in `gepa_mindfulness.verification` provide derived assessments,
 monitoring, eight declarative strategies, control proposals and a PEO adapter. Keep original
 evidence and hypotheses authoritative; reference their stable IDs and detach snapshots for
-validation. Reuse existing evidence statuses. Monitoring lifecycle and unavailability are
+validation. They reuse existing evidence statuses. Monitoring lifecycle and unavailability are
 separate from the status of a claim.
 
-Use a separate explicitly enabled evaluation runner, as permitted by the implementation brief,
-to preserve the fixed overlay registry. All new computation defaults to disabled. Initial control
+A separate explicitly enabled evaluation runner, as permitted by the implementation brief,
+preserves the fixed overlay registry. All new computation defaults to disabled. Initial control
 is shadow-only; the fourth evaluation condition is replay/simulation only. No execution or
 parameter-learning path is added.
 
@@ -85,3 +85,49 @@ are unvalidated until measured under an appropriate protocol.
 For example, shared-dependency detection can establish that two declared hypotheses cite the
 same unverified premise. It cannot establish that the premise is false or that either hypothesis
 is wrong. A diagnostic judgment cannot promote that premise to verified truth.
+
+## CPU demonstrations and reproducible battery
+
+The separate runner preserves every existing experimental overlay ID and its order. It loads
+only bundled synthetic data; it requires no model weights, external evaluator, network access,
+NumPy or Torch. Its input JSON chooses a factory challenge and canonical V5 coordinates; it
+cannot enroll a trusted evaluator, grant authority or provide an execution callback.
+
+```bash
+# Disabled before reading a file or constructing an episode:
+python -m evaluation.run_metacognitive
+
+# Shared unsupported premise: diagnostic verify_assumption proposal, no action:
+python -m evaluation.run_metacognitive --enable --demo unsupported
+
+# Supported independent evidence: no findings, continue with no intervention:
+python -m evaluation.run_metacognitive --enable --demo healthy
+
+# All 17 cases × 11 stripes × 2 repeats, ten challenges plus healthy control:
+# --output must name a new file. Summary JSON goes to stdout.
+python -m evaluation.run_metacognitive --enable --battery \
+  --output /tmp/metacognitive-results.jsonl > /tmp/metacognitive-summary.json
+
+# Small selected-coordinate smoke:
+python -m evaluation.run_metacognitive --enable --battery \
+  --case-id 1 --stripe-id NONE --repeats 1
+```
+
+`--input path.json` accepts exactly the `metacognitive-demo-v1` schema illustrated by the two
+packaged `gepa_mindfulness/data/metacognitive_*_demo.json` files. Unknown fields, versions,
+noncanonical cells and malformed types fail validation. File specifications are limited to
+16 KiB. `--output` streams per-unit JSONL with all four condition statuses, metric availability,
+source digests and eight ablations. The summary partitions synthetic agreement by challenge,
+case and stripe and binds the raw export with SHA-256. Outputs remain REGRESSION data.
+
+See [contracts](metacognitive_contracts.md), [monitoring](metacognitive_engine.md),
+[repertoire](metacognitive_repertoire.md), [control](metacognitive_control.md),
+[PEO capture](metacognitive_peo.md) and [evaluation limits](metacognitive_evaluation.md) for
+individual interfaces. A host may independently investigate a proposal under its existing
+governance; this runner never performs that investigation. Neither more critiques nor more
+elaborate method descriptions establish improved decisions or alignment.
+
+Open scientific questions include semantic equivalence verification, evaluator independence,
+monitor calibration on real episodes, strategy benefit under matched model compute, and whether
+authorized interventions improve externally verified outcomes. The synthetic suite answers none
+of those empirical questions.
