@@ -360,5 +360,12 @@ def make_challenge(
             "v1",
             "metacognitive-observed-labels-v1",
         ),
+        label_verification_event_ids=tuple(
+            e.event_id
+            for e in events
+            if e.event_type == "verification_result"
+            and e.payload.get("verifier_id") == "verifier"
+            and e.payload.get("verifier_version") == "v1"
+        ),
     )
     return ChallengeFixture(name, episode, expected, proposals, split)

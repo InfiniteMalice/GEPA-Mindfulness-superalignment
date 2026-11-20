@@ -27,6 +27,7 @@ from .metacognitive_records import (
     exact,
     records,
     snapshot,
+    strings,
     text,
     unit,
 )
@@ -237,6 +238,7 @@ class RecordedEpisode:
     evidence_use: tuple[EvidenceUseAssessment, ...] | None = None
     label_evaluator: TrustedEvaluatorContract | None = None
     failure_graph: FailureGraph | None = None
+    label_verification_event_ids: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if type(self.inputs) is not MonitoringInput:
@@ -259,6 +261,16 @@ class RecordedEpisode:
                     "accuracy/progress labels need the declared independent label contract"
                 )
             object.__setattr__(self, "label_evaluator", evaluator)
+        label_events = strings(self.label_verification_event_ids, "label verifier events", 512)
+        by_id = {event.event_id: event for event in self.events}
+        if any(
+            key not in by_id
+            or by_id[key].event_type != "verification_result"
+            or "verified" not in by_id[key].payload
+            for key in label_events
+        ):
+            raise ValueError("host label bindings must name recorded prefix verification events")
+        object.__setattr__(self, "label_verification_event_ids", label_events)
         if self.failure_graph is not None:
             if type(self.failure_graph) is not FailureGraph:
                 raise ValueError("failure_graph must be the existing exact FailureGraph")
@@ -317,6 +329,7 @@ class RecordedEpisodeReport:
                 "calibration_coverage",
                 "strategy_observations",
                 "label_evaluator",
+                "label_verification_event_ids",
                 "failure_graph",
             },
         )
@@ -363,6 +376,32 @@ def _use_matches(
     ) > parse_rfc3339_datetime(cutoff_timestamp, "cutoff_timestamp"):
         raise ValueError("evidence-use assessment cannot come from after the recorded cutoff")
     return checked
+
+
+def _verification_conflict(checks: list[EventEnvelope]) -> bool:
+    """Compare conclusions about the same question, never aggregate success across levels."""
+    payloads = [event.to_dict()["payload"] for event in checks]
+    legacy = {payload["verified"] for payload in payloads if "verified" in payload}
+    if len(legacy) > 1:
+        return True
+    local = [p["result"] for p in payloads if p.get("verification_level") == "local_execution"]
+    if any(
+        len({row[key] for row in local}) > 1
+        for key in (
+            "executed",
+            "arguments_valid",
+            "schema_valid",
+            "authorization_valid",
+            "intended_operation_observed",
+        )
+    ):
+        return True
+    # Unsupported or unknown relational support does not contradict local execution success.
+    return any(
+        p.get("verification_level") == "relational_evidence"
+        and p["result"]["contradiction_status"] == "contradicted"
+        for p in payloads
+    )
 
 
 def _outcomes(episode: RecordedEpisode, threshold: float | None):
@@ -430,11 +469,7 @@ def _outcomes(episode: RecordedEpisode, threshold: float | None):
         if observation and not set(observation.evidence_refs) <= refs.keys():
             raise ValueError("observation references must belong to the captured original source")
         observable_refs = tuple(refs[r] for r in observation.evidence_refs) if observation else ()
-        if (
-            checks
-            and any(_source_verified(e) for e in checks)
-            and not all(_source_verified(e) for e in checks)
-        ):
+        if _verification_conflict(checks):
             findings.append(
                 _finding(
                     s,
@@ -452,7 +487,7 @@ def _outcomes(episode: RecordedEpisode, threshold: float | None):
             verified
             and evaluator is not None
             and selected is not None
-            and selected.payload.get("verifier_id") == evaluator.evaluator_id
+            and selected.event_id in episode.label_verification_event_ids
             and selected.payload.get("verifier_version") == evaluator.evaluator_version
         )
         data = observation.to_dict()["payload"]["actual_outcome"] if observation else {}
@@ -460,7 +495,7 @@ def _outcomes(episode: RecordedEpisode, threshold: float | None):
         for name in ("correct", "progress", "claimed_verified"):
             if name in data and type(data[name]) is not bool:
                 raise ValueError("observed outcome labels must be exact booleans")
-        if data.get("claimed_verified") is True and not verified:
+        if not verified and (checks or data.get("claimed_verified") is True):
             findings.append(
                 _finding(
                     s,
@@ -580,6 +615,7 @@ def monitor_recorded_episode(
             if episode.label_evaluator
             else None
         ),
+        label_verification_event_ids=list(episode.label_verification_event_ids),
     )
     by_id = {e.event_id: e for e in episode.events}
     if episode.evidence_use is not None:
@@ -606,7 +642,8 @@ def monitor_recorded_episode(
         for index, request in enumerate(episode.continuity_requests):
             _use_matches(request.evidence_use, s)
             if any(
-                e.event_id not in by_id or e.to_dict() != by_id[e.event_id].to_dict()
+                e.event_id not in by_id
+                or canonical_json(e.to_dict()) != canonical_json(by_id[e.event_id].to_dict())
                 for e in request.events
             ):
                 raise ValueError("continuity must use unchanged events from the captured prefix")
