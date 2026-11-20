@@ -249,3 +249,16 @@ def test_revalidation_rejects_mutable_bypass(sources: SourceSnapshot) -> None:
     object.__setattr__(value.uncertainty, "model", float("nan"))
     with pytest.raises(ValueError):
         value.to_dict()
+
+
+def test_unassessed_domains_survive_wire_round_trip(sources: SourceSnapshot) -> None:
+    """Missing diagnostic coverage must not disappear from serialized assessments."""
+    value = replace(
+        assessment(sources),
+        status=AssessmentStatus.PARTIAL,
+        unassessed_domains=("calibration", "continuity"),
+    )
+    restored = MetacognitiveAssessment.from_dict(value.to_dict())
+    assert restored.unassessed_domains == ("calibration", "continuity")
+    with pytest.raises(ValueError):
+        replace(value, unassessed_domains=("invented",))

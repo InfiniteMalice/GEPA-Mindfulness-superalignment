@@ -19,6 +19,8 @@ a proposed next diagnostic step. Findings are explicitly unverified or unavailab
 a wire label cannot turn them into verified evidence. `MetacognitiveAssessment` binds those
 findings to sources, method/version, separate uncertainty dimensions and monitoring lifecycle.
 `AssessmentStatus.UNDER_REVIEW` describes monitoring review, not evidence truth.
+`unassessed_domains` explicitly retains missing diagnostic coverage. An assessment with any
+unassessed domain cannot declare its monitoring status complete.
 
 All records use the versioned `metacognitive-v1` wire schema with an exact record type and exact
 fields. `to_dict()` revalidates recursively and returns detached JSON. `from_dict()` rejects

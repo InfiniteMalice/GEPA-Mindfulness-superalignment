@@ -341,6 +341,7 @@ class MetacognitiveAssessment(_Record):
     findings: tuple[MonitoringFinding, ...]
     shared_dependencies: tuple[SharedDependency, ...]
     diagnostic_status: DiagnosticStatus = DiagnosticStatus.DIAGNOSTIC
+    unassessed_domains: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         text(self.assessment_id, "assessment_id")
@@ -349,6 +350,21 @@ class MetacognitiveAssessment(_Record):
             raise ValueError("expected exact monitoring lifecycle status")
         if self.diagnostic_status is not DiagnosticStatus.DIAGNOSTIC:
             raise ValueError("metacognitive records must remain diagnostic")
+        domains = strings(self.unassessed_domains, "unassessed_domains", 8)
+        if not set(domains) <= {
+            "assumptions",
+            "dependencies",
+            "contradictions",
+            "continuity",
+            "calibration",
+            "repetition",
+            "strategy",
+            "evidence_use",
+        }:
+            raise ValueError("unknown monitoring domain")
+        if domains and self.status is AssessmentStatus.COMPLETE:
+            raise ValueError("a complete assessment cannot contain unassessed domains")
+        object.__setattr__(self, "unassessed_domains", domains)
         object.__setattr__(self, "sources", snapshot(self.sources, SourceSnapshot))
         object.__setattr__(self, "uncertainty", snapshot(self.uncertainty, UncertaintyDimensions))
         object.__setattr__(self, "findings", records(self.findings, MonitoringFinding, 512))
@@ -431,5 +447,6 @@ _DECODERS = {
         "findings": _sequence(MonitoringFinding),
         "shared_dependencies": _sequence(SharedDependency),
         "diagnostic_status": DiagnosticStatus,
+        "unassessed_domains": array,
     },
 }
