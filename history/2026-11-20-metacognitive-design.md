@@ -159,7 +159,8 @@ Existing synthetic calibration responses produced two results: one correct and o
 accuracy 0.5, Brier score 0.32500000000000007, and ECE 0.45. These are fixture-scoring results,
 not measurements of a newly executed model. Ruff, Black (866 files), and the nine main CI mypy
 targets passed against the unmodified baseline.
-The complete existing offline suite is running; its result must be recorded before PR-0 delivery.
+The complete existing offline suite passed: 7,339 tests, 11 skips and 162 subtests in
+589.12 seconds, with 18 warnings. The baseline collection preceded new contract tests.
 The existing V5 CLI is a deterministic planner and explicitly does not execute a model. A dry-run
 coverage plan is useful structural evidence, not a behavioral baseline or alignment measurement.
 

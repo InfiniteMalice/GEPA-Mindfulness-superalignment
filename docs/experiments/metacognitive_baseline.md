@@ -30,8 +30,17 @@ Result: **405 passed in 1.79 seconds**.
 Ruff passed. Black checked 866 files without changes. Both existing CI mypy commands passed:
 the nine configured source targets and the isolated logging-schema target.
 
-The complete offline suite is still running at the time of this draft. Its result must be
-recorded before PR-0 is marked ready for merge. A running check is not a successful check.
+The complete existing offline suite passed: **7,339 tests, 11 skipped, and 162 subtests** in
+589.12 seconds, with 18 warnings. Reproduce with:
+
+```sh
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 PYTHONDONTWRITEBYTECODE=1 \
+  ../.venv312/bin/python -m pytest -q -p no:cacheprovider --maxfail=1 --disable-warnings
+```
+
+The baseline collection ran before the new contract tests were added and includes no new
+metacognitive tests. Skips and warnings retain the existing suite behavior; they are not new
+metacognitive validation evidence.
 
 ## Structural V5 plan
 
