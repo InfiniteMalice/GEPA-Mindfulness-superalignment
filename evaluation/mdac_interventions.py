@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass
 from math import log, sqrt
 from statistics import mean
 from typing import Any
+from uuid import uuid4
 
 from evaluation.causal_diagnostics import evaluate_causal_suite, protocol_digest
 from evaluation.causal_records import (
@@ -68,10 +69,15 @@ class ReplayResult:
         actions: tuple[str, ...],
         *,
         procedure_id: str | None = None,
+        execution_id: str | None = None,
     ) -> ReplayResult:
         """Content-address the public receipt for an in-process runner."""
         prompt = content_digest(list(turns))
-        digest = content_digest([asdict(identity), prompt, actions, procedure_id])
+        if execution_id is None:
+            execution_id = uuid4().hex
+        elif not _text(execution_id):
+            raise ValueError("execution_id must name an actual host execution")
+        digest = content_digest([execution_id, asdict(identity), prompt, actions, procedure_id])
         ref = EvidenceReference(f"capture:{digest}", EvidenceSourceKind.OBSERVABLE_ACTION)
         return cls(identity, prompt, actions, ref, procedure_id)
 
@@ -84,6 +90,7 @@ class Treatment:
     role: str
     pair: CausalPair
     procedure_id: str | None = None
+    selection_policy: str | None = None
 
 
 @dataclass(frozen=True)
@@ -121,6 +128,8 @@ def _validate_block(
         p = CausalPair.from_dict(treatment.pair.to_dict())
         if set(p.before.expected_actions) != set(p.after.expected_actions):
             raise ValueError("MDAC repair arms must preserve the common outcome oracle")
+        if treatment.selection_policy is not None and not _text(treatment.selection_policy):
+            raise ValueError("treatment selection policy requires a nonempty identity")
         plan = treatment.procedure_id
         declared = [c for c in p.changes if c.factor == "activation_plan"]
         if plan is not None:
@@ -275,6 +284,24 @@ def _effect(rows: list[dict[str, Any]], independent: bool) -> dict[str, Any]:
     )
 
 
+def _treatment_roster(block: ReplayBlock) -> list[tuple[Any, ...]]:
+    """Bind pooled arms to either an exact pair or a registered per-task selection policy."""
+    return [
+        (
+            t.name,
+            t.role,
+            t.procedure_id,
+            t.selection_policy,
+            (
+                t.pair.digest
+                if t.selection_policy is None
+                else tuple(sorted(c.factor for c in t.pair.changes))
+            ),
+        )
+        for t in block.treatments
+    ]
+
+
 def run_interventions(
     blocks: tuple[ReplayBlock, ...],
     *,
@@ -324,14 +351,16 @@ def run_interventions(
         if key in seen:
             raise ValueError("duplicate matched trial")
         seen.add(key)
-        if [(t.name, t.role) for t in block.treatments] != [
-            (t.name, t.role) for t in blocks[0].treatments
-        ] or block.evaluator != blocks[0].evaluator:
+        if (
+            _treatment_roster(block) != _treatment_roster(blocks[0])
+            or block.evaluator != blocks[0].evaluator
+        ):
             raise ValueError("treatment roster and evaluator must match across blocks")
         roster.append(
             dict(
                 identity=asdict(block.identity),
                 evaluator=asdict(block.evaluator),
+                selection_policies={t.name: t.selection_policy for t in block.treatments},
                 arms=[(t.name, t.role, t.pair.digest, t.procedure_id) for t in block.treatments],
             )
         )
@@ -375,6 +404,7 @@ def run_interventions(
     effects = {}
     for t in blocks[0].treatments:
         result = _effect([r for r in observations if r["treatment"] == t.name], independent_tasks)
+        result["selection_policy"] = t.selection_policy
         effects[t.name] = result
         if result["matched_trials"] < len(blocks):
             reasons.append(f"{t.name}: incomplete paired outcomes")
