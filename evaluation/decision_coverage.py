@@ -214,6 +214,7 @@ def evaluate_episode(episode: Mapping[str, Any]) -> dict[str, Any] | None:
         raise ValueError("resumed and stalled require distinct observed clarification outcomes")
 
     findings = []
+    necessary_checks: list[tuple[bool | None, bool | None]] = []
     for key, decision in decisions.items():
         grounded_ok: bool | None = None
         if grounded is not None:
@@ -231,6 +232,8 @@ def evaluate_episode(episode: Mapping[str, Any]) -> dict[str, Any] | None:
             grounded_ok,
             None if applied is None else applied.get(key) == decision.expected_choice,
         )
+        if decision.clarification_necessary:
+            necessary_checks.append((checks[1], checks[2]))
         failure = next((phase for phase, ok in zip(_PHASES, checks) if ok is False), None)
         findings.append(
             dict(
@@ -244,6 +247,12 @@ def evaluate_episode(episode: Mapping[str, Any]) -> dict[str, Any] | None:
 
     needed = {key for key, d in decisions.items() if d.clarification_necessary}
     all_required_resolved = needed <= answered
+    incorporated = all(grounded_ok and applied_ok for grounded_ok, applied_ok in necessary_checks)
+    ignored_answer = (
+        resumed
+        and all_required_resolved
+        and any(applied_ok is False for _, applied_ok in necessary_checks)
+    )
     avoidable_stall = stalled and all_required_resolved
     excessive = all_required_resolved and (stalled or result.outcome == "abstained")
     covered = len(identified) if identified is not None else None
@@ -290,8 +299,11 @@ def evaluate_episode(episode: Mapping[str, Any]) -> dict[str, Any] | None:
             guessed_silently=silent,
             targeted_clarification=bool(needed) and targeted == needed and not unnecessary,
             excessive_questions=bool(unnecessary),
-            resumed_after_clarification=resumed and all_required_resolved and not silent,
-            stalled_after_clarification=avoidable_stall,
+            resumed_after_clarification=resumed
+            and all_required_resolved
+            and incorporated
+            and not silent,
+            stalled_after_clarification=avoidable_stall or ignored_answer,
         ),
         "brier_score": brier_score([result]),
         "direct_run_id": None if direct is None else direct["metadata"]["run_id"],

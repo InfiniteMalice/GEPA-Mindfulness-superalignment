@@ -291,3 +291,20 @@ def test_partial_reply_cannot_reward_resumption_before_authorization(episode):
     trace["guessed_silently"] = True
     episode["result"]["outcome"] = "incorrect"
     assert dc.evaluate_episode(episode)["ambiguity_handling_score"] == 1.0
+
+
+def test_resumption_must_incorporate_the_answer_received(episode):
+    trace = episode["trace"]
+    trace["applied"]["delivery"] = "send now"
+    episode["result"]["outcome"] = "incorrect"
+    report = dc.evaluate_episode(episode)
+    assert report["ambiguity_handling_score"] == 1.0
+    assert not report["excessive_abstention"]
+    assert report["findings"][1]["earliest_supported_failure"] == "response_synthesis"
+
+
+def test_unobserved_application_cannot_support_successful_resumption(episode):
+    episode["trace"]["applied"] = None
+    report = dc.evaluate_episode(episode)
+    assert report["ambiguity_handling_score"] == 3.5
+    assert not report["excessive_abstention"]
