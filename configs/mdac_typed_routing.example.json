@@ -1,0 +1,16 @@
+{
+  "workflow": {
+    "schema_version": "decision-workflow-config-v1",
+    "enabled": false,
+    "workflow_id": "mdac-typed-routing"
+  },
+  "routing_policy": {"enabled": false},
+  "calibration": {
+    "target_accuracy": 0.95,
+    "minimum_examples": 20
+  },
+  "task_kind": "enumerable",
+  "target": "clarification",
+  "choices": ["clarify", "accept"],
+  "high_consequence": false
+}

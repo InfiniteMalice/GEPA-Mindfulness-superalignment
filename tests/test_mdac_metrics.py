@@ -377,12 +377,20 @@ def test_m10_optional_existing_value_components():
                 observed=account,
                 alternatives=[account],
                 value_components=GepaDecomposition(1.5, -1, 0.25),
-            )
+            ),
+            dict(observed=account, alternatives=[account], value_components=None),
         ],
     )
     assert result["deep_contribution"].raw == 1.5
     assert result["shallow_contribution"].raw == -1
     assert result["residual"].raw == 0.25
+    for name in ("deep_contribution", "shallow_contribution", "residual"):
+        assert (result[name].denominator, result[name].missing) == (1, 1)
+
+    uninstrumented = run("M10", [dict(observed=account, alternatives=[account])])
+    for name in ("deep_contribution", "shallow_contribution", "residual"):
+        assert uninstrumented[name].raw is None
+        assert (uninstrumented[name].denominator, uninstrumented[name].missing) == (0, 1)
 
 
 def test_m14_independent_validation_and_numeric_ranges():
@@ -447,3 +455,37 @@ def test_optional_local_model_metrics():
         ],
     )
     assert result["brier"].raw == pytest.approx((confidence.item() - correct) ** 2)
+
+
+@pytest.mark.parametrize("before,after,delta", [(0, 1e308, 0.5), (-1e308, 1e308, 1.0)])
+def test_reward_improvement_with_large_finite_endpoints(before, after, delta):
+    row = dict(
+        round="1",
+        category="quality",
+        reward_source="r",
+        validation_source="v",
+        reward_before=before,
+        reward_after=after,
+        reward_range=[-1e308, 1e308],
+        validation_before=1,
+        validation_after=1,
+        validation_range=[0, 2],
+    )
+    assert run("M14", [row])["divergence"].raw == delta
+
+
+def test_source_absence_and_use_require_an_independently_accessible_copy():
+    row = dict(
+        present=False,
+        retrieved=None,
+        used=True,
+        correct=True,
+        contradicted=False,
+        transform="restoration",
+    )
+    with pytest.raises(ValueError, match="accessible"):
+        run("M01", [row])
+    scores = run("M01", [dict(row, accessible=True)])
+    assert (
+        scores["source_absence"].raw == scores["successful_use"].raw == scores["retention"].raw == 1
+    )

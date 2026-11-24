@@ -12,6 +12,7 @@ from dataclasses import asdict, dataclass, fields
 from enum import Enum
 from pathlib import Path
 from typing import Any, Iterator
+from uuid import uuid4
 
 from evaluation import V5EvaluationRecord
 from gepa_mindfulness.coevolution import CandidateSystem, CoevolutionStore, ValidationBundle
@@ -535,3 +536,96 @@ class PrivatePromotionStore:
         """
         with self._connection() as db:
             return self._check(db)
+
+    def admission_snapshot(self, candidate_id: str, artifact_digest: str) -> dict[str, Any]:
+        """Bind a durable private-catalog identity, its pinned configuration and live decision."""
+        _token(candidate_id, "candidate_id")
+        _digest_value(artifact_digest)
+        with self._connection() as db:
+            events = self._check(db)
+            candidate = self._candidate(candidate_id, artifact_digest)
+            completed = next(
+                (
+                    event
+                    for event in events
+                    if event["candidate_id"] == candidate_id
+                    and event["operation"] == "complete_evaluation"
+                ),
+                None,
+            )
+            decision = None
+            if completed:
+                decision = self._coevolution.read_decision(completed["payload"]["decision_id"])
+                if decision.decision_digest != completed["payload"]["decision_digest"]:
+                    raise ValueError("private decision digest changed")
+            identity = next(
+                (
+                    e["payload"]["catalog_id"]
+                    for e in events
+                    if e["operation"] == "mdac_catalog_identity"
+                ),
+                None,
+            )
+            if identity is None:
+                identity = str(uuid4())
+                self._append(
+                    db, events, "mdac_catalog_identity", "", {"catalog_id": identity}, "configured"
+                )
+            return dict(
+                catalog_id=identity,
+                configuration_digest=_hash(self._pinned),
+                candidate_id=candidate_id,
+                artifact_digest=candidate.artifact_digest,
+                source_epoch=candidate.source_epoch_id,
+                candidate_epoch=candidate.candidate_epoch_id,
+                changed_components=[c.value for c in candidate.changed_components],
+                rollback_target=candidate.rollback_target_epoch_id,
+                correction_id=candidate.correction.proposal_id,
+                decision_id=decision.decision_id if decision else None,
+                decision_digest=decision.decision_digest if decision else None,
+                accepted=decision.accepted if decision else None,
+            )
+
+    def _audit_admission_review(self, report: dict[str, Any], digest: str) -> None:
+        """Append one inert host advisory without changing the private request state machine."""
+        with self._connection() as db:
+            events = self._check(db)
+            for event in reversed(events):
+                if event["operation"] != "mdac_admission_review":
+                    continue
+                previous = event["payload"]
+                if previous["report"]["proposal_digest"] == report["proposal_digest"]:
+                    if previous["report_digest"] == digest:
+                        return
+                    break
+            # The empty candidate ID is reserved for host-wide audit records.
+            self._append(
+                db,
+                events,
+                "mdac_admission_review",
+                "",
+                {"report_digest": digest, "report": report},
+                "advisory",
+            )
+
+    def grievance_admission(
+        self, proposal_digest: str, review_digest: str
+    ) -> dict[str, str] | None:
+        """Resolve the latest advisory for this proposal, exposing only its public linkage."""
+        with self._connection() as db:
+            for event in reversed(self._check(db)):
+                if event["operation"] != "mdac_admission_review":
+                    continue
+                payload = event["payload"]
+                report = payload["report"]
+                if report["proposal_digest"] != proposal_digest:
+                    continue
+                if payload["report_digest"] != review_digest:
+                    return None
+                return dict(
+                    decision=report["decision"],
+                    proposal_digest=proposal_digest,
+                    review_digest=review_digest,
+                    evidence_digest=report["evidence_digest"],
+                )
+        return None

@@ -238,3 +238,108 @@ it outside the checkout. Existing relation, V5, reward and documentation tests r
 requirements.
 
 See [pluralistic robustness](pluralistic_robustness.md) for controlled laundering families, role reversals and three-condition comparisons.
+
+## MDAC matched intervention replay
+
+`evaluation.mdac_interventions.run_interventions` tests whether a predeclared change
+improves a public task outcome under matched starting conditions. It adapts the
+fixed-checkpoint replay and instruction-reversion experiments in Safe Personal RSI.
+Its estimand, controls, factorial contrast and uncertainty calculation are specified
+here. A measured behavioral effect can have several explanations. [Safe Personal RSI](https://arxiv.org/abs/2611.23651)
+
+Run the bundled two-fault CPU experiment from the repository root.
+
+```bash
+python - <<'PY'
+import json
+from pathlib import Path
+from synthetic_data.mdac_interventions import run_fixture_config
+
+config = json.loads(Path("configs/mdac/interventions.json").read_text())
+result = run_fixture_config(config)
+print(result["effects"]["repair"], result["interactions"]["joint"], result["calls_used"])
+PY
+```
+
+The fixture models a benign ledger-reporting task. It corrupts the supplied entries,
+evidence age, authorization record, revision ordering, arithmetic procedure, requested
+account, incentive, remembered value, compressed fee or tool adjustment.
+The evaluator retains the clean total. The actor sees the instructions and visible ledger.
+The synthetic positive control supplies a separately released public audit copy. The sham
+changes presentation. The example runs four seeds within one task family. Its sample size
+supports a descriptive estimate. It leaves population uncertainty unavailable.
+
+### Host contract
+
+Build a `ReplayBlock` from one `ReplayIdentity`, the independent evaluator contract,
+and named `Treatment` objects carrying existing `CausalPair` records. Use shared-seed
+pairs with an identical original prompt, starting case, factors, expected actions and
+source eligibility. Freeze task, checkpoint, initial-state, decoding/tool configuration,
+harness, evaluator and repeat identities before the run. Register a repair and both types
+of control. Maintain a separate non-training partition and retain the report's eligibility.
+
+Across tasks, each treatment must name a versioned selection policy if its exact pair changes.
+The report binds the policy, changed factor names and procedure to the pooled estimate and
+records each concrete pair. With no policy, only an identical pair can share a treatment.
+The fixture's repair policy restores the clean value of its named field for each sampled task.
+
+The host resets the identified state for each invocation of `execute(identity, turns)`.
+It returns the actual identity, public prompt digest, action sequence and evidence reference
+in a `ReplayResult`. The in-process factory creates a fresh execution identifier for each
+call. A trusted host can supply its own unique execution ID to reproduce a stored receipt.
+Repeated runs can reproduce the numerical outcomes while identifying distinct evidence. A stateful backend must isolate every run and resolve the references
+against its own execution logs. A missing public outcome uses an empty action tuple.
+The harness checks the identity and calls the existing causal evaluator with the
+host's digest-bound adjudication and independent authenticator. Only observed, authenticated
+arm outcomes enter a matched estimate. A disabled run invokes no callbacks.
+
+Use declared `FactorChange` values and actor-visible turns to restore original context,
+supply verified evidence, remove interfering memory, refresh stale knowledge, restore
+chronology or intent, restate an applicable constitutional principle, or supply a verified
+reasoning step. Negative controls can vary irrelevant wording. Contained incentive and
+oversight changes, or an alternative proposed decision, can be registered as competing
+interventions. Keep the externally scored objective and authorized actions frozen.
+
+Optional activation interventions reference a precommitted plan digest through a
+`Treatment.procedure_id` and an `activation_plan` change from JSON null to that digest.
+Supply a trusted `procedures={digest: execute_scoped}` mapping. The scoped callback owns
+the checkpoint validation, donor, layers, positions, hook lifetime, reset and public output
+capture. It binds the actual plan digest in its return receipt. The existing
+`gepa_mindfulness.interpret.causal_interventions.execute_causal_plan` can measure scoped
+native activation changes. A logit contrast alone supplies no binary pass verdict.
+The regression test exercises dispatch and receipt binding with a CPU callback.
+
+### Effects, budgets and uncertainty
+
+One block spends one host execution on the shared control plus one for each intervention.
+`max_calls` bounds these executions. The host separately enforces token, compute and tool
+limits inside each invocation. The runner stops before a block that would exceed the
+budget and retains earlier complete blocks. Censored outcomes and failed authentication
+remain visible. Reports include arm records, capture references, evaluator identity,
+adjudication, and digests of both the ordered protocol and the complete result.
+
+For each intervention the report gives matched count, absolute pass rates,
+fail-to-pass and pass-to-fail counts, conditional recovery among baseline failures,
+and DRS equal to intervention pass rate minus matched control pass rate. A factorial
+contrast uses only complete common-start blocks and estimates
+`pass(A+B) - pass(A) - pass(B) + pass(control)`. The compound arm must contain exactly
+the disjoint factor changes registered for A and B. All estimates count paired blocks
+equally. Runs with no matched observations return null.
+
+Set `independent_tasks=True` only for independently sampled tasks with distinct task IDs
+and non-informative missingness in the measured subset. Repeats of a task form one cluster.
+The two-sided 95% Hoeffding bound weights each cluster by its fraction of matched blocks.
+The paired difference has range [−1, 1], and the factorial contrast has range [−2, 2].
+The interval is clipped to that range and requires at least two distinct task clusters.
+A budget-truncated run describes the executed prefix and marks the result inconclusive.
+
+A failed positive control, a sham that changes correctness or incomplete paired outcomes
+make the experiment inconclusive. Zero net improvement leaves attribution inconclusive.
+Several effective repairs leave attribution ambiguous. A single observed recovery records
+the behavioral contrast and retains alternative explanations. The harness assigns no mechanism
+label. An evaluator can link the result digest in a PR 1 `MechanismAssessment.intervention_results`
+entry and retain the independent evidence and uncertainty for that assessment.
+
+To exercise a locally supplied causal language model, install the optional Torch and Transformers dependencies with `pip install ".[rl]"`. Set `MDAC_LOCAL_TEST_MODEL` to the local directory containing both checkpoint weights and tokenizer files and run `pytest -q tests/test_mdac_interventions.py`. The smoke test
+uses deterministic CPU decoding and scores all four arms. It requires no online service.
+Existing causal-pair schemas and calls require no migration.

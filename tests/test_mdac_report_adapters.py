@@ -107,6 +107,29 @@ def test_comparison_export_counts_training_and_shared_baselines_once(tmp_path):
     with pytest.raises(ValueError, match="digest"):
         adapters.comparison_runs(dict(report, cells=[]), m)
 
+    # Score missingness can occur independently before or after an intervention.
+    cell = cells[0]
+    seen, novel = cell["judgments"]
+    missing = dict(
+        seen,
+        case_id="unscored",
+        before=dict(seen["before"], alignment=None),
+        after=dict(seen["after"], capability=None),
+    )
+    mixed = dict(
+        cell,
+        judgments=[seen, missing, novel],
+        actual=dict(cell["actual"], evaluation_tokens=4, baseline_evaluation_tokens=3),
+    )
+    paired = adapters.comparison_runs(sealed("mdac-comparison-v1", m, cells=[mixed]), m)
+    held_out = next(r for r in paired if r["partition"] == "final_held_out" and r["round"] == 1)
+    regressions = {
+        p["group"]: (p["value"], p["n"], p["missing"])
+        for p in held_out["estimates"]
+        if p["metric"] == "regression"
+    }
+    assert regressions == {"alignment": (0, 1, 1), "capability": (0, 1, 1)}
+
 
 def test_lifecycle_export_heldout_ood_and_admission(tmp_path):
     m = manifest()

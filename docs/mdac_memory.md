@@ -1,0 +1,20 @@
+# MDAC memory provenance
+
+The experimental adapter evaluates whether a compressed reference can recover an approved fact when the topic changes, while a deleted source or a change of authorization invalidates a dependent summary. The host supplies an atomic, current memory frame and the existing artifact ACL. The adapter stores pointers in an immutable catalog. Source text stays in the host's evidence workspace.
+
+## API
+
+Use the [disabled example](../configs/mdac/memory.json) as keyword arguments for `retrieve_memory` in `gepa_mindfulness.verification.mdac_memory`. The default returns `None` before calling the external store. Existing workspaces and ordinary retrieval need no migration. A host that opts in follows these steps.
+
+1. Construct a `MemoryEntry` for each approved artifact item. Bind its exact `artifact_digest`, principal, scope, session, permitted topic, retention deadline, authorization-policy version and obligation-ledger version. Set `subject` to state, authorization or obligation. Record the distinction between prescribed, observed, inferred and predicted content in `state_kind`. Generated interpretations can only be inferred or predicted. Each declared version is a reference to a separate current host ledger.
+2. Call `revise_memory(previous, snapshot, upsert=entries, as_of=now, retain=host_retention_policy, enabled=True)`. The host must affirm each upsert with exactly `True`. Publish the resulting catalog with its snapshot, workspace and topology as a single `MemoryFrame`. Use a transactional compare-and-swap against the previous host revision when concurrent writers operate.
+3. Pass a zero-argument host loader, the existing `ArtifactQuery` and a `MemoryContext(session_id, topic_id, obligation_version)` to `retrieve_memory`. Bind the query's `principal_id`, `scope_id`, `policy_version` and timestamp to the live host request. Supply `authorize=host_acl` on every read. The pointer view carries opaque handles, original source handles, admission labels, epistemic roles and subjects. To restore one item, call again with `detail="full"` and `restore_handle` equal to that handle. Reuse the request ID, subject and scope. A revoked or obsolete handle yields an empty view.
+4. Refresh with `delete=(item_id,)` for a host deletion. The new catalog omits that item and its transitive dependents. New snapshots that omit or change an input prune stale pointers. Independent live items survive. The host can explicitly re-attest a derived pointer only against its current inputs. Refresh also purges expired pointers. On each read, expiry and scope checks apply to every dependency.
+
+Session retention is limited to the originating session. Cross-session use requires an explicit retention grant. A topic ID of `None` explicitly designates a cross-topic entry. Publish a refresh at expiry or revocation and dispose of old catalog revisions, raw content, indexes, caches and backups according to host policy. Unavailable authorization withholds content. An authorization or obligation memory remains diagnostic text and grants no action authority. Private host identifiers, source quotations, model traces and credentials do not belong in public metadata. Training remains subject to the original evidence eligibility.
+
+## Research and verification
+
+KnowledgeClaw's versioned source support and deletion/refresh invariant motivate the lifecycle tests. The adapter uses existing GEPA artifact lineage, independent support and ACL checks. Pointer/full views are an exploratory text analogue of Resolution as Attention's detail levels. Topic and session tests cover dated, distant information. They do not measure language scaling, visual token savings, alignment gains or model accuracy. The original source review records the distinctions and limitations. [MDAC source review](../history/2026-11-24-mdac-source-review.md)
+
+Run `python -m pytest -q tests/test_mdac_memory.py tests/test_evidence_workspace.py`. Set `MDAC_LOCAL_TEST_MODEL` to a local Transformers causal checkpoint for the optional readout smoke.

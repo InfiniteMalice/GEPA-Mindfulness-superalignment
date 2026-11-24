@@ -123,6 +123,19 @@ def prepare_evidence_workspace(
     return workspace
 
 
+def _visible_workspace_items(
+    workspace: EvidenceWorkspace, selected_ids: tuple[str, ...], rows: dict[str, dict[str, Any]]
+) -> list[str]:
+    """Join private item IDs to public handles, requiring all original sources to be visible."""
+    active = {node.item_id for node in workspace.nodes}
+    selected = set(selected_ids)
+    return [
+        key
+        for key in selected_ids
+        if key in active and selected.issuperset(rows[key]["ancestor_source_ids"])
+    ]
+
+
 def retrieve_evidence_workspace(
     workspace: EvidenceWorkspace,
     snapshot: ArtifactSnapshot,
@@ -165,13 +178,7 @@ def retrieve_evidence_workspace(
     permitted = dict(zip(retrieval.selected_item_ids, retrieval.producer_view["items"]))
     rows = {row["item_id"]: row for row in retrieval.item_rows}
     placements = {node.node_id: node for node in workspace.nodes}
-    active = {node.item_id for node in workspace.nodes}
-    # Every referenced source must itself be recoverable in this exact permitted view.
-    visible = [
-        item_id
-        for item_id in retrieval.selected_item_ids
-        if item_id in active and set(rows[item_id]["ancestor_source_ids"]) <= set(permitted)
-    ]
+    visible = _visible_workspace_items(workspace, retrieval.selected_item_ids, rows)
     handles = {item_id: f"item-{i}" for i, item_id in enumerate(visible)}
     node_by_item = {node.item_id: node for node in workspace.nodes}
     sources = {source.item_id for source in snapshot.sources}
@@ -183,7 +190,7 @@ def retrieve_evidence_workspace(
         catalog.append(
             dict(
                 handle=handles[item_id],
-                parent_handle=handles.get(parent_item),
+                parent_handle=handles.get(parent_item) if parent_item is not None else None,
                 kind="source" if item_id in sources else "synthetic",
                 training_eligibility=rows[item_id]["inherited_training_eligibility"],
                 text=original["text"],

@@ -28,6 +28,7 @@ from .decision_routing import (
 )
 from .epistemic_routing import RoutingPolicy, RoutingRequest, prepare_routing
 from .schemas import RecommendedAction as Action
+from .typed_routing import TypedRoutingInput, evaluate_typed_task
 
 
 @dataclass(frozen=True)
@@ -95,6 +96,7 @@ def run_decision_workflow(
     ) = None,
     handlers: Mapping[Action, Callable[[ActionRecord], object]] | None = None,
     clock: TrustedClock | None = None,
+    typed_routing: TypedRoutingInput | None = None,
     action_author_id: str | None = None,
     action_executor_id: str | None = None,
 ) -> DecisionWorkflowResult | None:
@@ -120,7 +122,15 @@ def run_decision_workflow(
     ):
         raise ValueError("configured existing-action handlers required")
     handlers = dict(handlers)
-    identity = _backend_identity(backend)
+    if typed_routing is None:
+        identity = _backend_identity(backend)
+    else:
+        if type(typed_routing) is not TypedRoutingInput or any(
+            item is not None for item in (backend, review_backend, confidence_threshold)
+        ):
+            raise ValueError("typed routing requires an exclusive typed input")
+        typed_routing = TypedRoutingInput.from_dict(typed_routing.to_dict())
+        identity = None
     if review_backend is not None:
         review_identity = _backend_identity(review_backend)
         if review_backend.kind != "generative" or review_backend.name == backend.name:
@@ -142,42 +152,47 @@ def run_decision_workflow(
         "review_confidence_threshold": review_confidence_threshold,
         "policy": {field.name: getattr(policy, field.name) for field in fields(policy)},
     }
-    # Both retained decisions, public corrective feedback and final dispatch must fit.
-    validate_input_envelope(
-        {
-            "source": source,
-            "decisions": [source] * 7,
-            "feedback": source,
-            "reserved_metadata": "x" * 32768,
-        }
-    )
-    _probability(confidence_threshold)
+    if typed_routing is not None:
+        source["typed_routing"] = typed_routing.to_dict()
+        # The one typed decision repeats the prepared features. It retains no feedback packet.
+        reservation = {"source": source, "decision_features": features.to_dict()}
+    else:
+        # Both retained backend decisions and the corrective feedback packet must fit.
+        reservation = {"source": source, "decisions": [source] * 7, "feedback": source}
+        _probability(confidence_threshold)
+    validate_input_envelope({**reservation, "reserved_metadata": "x" * 32768})
     if review_backend is not None:
         _probability(review_confidence_threshold)
     if not authenticate_payload(source, authenticate):
         raise ValueError("decision source authentication withheld")
-    first = evaluate_decision_backend(
-        features, packet.context, backend, confidence_threshold=confidence_threshold
-    )
-    decisions = [first.to_dict()]
-    final = first
-    review_skipped = None
-    if review_backend is not None and (first.error is not None or first.confidence_escalation):
-        feedback = canonical_json(
-            {"original_artifact": packet.context.artifact, "decision_feedback": first.to_dict()}
+    if typed_routing is not None:
+        typed_report = evaluate_typed_task(features, typed_routing)
+        decisions = [typed_report]
+        route = Action(typed_report["routing"]["action"])
+        review_skipped = None
+    else:
+        first = evaluate_decision_backend(
+            features, packet.context, backend, confidence_threshold=confidence_threshold
         )
-        if len(feedback) > 65536:
-            review_skipped = "feedback_capacity"
-        else:
-            reviewed_public = replace(packet.context, artifact=feedback)
-            final = evaluate_decision_backend(
-                features,
-                reviewed_public,
-                review_backend,
-                confidence_threshold=review_confidence_threshold,
+        decisions = [first.to_dict()]
+        final = first
+        review_skipped = None
+        if review_backend is not None and (first.error is not None or first.confidence_escalation):
+            feedback = canonical_json(
+                {"original_artifact": packet.context.artifact, "decision_feedback": first.to_dict()}
             )
-            decisions.append(final.to_dict())
-    route = final.routing.action
+            if len(feedback) > 65536:
+                review_skipped = "feedback_capacity"
+            else:
+                reviewed_public = replace(packet.context, artifact=feedback)
+                final = evaluate_decision_backend(
+                    features,
+                    reviewed_public,
+                    review_backend,
+                    confidence_threshold=review_confidence_threshold,
+                )
+                decisions.append(final.to_dict())
+        route = final.routing.action
     report = {
         "schema_version": "decision-workflow-report-v1",
         "training_eligibility": "DEVELOPMENT",
