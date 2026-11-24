@@ -59,7 +59,7 @@ class _Receipt:
         run = dict(
             schema_version="mdac-telemetry-v1",
             kind=self.kind,
-            source_eligibility="HIDDEN_EVAL",
+            training_eligibility="HIDDEN_EVAL",
             run_id=f"{self.digest}:{arm}:{method}:{seed}:{step}:{stage}:{partition}",
             arm=arm,
             rl_method=method,
@@ -201,7 +201,11 @@ def comparison_runs(report: Mapping[str, Any], manifest: SplitManifest) -> list[
             **common,
         )
         cases: dict[str, list[Row]] = defaultdict(list)
+        seen_cases: set[str] = set()
         for judgment in cell["judgments"]:
+            if judgment["case_id"] in seen_cases:
+                raise ValueError("duplicate case in comparison cell")
+            seen_cases.add(judgment["case_id"])
             if not {"family", "before_tokens", "after_tokens"} <= judgment.keys():
                 raise ValueError("rerun comparison to record per-case family and token lineage")
             cases[judgment["partition"]].append(judgment)
@@ -225,7 +229,14 @@ def comparison_runs(report: Mapping[str, Any], manifest: SplitManifest) -> list[
                     identity = (seed, part)
                     digest = content_digest(
                         sorted(
-                            (r["case_id"], r["family"], r[side], r["before_tokens"]) for r in rows
+                            (
+                                r["case_id"],
+                                r["family"],
+                                r[side],
+                                r["before_tokens"],
+                                None if r["truth"] is None else sorted(r["truth"]),
+                            )
+                            for r in rows
                         )
                     )
                     if identity in baseline_digests:

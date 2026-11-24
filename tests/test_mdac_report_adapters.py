@@ -262,3 +262,85 @@ def test_plotting_digest_bound_conditions_without_clipping(tmp_path):
     with warnings.catch_warnings():
         warnings.filterwarnings("error", message="Tight layout not applied.*")
         assert render_plots(_summary(m, [r])["cohorts"], tmp_path)
+
+
+def test_comparison_telemetry_cannot_be_admitted_by_the_repository_training_reader():
+    from gepa_mindfulness.training.eligibility import require_training_eligible
+
+    m = manifest()
+    judgments = [
+        dict(
+            case_id=f,
+            family=f,
+            partition=p,
+            before=verdict(1),
+            after=verdict(1),
+            truth=[],
+            before_tokens=1,
+            after_tokens=1,
+        )
+        for f, p in [("seen", "final_held_out"), ("novel", "ood")]
+    ]
+    cell = dict(
+        arm="A",
+        method="fixture",
+        seed=7,
+        checkpoint_start="initial",
+        checkpoint_end="fit",
+        selected_families=["train"],
+        schedule_channels=["review"],
+        actual=dict(
+            training_tokens=1,
+            samples=1,
+            compute_units=1,
+            evaluation_tokens=2,
+            baseline_evaluation_tokens=2,
+        ),
+        judgments=judgments,
+    )
+    for row in adapters.comparison_runs(sealed("mdac-comparison-v1", m, cells=[cell]), m):
+        with pytest.raises(ValueError, match="HIDDEN_EVAL"):
+            require_training_eligible(row)
+
+
+@pytest.mark.parametrize("first_known", [True, False])
+def test_baseline_deduplication_binds_the_private_calibration_reference(first_known):
+    m = manifest()
+    after_cells = []
+    for i, arm in enumerate(("A", "B")):
+        known = first_known if i == 0 else not first_known
+        judgments = [
+            dict(
+                case_id=f,
+                family=f,
+                partition=p,
+                before=verdict(1),
+                after=verdict(1),
+                truth=[] if known else None,
+                before_tokens=1,
+                after_tokens=1,
+            )
+            for f, p in [("seen", "final_held_out"), ("novel", "ood")]
+        ]
+        after_cells.append(
+            dict(
+                arm=arm,
+                method="fixture",
+                seed=7,
+                checkpoint_start="initial",
+                checkpoint_end=arm,
+                selected_families=["train"],
+                schedule_channels=["review"],
+                actual=dict(
+                    training_tokens=1,
+                    samples=1,
+                    compute_units=1,
+                    evaluation_tokens=2,
+                    baseline_evaluation_tokens=2,
+                ),
+                judgments=judgments,
+            )
+        )
+    report = sealed("mdac-comparison-v1", m, cells=after_cells)
+    with pytest.raises(ValueError, match="shared baseline"):
+        adapters.comparison_runs(report, m)
