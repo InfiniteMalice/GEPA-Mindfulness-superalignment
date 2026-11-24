@@ -159,3 +159,21 @@ def test_donor_targeted_probes_require_the_donor_decision(mode):
             clock=Clock(),
             enabled=True,
         )
+
+
+def test_feature_discovery_scans_each_capture_once_and_keeps_missing_measurements():
+    class CountScans(dict):
+        passes = 0
+
+        def __iter__(self):
+            self.passes += 1
+            return super().__iter__()
+
+    trace = capture(("start", "middle", "end"), (1, 3, 4))
+    values = CountScans({k: v for k, v in trace.activations.items() if k[0] != "middle"})
+    result = compare_decisions(
+        replace(trace, activations=values), trace, contrast=Contrast.OBJECTIVE, enabled=True
+    )
+    assert result["missing_measurements"] == ["middle"]
+    assert result["feature_count"] == 0 and result["pooled_rms"] is None
+    assert values.passes <= 1

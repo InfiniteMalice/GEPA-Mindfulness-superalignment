@@ -56,6 +56,13 @@ class SemanticTrace:
     activations: Mapping[Node, float]
     edges: Mapping[Edge, float]
 
+    def features_by_decision(self) -> dict[str, set[Feature]]:
+        """Index observed components once, retaining empty sets at unmeasured decisions."""
+        features: dict[str, set[Feature]] = {label: set() for label in self.positions}
+        for label, feature in self.activations:
+            features[label].add(feature)
+        return features
+
 
 def capture_decisions(
     graph: AttributionGraph,
@@ -129,12 +136,12 @@ def compare_decisions(
     ordered = labels == [key for key in right.positions if key in left.positions]
     common: set[Feature] = set()
     missing: list[str] = []
+    left_features, right_features = left.features_by_decision(), right.features_by_decision()
     for index, key in enumerate(labels):
-        a = {f for label, f in left.activations if label == key}
-        b = {f for label, f in right.activations if label == key}
-        if not a.intersection(b):
+        matched_features = left_features[key] & right_features[key]
+        if not matched_features:
             missing.append(key)
-        common = a & b if index == 0 else common & a & b
+        common = matched_features if index == 0 else common & matched_features
     report: dict[str, Any] = dict(
         contrast=contrast.value,
         model_digest=left.model_digest,
