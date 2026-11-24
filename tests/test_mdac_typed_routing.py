@@ -1,9 +1,12 @@
 """Procedural fast routing, independent calibration and exact host authority controls."""
 
+# Standard library
 from dataclasses import replace
 
+# Third-party
 import pytest
 
+# Local
 from evaluation.improvement_records import record_digest
 from gepa_mindfulness.factuality_observability import typed_routing as tr
 from gepa_mindfulness.factuality_observability.decision_workflow import run_decision_workflow
@@ -207,3 +210,19 @@ def test_optional_model_calibration_capture():
         calibration, tuple(tr.CalibrationLabel.from_dict(r) for r in data["held_out"]), enabled=True
     )
     assert report["eligible"] > 0 and report["calibration_opportunities"] > 0
+
+
+def test_typed_workflow_reserves_one_calibration_capture():
+    req, args, calls, _ = setup_workflow()
+    value = inputs(prepare_routing(req, ENABLED))
+    # Roughly 0.5 MiB of valid captures will exceed the 4 MiB envelope if repeated nine times.
+    labels = tuple(
+        replace(value.calibration.labels[0], case_id=str(i), evidence_ref="e" * 12000)
+        for i in range(40)
+    )
+    cal = tr.calibrate_threshold(labels, target_accuracy=0.95, minimum_examples=20)
+    args.update(
+        backend=None, confidence_threshold=None, typed_routing=replace(value, calibration=cal)
+    )
+    result = run_decision_workflow(req, **args)
+    assert result.invoked and calls == [Action.ESCALATE]

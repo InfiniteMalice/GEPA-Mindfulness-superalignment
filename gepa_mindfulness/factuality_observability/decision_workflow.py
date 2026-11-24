@@ -154,17 +154,13 @@ def run_decision_workflow(
     }
     if typed_routing is not None:
         source["typed_routing"] = typed_routing.to_dict()
-    # Both retained decisions, public corrective feedback and final dispatch must fit.
-    validate_input_envelope(
-        {
-            "source": source,
-            "decisions": [source] * 7,
-            "feedback": source,
-            "reserved_metadata": "x" * 32768,
-        }
-    )
-    if typed_routing is None:
+        # The one typed decision repeats the prepared features. It retains no feedback packet.
+        reservation = {"source": source, "decision_features": features.to_dict()}
+    else:
+        # Both retained backend decisions and the corrective feedback packet must fit.
+        reservation = {"source": source, "decisions": [source] * 7, "feedback": source}
         _probability(confidence_threshold)
+    validate_input_envelope({**reservation, "reserved_metadata": "x" * 32768})
     if review_backend is not None:
         _probability(review_confidence_threshold)
     if not authenticate_payload(source, authenticate):
