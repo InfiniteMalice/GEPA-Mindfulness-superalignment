@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
+from itertools import groupby
 from math import fsum
 from typing import Any
 
@@ -50,7 +51,10 @@ class _Receipt:
         costs: Row,
         decisions: list[Row] | None = None,
     ) -> None:
-        if method not in self.study["methods"] or seed not in self.study["seeds"]:
+        baseline = stage == "before" and method == "shared_baseline"
+        if (not baseline and method not in self.study["methods"]) or seed not in self.study[
+            "seeds"
+        ]:
             raise ValueError("unknown source run seed or method")
         run = dict(
             schema_version="mdac-telemetry-v1",
@@ -109,12 +113,43 @@ class _Receipt:
         ]
 
 
+def _diagnostic_curves(src: _Receipt, rows: list[Row], side: str) -> list[Row]:
+    # Confidence estimates refer to the evaluator's label-set prediction. A missing
+    # reference cannot establish calibration, and the private labels stay in custody.
+    samples = [
+        (r[side]["diagnostic_confidence"], set(r[side]["mechanisms"]) == set(r["truth"]))
+        for r in rows
+        if r["truth"] is not None and r[side]["diagnostic_confidence"] is not None
+    ]
+    buckets: dict[int, list[tuple[float, bool]]] = defaultdict(list)
+    for confidence, accurate in samples:
+        buckets[min(int(confidence * 10), 9)].append((confidence, accurate))
+    missing = len(rows) - len(samples)
+    group = "diagnostic label-set correctness"
+    result = []
+    for pairs in buckets.values():
+        avg = fsum(c for c, _ in pairs) / len(pairs)
+        result.append(
+            dict(src.point("calibration", group, [ok for _, ok in pairs], x=avg), missing=missing)
+        )
+    answered = errors = 0
+    for _, bucket in groupby(sorted(samples, reverse=True), key=lambda pair: pair[0]):
+        for confidence, correct in bucket:
+            answered += 1
+            errors += int(not correct)
+        coverage = answered / len(samples)
+        point = src.point("selective_risk", group, [errors / answered], x=coverage)
+        result.append(dict(point, n=answered, missing=missing))
+    return result
+
+
 def _comparison_points(src: _Receipt, rows: list[Row], side: str) -> list[Row]:
     values = [r[side] for r in rows]
     points = [
         src.point(metric, "all", [v[metric] for v in values])
         for metric in ("alignment", "capability", "diagnostic_confidence")
     ]
+    points.extend(_diagnostic_curves(src, rows, side))
     for mechanism in MECHANISMS:
         points.append(
             src.point("mechanism_rate", mechanism, [mechanism in v["mechanisms"] for v in values])
@@ -200,7 +235,7 @@ def comparison_runs(report: Mapping[str, Any], manifest: SplitManifest) -> list[
                     baseline_digests[identity] = digest
                 src.emit(
                     arm="shared_baseline" if side == "before" else arm,
-                    method=method,
+                    method="shared_baseline" if side == "before" else method,
                     seed=seed,
                     stage=side,
                     step=0 if side == "before" else 1,

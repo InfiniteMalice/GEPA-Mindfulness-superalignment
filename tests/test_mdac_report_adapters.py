@@ -202,3 +202,63 @@ def test_dense_figure_uses_readable_run_labels_and_preserves_all_points():
     assert ax.images[0].get_array().count() == len(rows)
     for label in ax.get_yticklabels():
         assert "final_held_out" in label.get_text() and "a" * 64 not in label.get_text()
+
+
+def test_private_case_labels_only_contribute_aggregate_diagnostic_calibration(tmp_path):
+    m = manifest()
+    seen = dict(
+        case_id="seen",
+        family="seen",
+        partition="final_held_out",
+        truth=["M01"],
+        before=verdict(0),
+        after=verdict(1),
+        before_tokens=1,
+        after_tokens=1,
+    )
+    novel = dict(seen, case_id="novel", family="novel", partition="ood", truth=None)
+    cell = dict(
+        arm="A",
+        method="fixture",
+        seed=7,
+        checkpoint_start="initial",
+        checkpoint_end="fit",
+        selected_families=["train"],
+        schedule_channels=["review"],
+        actual=dict(
+            training_tokens=3,
+            samples=1,
+            compute_units=1,
+            evaluation_tokens=2,
+            baseline_evaluation_tokens=2,
+        ),
+        judgments=[seen, novel],
+    )
+    rows = adapters.comparison_runs(sealed("mdac-comparison-v1", m, cells=[cell]), m)
+    cases = [r for r in rows if r["round"] == 1 and r["partition"] == "final_held_out"][0]
+    (cal,) = [p for p in cases["estimates"] if p["metric"] == "calibration"]
+    (risk,) = [p for p in cases["estimates"] if p["metric"] == "selective_risk"]
+    assert (cal["x"], cal["value"], cal["n"]) == (0.75, 0, 1)
+    assert (risk["x"], risk["value"], risk["n"]) == (1, 1, 1)
+    assert all(
+        not any(p["metric"] == "calibration" for p in r["estimates"])
+        for r in rows
+        if r["partition"] == "ood"
+    )
+
+
+def test_plotting_digest_bound_conditions_without_clipping(tmp_path):
+    pytest.importorskip("matplotlib")
+    import warnings
+
+    from test_mdac_reporting import estimate, event, manifest_data
+
+    from evaluation.mdac_report_plots import render_plots
+    from evaluation.mdac_reporting import _summary
+
+    m = SplitManifest.from_dict(manifest_data())
+    r = event(m, run="b" * 64)
+    r["estimates"] = [estimate("mechanism_rate", "M02", x="evidence:sha256:" + "a" * 64)]
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message="Tight layout not applied.*")
+        assert render_plots(_summary(m, [r])["cohorts"], tmp_path)
