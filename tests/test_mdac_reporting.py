@@ -336,3 +336,27 @@ def test_metric_adapter_preserves_source_identity_and_raw_normalized_direction()
     assert point["source_metric"] == "M03/regression"
     assert point["source_digest"] == content_digest(metric.to_dict())
     assert point["value"] == 1 and metric.normalized == 0
+
+
+@pytest.mark.parametrize(
+    "name,metric", [("calibration", "calibration"), ("risk_coverage", "selective_risk")]
+)
+def test_probability_curves_render_one_series_per_run(name, metric):
+    pytest.importorskip("matplotlib")
+    from matplotlib.figure import Figure
+
+    from evaluation.mdac_report_plots import _series
+
+    manifest = reporting.SplitManifest.from_dict(manifest_data())
+    runs = [event(manifest, run=key) for key in ("baseline", "later")]
+    for i, r in enumerate(runs):
+        r["round"] = i + 1
+        r["estimates"] = [estimate(metric, "cohort", x=x + i / 10) for x in (0.2, 0.8)]
+    rows = reporting._summary(manifest, runs)["cohorts"]["measured"]["metrics"][metric]
+    ax = Figure().subplots()
+    _series(ax, rows, name)
+    traces = [line for line in ax.lines if not line.get_label().startswith("_")]
+    assert len(traces) == 2
+    assert list(traces[0].get_xdata()) == pytest.approx([0.2, 0.8])
+    assert list(traces[1].get_xdata()) == pytest.approx([0.3, 0.9])
+    assert all(key in line.get_label() for key, line in zip(("baseline", "later"), traces))

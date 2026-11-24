@@ -64,6 +64,7 @@ def _heatmap(ax: Any, rows: list[dict[str, Any]], name: str) -> None:
 
 def _series(ax: Any, rows: list[dict[str, Any]], name: str) -> None:
     groups: dict[tuple, list[dict[str, Any]]] = defaultdict(list)
+    within_run = name in ("calibration", "risk_coverage")
     for r in rows:
         key = tuple(
             r[k]
@@ -78,10 +79,12 @@ def _series(ax: Any, rows: list[dict[str, Any]], name: str) -> None:
                 "evaluator_version",
             )
         )
+        if within_run:
+            key += (r["run_id"], r["round"])
         groups[key].append(r)
     categories = sorted({f"{r['rl_method']} · {r['arm']}" for r in rows})
     for key, points in groups.items():
-        if name in ("calibration", "risk_coverage"):
+        if within_run:
             column = "x"
         else:
             column = "round"
@@ -93,6 +96,8 @@ def _series(ax: Any, rows: list[dict[str, Any]], name: str) -> None:
         )
         ys = [r["value"] for r in points]
         series = f"{key[0]} · {key[1]} · {key[2]} · {key[3]} · seed {key[5]}"
+        if within_run:
+            series += f" · {points[0]['run_id']} · round {points[0]['round']}"
         # No interpolation across tied coordinates or independent RL arms.
         joined = len(xs) == len(set(xs)) and name != "cross_rl"
         line = ax.plot(xs, ys, linestyle="-" if joined else "", marker="o", label=series)[0]
