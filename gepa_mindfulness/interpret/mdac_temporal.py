@@ -41,7 +41,7 @@ def _rms(values: list[float]) -> float:
     return sqrt(_mean([x * x for x in values]))
 
 
-Feature = tuple[int, str, int | None]
+Feature = tuple[int, str, int | None, str | None]
 Node = tuple[str, Feature]
 Edge = tuple[Node, Node]
 
@@ -84,7 +84,7 @@ def capture_decisions(
     activations = {}
     for node in graph.nodes:
         if node.token_position in labels:
-            feature = (node.layer, node.component_type, node.component_idx)
+            feature = (node.layer, node.component_type, node.component_idx, node.hook_name)
             name = (labels[node.token_position], feature)
             if name in activations:
                 raise ValueError("duplicate component at a semantic point")
@@ -195,7 +195,7 @@ def run_decision_probe(
     clock: TrustedClock,
     enabled: bool = False,
 ) -> dict[str, Any] | None:
-    """Execute the existing prediction-bound probe at the registered recipient decision."""
+    """Run the prediction-bound probe at its registered decision point."""
     if enabled is not True:
         return None
     from .causal_interventions import execute_causal_plan
@@ -203,7 +203,7 @@ def run_decision_probe(
     plan = commit.plan
     if (
         trace.model_digest != plan.model_digest
-        or trace.input_digest != plan.recipient.digest
+        or trace.input_digest != plan.primary_input.digest
         or decision not in trace.positions
         or plan.source.token_positions != (trace.positions[decision],)
     ):

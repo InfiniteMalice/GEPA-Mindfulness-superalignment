@@ -114,3 +114,48 @@ def test_probe_uses_real_prediction_bound_runner():
             clock=Clock(),
             enabled=True,
         )
+
+
+def test_capture_preserves_distinct_hooks_in_the_same_block(tiny_model, dummy_tokenizer):
+    from gepa_mindfulness.interpret.attribution_graphs import extract_attribution_graph
+
+    graph = extract_attribution_graph(
+        model=tiny_model,
+        tokenizer=dummy_tokenizer,
+        prompt="hello ",
+        response="world",
+        layers=[0],
+        threshold=0.0,
+    )
+    trace = capture_decisions(
+        graph,
+        {"inspect": 0},
+        model_digest="a" * 64,
+        input_digest="b" * 64,
+        protocol="capture-all",
+        enabled=True,
+    )
+    assert len(trace.activations) == sum(n.token_position == 0 for n in graph.nodes)
+    assert len(trace.activations) > 1
+
+
+@pytest.mark.parametrize("mode", ["ablation", "targeted_restoration"])
+def test_donor_targeted_probes_require_the_donor_decision(mode):
+    from test_native_causal_interventions import Clock, InterventionMode, trial
+
+    _, backend, plan, commit = trial(mode=InterventionMode(mode))
+    (position,) = plan.source.token_positions
+    trace = capture(
+        ("verify",), (2,), start=position, model=plan.model_digest, input_digest=plan.donor.digest
+    )
+    report = run_decision_probe(trace, "verify", backend, commit, clock=Clock(), enabled=True)
+    assert report["plan_digest"] == plan.digest
+    with pytest.raises(ValueError):
+        run_decision_probe(
+            replace(trace, input_digest=plan.recipient.digest),
+            "verify",
+            backend,
+            commit,
+            clock=Clock(),
+            enabled=True,
+        )
