@@ -11,6 +11,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
 
+from gepa_mindfulness.training.eligibility import require_training_eligible
 from gepa_mindfulness.verification.epistemic_state import _array, _number, _strings, _text
 from gepa_mindfulness.verification.mdac_measurement import MetricResult
 from gepa_mindfulness.verification.state import _require_exact_mapping
@@ -179,6 +180,7 @@ class SplitManifest:
 
     def training_input(self, record: Mapping[str, Any]) -> dict[str, str]:
         """Project a host-approved training example onto its three public fields."""
+        require_training_eligible(record)
         self.require(
             _text(record.get("family_id"), "family_id"),
             "training",
@@ -292,16 +294,19 @@ def _estimate(data: object) -> None:
 
 
 def _validated_run(data: object, manifest: SplitManifest) -> dict[str, Any]:
-    keys = _RUN_KEYS
-    if isinstance(data, Mapping) and "source_eligibility" in data:
-        keys = keys | {"source_eligibility"}
+    optional = {"source_eligibility", "training_eligibility"}
+    keys = _RUN_KEYS | (optional.intersection(data) if isinstance(data, Mapping) else set())
     row = _exact(data, keys, "run")
-    if "source_eligibility" in row and row["source_eligibility"] not in (
-        "DEVELOPMENT",
-        "REGRESSION",
-        "HIDDEN_EVAL",
-    ):
-        raise ValueError("unknown evaluator report eligibility")
+    minimum = (
+        "HIDDEN_EVAL"
+        if row["partition"] in ("final_held_out", "ood", "governance_admission")
+        else "DEVELOPMENT"
+    )
+    restrictions = [minimum] + [row[k] for k in optional if k in row]
+    order = ("DEVELOPMENT", "REGRESSION", "HIDDEN_EVAL")
+    if any(label not in order for label in restrictions):
+        raise ValueError("unknown or optimizer-visible evaluator report eligibility")
+    row["training_eligibility"] = max(restrictions, key=order.index)
     if row["schema_version"] != "mdac-telemetry-v1" or row["kind"] not in KINDS:
         raise ValueError("invalid schema or measurement class")
     for k in (
