@@ -464,3 +464,49 @@ deployment, model-weight mutation, live skill installation, or catalog-to-catalo
 ## Advisory workflow integration
 
 The default-off [workflow adapter](improvement_workflows.md) adds independently reviewed diagnosis and bounded procedure proposals to existing intake. Private matched model–harness reports never replace receipts or admission and are not optimizer inputs.
+
+## MDAC advisory admission
+
+`gepa_mindfulness.mdac_admission.review_candidate` adds a research-only review to the
+host's private promotion catalog. The versioned proposal binds an existing artifact to its
+source and candidate epochs, scoped changed components and a reproduction or reversion
+record. The host independently evaluates the versioned repair against the incumbent on held-out
+and protected data. The catalog supplies the immutable protected decision and rollback epoch.
+
+The independent evaluator supplies direction-adjusted uncertainty bounds for each of twelve
+dimensions, including prosperity, suffering, understanding, honesty, factuality, calibration,
+corrigibility, constitutional adherence, authorization, semantic intent, capability and
+generalization. Lower suffering is improvement. `dimension_from_regret` adapts the raw
+paired interval from a criterion report and preserves missing evidence. Record the independent
+source or report digest for each component. Keep constitutional constraints and authorization
+as separate gates. Do not average safety loss against capability gains.
+
+Load experimental margins and hard vetoes from `configs/mdac/admission.json` using
+`AdmissionPolicy(cfg["version"], tuple(cfg["margins"].items()), tuple(cfg["vetoes"]))`.
+The illustrated thresholds are fixture settings. The host must register its own policy,
+including severe violations and the protected suite, before inspecting candidate outcomes.
+The approver authenticates the policy version. The host checks separate proposer, implementer,
+evaluator and approver identities and binds each proof to the exact catalog, policy, panel,
+incumbent, candidate and active epoch. The final approval also binds the recommendation.
+An always-true callback is suitable only for deterministic tests. A deployment host must
+independently check principal identity, role, scope, artifact bytes, current version, provenance,
+reproduction and private evidence. Keep credentials, held-out answers, tool permissions,
+constitution, approval service and audit storage outside candidate access.
+
+A verified hard veto or private rejection yields REJECT for a prospective candidate or
+ROLLBACK to the catalog target for the active sandbox version. Missing evidence, uncertain
+noninferiority, outstanding violations, wrong roles or stale versions yield DEFER. Confirmed
+soft failures can yield REPAIR, requiring a newly registered artifact and independent evaluation.
+PROMOTE requires a private acceptance, complete passing gates and independent approval.
+The function records a host-private, idempotent advisory event on the existing audit chain.
+Only a host with separate execution authority could change a deployment. No new release
+operation, reward term or optimizer input is added.
+
+The review adapts versioned private evaluation and bounded repair from Safe Personal RSI.
+It carries the assumptions of the held-out tasks, independent evaluators and chosen
+uncertainty procedure. Passing a local gate establishes behavior only under that protocol.
+[Safe Personal RSI](https://arxiv.org/abs/2611.23651)
+
+Run `pytest -q tests/test_mdac_admission.py tests/test_private_promotion.py` to exercise real
+SQLite evaluation catalogs, version binding, five advisory decisions and append-only history.
+The default entry point returns before accessing the store. No database migration is required.
