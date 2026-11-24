@@ -161,11 +161,39 @@ def test_lifecycle_export_heldout_ood_and_admission(tmp_path):
             for p, f, ok in [("final_held_out", "seen", True), ("ood", "novel", False)]
         },
     )
+    test = dict(
+        schema_version="mdac-interventions-v1",
+        planned_blocks=1,
+        calls_used=3,
+        interval_method="unavailable for one scenario",
+        roster=[dict(identity=dict(task_id="dev", checkpoint="initial"))],
+        effects=dict(
+            repair=dict(
+                matched_trials=1, control_passes=0, intervention_passes=1, drs=1, interval=None
+            )
+        ),
+    )
+    report["case_interventions"] = [dict(test, result_digest=content_digest(test))]
+    report["result_digest"] = content_digest(
+        {k: v for k, v in report.items() if k != "result_digest"}
+    )
     rows = adapters.lifecycle_runs(report, m)
     paths = export_report(m, rows, tmp_path / "lifecycle", enabled=True, plots=False)
     parsed = json.loads(Path(paths["summary"]).read_text())["cohorts"]["illustrative"]
     assert parsed["observed_costs"]["training_tokens"] == 4
     assert parsed["observed_costs"]["evaluation_tokens"] == 6
+    assert parsed["observed_costs"]["replay_calls"] == 3
+    (point,) = parsed["metrics"]["intervention_recovery"]
+    assert point["partition"] == "diagnostic_development" and point["family_ids"] == ["dev"]
+    foreign = dict(test, roster=[dict(identity=dict(task_id="seen", checkpoint="initial"))])
+    swapped = dict(
+        report, case_interventions=[dict(foreign, result_digest=content_digest(foreign))]
+    )
+    swapped["result_digest"] = content_digest(
+        {k: v for k, v in swapped.items() if k != "result_digest"}
+    )
+    with pytest.raises(ValueError, match="development"):
+        adapters.lifecycle_runs(swapped, m)
     assert {r["partition"] for r in rows} >= {"final_held_out", "ood", "governance_admission"}
     (decision,) = [d for r in rows for d in r["decisions"]]
     assert decision["outcome"] == "DEFER" and decision["reason"] == "missing independent evidence"

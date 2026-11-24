@@ -81,6 +81,7 @@ _RUN_KEYS = {
     "decisions",
 }
 _COSTS = ("training_tokens", "evaluation_tokens", "training_seconds", "evaluation_seconds")
+_METERED_COUNTS = ("compute_units", "samples", "replay_calls")
 
 
 def _exact(data: object, keys: set[str], name: str) -> dict[str, Any]:
@@ -335,10 +336,10 @@ def _validated_run(data: object, manifest: SplitManifest) -> dict[str, Any]:
         )
     cost = row["cost"]
     if cost is not None:
-        extra = set(cost) & {"compute_units", "samples"} if isinstance(cost, Mapping) else set()
+        extra = set(cost).intersection(_METERED_COUNTS) if isinstance(cost, Mapping) else set()
         for k, v in _exact(cost, set(_COSTS) | extra, "cost").items():
             if v is not None:
-                if k.endswith("_tokens") or k in ("compute_units", "samples"):
+                if k.endswith("_tokens") or k in _METERED_COUNTS:
                     _count(v, k)
                 elif _number(v, k) < 0:
                     raise ValueError("cost must be nonnegative")
@@ -379,7 +380,7 @@ def _summary(manifest: SplitManifest, rows: list[dict[str, Any]]) -> dict[str, A
                 for r in group
                 if r["cost"] is not None and r["cost"].get(k) is not None
             ]
-            for k in (*_COSTS, "samples", "compute_units")
+            for k in (*_COSTS, *_METERED_COUNTS)
         }
         metrics: dict[str, list[dict[str, Any]]] = {}
         for r in group:
