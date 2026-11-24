@@ -52,3 +52,27 @@ def test_candidate_contrast_requires_same_roster_and_incumbent():
         compare_candidates((left, report("B", [(1, 1), (1, 1)])), enabled=True)
     with pytest.raises(ValueError):
         compare_candidates((left, report("B", [(0, 1)], expected=("0", "1"))), enabled=True)
+
+
+def test_recurring_rejection_ledger_validates_protocol():
+    from test_improvement_records import candidate, protocol
+
+    from evaluation.improvement_records import AttemptEvent, AttemptJournal, record_digest
+    from evaluation.mdac_regret import rejection_history
+
+    spec, _ = protocol(candidates=(candidate("A"), candidate("B")))
+    events = []
+    for cid in ("A", "B"):
+        events.extend(
+            (
+                AttemptEvent(cid, len(events), cid, cid, "proposal"),
+                AttemptEvent(
+                    cid + "-d", len(events) + 1, cid, cid, "decision", terminal_status="rejected"
+                ),
+            )
+        )
+    journal = AttemptJournal("journal", record_digest(spec), tuple(events))
+    history = rejection_history(spec, journal, enabled=True)
+    assert history["recurring_proposals"] == {DIGEST: ["A", "B"]}
+    with pytest.raises(ValueError):
+        rejection_history(spec, replace(journal, protocol_digest="b" * 64), enabled=True)

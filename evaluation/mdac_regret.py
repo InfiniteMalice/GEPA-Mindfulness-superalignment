@@ -5,7 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from evaluation.improvement_records import ImprovementRecord, MetricSpec, ResamplingPolicy
+from evaluation.improvement_audit import summarize_journal
+from evaluation.improvement_records import (
+    AttemptJournal,
+    ImprovementProtocol,
+    ImprovementRecord,
+    MetricSpec,
+    ResamplingPolicy,
+)
 from evaluation.improvement_statistics import PairedObservation, estimate_paired
 
 
@@ -132,3 +139,22 @@ def compare_candidates(reports: tuple[dict, ...], *, enabled: bool = False) -> d
     return dict(
         best=best, worst=worst, criterion_contrast=scores[best] - scores[worst], scores=scores
     )
+
+
+def rejection_history(
+    protocol: ImprovementProtocol, journal: AttemptJournal, *, enabled: bool = False
+) -> dict[str, Any]:
+    """Identify exact repeated proposal digests in the existing version-bound attempt journal."""
+    if enabled is not True:
+        raise ValueError("enable rejection history explicitly")
+    audit = summarize_journal(protocol, journal)
+    rejected = [row for row in audit["candidates"] if row["status"] in ("failed", "rejected")]
+    proposals: dict[str, list[str]] = {}
+    for row in rejected:
+        proposals.setdefault(row["spec"]["proposal_digest"], []).append(row["candidate_id"])
+    return {
+        "journal_id": journal.journal_id,
+        "protocol_digest": journal.protocol_digest,
+        "rejected_or_failed": rejected,
+        "recurring_proposals": {key: ids for key, ids in proposals.items() if len(ids) > 1},
+    }
