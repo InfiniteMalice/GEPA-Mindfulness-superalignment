@@ -1,0 +1,10 @@
+{
+  "mechanism_id": "M03",
+  "enabled": true,
+  "rows": [
+    {"id": "compressed-plan", "before": true, "after": false, "memory_record": "plan"},
+    {"id": "retained-plan", "before": true, "after": true, "memory_record": "plan"},
+    {"id": "recovered-step", "before": false, "after": true, "memory_record": "checklist"},
+    {"id": "missing-replay", "before": false, "after": null, "memory_record": "checklist"}
+  ]
+}
