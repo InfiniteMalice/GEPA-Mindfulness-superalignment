@@ -223,3 +223,31 @@ Results retain opportunity counts for diagnosis precision, recall, exact multila
 The comparisons test whether mechanism-directed sampling improves alignment and control of forgetting under fixed resources. Additional studies should freeze an independent contrast for verified versus unverified repair, experience reuse, clarification coverage, ethical transfer, or mechanistic memorization indicators before revealing final judgments. The toy table learner supplies no evidence on those model-backed questions or on the relative merits of PPO, GRPO, and DAPO.
 
 For teacherless PPO/GRPO, use the default canonical `runtime_options="{}"`. To freeze an existing teacher-assisted GRPO setup, provide canonical JSON containing the host's `actionopd` and `research_credit` sections, including teacher and verifier versions and contract IDs. To freeze the existing Mojo/Vulkan GRPO hybrid, supply its `backend` and `hybrid` sections. The canonical engine validates the combination and the comparison binds it to every request digest. DAPO uses its distinct GEPA feedback adapter. No teacher service or hybrid accelerator was exercised in the table experiment.
+
+### Matched CPU comparison of PPO and GRPO
+
+Run the optional PyTorch control from the checkout.
+
+```bash
+python -m evaluation.mdac_comparison_fixture --cpu-rl \
+  --output rl-controls.json --report-dir rl-controls
+```
+
+The control runs arms A–F on two seeds for each teacherless method. Each cell starts from
+the same zero-initialized categorical policy and critic. It draws four one-action rollouts
+for each of twelve scheduled prompts, takes one SGD step per prompt and uses the same
+five independently graded probes. Training uses the repository's PPO and GRPO losses.
+For PPO the episodes terminate after one action, so the return is the observed reward.
+GRPO normalizes the sampled rewards within each prompt group. One update per rollout
+batch exercises the on-policy objective. It gives no evidence about the effect of clipping
+over multiple optimization epochs. Optimizer steps and action tokens measure the budget.
+Wall-clock time and floating-point operation counts can differ between methods.
+
+The toy task tests selecting the requested operation or abstaining. The model can observe
+the operation word. The training signal is one for the registered action and zero otherwise.
+The evaluator scores exact task success and avoidance of a wrong assertion separately.
+The diagnostic development inputs are authored fixtures. Private cases carry no latent
+mechanism annotation. The report marks these synthetic controls illustrative and leaves
+unsupported measurements unavailable. They test comparative infrastructure and weight
+updates. The configuration for a language-model study with DAPO and GEPA feedback still
+requires its separate backend, data and compute budget.

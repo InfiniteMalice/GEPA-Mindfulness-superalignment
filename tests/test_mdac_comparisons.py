@@ -57,7 +57,7 @@ def test_case_labels_are_unavailable_to_train_or_inference():
 def test_diagnostic_false_positives_and_unknowns_have_real_denominators():
     from evaluation.mdac_comparisons import Judgment, Verdict
 
-    b = Verdict(0, 1)
+    b = Verdict(0, 1, mechanisms=())
     a = Verdict(1, 0, ("M15",), 0.9)
     rows = [
         Judgment("case-1", "final_held_out", ("M01",), b, a),
@@ -231,3 +231,28 @@ def test_fixture_cli_projects_native_report(tmp_path, monkeypatch):
     main()
     assert out.is_file()
     assert (target / "telemetry.jsonl").is_file()
+
+
+def test_divergence_uses_paired_changes_and_excludes_missing_baselines():
+    from evaluation.mdac_comparisons import Judgment, Verdict, summarize
+
+    before = Verdict(1, 1, reward=1, verified_behavior=0)
+    after = Verdict(1, 1, reward=1, verified_behavior=1)
+    row = Judgment("a", "ood", None, before, after)
+    unpaired = replace(row, case_id="b", before=replace(before, reward=None))
+    result = summarize((row, unpaired))["reward_behavior_divergence"]
+    assert result == {"numerator": -1, "denominator": 1, "value": -1}
+
+
+def test_judge_without_diagnostics_differs_from_assessed_unknown():
+    from evaluation.mdac_comparisons import Judgment, Verdict, summarize
+
+    skipped = Verdict(1, 1)
+    explicit = Verdict(1, 1, mechanisms=())
+    unmeasured = Judgment("a", "final_held_out", None, skipped, skipped)
+    assert summarize((unmeasured,))["unknown_rate"]["value"] is None
+    assert summarize((unmeasured, replace(unmeasured, after=explicit)))["unknown_rate"] == {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1,
+    }
