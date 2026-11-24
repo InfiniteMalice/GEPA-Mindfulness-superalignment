@@ -54,9 +54,11 @@ def _train(request: TrainingRequest) -> TrainingRun:
     )
 
 
-def fixture_inputs() -> dict[str, Any]:
+def fixture_inputs(
+    *, dataset_version: str = "fixture-1", evaluator_version: str = "auditor-1"
+) -> dict[str, Any]:
     """Use independent train, development, intervention-calibration, test, and novel families."""
-    version = dict(dataset_version="fixture-1", evaluator_version="auditor-1")
+    version = dict(dataset_version=dataset_version, evaluator_version=evaluator_version)
     study = Study(
         "table-v1",
         dataset_version=version["dataset_version"],
@@ -202,8 +204,18 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--report-dir", type=Path)
     parser.add_argument("--no-plots", action="store_true")
+    parser.add_argument(
+        "--cpu-rl",
+        action="store_true",
+        help="Run matched teacherless PPO and GRPO on the synthetic bounded-action fixture.",
+    )
     args = parser.parse_args()
-    fixture = fixture_inputs()
+    if args.cpu_rl:
+        from gepa_mindfulness.examples.mdac_rl_comparison import make_study
+
+        fixture = make_study()
+    else:
+        fixture = fixture_inputs()
     report = compare(**fixture, enabled=True)
     if args.report_dir:
         manifest = fixture["manifest"]
