@@ -221,3 +221,11 @@ def test_no_generator_supply_is_explicit():
     )
     assert sum(result["plan"]["channel_counts"].values()) == 3
     assert sum(result["generated_counts"].values()) == sum(result["exported_counts"].values()) == 0
+
+
+def test_shipped_config_matches_policy_defaults():
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "configs" / "mdac" / "curriculum.json"
+    settings = json.loads(path.read_text(encoding="utf-8"))
+    assert AllocationPolicy(**settings).to_dict() == AllocationPolicy().to_dict() == settings
