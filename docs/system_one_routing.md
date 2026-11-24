@@ -156,3 +156,42 @@ hypothesis reconsideration as an option; this adapter implements no reasoning gr
 Skill banks, tool registries, memory ranking and learning/promotion remain outside this stage.
 The tests verify fail-closed routing and audit consistency. They do not establish alignment,
 causal evidence influence, calibrated uncertainty, source-paper reproduction or model quality.
+
+## MDAC typed procedures
+
+The optional `typed_routing` argument to `run_decision_workflow` consumes an evaluator-independent, recorded prediction for a frozen routing task. Deterministic tasks use the existing routing guard. Enumerable tasks select from their declared actions. Generative work goes to stronger reasoning and verification. An unknown task or explicit unknown choice escalates to human review. The target may concern clarification, epistemic uncertainty, semantic inconsistency, jailbreak suspicion, authorization status, diagnostic intervention, escalation, or reasoning depth. Authorization status is a classification target. Only the existing authority owner can issue an executable grant.
+
+The hypothesis is that calibrated routine choices can be resolved with a smaller decision model without increasing downstream error. Li et al. compile enumerable procedural steps and calibrate a confidence threshold against a slow model. This adaptation fits a separate cutoff for each checkpoint and target using independently labeled or execution-verified cases. Teacher consensus cannot supply a ground-truth label. The procedure selects the broadest confidence prefix meeting the caller's accuracy and minimum-sample requirements, including ties together. The cutoff describes empirical selective accuracy on the calibration sample. Held-out reliability and actual compute savings require new measurements. [Thinking Fast, Anywhere, §3.3](https://arxiv.org/html/2611.23751)
+
+Use the default-off configuration as a starting point. Supply action-bound events, existing host authentication, authority, clock and handler mappings through the same workflow documented above. A typical enumerable step looks like this. [Example configuration](../configs/mdac_typed_routing.example.json)
+
+```python
+from evaluation.improvement_records import record_digest
+from evaluation.system_one_benchmark import benchmark_typed_calibration
+from gepa_mindfulness.factuality_observability.decision_workflow import run_decision_workflow
+from gepa_mindfulness.factuality_observability.epistemic_routing import prepare_routing
+from gepa_mindfulness.factuality_observability.schemas import RecommendedAction as Action
+from gepa_mindfulness.factuality_observability.typed_routing import (
+    FastPrediction, RoutingTask, TypedRoutingInput, calibrate_threshold,
+)
+
+features = prepare_routing(request, enabled_policy)
+task = RoutingTask(
+    case_id, features.input_digest, "clarification", "enumerable",
+    (Action.CLARIFY, Action.ACCEPT), high_consequence=False,
+)
+cutoff = calibrate_threshold(calibration_labels, target_accuracy=0.95, minimum_examples=20)
+quality = benchmark_typed_calibration(cutoff, held_out_labels, enabled=True)
+prediction = FastPrediction(record_digest(task), model_version, choice, confidence)
+result = run_decision_workflow(
+    request, typed_routing=TypedRoutingInput(task, prediction, cutoff),
+    config=enabled_workflow, policy=enabled_policy, public=public_context,
+    authenticate=authenticate, authorize=authorize, clock=clock, handlers=handlers,
+)
+```
+
+A `CalibrationLabel` records its case, checkpoint, target, proposed choice and confidence, expected route, evaluator and evidence reference. Accepted label sources are `independent_label` and `verified_execution`. Hosts authenticate the source, its independence, capture lineage and execution evidence. Keep calibration examples disjoint from held-out scenarios and model inputs. The library checks case identity reuse. An unseen case family requires host-managed partitioning.
+
+A missing cutoff, insufficient support, low confidence or unknown prediction causes deferral. A high-consequence decision requests independent verification or human review regardless of confidence. The host authenticates the exact typed input and consumes a fresh exact-scope grant before any handler runs. No migration is needed for ordinary workflow callers. The CPU tests use scripted outcomes. A model service may supply a bound public prediction from its pinned checkpoint through the same interface.
+
+To score a recorded model, set `MDAC_TYPED_MODEL_LABELS` to a JSON object containing `calibration` and `held_out` arrays of serialized `CalibrationLabel` records, along with `minimum_examples` and `target_accuracy`. Run `python -m pytest -q tests/test_mdac_typed_routing.py -k optional_model`. Held-out Brier score, calibration error, coverage, unknown count and selective accuracy are available through `benchmark_typed_calibration`.

@@ -6,6 +6,8 @@ from dataclasses import dataclass, replace
 from statistics import mean, median
 from typing import Any
 
+from evaluation.schema import EvalResult
+from evaluation.suites.calibration.brier_score import brier_score, expected_calibration_error
 from gepa_mindfulness.factuality_observability.epistemic_routing import (
     RoutingBackend,
     RoutingPolicy,
@@ -14,6 +16,10 @@ from gepa_mindfulness.factuality_observability.epistemic_routing import (
     prepare_routing,
 )
 from gepa_mindfulness.factuality_observability.schemas import RecommendedAction
+from gepa_mindfulness.factuality_observability.typed_routing import (
+    CalibrationLabel,
+    RoutingCalibration,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,4 +110,69 @@ def benchmark_routing(
         "schema_version": "system-one-benchmark-v1",
         "automatic_promotion": False,
         "backends": summaries,
+    }
+
+
+def benchmark_typed_calibration(
+    calibration: RoutingCalibration,
+    held_out: tuple[CalibrationLabel, ...],
+    *,
+    enabled: bool = False,
+) -> dict[str, Any] | None:
+    """Evaluate enumerable predictions on distinct, independently adjudicated opportunities."""
+    if type(enabled) is not bool:
+        raise ValueError("enabled must be a boolean")
+    if not enabled:
+        return None
+    if type(calibration) is not RoutingCalibration or type(held_out) is not tuple:
+        raise ValueError("expected routing calibration and held-out label tuple")
+    calibration = replace(calibration)
+    ids = set(calibration.sample_ids)
+    first = calibration.labels[0]
+    threshold = calibration.threshold
+    accepted = correct = unknown = 0
+    scored = []
+    for row in held_out:
+        if type(row) is not CalibrationLabel:
+            raise ValueError("expected independent calibration label")
+        row = replace(row)
+        if row.case_id in ids or (row.target, row.model_version) != (
+            first.target,
+            first.model_version,
+        ):
+            raise ValueError("held-out cases need unique IDs and matching target and checkpoint")
+        ids.add(row.case_id)
+        if row.confidence is None:
+            unknown += 1
+            continue
+        ok = row.choice == row.expected
+        if threshold is not None and row.confidence >= threshold:
+            accepted += 1
+            correct += ok
+        scored.append(
+            EvalResult(
+                eval_id=row.case_id,
+                suite="mdac-typed-routing",
+                category=row.target,
+                prompt="",
+                model_answer=row.choice.value if row.choice else "",
+                gold_answer=row.expected.value,
+                outcome="correct" if ok else "incorrect",
+                confidence=row.confidence,
+            )
+        )
+    return {
+        "schema_version": "mdac-held-out-routing-v1",
+        "target": first.target,
+        "model_version": first.model_version,
+        "threshold": threshold,
+        "eligible": len(held_out),
+        "accepted": accepted,
+        "correct_among_accepted": correct,
+        "unknown": unknown,
+        "calibration_opportunities": len(scored),
+        "coverage": accepted / len(held_out) if held_out else None,
+        "selective_accuracy": correct / accepted if accepted else None,
+        "brier_score": brier_score(scored),
+        "expected_calibration_error": expected_calibration_error(scored),
     }
