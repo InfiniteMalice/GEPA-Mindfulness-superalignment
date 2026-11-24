@@ -87,3 +87,34 @@ def test_population_estimands():
         assert result["estimand"] == target
         assert result["difference"] == 0.5
         assert result["n_pairs"] == 2
+
+
+def test_local_model_predictions_enter_simulated_replays():
+    import os
+
+    checkpoint = os.environ.get("MDAC_LOCAL_TEST_MODEL")
+    if not checkpoint:
+        pytest.skip("set MDAC_LOCAL_TEST_MODEL to run CPU model-backed replay")
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(checkpoint, local_files_only=True)
+    model = AutoModelForCausalLM.from_pretrained(checkpoint, local_files_only=True).eval()
+    world = generate_world(seed=5, enabled=True)
+    steps = []
+    for action in world.actions[:2]:
+        tokens = tokenizer(action.action_id, return_tensors="pt")
+        with torch.inference_mode():
+            logits = model(**tokens).logits[0, -1]
+        # A real model score for smoke coverage only; no calibration is assumed.
+        confidence = float(logits.softmax(dim=-1).max())
+        steps.append(EpisodeStep(action.action_id, confidence, confidence))
+    result = compare_actions(
+        world,
+        *steps,
+        context=EpistemicContext("smoke", 0, EvaluatedSystemVersion(checkpoint, "v1")),
+        start_timestamp="2026-01-01T00:00:00Z",
+        comparison_id="smoke",
+        enabled=True,
+    )
+    assert result["factual"]["steps"][0]["predicted_success"] == steps[0].predicted_success
