@@ -69,7 +69,6 @@ def observed(
             row = dict(
                 id="i",
                 present=ok,
-                accessible=ok,
                 retrieved=ok,
                 used=ok,
                 correct=ok,
