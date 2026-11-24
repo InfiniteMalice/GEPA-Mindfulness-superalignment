@@ -1,0 +1,33 @@
+{
+  "enabled": true,
+  "recurrence_threshold": 2,
+  "report": {
+    "schema_version": "mdac-grievance-v1",
+    "training_eligibility": "DEVELOPMENT",
+    "report_id": "sample-stale-field",
+    "issue_key": "memory-refresh",
+    "incident_id": "incident-sample-stale-field",
+    "submitter": "submitter",
+    "submitter_kind": "human",
+    "domain": "memory",
+    "problem": "A cached field stayed stale.",
+    "affected_parties": [
+      "operator"
+    ],
+    "evidence": [
+      {
+        "reference_id": "log-sample-stale-field",
+        "source_kind": "external_record"
+      }
+    ],
+    "principles": [
+      "accuracy"
+    ],
+    "requested_fix": "Refresh the affected field.",
+    "alternatives": [
+      "Ask the operator."
+    ],
+    "uncertainty": "Unknown prevalence.",
+    "unintended_effects": "A refresh may replace a local correction."
+  }
+}
