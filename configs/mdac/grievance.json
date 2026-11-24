@@ -1,0 +1,210 @@
+{
+  "enabled": true,
+  "recurrence_threshold": 2,
+  "report": {
+    "schema_version": "mdac-grievance-v1",
+    "training_eligibility": "DEVELOPMENT",
+    "report_id": "sample-stale-field",
+    "issue_key": "memory-refresh",
+    "incident_id": "incident-sample-stale-field",
+    "submitter": "submitter",
+    "submitter_kind": "human",
+    "domain": "memory",
+    "problem": "A cached field stayed stale.",
+    "affected_parties": [
+      "operator"
+    ],
+    "evidence": [
+      {
+        "reference_id": "log-sample-stale-field",
+        "source_kind": "external_record"
+      }
+    ],
+    "principles": [
+      "accuracy"
+    ],
+    "requested_fix": "Refresh the affected field.",
+    "alternatives": [
+      "Ask the operator."
+    ],
+    "uncertainty": "Unknown prevalence.",
+    "unintended_effects": "A refresh may replace a local correction."
+  },
+  "example_events": [
+    {
+      "schema_version": "mdac-grievance-event-v2",
+      "training_eligibility": "DEVELOPMENT",
+      "report_id": "sample-stale-field",
+      "previous_digest": "9ef8998f6a24919e9a23c1e53b8d2b5c2e324b77fa0ba103399df83e2b22db27",
+      "stage": "verification",
+      "actor": "verifier",
+      "outcome": "verified",
+      "reason": "The audit log and source revision disagree on the cached field.",
+      "evidence": [
+        {
+          "reference_id": "verification-sample-stale-field",
+          "source_kind": "external_record"
+        }
+      ],
+      "items": [],
+      "proposal_digest": null,
+      "admission_digest": null
+    },
+    {
+      "schema_version": "mdac-grievance-event-v2",
+      "training_eligibility": "DEVELOPMENT",
+      "report_id": "sample-stale-field",
+      "previous_digest": "7a07dc2440684cc244fe85f34ff7df1693d64992db4a5df1fb43ea1a8ee0f9eb",
+      "stage": "triage",
+      "actor": "triager",
+      "outcome": "accepted",
+      "reason": "The memory team owns the affected read path.",
+      "evidence": [
+        {
+          "reference_id": "triage-sample-stale-field",
+          "source_kind": "external_record"
+        }
+      ],
+      "items": [],
+      "proposal_digest": null,
+      "admission_digest": null
+    },
+    {
+      "schema_version": "mdac-grievance-event-v2",
+      "training_eligibility": "DEVELOPMENT",
+      "report_id": "sample-stale-field",
+      "previous_digest": "f9b14c52f2b11210f80f47a058d6f9af4cc7549e150127dd3d35e1f5d1bc0fb1",
+      "stage": "consolidation",
+      "actor": "analyst",
+      "outcome": "hypotheses",
+      "reason": "Caching and source freshness remain competing explanations.",
+      "evidence": [
+        {
+          "reference_id": "consolidation-sample-stale-field",
+          "source_kind": "external_record"
+        }
+      ],
+      "items": [
+        "Stale cache or outdated source."
+      ],
+      "proposal_digest": null,
+      "admission_digest": null
+    },
+    {
+      "schema_version": "mdac-grievance-event-v2",
+      "training_eligibility": "DEVELOPMENT",
+      "report_id": "sample-stale-field",
+      "previous_digest": "d2697716a47ea657c34ce2afd0e556b716ad7fbf643e19993557b4d0f86fca84",
+      "stage": "requirements",
+      "actor": "designer",
+      "outcome": "formulated",
+      "reason": "Record the source revision and satisfy the current signed-value test.",
+      "evidence": [
+        {
+          "reference_id": "requirements-sample-stale-field",
+          "source_kind": "external_record"
+        }
+      ],
+      "items": [
+        "Use the current signed value on a validation replay."
+      ],
+      "proposal_digest": null,
+      "admission_digest": null
+    },
+    {
+      "schema_version": "mdac-grievance-event-v2",
+      "training_eligibility": "DEVELOPMENT",
+      "report_id": "sample-stale-field",
+      "previous_digest": "81a6d0eb9cafbd1e96bc5246a488022b41f8c238bec1d956a1dc8a3b7ea30bfd",
+      "stage": "rfc",
+      "actor": "author",
+      "outcome": "proposed",
+      "reason": "Evaluate revision-aware refresh against replay controls.",
+      "evidence": [
+        {
+          "reference_id": "rfc-sample-stale-field",
+          "source_kind": "external_record"
+        }
+      ],
+      "items": [],
+      "proposal_digest": null,
+      "admission_digest": null
+    },
+    {
+      "schema_version": "mdac-grievance-event-v2",
+      "training_eligibility": "DEVELOPMENT",
+      "report_id": "sample-stale-field",
+      "previous_digest": "5d3fe3b04725d8179a84465149f65da25e275a07b1c5674668befe7bbeeb067d",
+      "stage": "review",
+      "actor": "reviewer",
+      "outcome": "upheld",
+      "reason": "The proposed test discriminates between the two source paths.",
+      "evidence": [
+        {
+          "reference_id": "review-sample-stale-field",
+          "source_kind": "external_record"
+        }
+      ],
+      "items": [],
+      "proposal_digest": null,
+      "admission_digest": null
+    },
+    {
+      "schema_version": "mdac-grievance-event-v2",
+      "training_eligibility": "DEVELOPMENT",
+      "report_id": "sample-stale-field",
+      "previous_digest": "e93dd44c99f1fde2a9389c738252bd2f218b5c553d9be8154e91ea53b4b7f31b",
+      "stage": "experiment",
+      "actor": "experimenter",
+      "outcome": "validated",
+      "reason": "A controlled fixture replay reproduced the original stale value.",
+      "evidence": [
+        {
+          "reference_id": "experiment-sample-stale-field",
+          "source_kind": "external_record"
+        }
+      ],
+      "items": [],
+      "proposal_digest": null,
+      "admission_digest": null
+    },
+    {
+      "schema_version": "mdac-grievance-event-v2",
+      "training_eligibility": "DEVELOPMENT",
+      "report_id": "sample-stale-field",
+      "previous_digest": "da43fd6543938dbea2a334f2c99b2dccf9e26ba07cc7b2f28af0e24bd17cb663",
+      "stage": "governance",
+      "actor": "governor",
+      "outcome": "upheld",
+      "reason": "Approve a diagnostic investigation of recurring verified incidents.",
+      "evidence": [
+        {
+          "reference_id": "governance-sample-stale-field",
+          "source_kind": "external_record"
+        }
+      ],
+      "items": [],
+      "proposal_digest": null,
+      "admission_digest": null
+    },
+    {
+      "schema_version": "mdac-grievance-event-v2",
+      "training_eligibility": "DEVELOPMENT",
+      "report_id": "sample-stale-field",
+      "previous_digest": "424fe388f2fa96d2a6cf49359dd910f728cd40a3eb94557cf9e61adde660d109",
+      "stage": "feedback",
+      "actor": "coordinator",
+      "outcome": "delivered",
+      "reason": "The submitter received the finding and instructions for appeal.",
+      "evidence": [
+        {
+          "reference_id": "feedback-sample-stale-field",
+          "source_kind": "external_record"
+        }
+      ],
+      "items": [],
+      "proposal_digest": null,
+      "admission_digest": null
+    }
+  ]
+}

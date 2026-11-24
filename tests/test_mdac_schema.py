@@ -80,3 +80,18 @@ def test_schema_with_local_model():
     observed = tokenizer.decode(output[0, inputs.input_ids.shape[1] :])
     record = MDACRecord("local:1", observed.strip(), checkpoint_id=checkpoint)
     assert load_diagnostic(record.to_dict(), enabled=True) == record
+
+
+@pytest.mark.parametrize("state", ["supported", "strongly_supported"])
+def test_deception_hypothesis_requires_convergence_and_alternatives(state):
+    first = EvidenceReference("matched-oversight", EvidenceSourceKind.EXTERNAL_RECORD)
+    second = EvidenceReference("counterfactual-replay", EvidenceSourceKind.EXTERNAL_RECORD)
+    alternatives = ("retrieval failure",)
+    with pytest.raises(ValueError, match="M15"):
+        MechanismAssessment("M15", state, supporting=(first,), alternatives=alternatives)
+    with pytest.raises(ValueError, match="M15"):
+        MechanismAssessment("M15", state, supporting=(first, second))
+    assessment = MechanismAssessment(
+        "M15", state, supporting=(first, second), alternatives=alternatives
+    )
+    assert MechanismAssessment.from_dict(assessment.to_dict()) == assessment

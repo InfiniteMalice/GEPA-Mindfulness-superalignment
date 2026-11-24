@@ -87,3 +87,5 @@ has run; no accuracy, efficiency, retention, anti-loop or alignment gain is clai
 The separate [MEMORILLA qualification protocol](latent_memory_research.md) records checked
 native-method artifacts and external-runtime requirements. It adds no latent backend and does
 not change workspace retrieval, source admission or access authority.
+
+The [optional MDAC memory adapter](mdac_memory.md) adds host-approved retention, versioned authorization and obligation references, source-bound restore handles, and transitive invalidation over workspace items.

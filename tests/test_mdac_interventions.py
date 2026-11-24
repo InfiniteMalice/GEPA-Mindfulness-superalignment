@@ -150,6 +150,7 @@ def test_actor_receives_only_public_messages_and_observed_system_identity():
     block = known_fault_block("missing_authorization")
 
     def inspect(identity, turns):
+        assert identity == block.identity
         assert all(set(turn) == {"role", "content"} for turn in turns)
         assert "expected_actions" not in str(turns) and "missing_authorization" not in str(turns)
         return fixture_actor(identity, turns)
@@ -176,11 +177,15 @@ def test_optional_cpu_model_executes_all_arms():
         with torch.no_grad():
             output = model.generate(**tokens, do_sample=False, max_new_tokens=8)
         answer = tokenizer.decode(output[0, tokens.input_ids.shape[1] :], skip_special_tokens=True)
-        return ReplayResult.from_actions(identity, turns, (answer.strip() or "(empty)",))
+        return ReplayResult.from_actions(
+            identity, turns, (answer.strip(),) if answer.strip() else ()
+        )
 
     result = run((block,), actor=execute)
     assert result["calls_used"] == 4
-    assert result["effects"]["repair"]["matched_trials"] == 1
+    repair = next(row for row in result["observations"] if row["treatment"] == "repair")
+    both_observed = all(capture["status"] == "observed" for capture in repair["captures"])
+    assert result["effects"]["repair"]["matched_trials"] == int(both_observed)
     json.dumps(result, allow_nan=False)
 
 
@@ -290,3 +295,43 @@ def test_changing_the_oracle_cannot_manufacture_recovery_for_identical_actions()
 
     with pytest.raises(ValueError, match="oracle"):
         run((block,), actor=always_clarify)
+
+
+def test_identical_prompt_sham_has_distinct_capture_and_reuses_control():
+    block = known_fault_block("missing_context")
+    repair, positive, sham = block.treatments
+    after = replace(sham.pair.after, turns=sham.pair.before.turns)
+    sham = replace(sham, pair=replace(sham.pair, after=after))
+    result = run((replace(block, treatments=(repair, positive, sham)),))
+    control_refs = [r["captures"][0]["evidence_refs"] for r in result["observations"]]
+    assert control_refs[0] == control_refs[1] == control_refs[2]
+    assert result["observations"][2]["captures"][1]["evidence_refs"] != control_refs[2]
+    assert result["effects"]["sham"]["drs"] == 0
+
+
+def test_mismatched_repair_policies_cannot_share_a_pooled_effect():
+    cells = (
+        known_fault_block("stale_evidence", seed=1),
+        known_fault_block("missing_context", seed=2),
+    )
+    with pytest.raises(ValueError, match="treatment"):
+        run(cells)
+    matched = run((cells[0], known_fault_block("stale_evidence", seed=3)))
+    assert matched["effects"]["repair"]["selection_policy"]
+
+
+@pytest.mark.parametrize("fault,secondary", [([], None), ("stale_evidence", {}), (None, None)])
+def test_malformed_fault_names_raise_configuration_error(fault, secondary):
+    with pytest.raises(ValueError, match="fault"):
+        known_fault_block(fault, secondary=secondary)
+
+
+def test_oracle_rejects_extra_action_before_correct_total():
+    def actor(identity, turns):
+        response = fixture_actor(identity, turns)
+        return ReplayResult.from_actions(
+            identity, turns, ("extra public action", *response.actions)
+        )
+
+    result = run((known_fault_block("missing_context"),), actor=actor)
+    assert result["effects"]["repair"]["intervention_passes"] == 0

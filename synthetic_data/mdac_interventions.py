@@ -110,7 +110,9 @@ def known_fault_block(
     if eligibility not in (TrainingEligibility.REGRESSION, TrainingEligibility.DEVELOPMENT):
         raise ValueError("known-fault calibration supports only nontraining sources")
     if (
-        fault not in FAULTS
+        type(fault) is not str
+        or (secondary is not None and type(secondary) is not str)
+        or fault not in FAULTS
         or secondary == fault
         or (secondary is not None and secondary not in FAULTS)
     ):
@@ -186,7 +188,9 @@ def known_fault_block(
             training_eligibility=eligibility,
             enabled=True,
         )
-        treatments.append(Treatment(name, role, pair))
+        # Each seed supplies its own clean values under the same registered ledger rule.
+        policy = "ledger-v1:" + name + ":" + ",".join(sorted(patches))
+        treatments.append(Treatment(name, role, pair, selection_policy=policy))
     return ReplayBlock(identity, EVALUATOR, tuple(treatments))
 
 
@@ -201,7 +205,11 @@ class FixtureOracle:
     ) -> PairAdjudication:
         before, after = captures
         correct = tuple(
-            c.actions[-1] in v.expected_actions if c.status == "observed" else None
+            (
+                (len(c.actions) == 1 and c.actions[0] in v.expected_actions)
+                if c.status == "observed"
+                else None
+            )
             for c, v in zip(captures, (pair.before, pair.after))
         )
         changed = before.actions != after.actions if None not in correct else None

@@ -278,9 +278,16 @@ source eligibility. Freeze task, checkpoint, initial-state, decoding/tool config
 harness, evaluator and repeat identities before the run. Register a repair and both types
 of control. Maintain a separate non-training partition and retain the report's eligibility.
 
+Across tasks, each treatment must name a versioned selection policy if its exact pair changes.
+The report binds the policy, changed factor names and procedure to the pooled estimate and
+records each concrete pair. With no policy, only an identical pair can share a treatment.
+The fixture's repair policy restores the clean value of its named field for each sampled task.
+
 The host resets the identified state for each invocation of `execute(identity, turns)`.
 It returns the actual identity, public prompt digest, action sequence and evidence reference
-in a `ReplayResult`. A stateful backend must isolate every run and resolve the references
+in a `ReplayResult`. The in-process factory creates a fresh execution identifier for each
+call. A trusted host can supply its own unique execution ID to reproduce a stored receipt.
+Repeated runs can reproduce the numerical outcomes while identifying distinct evidence. A stateful backend must isolate every run and resolve the references
 against its own execution logs. A missing public outcome uses an empty action tuple.
 The harness checks the identity and calls the existing causal evaluator with the
 host's digest-bound adjudication and independent authenticator. Only observed, authenticated
@@ -333,7 +340,6 @@ the behavioral contrast and retains alternative explanations. The harness assign
 label. An evaluator can link the result digest in a PR 1 `MechanismAssessment.intervention_results`
 entry and retain the independent evidence and uncertainty for that assessment.
 
-To exercise a locally supplied causal language model, set `MDAC_LOCAL_TEST_MODEL` to its
-checkpoint directory and run `pytest -q tests/test_mdac_interventions.py`. The smoke test
+To exercise a locally supplied causal language model, install the optional Torch and Transformers dependencies with `pip install ".[rl]"`. Set `MDAC_LOCAL_TEST_MODEL` to the local directory containing both checkpoint weights and tokenizer files and run `pytest -q tests/test_mdac_interventions.py`. The smoke test
 uses deterministic CPU decoding and scores all four arms. It requires no online service.
 Existing causal-pair schemas and calls require no migration.

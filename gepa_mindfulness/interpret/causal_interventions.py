@@ -317,11 +317,7 @@ def execute_causal_plan(
 
     source_d, source_r = _selection(d["source"], plan.source), _selection(r["source"], plan.source)
     zero = torch.zeros_like(source_d)
-    identity_context = (
-        plan.donor
-        if plan.mode in (InterventionMode.ABLATION, InterventionMode.RESTORATION)
-        else plan.recipient
-    )
+    identity_context = plan.primary_input
     identity_values = source_d if identity_context is plan.donor else source_r
     identity_ref = donor["score"] if identity_context is plan.donor else recipient["score"]
     identity, _ = run(

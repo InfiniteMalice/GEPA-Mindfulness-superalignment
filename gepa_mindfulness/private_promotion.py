@@ -590,12 +590,14 @@ class PrivatePromotionStore:
         """Append one inert host advisory without changing the private request state machine."""
         with self._connection() as db:
             events = self._check(db)
-            if any(
-                e["operation"] == "mdac_admission_review"
-                and e["payload"]["report_digest"] == digest
-                for e in events
-            ):
-                return
+            for event in reversed(events):
+                if event["operation"] != "mdac_admission_review":
+                    continue
+                previous = event["payload"]
+                if previous["report"]["proposal_digest"] == report["proposal_digest"]:
+                    if previous["report_digest"] == digest:
+                        return
+                    break
             # The empty candidate ID is reserved for host-wide audit records.
             self._append(
                 db,
@@ -605,3 +607,25 @@ class PrivatePromotionStore:
                 {"report_digest": digest, "report": report},
                 "advisory",
             )
+
+    def grievance_admission(
+        self, proposal_digest: str, review_digest: str
+    ) -> dict[str, str] | None:
+        """Resolve the latest advisory for this proposal, exposing only its public linkage."""
+        with self._connection() as db:
+            for event in reversed(self._check(db)):
+                if event["operation"] != "mdac_admission_review":
+                    continue
+                payload = event["payload"]
+                report = payload["report"]
+                if report["proposal_digest"] != proposal_digest:
+                    continue
+                if payload["report_digest"] != review_digest:
+                    return None
+                return dict(
+                    decision=report["decision"],
+                    proposal_digest=proposal_digest,
+                    review_digest=review_digest,
+                    evidence_digest=report["evidence_digest"],
+                )
+        return None
