@@ -25,7 +25,8 @@ from .mdac_comparisons import (
     compare,
     intervention_effect,
 )
-from .mdac_reporting import SplitManifest
+from .mdac_report_adapters import comparison_runs
+from .mdac_reporting import SplitManifest, export_report
 
 
 def _skill(prompt: str) -> str:
@@ -199,8 +200,20 @@ def fixture_inputs() -> dict[str, Any]:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--report-dir", type=Path)
+    parser.add_argument("--no-plots", action="store_true")
     args = parser.parse_args()
-    report = compare(**fixture_inputs(), enabled=True)
+    fixture = fixture_inputs()
+    report = compare(**fixture, enabled=True)
+    if args.report_dir:
+        manifest = fixture["manifest"]
+        export_report(
+            manifest,
+            comparison_runs(report, manifest),
+            args.report_dir,
+            enabled=True,
+            plots=not args.no_plots,
+        )
     args.output.write_text(json.dumps(report, sort_keys=True, indent=2) + "\n", encoding="utf-8")
 
 

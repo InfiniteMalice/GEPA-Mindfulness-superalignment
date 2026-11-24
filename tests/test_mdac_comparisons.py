@@ -216,3 +216,18 @@ def test_failed_and_unverified_attempts_do_not_count_as_recovery_latency():
         for i, ok in enumerate((False, None, True))
     ]
     assert summarize(rows)["repair_latency"] == {"numerator": 3, "denominator": 1, "value": 3}
+
+
+def test_fixture_cli_projects_native_report(tmp_path, monkeypatch):
+    import sys
+
+    from evaluation.mdac_comparison_fixture import main
+
+    out = tmp_path / "study.json"
+    target = tmp_path / "report"
+    monkeypatch.setattr(
+        sys, "argv", ["fixture", "--output", str(out), "--report-dir", str(target), "--no-plots"]
+    )
+    main()
+    assert out.is_file()
+    assert (target / "telemetry.jsonl").is_file()
