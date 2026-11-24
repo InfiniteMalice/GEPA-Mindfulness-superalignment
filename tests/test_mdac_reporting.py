@@ -360,3 +360,22 @@ def test_probability_curves_render_one_series_per_run(name, metric):
     assert list(traces[0].get_xdata()) == pytest.approx([0.2, 0.8])
     assert list(traces[1].get_xdata()) == pytest.approx([0.3, 0.9])
     assert all(key in line.get_label() for key, line in zip(("baseline", "later"), traces))
+
+
+def test_cross_rl_legend_identifies_evaluation_partition():
+    pytest.importorskip("matplotlib")
+    from matplotlib.figure import Figure
+
+    from evaluation.mdac_report_plots import _series
+
+    m = reporting.SplitManifest.from_dict(manifest_data())
+    training, held_out = event(m, run="development"), event(m, run="audit")
+    held_out.update(partition="final_held_out", family_ids=["family-5"])
+    rows = reporting._summary(m, [training, held_out])["cohorts"]["measured"]["metrics"][
+        "alignment"
+    ]
+    ax = Figure().subplots()
+    _series(ax, rows, "cross_rl")
+    labels = ax.get_legend_handles_labels()[1]
+    assert any("curriculum_validation" in s for s in labels)
+    assert any("final_held_out" in s for s in labels)

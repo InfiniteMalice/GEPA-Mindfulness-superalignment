@@ -95,7 +95,7 @@ def _series(ax: Any, rows: list[dict[str, Any]], name: str) -> None:
             else [r[column] for r in points]
         )
         ys = [r["value"] for r in points]
-        series = f"{key[0]} · {key[1]} · {key[2]} · {key[3]} · seed {key[5]}"
+        series = f"{key[0]} · {key[1]} · {key[2]} · {key[3]} · {key[4]} · seed {key[5]}"
         if within_run:
             series += f" · {points[0]['run_id']} · round {points[0]['round']}"
         # No interpolation across tied coordinates or independent RL arms.
