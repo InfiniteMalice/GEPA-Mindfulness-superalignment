@@ -1,0 +1,16 @@
+{
+  "budget": 32,
+  "group_cap": 8,
+  "regression_weight": 1.0,
+  "severe_threshold": 0.8,
+  "rare_frequency": 0.1,
+  "confidence_floor": 0.5,
+  "weights": {
+    "targeted_corrective": 40,
+    "retention_replay": 15,
+    "novel_generalization": 15,
+    "rare_severe": 10,
+    "diagnostic_exploration": 10,
+    "baseline_capability": 10
+  }
+}
