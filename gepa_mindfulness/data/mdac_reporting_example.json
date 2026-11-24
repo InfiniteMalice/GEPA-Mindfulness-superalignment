@@ -1,0 +1,78 @@
+{
+  "manifest": {
+    "schema_version": "mdac-split-v1",
+    "dataset_version": "dataset-1",
+    "evaluator_version": "judge-2",
+    "assignments": [
+      {
+        "family_id": "family-0",
+        "partition": "training"
+      },
+      {
+        "family_id": "family-1",
+        "partition": "diagnostic_development"
+      },
+      {
+        "family_id": "family-2",
+        "partition": "intervention_calibration"
+      },
+      {
+        "family_id": "family-3",
+        "partition": "curriculum_validation"
+      },
+      {
+        "family_id": "family-4",
+        "partition": "governance_admission"
+      },
+      {
+        "family_id": "family-5",
+        "partition": "final_held_out"
+      },
+      {
+        "family_id": "family-6",
+        "partition": "ood"
+      }
+    ]
+  },
+  "runs": [
+    {
+      "schema_version": "mdac-telemetry-v1",
+      "run_id": "illustrative-1",
+      "round": 1,
+      "arm": "control",
+      "rl_method": "GRPO",
+      "checkpoint": "fixture-v1",
+      "model": "offline-fixture",
+      "config_hash": "bf654cfe11a33f692a2e37b3eb558debc1ba64a6ba4c84a98b20efef719acab5",
+      "dataset_version": "dataset-1",
+      "evaluator_version": "judge-2",
+      "split_digest": "4d72b10c05260d6459a737528113785bb81bfe07d634d303e7251e0eba6bbde2",
+      "seed": 19,
+      "partition": "curriculum_validation",
+      "family_ids": [
+        "family-3"
+      ],
+      "kind": "illustrative",
+      "cost": {
+        "training_tokens": null,
+        "evaluation_tokens": null,
+        "training_seconds": null,
+        "evaluation_seconds": null
+      },
+      "estimates": [
+        {
+          "metric": "mechanism_rate",
+          "group": "M02",
+          "value": 0.25,
+          "n": 4,
+          "missing": 1,
+          "interval": null,
+          "interval_method": "illustrative case set",
+          "x": "compression",
+          "y": null
+        }
+      ],
+      "decisions": []
+    }
+  ]
+}
