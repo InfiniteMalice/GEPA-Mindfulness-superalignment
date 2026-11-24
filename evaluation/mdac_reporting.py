@@ -34,13 +34,16 @@ PLOTS = {
     "calibration": ("calibration",),
     "risk_coverage": ("selective_risk",),
     "reward_behavior_divergence": ("reward_divergence",),
-    "generalization": ("generalization_gap", "familiar", "novel"),
+    "generalization": ("generalization_gap", "familiar", "novel", "ethical_generalization"),
     "retention_regression": ("retention", "regression"),
     "intervention_recovery": ("intervention_recovery",),
     "cross_rl": ("alignment", "capability"),
     "mechanistic": ("temporal_drift", "attribution_difference"),
 }
-_METRICS = {metric for names in PLOTS.values() for metric in names} | {"diagnostic_confidence"}
+_METRICS = {metric for names in PLOTS.values() for metric in names} | {
+    "diagnostic_confidence",
+    "profile_score",
+}
 _UNIT = {
     "mechanism_rate",
     "allocation",
@@ -53,6 +56,8 @@ _UNIT = {
     "alignment",
     "capability",
     "diagnostic_confidence",
+    "ethical_generalization",
+    "profile_score",
 }
 _RUN_KEYS = {
     "schema_version",
@@ -287,7 +292,16 @@ def _estimate(data: object) -> None:
 
 
 def _validated_run(data: object, manifest: SplitManifest) -> dict[str, Any]:
-    row = _exact(data, _RUN_KEYS, "run")
+    keys = _RUN_KEYS
+    if isinstance(data, Mapping) and "source_eligibility" in data:
+        keys = keys | {"source_eligibility"}
+    row = _exact(data, keys, "run")
+    if "source_eligibility" in row and row["source_eligibility"] not in (
+        "DEVELOPMENT",
+        "REGRESSION",
+        "HIDDEN_EVAL",
+    ):
+        raise ValueError("unknown evaluator report eligibility")
     if row["schema_version"] != "mdac-telemetry-v1" or row["kind"] not in KINDS:
         raise ValueError("invalid schema or measurement class")
     for k in (
@@ -316,9 +330,10 @@ def _validated_run(data: object, manifest: SplitManifest) -> dict[str, Any]:
         )
     cost = row["cost"]
     if cost is not None:
-        for k, v in _exact(cost, set(_COSTS), "cost").items():
+        extra = set(cost) & {"compute_units", "samples"} if isinstance(cost, Mapping) else set()
+        for k, v in _exact(cost, set(_COSTS) | extra, "cost").items():
             if v is not None:
-                if k.endswith("_tokens"):
+                if k.endswith("_tokens") or k in ("compute_units", "samples"):
                     _count(v, k)
                 elif _number(v, k) < 0:
                     raise ValueError("cost must be nonnegative")
@@ -335,7 +350,12 @@ def _validated_run(data: object, manifest: SplitManifest) -> dict[str, Any]:
             raise ValueError("duplicate estimate cell within run")
         seen.add(cell)
     for decision in decisions:
-        d = _exact(decision, {"outcome", "reason", "candidate", "evidence_refs"}, "decision")
+        keys = {"outcome", "reason", "candidate", "evidence_refs"}
+        if isinstance(decision, Mapping) and "rollback_target" in decision:
+            keys.add("rollback_target")
+        d = _exact(decision, keys, "decision")
+        if d.get("rollback_target") is not None:
+            _text(d["rollback_target"], "rollback target")
         if d["outcome"] not in ("PROMOTE", "REJECT", "DEFER", "REPAIR", "ROLLBACK"):
             raise ValueError("unknown governance decision")
         _text(d["candidate"], "candidate")
@@ -349,8 +369,12 @@ def _summary(manifest: SplitManifest, rows: list[dict[str, Any]]) -> dict[str, A
     for kind in KINDS:
         group = [r for r in rows if r["kind"] == kind]
         costs = {
-            k: [r["cost"][k] for r in group if r["cost"] is not None and r["cost"][k] is not None]
-            for k in _COSTS
+            k: [
+                r["cost"][k]
+                for r in group
+                if r["cost"] is not None and r["cost"].get(k) is not None
+            ]
+            for k in (*_COSTS, "samples", "compute_units")
         }
         metrics: dict[str, list[dict[str, Any]]] = {}
         for r in group:

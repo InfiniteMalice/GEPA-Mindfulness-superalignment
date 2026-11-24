@@ -401,3 +401,26 @@ def test_heatmap_retains_distinct_y_strata_within_a_condition():
         "run1 · long · easy",
         "run1 · long · hard",
     ]
+
+
+def test_mechanism_trends_do_not_join_different_evaluated_conditions():
+    pytest.importorskip("matplotlib")
+    from matplotlib.figure import Figure
+
+    from evaluation.mdac_report_plots import _series
+
+    m = reporting.SplitManifest.from_dict(manifest_data())
+    runs = [event(m, run="a"), event(m, run="b")]
+    for i, r in enumerate(runs):
+        r["round"] = i + 1
+        r["estimates"] = [
+            estimate("mechanism_rate", "M02", x=("compressed", "original")[i], y="care")
+        ]
+    rows = reporting._summary(m, runs)["cohorts"]["measured"]["metrics"]["mechanism_rate"]
+    ax = Figure().subplots()
+    _series(ax, rows, "mechanism_trends")
+    assert len(ax.lines) == 2
+    assert all(
+        condition in line.get_label()
+        for line, condition in zip(ax.lines, ("compressed", "original"))
+    )

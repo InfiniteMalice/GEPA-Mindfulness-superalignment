@@ -6,6 +6,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+from .causal_records import content_digest
 from .mdac_reporting import PLOTS
 
 _TITLES = {
@@ -29,6 +30,15 @@ def _cell_text(row: dict[str, Any]) -> str:
     return f"{row['value']:.3g}\nn={row['n']}{bounds}"
 
 
+def _run_label(row: dict[str, Any]) -> str:
+    if len(row["run_id"]) <= 42:
+        return row["run_id"]
+    return (
+        f"{row['arm']} · {row['rl_method']} · {row['partition']} · "
+        f"r{row['round']} s{row['seed']} [{content_digest(row['run_id'])[:6]}]"
+    )
+
+
 def _heatmap(ax: Any, rows: list[dict[str, Any]], name: str) -> None:
     # Keep per-run cells instead of pooling unlike series or averaging repeat rates.
     cells = []
@@ -42,14 +52,22 @@ def _heatmap(ax: Any, rows: list[dict[str, Any]], name: str) -> None:
             column_labels[column] = r["group"]
             key = (r["run_id"], r["x"], r["y"])
             condition = str(r["x"]) if r["x"] is not None else r["arm"]
-            label = f"{r['run_id']} · {condition}"
+            label = f"{_run_label(r)} · {condition}"
             if r["y"] is not None:
                 label += f" · {r['y']}"
-        else:
+        elif name == "retention_regression":
             column = (r["metric"], r["x"], r["y"])
             column_labels[column] = f"{r['metric']} · {r['x']} → {r['y']}"
             key = (r["run_id"], r["group"])
-            label = f"{r['run_id']} · {r['group']}"
+            label = f"{_run_label(r)} · {r['group']}"
+        else:
+            key = (r["run_id"], r["x"], r["y"])
+            label = _run_label(r)
+            coordinates = [str(r[k]) for k in ("x", "y") if r[k] is not None]
+            if coordinates:
+                label += " · " + " / ".join(coordinates)
+            column = (r["metric"], r["group"])
+            column_labels[column] = f"{r['metric']} · {r['group']}"
         row_labels[key] = label
         cells.append((key, column, r))
     columns = sorted(column_labels, key=lambda k: (column_labels[k], repr(k)))
@@ -67,8 +85,16 @@ def _heatmap(ax: Any, rows: list[dict[str, Any]], name: str) -> None:
             fontsize=8,
             color="white" if row["value"] < 0.45 else "black",
         )
-    im = ax.imshow(matrix, cmap="viridis", vmin=0, vmax=1, aspect="auto")
-    ax.figure.colorbar(im, ax=ax, shrink=0.75, label="Rate")
+    signed = any(r["value"] < 0 or r["value"] > 1 for r in rows)
+    limit = max(abs(r["value"]) for r in rows) if signed else 1
+    im = ax.imshow(
+        matrix,
+        cmap="RdBu" if signed else "viridis",
+        vmin=-limit if signed else 0,
+        vmax=limit,
+        aspect="auto",
+    )
+    ax.figure.colorbar(im, ax=ax, shrink=0.75, label="Estimate")
     ax.set_xticks(range(len(columns)), [column_labels[c] for c in columns], rotation=25, ha="right")
     ax.set_yticks(range(len(keys)), [row_labels[k] for k in keys])
 
@@ -90,8 +116,11 @@ def _series(ax: Any, rows: list[dict[str, Any]], name: str) -> None:
                 "evaluator_version",
             )
         )
+        key += (r["config_hash"], tuple(sorted(r["family_ids"])), r["y"])
         if within_run:
             key += (r["run_id"], r["round"])
+        else:
+            key += (r["x"],)
         groups[key].append(r)
     categories = sorted({f"{r['rl_method']} · {r['arm']}" for r in rows})
     for key, points in groups.items():
@@ -107,8 +136,13 @@ def _series(ax: Any, rows: list[dict[str, Any]], name: str) -> None:
         )
         ys = [r["value"] for r in points]
         series = f"{key[0]} · {key[1]} · {key[2]} · {key[3]} · {key[4]} · seed {key[5]}"
+        first = points[0]
+        coordinates = [first["y"]] if within_run else [first["x"], first["y"]]
+        for coordinate in coordinates:
+            if coordinate is not None:
+                series += f" · {coordinate}"
         if within_run:
-            series += f" · {points[0]['run_id']} · round {points[0]['round']}"
+            series += f" · {_run_label(points[0])} · round {points[0]['round']}"
         # No interpolation across tied coordinates or independent RL arms.
         joined = len(xs) == len(set(xs)) and name != "cross_rl"
         line = ax.plot(xs, ys, linestyle="-" if joined else "", marker="o", label=series)[0]
@@ -148,7 +182,15 @@ def render_plots(cohorts: dict[str, Any], output: Path) -> list[str]:
             ]
             if not rows:
                 continue
-            heat = name in ("failure_heatmap", "retention_regression")
+            series_count = len(
+                {
+                    (r["metric"], r["group"], r["arm"], r["rl_method"], r["partition"], r["seed"])
+                    for r in rows
+                }
+            )
+            heat = name in ("failure_heatmap", "retention_regression") or (
+                series_count > 10 and name not in ("calibration", "risk_coverage")
+            )
             width = min(20, max(8, len({r["group"] for r in rows}) * 0.85)) if heat else 9
             height = min(18, max(5, len({r["run_id"] for r in rows}) * 0.65)) if heat else 5.5
             fig = Figure(figsize=(width, height), dpi=120)

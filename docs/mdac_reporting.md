@@ -76,3 +76,19 @@ Each estimate has a metric name, a stratum, a finite value or null, observed and
 Every figure labels its evidence class, sample sizes and available token costs. Supplied intervals are displayed pointwise. The summary records the source interval method and raw values for each point. Filter run IDs, instrumentation basis, configuration and family lineage before interpreting differences. The reporter preserves observed points and the uncertainty supplied by the generating experiment. No aggregate cross-seed causal effect or checkpoint selection follows from their presence.
 
 This export adapts the repository's canonical JSON integrity digest and versioned evaluation records. Paired intervention effects follow the controlled-replay protocol. The reporting and split rules are project-specific experimental controls. Existing outputs need no migration. The deterministic fixture illustrates field meanings. It does not estimate model performance. Run `python -m pytest -q tests/test_mdac_reporting.py` for structural, leakage, plotting and output-preservation controls. Set `MDAC_LOCAL_TEST_MODEL` to a local Transformers checkpoint for the optional model-backed calibration export.
+
+## Export native comparison and alignment-first receipts
+
+Use the public adapters with the manifest from the producing experiment. Each verifies the sealed source digest and split identity and returns ordinary telemetry rows for `export_report`.
+
+```python
+from evaluation.mdac_report_adapters import comparison_runs, lifecycle_runs
+
+comparison_rows = comparison_runs(comparison_receipt, comparison_manifest)
+export_report(comparison_manifest, comparison_rows, Path("reports/comparison"), enabled=True)
+
+lifecycle_rows = lifecycle_runs(lifecycle_receipt, lifecycle_manifest)
+export_report(lifecycle_manifest, lifecycle_rows, Path("reports/lifecycle"), enabled=True)
+```
+
+The comparison export reports candidate and shared baseline scores separately for final held-out and OOD families. Training costs appear once per arm and shared baseline evaluation costs once per seed and partition. The lifecycle export preserves stage training and validation, diagnostic-development evidence, intervention calibration, governance decisions and terminal evaluations. Each exported row carries HIDDEN_EVAL eligibility and aggregate measurements for evaluator use. The adapters omit private answers, prompts and expected mechanism labels. Samples and measured compute units supplement the token and elapsed-time fields. CPU tutorial outputs are labeled illustrative; executed model-backed outcomes are labeled measured.
