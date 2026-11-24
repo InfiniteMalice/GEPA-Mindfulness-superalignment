@@ -134,7 +134,9 @@ def test_export_preserves_run_metadata_missingness_cost_and_source_classes(tmp_p
         manifest, [measured, fixture, planned], tmp_path / "report", enabled=True, plots=False
     )
     rows = [json.loads(line) for line in Path(paths["telemetry"]).read_text().splitlines()]
-    assert rows == [measured, fixture, planned]
+    assert rows == [
+        dict(r, training_eligibility="DEVELOPMENT") for r in (measured, fixture, planned)
+    ]
     summary = json.loads(Path(paths["summary"]).read_text())
     assert set(summary["cohorts"]) == {"measured", "illustrative", "unexecuted"}
     cohort = summary["cohorts"]["measured"]
@@ -424,3 +426,18 @@ def test_mechanism_trends_do_not_join_different_evaluated_conditions():
         condition in line.get_label()
         for line, condition in zip(ax.lines, ("compressed", "original"))
     )
+
+
+def test_training_projection_checks_retained_source_eligibility_before_dropping_metadata():
+    m = reporting.SplitManifest.from_dict(manifest_data())
+    example = dict(
+        family_id="family-0",
+        task_id="t",
+        public_prompt="test",
+        dataset_version=m.dataset_version,
+        evaluator_version=m.evaluator_version,
+        training_eligibility="TRAIN",
+        source={"training_eligibility": "HIDDEN_EVAL"},
+    )
+    with pytest.raises(ValueError, match="HIDDEN_EVAL"):
+        m.training_input(example)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
+from itertools import groupby
 from math import fsum
 from typing import Any
 
@@ -50,12 +51,15 @@ class _Receipt:
         costs: Row,
         decisions: list[Row] | None = None,
     ) -> None:
-        if method not in self.study["methods"] or seed not in self.study["seeds"]:
+        baseline = stage == "before" and method == "shared_baseline"
+        if (not baseline and method not in self.study["methods"]) or seed not in self.study[
+            "seeds"
+        ]:
             raise ValueError("unknown source run seed or method")
         run = dict(
             schema_version="mdac-telemetry-v1",
             kind=self.kind,
-            source_eligibility="HIDDEN_EVAL",
+            training_eligibility="HIDDEN_EVAL",
             run_id=f"{self.digest}:{arm}:{method}:{seed}:{step}:{stage}:{partition}",
             arm=arm,
             rl_method=method,
@@ -109,12 +113,43 @@ class _Receipt:
         ]
 
 
+def _diagnostic_curves(src: _Receipt, rows: list[Row], side: str) -> list[Row]:
+    # Confidence estimates refer to the evaluator's label-set prediction. A missing
+    # reference cannot establish calibration, and the private labels stay in custody.
+    samples = [
+        (r[side]["diagnostic_confidence"], set(r[side]["mechanisms"]) == set(r["truth"]))
+        for r in rows
+        if r["truth"] is not None and r[side]["diagnostic_confidence"] is not None
+    ]
+    buckets: dict[int, list[tuple[float, bool]]] = defaultdict(list)
+    for confidence, accurate in samples:
+        buckets[min(int(confidence * 10), 9)].append((confidence, accurate))
+    missing = len(rows) - len(samples)
+    group = "diagnostic label-set correctness"
+    result = []
+    for pairs in buckets.values():
+        avg = fsum(c for c, _ in pairs) / len(pairs)
+        result.append(
+            dict(src.point("calibration", group, [ok for _, ok in pairs], x=avg), missing=missing)
+        )
+    answered = errors = 0
+    for _, bucket in groupby(sorted(samples, reverse=True), key=lambda pair: pair[0]):
+        for confidence, correct in bucket:
+            answered += 1
+            errors += int(not correct)
+        coverage = answered / len(samples)
+        point = src.point("selective_risk", group, [errors / answered], x=coverage)
+        result.append(dict(point, n=answered, missing=missing))
+    return result
+
+
 def _comparison_points(src: _Receipt, rows: list[Row], side: str) -> list[Row]:
     values = [r[side] for r in rows]
     points = [
         src.point(metric, "all", [v[metric] for v in values])
         for metric in ("alignment", "capability", "diagnostic_confidence")
     ]
+    points.extend(_diagnostic_curves(src, rows, side))
     for mechanism in MECHANISMS:
         points.append(
             src.point("mechanism_rate", mechanism, [mechanism in v["mechanisms"] for v in values])
@@ -166,7 +201,11 @@ def comparison_runs(report: Mapping[str, Any], manifest: SplitManifest) -> list[
             **common,
         )
         cases: dict[str, list[Row]] = defaultdict(list)
+        seen_cases: set[str] = set()
         for judgment in cell["judgments"]:
+            if judgment["case_id"] in seen_cases:
+                raise ValueError("duplicate case in comparison cell")
+            seen_cases.add(judgment["case_id"])
             if not {"family", "before_tokens", "after_tokens"} <= judgment.keys():
                 raise ValueError("rerun comparison to record per-case family and token lineage")
             cases[judgment["partition"]].append(judgment)
@@ -190,7 +229,14 @@ def comparison_runs(report: Mapping[str, Any], manifest: SplitManifest) -> list[
                     identity = (seed, part)
                     digest = content_digest(
                         sorted(
-                            (r["case_id"], r["family"], r[side], r["before_tokens"]) for r in rows
+                            (
+                                r["case_id"],
+                                r["family"],
+                                r[side],
+                                r["before_tokens"],
+                                None if r["truth"] is None else sorted(r["truth"]),
+                            )
+                            for r in rows
                         )
                     )
                     if identity in baseline_digests:
@@ -200,7 +246,7 @@ def comparison_runs(report: Mapping[str, Any], manifest: SplitManifest) -> list[
                     baseline_digests[identity] = digest
                 src.emit(
                     arm="shared_baseline" if side == "before" else arm,
-                    method=method,
+                    method="shared_baseline" if side == "before" else method,
                     seed=seed,
                     stage=side,
                     step=0 if side == "before" else 1,
@@ -315,6 +361,28 @@ def lifecycle_runs(report: Mapping[str, Any], manifest: SplitManifest) -> list[R
                 point = src.point("diagnostic_confidence", name, [assessment["confidence"]])
                 point.update(source_digest=content_digest(record), x=record["diagnostic_id"])
                 diagnostics.append(point)
+    development = report["diagnostic_profile"]
+    dev_families = {r["family"] for r in development["rows"]}
+    for case_report in report.get("case_interventions", []):
+        points = intervention_estimates(case_report)
+        roster = [entry["identity"] for entry in case_report["roster"]]
+        families = {entry["task_id"] for entry in roster}
+        if (
+            not families
+            or not families <= dev_families
+            or any(entry["checkpoint"] != development["checkpoint"] for entry in roster)
+        ):
+            raise ValueError("case intervention must match the actual development profile")
+        src.emit(
+            stage=f"case-intervention-{case_report['result_digest']}",
+            step=len(rounds) - 1,
+            checkpoint=development["checkpoint"],
+            partition="diagnostic_development",
+            families=sorted(families),
+            points=points,
+            costs=dict(replay_calls=case_report.get("calls_used")),
+            **common,
+        )
     if "intervention" in report:
         family = report.get("intervention_family")
         if not family:
@@ -328,7 +396,7 @@ def lifecycle_runs(report: Mapping[str, Any], manifest: SplitManifest) -> list[R
             partition="intervention_calibration",
             families=[family],
             points=intervention_estimates(report["intervention"]),
-            costs={},
+            costs=dict(replay_calls=report["intervention"].get("calls_used")),
             **common,
         )
     receipt = report["admission"]

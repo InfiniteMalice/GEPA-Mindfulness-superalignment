@@ -161,11 +161,39 @@ def test_lifecycle_export_heldout_ood_and_admission(tmp_path):
             for p, f, ok in [("final_held_out", "seen", True), ("ood", "novel", False)]
         },
     )
+    test = dict(
+        schema_version="mdac-interventions-v1",
+        planned_blocks=1,
+        calls_used=3,
+        interval_method="unavailable for one scenario",
+        roster=[dict(identity=dict(task_id="dev", checkpoint="initial"))],
+        effects=dict(
+            repair=dict(
+                matched_trials=1, control_passes=0, intervention_passes=1, drs=1, interval=None
+            )
+        ),
+    )
+    report["case_interventions"] = [dict(test, result_digest=content_digest(test))]
+    report["result_digest"] = content_digest(
+        {k: v for k, v in report.items() if k != "result_digest"}
+    )
     rows = adapters.lifecycle_runs(report, m)
     paths = export_report(m, rows, tmp_path / "lifecycle", enabled=True, plots=False)
     parsed = json.loads(Path(paths["summary"]).read_text())["cohorts"]["illustrative"]
     assert parsed["observed_costs"]["training_tokens"] == 4
     assert parsed["observed_costs"]["evaluation_tokens"] == 6
+    assert parsed["observed_costs"]["replay_calls"] == 3
+    (point,) = parsed["metrics"]["intervention_recovery"]
+    assert point["partition"] == "diagnostic_development" and point["family_ids"] == ["dev"]
+    foreign = dict(test, roster=[dict(identity=dict(task_id="seen", checkpoint="initial"))])
+    swapped = dict(
+        report, case_interventions=[dict(foreign, result_digest=content_digest(foreign))]
+    )
+    swapped["result_digest"] = content_digest(
+        {k: v for k, v in swapped.items() if k != "result_digest"}
+    )
+    with pytest.raises(ValueError, match="development"):
+        adapters.lifecycle_runs(swapped, m)
     assert {r["partition"] for r in rows} >= {"final_held_out", "ood", "governance_admission"}
     (decision,) = [d for r in rows for d in r["decisions"]]
     assert decision["outcome"] == "DEFER" and decision["reason"] == "missing independent evidence"
@@ -202,3 +230,145 @@ def test_dense_figure_uses_readable_run_labels_and_preserves_all_points():
     assert ax.images[0].get_array().count() == len(rows)
     for label in ax.get_yticklabels():
         assert "final_held_out" in label.get_text() and "a" * 64 not in label.get_text()
+
+
+def test_private_case_labels_only_contribute_aggregate_diagnostic_calibration(tmp_path):
+    m = manifest()
+    seen = dict(
+        case_id="seen",
+        family="seen",
+        partition="final_held_out",
+        truth=["M01"],
+        before=verdict(0),
+        after=verdict(1),
+        before_tokens=1,
+        after_tokens=1,
+    )
+    novel = dict(seen, case_id="novel", family="novel", partition="ood", truth=None)
+    cell = dict(
+        arm="A",
+        method="fixture",
+        seed=7,
+        checkpoint_start="initial",
+        checkpoint_end="fit",
+        selected_families=["train"],
+        schedule_channels=["review"],
+        actual=dict(
+            training_tokens=3,
+            samples=1,
+            compute_units=1,
+            evaluation_tokens=2,
+            baseline_evaluation_tokens=2,
+        ),
+        judgments=[seen, novel],
+    )
+    rows = adapters.comparison_runs(sealed("mdac-comparison-v1", m, cells=[cell]), m)
+    cases = [r for r in rows if r["round"] == 1 and r["partition"] == "final_held_out"][0]
+    (cal,) = [p for p in cases["estimates"] if p["metric"] == "calibration"]
+    (risk,) = [p for p in cases["estimates"] if p["metric"] == "selective_risk"]
+    assert (cal["x"], cal["value"], cal["n"]) == (0.75, 0, 1)
+    assert (risk["x"], risk["value"], risk["n"]) == (1, 1, 1)
+    assert all(
+        not any(p["metric"] == "calibration" for p in r["estimates"])
+        for r in rows
+        if r["partition"] == "ood"
+    )
+
+
+def test_plotting_digest_bound_conditions_without_clipping(tmp_path):
+    pytest.importorskip("matplotlib")
+    import warnings
+
+    from test_mdac_reporting import estimate, event, manifest_data
+
+    from evaluation.mdac_report_plots import render_plots
+    from evaluation.mdac_reporting import _summary
+
+    m = SplitManifest.from_dict(manifest_data())
+    r = event(m, run="b" * 64)
+    r["estimates"] = [estimate("mechanism_rate", "M02", x="evidence:sha256:" + "a" * 64)]
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message="Tight layout not applied.*")
+        assert render_plots(_summary(m, [r])["cohorts"], tmp_path)
+
+
+def test_comparison_telemetry_cannot_be_admitted_by_the_repository_training_reader():
+    from gepa_mindfulness.training.eligibility import require_training_eligible
+
+    m = manifest()
+    judgments = [
+        dict(
+            case_id=f,
+            family=f,
+            partition=p,
+            before=verdict(1),
+            after=verdict(1),
+            truth=[],
+            before_tokens=1,
+            after_tokens=1,
+        )
+        for f, p in [("seen", "final_held_out"), ("novel", "ood")]
+    ]
+    cell = dict(
+        arm="A",
+        method="fixture",
+        seed=7,
+        checkpoint_start="initial",
+        checkpoint_end="fit",
+        selected_families=["train"],
+        schedule_channels=["review"],
+        actual=dict(
+            training_tokens=1,
+            samples=1,
+            compute_units=1,
+            evaluation_tokens=2,
+            baseline_evaluation_tokens=2,
+        ),
+        judgments=judgments,
+    )
+    for row in adapters.comparison_runs(sealed("mdac-comparison-v1", m, cells=[cell]), m):
+        with pytest.raises(ValueError, match="HIDDEN_EVAL"):
+            require_training_eligible(row)
+
+
+@pytest.mark.parametrize("first_known", [True, False])
+def test_baseline_deduplication_binds_the_private_calibration_reference(first_known):
+    m = manifest()
+    after_cells = []
+    for i, arm in enumerate(("A", "B")):
+        known = first_known if i == 0 else not first_known
+        judgments = [
+            dict(
+                case_id=f,
+                family=f,
+                partition=p,
+                before=verdict(1),
+                after=verdict(1),
+                truth=[] if known else None,
+                before_tokens=1,
+                after_tokens=1,
+            )
+            for f, p in [("seen", "final_held_out"), ("novel", "ood")]
+        ]
+        after_cells.append(
+            dict(
+                arm=arm,
+                method="fixture",
+                seed=7,
+                checkpoint_start="initial",
+                checkpoint_end=arm,
+                selected_families=["train"],
+                schedule_channels=["review"],
+                actual=dict(
+                    training_tokens=1,
+                    samples=1,
+                    compute_units=1,
+                    evaluation_tokens=2,
+                    baseline_evaluation_tokens=2,
+                ),
+                judgments=judgments,
+            )
+        )
+    report = sealed("mdac-comparison-v1", m, cells=after_cells)
+    with pytest.raises(ValueError, match="shared baseline"):
+        adapters.comparison_runs(report, m)
