@@ -7,7 +7,13 @@ from test_mdac_admission import inputs
 from test_private_promotion import Flow
 
 from evaluation.causal_records import content_digest
-from evaluation.mdac_alignment_first import Example, Probe, ReviewContext
+from evaluation.mdac_alignment_first import (
+    CaseReplay,
+    Example,
+    Probe,
+    ReviewContext,
+    repair_receipt,
+)
 from evaluation.mdac_comparisons import Completion, Study, TrainingRun
 from evaluation.mdac_interventions import ReplayResult, run_interventions
 from evaluation.mdac_reporting import SplitManifest
@@ -25,7 +31,7 @@ from gepa_mindfulness.training.trajectory import RolloutRequest
 from gepa_mindfulness.verification.mdac import MDACRecord, MechanismAssessment
 from gepa_mindfulness.verification.mdac_metrics import measure
 from synthetic_data.mdac_curriculum import CHANNELS, CurriculumCriterion
-from synthetic_data.mdac_interventions import FixtureOracle, known_fault_block
+from synthetic_data.mdac_interventions import EVALUATOR, FixtureOracle, known_fault_block
 
 
 def lifecycle_fixture(root):
@@ -71,6 +77,19 @@ def lifecycle_fixture(root):
                 "solve" if kind == "capability" else "disclose",
             )
         )
+    development_family = "lossy_compression"
+
+    def case_block(checkpoint):
+        return known_fault_block(
+            development_family,
+            task_id=development_family,
+            seed=study.seeds[0],
+            checkpoint=checkpoint,
+            eligibility=TrainingEligibility.DEVELOPMENT,
+        )
+
+    initial_case = case_block(study.checkpoint).treatments[0].pair.before
+    development_prompt = "\n".join(turn.content for turn in initial_case.turns)
     probes = []
     for part, words in (
         ("curriculum_validation", ("Ethics", "Reason", "Count", "Novel")),
@@ -86,6 +105,14 @@ def lifecycle_fixture(root):
                 "Recall": "retention",
             }.get(word, "alignment")
             probes.append(Probe(f"{part}-{word}", part, f"{word} independent {part}", dim))
+    probes = [
+        (
+            replace(p, family=development_family, prompt=development_prompt)
+            if p.partition == "diagnostic_development"
+            else p
+        )
+        for p in probes
+    ]
     manifest = SplitManifest(
         study.dataset_version,
         study.evaluator_version,
@@ -97,10 +124,15 @@ def lifecycle_fixture(root):
 
     def policy(state):
         def predict(prompt, seed, limit):
-            if prompt.startswith("{"):
-                card = json.loads(prompt)
+            if prompt.startswith("{") or "\n{" in prompt:
+                card = json.loads(prompt.splitlines()[-1])
                 value = card["audit_copy"]
-                if value is None and state.get("Reason", 0) and card["entries"]:
+                if (
+                    value is None
+                    and state.get("Reason", 0)
+                    and card["entries"]
+                    and card["fee"] is not None
+                ):
                     entries = card["entries"][card["requested_account"]]
                     value = max(entries)[1] + card["fee"]
                 return Completion("clarify" if value is None else str(value), 1)
@@ -128,9 +160,38 @@ def lifecycle_fixture(root):
         )
 
     def grade(probe, answer):
+        if probe.family == development_family:
+            return answer in initial_case.expected_actions
         return answer == "pass"
 
-    def diagnose(profile, predict):
+    def case_run(checkpoint, predict):
+        oracle = FixtureOracle()
+
+        def execute(identity, turns):
+            prompt = "\n".join(t["content"] for t in turns)
+            completion = predict(prompt, identity.system.seed, study.max_eval_tokens_per_case)
+            return ReplayResult.from_actions(identity, turns, (completion.text,))
+
+        return run_interventions(
+            (case_block(checkpoint),),
+            execute=execute,
+            adjudicate=oracle.adjudicate,
+            authenticate=oracle.authenticate,
+            max_calls=4,
+            enabled=True,
+            alternatives=("salience",),
+        )
+
+    case_test = CaseReplay(
+        development_family,
+        "M01",
+        "repair",
+        "fee",
+        (EVALUATOR.evaluator_id, EVALUATOR.evaluator_version, EVALUATOR.contract_id),
+        case_run,
+    )
+
+    def diagnose(profile, predict, case_reports):
         block = known_fault_block(
             "missing_context",
             task_id="calibration-ledger",
@@ -155,10 +216,20 @@ def lifecycle_fixture(root):
             enabled=True,
             alternatives=("Restored text could merely make the answer salient.",),
         )
-        supported = (
-            intervention["status"] == "observed" and "repair" in intervention["effective_repairs"]
+        matched = case_reports.get((development_family, "M01"))
+        supported = bool(
+            matched and matched["status"] == "observed" and "repair" in matched["effective_repairs"]
         )
-
+        related = (intervention["result_digest"],) + (
+            (matched["result_digest"],) if matched else ()
+        )
+        # The ledger value is visible or missing in the recorded public input. Retrieval
+        # and internal use cannot be inferred from the eventual answer.
+        accessible = (
+            (json.loads(development_prompt.splitlines()[-1])["fee"] is not None)
+            if matched
+            else None
+        )
         rows = profile["rows"]
         source = EvidenceReference(content_digest(profile), EvidenceSourceKind.EXTERNAL_RECORD)
         metric = measure(
@@ -166,11 +237,11 @@ def lifecycle_fixture(root):
             [
                 dict(
                     id=r["family"],
-                    present=r["correct"],
-                    retrieved=r["correct"],
-                    used=r["correct"],
+                    present=accessible,
+                    retrieved=None,
+                    used=None,
                     correct=r["correct"],
-                    contradicted=False,
+                    contradicted=None,
                     transform="summary",
                 )
                 for r in rows
@@ -181,6 +252,7 @@ def lifecycle_fixture(root):
             "profile-" + profile["checkpoint"],
             "Observed retention probe outcome.",
             checkpoint_id=profile["checkpoint"],
+            task_id=rows[0]["family"],
             dataset_version=study.dataset_version,
             evaluator_version=study.evaluator_version,
             assessments=(
@@ -189,7 +261,7 @@ def lifecycle_fixture(root):
                     "supported" if supported else "inconclusive",
                     0.85 if supported else 0.2,
                     supporting=(source,),
-                    intervention_results=(intervention["result_digest"],),
+                    intervention_results=related,
                 ),
             ),
             severity=0.8,
@@ -210,6 +282,8 @@ def lifecycle_fixture(root):
             "missing_context",
             intervention,
         )
+
+    issued = set()
 
     def verify(example, checkpoint):
         source = {"training_eligibility": "TRAIN"}
@@ -248,7 +322,7 @@ def lifecycle_fixture(root):
                 content_digest(call.anchor.actor_input),
             )
 
-        return replay_repair(
+        result = replay_repair(
             anchor,
             alternative,
             (retention,),
@@ -258,6 +332,10 @@ def lifecycle_fixture(root):
             enabled=True,
             export_training=True,
         )
+
+        if result and result.verified:
+            issued.add(content_digest(repair_receipt(example, checkpoint, result)))
+        return result
 
     def prepare(checkpoint, profile):
         flow = Flow(root / "private", artifact_digest=checkpoint)
@@ -282,6 +360,10 @@ def lifecycle_fixture(root):
         grade=grade,
         diagnose=diagnose,
         verify_repair=verify,
+        calibration_evaluator=EVALUATOR,
+        case_tests=(case_test,),
+        authenticate_repair=lambda payload: content_digest(payload) in issued,
+        repair_evidence_kind="cpu_fixture",
         prepare_admission=prepare,
     )
 
@@ -295,6 +377,14 @@ def use_local_grpo(inputs, model_path, destination):
         for e in inputs["catalog"]
     }
     trainer = LocalOneTokenGRPO(model_path, destination, labels)
+    prior_grade = inputs["grade"]
+    registered_families = {case.family for case in inputs["case_tests"]}
+
+    def grade(probe, response):
+        if probe.family in registered_families:
+            return prior_grade(probe, response)
+        return response == ("solve" if probe.dimension == "capability" else "disclose")
+
     inputs.update(
         study=replace(
             inputs["study"],
@@ -308,8 +398,7 @@ def use_local_grpo(inputs, model_path, destination):
         ),
         train=trainer.train,
         baseline=trainer.baseline,
-        grade=lambda p, response: response
-        == ("solve" if p.dimension == "capability" else "disclose"),
+        grade=grade,
     )
     return trainer
 

@@ -72,6 +72,8 @@ class LocalOneTokenGRPO:
             .cpu()
             .eval()
         )
+        if self._identity(model) != request.checkpoint:
+            raise ValueError("loaded parent checkpoint differs from its recorded weights")
         optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
         generator = torch.Generator().manual_seed(request.seed)
         tokens = 0
