@@ -164,3 +164,55 @@ def test_evaluation_generation_respects_the_frozen_limit():
             **(fixture | {"baseline": lambda prompt, seed, limit: Completion("answer", limit + 1)}),
             enabled=True,
         )
+
+
+def test_freeze_teacher_and_hybrid_runtime_options_in_request_identity():
+    from evaluation.causal_records import canonical_json
+    from evaluation.mdac_comparisons import TrainingRequest, rl_training_config
+
+    base = TrainingRequest("grpo", 7, "local", "cpu", "review", ("one",), 1, 1, "f" * 64)
+    options = canonical_json({"actionopd": {"enabled": False}})
+    teacherless = replace(base, runtime_options=options)
+    assert teacherless.digest != base.digest
+    cfg = rl_training_config(
+        teacherless, dataset="train.jsonl", output_dir="out", batch_size=1, max_new_tokens=1
+    )
+    assert cfg.actionopd.enabled is False
+    with pytest.raises(ValueError, match="controlled"):
+        rl_training_config(
+            replace(base, runtime_options='{"seed":9}'),
+            dataset="train.jsonl",
+            output_dir="out",
+            batch_size=1,
+            max_new_tokens=1,
+        )
+
+
+def test_preflight_all_variants_precedes_any_callback():
+    fixture = fixture_inputs()
+
+    def abort(*args):
+        pytest.fail("invalid study reached a callback")
+
+    lessons = tuple(replace(l, variants=()) for l in fixture["lessons"])
+    with pytest.raises(ValueError, match="missing reviewed"):
+        compare(
+            **(fixture | {"baseline": abort, "grade": abort, "train": abort, "lessons": lessons}),
+            enabled=True,
+        )
+
+
+def test_failed_and_unverified_attempts_do_not_count_as_recovery_latency():
+    from evaluation.mdac_comparisons import Judgment, Verdict
+
+    rows = [
+        Judgment(
+            str(i),
+            "ood",
+            (),
+            Verdict(0, 0),
+            Verdict(0, 0, correction_effective=ok, repair_steps=i + 1),
+        )
+        for i, ok in enumerate((False, None, True))
+    ]
+    assert summarize(rows)["repair_latency"] == {"numerator": 3, "denominator": 1, "value": 3}
