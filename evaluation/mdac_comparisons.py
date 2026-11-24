@@ -13,6 +13,7 @@ from typing import Any
 
 from gepa_mindfulness.training.runtime_config import RLRunConfig
 from gepa_mindfulness.verification.mdac import MECHANISMS
+from synthetic_data.curriculum_records import read_curriculum_object
 from synthetic_data.lesson_curation import report_document, require_enabled
 from synthetic_data.mdac_curriculum import (
     CHANNELS,
@@ -67,6 +68,7 @@ class Study:
     model_config_digest: str
     methods: tuple[str, ...] = ("fixture",)
     evidence_kind: str = "cpu_fixture"
+    runtime_options: str = "{}"
 
     def __post_init__(self) -> None:
         for value in (
@@ -77,6 +79,7 @@ class Study:
             self.conditions,
         ):
             _id(value)
+        _engine_options(self.runtime_options)
         _positive(self.samples, 1024)
         _positive(self.compute_units)
         _positive(self.training_tokens)
@@ -181,6 +184,7 @@ class TrainingRequest:
     compute_units: int
     training_tokens: int
     model_config_digest: str
+    runtime_options: str = "{}"
 
     @property
     def digest(self) -> str:
@@ -458,6 +462,7 @@ def compare(
                     study.compute_units,
                     study.training_tokens,
                     study.model_config_digest,
+                    study.runtime_options,
                 )
                 run = train(request)
                 if (
@@ -607,6 +612,13 @@ def intervention_effect(report: dict[str, Any], treatment: str) -> tuple[str, fl
     return digest, float(effect["drs"])
 
 
+def _engine_options(wire: str) -> dict[str, Any]:
+    options = read_curriculum_object(wire)
+    if set(options) - {"actionopd", "research_credit", "hybrid", "backend"}:
+        raise ValueError("runtime options may not override controlled study fields")
+    return options
+
+
 def rl_training_config(
     request: TrainingRequest,
     *,
@@ -623,9 +635,12 @@ def rl_training_config(
     _positive(max_new_tokens)
     if not request.prompts or len(request.prompts) % batch_size:
         raise ValueError("complete equal-sized batches are required")
+    options = _engine_options(request.runtime_options)
+    backend = options.pop("backend", "cuda" if device.startswith("cuda") else "pytorch")
     return RLRunConfig.from_mapping(
         dict(
-            runtime=dict(backend="cuda" if device.startswith("cuda") else "pytorch", device=device),
+            **options,
+            runtime=dict(backend=backend, device=device),
             policy=dict(model_name=request.checkpoint, max_new_tokens=max_new_tokens),
             algorithm=dict(
                 name=request.method,
@@ -633,7 +648,9 @@ def rl_training_config(
                 max_steps=len(request.prompts) // batch_size,
             ),
             dataset=dict(train_path=dataset, format="jsonl"),
-            checkpoint=dict(output_dir=output_dir),
+            checkpoint=dict(
+                output_dir=output_dir, save_steps=1 if backend == "mojo-vulkan-llamacpp" else 100
+            ),
             logging=dict(log_dir=str(Path(output_dir) / "logs")),
             seed=request.seed,
         )
@@ -653,6 +670,8 @@ def dapo_training_config(
         _build_default_feedback_config,
     )
 
+    if _engine_options(request.runtime_options):
+        raise ValueError("DAPO hybrid uses its own GEPA feedback configuration")
     if request.method != "dapo":
         raise ValueError("expected a DAPO training request")
     _positive(batch_size)
