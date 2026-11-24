@@ -163,7 +163,7 @@ def _comparison_points(src: _Receipt, rows: list[Row], side: str) -> list[Row]:
                 src.point(
                     "regression",
                     metric,
-                    [b > a for b, a in zip(before, after)],
+                    [None if b is None or a is None else b > a for b, a in zip(before, after)],
                     x="before",
                     y="declined",
                 )
