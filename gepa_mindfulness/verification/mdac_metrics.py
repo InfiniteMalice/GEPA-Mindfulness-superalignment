@@ -180,7 +180,9 @@ def _calibration(m: Measurements, rows: Sequence[Row], bins: int, threshold: flo
     ece = expected_calibration_error(scored, bins=bins)
     # A bin's mean signed gap decomposes its absolute gap into under- and
     # overconfidence. Weighting the two parts over bins recovers ECE exactly.
-    bias = fsum(float(r.confidence) - (r.outcome == "correct") for r in scored) / n if n else 0
+    bias = (
+        fsum(cast(float, r.confidence) - (r.outcome == "correct") for r in scored) / n if n else 0
+    )
     for name, raw in (
         ("ece", ece),
         ("brier", brier_score(scored)),
