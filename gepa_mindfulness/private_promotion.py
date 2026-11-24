@@ -12,6 +12,7 @@ from dataclasses import asdict, dataclass, fields
 from enum import Enum
 from pathlib import Path
 from typing import Any, Iterator
+from uuid import uuid4
 
 from evaluation import V5EvaluationRecord
 from gepa_mindfulness.coevolution import CandidateSystem, CoevolutionStore, ValidationBundle
@@ -537,7 +538,7 @@ class PrivatePromotionStore:
             return self._check(db)
 
     def admission_snapshot(self, candidate_id: str, artifact_digest: str) -> dict[str, Any]:
-        """Host-only, read-only view of the canonical versions and private decision."""
+        """Bind a durable private-catalog identity, its pinned configuration and live decision."""
         _token(candidate_id, "candidate_id")
         _digest_value(artifact_digest)
         with self._connection() as db:
@@ -557,7 +558,22 @@ class PrivatePromotionStore:
                 decision = self._coevolution.read_decision(completed["payload"]["decision_id"])
                 if decision.decision_digest != completed["payload"]["decision_digest"]:
                     raise ValueError("private decision digest changed")
+            identity = next(
+                (
+                    e["payload"]["catalog_id"]
+                    for e in events
+                    if e["operation"] == "mdac_catalog_identity"
+                ),
+                None,
+            )
+            if identity is None:
+                identity = str(uuid4())
+                self._append(
+                    db, events, "mdac_catalog_identity", "", {"catalog_id": identity}, "configured"
+                )
             return dict(
+                catalog_id=identity,
+                configuration_digest=_hash(self._pinned),
                 candidate_id=candidate_id,
                 artifact_digest=candidate.artifact_digest,
                 source_epoch=candidate.source_epoch_id,

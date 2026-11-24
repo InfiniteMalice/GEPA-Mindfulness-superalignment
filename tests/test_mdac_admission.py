@@ -187,3 +187,72 @@ def test_optional_model_observation_requires_independent_admission(flow):
     p, panel, policy = inputs(flow)
     incomplete = replace(panel, dimensions=(), suite_ref=observation)
     assert review(flow, p, incomplete, policy)["decision"] == "DEFER"
+
+
+def test_signed_review_cannot_be_replayed_across_private_catalogs(tmp_path):
+    from test_private_promotion import Op, _protocol
+
+    from gepa_mindfulness.private_promotion import ExperimentRequest, PrivatePromotionStore
+
+    flow = Flow(tmp_path / "first")
+    p, panel, policy = inputs(flow)
+    second = PrivatePromotionStore(
+        tmp_path / "other.sqlite",
+        flow.coevolution,
+        flow.evaluation,
+        _protocol(generator_digest="sha256:" + "c" * 64),
+        flow.baseline,
+        USAGE,
+        enabled=True,
+    )
+    flow.request()
+    for op in (Op.SUBMIT_CANDIDATE, Op.REQUEST_PRIVATE_EVALUATION):
+        second.dispatch(ExperimentRequest(op, p.candidate_id, p.artifact_digest))
+    bundle = flow.bundle()
+    for store in (flow.store, second):
+        assert store.complete_evaluation(p.candidate_id, bundle, USAGE)["status"] == "accepted"
+    approvals = set()
+
+    def issue(payload):
+        approvals.add(content_digest(payload))
+        return True
+
+    kwargs = dict(active_epoch=p.source_epoch, reviewer="reviewer", enabled=True)
+    original = review_candidate(flow.store, p, panel, policy, authenticate=issue, **kwargs)
+    replayed = review_candidate(
+        second,
+        p,
+        panel,
+        policy,
+        authenticate=lambda payload: content_digest(payload) in approvals,
+        **kwargs,
+    )
+    assert original["decision"] == "PROMOTE" and replayed["decision"] == "DEFER"
+    first = flow.store.admission_snapshot(p.candidate_id, p.artifact_digest)
+    other = second.admission_snapshot(p.candidate_id, p.artifact_digest)
+    assert first["catalog_id"] != other["catalog_id"]
+    assert first["configuration_digest"] != other["configuration_digest"]
+    assert (
+        flow.reopen().admission_snapshot(p.candidate_id, p.artifact_digest)["catalog_id"]
+        == first["catalog_id"]
+    )
+
+
+def test_entirely_missing_paired_report_preserves_missing_dimension(flow):
+    from test_improvement_statistics import METRIC, POLICY
+
+    from evaluation.improvement_statistics import estimate_paired
+    from gepa_mindfulness.mdac_admission import dimension_from_regret
+
+    candidate = flow.candidate.candidate_id
+    estimate = estimate_paired(
+        (), expected_pair_ids=("absent",), policy=POLICY, dependencies_known=True
+    )
+    report = dict(
+        schema_version="mdac-regret-v1",
+        candidate_id=candidate,
+        missing_pair_ids=["absent"],
+        criterion={"metric": METRIC.to_dict()},
+        paired_estimate=estimate.to_dict(),
+    )
+    assert dimension_from_regret(report, candidate_id=candidate, dimension="factuality") is None

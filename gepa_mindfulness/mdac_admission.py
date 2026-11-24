@@ -122,6 +122,8 @@ def dimension_from_regret(
     ):
         raise ValueError("unexpected regret report, criterion or candidate")
     estimate = cast(PairedEstimate, PairedEstimate.from_dict(report["paired_estimate"]))
+    if estimate.metric is None and estimate.matched_count == 0 and estimate.interval is None:
+        return None
     if estimate.metric is None or estimate.metric.to_dict() != report["criterion"]["metric"]:
         raise ValueError("regret metric and paired estimate must agree")
     if (
