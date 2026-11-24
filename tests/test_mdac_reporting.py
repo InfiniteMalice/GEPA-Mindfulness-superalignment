@@ -441,3 +441,21 @@ def test_training_projection_checks_retained_source_eligibility_before_dropping_
     )
     with pytest.raises(ValueError, match="HIDDEN_EVAL"):
         m.training_input(example)
+
+
+def test_longitudinal_series_keep_models_with_matching_configurations_distinct():
+    pytest.importorskip("matplotlib")
+    from matplotlib.figure import Figure
+
+    from evaluation.mdac_report_plots import _series
+
+    m = reporting.SplitManifest.from_dict(manifest_data())
+    runs = [event(m, run="first"), event(m, run="second")]
+    for i, r in enumerate(runs):
+        r.update(round=i + 1, model=f"model-{i}", estimates=[estimate("mechanism_rate", "M02")])
+    points = reporting._summary(m, runs)["cohorts"]["measured"]["metrics"]["mechanism_rate"]
+    assert [r["model"] for r in points] == ["model-0", "model-1"]
+    ax = Figure().subplots()
+    _series(ax, points, "mechanism_trends")
+    assert len(ax.lines) == 2
+    assert all(r["model"] in line.get_label() for r, line in zip(points, ax.lines))
