@@ -127,9 +127,17 @@ def _series_key(r: dict[str, Any], name: str) -> tuple[Any, ...]:
             "config_hash",
         )
     )
-    coordinates = (
-        (r["run_id"], r["round"]) if name in ("calibration", "risk_coverage") else (r["x"],)
-    )
+    coordinates: tuple[Any, ...]
+    if name in ("calibration", "risk_coverage"):
+        coordinates = (r["run_id"], r["round"])
+    elif name == "cross_rl":
+        coordinates = (r["run_id"], r["checkpoint"], r["round"], r["x"])
+    else:
+        coordinates = (
+            r.get("trajectory_id"),
+            r["run_id"] if "trajectory_id" not in r else None,
+            r["x"],
+        )
     return identity + (tuple(sorted(r["family_ids"])), r["y"]) + coordinates
 
 
@@ -138,7 +146,12 @@ def _series(ax: Any, rows: list[dict[str, Any]], name: str) -> None:
     within_run = name in ("calibration", "risk_coverage")
     for r in rows:
         groups[_series_key(r, name)].append(r)
-    categories = sorted({f"{r['rl_method']} · {r['arm']}" for r in rows})
+
+    def checkpoint_key(r: dict[str, Any]) -> tuple:
+        return (r["rl_method"], r["arm"], r["round"], r["checkpoint"], r["partition"], r["run_id"])
+
+    categories = sorted({checkpoint_key(r) for r in rows}) if name == "cross_rl" else []
+    positions = {key: i for i, key in enumerate(categories)}
     for points in groups.values():
         if within_run:
             column = "x"
@@ -146,7 +159,7 @@ def _series(ax: Any, rows: list[dict[str, Any]], name: str) -> None:
             column = "round"
         points.sort(key=lambda r: (r[column], r["run_id"]))
         xs = (
-            [categories.index(f"{r['rl_method']} · {r['arm']}") for r in points]
+            [positions[checkpoint_key(r)] for r in points]
             if name == "cross_rl"
             else [r[column] for r in points]
         )
@@ -164,8 +177,16 @@ def _series(ax: Any, rows: list[dict[str, Any]], name: str) -> None:
             run = first["run_id"]
             shown = run if len(run) <= 42 else content_digest(run)[:9]
             series += f" · {shown} · round {first['round']}"
-        # No interpolation across tied coordinates or independent RL arms.
-        joined = len(xs) == len(set(xs)) and name != "cross_rl"
+        elif name == "cross_rl":
+            series += f" · round {first['round']} · {first['checkpoint']}"
+        else:
+            series += " · " + first.get("trajectory_id", first["run_id"])
+        joined = (
+            len(xs) > 1
+            and len(xs) == len(set(xs))
+            and name != "cross_rl"
+            and (within_run or "trajectory_id" in first)
+        )
         line = ax.plot(
             xs, ys, linestyle="-" if joined else "", marker="o", label=_display_label(series)
         )[0]
@@ -184,7 +205,11 @@ def _series(ax: Any, rows: list[dict[str, Any]], name: str) -> None:
     elif name == "risk_coverage":
         ax.set(xlabel="Coverage", ylabel="Selective risk", xlim=(0, 1), ylim=(0, 1))
     elif name == "cross_rl":
-        ax.set_xticks(range(len(categories)), categories, rotation=20, ha="right")
+        labels = [
+            _display_label(f"{method} · {arm} · round {step} · {checkpoint} · {part}")
+            for method, arm, step, checkpoint, part, _ in categories
+        ]
+        ax.set_xticks(range(len(categories)), labels, rotation=20, ha="right")
         ax.set_ylabel("Independent score")
     else:
         ax.set_xlabel("Evaluation round")
