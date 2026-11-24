@@ -190,6 +190,8 @@ def metric_estimate(
     estimate = dict(
         metric=metric,
         group=group,
+        source_metric=f"{result.mechanism_id}/{result.name}",
+        source_digest=content_digest(result.to_dict()),
         value=result.raw,
         n=result.denominator,
         missing=result.missing,
@@ -230,6 +232,8 @@ def intervention_estimates(receipt: Mapping[str, Any]) -> list[dict[str, Any]]:
             group=_text(treatment, "treatment"),
             value=expected,
             n=n,
+            source_metric=f"mdac-interventions-v1/{treatment}/drs",
+            source_digest=digest,
             missing=planned - n,
             interval=effect.get("interval"),
             interval_method=method,
@@ -242,11 +246,14 @@ def intervention_estimates(receipt: Mapping[str, Any]) -> list[dict[str, Any]]:
 
 
 def _estimate(data: object) -> None:
-    row = _exact(
-        data,
-        {"metric", "group", "value", "n", "missing", "interval", "interval_method", "x", "y"},
-        "estimate",
-    )
+    keys = {"metric", "group", "value", "n", "missing", "interval", "interval_method", "x", "y"}
+    if isinstance(data, Mapping) and ("source_metric" in data or "source_digest" in data):
+        keys |= {"source_metric", "source_digest"}
+    row = _exact(data, keys, "estimate")
+    if "source_metric" in row:
+        _text(row["source_metric"], "source metric")
+        if not re.fullmatch("[0-9a-f]{64}", _text(row["source_digest"], "source digest")):
+            raise ValueError("estimate source digest must be SHA-256")
     name = row["metric"]
     if name not in _METRICS:
         raise ValueError("unknown telemetry metric")

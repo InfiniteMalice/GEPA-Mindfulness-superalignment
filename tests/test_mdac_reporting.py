@@ -323,3 +323,16 @@ def test_packaged_example_and_optional_local_model(tmp_path):
     )
     path = reporting.export_report(manifest, [row], tmp_path / "model", enabled=True, plots=False)
     assert json.loads(Path(path["telemetry"]).read_text())["estimates"][0]["x"] == confidence
+
+
+def test_metric_adapter_preserves_source_identity_and_raw_normalized_direction():
+    from evaluation.causal_records import content_digest
+    from gepa_mindfulness.verification.mdac_metrics import measure
+
+    metric = measure(
+        "M03", [dict(id="task", before=True, after=False, memory_record="hint")], enabled=True
+    )["regression"]
+    point = reporting.metric_estimate("regression", metric, group="retrieval", x="pass", y="fail")
+    assert point["source_metric"] == "M03/regression"
+    assert point["source_digest"] == content_digest(metric.to_dict())
+    assert point["value"] == 1 and metric.normalized == 0
