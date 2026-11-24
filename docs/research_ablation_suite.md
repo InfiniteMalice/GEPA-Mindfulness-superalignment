@@ -198,3 +198,26 @@ native/optional backends and empirical effectiveness remain **Unsupported**.
 The [MEMORILLA source/runtime qualification protocol](latent_memory_research.md) supplies the
 optional latent-memory intake boundary for Study F. Source qualification adds no runtime;
 unimplemented latent and hybrid conditions remain explicitly `unsupported` in the existing roster.
+
+## MDAC curriculum and RL comparison
+
+Run `python -m evaluation.mdac_comparison_fixture --output /tmp/mdac-study.json` for a CPU comparison using a deterministic table learner. Six arms, two paired seeds and five private evaluator cases produce 12 cells. Each receives 12 practice examples and executes 12 table updates. The grader includes an unlabeled case, a known case with no planted mechanism, and a partly incorrect mechanism classifier. The recorded effects describe this fixture.
+
+| Arm | Sampling rule |
+| --- | --- |
+| A | Cycle through the frozen fixed catalog. |
+| B | Draw uniformly with the same sample and compute budget. |
+| C | Weight each practice lesson by its model-attributed development failure rate. |
+| D | Pool failures and opportunities within the declared behavioral category. |
+| E | Weight by failure rate times positive paired diagnostic recovery score from a retained calibration intervention. |
+| F | Apply the PR4 allocator with target shortfall, directional decline, mastery retention, severe-case reserves, exploration, generalization, baseline maintenance, and correlation caps. |
+
+Each lesson belongs to a training family. Its diagnostic and intervention sources belong to their dedicated partitions. F requests separately authored practice prompts for diagnostic exploration and novel generalization. The host must review these variants as members of the indicated training family. Zero total weight in C, D or E falls back to the fixed catalog. Nested labels, curricular reasons, private references, and evaluation prompts stay outside the trainer request. Only the independent grading callback receives the private case record. Host code is trusted and must isolate real training and evaluation processes. Keep final and OOD judgments out of subsequent model selection.
+
+Feed `Study(**settings)` the JSON configuration after converting the `seeds` and `methods` lists to tuples. Replace the illustrative model configuration digest with the digest of the actual serialized configuration and replace the checkpoint path with an immutable local snapshot and supply the frozen PR16 family manifest. The proposed single-GPU configuration is unexecuted. It requires reviewed eligible data, calibrated independent judging, a resource meter, installed backend dependencies, and a fresh starting checkpoint for every cell. One compute unit has the same physical meaning throughout a comparison. The host rejects conditional comparisons when an arm cannot match sample, generation, training and evaluation constraints.
+
+Implement the training callback using `rl_training_config` with the existing PPO or GRPO `RLTrainingEngine`, or `dapo_training_config` with the existing optional DAPO hybrid trainer. Materialize only admitted examples corresponding to the selected prompts, seed every backend from the request, and keep outputs in separate directories. Return `TrainingRun` with actual metered costs, the exact request digest, checkpoint identities and an inference callback. The runner rejects a mismatched receipt, a different model configuration digest, or actual training tokens different from the frozen budget. Each inference callback receives the same per-case token limit and must return a metered completion. Real access-controlled evaluations need an independent host to authenticate these receipts, grade predictions and authorize final-test use. The CPU fixture does not exercise an RL update.
+
+Results retain opportunity counts for diagnosis precision, recall, exact multilabel agreement, calibration of exact-set confidence, false M15 attribution, unknowns, held-out alignment, OOD alignment, correction, honest disclosure, and reward–verified behavior divergence. Repair latency needs a verified recovery and an observed step count. Absent measurements remain unavailable. Stability compares diagnosis sets for the same case across seeds. Each seed and method has paired alignment and capability deltas relative to A, plus gains per sample and compute unit. Per-mechanism regression counts reveal alignment loss in other annotated categories. Report DRS from the intervention-calibration stratum independently of held-out curriculum effects.
+
+The comparisons test whether mechanism-directed sampling improves alignment and control of forgetting under fixed resources. Additional studies should freeze an independent contrast for verified versus unverified repair, experience reuse, clarification coverage, ethical transfer, or mechanistic memorization indicators before revealing final judgments. The toy table learner supplies no evidence on those model-backed questions or on the relative merits of PPO, GRPO, and DAPO.
