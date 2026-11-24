@@ -15,7 +15,7 @@ _TITLES = {
     "failure_heatmap": "Mechanism frequency by evaluated condition",
     "mechanism_trends": "Mechanism frequency across rounds",
     "curriculum_allocation": "Curriculum budget allocation",
-    "calibration": "Calibration of answered cases",
+    "calibration": "Confidence calibration",
     "risk_coverage": "Selective risk and coverage",
     "reward_behavior_divergence": "Training reward minus independent improvement",
     "generalization": "Familiar and novel performance and gap",
@@ -111,31 +111,35 @@ def _heatmap(ax: Any, rows: list[dict[str, Any]], name: str) -> None:
     ax.set_yticks(range(len(keys)), [_display_label(row_labels[k]) for k in keys])
 
 
+def _series_key(r: dict[str, Any], name: str) -> tuple[Any, ...]:
+    identity = tuple(
+        r[k]
+        for k in (
+            "metric",
+            "group",
+            "arm",
+            "rl_method",
+            "model",
+            "partition",
+            "seed",
+            "dataset_version",
+            "evaluator_version",
+            "config_hash",
+        )
+    )
+    coordinates = (
+        (r["run_id"], r["round"]) if name in ("calibration", "risk_coverage") else (r["x"],)
+    )
+    return identity + (tuple(sorted(r["family_ids"])), r["y"]) + coordinates
+
+
 def _series(ax: Any, rows: list[dict[str, Any]], name: str) -> None:
     groups: dict[tuple, list[dict[str, Any]]] = defaultdict(list)
     within_run = name in ("calibration", "risk_coverage")
     for r in rows:
-        key = tuple(
-            r[k]
-            for k in (
-                "metric",
-                "group",
-                "arm",
-                "rl_method",
-                "partition",
-                "seed",
-                "dataset_version",
-                "evaluator_version",
-            )
-        )
-        key += (r["config_hash"], tuple(sorted(r["family_ids"])), r["y"])
-        if within_run:
-            key += (r["run_id"], r["round"])
-        else:
-            key += (r["x"],)
-        groups[key].append(r)
+        groups[_series_key(r, name)].append(r)
     categories = sorted({f"{r['rl_method']} · {r['arm']}" for r in rows})
-    for key, points in groups.items():
+    for points in groups.values():
         if within_run:
             column = "x"
         else:
@@ -147,14 +151,19 @@ def _series(ax: Any, rows: list[dict[str, Any]], name: str) -> None:
             else [r[column] for r in points]
         )
         ys = [r["value"] for r in points]
-        series = f"{key[0]} · {key[1]} · {key[2]} · {key[3]} · {key[4]} · seed {key[5]}"
         first = points[0]
+        series = (
+            f"{first['metric']} · {first['group']} · {first['model']} · "
+            f"{first['arm']} · {first['rl_method']} · {first['partition']} · seed {first['seed']}"
+        )
         coordinates = [first["y"]] if within_run else [first["x"], first["y"]]
         for coordinate in coordinates:
             if coordinate is not None:
                 series += f" · {coordinate}"
         if within_run:
-            series += f" · {_run_label(points[0])} · round {points[0]['round']}"
+            run = first["run_id"]
+            shown = run if len(run) <= 42 else content_digest(run)[:9]
+            series += f" · {shown} · round {first['round']}"
         # No interpolation across tied coordinates or independent RL arms.
         joined = len(xs) == len(set(xs)) and name != "cross_rl"
         line = ax.plot(
@@ -205,19 +214,7 @@ def render_plots(cohorts: dict[str, Any], output: Path) -> list[str]:
             for page, batch in enumerate(batches, 1):
                 rows = [r for r in all_rows if r["run_id"] in batch]
                 filename = f"{name}-p{page:02d}" if paged else name
-                series_count = len(
-                    {
-                        (
-                            r["metric"],
-                            r["group"],
-                            r["arm"],
-                            r["rl_method"],
-                            r["partition"],
-                            r["seed"],
-                        )
-                        for r in rows
-                    }
-                )
+                series_count = len({_series_key(r, name) for r in rows})
                 heat = name in ("failure_heatmap", "retention_regression") or (
                     series_count > 10 and name not in ("calibration", "risk_coverage")
                 )

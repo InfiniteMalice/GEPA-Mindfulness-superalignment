@@ -390,6 +390,7 @@ def _summary(manifest: SplitManifest, rows: list[dict[str, Any]]) -> dict[str, A
                     "run_id",
                     "arm",
                     "rl_method",
+                    "model",
                     "checkpoint",
                     "partition",
                     "round",
