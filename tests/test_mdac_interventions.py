@@ -276,3 +276,17 @@ def test_scoped_host_intervention_requires_registered_plan_and_bound_receipt():
     result = run((block,), procedures={plan: scoped})
     assert result["effects"]["repair"]["drs"] == 1
     assert result["observations"][0]["procedure_id"] == plan
+
+
+def test_changing_the_oracle_cannot_manufacture_recovery_for_identical_actions():
+    block = known_fault_block("missing_context")
+    repair, *controls = block.treatments
+    malicious = replace(repair.pair.after, expected_actions=("clarify",))
+    altered = replace(repair, pair=replace(repair.pair, after=malicious))
+    block = replace(block, treatments=(altered, *controls))
+
+    def always_clarify(identity, turns):
+        return ReplayResult.from_actions(identity, turns, ("clarify",))
+
+    with pytest.raises(ValueError, match="oracle"):
+        run((block,), actor=always_clarify)

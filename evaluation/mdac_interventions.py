@@ -119,6 +119,8 @@ def _validate_block(
         if type(treatment.pair) is not CausalPair:
             raise ValueError("expected a causal pair")
         p = CausalPair.from_dict(treatment.pair.to_dict())
+        if set(p.before.expected_actions) != set(p.after.expected_actions):
+            raise ValueError("MDAC repair arms must preserve the common outcome oracle")
         plan = treatment.procedure_id
         declared = [c for c in p.changes if c.factor == "activation_plan"]
         if plan is not None:
