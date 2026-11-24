@@ -95,6 +95,7 @@ def test_comparison_export_counts_training_and_shared_baselines_once(tmp_path):
         )
     report = sealed("mdac-comparison-v1", m, cells=cells)
     runs = adapters.comparison_runs(report, m)
+    assert {r["trajectory_id"] for r in runs} == {report["result_digest"]}
     paths = export_report(m, runs, tmp_path / "compare", enabled=True, plots=False)
     assert "secret" not in Path(paths["telemetry"]).read_text()
     summary = json.loads(Path(paths["summary"]).read_text())["cohorts"]["illustrative"]
@@ -279,17 +280,16 @@ def test_plotting_digest_bound_conditions_without_clipping(tmp_path):
     pytest.importorskip("matplotlib")
     import warnings
 
-    from test_mdac_reporting import estimate, event, manifest_data
+    from test_mdac_reporting import estimate, event, manifest_data, summarize
 
     from evaluation.mdac_report_plots import render_plots
-    from evaluation.mdac_reporting import _summary
 
     m = SplitManifest.from_dict(manifest_data())
     r = event(m, run="b" * 64)
     r["estimates"] = [estimate("mechanism_rate", "M02", x="evidence:sha256:" + "a" * 64)]
     with warnings.catch_warnings():
         warnings.filterwarnings("error", message="Tight layout not applied.*")
-        assert render_plots(_summary(m, [r])["cohorts"], tmp_path)
+        assert render_plots(summarize(m, [r])["cohorts"], tmp_path)
 
 
 def test_comparison_telemetry_cannot_be_admitted_by_the_repository_training_reader():

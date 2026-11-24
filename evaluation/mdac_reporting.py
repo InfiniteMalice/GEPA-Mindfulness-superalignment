@@ -295,7 +295,8 @@ def _estimate(data: object) -> None:
 
 
 def _validated_run(data: object, manifest: SplitManifest) -> dict[str, Any]:
-    optional = {"source_eligibility", "training_eligibility"}
+    eligibility = {"source_eligibility", "training_eligibility"}
+    optional = eligibility | {"trajectory_id"}
     keys = _RUN_KEYS | (optional.intersection(data) if isinstance(data, Mapping) else set())
     row = _exact(data, keys, "run")
     minimum = (
@@ -303,7 +304,7 @@ def _validated_run(data: object, manifest: SplitManifest) -> dict[str, Any]:
         if row["partition"] in ("final_held_out", "ood", "governance_admission")
         else "DEVELOPMENT"
     )
-    restrictions = [minimum] + [row[k] for k in optional if k in row]
+    restrictions = [minimum] + [row[k] for k in eligibility if k in row]
     order = ("DEVELOPMENT", "REGRESSION", "HIDDEN_EVAL")
     if any(label not in order for label in restrictions):
         raise ValueError("unknown or optimizer-visible evaluator report eligibility")
@@ -324,6 +325,8 @@ def _validated_run(data: object, manifest: SplitManifest) -> dict[str, Any]:
         "[0-9a-f]{64}", _text(row["config_hash"], "config_hash")
     ):
         raise ValueError("manifest digest or config hash invalid")
+    if "trajectory_id" in row:
+        _text(row["trajectory_id"], "trajectory_id")
     _count(row["round"], "round")
     _count(row["seed"], "seed")
     families = _strings(row["family_ids"], "family_ids", required=True)
@@ -388,6 +391,7 @@ def _summary(manifest: SplitManifest, rows: list[dict[str, Any]]) -> dict[str, A
                 k: r[k]
                 for k in (
                     "run_id",
+                    "training_eligibility",
                     "arm",
                     "rl_method",
                     "model",
@@ -401,6 +405,8 @@ def _summary(manifest: SplitManifest, rows: list[dict[str, Any]]) -> dict[str, A
                     "config_hash",
                 )
             }
+            if "trajectory_id" in r:
+                identity["trajectory_id"] = r["trajectory_id"]
             for estimate in r["estimates"]:
                 metrics.setdefault(estimate["metric"], []).append({**identity, **estimate})
         cohorts[kind] = dict(
@@ -482,7 +488,8 @@ def main() -> None:
     parser.add_argument("--no-plots", action="store_true")
     args = parser.parse_args()
     manifest = SplitManifest.from_dict(json.loads(args.manifest.read_text(encoding="utf-8")))
-    runs = [json.loads(line) for line in args.runs.read_text(encoding="utf-8").splitlines() if line]
+    with args.runs.open(encoding="utf-8") as handle:
+        runs = [json.loads(line) for line in handle if line.strip()]
     export_report(manifest, runs, args.output, enabled=args.enabled, plots=not args.no_plots)
 
 
