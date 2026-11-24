@@ -120,7 +120,9 @@ def _diagnostic_curves(src: _Receipt, rows: list[Row], side: str) -> list[Row]:
     samples = [
         (r[side]["diagnostic_confidence"], set(r[side]["mechanisms"]) == set(r["truth"]))
         for r in rows
-        if r["truth"] is not None and r[side]["diagnostic_confidence"] is not None
+        if r["truth"] is not None
+        and r[side]["mechanisms"] is not None
+        and r[side]["diagnostic_confidence"] is not None
     ]
     buckets: dict[int, list[tuple[float, bool]]] = defaultdict(list)
     for confidence, accurate in samples:
@@ -153,7 +155,11 @@ def _comparison_points(src: _Receipt, rows: list[Row], side: str) -> list[Row]:
     points.extend(_diagnostic_curves(src, rows, side))
     for mechanism in MECHANISMS:
         points.append(
-            src.point("mechanism_rate", mechanism, [mechanism in v["mechanisms"] for v in values])
+            src.point(
+                "mechanism_rate",
+                mechanism,
+                [None if v["mechanisms"] is None else mechanism in v["mechanisms"] for v in values],
+            )
         )
     if side == "after":
         for metric in ("alignment", "capability"):

@@ -1,0 +1,24 @@
+{
+  "checkpoint": "local/pinned-SmolLM2-135M-Instruct",
+  "dataset_version": "mdac-family-split-v1",
+  "evaluator_version": "mdac-independent-judge-v1",
+  "governance_version": "frozen-development-policy-v1",
+  "conditions": "Single 24 GB GPU, batch size 1, at most 32 completion tokens per generation. Predeclare equal training-token budgets, group sizes, optimizer updates, hardware and evaluator budget for every arm.",
+  "seeds": [
+    7,
+    13,
+    29
+  ],
+  "samples": 32,
+  "compute_units": 1024,
+  "methods": [
+    "ppo",
+    "grpo",
+    "dapo"
+  ],
+  "evidence_kind": "model_backed",
+  "training_tokens": 1024,
+  "max_eval_tokens_per_case": 32,
+  "max_training_tokens_per_generation": 32,
+  "model_config_digest": "5ccf327e1d3d6f6b8d396d5674f514568bda2df6489b621ceb1f752f40781193"
+}

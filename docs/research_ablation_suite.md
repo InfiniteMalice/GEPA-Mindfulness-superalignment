@@ -198,3 +198,61 @@ native/optional backends and empirical effectiveness remain **Unsupported**.
 The [MEMORILLA source/runtime qualification protocol](latent_memory_research.md) supplies the
 optional latent-memory intake boundary for Study F. Source qualification adds no runtime;
 unimplemented latent and hybrid conditions remain explicitly `unsupported` in the existing roster.
+
+## MDAC curriculum and RL comparison
+
+Run `python -m evaluation.mdac_comparison_fixture --output /tmp/mdac-study.json --report-dir /tmp/mdac-study-report` for a CPU comparison using a deterministic table learner. Six arms, two paired seeds and five private evaluator cases produce 12 cells. Each receives 12 practice examples and executes 12 table updates. The grader includes an unlabeled case, a known case with no planted mechanism, and a partly incorrect mechanism classifier. The recorded effects describe this fixture.
+
+| Arm | Sampling rule |
+| --- | --- |
+| A | Cycle through the frozen fixed catalog. |
+| B | Draw uniformly with the same sample and compute budget. |
+| C | Weight each practice lesson by its model-attributed development failure rate. |
+| D | Pool failures and opportunities within the declared behavioral category. |
+| E | Weight by failure rate times positive paired diagnostic recovery score from a retained calibration intervention. |
+| F | Apply the PR4 allocator with target shortfall, directional decline, mastery retention, severe-case reserves, exploration, generalization, baseline maintenance, and correlation caps. |
+
+Each lesson belongs to a training family. Its diagnostic and intervention sources belong to their dedicated partitions. F requests separately authored practice prompts for diagnostic exploration and novel generalization. The host must review these variants as members of the indicated training family. Zero total weight in C, D or E falls back to the fixed catalog. Nested labels, curricular reasons, private references, and evaluation prompts stay outside the trainer request. Only the independent grading callback receives the private case record. Host code is trusted and must isolate real training and evaluation processes. Keep final and OOD judgments out of subsequent model selection.
+
+Feed `Study(**settings)` the JSON configuration after converting the `seeds` and `methods` lists to tuples. Replace the illustrative model configuration digest with the digest of the actual serialized configuration and replace the checkpoint path with an immutable local snapshot and supply the frozen PR16 family manifest. The proposed single-GPU configuration is unexecuted. It requires reviewed eligible data, calibrated independent judging, a resource meter, installed backend dependencies, and a fresh starting checkpoint for every cell. One compute unit has the same physical meaning throughout a comparison. The host rejects conditional comparisons when an arm cannot match sample, generation, training and evaluation constraints.
+
+Implement the training callback using `rl_training_config` with the existing PPO or GRPO `RLTrainingEngine`, or `dapo_training_config` with the existing optional DAPO hybrid trainer. Materialize only admitted examples corresponding to the selected prompts, seed every backend from the request, and keep outputs in separate directories. Return `TrainingRun` with actual metered costs, the exact request digest, checkpoint identities and an inference callback. The runner rejects a mismatched receipt, a different model configuration digest, or actual training tokens different from the frozen budget. Each inference callback receives the same per-case token limit and must return a metered completion. Real access-controlled evaluations need an independent host to authenticate these receipts, grade predictions and authorize final-test use. The CPU fixture does not exercise an RL update.
+
+Results retain opportunity counts for diagnosis precision, recall, exact multilabel agreement, calibration of exact-set confidence, false M15 attribution, unknowns, held-out alignment, OOD alignment, correction, honest disclosure, and reward–verified behavior divergence. Repair latency needs a verified recovery and an observed step count. Absent measurements remain unavailable. Stability compares diagnosis sets for the same case across seeds. Each seed and method has paired alignment and capability deltas relative to A, plus gains per sample and compute unit. Per-mechanism regression counts reveal alignment loss in other annotated categories. Report DRS from the intervention-calibration stratum independently of held-out curriculum effects.
+
+The comparisons test whether mechanism-directed sampling improves alignment and control of forgetting under fixed resources. Additional studies should freeze an independent contrast for verified versus unverified repair, experience reuse, clarification coverage, ethical transfer, or mechanistic memorization indicators before revealing final judgments. The toy table learner supplies no evidence on those model-backed questions or on the relative merits of PPO, GRPO, and DAPO.
+
+The shipped PPO, GRPO and DAPO comparison uses the default `runtime_options="{}"` across all methods. DAPO requires this empty mapping and reads its GEPA settings through its own feedback adapter. For a teacher-assisted or Mojo/Vulkan GRPO experiment, create a separate study with `methods=("grpo",)`. For teacher-assisted GRPO, set the host's `actionopd` and `research_credit` sections in canonical JSON, including teacher and verifier versions and contract IDs. For Mojo/Vulkan GRPO, set the `backend` and `hybrid` sections. The canonical engine validates the options and the comparison binds them to each training request. The table experiment used the teacherless CPU path.
+
+### Matched CPU comparison of PPO and GRPO
+
+Run the optional PyTorch control from the checkout. The command below writes the native JSON and partitioned report without plotting dependencies. To include figures, install Matplotlib and omit `--no-plots`.
+
+```bash
+python -m evaluation.mdac_comparison_fixture --cpu-rl \
+  --output rl-controls.json --report-dir rl-controls --no-plots
+```
+
+The control runs arms A–F on two seeds for each teacherless method. Each cell starts from
+the same zero-initialized categorical policy and critic. It draws four one-action rollouts
+for each of twelve scheduled prompts, takes one SGD step per prompt and uses the same
+five independently graded probes. Training uses the repository's PPO and GRPO losses.
+For PPO the episodes terminate after one action, so the return is the observed reward.
+GRPO normalizes the sampled rewards within each prompt group. One update per rollout
+batch exercises the on-policy objective. It gives no evidence about the effect of clipping
+over multiple optimization epochs. Optimizer steps and action tokens measure the budget.
+Wall-clock time and floating-point operation counts can differ between methods.
+
+The toy task tests selecting the requested operation or abstaining. The model can observe
+the operation word. The training signal is one for the registered action and zero otherwise.
+The evaluator scores exact task success and avoidance of a wrong assertion separately.
+The zero-initialized policy answers `unknown` on every probe, earning the maximum
+alignment score of 1.0. Alignment therefore measures whether training preserves that
+score or introduces wrong assertions. Capability measures improvement in exact task success.
+The diagnostic development inputs are authored fixtures. Private cases carry no latent
+mechanism annotation. The report marks these synthetic controls illustrative and leaves
+unsupported measurements unavailable. They test comparative infrastructure and weight
+updates. The configuration for a language-model study with DAPO and GEPA feedback still
+requires its separate backend, data and compute budget.
+
+Comparison receipts freeze the per-generation training token cap as well as the total token budget. Diagnostic lessons reference the registered digest of their source record. Calibration lessons identify the source family and treatment in the sealed report. The native metrics report final held-out and OOD alignment separately, alongside the pooled alignment gain.
