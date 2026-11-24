@@ -149,6 +149,13 @@ class CausalPlan(CVARecord):
         "replacement_values": lambda v: None if v is None else _read_rows(v),
     }
 
+    @property
+    def primary_input(self) -> NativeInput:
+        """Input on which the plan's primary intervention and identity control run."""
+        if self.mode in (InterventionMode.ABLATION, InterventionMode.RESTORATION):
+            return self.donor
+        return self.recipient
+
     def __post_init__(self) -> None:
         text(self.experiment_id, "experiment_id", 160)
         text(self.hypothesis, "hypothesis", 4096)

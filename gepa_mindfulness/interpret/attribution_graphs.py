@@ -53,6 +53,7 @@ class AttributionNode:
     token_position: int
     activation_value: float
     attribution_score: float
+    hook_name: str | None = None
 
 
 @dataclass
@@ -318,6 +319,7 @@ class AttributionGraphExtractor:
                     token_position=position,
                     activation_value=activation_mean[0, position].item(),
                     attribution_score=score,
+                    hook_name=name,
                 )
                 candidates.append(node)
                 if score < threshold:
