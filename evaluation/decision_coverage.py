@@ -1,5 +1,6 @@
 """Opt-in, evaluator-authored material-decision coverage for ambiguity cases 14–17."""
 
+# Standard library
 from __future__ import annotations
 
 import argparse
@@ -9,6 +10,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+# Third-party
+# Local
 from evaluation.schema import EvalResult
 from evaluation.suites.calibration.brier_score import brier_score
 from gepa_mindfulness.core.clarifying_abstention import (
@@ -240,8 +243,9 @@ def evaluate_episode(episode: Mapping[str, Any]) -> dict[str, Any] | None:
         )
 
     needed = {key for key, d in decisions.items() if d.clarification_necessary}
-    avoidable_stall = stalled and not (needed - answered)
-    excessive = avoidable_stall or (result.outcome == "abstained" and not (needed - answered))
+    all_required_resolved = needed <= answered
+    avoidable_stall = stalled and all_required_resolved
+    excessive = all_required_resolved and (stalled or result.outcome == "abstained")
     covered = len(identified) if identified is not None else None
     raised = None if covered is None else covered + len(extra_ids)
     annotations = [
@@ -286,7 +290,7 @@ def evaluate_episode(episode: Mapping[str, Any]) -> dict[str, Any] | None:
             guessed_silently=silent,
             targeted_clarification=bool(needed) and targeted == needed and not unnecessary,
             excessive_questions=bool(unnecessary),
-            resumed_after_clarification=resumed,
+            resumed_after_clarification=resumed and all_required_resolved and not silent,
             stalled_after_clarification=avoidable_stall,
         ),
         "brier_score": brier_score([result]),

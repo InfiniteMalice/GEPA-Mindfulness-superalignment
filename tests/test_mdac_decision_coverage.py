@@ -1,11 +1,14 @@
 """Deterministic decision-level controls over canonical ambiguity examples."""
 
+# Standard library
 import json
 from copy import deepcopy
 from pathlib import Path
 
+# Third-party
 import pytest
 
+# Local
 from evaluation import decision_coverage as dc
 from evaluation.cases import load_case_manifest
 from evaluation.schema import EvalResult
@@ -280,3 +283,11 @@ def test_partial_reply_requires_continued_withholding(episode):
     report = dc.evaluate_episode(episode)
     assert report["excessive_abstention"] is False
     assert report["ambiguity_handling_score"] == 3.5
+
+
+def test_partial_reply_cannot_reward_resumption_before_authorization(episode):
+    trace = episode["trace"]
+    trace["questions"][0]["resolved"] = ["recipient"]
+    trace["guessed_silently"] = True
+    episode["result"]["outcome"] = "incorrect"
+    assert dc.evaluate_episode(episode)["ambiguity_handling_score"] == 1.0
