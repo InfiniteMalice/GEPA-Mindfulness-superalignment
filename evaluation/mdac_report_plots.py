@@ -32,20 +32,31 @@ def _cell_text(row: dict[str, Any]) -> str:
 def _heatmap(ax: Any, rows: list[dict[str, Any]], name: str) -> None:
     # Keep per-run cells instead of pooling unlike series or averaging repeat rates.
     cells = []
+    row_labels: dict[tuple[Any, ...], str] = {}
+    column_labels: dict[tuple[Any, ...], str] = {}
     for r in rows:
+        column: tuple[Any, ...]
+        key: tuple[Any, ...]
         if name == "failure_heatmap":
-            column = r["group"]
+            column = (r["group"],)
+            column_labels[column] = r["group"]
+            key = (r["run_id"], r["x"], r["y"])
             condition = str(r["x"]) if r["x"] is not None else r["arm"]
             label = f"{r['run_id']} · {condition}"
+            if r["y"] is not None:
+                label += f" · {r['y']}"
         else:
-            column = f"{r['metric']} · {r['x']} → {r['y']}"
+            column = (r["metric"], r["x"], r["y"])
+            column_labels[column] = f"{r['metric']} · {r['x']} → {r['y']}"
+            key = (r["run_id"], r["group"])
             label = f"{r['run_id']} · {r['group']}"
-        cells.append((label, column, r))
-    columns = sorted({c for _, c, _ in cells})
-    labels = sorted({row_label for row_label, _, _ in cells})
-    matrix = [[float("nan")] * len(columns) for _ in labels]
-    for label, column, row in cells:
-        iy, ix = labels.index(label), columns.index(column)
+        row_labels[key] = label
+        cells.append((key, column, r))
+    columns = sorted(column_labels, key=lambda k: (column_labels[k], repr(k)))
+    keys = sorted(row_labels, key=lambda k: (row_labels[k], repr(k)))
+    matrix = [[float("nan")] * len(columns) for _ in keys]
+    for key, column, row in cells:
+        iy, ix = keys.index(key), columns.index(column)
         matrix[iy][ix] = row["value"]
         ax.text(
             ix,
@@ -58,8 +69,8 @@ def _heatmap(ax: Any, rows: list[dict[str, Any]], name: str) -> None:
         )
     im = ax.imshow(matrix, cmap="viridis", vmin=0, vmax=1, aspect="auto")
     ax.figure.colorbar(im, ax=ax, shrink=0.75, label="Rate")
-    ax.set_xticks(range(len(columns)), columns, rotation=25, ha="right")
-    ax.set_yticks(range(len(labels)), labels)
+    ax.set_xticks(range(len(columns)), [column_labels[c] for c in columns], rotation=25, ha="right")
+    ax.set_yticks(range(len(keys)), [row_labels[k] for k in keys])
 
 
 def _series(ax: Any, rows: list[dict[str, Any]], name: str) -> None:

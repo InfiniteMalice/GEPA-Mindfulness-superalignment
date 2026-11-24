@@ -379,3 +379,25 @@ def test_cross_rl_legend_identifies_evaluation_partition():
     labels = ax.get_legend_handles_labels()[1]
     assert any("curriculum_validation" in s for s in labels)
     assert any("final_held_out" in s for s in labels)
+
+
+def test_heatmap_retains_distinct_y_strata_within_a_condition():
+    pytest.importorskip("matplotlib")
+    from matplotlib.figure import Figure
+
+    from evaluation.mdac_report_plots import _heatmap
+
+    m = reporting.SplitManifest.from_dict(manifest_data())
+    row = event(m)
+    row["estimates"] = [
+        estimate("mechanism_rate", "M01", score, x="long", y=stratum)
+        for stratum, score in [("easy", 0.25), ("hard", 0.75)]
+    ]
+    rows = reporting._summary(m, [row])["cohorts"]["measured"]["metrics"]["mechanism_rate"]
+    ax = Figure().subplots()
+    _heatmap(ax, rows, "failure_heatmap")
+    assert sorted(ax.images[0].get_array().compressed().tolist()) == [0.25, 0.75]
+    assert [t.get_text() for t in ax.get_yticklabels()] == [
+        "run1 · long · easy",
+        "run1 · long · hard",
+    ]
