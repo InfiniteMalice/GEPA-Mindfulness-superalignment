@@ -85,7 +85,15 @@ def evaluate_regret(
         priority = criterion.severity * (criterion.hurt_weight * hurt + criterion.gap_weight * gap)
         transitions[transition] += 1
         rows.append(
-            dict(**row.to_dict(), transition=transition, hurt=hurt, gap=gap, priority=priority)
+            dict(
+                **row.to_dict(),
+                transition=transition,
+                score_delta=new - old,
+                improvement=sign * (new - old),
+                hurt=hurt,
+                gap=gap,
+                priority=priority,
+            )
         )
     return dict(
         schema_version="mdac-regret-v1",
@@ -135,9 +143,17 @@ def compare_candidates(reports: tuple[dict, ...], *, enabled: bool = False) -> d
         ):
             raise ValueError("comparison requires distinct candidates with a common complete panel")
         scores[identity] = report["paired_estimate"]["improvement"]
-    best, worst = max(scores, key=scores.__getitem__), min(scores, key=scores.__getitem__)
+    maximum, minimum = max(scores.values()), min(scores.values())
+    best = sorted(cid for cid, score in scores.items() if score == maximum)
+    worst = sorted(cid for cid, score in scores.items() if score == minimum)
     return dict(
-        best=best, worst=worst, criterion_contrast=scores[best] - scores[worst], scores=scores
+        best=best[0] if len(best) == 1 else None,
+        worst=worst[0] if len(worst) == 1 else None,
+        best_candidates=best,
+        worst_candidates=worst,
+        criterion_contrast=maximum - minimum,
+        scores=scores,
+        transitions={r["candidate_id"]: dict(r["transitions"]) for r in reports},
     )
 
 

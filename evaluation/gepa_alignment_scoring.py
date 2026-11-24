@@ -92,6 +92,27 @@ def pair_gepa_results(
     for name in ("eval_id", "suite", "category", "prompt", "gold_answer"):
         if getattr(incumbent, name) != getattr(candidate, name):
             raise ValueError(f"mismatched benchmark {name}")
+    supplied = {
+        "pair_id": pair_id,
+        "repeat_id": repeat_id,
+        "condition_id": condition_id,
+        "cluster_id": cluster_id,
+        "stratum_digest": stratum_digest,
+        "rubric_digest": metric.rubric_digest,
+    }
+    absent = object()
+    for key in (*supplied, "seed", "evaluator_version", "dataset_version"):
+        left = incumbent.metadata.get(key, absent)
+        right = candidate.metadata.get(key, absent)
+        if left is absent and right is absent:
+            continue
+        expected = supplied.get(key, left)
+        if type(left) is not type(right) or left != right or type(left) is not type(expected):
+            raise ValueError(f"mismatched captured {key}")
+        if left != expected:
+            raise ValueError(f"captured {key} differs from evaluation protocol")
+    if incumbent.outcome == "needs_manual_review" or candidate.outcome == "needs_manual_review":
+        return None
     scores = []
     for result in (incumbent, candidate):
         score = result.gepa_score

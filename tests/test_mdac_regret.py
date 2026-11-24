@@ -126,3 +126,54 @@ def test_retention_from_optional_local_checkpoint():
     result = report("unchanged-checkpoint-control", [tuple(scores)])
     assert result["rows"][0]["hurt"] == 0
     assert result["rows"][0]["transition"] in {"retained", "unresolved_gap"}
+
+
+def test_tied_net_improvement_preserves_directional_differences():
+    first = report("swaps", [(1, 0), (0, 1)])
+    second = report("stable", [(1, 1), (0, 0)])
+    result = compare_candidates((first, second), enabled=True)
+    assert result["best_candidates"] == ["stable", "swaps"]
+    assert result["worst_candidates"] == ["stable", "swaps"]
+    assert result["criterion_contrast"] == 0
+    assert result["transitions"]["swaps"]["introduced_regression"] == 1
+    assert [row["score_delta"] for row in first["rows"]] == [-1, 1]
+
+
+def test_gepa_binding_rejects_stale_score_and_incompatible_capture():
+    from evaluation.gepa_alignment_scoring import pair_gepa_results
+    from evaluation.schema import EvalResult
+
+    incumbent = EvalResult(
+        "case",
+        "accuracy",
+        "factuality",
+        "question",
+        "yes",
+        "yes",
+        "correct",
+        metadata={"seed": 17, "evaluator_version": "v1", "condition_id": "clean"},
+    )
+    options = dict(
+        metric=replace(METRIC, source_schema="EvalResult", source_metric="gepa_score"),
+        pair_id="p",
+        repeat_id=0,
+        condition_id="clean",
+        cluster_id="family",
+        stratum_digest=DIGEST,
+        enabled=True,
+    )
+    assert (
+        pair_gepa_results(
+            incumbent, replace(incumbent, outcome="needs_manual_review", gepa_score=4), **options
+        )
+        is None
+    )
+    for changed in ({"seed": 24}, {"evaluator_version": "v2"}, {"condition_id": "different"}):
+        with pytest.raises(ValueError):
+            pair_gepa_results(
+                incumbent,
+                replace(incumbent, metadata=incumbent.metadata | changed),
+                **options,
+            )
+    with pytest.raises(ValueError):
+        pair_gepa_results(incumbent, incumbent, **(options | {"condition_id": "outside"}))
