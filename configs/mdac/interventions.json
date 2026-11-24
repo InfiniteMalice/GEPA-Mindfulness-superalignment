@@ -1,0 +1,11 @@
+{
+  "enabled": true,
+  "fault": "missing_context",
+  "secondary": "stale_evidence",
+  "seeds": [2, 3, 5, 7],
+  "max_calls": 24,
+  "alternatives": [
+    "The public audit copy reveals the correct total.",
+    "The ledger rules and the evaluator share a simplified task design."
+  ]
+}
