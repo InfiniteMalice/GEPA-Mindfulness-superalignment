@@ -24,7 +24,7 @@ def setup_repair(scale=AnchorScale.DECISION):
     )
     retention = replace(anchor, trajectory_or_round="previous", snapshot={"stage": 0})
     alternative = Alternative("ask", "v1+correction", source)
-    return anchor, retention, alternative
+    return replace(anchor, actor_visible_snapshot=True), retention, alternative
 
 
 def sandbox(call):
@@ -40,7 +40,14 @@ def sandbox(call):
     observed = content_digest(state)
     state.clear()
     evidence = EvidenceReference(call.digest, EvidenceSourceKind.EXTERNAL_RECORD)
-    return Continuation(call.digest, observed, checks, evidence, successes)
+    return Continuation(
+        call.digest,
+        observed,
+        checks,
+        evidence,
+        successes,
+        actor_input_digest=content_digest(call.anchor.actor_input),
+    )
 
 
 def run(anchor, retention, alternative, **kwargs):
@@ -61,7 +68,9 @@ def test_repairs_restore_each_scale_and_retain_control(scale):
     anchor, retention, alternative = setup_repair(scale)
     result = run(anchor, retention, alternative, export_training=True)
     assert result.verified
-    assert result.training_example.request.prompt == "What is missing?"
+    assert (
+        result.training_example.request.prompt == 'What is missing?\n\nRecorded state\n{"stage":1}'
+    )
     assert result.training_example.target == "ask"
     assert (
         result.training_example.request.metadata["source_record"]["training_eligibility"] == "TRAIN"
@@ -125,3 +134,29 @@ def test_retentive_loss_preserves_torch_gradient():
     assert [v.grad.item() for v in (repair, retention, generalization)] == [1, 0.25, 0.5]
     with pytest.raises(ValueError):
         retentive_loss(1.0, 2.0, 3.0, retention_weight=-1.0, generalization_weight=1.0)
+
+
+def test_context_dependent_target_requires_declared_and_replayed_actor_input():
+    a, r, c = setup_repair()
+    with pytest.raises(ValueError, match="actor"):
+        run(replace(a, actor_visible_snapshot=False), r, c, export_training=True)
+
+    def wrong_input(call):
+        return replace(sandbox(call), actor_input_digest=content_digest(call.anchor.prompt))
+
+    with pytest.raises(ValueError, match="actor"):
+        replay_repair(
+            a,
+            c,
+            (r,),
+            sandbox=wrong_input,
+            evaluator="fixture-v1",
+            seeds=(1, 2),
+            enabled=True,
+            export_training=True,
+        )
+    restricted = replace(
+        a, snapshot={"stage": 1, "source": {"training_eligibility": "HIDDEN_EVAL"}}
+    )
+    with pytest.raises(ValueError, match="eligib"):
+        run(restricted, r, c, export_training=True)

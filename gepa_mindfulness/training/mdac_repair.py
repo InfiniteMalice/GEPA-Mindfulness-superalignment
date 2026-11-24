@@ -9,7 +9,7 @@ from math import isfinite
 from types import MappingProxyType
 from typing import Any
 
-from evaluation.causal_records import content_digest
+from evaluation.causal_records import canonical_json, content_digest
 from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
 from mindful_trace_gepa._json_values import freeze_json_mapping, thaw_json_mapping
 
@@ -45,8 +45,11 @@ class FailureAnchor:
     snapshot: Mapping[str, object]
     original_decision: str
     metadata: Mapping[str, object]
+    actor_visible_snapshot: bool = False
 
     def __post_init__(self) -> None:
+        if type(self.actor_visible_snapshot) is not bool:
+            raise ValueError("actor_visible_snapshot must be an explicit boolean")
         if not isinstance(self.scale, AnchorScale):
             raise ValueError("unknown anchor scale")
         for name in (
@@ -61,6 +64,14 @@ class FailureAnchor:
             object.__setattr__(
                 self, name, freeze_json_mapping(getattr(self, name), field_name=name)
             )
+
+    @property
+    def actor_input(self) -> str:
+        """Render only a snapshot the capturing host declared entirely actor-visible."""
+        if self.snapshot and self.actor_visible_snapshot:
+            state = canonical_json(thaw_json_mapping(self.snapshot))
+            return f"{self.prompt}\n\nRecorded state\n{state}"
+        return self.prompt
 
     @property
     def location(self) -> tuple[str, str, str]:
@@ -118,6 +129,7 @@ class ReplayCall:
                 source=thaw_json_mapping(self.anchor.metadata),
                 state=self.restore(),
                 prompt=self.anchor.prompt,
+                actor_input=self.anchor.actor_input,
                 original=self.anchor.original_decision,
                 incumbent=self.anchor.policy_version,
                 proposal=self.alternative.decision,
@@ -140,6 +152,7 @@ class Continuation:
     checks: Mapping[str, bool | None]
     evidence: EvidenceReference
     verified_steps: tuple[str, ...] = ()
+    actor_input_digest: str | None = None
 
     def __post_init__(self) -> None:
         if set(self.checks) != set(CHECKS) or any(
@@ -214,6 +227,7 @@ def replay_repair(
         raise ValueError("retention anchors must bind the same incumbent")
     trials: list[Continuation] = []
     evidence_ids: set[str] = set()
+    repair_input_digests: set[str | None] = set()
     failures: list[str] = []
     for item in (anchor, *retention):
         retaining = item is not anchor
@@ -229,6 +243,8 @@ def replay_repair(
                 ):
                     raise ValueError("invalid restored state, replay binding or repeated evidence")
                 evidence_ids.add(trial.evidence.reference_id)
+                if not retaining:
+                    repair_input_digests.add(trial.actor_input_digest)
                 trials.append(trial)
                 pair.append(trial)
             before, after = pair
@@ -241,6 +257,13 @@ def replay_repair(
                 failures.append("candidate continuation failed")
     example = None
     if not failures and export_training is True:
+        if anchor.snapshot and not anchor.actor_visible_snapshot:
+            raise ValueError("cannot export a nonempty snapshot without actor visibility")
+        actor_input = anchor.actor_input
+        if repair_input_digests != {content_digest(actor_input)}:
+            raise ValueError("export requires the actor input observed in every repair replay")
+        for item in (anchor, *retention):
+            require_training_eligible(item.snapshot)
         sources = (anchor.metadata, alternative.metadata, *(item.metadata for item in retention))
         for metadata in sources:
             if metadata.get("training_eligibility") != "TRAIN":
@@ -253,13 +276,14 @@ def replay_repair(
                 alternative_source=thaw_json_mapping(alternative.metadata),
                 retention_sources=[thaw_json_mapping(x.metadata) for x in retention],
                 anchor=list(anchor.location),
+                actor_input_digest=content_digest(actor_input),
                 evaluator=evaluator,
                 replay_evidence=[t.evidence.to_dict() for t in trials],
             ),
             field_name="verified repair provenance",
         )
         example = RepairExample(
-            RolloutRequest(anchor.prompt, policy_version=anchor.policy_version, metadata=metadata),
+            RolloutRequest(actor_input, policy_version=anchor.policy_version, metadata=metadata),
             alternative.decision,
         )
     return RepairResult(failures[0] if failures else "verified", tuple(trials), example)

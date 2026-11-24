@@ -22,6 +22,8 @@ if result.training_example:
     backend.backward(loss)
 ```
 
+For training export the host declares the entire nonempty snapshot actor-visible at capture with `actor_visible_snapshot=True`. The sandbox must present `call.anchor.actor_input` and record a digest of the input actually presented as `Continuation.actor_input_digest`. The canonical rendering preserves the prompt and exact public state, including authorization and uncertainty context. Snapshots containing evaluator-only state remain audit-only. A missing or mismatched actor-input observation blocks export.
+
 The request uses the repository's RolloutRequest and leaves the supervision target outside the actor prompt. The existing eligibility validator checks original, alternative and retention provenance, including nested held-out sources, before export. Loss coefficients are configurable examples. A trainer supplies independently eligible training inputs for the retention and generalization losses. Evaluation holdouts remain outside optimization. No default optimizer, adapter, reward or policy update consumes this path.
 
 Run `python -m pytest -q tests/test_mdac_repair.py tests/test_training_eligibility.py`. The CPU sandbox models two stages and provides deterministic evidence. A PyTorch test checks gradient weights. The host owns authentication of replay evidence, containment, policy identity, completeness of state capture and horizon adequacy. A repeated historical failure or a locally verified step supplies limited evidence about future tasks. Existing records require no migration.
