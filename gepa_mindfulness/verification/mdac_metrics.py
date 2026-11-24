@@ -51,15 +51,20 @@ def _retention(m: Measurements, row: Row) -> None:
     present, retrieved, used, correct, contradicted = (
         flag(row, f) for f in ("present", "retrieved", "used", "correct", "contradicted")
     )
-    if (retrieved is True and present is False) or (used is True and retrieved is False):
-        raise ValueError("use/retrieval contradicts the declared availability chain")
-    if correct is True and contradicted is True:
-        raise ValueError("retained fact cannot be correct and contradicted")
+    condition = label(row["transform"], "transform")
+    # An explicit decision-point annotation takes precedence over the legacy
+    # presence field. Null explicitly records that the decision point was not checked.
+    accessible = flag(row, "accessible") if "accessible" in row else present
+    _stratum(m, "retention", condition, accessible)
+    _stratum(m, "successful_use", condition, _and(used, correct))
+    applied = flag(row, "transformation_applied")
     _stratum(
         m,
-        "retention",
-        label(row["transform"], "transform"),
-        _and(present, retrieved, used, correct, invert(contradicted)),
+        "incorrect_transformation",
+        condition,
+        invert(flag(row, "transformation_correct")),
+        eligible=applied,
+        rule="lower",
     )
     m.add("source_absence", invert(present), rule="lower")
     m.add("retrieval_omission", _and(present, invert(retrieved)), rule="lower")
@@ -439,6 +444,8 @@ _PER_ROW = {
 _BASE = {
     "M01": (
         "retention",
+        "successful_use",
+        "incorrect_transformation",
         "source_absence",
         "retrieval_omission",
         "retrieved_nonuse",
@@ -467,6 +474,7 @@ _BASE = {
     "M16": ("valid_acceptance", "invalid_resistance"),
 }
 _LOWER = {
+    "incorrect_transformation",
     "source_absence",
     "retrieval_omission",
     "retrieved_nonuse",
@@ -497,7 +505,10 @@ _CONTINUOUS = {
 
 
 _FIELDS = {
-    "M01": "present retrieved used correct contradicted transform",
+    "M01": (
+        "present retrieved used correct contradicted transform accessible "
+        "transformation_applied transformation_correct"
+    ),
     "M02": "relevant retrieved provenance_valid stale",
     "M03": "before after memory_record",
     "M04": "before_core after_core before_decision after_decision",

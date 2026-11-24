@@ -30,10 +30,47 @@ def test_m01_retention_and_failure_modes():
         ]
     ]
     result = run("M01", rows)
-    assert result["retention"].raw == result["retention/summary"].raw == 0.2
+    assert result["retention"].raw == result["retention/summary"].raw == 0.8
+    assert result["successful_use"].raw == 0.2
     for name in ("source_absence", "retrieval_omission", "retrieved_nonuse", "contradiction"):
         assert result[name].numerator == 1
         assert result[name].normalized == pytest.approx(1 - result[name].raw)
+
+
+def test_retention_survives_nonuse_and_contradiction_from_another_memory():
+    row = dict(
+        present=True,
+        accessible=True,
+        transform="compression",
+        transformation_applied=True,
+        transformation_correct=True,
+    )
+    good = dict(row, retrieved=True, used=True, correct=True, contradicted=True)
+    unused = dict(row, retrieved=False, used=False, correct=None, contradicted=False)
+    transformed = dict(
+        row,
+        accessible=False,
+        transformation_correct=False,
+        retrieved=True,
+        used=True,
+        correct=False,
+        contradicted=False,
+    )
+    unknown = dict(
+        row,
+        accessible=None,
+        transformation_correct=None,
+        retrieved=None,
+        used=None,
+        correct=None,
+        contradicted=None,
+    )
+    m = run("M01", [good, unused, transformed, unknown])
+    assert m["retention"].raw == pytest.approx(2 / 3) and m["retention"].missing == 1
+    assert m["successful_use"].raw == pytest.approx(1 / 3)
+    assert m["incorrect_transformation/compression"].raw == pytest.approx(1 / 3)
+    assert m["contradiction"].raw == pytest.approx(1 / 3)
+    assert m["incorrect_transformation"].missing == 1
 
 
 def test_m02_annotated_retrieval():
