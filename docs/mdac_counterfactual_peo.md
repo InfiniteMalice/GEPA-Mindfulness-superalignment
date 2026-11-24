@@ -9,7 +9,9 @@ start_timestamp=timestamp, enabled=True)` builds two existing action-bound PEO e
 Both start at the same world digest. The simulator enforces permissions, visible evidence
 and preconditions on each attempt. Each branch consumes one simulated action and preserves
 the prospective prediction, resulting observation and verification events. Predicted utility
-confers no execution authority. The complete reports contain evaluator-only simulator state.
+confers no execution authority. The reported individual simulated effect subtracts factual binary success from alternative
+success. Two successful actions score zero on this contrast even when they produce different
+world states. The complete reports contain evaluator-only simulator state.
 
 For scalar outcomes, pass factual and alternative predictions from compatible models in the
 same units with the factual observation. Supply a named shared disturbance and validation

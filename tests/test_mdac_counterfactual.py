@@ -118,3 +118,12 @@ def test_local_model_predictions_enter_simulated_replays():
         enabled=True,
     )
     assert result["factual"]["steps"][0]["predicted_success"] == steps[0].predicted_success
+
+
+def test_zero_residual_preserves_small_alternative():
+    anchor = ScalarOutcome("initial", "a", "metres", 1e16, "observed", "sensor")
+    factual = replace(anchor, source="predicted", reference="model")
+    alternative = replace(factual, action="b", value=1.0)
+    assumptions = StructuralAssumptions("additive", "fixed wind", "paired experiment")
+    result = estimate_counterfactual(anchor, factual, alternative, assumptions, enabled=True)
+    assert result.value == 1.0

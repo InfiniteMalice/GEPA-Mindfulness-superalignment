@@ -82,7 +82,7 @@ def estimate_counterfactual(
         raise ValueError("anchor must record the factual action")
     if alternative.action == factual.action:
         raise ValueError("provide a distinct alternative")
-    estimate = anchor.value + (alternative.value - factual.value)
+    estimate = alternative.value + (anchor.value - factual.value)
     if not isfinite(estimate):
         raise ValueError("counterfactual estimate exceeds finite scalar range")
     return CounterfactualEstimate(estimate, anchor, factual, alternative, assumptions)
