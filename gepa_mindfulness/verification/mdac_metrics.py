@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from graphlib import CycleError, TopologicalSorter
-from math import fsum
+from math import fsum, isfinite
 from typing import Any, cast
 
 from evaluation.schema import EvalResult, Outcome
@@ -55,6 +55,8 @@ def _retention(m: Measurements, row: Row) -> None:
     # An explicit decision-point annotation takes precedence over the legacy
     # presence field. Null explicitly records that the decision point was not checked.
     accessible = flag(row, "accessible") if "accessible" in row else present
+    if present is False and accessible is not True and (retrieved is True or used is True):
+        raise ValueError("fact absent from source requires an accessible copy for retrieval or use")
     _stratum(m, "retention", condition, accessible)
     _stratum(m, "successful_use", condition, _and(used, correct))
     applied = flag(row, "transformation_applied")
@@ -375,7 +377,12 @@ def _delta(row: Row, name: str) -> float | None:
         raise ValueError("score outside declared range")
     if before is None or after is None:
         return None
-    return (after - before) / (high - low)
+    width = high - low
+    if not isfinite(width):
+        # A common power-of-two rescaling preserves the ratio while keeping
+        # the subtractions finite for spans crossing both float extremes.
+        return (after / 2 - before / 2) / (high / 2 - low / 2)
+    return (after - before) / width
 
 
 def _reward(m: Measurements, row: Row) -> None:
