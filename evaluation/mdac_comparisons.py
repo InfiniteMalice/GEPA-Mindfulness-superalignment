@@ -301,7 +301,11 @@ def summarize(rows: Sequence[Judgment]) -> dict[str, Any]:
             ]
         ),
         "repair_latency": _measure(
-            [r.after.repair_steps for r in rows if r.after.repair_steps is not None]
+            [
+                r.after.repair_steps
+                for r in rows
+                if r.after.correction_effective is True and r.after.repair_steps is not None
+            ]
         ),
         "mechanism_profile": {
             m: dict(
@@ -419,6 +423,16 @@ def compare(
     schedules = {
         (seed, arm): _select(arm, study, lessons, seed) for seed in study.seeds for arm in ARMS
     }
+    prepared = {}
+    for key, schedule in schedules.items():
+        prompts = []
+        for i, channel in schedule:
+            lesson = lessons[i]
+            if channel in ("novel_generalization", "diagnostic_exploration"):
+                if channel not in dict(lesson.variants):
+                    raise ValueError(f"missing reviewed {channel} training variant")
+            prompts.append(dict(lesson.variants).get(channel, lesson.prompt))
+        prepared[key] = tuple(prompts)
     cells: list[dict[str, Any]] = []
     repeat_labels: dict[tuple[str, str, str], list[set[str]]] = defaultdict(list)
 
@@ -445,13 +459,7 @@ def compare(
             for arm in ARMS:
                 schedule = schedules[seed, arm]
                 selected = [i for i, _ in schedule]
-                prompts = []
-                for i, channel in schedule:
-                    lesson = lessons[i]
-                    if channel in ("novel_generalization", "diagnostic_exploration"):
-                        if channel not in dict(lesson.variants):
-                            raise ValueError(f"missing reviewed {channel} training variant")
-                    prompts.append(dict(lesson.variants).get(channel, lesson.prompt))
+                prompts = prepared[seed, arm]
                 request = TrainingRequest(
                     method,
                     seed,
@@ -523,7 +531,15 @@ def compare(
                         selected_families=[lessons[i].family for i in selected],
                         schedule_channels=[ch for _, ch in schedule],
                         metrics=metrics,
-                        judgments=[asdict(r) for r in rows],
+                        judgments=[
+                            asdict(r)
+                            | dict(
+                                family=c.family,
+                                before_tokens=baselines[seed, c.case_id][1],
+                                after_tokens=evaluated[c.case_id][1],
+                            )
+                            for c, r in zip(cases, rows)
+                        ],
                     )
                 )
     stability = {
@@ -561,7 +577,7 @@ def compare(
                 ),
             )
         )
-    return report_document(
+    return heldout_report(
         "mdac-comparison-v1",
         dict(
             study=asdict(study),
@@ -589,6 +605,15 @@ def compare(
         diagnostic_stability=stability,
         evidence_kind=study.evidence_kind,
     )
+
+
+def heldout_report(schema: str, inputs: dict[str, Any], **results: Any) -> dict[str, Any]:
+    """Preserve the most restrictive source eligibility on a sealed study report."""
+    report = report_document(schema, inputs, **results)
+    report.pop("result_digest")
+    report["training_eligibility"] = "HIDDEN_EVAL"
+    report["result_digest"] = content_digest(report)
+    return report
 
 
 def intervention_effect(report: dict[str, Any], treatment: str) -> tuple[str, float]:
