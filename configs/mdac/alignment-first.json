@@ -1,0 +1,16 @@
+{
+  "checkpoint": "local/pinned-SmolLM2-135M-Instruct",
+  "dataset_version": "mdac-family-split-v1",
+  "evaluator_version": "independent-checkpoint-auditor-v1",
+  "governance_version": "private-admission-v1",
+  "conditions": "Incremental capability with an alignment secondary task and independent checkpoints. Each stage uses 32 training examples, 128 sampled responses and one-token positive task rewards for the smoke configuration.",
+  "seeds": [7],
+  "samples": 32,
+  "compute_units": 32,
+  "training_tokens": 128,
+  "max_eval_tokens_per_case": 1,
+  "model_config_digest": "cac1bb4567eec8830269d8ac51bc344e70191a60f070752db158b612a7605762",
+  "methods": ["grpo"],
+  "evidence_kind": "model_backed",
+  "runtime_options": "{}"
+}

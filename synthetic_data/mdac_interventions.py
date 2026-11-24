@@ -104,8 +104,11 @@ def known_fault_block(
     secondary: str | None = None,
     model: str = "ledger-rules-v1",
     checkpoint: str = "ledger-rules-v1",
+    eligibility: TrainingEligibility = TrainingEligibility.REGRESSION,
 ) -> ReplayBlock:
     """Build a labeled synthetic benchmark. Construction executes no model or host action."""
+    if eligibility not in (TrainingEligibility.REGRESSION, TrainingEligibility.DEVELOPMENT):
+        raise ValueError("known-fault calibration supports only nontraining sources")
     if (
         type(fault) is not str
         or (secondary is not None and type(secondary) is not str)
@@ -182,7 +185,7 @@ def known_fault_block(
             claimed_equivalence=role == "negative",
             seed_policy="shared",
             source_refs=(source,),
-            training_eligibility=TrainingEligibility.REGRESSION,
+            training_eligibility=eligibility,
             enabled=True,
         )
         # Each seed supplies its own clean values under the same registered ledger rule.
