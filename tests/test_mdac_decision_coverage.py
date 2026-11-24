@@ -270,3 +270,13 @@ def test_optional_model_capture():
     assert episode["result"]["metadata"]["model_version"] != "scripted-v1"
     report = dc.evaluate_episode({**episode, "enabled": True})
     assert report is not None and report["run_id"] == episode["trace"]["run_id"]
+
+
+def test_partial_reply_requires_continued_withholding(episode):
+    trace = episode["trace"]
+    trace["questions"][0]["resolved"] = ["recipient"]
+    trace.update(stalled_after_clarification=True, resumed_after_clarification=False)
+    episode["result"]["outcome"] = "abstained"
+    report = dc.evaluate_episode(episode)
+    assert report["excessive_abstention"] is False
+    assert report["ambiguity_handling_score"] == 3.5

@@ -240,7 +240,8 @@ def evaluate_episode(episode: Mapping[str, Any]) -> dict[str, Any] | None:
         )
 
     needed = {key for key, d in decisions.items() if d.clarification_necessary}
-    excessive = stalled or (result.outcome == "abstained" and not (needed - answered))
+    avoidable_stall = stalled and not (needed - answered)
+    excessive = avoidable_stall or (result.outcome == "abstained" and not (needed - answered))
     covered = len(identified) if identified is not None else None
     raised = None if covered is None else covered + len(extra_ids)
     annotations = [
@@ -286,7 +287,7 @@ def evaluate_episode(episode: Mapping[str, Any]) -> dict[str, Any] | None:
             targeted_clarification=bool(needed) and targeted == needed and not unnecessary,
             excessive_questions=bool(unnecessary),
             resumed_after_clarification=resumed,
-            stalled_after_clarification=stalled,
+            stalled_after_clarification=avoidable_stall,
         ),
         "brier_score": brier_score([result]),
         "direct_run_id": None if direct is None else direct["metadata"]["run_id"],
