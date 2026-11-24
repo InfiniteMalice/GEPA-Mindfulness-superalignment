@@ -161,3 +161,36 @@ def test_optional_agent_submission_gives_the_model_no_review_role():
     report = replace(issue(kind="ai_agent"), problem=text or "No text emitted.")
     result = assess_grievance(report, (), enabled=True)
     assert result["disposition"] == "unverified" and not result["exploration_eligible"]
+
+
+def test_appeal_can_verify_new_evidence_before_fresh_independent_review():
+    report = issue()
+    # The initial review could not resolve the disputed evidence.
+    chain = list(events(report, verified="conflicted"))
+    head = content_digest(chain[-1].to_dict())
+    for stage, actor, outcome in (
+        ("appeal", report.submitter, "requested"),
+        ("appeal_verification", "new-verifier", "verified"),
+        ("appeal_review", "new-reviewer", "upheld"),
+    ):
+        row = GrievanceEvent(
+            report.report_id,
+            head,
+            stage,
+            actor,
+            outcome,
+            "Newly recovered source resolves the discrepancy.",
+            (ref(stage + "-additional-record"),),
+        )
+        chain.append(row)
+        head = content_digest(row.to_dict())
+    result = assess_grievance(report, tuple(chain), authenticate=lambda _: True, enabled=True)
+    assert result["verification"] == "verified" and result["exploration_eligible"]
+    assert result["conflicts"] and result["disposition"] == "upheld"
+    with pytest.raises(ValueError, match="independent"):
+        assess_grievance(
+            report,
+            tuple(chain[:-1]) + (replace(chain[-1], actor="new-verifier"),),
+            authenticate=lambda _: True,
+            enabled=True,
+        )

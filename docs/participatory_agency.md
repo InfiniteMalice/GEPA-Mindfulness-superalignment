@@ -55,7 +55,7 @@ may propose remedies or appeal. Triage establishes scope. Verification evaluates
 and may find it verified, contradicted, conflicted or insufficient. An optional RFC records
 a proposed change and its justification. An independent reviewer considers the claim and its
 alternatives. A verifier and an RFC author cannot independently approve their own work.
-An appeal binds the challenged decision and receives a fresh independent reviewer. A feedback
+An appeal binds the challenged decision and receives a fresh independent reviewer. An optional appeal verification step lets another independent verifier examine additional evidence while preserving the earlier finding. A feedback
 event records the response and evidence of delivery to the submitter. The result preserves the
 history, including contrary evidence and explanations when a dispute remains unresolved.
 

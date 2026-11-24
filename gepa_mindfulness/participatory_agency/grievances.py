@@ -27,6 +27,7 @@ _OUTCOMES = {
     "rfc": ("proposed",),
     "review": ("upheld", "declined", "unresolved"),
     "appeal": ("requested",),
+    "appeal_verification": ("verified", "contradicted", "conflicted", "insufficient"),
     "appeal_review": ("upheld", "overturned", "unresolved"),
     "feedback": ("delivered",),
 }
@@ -37,7 +38,8 @@ _NEXT = {
     "rfc": ("review",),
     "review": ("feedback", "appeal"),
     "feedback": ("appeal",),
-    "appeal": ("appeal_review",),
+    "appeal": ("appeal_verification", "appeal_review"),
+    "appeal_verification": ("appeal_review",),
     "appeal_review": ("feedback", "appeal"),
 }
 HostCheck = Callable[[dict], bool]
@@ -148,12 +150,18 @@ def assess_grievance(
         if event.stage not in next_stages:
             raise ValueError("invalid grievance stage transition")
         independent_of = {report.submitter}
-        if event.stage in ("review", "appeal_review"):
+        if event.stage in ("review", "appeal_verification", "appeal_review"):
             independent_of |= actors["verification"] | actors["rfc"] | actors["triage"]
-        if event.stage == "appeal_review":
-            independent_of |= actors["review"] | actors["appeal"] | actors["appeal_review"]
+        if event.stage in ("appeal_verification", "appeal_review"):
+            independent_of |= (
+                actors["review"]
+                | actors["appeal"]
+                | actors["appeal_review"]
+                | actors["appeal_verification"]
+            )
         if (
-            event.stage in ("triage", "verification", "review", "appeal_review")
+            event.stage
+            in ("triage", "verification", "review", "appeal_verification", "appeal_review")
             and event.actor in independent_of
         ):
             raise ValueError("grievance role requires an independent principal")
@@ -175,7 +183,7 @@ def assess_grievance(
         actors[stage].add(event.actor)
         if stage == "triage":
             disposition = event.outcome
-        elif stage == "verification":
+        elif stage in ("verification", "appeal_verification"):
             verification = event.outcome
             if verification in ("conflicted", "contradicted", "insufficient"):
                 conflicts.append(event.reason)
