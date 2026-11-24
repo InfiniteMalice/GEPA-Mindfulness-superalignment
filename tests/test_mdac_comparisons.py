@@ -194,7 +194,7 @@ def test_preflight_all_variants_precedes_any_callback():
     def abort(*args):
         pytest.fail("invalid study reached a callback")
 
-    lessons = tuple(replace(l, variants=()) for l in fixture["lessons"])
+    lessons = tuple(replace(lesson, variants=()) for lesson in fixture["lessons"])
     with pytest.raises(ValueError, match="missing reviewed"):
         compare(
             **(fixture | {"baseline": abort, "grade": abort, "train": abort, "lessons": lessons}),
