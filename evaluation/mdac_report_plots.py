@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from pathlib import Path
+from textwrap import fill
 from typing import Any
 
 from .causal_records import content_digest
@@ -28,6 +30,11 @@ def _cell_text(row: dict[str, Any]) -> str:
     interval = row["interval"]
     bounds = "" if interval is None else f"\n[{interval[0]:.2g}, {interval[1]:.2g}]"
     return f"{row['value']:.3g}\nn={row['n']}{bounds}"
+
+
+def _display_label(label: str) -> str:
+    short = re.sub(r"[0-9a-fA-F]{32,}", lambda match: match[0][:9] + "…", label)
+    return fill(short, 45) if len(short) > 55 else short
 
 
 def _run_label(row: dict[str, Any]) -> str:
@@ -95,8 +102,13 @@ def _heatmap(ax: Any, rows: list[dict[str, Any]], name: str) -> None:
         aspect="auto",
     )
     ax.figure.colorbar(im, ax=ax, shrink=0.75, label="Estimate")
-    ax.set_xticks(range(len(columns)), [column_labels[c] for c in columns], rotation=25, ha="right")
-    ax.set_yticks(range(len(keys)), [row_labels[k] for k in keys])
+    ax.set_xticks(
+        range(len(columns)),
+        [_display_label(column_labels[c]) for c in columns],
+        rotation=25,
+        ha="right",
+    )
+    ax.set_yticks(range(len(keys)), [_display_label(row_labels[k]) for k in keys])
 
 
 def _series(ax: Any, rows: list[dict[str, Any]], name: str) -> None:
@@ -145,7 +157,9 @@ def _series(ax: Any, rows: list[dict[str, Any]], name: str) -> None:
             series += f" · {_run_label(points[0])} · round {points[0]['round']}"
         # No interpolation across tied coordinates or independent RL arms.
         joined = len(xs) == len(set(xs)) and name != "cross_rl"
-        line = ax.plot(xs, ys, linestyle="-" if joined else "", marker="o", label=series)[0]
+        line = ax.plot(
+            xs, ys, linestyle="-" if joined else "", marker="o", label=_display_label(series)
+        )[0]
         for x, y, r in zip(xs, ys, points):
             if r["interval"] is not None:
                 lo, hi = r["interval"]
@@ -182,46 +196,64 @@ def render_plots(cohorts: dict[str, Any], output: Path) -> list[str]:
             ]
             if not rows:
                 continue
-            series_count = len(
-                {
-                    (r["metric"], r["group"], r["arm"], r["rl_method"], r["partition"], r["seed"])
-                    for r in rows
-                }
+            all_ids = sorted({r["run_id"] for r in rows})
+            paged = name in ("calibration", "risk_coverage") and len(all_ids) > 4
+            batches = (
+                [all_ids[i : i + 4] for i in range(0, len(all_ids), 4)] if paged else [all_ids]
             )
-            heat = name in ("failure_heatmap", "retention_regression") or (
-                series_count > 10 and name not in ("calibration", "risk_coverage")
-            )
-            width = min(20, max(8, len({r["group"] for r in rows}) * 0.85)) if heat else 9
-            height = min(18, max(5, len({r["run_id"] for r in rows}) * 0.65)) if heat else 5.5
-            fig = Figure(figsize=(width, height), dpi=120)
-            FigureCanvasAgg(fig)
-            ax = fig.subplots()
-            if heat:
-                _heatmap(ax, rows, name)
-            else:
-                _series(ax, rows, name)
-            ids = {r["run_id"] for r in rows}
-            costs = [r["cost"] for r in cohort["runs"] if r["run_id"] in ids and r["cost"]]
-
-            def cost(name: str) -> str:
-                values = [c[name] for c in costs if c[name] is not None]
-                return (
-                    f"{sum(values):g} ({len(values)}/{len(ids)} runs)" if values else "unavailable"
+            all_rows = rows
+            for page, batch in enumerate(batches, 1):
+                rows = [r for r in all_rows if r["run_id"] in batch]
+                filename = f"{name}-p{page:02d}" if paged else name
+                series_count = len(
+                    {
+                        (
+                            r["metric"],
+                            r["group"],
+                            r["arm"],
+                            r["rl_method"],
+                            r["partition"],
+                            r["seed"],
+                        )
+                        for r in rows
+                    }
                 )
+                heat = name in ("failure_heatmap", "retention_regression") or (
+                    series_count > 10 and name not in ("calibration", "risk_coverage")
+                )
+                width = min(20, max(8, len({r["group"] for r in rows}) * 0.85)) if heat else 9
+                height = min(18, max(5, len({r["run_id"] for r in rows}) * 0.65)) if heat else 5.5
+                fig = Figure(figsize=(width, height), dpi=120)
+                FigureCanvasAgg(fig)
+                ax = fig.subplots()
+                if heat:
+                    _heatmap(ax, rows, name)
+                else:
+                    _series(ax, rows, name)
+                ids = {r["run_id"] for r in rows}
+                costs = [r["cost"] for r in cohort["runs"] if r["run_id"] in ids and r["cost"]]
 
-            ax.set_title(_TITLES[name] + " · " + kind)
-            fig.text(
-                0.02,
-                0.02,
-                f"Train tokens {cost('training_tokens')}   |   "
-                f"Eval tokens {cost('evaluation_tokens')}"
-                f"   |   Missing opportunities by point: {min(r['missing'] for r in rows)}–"
-                f"{max(r['missing'] for r in rows)}",
-                fontsize=8,
-            )
-            fig.tight_layout(rect=(0, 0.065, 1, 1))
-            path = output / kind / f"{name}.png"
-            path.parent.mkdir(parents=True, exist_ok=True)
-            fig.savefig(path)
-            files.append(f"plots/{kind}/{name}.png")
+                def cost(name: str) -> str:
+                    values = [c[name] for c in costs if c[name] is not None]
+                    return (
+                        f"{sum(values):g} ({len(values)}/{len(ids)} runs)"
+                        if values
+                        else "unavailable"
+                    )
+
+                ax.set_title(_TITLES[name] + " · " + kind)
+                fig.text(
+                    0.02,
+                    0.02,
+                    f"Train tokens {cost('training_tokens')}   |   "
+                    f"Eval tokens {cost('evaluation_tokens')}"
+                    f"   |   Missing opportunities by point: {min(r['missing'] for r in rows)}–"
+                    f"{max(r['missing'] for r in rows)}",
+                    fontsize=8,
+                )
+                fig.tight_layout(rect=(0, 0.065, 1, 1))
+                path = output / kind / f"{filename}.png"
+                path.parent.mkdir(parents=True, exist_ok=True)
+                fig.savefig(path)
+                files.append(f"plots/{kind}/{filename}.png")
     return files
