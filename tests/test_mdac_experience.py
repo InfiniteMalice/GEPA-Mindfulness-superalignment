@@ -103,3 +103,17 @@ def test_matched_gain_counts_interference_and_regressions():
         measure_gain(
             library, replace(context, state={}), item.record_id, seeds=(1,), sandbox=evaluate
         )
+
+
+def test_mean_gain_handles_large_finite_gains():
+    item = record()
+    library = ExperienceLibraries(resolve=lambda e: e == item)
+    library.remember(item)
+
+    def evaluate(call):
+        value = 0.0 if call.experience is None else 1e308
+        return UsageOutcome(call.digest, value, False, reference(call.digest))
+
+    result = measure_gain(library, query(), item.record_id, seeds=(1, 2), sandbox=evaluate)
+    assert result.gains == (1e308, 1e308)
+    assert result.mean_gain == 1e308

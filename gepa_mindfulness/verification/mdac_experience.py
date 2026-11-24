@@ -5,7 +5,8 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import Enum
-from math import fsum, isfinite
+from math import isfinite
+from statistics import mean
 
 from evaluation.causal_records import canonical_json, content_digest
 from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
@@ -225,7 +226,7 @@ class ExperienceGain:
 
     @property
     def mean_gain(self) -> float:
-        return fsum(self.gains) / len(self.pairs)
+        return mean(self.gains)
 
     @property
     def harmed(self) -> int:
