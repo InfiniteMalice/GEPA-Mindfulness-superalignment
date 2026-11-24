@@ -77,7 +77,8 @@ def _records(model, total=0.9):
 
 
 class Flow:
-    def __init__(self, tmp_path):
+    def __init__(self, tmp_path, artifact_digest=DIGEST):
+        self.artifact_digest = artifact_digest
         # Reuse the already tested correction fixture, but register its trajectory here.
         _, _, proposal, _, _ = _base(tmp_path / "proposal")
         self.evaluation = EvaluationEpochStore(tmp_path / "epochs.sqlite", "private-eval")
@@ -112,7 +113,7 @@ class Flow:
         )
         self.candidate = self.coevolution.register_candidate(
             candidate_id="candidate:1",
-            artifact_digest=DIGEST,
+            artifact_digest=self.artifact_digest,
             correction=replace(proposal, trajectory_digest=binding.trajectory_digest),
         )
         self.baseline = self.coevolution.issue_source_validation_receipt(
@@ -155,7 +156,7 @@ class Flow:
             ExperimentRequest(
                 operation,
                 changes.get("candidate_id", "candidate:1"),
-                changes.get("artifact_digest", DIGEST),
+                changes.get("artifact_digest", self.artifact_digest),
             )
         )
 
