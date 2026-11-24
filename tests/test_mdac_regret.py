@@ -102,3 +102,27 @@ def test_gepa_binding_preserves_original_results_and_missing_scores():
     )
     with pytest.raises(ValueError):
         pair_gepa_results(incumbent, replace(candidate, prompt="different"), **options)
+
+
+def test_retention_from_optional_local_checkpoint():
+    """Use deterministic next-token scoring on two restarts of one local checkpoint."""
+    import os
+
+    checkpoint = os.environ.get("MDAC_LOCAL_TEST_MODEL")
+    if not checkpoint:
+        pytest.skip("set MDAC_LOCAL_TEST_MODEL to capture a matched retention control")
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(checkpoint, local_files_only=True)
+    inputs = tokenizer("The capital of France is", return_tensors="pt")
+    target = tokenizer.encode(" Paris", add_special_tokens=False)[0]
+    scores = []
+    with torch.inference_mode():
+        for _ in range(2):
+            model = AutoModelForCausalLM.from_pretrained(checkpoint, local_files_only=True).eval()
+            predicted = int(model(**inputs).logits[0, -1].argmax())
+            scores.append(float(predicted == target))
+    result = report("unchanged-checkpoint-control", [tuple(scores)])
+    assert result["rows"][0]["hurt"] == 0
+    assert result["rows"][0]["transition"] in {"retained", "unresolved_gap"}
