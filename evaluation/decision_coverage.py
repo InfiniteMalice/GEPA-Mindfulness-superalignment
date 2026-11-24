@@ -317,7 +317,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("episode", type=Path)
     args = parser.parse_args()
-    print(json.dumps(evaluate_episode(json.loads(args.episode.read_text())), sort_keys=True))
+    print(
+        json.dumps(
+            evaluate_episode(json.loads(args.episode.read_text(encoding="utf-8"))), sort_keys=True
+        )
+    )
 
 
 if __name__ == "__main__":

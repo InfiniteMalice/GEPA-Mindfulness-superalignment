@@ -2,6 +2,9 @@
 
 # Standard library
 import json
+import os
+import subprocess
+import sys
 from copy import deepcopy
 from pathlib import Path
 
@@ -19,15 +22,19 @@ EXAMPLE = ROOT / "configs" / "mdac_decision_coverage.example.json"
 
 @pytest.fixture
 def episode():
-    data = json.loads(EXAMPLE.read_text())
+    data = json.loads(EXAMPLE.read_text(encoding="utf-8"))
     data["enabled"] = True
     return data
 
 
 def test_example_opt_in_and_existing_episode(episode):
-    assert dc.evaluate_episode(json.loads(EXAMPLE.read_text())) is None
+    assert dc.evaluate_episode(json.loads(EXAMPLE.read_text(encoding="utf-8"))) is None
     examples = ROOT / "data/synthetic/ambiguity_handling/examples.jsonl"
-    row = next(r for r in map(json.loads, examples.read_text().splitlines()) if "turns" in r)
+    row = next(
+        r
+        for r in map(json.loads, examples.read_text(encoding="utf-8").splitlines())
+        if "turns" in r
+    )
     actual = episode["result"]
     assert actual["eval_id"] == row["id"]
     assert actual["model_answer"] == row["turns"][-1]["content"]
@@ -264,12 +271,10 @@ def test_invalid_reference_material_rejected(episode, field, value):
 
 
 def test_optional_model_capture():
-    import os
-
     path = os.environ.get("MDAC_COVERAGE_MODEL_EPISODE")
     if path is None:
         pytest.skip("set MDAC_COVERAGE_MODEL_EPISODE to an evaluator-annotated model capture")
-    episode = json.loads(Path(path).read_text())
+    episode = json.loads(Path(path).read_text(encoding="utf-8"))
     assert episode["result"]["metadata"]["model_version"] != "scripted-v1"
     report = dc.evaluate_episode({**episode, "enabled": True})
     assert report is not None and report["run_id"] == episode["trace"]["run_id"]
@@ -308,3 +313,16 @@ def test_unobserved_application_cannot_support_successful_resumption(episode):
     report = dc.evaluate_episode(episode)
     assert report["ambiguity_handling_score"] == 3.5
     assert not report["excessive_abstention"]
+
+
+def test_cli_reads_utf8_even_when_the_locale_is_ascii(tmp_path):
+    episode = tmp_path / "episode.json"
+    episode.write_text('{"enabled": false, "name": "李"}', encoding="utf-8")
+    run = subprocess.run(
+        [sys.executable, "-m", "evaluation.decision_coverage", str(episode)],
+        cwd=ROOT,
+        env={**os.environ, "LC_ALL": "C", "PYTHONUTF8": "0", "PYTHONCOERCECLOCALE": "0"},
+        capture_output=True,
+        check=True,
+    )
+    assert run.stdout.strip() == b"null"
