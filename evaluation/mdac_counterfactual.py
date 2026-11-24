@@ -1,31 +1,79 @@
 """Opt-in counterfactual evaluation for compatible scalar outcomes and discrete PEO replays."""
 
+# Standard library
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from math import isfinite
-from typing import Any
+from fractions import Fraction
+from typing import Any, cast
 
+# Third-party
+# Local
+from evaluation.improvement_records import ImprovementRecord
 from gepa_mindfulness.verification.epistemic_state import EpistemicContext, _number, _text
+from synthetic_data.lesson_curation import authenticate_payload
 from synthetic_data.world_peo import EpisodeStep, build_episode
 from synthetic_data.worlds import SyntheticWorld, _enabled
 
 
 @dataclass(frozen=True, slots=True)
-class ScalarOutcome:
+class OutcomeContext(ImprovementRecord):
+    """Pinned prediction or intervention protocol for one matched disturbance."""
+
+    model_version: str
+    configuration_id: str
+    seed: int
+    disturbance_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class ScalarOutcome(ImprovementRecord):
     initial_state: str
     action: str
     unit: str
     value: float
     source: str
     reference: str
+    context: OutcomeContext | None = None
 
-    def __post_init__(self) -> None:
-        for name in ("initial_state", "action", "unit", "reference"):
-            _text(getattr(self, name), name)
-        _number(self.value, "value")
+    def _validate(self) -> None:
         if self.source not in ("observed", "simulated", "predicted"):
             raise ValueError("unknown outcome provenance")
+
+
+@dataclass(frozen=True, slots=True)
+class InterventionPair(ImprovementRecord):
+    """Evaluator-owned manipulation and its two outcome captures in a matched block."""
+
+    pair_id: str
+    design_id: str
+    evaluator_id: str
+    factual: ScalarOutcome
+    alternative: ScalarOutcome
+
+    def _validate(self) -> None:
+        f, a = self.factual, self.alternative
+        if f.context is None or f.context != a.context or f.initial_state != a.initial_state:
+            raise ValueError("intervention arms need a matched initial state and protocol")
+        if f.source == "predicted" or f.source != a.source or f.unit != a.unit:
+            raise ValueError("intervention arms need a common observed or simulated outcome unit")
+        if f.reference == a.reference or f.action == a.action:
+            raise ValueError("intervention arms need distinct actions and evidence references")
+
+    def contrast(self) -> dict[str, str]:
+        f = self.factual
+        assert f.context is not None
+        return dict(
+            design_id=self.design_id,
+            evaluator_id=self.evaluator_id,
+            unit=f.unit,
+            source=f.source,
+            factual_action=f.action,
+            alternative_action=self.alternative.action,
+            model_version=f.context.model_version,
+            configuration_id=f.context.configuration_id,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,9 +130,23 @@ def estimate_counterfactual(
         raise ValueError("anchor must record the factual action")
     if alternative.action == factual.action:
         raise ValueError("provide a distinct alternative")
-    estimate = alternative.value + (anchor.value - factual.value)
-    if not isfinite(estimate):
-        raise ValueError("counterfactual estimate exceeds finite scalar range")
+    if (
+        factual.context is None
+        or factual.context != alternative.context
+        or anchor.context is None
+        or anchor.context.disturbance_id != factual.context.disturbance_id
+        or anchor.context.seed != factual.context.seed
+        or assumptions.shared_disturbance != factual.context.disturbance_id
+    ):
+        raise ValueError(
+            "residual reuse requires matched prediction context and factual disturbance"
+        )
+    try:
+        estimate = float(
+            Fraction(alternative.value) + Fraction(anchor.value) - Fraction(factual.value)
+        )
+    except OverflowError as exc:
+        raise ValueError("counterfactual estimate exceeds finite scalar range") from exc
     return CounterfactualEstimate(estimate, anchor, factual, alternative, assumptions)
 
 
@@ -114,42 +176,105 @@ def compare_actions(
         )
         for name, step in (("factual", factual), ("alternative", alternative))
     }
-    effect = int(reports["alternative"]["steps"][0]["success"]) - int(
-        reports["factual"]["steps"][0]["success"]
+    capture = OutcomeContext(
+        context.system.model_version, context.system.harness_version, world.seed, world.digest
     )
+
+    def outcome(arm: str) -> ScalarOutcome:
+        report = reports[arm]
+        step = report["steps"][0]
+        observation = next(e for e in report["events"] if e["event_type"] == "outcome_observed")
+        return ScalarOutcome(
+            world.digest,
+            step["action_id"],
+            "simulated_binary_success",
+            int(step["success"]),
+            "simulated",
+            observation["event_id"],
+            capture,
+        )
+
+    pair = InterventionPair(
+        comparison_id,
+        "synthetic-world-action-pair-v1",
+        "world-peo-v1",
+        outcome("factual"),
+        outcome("alternative"),
+    )
+    effect = int(pair.alternative.value - pair.factual.value)
     return {
         "schema_version": "mdac-counterfactual-replay-v1",
         "comparison_id": comparison_id,
         "initial_state": world.digest,
         "source": "sandbox_paired_replay",
         "individual_simulated_effect": effect,
+        "intervention_pair": pair.to_dict(),
         **reports,
     }
 
 
 def summarize_outcome_pairs(
-    pairs: tuple[tuple[str, float, float], ...], *, sampling: str, enabled: bool = False
+    pairs: tuple[tuple[str, float, float] | InterventionPair, ...],
+    *,
+    sampling: str,
+    authenticate: Callable[[dict], bool] | None = None,
+    enabled: bool = False,
 ) -> dict[str, Any]:
-    """Summarize evaluator-matched scalar observations in a common outcome unit."""
-    from statistics import fmean
-
+    """Summarize observations, or matched interventions authenticated by their host evaluator."""
     _enabled(enabled)
     estimands = {
         "observational": "observational_association",
         "matched_intervention": "sample_average_interventional_effect",
     }
-    if sampling not in estimands:
-        raise ValueError("declare an observational or matched interventional design")
+    if sampling not in estimands or type(pairs) is not tuple:
+        raise ValueError("declare a sampling design and tuple of outcome pairs")
     differences: dict[str, float] = {}
-    for identity, factual, alternative in pairs:
+    captures = []
+    contrast = None
+    refs: set[str] = set()
+    for item in pairs:
+        if sampling == "matched_intervention":
+            if type(item) is not InterventionPair:
+                raise ValueError("matched intervention requires typed intervention captures")
+            wire = item.to_dict()
+            pair = cast(InterventionPair, InterventionPair.from_dict(wire))
+            current = pair.contrast()
+            if contrast is not None and contrast != current:
+                raise ValueError(
+                    "cannot pool different intervention directions, units or protocols"
+                )
+            if not authenticate_payload(wire, authenticate):
+                raise ValueError("intervention evidence requires independent host authentication")
+            new_refs = {pair.factual.reference, pair.alternative.reference}
+            if new_refs & refs:
+                raise ValueError("intervention outcome evidence reused across pairs")
+            refs.update(new_refs)
+            contrast = current
+            captures.append(wire)
+            identity, factual, alternative = (
+                pair.pair_id,
+                pair.factual.value,
+                pair.alternative.value,
+            )
+        else:
+            if type(item) is not tuple or len(item) != 3:
+                raise ValueError("observational samples require an identity and two scalar values")
+            identity, factual, alternative = item
         _text(identity, "identity")
         if identity in differences:
             raise ValueError("repeated pair identity")
         delta = _number(alternative, "alternative") - _number(factual, "factual")
         differences[identity] = _number(delta, "difference")
+    mean_difference = (
+        float(sum(map(Fraction, differences.values()), Fraction()) / len(differences))
+        if differences
+        else None
+    )
     return {
         "estimand": estimands[sampling],
         "n_pairs": len(differences),
-        "difference": fmean(differences.values()) if differences else None,
+        "difference": mean_difference,
         "paired_differences": differences,
+        "contrast": contrast,
+        "pairs": captures,
     }
