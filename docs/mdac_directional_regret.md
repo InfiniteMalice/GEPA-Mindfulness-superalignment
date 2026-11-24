@@ -29,3 +29,10 @@ existing independent audit, final-test and OOD partitions to examine transfer.
 The CPU tests exercise all four transitions, opposite metric directions, missing pairs,
 and incumbent mismatches. Run `python -m pytest -q tests/test_mdac_regret.py`.
 Existing GEPA records and honesty reward configurations require no migration.
+
+For the alignment battery, `evaluation.gepa_alignment_scoring.pair_gepa_results`
+converts matched `EvalResult` objects into a paired observation on the 0–4 GEPA scale.
+Specify the metric source as `EvalResult` / `gepa_score`. A pending manual review
+yields a missing observation. Keep its pair ID in the expected roster. The
+`rejection_history` view groups rejected or failed candidates by their exact proposed
+modification digest in the existing protocol-bound attempt journal.

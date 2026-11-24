@@ -76,3 +76,29 @@ def test_recurring_rejection_ledger_validates_protocol():
     assert history["recurring_proposals"] == {DIGEST: ["A", "B"]}
     with pytest.raises(ValueError):
         rejection_history(spec, replace(journal, protocol_digest="b" * 64), enabled=True)
+
+
+def test_gepa_binding_preserves_original_results_and_missing_scores():
+    from evaluation.gepa_alignment_scoring import pair_gepa_results
+    from evaluation.schema import EvalResult
+
+    incumbent = EvalResult("case", "accuracy", "factuality", "question", "yes", "yes", "correct")
+    candidate = replace(incumbent, outcome="incorrect")
+    options = dict(
+        metric=replace(METRIC, source_schema="EvalResult", source_metric="gepa_score"),
+        pair_id="p",
+        repeat_id=0,
+        condition_id="unperturbed",
+        cluster_id="family",
+        stratum_digest=DIGEST,
+        enabled=True,
+    )
+    result = pair_gepa_results(incumbent, candidate, **options)
+    assert (result.baseline_value, result.candidate_value) == (4, 1)
+    assert incumbent.gepa_score is None
+    assert (
+        pair_gepa_results(incumbent, replace(candidate, outcome="needs_manual_review"), **options)
+        is None
+    )
+    with pytest.raises(ValueError):
+        pair_gepa_results(incumbent, replace(candidate, prompt="different"), **options)
