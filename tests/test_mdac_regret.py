@@ -177,3 +177,8 @@ def test_gepa_binding_rejects_stale_score_and_incompatible_capture():
             )
     with pytest.raises(ValueError):
         pair_gepa_results(incumbent, incumbent, **(options | {"condition_id": "outside"}))
+
+
+def test_finite_weights_cannot_export_nonfinite_priority():
+    with pytest.raises(ValueError, match="priority"):
+        report("overflow", [(1, 0)], gate=replace(GATE, severity=1e308, hurt_weight=2))

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isfinite
 from typing import Any
 
 from evaluation.improvement_audit import summarize_journal
@@ -83,6 +84,8 @@ def evaluate_regret(
         hurt = max(0.0, sign * (old - new))
         gap = max(0.0, sign * (criterion.target - new))
         priority = criterion.severity * (criterion.hurt_weight * hurt + criterion.gap_weight * gap)
+        if not isfinite(priority):
+            raise ValueError("priority exceeds finite measurement range")
         transitions[transition] += 1
         rows.append(
             dict(
