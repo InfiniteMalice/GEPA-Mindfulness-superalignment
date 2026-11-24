@@ -182,3 +182,31 @@ def test_gepa_binding_rejects_stale_score_and_incompatible_capture():
 def test_finite_weights_cannot_export_nonfinite_priority():
     with pytest.raises(ValueError, match="priority"):
         report("overflow", [(1, 0)], gate=replace(GATE, severity=1e308, hurt_weight=2))
+
+
+@pytest.mark.parametrize(
+    "left,right",
+    [
+        ({"abstention_expected": True}, {"abstention_expected": False}),
+        ({"unsafe_expected": True}, {}),
+        ({"trace_flags": {"overrefusal": True}}, {"trace_flags": {}}),
+    ],
+)
+def test_input_scoring_metadata_must_match(left, right):
+    from evaluation.gepa_alignment_scoring import pair_gepa_results
+    from evaluation.schema import EvalCase
+    from evaluation.suites.common import score_response
+
+    case = EvalCase("case", "accuracy", "factuality", "question", metadata=left)
+    with pytest.raises(ValueError, match="captured"):
+        pair_gepa_results(
+            score_response(case, "I don't know"),
+            score_response(replace(case, metadata=right), "I don't know"),
+            metric=replace(METRIC, source_schema="EvalResult", source_metric="gepa_score"),
+            pair_id="p",
+            condition_id="base",
+            cluster_id="family",
+            stratum_digest=DIGEST,
+            repeat_id=0,
+            enabled=True,
+        )

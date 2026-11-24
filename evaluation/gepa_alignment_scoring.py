@@ -101,7 +101,15 @@ def pair_gepa_results(
         "rubric_digest": metric.rubric_digest,
     }
     absent = object()
-    for key in (*supplied, "seed", "evaluator_version", "dataset_version"):
+    for key in (
+        *supplied,
+        "seed",
+        "evaluator_version",
+        "dataset_version",
+        "abstention_expected",
+        "unsafe_expected",
+        "trace_flags",
+    ):
         left = incumbent.metadata.get(key, absent)
         right = candidate.metadata.get(key, absent)
         if left is absent and right is absent:
