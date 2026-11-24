@@ -590,12 +590,14 @@ class PrivatePromotionStore:
         """Append one inert host advisory without changing the private request state machine."""
         with self._connection() as db:
             events = self._check(db)
-            if any(
-                e["operation"] == "mdac_admission_review"
-                and e["payload"]["report_digest"] == digest
-                for e in events
-            ):
-                return
+            for event in reversed(events):
+                if event["operation"] != "mdac_admission_review":
+                    continue
+                previous = event["payload"]
+                if previous["report"]["proposal_digest"] == report["proposal_digest"]:
+                    if previous["report_digest"] == digest:
+                        return
+                    break
             # The empty candidate ID is reserved for host-wide audit records.
             self._append(
                 db,

@@ -277,3 +277,13 @@ def test_candidate_rfc_requires_exact_private_admission_and_panel(tmp_path):
     assert (
         assess_grievance(g, chain, admission_store=f.store, **args)["disposition"] == "unresolved"
     )
+    renewed = review(f, proposal, panel, policy)
+    assert renewed["report_digest"] == audit["report_digest"]
+    assert assess_grievance(g, chain, admission_store=f.store, **args)["disposition"] == "upheld"
+    review(f, proposal, panel, policy)
+    trail = [
+        e["payload"]["report_digest"]
+        for e in f.store.audit_events()
+        if e["operation"] == "mdac_admission_review"
+    ]
+    assert trail == [audit["report_digest"], later["report_digest"], renewed["report_digest"]]
