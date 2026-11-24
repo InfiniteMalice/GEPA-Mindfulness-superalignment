@@ -290,15 +290,16 @@ def _pluralism(m: Measurements, row: Row) -> None:
     for k, score in best.items():
         m.add(k, score, binary=False)
     m.add("complete_match", _and(*(None if v is None else v == 1 for v in best.values())))
-    if row.get("value_components") is not None:
+    components = row.get("value_components")
+    if components is not None:
         # Value-space probes may load optional model libraries; import only on request.
         from mindful_trace_gepa.value_decomp.gepa_decomposition import GepaDecomposition
 
-        components = row["value_components"]
         if not isinstance(components, GepaDecomposition):
             raise ValueError("value_components requires an existing GepaDecomposition")
-        for name in ("deep_contribution", "shallow_contribution", "residual"):
-            m.add(name, number(getattr(components, name), name), rule="descriptive", binary=False)
+    for name in ("deep_contribution", "shallow_contribution", "residual"):
+        value = None if components is None else number(getattr(components, name), name)
+        m.add(name, value, rule="descriptive", binary=False)
 
 
 LAYERS = (

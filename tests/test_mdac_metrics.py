@@ -377,12 +377,20 @@ def test_m10_optional_existing_value_components():
                 observed=account,
                 alternatives=[account],
                 value_components=GepaDecomposition(1.5, -1, 0.25),
-            )
+            ),
+            dict(observed=account, alternatives=[account], value_components=None),
         ],
     )
     assert result["deep_contribution"].raw == 1.5
     assert result["shallow_contribution"].raw == -1
     assert result["residual"].raw == 0.25
+    for name in ("deep_contribution", "shallow_contribution", "residual"):
+        assert (result[name].denominator, result[name].missing) == (1, 1)
+
+    uninstrumented = run("M10", [dict(observed=account, alternatives=[account])])
+    for name in ("deep_contribution", "shallow_contribution", "residual"):
+        assert uninstrumented[name].raw is None
+        assert (uninstrumented[name].denominator, uninstrumented[name].missing) == (0, 1)
 
 
 def test_m14_independent_validation_and_numeric_ranges():
