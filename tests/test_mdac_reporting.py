@@ -323,3 +323,104 @@ def test_packaged_example_and_optional_local_model(tmp_path):
     )
     path = reporting.export_report(manifest, [row], tmp_path / "model", enabled=True, plots=False)
     assert json.loads(Path(path["telemetry"]).read_text())["estimates"][0]["x"] == confidence
+
+
+def test_metric_adapter_preserves_source_identity_and_raw_normalized_direction():
+    from evaluation.causal_records import content_digest
+    from gepa_mindfulness.verification.mdac_metrics import measure
+
+    metric = measure(
+        "M03", [dict(id="task", before=True, after=False, memory_record="hint")], enabled=True
+    )["regression"]
+    point = reporting.metric_estimate("regression", metric, group="retrieval", x="pass", y="fail")
+    assert point["source_metric"] == "M03/regression"
+    assert point["source_digest"] == content_digest(metric.to_dict())
+    assert point["value"] == 1 and metric.normalized == 0
+
+
+@pytest.mark.parametrize(
+    "name,metric", [("calibration", "calibration"), ("risk_coverage", "selective_risk")]
+)
+def test_probability_curves_render_one_series_per_run(name, metric):
+    pytest.importorskip("matplotlib")
+    from matplotlib.figure import Figure
+
+    from evaluation.mdac_report_plots import _series
+
+    manifest = reporting.SplitManifest.from_dict(manifest_data())
+    runs = [event(manifest, run=key) for key in ("baseline", "later")]
+    for i, r in enumerate(runs):
+        r["round"] = i + 1
+        r["estimates"] = [estimate(metric, "cohort", x=x + i / 10) for x in (0.2, 0.8)]
+    rows = reporting._summary(manifest, runs)["cohorts"]["measured"]["metrics"][metric]
+    ax = Figure().subplots()
+    _series(ax, rows, name)
+    traces = [line for line in ax.lines if not line.get_label().startswith("_")]
+    assert len(traces) == 2
+    assert list(traces[0].get_xdata()) == pytest.approx([0.2, 0.8])
+    assert list(traces[1].get_xdata()) == pytest.approx([0.3, 0.9])
+    assert all(key in line.get_label() for key, line in zip(("baseline", "later"), traces))
+
+
+def test_cross_rl_legend_identifies_evaluation_partition():
+    pytest.importorskip("matplotlib")
+    from matplotlib.figure import Figure
+
+    from evaluation.mdac_report_plots import _series
+
+    m = reporting.SplitManifest.from_dict(manifest_data())
+    training, held_out = event(m, run="development"), event(m, run="audit")
+    held_out.update(partition="final_held_out", family_ids=["family-5"])
+    rows = reporting._summary(m, [training, held_out])["cohorts"]["measured"]["metrics"][
+        "alignment"
+    ]
+    ax = Figure().subplots()
+    _series(ax, rows, "cross_rl")
+    labels = ax.get_legend_handles_labels()[1]
+    assert any("curriculum_validation" in s for s in labels)
+    assert any("final_held_out" in s for s in labels)
+
+
+def test_heatmap_retains_distinct_y_strata_within_a_condition():
+    pytest.importorskip("matplotlib")
+    from matplotlib.figure import Figure
+
+    from evaluation.mdac_report_plots import _heatmap
+
+    m = reporting.SplitManifest.from_dict(manifest_data())
+    row = event(m)
+    row["estimates"] = [
+        estimate("mechanism_rate", "M01", score, x="long", y=stratum)
+        for stratum, score in [("easy", 0.25), ("hard", 0.75)]
+    ]
+    rows = reporting._summary(m, [row])["cohorts"]["measured"]["metrics"]["mechanism_rate"]
+    ax = Figure().subplots()
+    _heatmap(ax, rows, "failure_heatmap")
+    assert sorted(ax.images[0].get_array().compressed().tolist()) == [0.25, 0.75]
+    assert [t.get_text() for t in ax.get_yticklabels()] == [
+        "run1 · long · easy",
+        "run1 · long · hard",
+    ]
+
+
+def test_mechanism_trends_do_not_join_different_evaluated_conditions():
+    pytest.importorskip("matplotlib")
+    from matplotlib.figure import Figure
+
+    from evaluation.mdac_report_plots import _series
+
+    m = reporting.SplitManifest.from_dict(manifest_data())
+    runs = [event(m, run="a"), event(m, run="b")]
+    for i, r in enumerate(runs):
+        r["round"] = i + 1
+        r["estimates"] = [
+            estimate("mechanism_rate", "M02", x=("compressed", "original")[i], y="care")
+        ]
+    rows = reporting._summary(m, runs)["cohorts"]["measured"]["metrics"]["mechanism_rate"]
+    ax = Figure().subplots()
+    _series(ax, rows, "mechanism_trends")
+    assert len(ax.lines) == 2
+    assert all(
+        condition in line.get_label()
+        for line, condition in zip(ax.lines, ("compressed", "original"))
+    )
