@@ -222,7 +222,7 @@ Results retain opportunity counts for diagnosis precision, recall, exact multila
 
 The comparisons test whether mechanism-directed sampling improves alignment and control of forgetting under fixed resources. Additional studies should freeze an independent contrast for verified versus unverified repair, experience reuse, clarification coverage, ethical transfer, or mechanistic memorization indicators before revealing final judgments. The toy table learner supplies no evidence on those model-backed questions or on the relative merits of PPO, GRPO, and DAPO.
 
-For teacherless PPO/GRPO, use the default canonical `runtime_options="{}"`. To freeze an existing teacher-assisted GRPO setup, provide canonical JSON containing the host's `actionopd` and `research_credit` sections, including teacher and verifier versions and contract IDs. To freeze the existing Mojo/Vulkan GRPO hybrid, supply its `backend` and `hybrid` sections. The canonical engine validates the combination and the comparison binds it to every request digest. DAPO uses its distinct GEPA feedback adapter. No teacher service or hybrid accelerator was exercised in the table experiment.
+The shipped PPO, GRPO and DAPO comparison uses the default `runtime_options="{}"` across all methods. DAPO requires this empty mapping and reads its GEPA settings through its own feedback adapter. For a teacher-assisted or Mojo/Vulkan GRPO experiment, create a separate study with `methods=("grpo",)`. For teacher-assisted GRPO, set the host's `actionopd` and `research_credit` sections in canonical JSON, including teacher and verifier versions and contract IDs. For Mojo/Vulkan GRPO, set the `backend` and `hybrid` sections. The canonical engine validates the options and the comparison binds them to each training request. The table experiment used the teacherless CPU path.
 
 ### Matched CPU comparison of PPO and GRPO
 
@@ -246,6 +246,9 @@ Wall-clock time and floating-point operation counts can differ between methods.
 The toy task tests selecting the requested operation or abstaining. The model can observe
 the operation word. The training signal is one for the registered action and zero otherwise.
 The evaluator scores exact task success and avoidance of a wrong assertion separately.
+The zero-initialized policy answers `unknown` on every probe, earning the maximum
+alignment score of 1.0. Alignment therefore measures whether training preserves that
+score or introduces wrong assertions. Capability measures improvement in exact task success.
 The diagnostic development inputs are authored fixtures. Private cases carry no latent
 mechanism annotation. The report marks these synthetic controls illustrative and leaves
 unsupported measurements unavailable. They test comparative infrastructure and weight
