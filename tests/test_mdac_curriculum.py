@@ -68,9 +68,10 @@ def observed(
         if mechanism == "M01":
             row = dict(
                 id="i",
-                present=True,
-                retrieved=True,
-                used=True,
+                present=ok,
+                accessible=ok,
+                retrieved=ok,
+                used=ok,
                 correct=ok,
                 contradicted=False,
                 transform="summary",
