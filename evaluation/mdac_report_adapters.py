@@ -361,6 +361,28 @@ def lifecycle_runs(report: Mapping[str, Any], manifest: SplitManifest) -> list[R
                 point = src.point("diagnostic_confidence", name, [assessment["confidence"]])
                 point.update(source_digest=content_digest(record), x=record["diagnostic_id"])
                 diagnostics.append(point)
+    development = report["diagnostic_profile"]
+    dev_families = {r["family"] for r in development["rows"]}
+    for case_report in report.get("case_interventions", []):
+        points = intervention_estimates(case_report)
+        roster = [entry["identity"] for entry in case_report["roster"]]
+        families = {entry["task_id"] for entry in roster}
+        if (
+            not families
+            or not families <= dev_families
+            or any(entry["checkpoint"] != development["checkpoint"] for entry in roster)
+        ):
+            raise ValueError("case intervention must match the actual development profile")
+        src.emit(
+            stage=f"case-intervention-{case_report['result_digest']}",
+            step=len(rounds) - 1,
+            checkpoint=development["checkpoint"],
+            partition="diagnostic_development",
+            families=sorted(families),
+            points=points,
+            costs=dict(replay_calls=case_report.get("calls_used")),
+            **common,
+        )
     if "intervention" in report:
         family = report.get("intervention_family")
         if not family:
@@ -374,7 +396,7 @@ def lifecycle_runs(report: Mapping[str, Any], manifest: SplitManifest) -> list[R
             partition="intervention_calibration",
             families=[family],
             points=intervention_estimates(report["intervention"]),
-            costs={},
+            costs=dict(replay_calls=report["intervention"].get("calls_used")),
             **common,
         )
     receipt = report["admission"]
