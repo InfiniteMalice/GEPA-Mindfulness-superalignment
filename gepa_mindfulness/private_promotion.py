@@ -605,3 +605,25 @@ class PrivatePromotionStore:
                 {"report_digest": digest, "report": report},
                 "advisory",
             )
+
+    def grievance_admission(
+        self, proposal_digest: str, review_digest: str
+    ) -> dict[str, str] | None:
+        """Resolve the latest advisory for this proposal, exposing only its public linkage."""
+        with self._connection() as db:
+            for event in reversed(self._check(db)):
+                if event["operation"] != "mdac_admission_review":
+                    continue
+                payload = event["payload"]
+                report = payload["report"]
+                if report["proposal_digest"] != proposal_digest:
+                    continue
+                if payload["report_digest"] != review_digest:
+                    return None
+                return dict(
+                    decision=report["decision"],
+                    proposal_digest=proposal_digest,
+                    review_digest=review_digest,
+                    evidence_digest=report["evidence_digest"],
+                )
+        return None

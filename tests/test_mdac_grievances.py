@@ -37,14 +37,27 @@ def issue(i="1", kind="human"):
     )
 
 
-def events(report, *, verified="verified", reviewer="reviewer", appealed=False):
+def events(
+    report,
+    *,
+    verified="verified",
+    reviewer="reviewer",
+    appealed=False,
+    proposal=None,
+    audit=None,
+    validation="validated",
+):
     previous = content_digest(report.to_dict())
     history = []
     stages = [
-        ("triage", "triager", "accepted"),
         ("verification", "verifier", verified),
+        ("triage", "triager", "accepted"),
+        ("consolidation", "analyst", "hypotheses"),
+        ("requirements", "designer", "formulated"),
         ("rfc", "author", "proposed"),
         ("review", reviewer, "upheld"),
+        ("experiment", "experimenter", validation),
+        ("governance", "governor", "upheld"),
         ("feedback", "coordinator", "delivered"),
     ]
     if appealed:
@@ -54,6 +67,18 @@ def events(report, *, verified="verified", reviewer="reviewer", appealed=False):
             ("feedback", "coordinator", "delivered"),
         ]
     for stage, actor, outcome in stages:
+        fields = {}
+        evidence = (ref(stage + "-" + report.report_id),)
+        if stage == "consolidation":
+            fields["items"] = ("Stale cache or outdated source.",)
+        elif stage == "requirements":
+            fields["items"] = ("Use the current signed value on a validation replay.",)
+        elif stage == "rfc":
+            fields["proposal_digest"] = proposal
+        elif stage == "experiment" and audit is not None:
+            evidence = (ref("mdac-panel:" + audit["evidence_digest"]),)
+        elif stage == "governance" and audit is not None:
+            fields["admission_digest"] = audit["report_digest"]
         event = GrievanceEvent(
             report.report_id,
             previous,
@@ -61,7 +86,8 @@ def events(report, *, verified="verified", reviewer="reviewer", appealed=False):
             actor,
             outcome,
             "Response " + stage,
-            (ref(stage + "-" + report.report_id),),
+            evidence,
+            **fields,
         )
         history.append(event)
         previous = content_digest(event.to_dict())
@@ -138,7 +164,14 @@ def test_example_serializes_to_development_only_and_rejects_forged_authority():
         (Path(__file__).resolve().parents[1] / "configs/mdac/grievance.json").read_text()
     )
     report = Grievance.from_dict(row["report"])
-    assert assess_grievance(report, (), enabled=row["enabled"])["disposition"] == "unverified"
+    history = tuple(GrievanceEvent.from_dict(e) for e in row["example_events"])
+    assert assess_grievance(report, history, enabled=row["enabled"])["disposition"] == "unverified"
+    resolved = assess_grievance(report, history, authenticate=lambda _: True, enabled=True)
+    assert (
+        resolved["disposition"] == "upheld"
+        and resolved["hypotheses"]
+        and resolved["draft_requirements"]
+    )
     with pytest.raises(ValueError):
         Grievance.from_dict(row["report"] | {"authority_granted": True})
 
@@ -172,6 +205,7 @@ def test_appeal_can_verify_new_evidence_before_fresh_independent_review():
         ("appeal", report.submitter, "requested"),
         ("appeal_verification", "new-verifier", "verified"),
         ("appeal_review", "new-reviewer", "upheld"),
+        ("governance", "new-governor", "upheld"),
     ):
         row = GrievanceEvent(
             report.report_id,
@@ -190,7 +224,56 @@ def test_appeal_can_verify_new_evidence_before_fresh_independent_review():
     with pytest.raises(ValueError, match="independent"):
         assess_grievance(
             report,
-            tuple(chain[:-1]) + (replace(chain[-1], actor="new-verifier"),),
+            tuple(chain[:-2]) + (replace(chain[-2], actor="new-verifier"),),
             authenticate=lambda _: True,
             enabled=True,
         )
+
+
+def test_stages_cannot_be_bypassed_and_failed_experiment_cannot_resolve():
+    g = issue()
+    chain = events(g)
+    for index in range(1, len(chain) - 1):
+        altered = chain[:index] + (
+            replace(chain[index + 1], previous_digest=chain[index].previous_digest),
+        )
+        with pytest.raises(ValueError, match="transition"):
+            assess_grievance(g, altered, authenticate=lambda _: True, enabled=True)
+    result = assess_grievance(
+        g, events(g, validation="inconclusive"), authenticate=lambda _: True, enabled=True
+    )
+    assert result["disposition"] == "unresolved" and not result["exploration_eligible"]
+
+
+def test_candidate_rfc_requires_exact_private_admission_and_panel(tmp_path):
+    from test_mdac_admission import inputs, review
+    from test_private_promotion import USAGE, Flow
+
+    f = Flow(tmp_path)
+    f.request()
+    f.store.complete_evaluation(f.candidate.candidate_id, f.bundle(), USAGE)
+    proposal, panel, policy = inputs(f)
+    audit = review(f, proposal, panel, policy)
+    g = issue()
+    chain = events(g, proposal=proposal.digest, audit=audit)
+    args = dict(authenticate=lambda _: True, enabled=True)
+    assert assess_grievance(g, chain, **args)["disposition"] == "unresolved"
+    result = assess_grievance(g, chain, admission_store=f.store, **args)
+    assert result["disposition"] == "upheld" and result["admission"]["decision"] == "PROMOTE"
+    assert not result["authority_granted"] and "review_inputs" not in result["admission"]
+    substituted = events(g, proposal="0" * 64, audit=audit)
+    assert (
+        assess_grievance(g, substituted, admission_store=f.store, **args)["disposition"]
+        == "unresolved"
+    )
+    substituted = events(g, proposal=proposal.digest, audit=audit | {"evidence_digest": "b" * 64})
+    assert (
+        assess_grievance(g, substituted, admission_store=f.store, **args)["disposition"]
+        == "unresolved"
+    )
+    # A later private review supersedes the recorded acceptance for the same proposal.
+    later = review(f, proposal, replace(panel, dimensions=()), policy)
+    assert later["decision"] == "DEFER"
+    assert (
+        assess_grievance(g, chain, admission_store=f.store, **args)["disposition"] == "unresolved"
+    )

@@ -50,23 +50,42 @@ family, problem, affected parties, observable evidence, relevant principles, req
 alternatives, uncertainty and unintended effects. The model, training, evaluation, tools,
 memory and governance domains can each receive a report.
 
-A trusted host owns case storage, identity verification and the current case head. Submitters
-may propose remedies or appeal. Triage establishes scope. Verification evaluates evidence
-and may find it verified, contradicted, conflicted or insufficient. An optional RFC records
-a proposed change and its justification. An independent reviewer considers the claim and its
-alternatives. A verifier and an RFC author cannot independently approve their own work.
-An appeal binds the challenged decision and receives a fresh independent reviewer. An optional appeal verification step lets another independent verifier examine additional evidence while preserving the earlier finding. A feedback
-event records the response and evidence of delivery to the submitter. The result preserves the
-history, including contrary evidence and explanations when a dispute remains unresolved.
+The host keeps the authoritative case history. A v2 case proceeds through these stages.
+
+| Stage | Evidence and responsibility |
+| --- | --- |
+| Evidence verification | An authorized verifier checks the source incident. Verified, contradicted, conflicted and insufficient findings remain distinct. |
+| Triage | The triager assigns scope after seeing that finding. An out-of-scope decision supports feedback and appeal. |
+| Root-cause consolidation | An analyst records competing hypotheses and source references. Unknown cause is an explicit outcome. |
+| Requirement formulation | The latest RFC starts from testable, nonempty draft criteria and the affected parties' stated concerns. These proposals confer no normative authority. |
+| RFC | The author proposes a scoped remedy. A candidate-bearing RFC pins a PR 11 proposal digest. |
+| Independent review | A separate reviewer considers the evidence, hypotheses, requirements and alternatives. |
+| Experimental validation | A separate experimenter records validated, failed or inconclusive results and the source of the experiment. A failed or inconclusive experiment leaves the issue unresolved. |
+| Governance decision | A separate authority records a disposition. Candidate-bearing RFCs also require the latest matching private admission decision and the experiment's exact panel reference. |
+| Resolution feedback | A host-verified delivery event records the response to the original submitter. |
+
+Appeals bind the precise challenged history. A fresh verifier can reconsider additional evidence.
+A separate appeal reviewer can overturn, leave unresolved, uphold or remand for renewed triage.
+An upheld appeal proceeds to governance. The history retains earlier disagreements.
+
+For a candidate-bearing RFC set its `proposal_digest` to the PR 11 proposal digest, include
+`mdac-panel:<evidence_digest>` among the experiment's evidence references, and set the
+governance event's `admission_digest` to the audited review digest. Pass the actual
+`PrivatePromotionStore` as `admission_store`. It resolves the latest advisory for that
+proposal and exposes only its decision and linkage digests. A missing, superseded, mismatched
+or non-PROMOTE advisory keeps the requested change unresolved.
 
 ```python
 import json
 from pathlib import Path
-from gepa_mindfulness.participatory_agency.grievances import Grievance, assess_grievance
+from gepa_mindfulness.participatory_agency.grievances import (
+    Grievance, GrievanceEvent, assess_grievance,
+)
 
 config = json.loads(Path("configs/mdac/grievance.json").read_text())
 claim = Grievance.from_dict(config["report"])
-report = assess_grievance(claim, (), enabled=config["enabled"])
+events = tuple(GrievanceEvent.from_dict(row) for row in config["example_events"])
+report = assess_grievance(claim, events, enabled=config["enabled"])
 assert report["disposition"] == "unverified"
 ```
 
@@ -94,4 +113,4 @@ reporting, accurate incident linkage and independent evidence checks.
 [Agentic Harness Engineering Beta](https://arxiv.org/abs/2611.24924)
 
 Run `pytest -q tests/test_mdac_grievances.py` for deterministic CPU coverage. Setting
-`MDAC_LOCAL_TEST_MODEL` adds a local model submission smoke. No case migration is needed.
+`MDAC_LOCAL_TEST_MODEL` adds a local model submission smoke. The v1 claim format remains readable. Experimental v1 event chains require fresh v2 stage evidence and predecessor digests before they can enter the new workflow.

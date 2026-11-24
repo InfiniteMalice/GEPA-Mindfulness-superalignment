@@ -9,6 +9,7 @@ from typing import Any
 
 from evaluation.causal_records import content_digest
 from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
+from gepa_mindfulness.private_promotion import PrivatePromotionStore
 from gepa_mindfulness.verification.diagnostic_records import (
     DiagnosticRecord,
     _text,
@@ -24,23 +25,31 @@ DOMAINS = ("model", "training", "evaluation", "tools", "memory", "governance")
 _OUTCOMES = {
     "triage": ("accepted", "out_of_scope"),
     "verification": ("verified", "contradicted", "conflicted", "insufficient"),
+    "consolidation": ("hypotheses", "unknown"),
+    "requirements": ("formulated",),
     "rfc": ("proposed",),
+    "experiment": ("validated", "failed", "inconclusive"),
+    "governance": ("upheld", "declined", "unresolved"),
     "review": ("upheld", "declined", "unresolved"),
     "appeal": ("requested",),
     "appeal_verification": ("verified", "contradicted", "conflicted", "insufficient"),
-    "appeal_review": ("upheld", "overturned", "unresolved"),
+    "appeal_review": ("upheld", "overturned", "unresolved", "remanded"),
     "feedback": ("delivered",),
 }
 _NEXT = {
-    "submitted": ("triage",),
-    "triage": ("verification",),
-    "verification": ("rfc", "review"),
+    "submitted": ("verification",),
+    "verification": ("triage",),
+    "triage": ("consolidation",),
+    "consolidation": ("requirements",),
+    "requirements": ("rfc",),
     "rfc": ("review",),
-    "review": ("feedback", "appeal"),
+    "review": ("experiment",),
+    "experiment": ("governance",),
+    "governance": ("feedback", "appeal"),
     "feedback": ("appeal",),
     "appeal": ("appeal_verification", "appeal_review"),
     "appeal_verification": ("appeal_review",),
-    "appeal_review": ("feedback", "appeal"),
+    "appeal_review": ("governance",),
 }
 HostCheck = Callable[[dict], bool]
 
@@ -90,7 +99,7 @@ class Grievance(DiagnosticRecord):
 class GrievanceEvent(DiagnosticRecord):
     """One signed review step with an exact predecessor and independent evidence."""
 
-    schema_version = "mdac-grievance-event-v1"
+    schema_version = "mdac-grievance-event-v2"
     restorers = {"evidence": restore_refs}
     report_id: str
     previous_digest: str
@@ -99,6 +108,10 @@ class GrievanceEvent(DiagnosticRecord):
     outcome: str
     reason: str
     evidence: tuple[EvidenceReference, ...]
+
+    items: tuple[str, ...] = ()
+    proposal_digest: str | None = None
+    admission_digest: str | None = None
 
     def __post_init__(self) -> None:
         for name in ("report_id", "actor", "reason"):
@@ -111,6 +124,20 @@ class GrievanceEvent(DiagnosticRecord):
             raise ValueError("invalid predecessor digest")
         choice(self.stage, "stage", tuple(_OUTCOMES))
         choice(self.outcome, "outcome", _OUTCOMES[self.stage])
+        required_items = self.stage == "requirements" or (
+            self.stage == "consolidation" and self.outcome == "hypotheses"
+        )
+        object.__setattr__(self, "items", strings(self.items, "items", required=required_items))
+        if self.items and not required_items:
+            raise ValueError("items are reserved for identified hypotheses and draft requirements")
+        for value, stage in ((self.proposal_digest, "rfc"), (self.admission_digest, "governance")):
+            if value is not None and (
+                self.stage != stage
+                or type(value) is not str
+                or len(value) != 64
+                or any(c not in "0123456789abcdef" for c in value)
+            ):
+                raise ValueError("invalid governance reference or stage")
         object.__setattr__(self, "evidence", public_refs(self.evidence, required=True))
 
 
@@ -119,6 +146,7 @@ def assess_grievance(
     events: tuple[GrievanceEvent, ...],
     *,
     authenticate: HostCheck | None = None,
+    admission_store: PrivatePromotionStore | None = None,
     enabled: bool = False,
 ) -> dict[str, Any]:
     """Replay a hosted case. All role, incident, evidence and head claims need host resolution."""
@@ -132,6 +160,13 @@ def assess_grievance(
         dict(role="submission", principal=report.submitter, report=claim), authenticate
     )
     stage = "submitted"
+    recommendation = "pending"
+    validation = "pending"
+    experiment_refs: set[str] = set()
+    proposal_digest = None
+    admission = None
+    requirements: tuple[str, ...] = ()
+    hypotheses: tuple[str, ...] = ()
     verification = "unverified"
     disposition = "pending"
     conflicts = []
@@ -147,21 +182,43 @@ def assess_grievance(
         next_stages = _NEXT[stage]
         if stage == "triage" and disposition == "out_of_scope":
             next_stages = ("feedback", "appeal")
+        if stage == "appeal_review":
+            if recommendation == "remanded":
+                next_stages = ("triage",)
+            elif recommendation in ("overturned", "unresolved"):
+                next_stages = ("feedback", "appeal")
         if event.stage not in next_stages:
             raise ValueError("invalid grievance stage transition")
         independent_of = {report.submitter}
-        if event.stage in ("review", "appeal_verification", "appeal_review"):
-            independent_of |= actors["verification"] | actors["rfc"] | actors["triage"]
+        if event.stage in (
+            "review",
+            "experiment",
+            "governance",
+            "appeal_verification",
+            "appeal_review",
+        ):
+            for role in ("verification", "triage", "consolidation", "requirements", "rfc"):
+                independent_of.update(actors[role])
+        if event.stage in ("experiment", "governance", "appeal_verification", "appeal_review"):
+            independent_of.update(actors["review"])
+        if event.stage in ("governance", "appeal_verification", "appeal_review"):
+            independent_of.update(actors["experiment"])
+            independent_of.update(actors["appeal_review"])
+            independent_of.update(actors["appeal_verification"])
         if event.stage in ("appeal_verification", "appeal_review"):
-            independent_of |= (
-                actors["review"]
-                | actors["appeal"]
-                | actors["appeal_review"]
-                | actors["appeal_verification"]
-            )
+            independent_of.update(actors["governance"])
+            independent_of.update(actors["appeal"])
         if (
             event.stage
-            in ("triage", "verification", "review", "appeal_verification", "appeal_review")
+            in (
+                "triage",
+                "verification",
+                "review",
+                "experiment",
+                "governance",
+                "appeal_verification",
+                "appeal_review",
+            )
             and event.actor in independent_of
         ):
             raise ValueError("grievance role requires an independent principal")
@@ -187,9 +244,52 @@ def assess_grievance(
             verification = event.outcome
             if verification in ("conflicted", "contradicted", "insufficient"):
                 conflicts.append(event.reason)
+        elif stage == "consolidation":
+            hypotheses = event.items
+        elif stage == "requirements":
+            requirements = event.items
+        elif stage == "rfc":
+            proposal_digest = event.proposal_digest
+            admission = None
         elif stage in ("review", "appeal_review"):
+            recommendation = event.outcome
+            disposition = "pending_governance"
+            if stage == "appeal_review" and recommendation in (
+                "overturned",
+                "unresolved",
+                "remanded",
+            ):
+                disposition = recommendation
+            if recommendation == "unresolved":
+                conflicts.append(event.reason)
+        elif stage == "experiment":
+            validation = event.outcome
+            experiment_refs = {r.reference_id for r in event.evidence}
+        elif stage == "governance":
+            if event.admission_digest is not None and proposal_digest is None:
+                raise ValueError("admission requires an RFC proposal")
+            admission_ok = proposal_digest is None
+            if (
+                authenticated
+                and proposal_digest is not None
+                and event.admission_digest is not None
+                and type(admission_store) is PrivatePromotionStore
+            ):
+                admission = admission_store.grievance_admission(
+                    proposal_digest, event.admission_digest
+                )
+                admission_ok = bool(
+                    admission
+                    and admission["decision"] == "PROMOTE"
+                    and "mdac-panel:" + admission["evidence_digest"] in experiment_refs
+                )
             disposition = event.outcome
-            if disposition == "upheld" and verification != "verified":
+            if disposition == "upheld" and (
+                recommendation != "upheld"
+                or verification != "verified"
+                or validation != "validated"
+                or not admission_ok
+            ):
                 disposition = "unresolved"
             if disposition == "unresolved":
                 conflicts.append(event.reason)
@@ -210,7 +310,11 @@ def assess_grievance(
         disposition = verification = "unverified"
         feedback = []
     return dict(
-        schema_version="mdac-grievance-review-v1",
+        schema_version="mdac-grievance-review-v2",
+        hypotheses=list(hypotheses),
+        draft_requirements=list(requirements),
+        experimental_validation=validation if current else "unverified",
+        admission=admission if current else None,
         report_id=report.report_id,
         head=head,
         claim=claim,
@@ -232,6 +336,7 @@ def recurrent_exploration(
     *,
     threshold: int = 2,
     authenticate: HostCheck | None = None,
+    admission_store: PrivatePromotionStore | None = None,
     enabled: bool = False,
 ) -> list[dict[str, Any]]:
     """Freshly verify current case heads and group distinct confirmed incidents."""
@@ -245,7 +350,9 @@ def recurrent_exploration(
         if report.report_id in seen:
             raise ValueError("duplicate grievance report")
         seen.add(report.report_id)
-        finding = assess_grievance(report, events, authenticate=authenticate, enabled=True)
+        finding = assess_grievance(
+            report, events, authenticate=authenticate, admission_store=admission_store, enabled=True
+        )
         if finding["exploration_eligible"]:
             groups[report.domain, report.issue_key][report.incident_id].append(finding["head"])
     results = []
