@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from enum import Enum
-from math import isfinite
+from fractions import Fraction
 from statistics import mean
+from sys import float_info
 
 from evaluation.causal_records import canonical_json, content_digest
 from gepa_mindfulness.core.evidence import EvidenceReference, EvidenceSourceKind
@@ -66,11 +67,11 @@ class Experience:
                 raise ValueError("record requires explicit contexts and limitations")
             for value in group:
                 _text(value)
-        for group in (self.evidence, self.provenance):
+        for refs in (self.evidence, self.provenance):
             if (
-                type(group) is not tuple
-                or not group
-                or any(type(ref) is not EvidenceReference or not ref.is_observable for ref in group)
+                type(refs) is not tuple
+                or not refs
+                or any(type(ref) is not EvidenceReference or not ref.is_observable for ref in refs)
             ):
                 raise ValueError("record requires public evidence and provenance")
         state = freeze_json_mapping(self.preconditions, field_name="preconditions")
@@ -203,8 +204,11 @@ class UsageOutcome:
     evidence: EvidenceReference
 
     def __post_init__(self) -> None:
-        if type(self.value) not in (int, float) or not isfinite(self.value):
-            raise ValueError("task value must be finite")
+        if (
+            type(self.value) not in (int, float)
+            or not -float_info.max <= self.value <= float_info.max
+        ):
+            raise ValueError("task value must be finite and within float range")
         if (
             type(self.solved) is not bool
             or type(self.evidence) is not EvidenceReference
@@ -220,17 +224,23 @@ class ExperienceGain:
     seeds: tuple[int, ...]
     pairs: tuple[tuple[UsageOutcome, UsageOutcome], ...]
 
+    def _exact_gains(self) -> Iterator[Fraction]:
+        return (
+            Fraction(with_record.value) - Fraction(without.value)
+            for without, with_record in self.pairs
+        )
+
     @property
     def gains(self) -> tuple[float, ...]:
-        return tuple(with_record.value - without.value for without, with_record in self.pairs)
+        return tuple(float(gain) for gain in self._exact_gains())
 
     @property
     def mean_gain(self) -> float:
-        return mean(self.gains)
+        return float(mean(self._exact_gains()))
 
     @property
     def harmed(self) -> int:
-        return sum(gain < 0 for gain in self.gains)
+        return sum(with_record.value < without.value for without, with_record in self.pairs)
 
     @property
     def regressed(self) -> int:

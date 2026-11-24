@@ -20,4 +20,6 @@ The host checks the exact operation and its evidence against its records, includ
 
 For each seed, restore an isolated context twice. Hold the task, policy, evaluator, protocol, and state fixed, and supply the record in one arm. Keep each arm's task value and solved flag with independent evidence. A unit drop on one previously solved task and a unit gain on another have mean zero, one harmed trial and one regression. Measure distinct held-out contexts to estimate broader utility. The seven libraries are opt-in and in memory. Existing stores require no migration.
 
+The evaluator accepts finite outcomes within the floating-point range. It calculates paired differences and their mean exactly before returning each requested statistic as a float. Requesting an individual gain or mean whose conversion overflows raises `OverflowError`. A representable mean and the harm count remain available when individual gains exceed the range.
+
 Run `python -m pytest -q tests/test_mdac_experience.py tests/test_mdac_repair.py` for CPU contract coverage. The deterministic sandbox tests matching, evidence revocation, domain isolation, failed experience, and per-record interference. It does not measure transfer to a trained model.
