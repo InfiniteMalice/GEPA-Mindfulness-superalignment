@@ -201,7 +201,7 @@ unimplemented latent and hybrid conditions remain explicitly `unsupported` in th
 
 ## MDAC curriculum and RL comparison
 
-Run `python -m evaluation.mdac_comparison_fixture --output /tmp/mdac-study.json` for a CPU comparison using a deterministic table learner. Six arms, two paired seeds and five private evaluator cases produce 12 cells. Each receives 12 practice examples and executes 12 table updates. The grader includes an unlabeled case, a known case with no planted mechanism, and a partly incorrect mechanism classifier. The recorded effects describe this fixture.
+Run `python -m evaluation.mdac_comparison_fixture --output /tmp/mdac-study.json --report-dir /tmp/mdac-study-report` for a CPU comparison using a deterministic table learner. Six arms, two paired seeds and five private evaluator cases produce 12 cells. Each receives 12 practice examples and executes 12 table updates. The grader includes an unlabeled case, a known case with no planted mechanism, and a partly incorrect mechanism classifier. The recorded effects describe this fixture.
 
 | Arm | Sampling rule |
 | --- | --- |
