@@ -324,6 +324,7 @@ def run_lifecycle(
             study.training_tokens,
             study.model_config_digest,
             study.runtime_options,
+            study.max_training_tokens_per_generation,
         )
         run = train(request, tuple(e.target for e in examples))
         if (
@@ -332,6 +333,8 @@ def run_lifecycle(
             or run.request_digest != request.digest
             or type(run.samples) is not int
             or run.samples != study.samples
+            or type(run.max_training_tokens_per_generation) is not int
+            or run.max_training_tokens_per_generation != study.max_training_tokens_per_generation
             or type(run.training_tokens) is not int
             or run.training_tokens != study.training_tokens
             or type(run.compute_units) is not int
@@ -350,6 +353,7 @@ def run_lifecycle(
                 training_families=[e.family for e in examples],
                 samples=run.samples,
                 tokens=run.training_tokens,
+                max_training_tokens_per_generation=run.max_training_tokens_per_generation,
                 compute_units=run.compute_units,
                 retention_samples=retained,
                 validation=profile("curriculum_validation", checkpoint, predict),

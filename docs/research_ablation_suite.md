@@ -226,11 +226,11 @@ For teacherless PPO/GRPO, use the default canonical `runtime_options="{}"`. To f
 
 ### Matched CPU comparison of PPO and GRPO
 
-Run the optional PyTorch control from the checkout.
+Run the optional PyTorch control from the checkout. The command below writes the native JSON and partitioned report without plotting dependencies. To include figures, install Matplotlib and omit `--no-plots`.
 
 ```bash
 python -m evaluation.mdac_comparison_fixture --cpu-rl \
-  --output rl-controls.json --report-dir rl-controls
+  --output rl-controls.json --report-dir rl-controls --no-plots
 ```
 
 The control runs arms A–F on two seeds for each teacherless method. Each cell starts from
@@ -251,6 +251,8 @@ mechanism annotation. The report marks these synthetic controls illustrative and
 unsupported measurements unavailable. They test comparative infrastructure and weight
 updates. The configuration for a language-model study with DAPO and GEPA feedback still
 requires its separate backend, data and compute budget.
+
+Comparison receipts freeze the per-generation training token cap as well as the total token budget. Diagnostic lessons reference the registered digest of their source record. Calibration lessons identify the source family and treatment in the sealed report. The native metrics report final held-out and OOD alignment separately, alongside the pooled alignment gain.
 
 ## Alignment-first lifecycle
 

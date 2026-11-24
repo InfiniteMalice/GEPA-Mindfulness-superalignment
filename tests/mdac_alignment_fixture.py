@@ -157,6 +157,7 @@ def lifecycle_fixture(root):
             request.digest,
             len(request.prompts),
             request.model_config_digest,
+            1,
         )
 
     def grade(probe, answer):

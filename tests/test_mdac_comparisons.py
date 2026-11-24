@@ -93,17 +93,29 @@ def test_frozen_partitions_and_actual_intervention_receipts():
     )
     report["result_digest"] = content_digest(report)
     assert intervention_effect(report, "repair") == (report["result_digest"], 0.5)
+    for field, invalid in (("training_eligibility", "HIDDEN_EVAL"), ("status", "inconclusive")):
+        modified = {k: v for k, v in report.items() if k != "result_digest"} | {field: invalid}
+        modified["result_digest"] = content_digest(modified)
+        with pytest.raises(ValueError, match="intervention"):
+            intervention_effect(modified, "repair")
     with pytest.raises(ValueError, match="intervention"):
-        intervention_effect(report | {"training_eligibility": "HIDDEN_EVAL"}, "repair")
-    with pytest.raises(ValueError, match="intervention"):
-        intervention_effect(report | {"status": "inconclusive"}, "repair")
+        intervention_effect(report | {"result_digest": "stale"}, "repair")
 
 
 def test_runtime_adapters_preserve_seed_checkpoint_and_method():
     from evaluation.mdac_comparisons import TrainingRequest, rl_training_config
 
     r = TrainingRequest(
-        "ppo", 42, "/models/local", "fixed", "policy", ("test",) * 4, 128, 128, "a" * 64
+        "ppo",
+        42,
+        "/models/local",
+        "fixed",
+        "policy",
+        ("test",) * 4,
+        128,
+        128,
+        "a" * 64,
+        max_training_tokens_per_generation=8,
     )
     for method in ("ppo", "grpo"):
         cfg = rl_training_config(
@@ -114,8 +126,13 @@ def test_runtime_adapters_preserve_seed_checkpoint_and_method():
             max_new_tokens=8,
         )
         assert cfg.algorithm.name == method
+        assert cfg.policy.max_new_tokens == 8
         assert cfg.seed == 42
         assert cfg.policy.model_name == "/models/local"
+    with pytest.raises(ValueError, match="generation limit"):
+        rl_training_config(
+            r, dataset="catalog.jsonl", output_dir="runs/arm", batch_size=1, max_new_tokens=16
+        )
     with pytest.raises(ValueError, match="DAPO"):
         rl_training_config(
             replace(r, method="dapo"),
@@ -141,7 +158,9 @@ def test_curriculum_effect_is_paired_on_seed_method_and_frozen_cases():
     assert all(x["alignment_delta"]["denominator"] == 5 for x in comparisons)
 
 
-@pytest.mark.parametrize("field", ["training_tokens", "model_config_digest"])
+@pytest.mark.parametrize(
+    "field", ["training_tokens", "model_config_digest", "max_training_tokens_per_generation"]
+)
 def test_common_token_budget_and_model_signature_are_enforced(field):
     fixture = fixture_inputs()
     original = fixture["train"]
@@ -149,7 +168,7 @@ def test_common_token_budget_and_model_signature_are_enforced(field):
     def train(request):
         result = original(request)
         assert getattr(request, field) == getattr(fixture["study"], field)
-        return replace(result, **{field: 0 if field == "training_tokens" else "other"})
+        return replace(result, **{field: "other" if field == "model_config_digest" else 0})
 
     with pytest.raises(ValueError, match="budget"):
         compare(**(fixture | {"train": train}), enabled=True)
@@ -256,3 +275,116 @@ def test_judge_without_diagnostics_differs_from_assessed_unknown():
         "denominator": 1,
         "value": 1,
     }
+
+
+def test_partition_specific_alignment_separates_opposite_changes():
+    from evaluation.mdac_comparisons import Judgment, Verdict
+
+    low, high = Verdict(0, 0), Verdict(1, 1)
+    rows = [
+        Judgment("final", "final_held_out", None, low, high),
+        Judgment("ood", "ood", None, high, low),
+    ]
+    metrics = summarize(rows)
+    assert metrics["final_held_out_alignment"] == {"numerator": 1, "denominator": 1, "value": 1}
+    assert metrics["final_held_out_alignment_gain"]["value"] == 1
+    assert metrics["ood_alignment_gain"]["value"] == -1
+    assert metrics["pooled_alignment_gain"] == metrics["alignment_gain"]
+    assert metrics["alignment_gain"]["value"] == 0
+
+
+@pytest.mark.parametrize("field", ["diagnostic_family", "intervention_family"])
+def test_substituting_another_registered_family_fails_before_hidden_evaluation(field):
+    fixture = fixture_inputs()
+    first, second, baseline = fixture["lessons"]
+    fixture["lessons"] = (replace(first, **{field: getattr(second, field)}), second, baseline)
+    fixture["baseline"] = lambda *_: pytest.fail("substituted family reached evaluation")
+    with pytest.raises(ValueError, match="family"):
+        compare(**fixture, enabled=True)
+
+
+def test_each_effect_of_one_sealed_report_has_its_own_treatment():
+    from evaluation.causal_records import content_digest
+
+    fixture = fixture_inputs()
+    first, *rest = fixture["lessons"]
+    report = dict(fixture["interventions"][0][1])
+    report.pop("result_digest")
+    report["effective_repairs"] = ["repair", "alternative"]
+    report["effects"] = dict(report["effects"], alternative={"drs": 0.5, "matched_trials": 2})
+    rows = [
+        dict(r, treatment="alternative", intervention=i == 0)
+        for i, r in enumerate(report["observations"])
+    ]
+    report["observations"] = list(report["observations"]) + rows
+    report["result_digest"] = content_digest(report)
+    prior = first.criterion.record
+    assessment = replace(prior.assessments[0], intervention_results=(report["result_digest"],))
+    record = replace(prior, assessments=(assessment,))
+    fixture["diagnostic_families"] += ((content_digest(record.to_dict()), first.diagnostic_family),)
+    criterion = replace(first.criterion, record=record)
+    fixture["lessons"] = (
+        replace(
+            first,
+            criterion=criterion,
+            intervention_report=report["result_digest"],
+            intervention_treatment="alternative",
+            drs=0.5,
+        ),
+        *rest,
+    )
+    receipts = (("alternative", report), ("repair", report), fixture["interventions"][1])
+    forward = compare(**(fixture | {"interventions": receipts}), enabled=True)
+    assert forward == compare(
+        **(fixture | {"interventions": tuple(reversed(receipts))}), enabled=True
+    )
+    wrong = replace(fixture["lessons"][0], intervention_treatment="repair")
+    with pytest.raises(ValueError, match="retained intervention"):
+        compare(**(fixture | {"lessons": (wrong, *rest), "interventions": receipts}), enabled=True)
+
+
+def test_cpu_seed_overflow_fails_at_study_preflight():
+    study = fixture_inputs()["study"]
+    assert replace(study, methods=("ppo",), seeds=(2**64 - 1,)).seeds == (2**64 - 1,)
+    with pytest.raises(ValueError, match="seed"):
+        replace(study, methods=("ppo",), seeds=(2**64,))
+
+
+def test_shipped_generation_limit_reaches_dapo_and_canonical_engine():
+    import json
+    from pathlib import Path
+
+    from evaluation.mdac_comparisons import (
+        TrainingRequest,
+        dapo_training_config,
+        rl_training_config,
+    )
+
+    cfg = json.loads(
+        (Path(__file__).resolve().parents[1] / "configs/mdac/comparison.json").read_text()
+    )
+    cap = cfg["max_training_tokens_per_generation"]
+    request = TrainingRequest(
+        "ppo",
+        13,
+        "local",
+        "fixed",
+        "policy",
+        ("prompt",),
+        1,
+        32,
+        "a" * 64,
+        max_training_tokens_per_generation=cap,
+    )
+    assert (
+        rl_training_config(
+            request, dataset="train", output_dir="out", batch_size=1
+        ).policy.max_new_tokens
+        == cap
+        == 32
+    )
+    pytest.importorskip("torch")
+    dapo = replace(request, method="dapo")
+    assert dapo_training_config(dapo, output_dir="out", batch_size=1).max_new_tokens == cap
+    with pytest.raises(ValueError, match="generation limit"):
+        dapo_training_config(dapo, output_dir="out", batch_size=1, max_new_tokens=cap + 1)

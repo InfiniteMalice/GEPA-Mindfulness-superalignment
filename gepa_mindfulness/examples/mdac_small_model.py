@@ -63,6 +63,8 @@ class LocalOneTokenGRPO:
     def train(self, request: TrainingRequest, targets: tuple[str | None, ...]) -> TrainingRun:
         if request.method != "grpo" or request.model_config_digest != self.config_digest:
             raise ValueError("checkpoint trainer requires its frozen GRPO configuration")
+        if request.max_training_tokens_per_generation != 1:
+            raise ValueError("the one-token smoke requires a one-token generation limit")
         if request.runtime_options != "{}":
             raise ValueError("the one-token smoke uses teacherless GRPO")
         model = (
@@ -122,6 +124,7 @@ class LocalOneTokenGRPO:
             request.digest,
             tokens,
             self.config_digest,
+            1,
         )
 
 

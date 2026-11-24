@@ -1,6 +1,7 @@
 """Split isolation and reproducible reporting through the public entry points."""
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -123,6 +124,10 @@ def event(manifest, kind="measured", run="run1"):
             )
         ],
     )
+
+
+def summarize(manifest, runs):
+    return reporting._summary(manifest, [reporting._validated_run(row, manifest) for row in runs])
 
 
 def test_export_preserves_run_metadata_missingness_cost_and_source_classes(tmp_path):
@@ -278,8 +283,7 @@ def test_intervention_adapter_checks_receipt_and_preserves_paired_uncertainty():
         reporting.intervention_estimates(dict(receipt, planned_blocks=2))
 
 
-def test_packaged_example_and_optional_local_model(tmp_path):
-    import os
+def test_packaged_example(tmp_path):
     from importlib.resources import files
 
     data = json.loads(
@@ -292,6 +296,12 @@ def test_packaged_example_and_optional_local_model(tmp_path):
     assert (
         json.loads(Path(report["summary"]).read_text())["cohorts"]["illustrative"]["run_count"] == 1
     )
+
+
+def test_optional_local_model(tmp_path):
+    import os
+
+    manifest = reporting.SplitManifest.from_dict(manifest_data())
     checkpoint = os.environ.get("MDAC_LOCAL_TEST_MODEL")
     if not checkpoint:
         pytest.skip("set MDAC_LOCAL_TEST_MODEL to export a measured local-model point")
@@ -354,7 +364,7 @@ def test_probability_curves_render_one_series_per_run(name, metric):
     for i, r in enumerate(runs):
         r["round"] = i + 1
         r["estimates"] = [estimate(metric, "cohort", x=x + i / 10) for x in (0.2, 0.8)]
-    rows = reporting._summary(manifest, runs)["cohorts"]["measured"]["metrics"][metric]
+    rows = summarize(manifest, runs)["cohorts"]["measured"]["metrics"][metric]
     ax = Figure().subplots()
     _series(ax, rows, name)
     traces = [line for line in ax.lines if not line.get_label().startswith("_")]
@@ -373,9 +383,7 @@ def test_cross_rl_legend_identifies_evaluation_partition():
     m = reporting.SplitManifest.from_dict(manifest_data())
     training, held_out = event(m, run="development"), event(m, run="audit")
     held_out.update(partition="final_held_out", family_ids=["family-5"])
-    rows = reporting._summary(m, [training, held_out])["cohorts"]["measured"]["metrics"][
-        "alignment"
-    ]
+    rows = summarize(m, [training, held_out])["cohorts"]["measured"]["metrics"]["alignment"]
     ax = Figure().subplots()
     _series(ax, rows, "cross_rl")
     labels = ax.get_legend_handles_labels()[1]
@@ -395,7 +403,7 @@ def test_heatmap_retains_distinct_y_strata_within_a_condition():
         estimate("mechanism_rate", "M01", score, x="long", y=stratum)
         for stratum, score in [("easy", 0.25), ("hard", 0.75)]
     ]
-    rows = reporting._summary(m, [row])["cohorts"]["measured"]["metrics"]["mechanism_rate"]
+    rows = summarize(m, [row])["cohorts"]["measured"]["metrics"]["mechanism_rate"]
     ax = Figure().subplots()
     _heatmap(ax, rows, "failure_heatmap")
     assert sorted(ax.images[0].get_array().compressed().tolist()) == [0.25, 0.75]
@@ -418,7 +426,7 @@ def test_mechanism_trends_do_not_join_different_evaluated_conditions():
         r["estimates"] = [
             estimate("mechanism_rate", "M02", x=("compressed", "original")[i], y="care")
         ]
-    rows = reporting._summary(m, runs)["cohorts"]["measured"]["metrics"]["mechanism_rate"]
+    rows = summarize(m, runs)["cohorts"]["measured"]["metrics"]["mechanism_rate"]
     ax = Figure().subplots()
     _series(ax, rows, "mechanism_trends")
     assert len(ax.lines) == 2
@@ -453,9 +461,106 @@ def test_longitudinal_series_keep_models_with_matching_configurations_distinct()
     runs = [event(m, run="first"), event(m, run="second")]
     for i, r in enumerate(runs):
         r.update(round=i + 1, model=f"model-{i}", estimates=[estimate("mechanism_rate", "M02")])
-    points = reporting._summary(m, runs)["cohorts"]["measured"]["metrics"]["mechanism_rate"]
+    points = summarize(m, runs)["cohorts"]["measured"]["metrics"]["mechanism_rate"]
     assert [r["model"] for r in points] == ["model-0", "model-1"]
     ax = Figure().subplots()
     _series(ax, points, "mechanism_trends")
     assert len(ax.lines) == 2
     assert all(r["model"] in line.get_label() for r, line in zip(points, ax.lines))
+
+
+def test_only_known_shared_trajectories_connect_across_rounds():
+    pytest.importorskip("matplotlib")
+    from matplotlib.figure import Figure
+
+    from evaluation.mdac_report_plots import _series
+
+    m = reporting.SplitManifest.from_dict(manifest_data())
+    runs = []
+    for name, trajectory, step in [
+        ("a", "study1", 0),
+        ("b", "study1", 1),
+        ("c", "study2", 2),
+        ("d", None, 3),
+        ("e", None, 4),
+    ]:
+        run = dict(event(m, run=name), round=step)
+        if trajectory:
+            run["trajectory_id"] = trajectory
+        runs.append(run)
+    points = summarize(m, runs)["cohorts"]["measured"]["metrics"]["mechanism_rate"]
+    ax = Figure().subplots()
+    _series(ax, points, "mechanism_trends")
+    assert [list(line.get_xdata()) for line in ax.lines] == [[0, 1], [2], [3], [4]]
+    assert [line.get_linestyle() for line in ax.lines] == ["-", "None", "None", "None"]
+
+
+def test_cross_rl_distinguishes_checkpoints_with_equal_scores():
+    pytest.importorskip("matplotlib")
+    from matplotlib.figure import Figure
+
+    from evaluation.mdac_report_plots import _series
+
+    m = reporting.SplitManifest.from_dict(manifest_data())
+    rows = [
+        dict(event(m, run=ckpt), checkpoint=ckpt, round=i)
+        for i, ckpt in enumerate(("baseline-xyz", "candidate-abc"))
+    ]
+    points = summarize(m, rows)["cohorts"]["measured"]["metrics"]["alignment"]
+    ax = Figure().subplots()
+    _series(ax, points, "cross_rl")
+    assert {float(x) for line in ax.lines for x in line.get_xdata()} == {0, 1}
+    assert all(
+        any(ckpt in label for label in ax.get_legend_handles_labels()[1])
+        for ckpt in ("baseline-xyz", "candidate-abc")
+    )
+    assert all(
+        any(ckpt in tick.get_text() for tick in ax.get_xticklabels())
+        for ckpt in ("baseline-xyz", "candidate-abc")
+    )
+
+
+def test_extracted_summary_points_retain_canonical_eligibility(tmp_path):
+    from gepa_mindfulness.training.eligibility import require_training_eligible
+
+    m = reporting.SplitManifest.from_dict(manifest_data())
+    rows = [
+        event(m),
+        dict(event(m, run="audit"), partition="final_held_out", family_ids=["family-5"]),
+    ]
+    paths = reporting.export_report(m, rows, tmp_path / "report", enabled=True, plots=False)
+    for points in json.loads(Path(paths["summary"]).read_text())["cohorts"]["measured"][
+        "metrics"
+    ].values():
+        assert [p["training_eligibility"] for p in points] == ["DEVELOPMENT", "HIDDEN_EVAL"]
+        for point in points:
+            with pytest.raises(ValueError, match=point["training_eligibility"]):
+                require_training_eligible(point)
+
+
+def test_cli_reads_exported_jsonl_with_unicode_line_separators(tmp_path, monkeypatch):
+    m = reporting.SplitManifest.from_dict(manifest_data())
+    row = event(m)
+    row["decisions"][0]["reason"] = "first\u2028second\u0085third"
+    original = reporting.export_report(m, [row], tmp_path / "first", enabled=True, plots=False)
+    with Path(original["telemetry"]).open("a") as f:
+        f.write("\n  \n")
+    destination = tmp_path / "second"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "report",
+            "--manifest",
+            original["split"],
+            "--runs",
+            original["telemetry"],
+            "--output",
+            str(destination),
+            "--enabled",
+            "--no-plots",
+        ],
+    )
+    reporting.main()
+    with (destination / "telemetry.jsonl").open() as f:
+        assert json.loads(next(f))["decisions"] == row["decisions"]

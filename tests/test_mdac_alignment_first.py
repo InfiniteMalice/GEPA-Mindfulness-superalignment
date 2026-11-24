@@ -12,6 +12,7 @@ def test_cpu_cycle_runs_trainer_evaluator_allocator_and_governor(tmp_path, order
     result = run_lifecycle(order=order, **inputs, enabled=True)
     assert len(result["rounds"]) == 3
     assert sum(r["samples"] for r in result["rounds"]) == 12
+    assert all(r["max_training_tokens_per_generation"] == 1 for r in result["rounds"])
     case = result["case_interventions"][0]
     source = result["allocation"]["inputs"]["criteria"][0]
     assert source["record"]["assessments"][0]["state"] == "supported"

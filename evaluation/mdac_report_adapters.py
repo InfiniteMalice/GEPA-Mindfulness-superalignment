@@ -60,6 +60,7 @@ class _Receipt:
             schema_version="mdac-telemetry-v1",
             kind=self.kind,
             training_eligibility="HIDDEN_EVAL",
+            trajectory_id=self.digest,
             run_id=f"{self.digest}:{arm}:{method}:{seed}:{step}:{stage}:{partition}",
             arm=arm,
             rl_method=method,
