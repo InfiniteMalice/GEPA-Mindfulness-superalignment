@@ -51,6 +51,7 @@ def _train(request: TrainingRequest) -> TrainingRun:
         request.digest,
         len(request.prompts),
         request.model_config_digest,
+        1,
     )
 
 
@@ -75,6 +76,7 @@ def fixture_inputs(
     assignments = []
     lessons = []
     interventions = []
+    diagnostic_families = []
     for i, (skill, m) in enumerate((("Recall", "M01"), ("Verify", "M02"))):
         drs = 1.0 if i == 0 else 0.5
         # Authored calibration outcomes, kept separate from private evaluation cases.
@@ -86,7 +88,15 @@ def fixture_inputs(
             confers_authority=False,
             budget_exhausted=False,
             effective_repairs=["repair"],
-            observations=pairs,
+            observations=[
+                dict(
+                    treatment="repair",
+                    source_record={"family_id": "cal-" + skill},
+                    control=control,
+                    intervention=repaired,
+                )
+                for control, repaired in pairs
+            ],
             effects={"repair": {"matched_trials": len(pairs), "drs": drs}},
         )
         report["result_digest"] = content_digest(report)
@@ -107,6 +117,9 @@ def fixture_inputs(
             dataset_version=version["dataset_version"],
             evaluator_version=version["evaluator_version"],
         )
+        previous_record = replace(record, diagnostic_id="prior-" + skill)
+        for source_record in (record, previous_record):
+            diagnostic_families.append((content_digest(source_record.to_dict()), "dev-" + skill))
         if i == 0:
 
             def score(ok):
@@ -134,7 +147,7 @@ def fixture_inputs(
             mechanism=m,
             current=score(False),
             previous=score(i == 0),
-            previous_record=replace(record, diagnostic_id="prior-" + skill),
+            previous_record=previous_record,
         )
         lessons.append(
             Lesson(
@@ -147,6 +160,7 @@ def fixture_inputs(
                 source,
                 drs,
                 (("novel_generalization", skill + " an unfamiliar training card."),),
+                intervention_treatment="repair",
             )
         )
         assignments.extend(
@@ -193,6 +207,7 @@ def fixture_inputs(
         lessons=tuple(lessons),
         cases=cases,
         interventions=tuple(interventions),
+        diagnostic_families=tuple(diagnostic_families),
         train=_train,
         baseline=lambda prompt, seed, limit: Completion("unknown", 1),
         grade=grade,

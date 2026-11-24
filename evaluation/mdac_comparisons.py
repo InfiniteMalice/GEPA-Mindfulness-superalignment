@@ -69,6 +69,7 @@ class Study:
     methods: tuple[str, ...] = ("fixture",)
     evidence_kind: str = "cpu_fixture"
     runtime_options: str = "{}"
+    max_training_tokens_per_generation: int = 1
 
     def __post_init__(self) -> None:
         for value in (
@@ -84,6 +85,7 @@ class Study:
         _positive(self.compute_units)
         _positive(self.training_tokens)
         _positive(self.max_eval_tokens_per_case)
+        _positive(self.max_training_tokens_per_generation)
         if (
             type(self.model_config_digest) is not str
             or len(self.model_config_digest) != 64
@@ -92,6 +94,8 @@ class Study:
             raise ValueError("expected a SHA-256 model configuration digest")
         if not self.seeds or any(type(s) is not int or s < 0 for s in self.seeds):
             raise ValueError("study needs nonnegative integer seeds")
+        if self.methods != ("fixture",) and any(s > 2**64 - 1 for s in self.seeds):
+            raise ValueError("RL seeds must fit the unsigned 64-bit generator range")
         if not self.methods or set(self.methods) - set(METHODS):
             raise ValueError("unknown method")
         if len(set(self.seeds)) != len(self.seeds) or len(set(self.methods)) != len(self.methods):
@@ -116,6 +120,7 @@ class Lesson:
     intervention_report: str | None = None
     drs: float | None = None
     variants: tuple[tuple[str, str], ...] = ()
+    intervention_treatment: str | None = None
 
     def __post_init__(self) -> None:
         for value in (self.family, self.prompt, self.category):
@@ -150,7 +155,16 @@ class Lesson:
                 or self.intervention_report not in assessment.intervention_results
             ):
                 raise ValueError("DRS must reference a retained diagnostic intervention")
-        elif self.intervention_report is not None or self.intervention_family is not None:
+            if self.intervention_treatment is not None:
+                _id(self.intervention_treatment)
+        elif any(
+            v is not None
+            for v in (
+                self.intervention_report,
+                self.intervention_family,
+                self.intervention_treatment,
+            )
+        ):
             raise ValueError("intervention fields must travel together")
 
 
@@ -185,6 +199,7 @@ class TrainingRequest:
     training_tokens: int
     model_config_digest: str
     runtime_options: str = "{}"
+    max_training_tokens_per_generation: int = 1
 
     @property
     def digest(self) -> str:
@@ -210,6 +225,7 @@ class TrainingRun:
     request_digest: str
     training_tokens: int
     model_config_digest: str
+    max_training_tokens_per_generation: int
 
 
 @dataclass(frozen=True)
@@ -269,9 +285,12 @@ def summarize(rows: Sequence[Judgment]) -> dict[str, Any]:
     known = [r for r in rows if r.truth is not None]
     assessed = [r for r in rows if r.after.mechanisms is not None]
     scored = [r for r in assessed if r.truth is not None]
-    pairs = [(set(r.truth or ()), set(r.after.mechanisms)) for r in scored]
+    pairs = [(set(r.truth or ()), set(r.after.mechanisms or ())) for r in scored]
     precision = [m in t for t, p in pairs for m in p]
     recall = [m in p for t, p in pairs for m in t]
+    final = [r for r in rows if r.partition == "final_held_out"]
+    ood = [r for r in rows if r.partition == "ood"]
+    pooled_gain = _measure([r.after.alignment - r.before.alignment for r in rows])
     return {
         "diagnostic_precision": _measure(precision),
         "diagnostic_recall": _measure(recall),
@@ -281,17 +300,26 @@ def summarize(rows: Sequence[Judgment]) -> dict[str, Any]:
         "unknown_cause_recovery": _measure([not p for t, p in pairs if not t]),
         "diagnostic_brier": _measure(
             [
-                (r.after.diagnostic_confidence - int(set(r.after.mechanisms) == set(r.truth or ())))
+                (
+                    r.after.diagnostic_confidence
+                    - int(set(r.after.mechanisms or ()) == set(r.truth or ()))
+                )
                 ** 2
                 for r in scored
                 if r.after.diagnostic_confidence is not None
             ]
         ),
-        "alignment_gain": _measure([r.after.alignment - r.before.alignment for r in rows]),
+        "alignment_gain": pooled_gain,
+        "pooled_alignment_gain": pooled_gain,
+        "final_held_out_alignment": _measure([r.after.alignment for r in final]),
+        "final_held_out_alignment_gain": _measure(
+            [r.after.alignment - r.before.alignment for r in final]
+        ),
+        "ood_alignment_gain": _measure([r.after.alignment - r.before.alignment for r in ood]),
         "capability_gain": _measure([r.after.capability - r.before.capability for r in rows]),
         "alignment_regression": _measure([r.after.alignment < r.before.alignment for r in rows]),
         "capability_regression": _measure([r.after.capability < r.before.capability for r in rows]),
-        "ood_alignment": _measure([r.after.alignment for r in rows if r.partition == "ood"]),
+        "ood_alignment": _measure([r.after.alignment for r in ood]),
         "honest_disclosure": _measure(
             [r.after.honest_disclosure for r in rows if r.after.honest_disclosure is not None]
         ),
@@ -303,13 +331,10 @@ def summarize(rows: Sequence[Judgment]) -> dict[str, Any]:
                 (r.after.reward - r.before.reward)
                 - (r.after.verified_behavior - r.before.verified_behavior)
                 for r in rows
-                if None
-                not in (
-                    r.after.reward,
-                    r.before.reward,
-                    r.after.verified_behavior,
-                    r.before.verified_behavior,
-                )
+                if r.after.reward is not None
+                and r.before.reward is not None
+                and r.after.verified_behavior is not None
+                and r.before.verified_behavior is not None
             ]
         ),
         "repair_latency": _measure(
@@ -321,7 +346,9 @@ def summarize(rows: Sequence[Judgment]) -> dict[str, Any]:
         ),
         "mechanism_profile": {
             m: dict(
-                predicted=sum(m in r.after.mechanisms for r in assessed) if assessed else None,
+                predicted=(
+                    sum(m in (r.after.mechanisms or ()) for r in assessed) if assessed else None
+                ),
                 assessed=len(assessed),
                 precision=_measure([m in t for t, p in pairs if m in p]),
                 recall=_measure([m in p for t, p in pairs if m in t]),
@@ -398,6 +425,7 @@ def compare(
     baseline: Predict,
     grade: Callable[[PrivateCase, str], Verdict],
     interventions: tuple[tuple[str, dict[str, Any]], ...] = (),
+    diagnostic_families: tuple[tuple[str, str], ...] = (),
     enabled: bool = False,
 ) -> dict[str, Any]:
     """Evaluate frozen arms on the same private cases after each training callback returns."""
@@ -411,12 +439,44 @@ def compare(
     versions = dict(
         dataset_version=study.dataset_version, evaluator_version=study.evaluator_version
     )
-    retained = dict(intervention_effect(report, treatment) for treatment, report in interventions)
+    registry = dict(diagnostic_families)
+    if len(registry) != len(diagnostic_families):
+        raise ValueError("each diagnostic record must have one registered source family")
+    effects = {}
+    for treatment, report in interventions:
+        digest, drs = intervention_effect(report, treatment)
+        observations = [
+            row
+            for row in report.get("observations", ())
+            if isinstance(row, dict) and row.get("treatment") == treatment
+        ]
+        families = {r.get("source_record", {}).get("family_id") for r in observations}
+        if len(families) != 1 or None in families:
+            raise ValueError("retained calibration treatment must identify one source family")
+        effects[digest, treatment] = (families.pop(), drs)
     for lesson in lessons:
-        if lesson.drs is not None and retained.get(lesson.intervention_report or "") != lesson.drs:
-            raise ValueError("causal weight disagrees with retained intervention evidence")
+        if lesson.drs is not None:
+            treatments = [name for digest, name in effects if digest == lesson.intervention_report]
+            name = lesson.intervention_treatment
+            if name is None and len(treatments) == 1:
+                name = treatments[0]
+            effect = effects.get((lesson.intervention_report or "", name or ""))
+            if not effect or effect[1] != lesson.drs:
+                raise ValueError("causal weight disagrees with retained intervention treatment")
+            if effect[0] != lesson.intervention_family:
+                raise ValueError(
+                    "calibration family differs from retained intervention observations"
+                )
         manifest.require(lesson.family, "training", **versions)
-        if lesson.diagnostic_family:
+        if lesson.diagnostic_family and lesson.criterion:
+            for record in (lesson.criterion.record, lesson.criterion.previous_record):
+                if (
+                    record
+                    and registry.get(content_digest(record.to_dict())) != lesson.diagnostic_family
+                ):
+                    raise ValueError(
+                        "diagnostic family does not match the registered source record"
+                    )
             manifest.require(lesson.diagnostic_family, "diagnostic_development", **versions)
         if lesson.intervention_family:
             manifest.require(lesson.intervention_family, "intervention_calibration", **versions)
@@ -472,18 +532,19 @@ def compare(
             for arm in ARMS:
                 schedule = schedules[seed, arm]
                 selected = [i for i, _ in schedule]
-                prompts = prepared[seed, arm]
+                selected_prompts = prepared[seed, arm]
                 request = TrainingRequest(
                     method,
                     seed,
                     study.checkpoint,
                     study.conditions,
                     study.governance_version,
-                    tuple(prompts),
+                    selected_prompts,
                     study.compute_units,
                     study.training_tokens,
                     study.model_config_digest,
                     study.runtime_options,
+                    study.max_training_tokens_per_generation,
                 )
                 run = train(request)
                 if (
@@ -491,6 +552,9 @@ def compare(
                     or run.start != study.checkpoint
                     or run.request_digest != request.digest
                     or run.model_config_digest != study.model_config_digest
+                    or type(run.max_training_tokens_per_generation) is not int
+                    or run.max_training_tokens_per_generation
+                    != study.max_training_tokens_per_generation
                     or type(run.training_tokens) is not int
                     or run.training_tokens != study.training_tokens
                     or type(run.samples) is not int
@@ -537,6 +601,9 @@ def compare(
                             samples=run.samples,
                             compute_units=run.compute_units,
                             training_tokens=run.training_tokens,
+                            max_training_tokens_per_generation=(
+                                run.max_training_tokens_per_generation
+                            ),
                             evaluation_tokens=sum(item[1] for item in evaluated.values()),
                             baseline_evaluation_tokens=sum(
                                 baselines[seed, c.case_id][1] for c in cases
@@ -596,6 +663,7 @@ def compare(
         dict(
             study=asdict(study),
             split_digest=manifest.digest,
+            diagnostic_registry_digest=content_digest(sorted(diagnostic_families)),
             catalog_digest=content_digest(
                 [
                     dict(
@@ -605,6 +673,7 @@ def compare(
                         criterion=lesson.criterion.to_dict() if lesson.criterion else None,
                         drs=lesson.drs,
                         intervention_report=lesson.intervention_report,
+                        intervention_treatment=lesson.intervention_treatment,
                         variants=lesson.variants,
                         diagnostic_family=lesson.diagnostic_family,
                         intervention_family=lesson.intervention_family,
@@ -664,14 +733,16 @@ def rl_training_config(
     dataset: str,
     output_dir: str,
     batch_size: int,
-    max_new_tokens: int,
+    max_new_tokens: int | None = None,
     device: str = "cpu",
 ) -> RLRunConfig:
     """Build the canonical PPO/GRPO engine configuration for the selected training prompts."""
     if request.method not in ("ppo", "grpo"):
         raise ValueError("DAPO uses the separate dapo_training_config adapter")
     _positive(batch_size)
-    _positive(max_new_tokens)
+    _positive(request.max_training_tokens_per_generation)
+    if max_new_tokens is not None and max_new_tokens != request.max_training_tokens_per_generation:
+        raise ValueError("generation limit differs from the frozen training request")
     if not request.prompts or len(request.prompts) % batch_size:
         raise ValueError("complete equal-sized batches are required")
     options = _engine_options(request.runtime_options)
@@ -680,7 +751,10 @@ def rl_training_config(
         dict(
             **options,
             runtime=dict(backend=backend, device=device),
-            policy=dict(model_name=request.checkpoint, max_new_tokens=max_new_tokens),
+            policy=dict(
+                model_name=request.checkpoint,
+                max_new_tokens=request.max_training_tokens_per_generation,
+            ),
             algorithm=dict(
                 name=request.method,
                 batch_size=batch_size,
@@ -701,7 +775,7 @@ def dapo_training_config(
     *,
     output_dir: str,
     batch_size: int,
-    max_new_tokens: int,
+    max_new_tokens: int | None = None,
 ) -> Any:
     """Compose the repository DAPO hybrid configuration for its optional train_loop."""
     from gepa_mindfulness.trainers.dapo_hybrid_trainer import (
@@ -714,7 +788,9 @@ def dapo_training_config(
     if request.method != "dapo":
         raise ValueError("expected a DAPO training request")
     _positive(batch_size)
-    _positive(max_new_tokens)
+    _positive(request.max_training_tokens_per_generation)
+    if max_new_tokens is not None and max_new_tokens != request.max_training_tokens_per_generation:
+        raise ValueError("generation limit differs from the frozen training request")
     if not request.prompts or len(request.prompts) % batch_size:
         raise ValueError("complete equal-sized batches are required")
     steps = len(request.prompts) // batch_size
@@ -725,7 +801,7 @@ def dapo_training_config(
         steps,
         steps,
         1e-5,
-        max_new_tokens,
+        request.max_training_tokens_per_generation,
         0.7,
         {},
         _build_default_feedback_config(),

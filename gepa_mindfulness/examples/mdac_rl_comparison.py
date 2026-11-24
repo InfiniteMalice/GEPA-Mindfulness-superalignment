@@ -115,6 +115,8 @@ def make_study():
             raise ValueError("trainer requires the registered checkpoint and configuration")
         if request.method not in ("ppo", "grpo") or request.runtime_options != "{}":
             raise ValueError("CPU control supports the frozen teacherless PPO and GRPO methods")
+        if request.max_training_tokens_per_generation != 1:
+            raise ValueError("the one-action CPU control requires a one-token generation limit")
         if any(p not in training_labels for p in request.prompts):
             raise ValueError("unregistered training prompt")
         actor = initial_actor.clone().requires_grad_()
@@ -144,6 +146,7 @@ def make_study():
             request.digest,
             tokens,
             config,
+            1,
         )
 
     def grade(case, response):

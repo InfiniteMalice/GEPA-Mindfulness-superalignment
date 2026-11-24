@@ -19,5 +19,6 @@
   "evidence_kind": "model_backed",
   "training_tokens": 1024,
   "max_eval_tokens_per_case": 32,
+  "max_training_tokens_per_generation": 32,
   "model_config_digest": "5ccf327e1d3d6f6b8d396d5674f514568bda2df6489b621ceb1f752f40781193"
 }
